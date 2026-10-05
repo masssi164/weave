@@ -401,89 +401,96 @@ void main() {
       },
     );
 
-    test('fetches Weave Home through backend facade', () async {
-      late http.BaseRequest capturedRequest;
-      final client = HttpWeaveApiClient(
-        httpClient: _RecordingHttpClient((request) async {
-          capturedRequest = request;
-          return _jsonResponse({
-            'version': 2,
-            'readiness': 'degraded',
-            'summary': 'Weave Home is usable, with setup actions remaining.',
-            'supportSafe': true,
-            'sections': [
-              {
-                'key': 'recent-channels',
-                'title': 'Recent channels',
-                'readiness': 'ready',
-                'summary': 'Project conversations are available.',
-                'itemCount': 1,
-                'accessible': true,
-                'productRoute': 'weave://home/channels',
-              },
-              {
-                'key': 'open-tasks',
-                'title': 'Open tasks',
-                'readiness': 'degraded',
-                'summary': 'Board writes stay gated behind audit.',
-                'itemCount': 0,
-                'accessible': true,
-                'productRoute': 'weave://home/tasks',
-              },
-            ],
-            'actions': [
-              {
-                'key': 'review-open-tasks',
-                'label': 'Review open tasks',
-                'productRoute': 'weave://home/tasks',
-                'reason': 'Board writes stay gated behind audit.',
-              },
-            ],
-            'recentActivity': [
-              _workspaceHomeActivityJson(
-                actorIsCurrentUser: true,
-                activityHash:
-                    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-                actorHash:
-                    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-              ),
-            ],
-          });
-        }),
-      );
+    test(
+      'HOME_USER_API_GENERATED_CLIENT uses generated User Home v3 transport',
+      () async {
+        late http.BaseRequest capturedRequest;
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            capturedRequest = request;
+            return _jsonResponse({
+              'version': 3,
+              'readiness': 'degraded',
+              'summary':
+                  'Some workspace capabilities are unavailable. Retry or contact your administrator.',
+              'supportSafe': true,
+              'sections': [
+                {
+                  'key': 'recent-channels',
+                  'title': 'Recent channels',
+                  'readiness': 'ready',
+                  'summary': 'Project conversations are available.',
+                  'itemCount': null,
+                  'accessible': true,
+                  'productRoute': 'weave://home/channels',
+                },
+                {
+                  'key': 'open-tasks',
+                  'title': 'Open tasks',
+                  'readiness': 'degraded',
+                  'summary': 'Tasks are unavailable for your current access.',
+                  'itemCount': 0,
+                  'accessible': true,
+                  'productRoute': 'weave://home/tasks',
+                },
+              ],
+              'actions': [
+                {
+                  'key': 'review-open-tasks',
+                  'label': 'Review open tasks',
+                  'productRoute': 'weave://home/tasks',
+                  'reason': 'Tasks are unavailable for your current access.',
+                },
+              ],
+              'recentActivity': [
+                _workspaceHomeActivityJson(
+                  actorIsCurrentUser: true,
+                  activityHash:
+                      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                  actorHash:
+                      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                ),
+              ],
+            });
+          }),
+        );
 
-      final snapshot = await client.fetchWorkspaceHome(
-        baseUrl: Uri.parse('https://api.weave.test/api'),
-        accessToken: 'token-123',
-      );
+        final snapshot = await client.fetchWorkspaceHome(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accessToken: 'token-123',
+        );
 
-      expect(
-        capturedRequest.url.toString(),
-        'https://api.weave.test/api/workspace/home',
-      );
-      expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
-      expect(snapshot.supportSafe, isTrue);
-      expect(snapshot.sections.first.key, 'recent-channels');
-      expect(snapshot.sections.first.productRoute, 'weave://home/channels');
-      expect(snapshot.actions.single.productRoute, 'weave://home/tasks');
-      expect(snapshot.recentActivity.single.supportSafe, isTrue);
-      expect(
-        snapshot.recentActivity.single.domain,
-        WorkspaceHomeActivityDomain.files,
-      );
-      expect(
-        snapshot.recentActivity.single.action,
-        WorkspaceHomeActivityAction.filesWebDavWriteCompleted,
-      );
-      expect(snapshot.recentActivity.single.actorIsCurrentUser, isTrue);
-      expect(snapshot.hasActionableWork, isTrue);
-    });
+        expect(
+          capturedRequest.url.toString(),
+          'https://api.weave.test/api/workspace/home',
+        );
+        expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
+        expect(snapshot.version, 3);
+        expect(snapshot.sections.first.itemCount, isNull);
+        expect(snapshot.sections[1].itemCount, 0);
+        expect(snapshot.supportSafe, isTrue);
+        expect(snapshot.sections.first.key, 'recent-channels');
+        expect(snapshot.sections.first.productRoute, 'weave://home/channels');
+        expect(snapshot.actions.single.productRoute, 'weave://home/tasks');
+        expect(snapshot.recentActivity.single.supportSafe, isTrue);
+        expect(
+          snapshot.recentActivity.single.domain,
+          WorkspaceHomeActivityDomain.files,
+        );
+        expect(
+          snapshot.recentActivity.single.action,
+          WorkspaceHomeActivityAction.filesWebDavWriteCompleted,
+        );
+        expect(snapshot.recentActivity.single.actorIsCurrentUser, isTrue);
+        expect(snapshot.hasActionableWork, isTrue);
+      },
+    );
 
     test('rejects unsafe Weave Home provider leakage', () async {
       final client = HttpWeaveApiClient(
         httpClient: _RecordingHttpClient((request) async {
           return _jsonResponse({
-            'version': 2,
+            'version': 3,
             'readiness': 'ready',
             'summary': 'Raw provider URL https://provider.example leaked.',
             'supportSafe': true,
@@ -511,6 +518,7 @@ void main() {
         _workspaceHomeActivityJson(domain: 'provider-files'),
         _workspaceHomeActivityJson(visibility: 'context:private-id'),
         _workspaceHomeActivityJson(occurredAt: '2026-07-12T10:00:00'),
+        _workspaceHomeActivityJson(occurredAt: '2026-07-12'),
         _workspaceHomeActivityJson(supportSafe: false),
       ];
 
@@ -518,7 +526,7 @@ void main() {
         final client = HttpWeaveApiClient(
           httpClient: _RecordingHttpClient((request) async {
             return _jsonResponse({
-              'version': 2,
+              'version': 3,
               'readiness': 'ready',
               'summary': 'Weave Home is ready.',
               'supportSafe': true,
@@ -544,7 +552,7 @@ void main() {
       final client = HttpWeaveApiClient(
         httpClient: _RecordingHttpClient((request) async {
           return _jsonResponse({
-            'version': 2,
+            'version': 3,
             'readiness': 'ready',
             'summary': 'Weave Home is ready.',
             'supportSafe': true,
@@ -559,6 +567,104 @@ void main() {
         () => client.fetchWorkspaceHome(
           baseUrl: Uri.parse('https://api.weave.test/api'),
           accessToken: 'token-123',
+        ),
+        throwsA(isA<AppFailure>()),
+      );
+    });
+
+    test(
+      'Home retains unknown counts and rejects negative counts instead of inventing zero',
+      () async {
+        for (final count in [null, 0, 8, -1]) {
+          final client = HttpWeaveApiClient(
+            httpClient: _RecordingHttpClient(
+              (_) async => _jsonResponse({
+                'version': 3,
+                'readiness': 'ready',
+                'summary': 'Workspace capabilities are available.',
+                'supportSafe': true,
+                'sections': [
+                  {
+                    'key': 'recent-channels',
+                    'title': 'Recent channels',
+                    'readiness': 'ready',
+                    'summary': 'Conversations are available.',
+                    'itemCount': count,
+                    'accessible': true,
+                    'productRoute': 'weave://home/channels',
+                  },
+                ],
+                'actions': [],
+                'recentActivity': [],
+              }),
+            ),
+          );
+          final pending = client.fetchWorkspaceHome(
+            baseUrl: Uri.parse('https://api.weave.test/api'),
+            accessToken: 'member-token',
+          );
+          if (count != null && count < 0) {
+            await expectLater(pending, throwsA(isA<AppFailure>()));
+          } else {
+            final snapshot = await pending;
+            expect(snapshot.sections.single.itemCount, count);
+            expect(snapshot.hasActionableWork, count != null && count > 0);
+          }
+        }
+      },
+    );
+
+    test('Home HTTP failures never expose operator response details', () async {
+      for (final status in [401, 403, 503]) {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient(
+            (_) async => _jsonResponse({
+              'message':
+                  'Configure provider password at https://private.example.test with Bearer unsafe-token',
+            }, statusCode: status),
+          ),
+        );
+        await expectLater(
+          client.fetchWorkspaceHome(
+            baseUrl: Uri.parse('https://api.weave.test/api'),
+            accessToken: 'member-token',
+          ),
+          throwsA(
+            isA<AppFailure>()
+                .having(
+                  (failure) => failure.message,
+                  'support-safe message',
+                  isNot(contains('provider')),
+                )
+                .having(
+                  (failure) => failure.message,
+                  'no raw token',
+                  isNot(contains('unsafe-token')),
+                )
+                .having((failure) => failure.cause, 'status only', status),
+          ),
+        );
+      }
+    });
+
+    test('Home rejects the superseded v2 payload explicitly', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient(
+          (_) async => _jsonResponse({
+            'version': 2,
+            'readiness': 'ready',
+            'summary': 'Old Home snapshot.',
+            'supportSafe': true,
+            'sections': [],
+            'actions': [],
+            'recentActivity': [],
+          }),
+        ),
+      );
+      await expectLater(
+        client.fetchWorkspaceHome(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accessToken: 'member-token',
         ),
         throwsA(isA<AppFailure>()),
       );

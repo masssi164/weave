@@ -89,6 +89,27 @@ class OpenApiDocumentationTest {
     }
 
     @Test
+    void workspaceDiagnosticsAreAdminOnlyAndHomeCountsAreExplicitlyUnknown() throws Exception {
+        mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/workspace/capability-policy']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/workspace/release-readiness']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/admin/workspace/capability-policy']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/admin/workspace/release-readiness']").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.WorkspaceCapabilityPolicyResponse").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.WorkspaceReleaseReadinessResponse").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeSectionResponse.properties.itemCount.type").value(hasItems("integer", "null")))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeSectionResponse.properties.itemCount.minimum").value(0));
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/admin/workspace/capability-policy'].get.operationId").value("capabilityPolicy"))
+                .andExpect(jsonPath("$.paths['/api/admin/workspace/release-readiness'].get.operationId").value("releaseReadiness"))
+                .andExpect(jsonPath("$.paths['/api/admin/workspace/capability-policy'].get.responses['401']").exists())
+                .andExpect(jsonPath("$.paths['/api/admin/workspace/release-readiness'].get.responses['403']").exists())
+                .andExpect(jsonPath("$.paths['/api/workspace/home']").doesNotExist());
+    }
+
+    @Test
     void exportedOperationIdsAreExplicitUniqueAndIdenticalAcrossDocuments() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         JsonNode combined = mapper.readTree(mockMvc.perform(get("/v3/api-docs"))
@@ -262,7 +283,7 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/workspace/capabilities']").exists())
                 .andExpect(jsonPath("$.paths['/api/workspace/home'].get.responses['200'].content['*/*'].schema['$ref']")
                         .value("#/components/schemas/WorkspaceHomeResponse"))
-                .andExpect(jsonPath("$.paths['/api/workspace/release-readiness']").exists())
+                .andExpect(jsonPath("$.paths['/api/workspace/release-readiness']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/admin/providers/status']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/workspace/capabilities']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/workspace/release-readiness']").doesNotExist())

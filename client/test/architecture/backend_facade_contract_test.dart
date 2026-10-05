@@ -186,7 +186,7 @@ void main() {
     },
   );
 
-  test('workspace API DTOs use generated OpenAPI response models', () async {
+  test('workspace API transports use server-generated response models', () async {
     final client = await File(
       'lib/integrations/weave_api/data/services/weave_api_client.dart',
     ).readAsString();
@@ -202,7 +202,13 @@ void main() {
 
     expect(client, contains('openapi.OrganizationManifestResponse.fromJson'));
     expect(client, contains('openapi.WorkspaceCapabilitiesResponse.fromJson'));
-    expect(client, contains('openapi.WorkspaceHomeResponse.fromJson'));
+    expect(client, contains('user_api.WorkspaceApi('));
+    expect(client, contains('client.home()'));
+    expect(client, isNot(contains('openapi.WorkspaceHomeResponse.fromJson')));
+    expect(
+      workspaceHome,
+      contains("package:weave/generated/user_api/api.dart"),
+    );
     for (final source in <String>[
       workspaceCapabilities,
       workspaceHome,

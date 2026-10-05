@@ -100,7 +100,7 @@ void main() {
         ],
       );
       final home = WorkspaceHomeSnapshot(
-        version: 2,
+        version: 3,
         readiness: WorkspaceCapabilityReadiness.ready,
         summary: 'Weave Home is ready.',
         sections: const [],

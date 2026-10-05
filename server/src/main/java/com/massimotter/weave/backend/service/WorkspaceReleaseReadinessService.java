@@ -36,7 +36,7 @@ public class WorkspaceReleaseReadinessService {
         return supportSafeSnapshot();
     }
 
-    WorkspaceReleaseReadinessResponse supportSafeSnapshot() {
+    private WorkspaceReleaseReadinessResponse supportSafeSnapshot() {
         WorkspaceCapabilitiesResponse capabilities = workspaceCapabilityService.snapshot();
 
         List<WorkspaceReleaseReadinessCheckResponse> checks = List.of(
@@ -96,7 +96,7 @@ public class WorkspaceReleaseReadinessService {
                     "chat",
                     "Matrix chat route",
                     readiness,
-                    "The workspace advertises a reachable Matrix route for minimum viable chat.",
+                    "Chat capability configuration is ready. This snapshot does not verify live Matrix operations.",
                     null);
             case DEGRADED -> new WorkspaceReleaseReadinessCheckResponse(
                     "chat",
@@ -127,28 +127,28 @@ public class WorkspaceReleaseReadinessService {
         return switch (readiness) {
             case READY -> new WorkspaceReleaseReadinessCheckResponse(
                     "files",
-                    "Nextcloud files route",
+                    "Files capability configuration",
                     readiness,
-                    "The workspace advertises a reachable Nextcloud route for files.",
+                    "Files capability configuration is ready. Inspect current binding status and operation evidence separately.",
                     null);
             case DEGRADED -> new WorkspaceReleaseReadinessCheckResponse(
                     "files",
-                    "Nextcloud files route",
+                    "Files capability configuration",
                     readiness,
-                    "Files are enabled but no Nextcloud route is configured yet.",
-                    "Set WEAVE_NEXTCLOUD_BASE_URL to the canonical Nextcloud URL, for example https://files.weave.test.");
+                    "Files capability configuration is incomplete or its cached availability is limited.",
+                    "Review Files capability configuration and current binding diagnostics at /api/admin/providers/status.");
             case BLOCKED -> new WorkspaceReleaseReadinessCheckResponse(
                     "files",
-                    "Nextcloud files route",
+                    "Files capability configuration",
                     readiness,
                     "Files depend on shell access, which is currently blocked by the auth contract.",
                     "Fix the first-party auth contract first, then re-check files readiness.");
             case UNAVAILABLE -> new WorkspaceReleaseReadinessCheckResponse(
                     "files",
-                    "Nextcloud files route",
+                    "Files capability configuration",
                     readiness,
                     hasText(dependencyUrl)
-                            ? "Files are disabled even though a Nextcloud route is configured."
+                            ? "Files are disabled even though a dependency is configured."
                             : "Files are disabled for this workspace snapshot.",
                     "Enable WEAVE_WORKSPACE_FILES_ENABLED for the workspace when files should ship.");
         };
@@ -170,9 +170,9 @@ public class WorkspaceReleaseReadinessService {
 
     private String summaryFor(WorkspaceCapabilityReadiness readiness, List<String> actions) {
         return switch (readiness) {
-            case READY -> "workspace dependencies are configured and ready to ship.";
+            case READY -> "Core capability configuration is ready. Live provider operation and release verification are separate.";
             case BLOCKED -> "Workspace readiness is blocked until the first-party auth contract is complete.";
-            case DEGRADED -> "Workspace readiness is partially configured. " + actions.size()
+            case DEGRADED -> "Core capability configuration is incomplete or limited. " + actions.size()
                     + " operator action(s) remain before auth, chat, and files are all ready.";
             case UNAVAILABLE -> "workspace readiness is unavailable.";
         };

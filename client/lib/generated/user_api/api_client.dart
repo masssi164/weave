@@ -436,8 +436,6 @@ class ApiClient {
           return WeaveProject.fromJson(value);
         case 'WorkspaceCapabilitiesResponse':
           return WorkspaceCapabilitiesResponse.fromJson(value);
-        case 'WorkspaceCapabilityPolicyResponse':
-          return WorkspaceCapabilityPolicyResponse.fromJson(value);
         case 'WorkspaceCapabilityStatusResponse':
           return WorkspaceCapabilityStatusResponse.fromJson(value);
         case 'WorkspaceHomeActionResponse':
@@ -448,10 +446,6 @@ class ApiClient {
           return WorkspaceHomeResponse.fromJson(value);
         case 'WorkspaceHomeSectionResponse':
           return WorkspaceHomeSectionResponse.fromJson(value);
-        case 'WorkspaceReleaseReadinessCheckResponse':
-          return WorkspaceReleaseReadinessCheckResponse.fromJson(value);
-        case 'WorkspaceReleaseReadinessResponse':
-          return WorkspaceReleaseReadinessResponse.fromJson(value);
         default:
           dynamic match;
           if (value is List &&

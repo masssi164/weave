@@ -219,6 +219,76 @@ class FirstPartyIdentityContractTest {
                 .andExpect(status().isNotFound());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"admin-console-admin-role", "admin-console-owner-role"})
+    void workspaceDiagnosticsRequireDedicatedAdminSession(String token) throws Exception {
+        mockMvc.perform(get("/api/admin/workspace/capability-policy")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.denyByDefault").value(true))
+                .andExpect(jsonPath("$.supportSafe").value(true));
+        mockMvc.perform(get("/api/admin/workspace/release-readiness")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.checks[0].key").value("auth-contract"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"client-admin-role", "valid-contract", "mcp-workload"})
+    void workspaceDiagnosticsRejectUserAndWorkloadBearers(String token) throws Exception {
+        for (String path : WORKSPACE_DIAGNOSTIC_PATHS) {
+            mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"admin-wrong-org-id", "admin-wrong-org-alias", "admin-multiple-orgs",
+            "admin-missing-org", "admin-conflicting-tenant", "admin-conflicting-fallback", "admin-console-member-role",
+            "admin-console-top-level-role", "admin-console-missing-scope", "admin-malformed-org"})
+    void workspaceDiagnosticsRejectInvalidOrganizationRoleOrScope(String token) throws Exception {
+        for (String path : WORKSPACE_DIAGNOSTIC_PATHS) {
+            mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void workspaceDiagnosticsHaveNoAnonymousAccessOrUserCompatibilityAlias() throws Exception {
+        for (String path : WORKSPACE_DIAGNOSTIC_PATHS) {
+            mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+            mockMvc.perform(get(path.replace("/api/admin/", "/api/"))
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer client-admin-role"))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"valid-contract", "client-admin-role"})
+    void homeNeverReturnsOperatorSetupEvenForAdminRoleOnUserSession(String token) throws Exception {
+        mockMvc.perform(get("/api/workspace/home")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(3))
+                .andExpect(jsonPath("$.sections.length()").value(5))
+                .andExpect(jsonPath("$.sections[*].itemCount").value(org.hamcrest.Matchers.hasSize(5)))
+                .andExpect(jsonPath("$.sections[*].itemCount")
+                        .value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.nullValue())))
+                .andExpect(jsonPath("$.actions[*].reason")
+                        .value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.containsString("organization administrator"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("WEAVE_"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("operator-action-"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/api/admin/"))));
+    }
+
+    private static final List<String> WORKSPACE_DIAGNOSTIC_PATHS = List.of(
+            "/api/admin/workspace/capability-policy", "/api/admin/workspace/release-readiness");
+
     @Test
     void normalizesIssuedForFromClientIdWhenAzpIsAbsent() throws Exception {
         mockMvc.perform(get("/api/me")
@@ -326,9 +396,11 @@ class FirstPartyIdentityContractTest {
     private Jwt decodeAdmin(String tokenValue) {
         Jwt jwt = switch (tokenValue) {
             case "admin-wrong-org-id", "admin-wrong-org-alias", "admin-multiple-orgs",
-                    "admin-missing-org", "admin-conflicting-tenant", "admin-conflicting-fallback" ->
+                    "admin-missing-org", "admin-conflicting-tenant", "admin-conflicting-fallback", "admin-malformed-org" ->
                     jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
                             mismatchedOrganizationClaims(tokenValue, "weave-admin-console"));
+            case "admin-console-missing-scope" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "openid profile",
+                    Map.of("azp", "weave-admin-console", "organization", organizationWithRole("admin")));
             case "admin-console-owner-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
                     Map.of("azp", "weave-admin-console", "organization", organizationWithRole("owner")));
             case "admin-console-member-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
@@ -373,7 +445,8 @@ class FirstPartyIdentityContractTest {
         } else if (token.endsWith("multiple-orgs")) {
             organizations.put("another-alias", organizations.get(alias));
         }
-        if (!token.endsWith("missing-org")) claims.put("organization", organizations);
+        if (!token.endsWith("missing-org")) claims.put("organization",
+                token.endsWith("malformed-org") ? "not-a-native-organization-map" : organizations);
         if (token.endsWith("conflicting-tenant")) claims.put("weave_tenant_id", "other-tenant");
         if (token.endsWith("conflicting-fallback")) claims.put("tenant_id", "other-tenant");
         return claims;

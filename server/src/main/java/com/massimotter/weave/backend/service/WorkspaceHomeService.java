@@ -6,8 +6,6 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.model.WorkspaceHomeActionResponse;
 import com.massimotter.weave.backend.model.WorkspaceHomeResponse;
 import com.massimotter.weave.backend.model.WorkspaceHomeSectionResponse;
-import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessResponse;
-import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -16,150 +14,76 @@ import org.springframework.security.oauth2.jwt.Jwt;
 public class WorkspaceHomeService {
 
     private final WorkspaceCapabilityService workspaceCapabilityService;
-    private final WorkspaceReleaseReadinessService workspaceReleaseReadinessService;
     private final WorkspaceHomeRecentActivityService recentActivityService;
 
     public WorkspaceHomeService(
             WorkspaceCapabilityService workspaceCapabilityService,
-            WorkspaceReleaseReadinessService workspaceReleaseReadinessService,
             WorkspaceHomeRecentActivityService recentActivityService) {
         this.workspaceCapabilityService = workspaceCapabilityService;
-        this.workspaceReleaseReadinessService = workspaceReleaseReadinessService;
         this.recentActivityService = recentActivityService;
     }
 
     public WorkspaceHomeResponse snapshot(Jwt jwt) {
         WorkspaceCapabilitiesResponse capabilities = workspaceCapabilityService.snapshot(jwt);
-        WorkspaceReleaseReadinessResponse releaseReadiness = workspaceReleaseReadinessService.supportSafeSnapshot();
-
+        WorkspaceCapabilityReadiness readiness = memberReadiness(capabilities);
         List<WorkspaceHomeSectionResponse> sections = List.of(
-                section(
-                        "recent-channels",
-                        "Recent channels",
-                        capabilities.chat(),
-                        "Project conversations are available through Weave chat.",
+                section("recent-channels", "Recent channels", "Chat", capabilityReadiness(capabilities.chat()),
                         "weave://home/channels"),
-                section(
-                        "open-tasks",
-                        "Open tasks",
-                        capabilities.boards(),
-                        capabilities.boards().readiness() == WorkspaceCapabilityReadiness.READY
-                                ? "Board tasks are available for accessible non-drag work."
-                                : "Board writes stay gated until the backend facade, authorization, and audit path are ready.",
+                section("open-tasks", "Open tasks", "Tasks", capabilityReadiness(capabilities.boards()),
                         "weave://home/tasks"),
-                section(
-                        "upcoming-meetings",
-                        "Upcoming meetings",
-                        capabilities.calendar(),
-                        capabilities.calendar().readiness() == WorkspaceCapabilityReadiness.READY
-                                ? "Calendar-backed meeting capsules are available."
-                                : "Meeting capsules stay visible but blocked until calendar and media facades are ready.",
+                section("upcoming-meetings", "Upcoming meetings", "Calendar", capabilityReadiness(capabilities.calendar()),
                         "weave://home/meetings"),
-                syntheticSection(
-                        "recent-decisions",
-                        "Recent decisions",
-                        decisionReadiness(capabilities),
-                        "Decision records stay backend-owned and linkable across channels, meetings, files, and tasks.",
+                section("recent-decisions", "Recent decisions", "Decisions", capabilityReadiness(capabilities.decisionsEvidence()),
                         "weave://home/decisions"),
-                syntheticSection(
-                        "workspace-health",
-                        "Workspace health",
-                        releaseReadiness.readiness(),
-                        releaseReadiness.summary(),
+                section("workspace-health", "Workspace health", "Your workspace", readiness,
                         "weave://settings/workspace"));
 
-        List<WorkspaceHomeActionResponse> actions = actions(sections, releaseReadiness);
-        WorkspaceCapabilityReadiness readiness = aggregateReadiness(sections);
         return new WorkspaceHomeResponse(
-                2,
+                3,
                 readiness,
-                summary(readiness, actions),
+                memberSummary("Weave Home", readiness),
                 sections,
-                actions,
+                sections.stream()
+                        .filter(section -> section.readiness() != WorkspaceCapabilityReadiness.READY)
+                        .map(section -> new WorkspaceHomeActionResponse(
+                                "review-" + section.key(),
+                                "Review availability",
+                                section.productRoute(),
+                                section.summary()))
+                        .toList(),
                 recentActivityService.recentActivity(jwt),
                 true);
     }
 
     private WorkspaceHomeSectionResponse section(
-            String key,
-            String title,
-            WorkspaceCapabilityStatusResponse capability,
-            String summary,
-            String productRoute) {
-        WorkspaceCapabilityReadiness readiness = capability.enabled()
-                ? capability.readiness()
-                : WorkspaceCapabilityReadiness.UNAVAILABLE;
-        return syntheticSection(key, title, readiness, summary, productRoute);
-    }
-
-    private WorkspaceHomeSectionResponse syntheticSection(
-            String key,
-            String title,
-            WorkspaceCapabilityReadiness readiness,
-            String summary,
-            String productRoute) {
+            String key, String title, String capability, WorkspaceCapabilityReadiness readiness, String productRoute) {
+        // This projection measures capability availability, not domain item counts.
         return new WorkspaceHomeSectionResponse(
-                key,
-                title,
-                readiness,
-                summary,
-                readiness == WorkspaceCapabilityReadiness.READY ? 1 : 0,
-                true,
-                productRoute);
+                key, title, readiness, memberSummary(capability, readiness), null, true, productRoute);
     }
 
-    private WorkspaceCapabilityReadiness decisionReadiness(WorkspaceCapabilitiesResponse capabilities) {
-        if (capabilities.chat().readiness() == WorkspaceCapabilityReadiness.BLOCKED
-                || capabilities.files().readiness() == WorkspaceCapabilityReadiness.BLOCKED) {
-            return WorkspaceCapabilityReadiness.BLOCKED;
-        }
-        if (capabilities.chat().readiness() == WorkspaceCapabilityReadiness.READY
-                && capabilities.files().readiness() == WorkspaceCapabilityReadiness.READY) {
-            return WorkspaceCapabilityReadiness.DEGRADED;
-        }
-        return WorkspaceCapabilityReadiness.UNAVAILABLE;
+    private WorkspaceCapabilityReadiness capabilityReadiness(WorkspaceCapabilityStatusResponse capability) {
+        return capability.enabled() ? capability.readiness() : WorkspaceCapabilityReadiness.UNAVAILABLE;
     }
 
-    private List<WorkspaceHomeActionResponse> actions(
-            List<WorkspaceHomeSectionResponse> sections,
-            WorkspaceReleaseReadinessResponse releaseReadiness) {
-        List<WorkspaceHomeActionResponse> actions = new ArrayList<>();
-        for (WorkspaceHomeSectionResponse section : sections) {
-            if (section.readiness() == WorkspaceCapabilityReadiness.READY) {
-                continue;
-            }
-            actions.add(new WorkspaceHomeActionResponse(
-                    "review-" + section.key(),
-                    "Review " + section.title().toLowerCase(),
-                    section.productRoute(),
-                    section.summary()));
+    private WorkspaceCapabilityReadiness memberReadiness(WorkspaceCapabilitiesResponse capabilities) {
+        WorkspaceCapabilityReadiness shell = capabilityReadiness(capabilities.shellAccess());
+        if (shell != WorkspaceCapabilityReadiness.READY) {
+            return shell;
         }
-        for (String action : releaseReadiness.actions()) {
-            actions.add(new WorkspaceHomeActionResponse(
-                    "operator-action-" + actions.size(),
-                    "Resolve workspace setup action",
-                    "weave://settings/workspace",
-                    action));
-        }
-        return List.copyOf(actions);
+        // A restricted or unavailable capability does not block the authenticated shell.
+        return List.of(capabilities.chat(), capabilities.files(), capabilities.calendar(), capabilities.boards(),
+                        capabilities.decisionsEvidence())
+                .stream().allMatch(capability -> capabilityReadiness(capability) == WorkspaceCapabilityReadiness.READY)
+                ? WorkspaceCapabilityReadiness.READY : WorkspaceCapabilityReadiness.DEGRADED;
     }
 
-    private WorkspaceCapabilityReadiness aggregateReadiness(List<WorkspaceHomeSectionResponse> sections) {
-        if (sections.stream().anyMatch(section -> section.readiness() == WorkspaceCapabilityReadiness.BLOCKED)) {
-            return WorkspaceCapabilityReadiness.BLOCKED;
-        }
-        if (sections.stream().anyMatch(section -> section.readiness() != WorkspaceCapabilityReadiness.READY)) {
-            return WorkspaceCapabilityReadiness.DEGRADED;
-        }
-        return WorkspaceCapabilityReadiness.READY;
-    }
-
-    private String summary(WorkspaceCapabilityReadiness readiness, List<WorkspaceHomeActionResponse> actions) {
+    private String memberSummary(String capability, WorkspaceCapabilityReadiness readiness) {
         return switch (readiness) {
-            case READY -> "Weave Home is ready for the daily work loop.";
-            case DEGRADED -> "Weave Home is usable, with " + actions.size() + " setup action(s) remaining.";
-            case BLOCKED -> "Weave Home is blocked until required workspace setup is completed.";
-            case UNAVAILABLE -> "Weave Home is unavailable for this workspace.";
+            case READY -> capability + " is available.";
+            case DEGRADED -> capability + " is partially available. Try again later or contact your organization administrator.";
+            case BLOCKED -> capability + " is not available for your account. Contact your organization administrator.";
+            case UNAVAILABLE -> capability + " is unavailable. Contact your organization administrator if you need access.";
         };
     }
 }

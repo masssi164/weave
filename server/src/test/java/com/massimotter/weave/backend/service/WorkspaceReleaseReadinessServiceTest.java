@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class WorkspaceReleaseReadinessServiceTest {
 
     @Test
-    void returnsReadyWhenAuthChatAndFilesAreConfigured() {
+    void reportsConfigurationWithoutClaimingLiveProvidersOrReleaseReadiness() {
         WorkspaceCapabilityService capabilityService = new WorkspaceCapabilityService(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
@@ -45,6 +45,11 @@ class WorkspaceReleaseReadinessServiceTest {
         assertThat(snapshot.readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
         assertThat(snapshot.actions()).isEmpty();
         assertThat(snapshot.checks()).hasSize(3);
+        assertThat(snapshot.summary()).contains("Live provider operation and release verification are separate");
+        assertThat(snapshot.checks().get(1).message()).contains("does not verify live Matrix operations");
+        assertThat(snapshot.checks().get(2).label()).isEqualTo("Files capability configuration");
+        assertThat(snapshot.checks().get(2).message()).contains("Inspect current binding status");
+        assertThat(snapshot.toString()).doesNotContain("Nextcloud", "reachable", "ready to ship");
     }
 
     @Test
@@ -99,7 +104,7 @@ class WorkspaceReleaseReadinessServiceTest {
         assertThat(snapshot.readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
         assertThat(snapshot.actions()).containsExactly(
                 "Set WEAVE_MATRIX_BASE_URL to the southbound Matrix provider URL; clients receive the Weave facade from the API origin.",
-                "Set WEAVE_NEXTCLOUD_BASE_URL to the canonical Nextcloud URL, for example https://files.weave.test.");
+                "Review Files capability configuration and current binding diagnostics at /api/admin/providers/status.");
     }
 
     private Jwt jwt(String role) {

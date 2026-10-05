@@ -12,6 +12,7 @@ import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_client_provider.dart';
 
@@ -66,7 +67,7 @@ final weaveApiWorkspaceHomeProvider = FutureProvider<WorkspaceHomeSnapshot?>((
       baseUrl: baseUrl,
       accessToken: accessToken,
     );
-  });
+  }, confirmCurrentSession: true);
 });
 
 final weaveApiMatrixE2eeDiagnosticProvider =
@@ -92,11 +93,14 @@ final weaveApiOfficeCapabilitiesSnapshotProvider =
 Future<T?> _withWeaveApiSession<T>(
   Ref ref,
   Future<T> Function(WeaveApiClient client, Uri baseUrl, String accessToken)
-  action,
-) async {
+  action, {
+  bool confirmCurrentSession = false,
+}) async {
   // Watch the invalidation signal so explicit invalidations (sign-out,
   // restart-setup, URL change) trigger a re-fetch beyond just config changes.
-  ref.watch(integrationInvalidationProvider(WorkspaceIntegration.weaveBackend));
+  final invalidation = ref.watch(
+    integrationInvalidationProvider(WorkspaceIntegration.weaveBackend),
+  );
 
   final configuration = await ref.watch(
     savedServerConfigurationProvider.future,
@@ -124,11 +128,56 @@ Future<T?> _withWeaveApiSession<T>(
       return null;
     }
 
-    return action(
+    final authConfiguration = AuthConfiguration(
+      issuer: configuration.oidcIssuerUrl,
+      clientId: configuration.oidcClientRegistration.clientId.trim(),
+    );
+    if (confirmCurrentSession && !session.matches(authConfiguration)) {
+      throw const AppFailure.unknown('The Weave session changed. Reload Home.');
+    }
+    final result = await action(
       ref.read(weaveApiClientProvider),
       configuration.serviceEndpoints.backendApiBaseUrl,
       session.accessToken,
     );
+    if (confirmCurrentSession) {
+      if (!ref.mounted) {
+        throw const AppFailure.unknown(
+          'The Weave session changed. Reload Home.',
+        );
+      }
+      final currentConfiguration = await ref
+          .read(serverConfigurationRepositoryProvider)
+          .loadConfiguration();
+      if (!ref.mounted) {
+        throw const AppFailure.unknown(
+          'The Weave session changed. Reload Home.',
+        );
+      }
+      final currentAuth = await ref
+          .read(authSessionRepositoryProvider)
+          .restoreSession(authConfiguration);
+      if (!ref.mounted ||
+          ref.read(
+                integrationInvalidationProvider(
+                  WorkspaceIntegration.weaveBackend,
+                ),
+              ) !=
+              invalidation ||
+          currentConfiguration?.serviceEndpoints.backendApiBaseUrl !=
+              configuration.serviceEndpoints.backendApiBaseUrl ||
+          currentConfiguration?.oidcIssuerUrl != configuration.oidcIssuerUrl ||
+          currentConfiguration?.oidcClientRegistration.clientId.trim() !=
+              authConfiguration.clientId ||
+          !currentAuth.isAuthenticated ||
+          currentAuth.session?.matches(authConfiguration) != true ||
+          currentAuth.session?.accessToken != session.accessToken) {
+        throw const AppFailure.unknown(
+          'The Weave session changed. Reload Home.',
+        );
+      }
+    }
+    return result;
   } on AuthFailure {
     // Treat an OIDC session-restore failure as backend-unauthorised so
     // weaveBackendConnectionStateProvider can surface the right state.

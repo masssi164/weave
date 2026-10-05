@@ -66,56 +66,6 @@ class WorkspaceApi {
     return null;
   }
 
-  /// Get workspace capability policy
-  ///
-  /// Returns an admin/operator support-safe snapshot of IDM role/group intake, profile mapping, deny-by-default posture, and Weaver-disabled-by-default policy state.
-  ///
-  /// Note: This method returns the HTTP [Response].
-  Future<Response> capabilityPolicyWithHttpInfo() async {
-    // ignore: prefer_const_declarations
-    final path = r'/api/workspace/capability-policy';
-
-    // ignore: prefer_final_locals
-    Object? postBody;
-
-    final queryParams = <QueryParam>[];
-    final headerParams = <String, String>{};
-    final formParams = <String, String>{};
-
-    const contentTypes = <String>[];
-
-    return apiClient.invokeAPI(
-      path,
-      'GET',
-      queryParams,
-      postBody,
-      headerParams,
-      formParams,
-      contentTypes.isEmpty ? null : contentTypes.first,
-    );
-  }
-
-  /// Get workspace capability policy
-  ///
-  /// Returns an admin/operator support-safe snapshot of IDM role/group intake, profile mapping, deny-by-default posture, and Weaver-disabled-by-default policy state.
-  Future<WorkspaceCapabilityPolicyResponse?> capabilityPolicy() async {
-    final response = await capabilityPolicyWithHttpInfo();
-    if (response.statusCode >= HttpStatus.badRequest) {
-      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
-    }
-    // When a remote server returns no body with a status of 204, we shall not decode it.
-    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
-    // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty &&
-        response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(
-        await _decodeBodyBytes(response),
-        'WorkspaceCapabilityPolicyResponse',
-      ) as WorkspaceCapabilityPolicyResponse;
-    }
-    return null;
-  }
-
   /// Get Weave Home daily-work snapshot
   ///
   /// Returns the backend-owned, support-safe daily work loop consumed by Weave Home.
@@ -212,56 +162,6 @@ class WorkspaceApi {
         await _decodeBodyBytes(response),
         'OrganizationManifestResponse',
       ) as OrganizationManifestResponse;
-    }
-    return null;
-  }
-
-  /// Get workspace readiness
-  ///
-  /// Returns an operator-facing snapshot of the backend-owned core dependencies and remaining setup actions.
-  ///
-  /// Note: This method returns the HTTP [Response].
-  Future<Response> releaseReadinessWithHttpInfo() async {
-    // ignore: prefer_const_declarations
-    final path = r'/api/workspace/release-readiness';
-
-    // ignore: prefer_final_locals
-    Object? postBody;
-
-    final queryParams = <QueryParam>[];
-    final headerParams = <String, String>{};
-    final formParams = <String, String>{};
-
-    const contentTypes = <String>[];
-
-    return apiClient.invokeAPI(
-      path,
-      'GET',
-      queryParams,
-      postBody,
-      headerParams,
-      formParams,
-      contentTypes.isEmpty ? null : contentTypes.first,
-    );
-  }
-
-  /// Get workspace readiness
-  ///
-  /// Returns an operator-facing snapshot of the backend-owned core dependencies and remaining setup actions.
-  Future<WorkspaceReleaseReadinessResponse?> releaseReadiness() async {
-    final response = await releaseReadinessWithHttpInfo();
-    if (response.statusCode >= HttpStatus.badRequest) {
-      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
-    }
-    // When a remote server returns no body with a status of 204, we shall not decode it.
-    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
-    // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty &&
-        response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(
-        await _decodeBodyBytes(response),
-        'WorkspaceReleaseReadinessResponse',
-      ) as WorkspaceReleaseReadinessResponse;
     }
     return null;
   }

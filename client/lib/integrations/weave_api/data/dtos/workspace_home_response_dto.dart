@@ -1,13 +1,12 @@
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
-import 'package:weave/generated/openapi_models.dart' as openapi;
-import 'package:weave/integrations/weave_api/data/dtos/workspace_capabilities_response_dto.dart';
+import 'package:weave/generated/user_api/api.dart' as openapi;
 
 extension WorkspaceHomeResponseMapper on openapi.WorkspaceHomeResponse {
   WorkspaceHomeSnapshot toSnapshot() {
     final responseVersion = _requiredInt(version, 'version');
-    if (responseVersion != 2) {
+    if (responseVersion != 3) {
       throw const AppFailure.unknown(
         'The backend returned an unsupported Weave Home payload version.',
       );
@@ -30,7 +29,7 @@ extension WorkspaceHomeResponseMapper on openapi.WorkspaceHomeResponse {
 
     return WorkspaceHomeSnapshot(
       version: responseVersion,
-      readiness: _parseReadiness(_requiredText(readiness, 'readiness')),
+      readiness: _parseReadiness(_requiredText(readiness?.value, 'readiness')),
       summary: _supportSafeText(_requiredText(summary, 'summary')),
       sections: _requiredList(
         sections,
@@ -60,13 +59,15 @@ extension WorkspaceHomeRecentActivityResponseMapper
         field: 'activityRef',
         pattern: RegExp(r'^activity:sha256:[0-9a-f]{64}$'),
       ),
-      domain: _activityDomain(_requiredText(domain, 'recentActivity.domain')),
+      domain: _activityDomain(
+        _requiredText(domain?.value, 'recentActivity.domain'),
+      ),
       action: _activityAction(_requiredText(action, 'recentActivity.action')),
       occurredAt: _activityTimestamp(
-        _requiredText(occurredAt, 'recentActivity.occurredAt'),
+        _required(occurredAt, 'recentActivity.occurredAt'),
       ),
       visibility: _activityVisibility(
-        _requiredText(visibility, 'recentActivity.visibility'),
+        _requiredText(visibility?.value, 'recentActivity.visibility'),
       ),
       actorRefHash: _opaqueReference(
         _requiredText(actorRefHash, 'recentActivity.actorRefHash'),
@@ -88,11 +89,11 @@ extension WorkspaceHomeSectionResponseMapper
     return WorkspaceHomeSection(
       key: _supportSafeText(_requiredText(key, 'section.key')),
       title: _supportSafeText(_requiredText(title, 'section.title')),
-      readiness: _parseReadiness(_requiredText(readiness, 'section.readiness')),
+      readiness: _parseReadiness(
+        _requiredText(readiness?.value, 'section.readiness'),
+      ),
       summary: _supportSafeText(_requiredText(summary, 'section.summary')),
-      itemCount: (_requiredInt(itemCount, 'section.itemCount')) < 0
-          ? 0
-          : itemCount!,
+      itemCount: _knownItemCount(itemCount),
       accessible: _requiredBool(accessible, 'section.accessible'),
       productRoute: _productRoute(
         _requiredText(productRoute, 'section.productRoute'),
@@ -129,19 +130,32 @@ bool _requiredBool(bool? value, String field) => _required(value, field);
 List<T> _requiredList<T>(List<T>? value, String field) =>
     _required(value, field);
 
-WorkspaceCapabilityReadiness _parseReadiness(String rawValue) {
-  return openapi.WorkspaceCapabilityStatusResponse(
-    enabled: true,
-    readiness: rawValue,
-  ).toCapabilityState(WorkspaceCapability.shellAccess).readiness;
+int? _knownItemCount(int? value) {
+  if (value != null && value < 0) {
+    throw const AppFailure.unknown(
+      'The backend returned an invalid Home count.',
+    );
+  }
+  return value;
 }
+
+WorkspaceCapabilityReadiness _parseReadiness(String rawValue) =>
+    switch (rawValue) {
+      'ready' => WorkspaceCapabilityReadiness.ready,
+      'degraded' => WorkspaceCapabilityReadiness.degraded,
+      'blocked' => WorkspaceCapabilityReadiness.blocked,
+      'unavailable' => WorkspaceCapabilityReadiness.unavailable,
+      _ => throw const AppFailure.unknown(
+        'The backend returned an unknown Home readiness.',
+      ),
+    };
 
 String _productRoute(String value) {
   final trimmed = _supportSafeText(value);
   if (!trimmed.startsWith('weave://')) {
-    throw AppFailure.unknown(
+    throw const AppFailure.unknown(
       'The backend returned an unsafe Weave Home product route.',
-      cause: value,
+      cause: 'Rejected unsafe Home field.',
     );
   }
   return trimmed;
@@ -165,9 +179,9 @@ String _supportSafeText(String value) {
     'http://',
   ];
   if (forbidden.any(lower.contains)) {
-    throw AppFailure.unknown(
+    throw const AppFailure.unknown(
       'The backend returned an unsafe Weave Home text field.',
-      cause: value,
+      cause: 'Rejected unsafe Home field.',
     );
   }
   return trimmed;
@@ -216,12 +230,11 @@ WorkspaceHomeActivityVisibility _activityVisibility(String value) {
   };
 }
 
-DateTime _activityTimestamp(String value) {
-  final parsed = DateTime.tryParse(value.trim());
-  if (parsed == null || !parsed.isUtc) {
+DateTime _activityTimestamp(DateTime value) {
+  if (!value.isUtc) {
     throw const AppFailure.unknown(
       'The backend returned an invalid Weave Home activity timestamp.',
     );
   }
-  return parsed;
+  return value;
 }

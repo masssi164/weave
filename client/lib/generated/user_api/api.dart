@@ -148,14 +148,11 @@ part 'model/task_item.dart';
 part 'model/update_product_profile_request.dart';
 part 'model/weave_project.dart';
 part 'model/workspace_capabilities_response.dart';
-part 'model/workspace_capability_policy_response.dart';
 part 'model/workspace_capability_status_response.dart';
 part 'model/workspace_home_action_response.dart';
 part 'model/workspace_home_recent_activity_response.dart';
 part 'model/workspace_home_response.dart';
 part 'model/workspace_home_section_response.dart';
-part 'model/workspace_release_readiness_check_response.dart';
-part 'model/workspace_release_readiness_response.dart';
 
 /// An [ApiClient] instance that uses the default values obtained from
 /// the OpenAPI specification file.

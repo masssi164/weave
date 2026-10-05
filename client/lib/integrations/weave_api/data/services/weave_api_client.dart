@@ -9,6 +9,8 @@ import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart'
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
 import 'package:weave/generated/openapi_models.dart' as openapi;
+import 'package:weave/generated/user_api/api.dart' as user_api;
+import 'package:weave/integrations/weave_api/data/services/weave_user_api_client.dart';
 import 'package:weave/integrations/weave_api/data/dtos/organization_manifest_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/dtos/platform_status_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/dtos/provider_stack_openapi_mappers.dart';
@@ -148,16 +150,43 @@ class HttpWeaveApiClient implements WeaveApiClient {
     required Uri baseUrl,
     required String accessToken,
   }) async {
-    final payload = await _getJson(
-      requestUri: _workspaceHomeUri(baseUrl),
-      accessToken: accessToken,
-      failureMessage: 'The Weave backend failed to return Weave Home.',
-      invalidPayloadMessage:
-          'The Weave backend returned an invalid Weave Home payload.',
-      decodeFailureMessage: 'Unable to decode Weave Home from the backend.',
+    final client = user_api.WorkspaceApi(
+      weaveUserApiClient(
+        apiBaseUrl: baseUrl,
+        accessToken: accessToken,
+        httpClient: _httpClient,
+      ),
     );
-
-    return openapi.WorkspaceHomeResponse.fromJson(payload).toSnapshot();
+    try {
+      final response = await client.home().timeout(const Duration(seconds: 5));
+      if (response == null) {
+        throw const AppFailure.unknown(
+          'The backend returned no Weave Home snapshot.',
+        );
+      }
+      return response.toSnapshot();
+    } on user_api.ApiException catch (error) {
+      if (error.code == 401 || error.code == 403) {
+        throw AppFailure.unknown(
+          'The Weave backend rejected the current session.',
+          cause: error.code,
+        );
+      }
+      throw AppFailure.unknown(
+        'Weave Home could not be loaded right now.',
+        cause: error.code,
+      );
+    } on AppFailure {
+      rethrow;
+    } on TimeoutException {
+      throw const AppFailure.unknown(
+        'Unable to reach the Weave backend right now.',
+      );
+    } catch (_) {
+      throw const AppFailure.unknown(
+        'Weave Home could not be loaded right now.',
+      );
+    }
   }
 
   @override
@@ -373,10 +402,6 @@ class HttpWeaveApiClient implements WeaveApiClient {
 
   Uri _workspaceCapabilitiesUri(Uri baseUrl) {
     return weaveApiUri(baseUrl, const ['workspace', 'capabilities']);
-  }
-
-  Uri _workspaceHomeUri(Uri baseUrl) {
-    return weaveApiUri(baseUrl, const ['workspace', 'home']);
   }
 
   Uri _platformStatusUri(Uri baseUrl) {
