@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.service.calendar;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.*;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
@@ -19,6 +20,7 @@ import java.time.Instant;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -111,6 +113,21 @@ class CalendarUserApiServiceTest {
         service.delete(member, calendar, created.id(), updated.version());
         verify(provider).delete(any(), eq(CalendarScope.workspace()), any(), eq(new EventVersion("\"private-etag-2\"")));
         assertThat(mappings.values()).allSatisfy(mapping -> assertThat(mapping.providerObjectRef()).doesNotContain("\0"));
+    }
+
+    @Test
+    void replayAuditsEachWriteAttemptWithItsOwnDurableIdempotencyKey() {
+        WriteRequest input = content("Planning");
+        Event created = service.create(member, calendar, input, "calendar-create-key-1");
+        assertThat(service.create(member, calendar, input, "calendar-create-key-1")).isEqualTo(created);
+
+        ArgumentCaptor<AuditEvent> attempts = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(audit, times(2)).publish(attempts.capture());
+        assertThat(attempts.getAllValues()).extracting(AuditEvent::idempotencyKey).doesNotHaveDuplicates();
+        assertThat(attempts.getAllValues()).allSatisfy(event -> {
+            assertThat(event.action()).isEqualTo(com.massimotter.weave.backend.audit.AuditAction.CALENDAR_EVENT_WRITE_ATTEMPTED);
+            assertThat(event.tenantId()).isEqualTo("tenant-default");
+        });
     }
 
     @Test
