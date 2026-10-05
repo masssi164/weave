@@ -87,6 +87,10 @@ after the isolated Server/PostgreSQL restart. The suite independently compares e
 bytes and revision changes instead of treating generated models as the behavioral
 oracle. Its only cleanup requirement is teardown of the disposable Compose namespace
 and exact volumes because the User Files API does not yet offer deletion or sharing.
+The native Files adapter may advertise identity-bound conditional content update only
+when its metadata authority atomically compares the same organization, Space, object
+ID, path and strong provider version before activating replacement bytes. A stale or
+replaced object fails without changing the active mapping or serving changed content.
 
 The product acceptance evidence must report the generated User Files northbound
 surface. Public WebDAV/CalDAV probes may remain in separately named compatibility

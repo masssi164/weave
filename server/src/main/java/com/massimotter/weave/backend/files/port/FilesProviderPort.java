@@ -92,6 +92,12 @@ public interface FilesProviderPort {
         throw new UnsupportedOperationException("conditional Files update is unsupported by this provider");
     }
 
+    /** Atomic replacement of the exact expected object and strong provider version. */
+    default FileObject writeIfIdAndVersion(
+            FileId expectedId, FileWrite write, FileVersion expectedVersion) {
+        throw new UnsupportedOperationException("identity-bound conditional Files update is unsupported");
+    }
+
     default boolean supportsConditionalWrite() {
         return false;
     }

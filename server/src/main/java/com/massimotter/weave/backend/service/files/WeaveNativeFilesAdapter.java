@@ -241,6 +241,15 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         }
     }
 
+    private FileObject writeIfIdAndVersion(FilesRequestScope scope, FileId expectedId,
+            FileWrite write, FileVersion expectedVersion) {
+        try {
+            return commands.writeIfIdAndVersion(commandScope(scope), expectedId, write, expectedVersion);
+        } catch (FilesCommandException exception) {
+            throw commandFailure(exception);
+        }
+    }
+
     private FileObject createCollection(FilesRequestScope scope, FilePath path) {
         try {
             return commands.createCollection(commandScope(scope), path);
@@ -329,13 +338,13 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
     }
 
     private ApiErrorException commandFailure(FilesCommandException exception) {
-        String code = switch (exception.code()) {
-            case PATH_CONFLICT -> "files-native-path-conflict";
-            case PARENT_MISSING -> "files-native-parent-missing";
-            case PARENT_NOT_COLLECTION -> "files-native-parent-not-collection";
-            case METADATA_CONFLICT -> "files-native-metadata-conflict";
+        return switch (exception.code()) {
+            case PATH_CONFLICT -> conflict("files-native-path-conflict", exception.getMessage());
+            case PARENT_MISSING -> conflict("files-native-parent-missing", exception.getMessage());
+            case PARENT_NOT_COLLECTION -> conflict("files-native-parent-not-collection", exception.getMessage());
+            case METADATA_CONFLICT -> conflict("files-native-metadata-conflict", exception.getMessage());
+            case VERSION_CHANGED -> precondition(exception.getMessage());
         };
-        return conflict(code, exception.getMessage());
     }
 
     private ApiErrorException treeFailure(
@@ -429,7 +438,9 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         @Override public boolean supportsIdentityBoundConditionalRead() { return true; }
         @Override public FileObject write(FileWrite write) { return WeaveNativeFilesAdapter.this.write(scope, write); }
         @Override public CreatedObject writeIfAbsent(FileWrite write) { return WeaveNativeFilesAdapter.this.writeIfAbsent(scope, write); }
+        @Override public FileObject writeIfIdAndVersion(FileId expectedId, FileWrite write, FileVersion version) { return WeaveNativeFilesAdapter.this.writeIfIdAndVersion(scope, expectedId, write, version); }
         @Override public boolean supportsConditionalWrite() { return true; }
+        @Override public boolean supportsIdentityBoundConditionalWrite() { return true; }
         @Override public FileObject createCollection(FilePath path) { return WeaveNativeFilesAdapter.this.createCollection(scope, path); }
         @Override public CreatedObject createCollectionIfAbsent(FilePath path) { return WeaveNativeFilesAdapter.this.createCollectionIfAbsent(scope, path); }
         @Override public boolean supportsAtomicCollectionCreate() { return true; }
