@@ -48,11 +48,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(
-        controllers = WorkspaceController.class,
+        controllers = {WorkspaceController.class, AdminWorkspaceController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
         OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
+        com.massimotter.weave.backend.config.AdminApiSecurityConfiguration.class,
         WorkspaceCapabilityService.class,
         OrganizationManifestService.class,
         WorkspaceReleaseReadinessService.class,
@@ -85,8 +86,20 @@ class WorkspaceControllerTest {
     @Autowired
     private OAuth2ResourceServerProperties resourceServerProperties;
 
-    @MockitoBean
+    @MockitoBean(name = "jwtDecoder")
     private JwtDecoder jwtDecoder;
+
+    @org.springframework.boot.test.context.TestConfiguration
+    static class UserDecoderConfiguration {
+        @org.springframework.context.annotation.Bean
+        @org.springframework.context.annotation.Primary
+        JwtDecoder jwtDecoder() {
+            return org.mockito.Mockito.mock(JwtDecoder.class);
+        }
+    }
+
+    @MockitoBean(name = "adminApiJwtDecoder")
+    private JwtDecoder adminApiJwtDecoder;
 
     @MockitoBean
     private AuditEventPublisher auditEventPublisher;
@@ -239,20 +252,18 @@ class WorkspaceControllerTest {
 
     @Test
     void operatorCanReadReleaseReadinessSnapshot() throws Exception {
-        assertReleaseReadinessSnapshot("/api/workspace/release-readiness");
+        assertReleaseReadinessSnapshot("/api/admin/workspace/release-readiness");
     }
 
     @Test
     void releaseReadinessRejectsMembersWithoutAdminReadinessCapability() throws Exception {
-        mockMvc.perform(get("/api/workspace/release-readiness").with(jwt()
+        mockMvc.perform(get("/api/admin/workspace/release-readiness").with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
-                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
-                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
+                .andExpect(jsonPath("$.code").value("forbidden"));
     }
 
     @Test
@@ -300,7 +311,7 @@ class WorkspaceControllerTest {
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.version").value(2))
+                .andExpect(jsonPath("$.version").value(3))
                 .andExpect(jsonPath("$.recentActivity.length()").value(1))
                 .andExpect(jsonPath("$.recentActivity[0].activityRef").value(org.hamcrest.Matchers.matchesPattern(
                         "activity:sha256:[0-9a-f]{64}")))
@@ -342,7 +353,7 @@ class WorkspaceControllerTest {
 
     @Test
     void returnsAdminCapabilityPolicySnapshot() throws Exception {
-        mockMvc.perform(get("/api/workspace/capability-policy").with(jwt()
+        mockMvc.perform(get("/api/admin/workspace/capability-policy").with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("admin")))
@@ -360,15 +371,13 @@ class WorkspaceControllerTest {
 
     @Test
     void rejectsCapabilityPolicyForMembers() throws Exception {
-        mockMvc.perform(get("/api/workspace/capability-policy").with(jwt()
+        mockMvc.perform(get("/api/admin/workspace/capability-policy").with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
-                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
-                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
+                .andExpect(jsonPath("$.code").value("forbidden"));
     }
 
     @Test
@@ -389,7 +398,7 @@ class WorkspaceControllerTest {
         mockMvc.perform(get("/api/workspace/capabilities"))
                 .andExpect(status().isUnauthorized());
 
-        mockMvc.perform(get("/api/workspace/release-readiness"))
+        mockMvc.perform(get("/api/admin/workspace/release-readiness"))
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/api/workspace/home"))
@@ -438,8 +447,11 @@ class WorkspaceControllerTest {
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.version").value(2))
+                .andExpect(jsonPath("$.version").value(3))
                 .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.sections[*].itemCount").value(org.hamcrest.Matchers.hasSize(5)))
+                .andExpect(jsonPath("$.sections[*].itemCount").value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.nullValue())))
+                .andExpect(jsonPath("$.sections[0].summary").value("Chat is available."))
                 .andExpect(jsonPath("$.sections[0].key").value("recent-channels"))
                 .andExpect(jsonPath("$.sections[0].productRoute").value("weave://home/channels"))
                 .andExpect(jsonPath("$.sections[1].key").value("open-tasks"))

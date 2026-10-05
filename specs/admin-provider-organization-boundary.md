@@ -84,6 +84,55 @@ organization. This fix preserves existing data and does not implement provider m
 
 ## Validation and integration
 
+### Workspace diagnostics and member Home (#1472)
+
+- `GET /api/admin/workspace/capability-policy` and
+  `GET /api/admin/workspace/release-readiness` retain operation IDs
+  `capabilityPolicy` and `releaseReadiness`. They require the dedicated Admin
+  audience/client, current configured organization, selected owner/admin role,
+  workspace scope and existing `admin_control_plane.readiness_read` capability.
+  The former `/api/workspace/` diagnostic routes have no compatibility aliases.
+- The Admin readiness response describes the existing configuration/cached
+  capability projection. It must not claim live provider verification or release
+  eligibility, or assume that Files uses Nextcloud. Operator remediation remains
+  available here; current binding diagnostics remain at `/api/admin/providers/status`.
+- Member Home uses the requesting member's capability projection and independently
+  authorized recent activity. It does not call operator readiness or return provider
+  setup, environment variables, adapter names or operator instructions, including
+  when the member's User session carries an owner/admin role. A limited capability
+  does not block the otherwise authorized Home shell. Member remediation is limited
+  to retrying the affected capability or contacting the organization administrator.
+- Home response version 3 represents an unmeasured section `itemCount` as nullable
+  integer, never a synthetic zero or one derived from capability availability.
+  Existing section keys and navigation references remain stable. Activity records
+  are still filtered by current Context/Space authorization; they do not imply a
+  measured count for unrelated sections.
+- Focused HTTP evidence must cover Admin owner/admin success, User-session admin,
+  member, workload, anonymous and foreign/malformed organization denial; absence of
+  former aliases; User/Admin OpenAPI partition and stable operation IDs; and member
+  Home readiness, unknown counts and absence of operator/provider diagnostics.
+  Decoder tests retain signed-token audience/client validation. Integration regenerates
+  consumers and updates their nullable-count/version handling before merge.
+
+Local evidence for this bounded correction:
+
+- `:server:test --tests '*WorkspaceControllerTest' --tests '*WorkspaceHomeServiceTest'
+  --tests '*WorkspaceReleaseReadinessServiceTest' --tests '*FirstPartyIdentityContractTest'
+  --tests '*JwtDecoderConfigTest' --tests '*OpenApiDocumentationTest'` passed 99 tests
+  with zero failures, errors or skips (87 selected Jupiter tests plus 12 existing
+  Cucumber scenarios discovered by the standard task).
+- `specCorpusConformance` passed against pinned corpus `3b27ad2`; `docsStructureCheck`
+  and `git diff --check` passed. HTTP tests exercise the real security chains and
+  existing validator-backed decoder fixtures; separate decoder tests use signed JWTs.
+- OpenAPI metadata checks confirm the two unchanged operation IDs in Admin only and
+  the Home count schema's `integer | null` type with minimum zero. Member HTTP tests
+  assert five explicit null counts, version 3, no operator setup strings and current
+  Context/Space activity filtering. A denied Decisions capability stays denied even
+  when Chat and Files are ready; a limited capability does not block an authorized shell.
+- These focused checks do not replace generated-consumer, integrated browser/Admin
+  or post-merge verification. Integration also updates the former readiness path in
+  `server/docs/release-operations.md` and the Home consumer's version/count handling.
+
 Exercise current-org owner/admin success; User-session admin and MCP rejection;
 wrong ID/alias, missing/multiple native organizations, inconsistent tenant claims
 and unconfigured admission denial; bootstrap reconciliation; Admin-only OpenAPI

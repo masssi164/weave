@@ -5,7 +5,7 @@ import java.util.List;
 
 @Schema(description = "Backend-owned Weave Home snapshot for the daily work loop.")
 public record WorkspaceHomeResponse(
-        @Schema(description = "Stable schema version for client compatibility.", example = "1")
+        @Schema(description = "Stable schema version for client compatibility.", example = "3")
         int version,
         @Schema(description = "Overall readiness of the daily work loop.")
         WorkspaceCapabilityReadiness readiness,
