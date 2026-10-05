@@ -3257,6 +3257,138 @@
           }
         },
         "type": "object"
+      },
+      "WorkspaceCapabilityPolicyResponse": {
+        "description": "Admin/operator support-safe capability policy snapshot.",
+        "properties": {
+          "agentRuntimeControlPosture": {
+            "type": "string"
+          },
+          "denyByDefault": {
+            "type": "boolean"
+          },
+          "federationContract": {
+            "type": "string"
+          },
+          "grantedCapabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "platformIdentityAuthority": {
+            "type": "string"
+          },
+          "platformIdentityCategory": {
+            "type": "string"
+          },
+          "principalSource": {
+            "type": "string"
+          },
+          "profileKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agentRuntimeControlPosture",
+          "denyByDefault",
+          "federationContract",
+          "grantedCapabilities",
+          "groups",
+          "platformIdentityAuthority",
+          "platformIdentityCategory",
+          "principalSource",
+          "profileKeys",
+          "roles",
+          "supportSafe"
+        ],
+        "type": "object"
+      },
+      "WorkspaceReleaseReadinessCheckResponse": {
+        "description": "One operator-facing workspace readiness check.",
+        "properties": {
+          "action": {
+            "description": "Recommended operator action when the check is not ready.",
+            "type": "string"
+          },
+          "key": {
+            "description": "Stable check identifier.",
+            "example": "chat",
+            "type": "string"
+          },
+          "label": {
+            "description": "Human-readable check label.",
+            "example": "Matrix chat route",
+            "type": "string"
+          },
+          "message": {
+            "description": "Why this check is in its current state.",
+            "type": "string"
+          },
+          "readiness": {
+            "description": "Current readiness state for this check.",
+            "enum": [
+              "ready",
+              "degraded",
+              "blocked",
+              "unavailable"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "WorkspaceReleaseReadinessResponse": {
+        "description": "Admin-only configuration and cached capability readiness for the configured organization; not live provider or release verification.",
+        "properties": {
+          "actions": {
+            "description": "Outstanding operator actions extracted from the failing checks.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "checks": {
+            "description": "Readiness checks for the core product slice.",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceReleaseReadinessCheckResponse"
+            },
+            "type": "array"
+          },
+          "readiness": {
+            "description": "Overall workspace readiness for the currently configured workspace.",
+            "enum": [
+              "ready",
+              "degraded",
+              "blocked",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "description": "Short summary of configuration and cached capability availability.",
+            "type": "string"
+          }
+        },
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -4792,6 +4924,100 @@
         ]
       }
     },
+    "/api/admin/workspace/capability-policy": {
+      "get": {
+        "description": "Returns an admin/operator support-safe snapshot of IDM role/group intake, profile mapping, deny-by-default posture, and Weaver-disabled-by-default policy state.",
+        "operationId": "capabilityPolicy",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceCapabilityPolicyResponse"
+                }
+              }
+            },
+            "description": "Workspace capability policy snapshot."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin Console bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Workspace scope, current deployment organization, selected owner/admin role or readiness capability is missing."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Get Admin workspace capability policy",
+        "tags": [
+          "Admin Workspace"
+        ]
+      }
+    },
+    "/api/admin/workspace/release-readiness": {
+      "get": {
+        "description": "Returns the configured organization's operator-facing configuration and cached capability snapshot. This read does not verify live provider operations or release eligibility.",
+        "operationId": "releaseReadiness",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceReleaseReadinessResponse"
+                }
+              }
+            },
+            "description": "Admin workspace configuration snapshot; not live provider or release verification."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin Console bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Workspace scope, current deployment organization, selected owner/admin role or readiness capability is missing."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Get Admin workspace configuration readiness",
+        "tags": [
+          "Admin Workspace"
+        ]
+      }
+    },
     "/api/bootstrap/owner-invitation": {
       "post": {
         "operationId": "bootstrapOwnerInvitation",
@@ -4935,6 +5161,10 @@
     {
       "description": "Support-safe cached provider capability health for operators and support bundles.",
       "name": "Admin provider health"
+    },
+    {
+      "description": "Admin-only configuration readiness and policy diagnostics.",
+      "name": "Admin Workspace"
     },
     {
       "description": "Keycloak-backed member lifecycle through opaque Weave references.",

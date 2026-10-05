@@ -73,3 +73,6 @@ export * from './SupportSafeEvidenceBundle';
 export * from './SwitchPlan';
 export * from './UnmappableContentReport';
 export * from './WeaverEntitlementUpdateRequest';
+export * from './WorkspaceCapabilityPolicyResponse';
+export * from './WorkspaceReleaseReadinessCheckResponse';
+export * from './WorkspaceReleaseReadinessResponse';

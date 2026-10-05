@@ -3799,70 +3799,6 @@
         ],
         "type": "object"
       },
-      "WorkspaceCapabilityPolicyResponse": {
-        "description": "Admin/operator support-safe capability policy snapshot.",
-        "properties": {
-          "agentRuntimeControlPosture": {
-            "type": "string"
-          },
-          "denyByDefault": {
-            "type": "boolean"
-          },
-          "federationContract": {
-            "type": "string"
-          },
-          "grantedCapabilities": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "groups": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "platformIdentityAuthority": {
-            "type": "string"
-          },
-          "platformIdentityCategory": {
-            "type": "string"
-          },
-          "principalSource": {
-            "type": "string"
-          },
-          "profileKeys": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "roles": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "supportSafe": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "agentRuntimeControlPosture",
-          "denyByDefault",
-          "federationContract",
-          "grantedCapabilities",
-          "groups",
-          "platformIdentityAuthority",
-          "platformIdentityCategory",
-          "principalSource",
-          "profileKeys",
-          "roles",
-          "supportSafe"
-        ],
-        "type": "object"
-      },
       "WorkspaceCapabilityStatusResponse": {
         "description": "Availability and readiness state for one workspace capability.",
         "properties": {
@@ -4026,7 +3962,7 @@
           },
           "version": {
             "description": "Stable schema version for client compatibility.",
-            "example": 1,
+            "example": 3,
             "format": "int32",
             "type": "integer"
           }
@@ -4042,10 +3978,14 @@
             "type": "boolean"
           },
           "itemCount": {
-            "description": "Number of actionable items known to the Weave product layer.",
+            "description": "Measured number of currently authorized actionable items. Null means no count was measured; capability availability is not an item count.",
             "example": 3,
             "format": "int32",
-            "type": "integer"
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "key": {
             "description": "Stable product section key.",
@@ -4074,74 +4014,6 @@
           "title": {
             "description": "Human-readable product label.",
             "example": "Open tasks",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "WorkspaceReleaseReadinessCheckResponse": {
-        "description": "One operator-facing workspace readiness check.",
-        "properties": {
-          "action": {
-            "description": "Recommended operator action when the check is not ready.",
-            "type": "string"
-          },
-          "key": {
-            "description": "Stable check identifier.",
-            "example": "chat",
-            "type": "string"
-          },
-          "label": {
-            "description": "Human-readable check label.",
-            "example": "Matrix chat route",
-            "type": "string"
-          },
-          "message": {
-            "description": "Why this check is in its current state.",
-            "type": "string"
-          },
-          "readiness": {
-            "description": "Current readiness state for this check.",
-            "enum": [
-              "ready",
-              "degraded",
-              "blocked",
-              "unavailable"
-            ],
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "WorkspaceReleaseReadinessResponse": {
-        "description": "Operator-facing workspace readiness snapshot for the workspace.",
-        "properties": {
-          "actions": {
-            "description": "Outstanding operator actions extracted from the failing checks.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "checks": {
-            "description": "Readiness checks for the core product slice.",
-            "items": {
-              "$ref": "#/components/schemas/WorkspaceReleaseReadinessCheckResponse"
-            },
-            "type": "array"
-          },
-          "readiness": {
-            "description": "Overall workspace readiness for the currently configured workspace.",
-            "enum": [
-              "ready",
-              "degraded",
-              "blocked",
-              "unavailable"
-            ],
-            "type": "string"
-          },
-          "summary": {
-            "description": "Short summary of the current release posture.",
             "type": "string"
           }
         },
@@ -8321,53 +8193,6 @@
         ]
       }
     },
-    "/api/workspace/capability-policy": {
-      "get": {
-        "description": "Returns an admin/operator support-safe snapshot of IDM role/group intake, profile mapping, deny-by-default posture, and Weaver-disabled-by-default policy state.",
-        "operationId": "capabilityPolicy",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkspaceCapabilityPolicyResponse"
-                }
-              }
-            },
-            "description": "Workspace capability policy snapshot."
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope or effective policy denies capability-policy access."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Get workspace capability policy",
-        "tags": [
-          "Workspace"
-        ]
-      }
-    },
     "/api/workspace/home": {
       "get": {
         "description": "Returns the backend-owned, support-safe daily work loop consumed by Weave Home.",
@@ -8410,53 +8235,6 @@
           }
         ],
         "summary": "Get Weave Home daily-work snapshot",
-        "tags": [
-          "Workspace"
-        ]
-      }
-    },
-    "/api/workspace/release-readiness": {
-      "get": {
-        "description": "Returns an operator-facing snapshot of the backend-owned core dependencies and remaining setup actions.",
-        "operationId": "releaseReadiness",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkspaceReleaseReadinessResponse"
-                }
-              }
-            },
-            "description": "Workspace workspace readiness snapshot."
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope or effective policy denies operator readiness access."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Get workspace readiness",
         "tags": [
           "Workspace"
         ]

@@ -31,13 +31,9 @@ class WorkspaceHomeSectionResponse {
   ///
   bool? accessible;
 
-  /// Number of actionable items known to the Weave product layer.
+  /// Measured number of currently authorized actionable items. Null means no count was measured; capability availability is not an item count.
   ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
+  /// Minimum value: 0
   int? itemCount;
 
   /// Stable product section key.
