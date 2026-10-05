@@ -13,9 +13,13 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Real Files User contract proof through the same generated JVM client used by other consumers. */
 final class GeneratedFilesJourney {
+  private static final Pattern SAFE_ERROR_CODE =
+      Pattern.compile("\\\"code\\\"\\s*:\\s*\\\"([a-z][a-z0-9-]{0,63})\\\"");
   private final FilesUserApi files;
 
   GeneratedFilesJourney(ProductFlowEnvironment environment) {
@@ -40,6 +44,7 @@ final class GeneratedFilesJourney {
     String idempotencyKey = "generated-files-upload-" + suffix;
     byte[] content = new byte[] {0, 10, (byte) 0xff, 34, 92, 127};
     Path source = null;
+    String stage = "root-list";
     try {
       source = Files.createTempFile("weave-user-files-", ".bin");
       Files.write(source, content);
@@ -48,10 +53,12 @@ final class GeneratedFilesJourney {
           || !root.getAllowedActions().contains("upload")) {
         throw new ProductFlowException("generated Files root is not writable for the member");
       }
+      stage = "upload";
       FilesUserItemResponse created =
           files.uploadFilesItemContent(
               root.getParentFileId(), name, "*", idempotencyKey, source.toFile(),
               "application/octet-stream", bearer(memberToken));
+      stage = "idempotent-replay";
       FilesUserItemResponse replayed =
           files.uploadFilesItemContent(
               root.getParentFileId(), name, "*", idempotencyKey, source.toFile(),
@@ -65,7 +72,8 @@ final class GeneratedFilesJourney {
       return proof;
     } catch (ApiException failure) {
       throw new ProductFlowException(
-          "generated Files create failed with HTTP " + failure.getCode());
+          "generated Files " + stage + " failed with HTTP " + failure.getCode()
+              + " code=" + safeErrorCode(failure));
     } catch (IOException failure) {
       throw new ProductFlowException("generated Files local proof file failed");
     } finally {
@@ -122,6 +130,15 @@ final class GeneratedFilesJourney {
 
   private static Map<String, String> bearer(String token) {
     return Map.of("Authorization", "Bearer " + token);
+  }
+
+  private static String safeErrorCode(ApiException failure) {
+    String body = failure.getResponseBody();
+    if (body == null || body.length() > 8192) {
+      return "unavailable";
+    }
+    Matcher matched = SAFE_ERROR_CODE.matcher(body);
+    return matched.find() ? matched.group(1) : "unavailable";
   }
 
   // The disposable Compose topology tears down its exact volumes after this run; the User API
