@@ -1,6 +1,7 @@
 package com.massimotter.weave.e2e;
 
 import com.massimotter.weave.userapi.model.AuthenticatedUserResponse;
+import com.massimotter.weave.userapi.model.PlatformConfigResponse;
 import com.massimotter.weave.userapi.model.ProductProfileResponse;
 import com.massimotter.weave.userapi.model.WorkspaceHomeRecentActivityResponse;
 import com.massimotter.weave.userapi.model.WorkspaceHomeResponse;
@@ -423,15 +424,16 @@ final class CollaborationJourney {
     try {
       control("chat-provider-stop-proof", "WEAVE_CHAT_PROVIDER_CONTROL_RESULT state=stopped");
       providerStopped = true;
-      JsonNode platform =
-          http.json(
-              "keep platform configuration reachable during Chat outage",
-              "GET",
-              environment.api("/api/platform/config"),
-              Map.of(),
-              null,
-              Set.of(200));
-      if (platform.isMissingNode() || platform.isNull()) {
+      PlatformConfigResponse platform =
+          new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
+              .platformConfig();
+      if (!Integer.valueOf(2).equals(platform.getSchemaVersion())
+          || !environment.apiOrigin().resolve("/api").equals(platform.getUserApiBaseUrl())
+          || platform.getProtocols() == null
+          || platform.getProtocols().getMatrixClientServerBaseUrl() == null
+          || platform.getProtocols().getMatrixOAuthIssuer() == null
+          || platform.getProtocols().getMatrixOAuthClientId() == null
+          || platform.getProtocols().getMatrixOAuthClientId().isBlank()) {
         throw new ProductFlowException("platform configuration failed during Chat outage");
       }
       AuthenticatedUserResponse member =
