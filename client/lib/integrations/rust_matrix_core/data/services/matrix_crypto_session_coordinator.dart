@@ -598,6 +598,13 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
         '$matrixOAuthProfileOrganizationKeyPrefix$profileKey',
         organizationId,
       );
+      // Fence ownership before native activation can create encryption state.
+      // An interrupted activation must not leave that store adoptable by a
+      // different Weave subject projecting to the same Matrix identifier.
+      await _secureStore.write(
+        '$matrixOAuthProfileOwnerKeyPrefix$profileKey',
+        bindingKey,
+      );
       final passphrase = expectedBinding == null
           ? await _loadOrCreateStorePassphrase(profileKey)
           : (await _secureStore.read(
@@ -617,10 +624,6 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
         await _rustMatrixCoreBridge.disposeClient(profileKey: profileKey);
         rethrow;
       }
-      await _secureStore.write(
-        '$matrixOAuthProfileOwnerKeyPrefix$profileKey',
-        bindingKey,
-      );
       await _secureStore.write(
         bindingKey,
         jsonEncode(<String, String>{

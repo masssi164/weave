@@ -261,6 +261,38 @@ void main() {
       expect(bridge.disposedProfiles, hasLength(1));
       expect(bridge.syncProfiles, isEmpty);
       expect(await secureStore.read(matrixOAuthCurrentBindingKey), isNull);
+      final profile = bridge.disposedProfiles.single;
+      final passphrase = await secureStore.read(
+        '$matrixCryptoStorePassphraseKeyPrefix$profile',
+      );
+      expect(
+        await secureStore.read('$matrixOAuthProfileOwnerKeyPrefix$profile'),
+        isNotNull,
+      );
+
+      access.allowed = true;
+      authRepository.state = AuthState.authenticated(
+        buildTestAuthSession(idToken: _idToken(subject: 'PERSON-1')),
+      );
+      bridge = FakeRustMatrixCoreBridge()
+        ..oauthUserId = '@person-1:api.weave.test';
+      await expectLater(
+        buildCoordinator(randomSeed: 2).open(synchronize: false),
+        throwsA(isA<ChatFailure>()),
+      );
+      expect(bridge.oauthStarts, isEmpty);
+
+      authRepository.state = AuthState.authenticated(
+        buildTestAuthSession(idToken: _idToken()),
+      );
+      final recovered = await buildCoordinator(
+        randomSeed: 3,
+      ).open(synchronize: false);
+      expect(recovered.profileKey, profile);
+      expect(
+        await secureStore.read('$matrixCryptoStorePassphraseKeyPrefix$profile'),
+        passphrase,
+      );
     },
   );
 
