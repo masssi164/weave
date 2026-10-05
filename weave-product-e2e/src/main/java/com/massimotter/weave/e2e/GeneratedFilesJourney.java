@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -67,6 +68,18 @@ final class GeneratedFilesJourney {
           || !created.getRevision().equals(replayed.getRevision())) {
         throw new ProductFlowException("generated Files upload did not replay its stable identity");
       }
+      stage = "idempotency-conflict";
+      Files.write(source, new byte[] {42});
+      try {
+        files.uploadFilesItemContent(
+            root.getParentFileId(), name, "*", idempotencyKey, source.toFile(),
+            "application/octet-stream", bearer(memberToken));
+        throw new ProductFlowException("generated Files accepted changed content under the same key");
+      } catch (ApiException conflict) {
+        if (conflict.getCode() != 409) {
+          throw conflict;
+        }
+      }
       Proof proof = new Proof(created.getFileId(), name, content);
       verify(proof, memberToken, outsiderToken);
       return proof;
@@ -100,14 +113,34 @@ final class GeneratedFilesJourney {
           || !inspected.getAllowedActions().contains("download")) {
         throw new ProductFlowException("generated Files identity was not downloadable by its owner");
       }
-      File downloaded = files.downloadFilesItemContent(proof.fileId(), null, bearer(memberToken));
+      var response = files.downloadFilesItemContentWithHttpInfo(proof.fileId(), null, bearer(memberToken));
+      File downloaded = response.getData();
+      String expectedEtag = "\"sha256-50de86022dd7b26e4724b3dd79b3c63719169aa289ceb99e8041ba6ef44f4e95\"";
       try {
+        if (response.getStatusCode() != 200
+            || !expectedEtag.equals(header(response.getHeaders(), "ETag"))
+            || !"sha-256=:UN6GAi3Xsm5HJLPdebPGNxkWmqKJzrmegEG6bvRPTpU=:"
+                .equals(header(response.getHeaders(), "Content-Digest"))
+            || !"6".equals(header(response.getHeaders(), "Content-Length"))
+            || !"application/octet-stream".equals(header(response.getHeaders(), "Content-Type"))) {
+          throw new ProductFlowException("generated Files download violated its binary response contract");
+        }
         if (downloaded == null || !Arrays.equals(proof.content(), Files.readAllBytes(downloaded.toPath()))) {
           throw new ProductFlowException("generated Files download changed the uploaded bytes");
         }
       } finally {
         if (downloaded != null) {
           Files.deleteIfExists(downloaded.toPath());
+        }
+      }
+      try {
+        File unexpected = files.downloadFilesItemContent(proof.fileId(), expectedEtag, bearer(memberToken));
+        if (unexpected != null) Files.deleteIfExists(unexpected.toPath());
+        throw new ProductFlowException("generated Files conditional download did not return 304");
+      } catch (ApiException unchanged) {
+        if (unchanged.getCode() != 304
+            || !expectedEtag.equals(header(unchanged.getResponseHeaders().map(), "ETag"))) {
+          throw new ProductFlowException("generated Files conditional download violated its validator contract");
         }
       }
       try {
@@ -130,6 +163,13 @@ final class GeneratedFilesJourney {
 
   private static Map<String, String> bearer(String token) {
     return Map.of("Authorization", "Bearer " + token);
+  }
+
+  private static String header(Map<String, List<String>> headers, String name) {
+    return headers.entrySet().stream()
+        .filter(entry -> entry.getKey().equalsIgnoreCase(name))
+        .flatMap(entry -> entry.getValue().stream())
+        .findFirst().orElse("");
   }
 
   private static String safeErrorCode(ApiException failure) {
