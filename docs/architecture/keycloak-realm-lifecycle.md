@@ -122,7 +122,7 @@ Generated realm and support-safe evidence must reject:
 
 For a proven-empty realm, Keycloak startup import establishes the static baseline. Startup import is not a reconciliation mechanism and is not used to update an existing realm.
 
-After import, the bounded FGAP migration applies only state that the supported Keycloak import order cannot express safely. The migration must be explicit and idempotent.
+After import, the bounded migration applies the declared FGAP policy and configures the existing native organization membership mapper to include its native ID. The supported Keycloak import order cannot express these operations safely. The migration must be explicit and idempotent. The isolated `testApp` lifecycle runs `e2e keycloak-migration-apply` after proving its namespace empty and before application startup; E2E and production startup both require its completed, digest-bound receipt. The temporary bootstrap authority is retired before the first product login.
 
 ## Migration qualification
 
@@ -135,6 +135,8 @@ The new empty realm does not require a fabricated backup. Recovery evidence belo
 ### Disposable E2E
 
 Disposable E2E may use the same static migration without durable backup only when machine-verifiable preflight proves the exact run-owned Docker namespace and resources do not yet exist. Profile name alone is insufficient.
+
+The isolated E2E realm uses the canonical query-only identity-administration roles and the organization-scoped FGAP migration. It does not use the resettable dev/dogfood overlay's broad identity-administration roles; the explicit E2E phase now qualifies the same narrow authority required in production.
 
 ### Existing persistent realm
 

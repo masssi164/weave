@@ -403,7 +403,10 @@ def main() -> int:
     ]
     e2e_rendered = _desired(canonical, {**overlay, "environment": "e2e"})
     assert e2e_rendered["clientPolicies"] == canonical["clientPolicies"]
-    assert e2e_rendered["serviceAccountRoleGrants"][0]["roleRefs"] == development_roles
+    assert e2e_rendered["serviceAccountRoleGrants"][0]["roleRefs"] == [
+        "builtin-role:realm-management:query-organizations",
+        "builtin-role:realm-management:query-users",
+    ]
     prod_rendered = _desired(canonical, {**overlay, "environment": "prod"})
     assert prod_rendered["clientPolicies"] == canonical["clientPolicies"]
     assert prod_rendered["serviceAccountRoleGrants"][0]["roleRefs"] == [
