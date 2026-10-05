@@ -12,6 +12,7 @@ import sys
 import tempfile
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +23,7 @@ from keycloak_migration import OPERATION_ID, migration_inputs, require_completed
 from keycloak_migration_backup import _canonical_json, create_backup_proof  # noqa: E402
 sys.path.insert(0, str(ROOT / "keycloak"))
 import oauth_probe  # noqa: E402
+import compose_runtime  # noqa: E402
 
 
 EXPECTED_ORGANIZATION_MAPPER_OPERATION = {
@@ -210,7 +212,45 @@ def rejected(action) -> None:
     raise AssertionError("unsafe migration evidence was accepted")
 
 
+def assert_application_startup_requires_completed_migration() -> None:
+    for environment in ("e2e", "prod"):
+        context = SimpleNamespace(environment=environment, profile=environment, active_profiles=())
+        events = []
+
+        def compose(_context, *arguments):
+            events.append(arguments)
+
+        def pending(_context):
+            events.append(("migration-receipt",))
+            raise ContractError("Keycloak realm migration is pending")
+
+        with (
+            mock.patch.object(compose_runtime, "script"),
+            mock.patch.object(compose_runtime, "prepare"),
+            mock.patch.object(compose_runtime, "compose", side_effect=compose),
+            mock.patch.object(compose_runtime, "runtime_root_services", return_value=("backend", "mcp-server")),
+            mock.patch.object(compose_runtime, "require_completed_migration", side_effect=pending),
+        ):
+            rejected(lambda: compose_runtime.execute(context, "up", []))
+        assert events[-1] == ("migration-receipt",)
+        assert not any("backend" in event or "mcp-server" in event for event in events)
+
+        events.clear()
+        with (
+            mock.patch.object(compose_runtime, "script"),
+            mock.patch.object(compose_runtime, "prepare"),
+            mock.patch.object(compose_runtime, "compose", side_effect=compose),
+            mock.patch.object(compose_runtime, "runtime_root_services", return_value=("backend", "mcp-server")),
+            mock.patch.object(compose_runtime, "require_completed_migration",
+                              side_effect=lambda _context: events.append(("migration-receipt",))),
+        ):
+            compose_runtime.execute(context, "up", [])
+        assert events[-2] == ("migration-receipt",)
+        assert events[-1][-2:] == ("backend", "mcp-server")
+
+
 def main() -> None:
+    assert_application_startup_requires_completed_migration()
     claims = base64.urlsafe_b64encode(
         json.dumps({"realm_access": {"roles": ["weaver-runtime"]}, "resource_access": {"realm-management": {"roles": ["create-client"]}}}, separators=(",", ":")).encode()
     ).rstrip(b"=").decode()

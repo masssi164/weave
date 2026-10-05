@@ -112,6 +112,17 @@ empty, multiple, wrong-alias and wrong-ID claims using fixed reason codes only; 
 emit token contents, claim values or private provider payloads. These assertions do not
 relax Server admission or treat an empty organization object as an absent claim.
 
+The isolated `testApp` lifecycle must explicitly run `e2e keycloak-migration-apply`
+after its exact empty-namespace proof and before application startup or browser login.
+That existing one-shot operation qualifies the disposable environment, applies both
+declared operations, verifies readback/idempotency and retires its temporary authority.
+E2E application startup requires the completed receipt, as production startup already
+does. An import-only run leaves Keycloak's stock native-ID omission in place and cannot
+qualify the product. The previous structural test forbidding this explicit operation was
+obsolete after the manifest-bound native mapper migration; it is replaced by lifecycle
+ordering and fail-closed receipt assertions. Normal Server requests remain unable to
+reconcile static IAM, and persistent environments still require their reviewed migration.
+
 Infrastructure must supply the primary coordinate to Server consistently with the
 Keycloak baseline/invitation target and preserve the canonical tenant used by Files
 bindings. Flutter's legacy provider-stack diagnostics currently use a User bearer;
