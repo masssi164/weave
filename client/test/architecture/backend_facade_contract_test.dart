@@ -200,11 +200,11 @@ void main() {
       'lib/integrations/weave_api/data/dtos/organization_manifest_response_dto.dart',
     ).readAsString();
 
-    expect(client, contains('openapi.OrganizationManifestResponse.fromJson'));
-    expect(client, contains('openapi.WorkspaceCapabilitiesResponse.fromJson'));
+    expect(client, contains('.organizationManifest()'));
+    expect(client, contains('.capabilities()'));
     expect(client, contains('user_api.WorkspaceApi('));
-    expect(client, contains('client.home()'));
-    expect(client, isNot(contains('openapi.WorkspaceHomeResponse.fromJson')));
+    expect(client, contains('.home()'));
+    expect(client, isNot(contains('Response.fromJson')));
     expect(
       workspaceHome,
       contains("package:weave/generated/user_api/api.dart"),
@@ -216,6 +216,7 @@ void main() {
     ]) {
       expect(source, isNot(contains('class ')));
       expect(source, contains('extension '));
+      expect(source, contains('package:weave/generated/user_api/api.dart'));
     }
   });
 

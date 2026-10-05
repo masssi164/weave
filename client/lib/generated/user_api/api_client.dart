@@ -104,25 +104,25 @@ class ApiClient {
           return await _client.post(
             uri,
             headers: nullableHeaderParams,
-            body: msgBody,
+            body: body == null ? null : msgBody,
           );
         case 'PUT':
           return await _client.put(
             uri,
             headers: nullableHeaderParams,
-            body: msgBody,
+            body: body == null ? null : msgBody,
           );
         case 'DELETE':
           return await _client.delete(
             uri,
             headers: nullableHeaderParams,
-            body: msgBody,
+            body: body == null ? null : msgBody,
           );
         case 'PATCH':
           return await _client.patch(
             uri,
             headers: nullableHeaderParams,
-            body: msgBody,
+            body: body == null ? null : msgBody,
           );
         case 'HEAD':
           return await _client.head(

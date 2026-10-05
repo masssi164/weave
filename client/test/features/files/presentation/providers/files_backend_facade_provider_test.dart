@@ -421,6 +421,7 @@ void main() {
           MockClient((request) async {
             expect(request.url.path, '/api/files/items/${entry.id}/content');
             expect(request.headers['authorization'], 'Bearer files-token');
+            expect(request.headers['accept'], '*/*');
             return http.Response.bytes(
               bytes,
               200,
