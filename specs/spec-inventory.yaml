@@ -36,6 +36,12 @@ obsoleteLocalMeanings:
     obsolete: Handwritten HTTP transport DTOs and routes for Weave product operations
     canonicalReplacement: Generated User API client and transport models within the existing MCP runtime
 artifacts:
+  - path: specs/calendar-user-api-contract.md
+    status: implementation-evidence
+    action: keep-as-generated-calendar-user-api-conformance-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/calendar/spec.md
   - path: specs/generated-api-ci-contract.md
     status: implementation-evidence
     action: keep-as-repo-owned-generated-consumer-gate-contract

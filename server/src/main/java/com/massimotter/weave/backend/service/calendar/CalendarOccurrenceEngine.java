@@ -78,7 +78,7 @@ public final class CalendarOccurrenceEngine {
             ZoneId evaluationZone) {
         List<TemporalValue> starts = new ArrayList<>();
         starts.add(event.startValue());
-        String rrule = event.recurrence().rrule();
+        String rrule = event.recurrence().rrule(event.startValue().kind());
         switch (event.startValue().kind()) {
             case DATE -> recurrenceEngine.dates(
                             rrule,

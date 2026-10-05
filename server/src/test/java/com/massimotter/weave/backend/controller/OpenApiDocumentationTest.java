@@ -62,6 +62,27 @@ class OpenApiDocumentationTest {
     }
 
     @Test
+    void calendarProductRoutesHaveExplicitUserOperationsAndTypedTemporalPreconditions() throws Exception {
+        mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars'].get.operationId").value("listUserCalendars"))
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events'].get.operationId").value("queryCalendarAgenda"))
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events'].post.operationId").value("createCalendarEvent"))
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events/{eventId}'].get.operationId").value("getCalendarEvent"))
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events/{eventId}'].put.operationId").value("updateCalendarEvent"))
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events/{eventId}'].delete.operationId").value("deleteCalendarEvent"))
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events/{eventId}'].put.responses['412']").exists())
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events/{eventId}'].delete.responses['428']").exists())
+                .andExpect(jsonPath("$.components.schemas.CalendarTimeValue.properties.kind.enum").value(hasItems("DATE", "FLOATING", "UTC", "ZONED")))
+                .andExpect(jsonPath("$.components.schemas.CalendarTimeValue.properties.date.format").value("date"))
+                .andExpect(jsonPath("$.components.schemas.CalendarTimeValue.properties.localDateTime.format").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.CalendarUserEvent.properties.providerRef").doesNotExist());
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars']").doesNotExist());
+    }
+
+    @Test
     void exportedOperationIdsAreExplicitUniqueAndIdenticalAcrossDocuments() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         JsonNode combined = mapper.readTree(mockMvc.perform(get("/v3/api-docs"))

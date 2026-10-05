@@ -84,7 +84,7 @@ class CalDavCalendarAdapterTest {
         server = server(exchange -> {
             methods.add(exchange.getRequestMethod());
             paths.add(exchange.getRequestURI().getRawPath());
-            respond(exchange, 207, multistatus("""
+            respond(exchange, 207, multistatus("event-1", """
                     UID:event-1&#13;
                     DTSTAMP:20260425T090000Z&#13;
                     LAST-MODIFIED:20260425T090000Z&#13;
@@ -188,7 +188,7 @@ class CalDavCalendarAdapterTest {
 
     @Test
     void preservesBoundedRecurringEventsFromProvider() throws Exception {
-        server = server(exchange -> respond(exchange, 207, multistatus("""
+        server = server(exchange -> respond(exchange, 207, multistatus("event-recurring", """
                 UID:event-recurring&#13;
                 DTSTAMP:20260320T120000Z&#13;
                 DTSTART;TZID=Europe/Berlin:20260322T090000&#13;
@@ -233,17 +233,17 @@ class CalDavCalendarAdapterTest {
                 ZoneId.of("Europe/Berlin"), false, null, List.of(), null, version, null);
     }
 
-    private String multistatus(String eventProperties, String etag) {
+    private String multistatus(String eventId, String eventProperties, String etag) {
         return """
                 <?xml version="1.0" encoding="utf-8"?>
-                <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:response><d:href>/remote.php/dav/calendars/weave-backend/workspace-main/event.ics</d:href><d:propstat><d:prop><d:getetag>%s</d:getetag><c:calendar-data>BEGIN:VCALENDAR&#13;
+                <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:response><d:href>/remote.php/dav/calendars/weave-backend/workspace-main/%s.ics</d:href><d:propstat><d:prop><d:getetag>%s</d:getetag><c:calendar-data>BEGIN:VCALENDAR&#13;
                 VERSION:2.0&#13;
                 PRODID:-//Weave//Calendar Test//EN&#13;
                 BEGIN:VEVENT&#13;
                 %sEND:VEVENT&#13;
                 END:VCALENDAR&#13;
                 </c:calendar-data></d:prop></d:propstat></d:response></d:multistatus>
-                """.formatted(etag, eventProperties);
+                """.formatted(eventId, etag, eventProperties);
     }
 
     private String emptyMultistatus() { return "<?xml version=\"1.0\" encoding=\"utf-8\"?><d:multistatus xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\" />"; }
