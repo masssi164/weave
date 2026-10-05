@@ -41,7 +41,7 @@ public record PlatformContractProperties(
         return "https://" + api.getRawAuthority();
     }
 
-    private static String matrixFacadeOrigin(String value) {
+    public static String matrixFacadeOrigin(String value) {
         URI facade = URI.create(value);
         if (!"https".equalsIgnoreCase(facade.getScheme()) || facade.getHost() == null
                 || facade.getRawAuthority() == null || facade.getRawUserInfo() != null
