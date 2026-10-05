@@ -25,6 +25,14 @@ organization. This fix preserves existing data and does not implement provider m
 - User and Admin security chains apply this same admission rule in addition to
   their existing audience/client, scope and selected-role checks. An admin role
   on a User session never admits an Admin request. Workloads do not become humans.
+  The separate human Agent Runtime Admin chain also requires this admission and
+  exactly one selected product role, owner or admin, while retaining its own
+  `agent-runtime.admin` scope. The workload and MCP chains remain separate.
+  The legacy mixed Files DAV decoder applies the same admission after successful
+  human token decoding. A denied human context cannot fall through to workload
+  decoding; exchanged workloads still require their exact existing decoder and
+  device credentials retain their separate path. This is a compatibility security
+  guard, not new northbound DAV release acceptance.
 - Invitation reconciliation remains accessible to an authenticated bootstrap
   session without organization roles or an organization claim. Present native
   organization/tenant claims must still match configuration. Existing verified
@@ -83,5 +91,13 @@ closure evidence is retained. This change alone does not close #1472 or #1470.
 - Valid controller fixtures now configure their asserted canonical deployment
   tenant; no authorization, provider redaction or architectural assertion was relaxed.
   The existing exclusive tenant-claim owner assertion remains unchanged.
+- The separate Agent Runtime human Admin chain has HTTP regressions for current
+  owner/admin success and wrong/missing/multiple native organizations, conflicting
+  tenant claims, ambiguous roles and missing runtime scope. Denied requests never
+  invoke the runtime service. Existing signed JWT decoder tests remain green.
+- Legacy Files DAV decoder regressions reject foreign/missing/malformed human
+  organizations and conflicting tenants without invoking the workload decoder.
+  Current members, validated exchanged workloads and the existing device credential
+  and DAV controller tests remain green; workload validation was not relaxed.
 - Checked-in OpenAPI and consumer artifacts were deliberately left for the
   integration regeneration. No production or persistent deployment was changed.
