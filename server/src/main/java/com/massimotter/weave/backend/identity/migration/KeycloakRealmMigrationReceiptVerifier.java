@@ -22,6 +22,7 @@ final class KeycloakRealmMigrationReceiptVerifier {
           "schemaVersion",
           "status",
           "operationId",
+          "completedOperationIds",
           "keycloakVersion",
           "manifestDigest",
           "bundleDigest",
@@ -45,7 +46,8 @@ final class KeycloakRealmMigrationReceiptVerifier {
           "create-primary-organization-permission",
           "update-primary-organization-permission",
           "create-users-lifecycle-permission",
-          "update-users-lifecycle-permission");
+          "update-users-lifecycle-permission",
+          KeycloakOrganizationMapperMigration.MUTATION_CODE);
 
   private final ObjectMapper mapper;
 
@@ -66,6 +68,8 @@ final class KeycloakRealmMigrationReceiptVerifier {
             receipt.path("schemaVersion").asString())
         || !"complete".equals(receipt.path("status").asString())
         || !migrationBundle.operationId().equals(receipt.path("operationId").asString())
+        || !KeycloakFgapMigrationContract.COMPLETED_OPERATION_IDS.equals(
+            receipt.path("completedOperationIds").valueStream().map(JsonNode::asString).toList())
         || !KeycloakFgapMigrationContract.KEYCLOAK_VERSION.equals(
             receipt.path("keycloakVersion").asString())
         || !migrationBundle.manifestDigest().equals(receipt.path("manifestDigest").asString())
@@ -172,6 +176,8 @@ final class KeycloakRealmMigrationReceiptVerifier {
             "containsSecretValues");
     if (stringFields.stream().anyMatch(field -> !receipt.path(field).isString())
         || booleanFields.stream().anyMatch(field -> !receipt.path(field).isBoolean())
+        || !receipt.path("completedOperationIds").isArray()
+        || receipt.path("completedOperationIds").valueStream().anyMatch(value -> !value.isString())
         || !receipt.path("firstRunOperations").isArray()
         || !receipt.path("firstRunMutationCount").isInt()) {
       throw blocked("migration-receipt-shape-invalid");
@@ -179,7 +185,7 @@ final class KeycloakRealmMigrationReceiptVerifier {
   }
 
   private static List<String> requireOperations(JsonNode value) {
-    if (!value.isArray() || value.size() > 3) {
+    if (!value.isArray() || value.size() > 4) {
       throw blocked("migration-receipt-operations-invalid");
     }
     List<String> operations = new ArrayList<>();

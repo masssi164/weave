@@ -113,6 +113,19 @@ class KeycloakRealmMigrationReceiptVerifierTest {
   }
 
   @Test
+  void rejectsFgapOnlyCompletionEvidence() throws Exception {
+    Artifact artifact = writeArtifacts();
+    Path path = writeReceipt(artifact, List.of());
+    ObjectNode changed = (ObjectNode) mapper.readTree(Files.readAllBytes(path));
+    changed.putArray("completedOperationIds").add(KeycloakFgapMigrationContract.OPERATION_ID);
+    Files.write(path, mapper.writeValueAsBytes(changed));
+    assertThatThrownBy(() -> new KeycloakRealmMigrationReceiptVerifier(mapper)
+        .verify(temporary, readBundle(artifact), readBackupProof(artifact, readBundle(artifact))))
+        .isInstanceOf(KeycloakRealmMigrationException.class)
+        .hasMessage("migration-receipt-contract-mismatch");
+  }
+
+  @Test
   void rejectsAdditionalUnreviewedReceiptFields() throws Exception {
     Artifact artifact = writeArtifacts();
     Path path = writeReceipt(artifact, List.of());
@@ -182,6 +195,7 @@ class KeycloakRealmMigrationReceiptVerifierTest {
         KeycloakFgapMigrationContract.RESULT_SCHEMA,
         "complete",
         KeycloakFgapMigrationContract.OPERATION_ID,
+        KeycloakFgapMigrationContract.COMPLETED_OPERATION_IDS,
         KeycloakFgapMigrationContract.KEYCLOAK_VERSION,
         manifestDigest,
         artifact.bundleDigest(),
@@ -230,9 +244,36 @@ class KeycloakRealmMigrationReceiptVerifierTest {
               "phase": "post-realm-import",
               "status": "requires-qualified-admin-rest-executor",
               "type": "keycloak-fgap-v2"
+            },
+            {
+              "id": "organization-membership-id-post-import",
+              "phase": "post-realm-import",
+              "type": "keycloak-built-in-organization-mapper",
+              "desiredStatePointer": "/operations/1/desiredState",
+              "desiredState": {
+                "clientScopeName": "organization",
+                "name": "organization",
+                "protocol": "openid-connect",
+                "protocolMapper": "oidc-organization-membership-mapper",
+                "config": {
+                  "claim.name": "organization",
+                  "jsonType.label": "JSON",
+                  "multivalued": "true",
+                  "addOrganizationId": "true",
+                  "addOrganizationAttributes": "false",
+                  "addOrganizationDomain": "false",
+                  "access.token.claim": "true",
+                  "id.token.claim": "true",
+                  "userinfo.token.claim": "false",
+                  "introspection.token.claim": "true"
+                }
+              },
+              "desiredStateDigest": "sha256:5e19f3dff3818e8093aff5c7b61dc6da6baf303bf25654d24b602c6526bee475",
+              "blockedBy": "keycloak-26.7-creates-built-in-scopes-before-realm-import",
+              "status": "requires-qualified-admin-rest-executor"
             }
           ],
-          "reason": "Keycloak 26.7 cannot import a specific-organization FGAP permission in the same RealmRepresentation because authorization settings are processed before organizations. The baseline remains default-deny; an exact post-import Admin REST executor is required.",
+          "reason": "Keycloak 26.7 cannot import a specific-organization FGAP permission in the same RealmRepresentation because authorization settings are processed before organizations. The baseline remains default-deny; an exact post-import Admin REST executor is required. The built-in organization scope is created before import; its membership mapper requires a separate post-import update to include the native organization ID.",
           "status": "blocked-post-import-operation",
           "toBaselineRevision": "%s"
         }

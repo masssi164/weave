@@ -20,12 +20,28 @@ organization. This fix preserves existing data and does not implement provider m
 - Compose reads the native alias from the same `WEAVE_ORGANIZATION_ALIAS` overlay
   used by realm rendering and invitation configuration; environment-specific aliases
   must not be replaced with a hardcoded `weave` value. Host `dev` defaults to `weave-dev`.
-- The generated fresh-realm baseline explicitly configures Keycloak's built-in
-  organization membership mapper with `addOrganizationId=true`, JSON multivalued
-  projection and organization attributes/domains disabled. Keycloak 26.7.1 defaults
-  that ID flag to false. This uses the supported mapper, not a custom claim or token.
-  Existing realms need an explicit baseline/migration update and fresh tokens before
-  enabling admission; this change does not silently mutate a persistent realm.
+- Keycloak creates its built-in `organization` scope before importing custom scopes.
+  The realm artifact must not redeclare it: Keycloak 26.7.1 rejects that duplicate.
+  Its stock membership mapper omits the native ID. The explicit manifest-bound
+  post-import migration therefore includes a separate
+  `organization-membership-id-post-import` operation alongside the existing FGAP
+  operation. It sets the supported `addOrganizationId=true`, JSON multivalued
+  projection and disables organization attributes/domains. No custom claim or
+  second membership mapper substitutes for the native representation.
+- The one-shot executor first qualifies the existing temporary bootstrap authority,
+  selects exactly one native `organization` OIDC scope and exactly one built-in
+  membership mapper, and checks their identities before mutation. It preserves the
+  mapper's unrelated configuration and all other scope mappers, applies one bounded
+  Admin REST PUT, verifies exact readback and an empty second plan, and then retires
+  the authority with the existing negative check. Missing, duplicate or mismatched
+  scope/mapper identity and rejected or changed readback block completion.
+- The migration definition and digest-bound bundle declare both operations.
+  Receipt version 2 requires both completed operation IDs; a receipt for the former
+  FGAP-only contract cannot satisfy readiness. Existing backup/disposable-run proof,
+  artifact digests, secret isolation, role checks and authority retirement remain
+  mandatory. Steady-state clients gain no mapper-management authority. Existing
+  persistent realms require their explicit reviewed migration and fresh tokens;
+  routine startup never silently mutates them.
   The supported option is defined by the pinned
   [Keycloak 26.7.1 organization mapper](https://github.com/keycloak/keycloak/blob/26.7.1/services/src/main/java/org/keycloak/organization/protocol/mappers/oidc/OrganizationMembershipMapper.java).
 - The configured coordinate maps to the existing canonical
@@ -84,8 +100,10 @@ verifies real Files bytes; a configured status alone is not live provider proof.
 `testApp` ownership, sanitized evidence and exact namespace cleanup remain unchanged.
 The first real candidate correctly failed during reconciliation because its realm
 omitted the native organization ID and the server alias differed from the environment
-overlay. Renderer and Compose regression checks now assert the complete coordinate;
-the server's missing/wrong-ID negatives remain unchanged.
+overlay. A subsequent attempt to redeclare the built-in scope failed with Keycloak's
+unique scope-name constraint. The corrected import omits that scope and the declared
+post-import operation updates its existing mapper. Renderer and Compose regression
+checks assert the complete coordinate; server missing/wrong-ID negatives remain unchanged.
 
 Infrastructure must supply the primary coordinate to Server consistently with the
 Keycloak baseline/invitation target and preserve the canonical tenant used by Files
@@ -116,3 +134,26 @@ closure evidence is retained. This change alone does not close #1472 or #1470.
   and DAV controller tests remain green; workload validation was not relaxed.
 - Checked-in OpenAPI and consumer artifacts were deliberately left for the
   integration regeneration. No production or persistent deployment was changed.
+
+### Native mapper conformance evidence
+
+- A disposable stock Keycloak 26.7.1 realm successfully imported without a duplicate
+  built-in scope. Admin REST readback confirmed one native organization membership
+  mapper and the stock ID omission. Updating only that mapper returned HTTP 204;
+  exact configuration readback and an empty second plan passed. The exact container
+  and private temporary files were removed; the probe created no volumes and touched
+  no persistent realm. This proves the supported mapper mechanism, not the full
+  product login journey.
+- Migration regressions reject missing, duplicate or wrong scope/mapper identities,
+  refused writes, ignored writes and changes to unrelated configuration/mappers.
+  Existing bootstrap role, FGAP, backup proof and authority deletion negatives remain.
+  Manifest and receipt readers reject a changed mapper target/configuration and
+  completion evidence that covers only FGAP.
+- The complete disposable product flow must still pass on the integrated candidate
+  before this fix is described as end-to-end login evidence.
+- Final local verification for the mapper correction: all 1,076 Server tests passed
+  with zero failures, errors or skips; `:server:bootJar` was rebuilt. `infraStatic`,
+  `specCorpusConformance` and `docsStructureCheck` passed against the pinned corpus.
+  The existing product-flow structural guard now checks its actual separate Admin
+  session and Files dry-run/409 activation fence plus current binding metadata,
+  replacing obsolete assertions for a User-session setup and applied Files selection.

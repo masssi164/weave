@@ -200,7 +200,15 @@ contains "${FLOW}" '"access_updated"'
 contains "${FLOW}" 'organizationGroups(claims)'
 contains "${FLOW}" '/api/admin/providers/selections'
 contains "${FLOW}" 'new ProviderSelection("chat", "weave-native")'
-contains "${FLOW}" 'new ProviderSelection("files", "weave-native")'
+# Files already has an explicit fresh-stack binding. Its legacy selection route
+# must prove dry-run and denied activation, not mutate that binding.
+contains "${FLOW}" '.category("files")'
+contains "${FLOW}" '.dryRun(true)'
+contains "${FLOW}" 'Boolean.FALSE.equals(dryRun.getApplied())'
+contains "${FLOW}" 'Set.of(409)'
+contains "${FLOW}" 'files-provider-activation-unverified'
+contains "${FLOW}" 'binding.getBindingRevision()'
+contains "${FLOW}" 'binding.getAdapterKey()'
 contains "${FLOW}" 'new ProviderSelection("calendar", "weave-native")'
 contains "${FLOW}" 'weave.test-app-product-flow/v2'
 contains "${FLOW}" 'southboundProviderDependencyObserved'
@@ -268,7 +276,9 @@ import sys
 from pathlib import Path
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
-selection = source.index("configureRequiredProviders(ownerSession.accessToken())")
+selection = source.index("configureRequiredProviders(adminSession.accessToken())")
+if "configureRequiredProviders(ownerSession.accessToken())" in source:
+    raise SystemExit("Provider setup requires the separate Admin session")
 readiness = source.index("awaitChatReadiness(ownerSession.accessToken())")
 collaboration = source.index("CollaborationJourney collaboration")
 if not selection < readiness < collaboration:

@@ -31,7 +31,7 @@ class KeycloakRealmMigrationReceiptWriterTest {
         .isEqualTo(temporary.resolve(KeycloakFgapMigrationContract.RECEIPT_PATH));
     JsonNode value = mapper.readTree(Files.readAllBytes(result));
     assertThat(value.path("schemaVersion").asString())
-        .isEqualTo("weave.keycloak-fgap-migration-receipt/v1");
+        .isEqualTo("weave.keycloak-fgap-migration-receipt/v2");
     assertThat(value.path("status").asString()).isEqualTo("complete");
     assertThat(value.path("bootstrapAuthorityDeleted").asBoolean()).isTrue();
     assertThat(value.path("bootstrapAuthorityNegativeReadbackVerified").asBoolean()).isTrue();
@@ -56,6 +56,7 @@ class KeycloakRealmMigrationReceiptWriterTest {
         KeycloakFgapMigrationContract.RESULT_SCHEMA,
         "complete",
         KeycloakFgapMigrationContract.OPERATION_ID,
+        KeycloakFgapMigrationContract.COMPLETED_OPERATION_IDS,
         KeycloakFgapMigrationContract.KEYCLOAK_VERSION,
         SHA,
         SHA,

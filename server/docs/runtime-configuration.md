@@ -24,10 +24,16 @@ and invitation provisioning; both can be overridden with the same primary variab
 Other runtime profiles need explicit operator/Compose wiring.
 
 Compose uses `WEAVE_ORGANIZATION_ALIAS` from the same environment overlay as the realm
-renderer. The fresh-realm baseline enables the supported built-in organization mapper's
-`addOrganizationId` flag and keeps organization attributes/domains disabled. Existing
-realms require an explicit baseline/migration update and new tokens before admission
-is enabled; merely configuring the Server variables does not change Keycloak tokens.
+renderer. Keycloak creates its built-in `organization` scope during realm initialization;
+the import artifact must not redeclare that scope. The explicit manifest-bound post-import
+migration enables its existing membership mapper's `addOrganizationId` flag and JSON
+multivalued output while keeping organization attributes/domains disabled. The same
+short-lived migration authority applies the declared FGAP operation, verifies both
+operations and an empty second plan, and is deleted before readiness. Receipt version 2
+requires both completed operation IDs; earlier FGAP-only receipts do not satisfy this
+contract. No steady-state application client gains mapper-management authority.
+Existing realms require their explicit reviewed migration and new tokens before admission
+is enabled; configuring Server variables or restarting it does not change Keycloak tokens.
 
 `GET /api/admin/providers/status` requires the dedicated Admin session plus current
 organization owner/admin authority. Its category selections are legacy deployment
