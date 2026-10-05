@@ -69,9 +69,9 @@ failure. These contain public transport metadata and fixture assertions, not bea
 tokens or private provider data. Tool and dependency versions are in setup/build logs.
 
 Passing this gate proves deterministic code-first generation and the current generated
-consumers on one source candidate. The existing MCP Files transport still uses historical
-DAV; #1474 must replace it with the generated User module and the current member/context
-authorization bridge. Merely running its existing tests does not prove that migration.
+consumers on one source candidate. MCP Files uses the generated JVM User module and the
+current member/context authorization bridge described in `mcp-generated-user-files.md`.
+Generated freshness alone does not prove workload authorization or real file retrieval.
 Real browser/OIDC, User/Admin/MCP, Matrix interoperability,
 Files/Calendar and session recovery journeys remain independently required by #1480.
 The disposable Compose lane provides runtime evidence; provider migration remains #1498.

@@ -18,4 +18,4 @@ weave:
     authorization-server: https://auth.weave.test/realms/weave
     token-uri: http://keycloak:8080/realms/weave/protocol/openid-connect/token
     backend-resource-uri: https://api.weave.test/api
-    backend-files-uri: http://backend:8080/dav/files
+    backend-api-uri: http://backend:8080/api

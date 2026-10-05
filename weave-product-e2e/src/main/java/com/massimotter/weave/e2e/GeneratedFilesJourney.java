@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.net.http.HttpClient;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -89,6 +90,41 @@ final class GeneratedFilesJourney {
               + " code=" + safeErrorCode(failure));
     } catch (IOException failure) {
       throw new ProductFlowException("generated Files local proof file failed");
+    } finally {
+      if (source != null) {
+        try {
+          Files.deleteIfExists(source);
+        } catch (IOException ignored) {
+          // The isolated E2E process and stack are discarded after this run.
+        }
+      }
+    }
+  }
+
+  Proof createMcpTextFile(String memberToken, String runId) {
+    String suffix = Hashing.sha256(runId).substring(0, 20);
+    String name = "generated-mcp-" + suffix + ".txt";
+    byte[] content = ("Weave generated User Files MCP proof " + suffix)
+        .getBytes(StandardCharsets.UTF_8);
+    Path source = null;
+    try {
+      source = Files.createTempFile("weave-user-mcp-", ".txt");
+      Files.write(source, content);
+      FilesUserItemResponse created = files.uploadFilesItemContent(
+          "file:root", name, "*", "generated-mcp-upload-" + suffix, source.toFile(),
+          "text/plain", bearer(memberToken));
+      if (created == null || !name.equals(created.getName())
+          || created.getFileId() == null || created.getFileId().isBlank()
+          || !created.getAllowedActions().contains("download")) {
+        throw new ProductFlowException("generated MCP text file was not downloadable");
+      }
+      return new Proof(created.getFileId(), name, content);
+    } catch (ApiException failure) {
+      throw new ProductFlowException(
+          "generated MCP text file upload failed with HTTP " + failure.getCode()
+              + " code=" + safeErrorCode(failure));
+    } catch (IOException failure) {
+      throw new ProductFlowException("generated MCP local proof file failed");
     } finally {
       if (source != null) {
         try {

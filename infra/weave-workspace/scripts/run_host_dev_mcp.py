@@ -28,7 +28,7 @@ def load_environment(path: Path) -> dict[str, str]:
             raise RuntimeError(f"host.env:{number}: invalid coordinate")
         values[key] = value
     for required in (
-        "WEAVE_MCP_BACKEND_FILES_URI",
+        "WEAVE_MCP_BACKEND_API_URI",
         "WEAVE_MCP_EXCHANGE_CLIENT_JWK_FILE",
         "WEAVE_MCP_TOKEN_URI",
         "WEAVE_OIDC_JWK_SET_URI",

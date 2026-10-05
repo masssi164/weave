@@ -54,7 +54,7 @@ public final class FreshProductFlow {
       new FreshProductFlow(environment).run();
       System.out.println(
           "WEAVE_TEST_APP_RESULT status=passed activation=browser pkce=S256 "
-              + "workload=private_key_jwt tool=files.search projection=webdav "
+              + "workload=private_key_jwt tool=files.search projection=user-api "
               + "userFiles=generated supportSafe=true");
     } catch (RuntimeException failure) {
       System.err.println(
@@ -74,9 +74,6 @@ public final class FreshProductFlow {
     String ownerEmail = environment.ownerEmail();
     String memberEmail = environment.memberEmail();
     String outsiderEmail = environment.outsiderEmail();
-    String proofFile =
-        "weave-e2e-" + Hashing.sha256(environment.runId()).substring(0, 16) + ".txt";
-    boolean fileCreated = false;
     OidcBrowserJourney.TokenSet memberSession = null;
     OidcBrowserJourney.TokenSet outsiderSession = null;
     OidcBrowserJourney.TokenSet adminSession = null;
@@ -297,11 +294,11 @@ public final class FreshProductFlow {
       JsonNode provisioned = provisionRuntime(personRef, adminSession.accessToken());
       startedRuntime = startRuntime(personRef, adminSession.accessToken(), provisioned);
 
-      createProofFile(proofFile, memberSession.accessToken());
-      fileCreated = true;
+      GeneratedFilesJourney.Proof mcpTextProof =
+          generatedFiles.createMcpTextFile(memberSession.accessToken(), environment.runId());
       mcpProof =
           new WorkloadMcpJourney(environment, http)
-              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), proofFile);
+              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
 
       restartProof = new PersistenceRestartJourney(environment, http).restart();
       JsonNode persistedRuntime =
@@ -309,7 +306,7 @@ public final class FreshProductFlow {
       requireSameRuntime(startedRuntime, persistedRuntime);
       WorkloadMcpJourney.McpProof postRestartMcpProof =
           new WorkloadMcpJourney(environment, http)
-              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), proofFile);
+              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
       if (!mcpProof.equals(postRestartMcpProof)) {
         throw new ProductFlowException(
             "the same Cell MCP projection did not persist across service restarts");
@@ -327,7 +324,7 @@ public final class FreshProductFlow {
       }
       try {
         new WorkloadMcpJourney(environment, http)
-            .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), proofFile);
+            .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
       } catch (ProductFlowException expectedDenial) {
         revocationDenied = true;
       }
@@ -354,7 +351,7 @@ public final class FreshProductFlow {
       requireSameRuntimeIdentity(startedRuntime, restartedRuntime);
       WorkloadMcpJourney.McpProof postRegrantMcpProof =
           new WorkloadMcpJourney(environment, http)
-              .invokeFilesSearch(requiredText(restartedRuntime, "cellRef"), proofFile);
+              .invokeFilesSearch(requiredText(restartedRuntime, "cellRef"), mcpTextProof);
       regrantRestored = mcpProof.equals(postRegrantMcpProof);
       if (!regrantRestored) {
         throw new ProductFlowException(
@@ -375,9 +372,6 @@ public final class FreshProductFlow {
           samePersonRefAfterRegrant,
           collaborationPasses);
     } finally {
-      if (fileCreated && memberSession != null) {
-        deleteProofFile(proofFile, memberSession.accessToken());
-      }
       // Avoid retaining references longer than the single bounded JVM run.
       ownerPassword = "";
       memberPassword = "";
@@ -940,38 +934,6 @@ public final class FreshProductFlow {
   private URI runtimeUri(String personRef, String operation) {
     return environment.api(
         "/api/admin/agent-runtimes/" + encodeSegment(personRef) + operation);
-  }
-
-  private void createProofFile(String fileName, String token) {
-    JsonHttpClient.Response response =
-        http.send(
-            "create Files WebDAV proof object",
-            "PUT",
-            environment.api("/dav/files/" + encodeSegment(fileName)),
-            bearer(token, Map.of("If-None-Match", "*")),
-            "text/plain; charset=utf-8",
-            ("Weave testApp " + runHash()).getBytes(StandardCharsets.UTF_8),
-            Set.of(201));
-    if (response.firstHeader("ETag").isBlank()) {
-      throw new ProductFlowException("Files WebDAV proof object omitted its ETag");
-    }
-  }
-
-  private void deleteProofFile(String fileName, String token) {
-    try {
-      http.send(
-          "delete Files WebDAV proof object",
-          "DELETE",
-          environment.api("/dav/files/" + encodeSegment(fileName)),
-          bearer(token, Map.of()),
-          null,
-          null,
-          Set.of(204, 404));
-    } catch (ProductFlowException cleanupFailure) {
-      System.err.println(
-          "WEAVE_TEST_APP_CLEANUP_ERROR "
-              + safeMessage(cleanupFailure.getMessage()));
-    }
   }
 
   private void writeEvidence(

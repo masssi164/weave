@@ -41,7 +41,7 @@ weave:
     exchange-client-id: ${WEAVE_MCP_EXCHANGE_CLIENT_ID:weave-mcp-server}
     exchange-client-jwk-file: ${WEAVE_MCP_EXCHANGE_CLIENT_JWK_FILE:/run/secrets/weave/mcp-private-jwk.json}
     backend-resource-uri: ${WEAVE_MCP_BACKEND_RESOURCE_URI:https://api.weave.test/api}
-    backend-files-uri: ${WEAVE_MCP_BACKEND_FILES_URI:https://api.weave.test/dav/files}
+    backend-api-uri: ${WEAVE_MCP_BACKEND_API_URI:https://api.weave.test/api}
     exchange-scopes: ${WEAVE_MCP_EXCHANGE_SCOPES:files.read}
     request-timeout: ${WEAVE_MCP_REQUEST_TIMEOUT:10s}
     maximum-token-ttl: ${WEAVE_MCP_MAXIMUM_TOKEN_TTL:60s}

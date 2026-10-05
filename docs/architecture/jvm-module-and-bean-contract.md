@@ -19,14 +19,14 @@ weave-runtime-security-adapters     │
           └──────────────┴──────────┤
                                    server
 
-weave-mcp-server ── HTTP/WebDAV ──> server
+weave-mcp-server ── generated User HTTP ──> server
 
 weave-product-e2e ── OIDC/WebDAV/MCP ──> running Server + MCP
 ```
 
 The MCP process has no Java project dependency on Server, Application Core, persistence, or a
 provider adapter. Its only integration with Server is a standards-based, OAuth2-protected
-northbound projection. For the first vertical slice that projection is WebDAV `SEARCH`/`GET`.
+northbound projection. For the first vertical slice that projection is the generated User Files API.
 The product E2E module likewise has no project dependency on either implementation; it drives
 only their deployed public protocols.
 
@@ -40,7 +40,7 @@ only their deployed public protocols.
 | `weave-runtime-provider-adapters` | Application Core and Jackson for provider payload normalization | no component scanning; Server configuration creates the selected port implementations explicitly | controllers, persistence entities, MCP annotations, provider DTOs crossing a port |
 | `weave-runtime-security-adapters` | Application Core, Spring Security JOSE, canonical JSON and Jackson | no security filter chains; Server configuration creates cryptographic/policy port implementations explicitly | HTTP endpoints, JPA, provider administration and MCP transport |
 | `server` | Spring Boot WebMVC/RestClient, Security Resource Server and OAuth2 Client, Validation, Data JPA, Actuator, OpenAPI plus the adapter modules | the application composition root: security chains, use-case services, transaction/JPA composition, provider selection, one qualified Keycloak admin `RestClient`, and the one-shot code-first schema initializer | Spring AI MCP transport/tools, MCP token-exchange admission, provider-shaped northbound contracts |
-| `weave-mcp-server` | Spring Boot RestClient, Security Resource Server and OAuth2 Client, Spring AI MCP WebMVC, Actuator and PEM/JWK support | one MCP security chain, one JWT decoder, one token-exchange boundary, one request-scoped exchanged credential, one WebDAV client, one Files tool/resource projection, framework transport customizers | DataSource, JPA, Hibernate, schema initialization, Server entities/use cases and every southbound provider |
+| `weave-mcp-server` | Spring Boot RestClient, generated JVM User client, Security Resource Server and OAuth2 Client, Spring AI MCP WebMVC, Actuator and PEM/JWK support | one MCP security chain, one JWT decoder, one token-exchange boundary, one request-scoped exchanged credential, one Files User client, one Files tool/resource projection, framework transport customizers | DataSource, JPA, Hibernate, schema initialization, Server entities/use cases and every southbound provider |
 | `weave-product-e2e` | Plain Java, Playwright, Jackson, Nimbus JOSE/JWT, JUnit, AssertJ and ArchUnit | no Spring beans; one bounded process drives invitation, browser activation, PKCE, ARC, WebDAV and MCP | Spring, JPA/Hibernate, Server/MCP implementation dependencies, provider adapters, credential/evidence persistence |
 
 Only the two deployable Spring processes apply the Spring Boot plugin. All JVM modules use Java 21 and resolve
@@ -55,7 +55,7 @@ The normal API is a stateless OAuth2 Resource Server. Its shared JWT decoder val
 issuer, timestamps, exact audience and first-party client binding. Purpose-specific chains are
 ordered before the general API chain only where their token profile is materially different:
 Agent Runtime administration, RuntimeProfile delivery, isolated Chat proof, Matrix application
-service callback, and Files WebDAV workload access. A chain owns one exact path family and cannot
+service callback, and Files read-only workload access. A chain owns one exact path family and cannot
 act as a fallback for another.
 
 Server-to-Keycloak invitation administration is the single OAuth2 Client integration for that
@@ -114,7 +114,7 @@ The MCP application has one workload-only Security filter chain:
   `TokenExchangeOAuth2AuthorizedClientProvider`,
   `RestClientTokenExchangeTokenResponseClient`, and `private_key_jwt`;
 - `McpInvocationCredentials` is request-scoped and exposes only the exchanged backend token;
-- `FilesWebDavClient` attaches that exchanged token to the standard Files projection and has no
+- `FilesUserApiClient` attaches that exchanged token to generated User Files operations and has no
   route or credential fallback;
 - `FilesMcpProjection` alone owns `files.search` and
   `weave://files/{canonicalFileId}`.
@@ -124,17 +124,17 @@ produce a refresh token, outlive the cell token, or target a different backend r
 
 ## Open-standard reuse
 
-OpenAPI is the server-owned description for REST control-plane routes and generates typed
-Flutter/Admin transport models. It is not a universal protocol compiler:
+OpenAPI is the server-owned description for User and Admin HTTP routes and generates typed
+Flutter, MCP, product E2E and Admin transport clients. It is not a universal protocol compiler:
 
 - OIDC/OAuth2 clients use discovery metadata and Spring/Flutter OIDC libraries;
-- Files clients and MCP consume WebDAV;
-- Calendar clients and future MCP projections consume CalDAV/iCalendar;
+- Files clients and MCP consume the User Files HTTP API;
+- Calendar clients consume the User Calendar HTTP API;
 - Chat clients and future MCP projections consume the Matrix Client-Server projection;
 - MCP discovery, tools, resources, prompts and schemas are generated by the MCP implementation.
 
 This gives Client and MCP the same canonical domain projections without inventing private
-tool-specific Server endpoints or pretending that OpenAPI describes WebDAV, Matrix, CalDAV, or
+tool-specific Server endpoints or pretending that OpenAPI describes Matrix or
 MCP itself.
 
 ## Identity and candidate artifacts
@@ -165,7 +165,7 @@ provenance, and release promotion rules for the selected production target.
 5. Owner and member use Authorization Code with PKCE S256. The owner invites the member through
    Weave with `agent-runtime.entitled`.
 6. ARC provisions the per-cell `private_key_jwt` SecretRef. The workload negotiates MCP, discovers
-   `files.search`, and reaches the same `/dav/files` projection as other standards clients.
+   `files.search`, and reaches the generated User Files API with current workload authorization.
 7. Revocation must deny a second workload invocation. The run then destroys only resources whose
    namespace and immutable ownership evidence match.
 

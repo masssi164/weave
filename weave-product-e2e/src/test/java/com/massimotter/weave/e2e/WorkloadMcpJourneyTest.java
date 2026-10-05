@@ -119,13 +119,13 @@ class WorkloadMcpJourneyTest {
   }
 
   @Test
-  void classifiesOnlyAllowlistedFilesErrorCodes() throws Exception {
+  void classifiesOnlyAllowlistedFilesHttpFailures() throws Exception {
     var mapper = JsonMapper.builder().build();
     var response =
         mapper.readTree(
             """
             {"jsonrpc":"2.0","result":{"isError":true,"content":[
-              {"type":"text","text":"Files facade rejected request: mcp-workload-files-forbidden"}
+              {"type":"text","text":"Files User API rejected request: HTTP 403"}
             ]}}
             """);
     var unsafe =
@@ -137,7 +137,7 @@ class WorkloadMcpJourneyTest {
             """);
 
     assertThat(WorkloadMcpJourney.supportSafeErrorClass(response))
-        .isEqualTo("mcp-workload-files-forbidden");
+        .isEqualTo("files-user-http-403");
     assertThat(WorkloadMcpJourney.supportSafeErrorClass(unsafe))
         .isEqualTo("redacted-tool-error");
   }

@@ -16,13 +16,14 @@ workload and exposes the first authorized Files projection.
    current entitlement, lifecycle, RuntimeProfile v2 hash, policy, and domain scopes.
 5. Only then may the framework-native stateful Streamable HTTP transport dispatch
    `files.search` or `weave://files/{canonicalFileId}`.
-6. The MCP process consumes the existing `/dav/files` projection: bounded RFC 5323 `SEARCH`,
-   exact `{urn:weave:files}canonical-id` resolution, and bounded `GET`. It does not call a
+6. The MCP process uses the generated JVM User client for `/api/files/items`: bounded list
+   traversal, exact `fileId` metadata resolution, and bounded download. It does not call a
    provider or a tool-specific backend endpoint.
 
 The edge publishes protected-resource metadata and a discoverable bearer challenge. Human tokens,
 generic service accounts, the fixed MCP edge account, missing extension negotiation, scope
-escalation, stale profiles, and direct workload calls to member/admin APIs fail closed.
+escalation, stale profiles, and direct workload calls to Admin APIs fail closed. Exchanged
+workload tokens can use only the guarded User Files read operations.
 
 ## Module and bean ownership
 
@@ -35,7 +36,7 @@ the [JVM module, dependency, and bean contract](architecture/jvm-module-and-bean
 | --- | --- | --- | --- |
 | `weave-files-core` | Java only | none | Spring, HTTP, Servlet, Jackson, JPA, MCP and provider SDKs |
 | `server` | Java 21, Spring Boot 4.1, WebMVC, OAuth2 Resource Server, Spring Data JPA, Hibernate | public/control-plane security chains, canonical Files use cases, provider ports/adapters, explicit identity-provider OAuth2 client, JPA composition and one-shot schema initialization | Spring AI MCP, MCP OAuth2 token exchange, MCP tool beans |
-| `weave-mcp-server` | Java 21, Spring Boot 4.1, Spring AI MCP 2.0, OAuth2 Resource Server, OAuth2 Client, Actuator, Bouncy Castle PEM support | MCP transport/security, Boot-managed `RestClient.Builder`, request-scoped exchanged credentials, RFC 8693 token-exchange adapter, Files MCP projection | JDBC/JPA/schema initialization, provider adapters, product repositories, duplicate domain use cases |
+| `weave-mcp-server` | Java 21, Spring Boot 4.1, Spring AI MCP 2.0, generated JVM User client, OAuth2 Resource Server, OAuth2 Client, Actuator, Bouncy Castle PEM support | MCP transport/security, Boot-managed `RestClient.Builder`, request-scoped exchanged credentials, RFC 8693 token-exchange adapter, Files MCP projection | JDBC/JPA/schema initialization, provider adapters, product repositories, duplicate domain use cases |
 
 Spring manages exactly one default bean for each boundary concern in the MCP process:
 
@@ -44,9 +45,9 @@ Spring manages exactly one default bean for each boundary concern in the MCP pro
 - `McpInvocationCredentials`: request-scoped and unavailable outside an admitted MCP request;
 - `FilesMcpProjection`: the sole owner of the active Files tool and resource annotations.
 
-No shared DTO module is used to couple MCP to a private business REST API. OpenAPI remains the
-generated control-plane contract for Flutter/Admin consumers; MCP schemas come from the annotated
-MCP records, while collaboration data stays on WebDAV, CalDAV/iCalendar, and Matrix.
+The same generated JVM User client serves MCP and product E2E. Its HTTP operations and transport
+models come from the server-owned code-first OpenAPI artifact; MCP tool schemas come from the
+annotated MCP records. Chat remains on Matrix.
 
 ## Removed code and contracts
 
@@ -60,15 +61,15 @@ MCP records, while collaboration data stays on WebDAV, CalDAV/iCalendar, and Mat
 
 ## Active catalog
 
-- `files.search`: read-only, idempotent, closed-world MCP tool over the Weave WebDAV facade.
+- `files.search`: read-only, idempotent, closed-world MCP tool over generated User Files operations.
 - `weave://files/{canonicalFileId}`: bounded textual content resource; the canonical ID is
-  percent-encoded in the URI path and resolved exactly before the authorized `GET`.
+  percent-encoded in the URI path and resolved exactly before the authorized download.
 - Prompts and write tools remain absent.
 
 ## Next activation gate
 
-Calendar and Chat read tools may be added only over the existing CalDAV/iCalendar and Matrix
-Client-Server projections and only from the intersection of the canonical catalog, current signed
+Calendar and Chat read tools may be added only through their authorized product contracts and only
+from the intersection of the canonical catalog, current signed
 RuntimeProfile, current product-domain authorization, and runtime availability. Write-like tools
 also require signed, single-use, argument-bound ApprovalDecisionEvidence v2 and immutable
 ActionEvidence v2. OpenClaw owns the native approval lifecycle; Weave remains the final

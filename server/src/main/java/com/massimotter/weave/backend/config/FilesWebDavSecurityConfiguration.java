@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -22,7 +23,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 
 /**
- * Closed Files protocol boundary for direct members and exchanged Weaver workloads.
+ * Closed Files read boundary for direct members and exchanged Weaver workloads.
  *
  * <p>Each token is fully decoded and validated against one exact profile. The general API decoder
  * remains member-only and never accepts an MCP edge token.
@@ -69,13 +70,17 @@ public class FilesWebDavSecurityConfiguration {
             ApiAccessDeniedHandler accessDeniedHandler,
             ObjectProvider<DeviceCredentialAuthenticationFilter> deviceCredentials) throws Exception {
         http
-                .securityMatcher("/dav/files", "/dav/files/**")
+                .securityMatcher("/dav/files", "/dav/files/**", "/api/files/items", "/api/files/items/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(HttpMethod.GET, "/api/files/items", "/api/files/items/**")
+                                .access(FILES_ACCESS)
+                        .requestMatchers("/api/files/items", "/api/files/items/**")
+                                .hasAuthority("SCOPE_weave:workspace")
                         .anyRequest().access(FILES_ACCESS))
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint(authenticationEntryPoint)
