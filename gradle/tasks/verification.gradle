@@ -57,6 +57,17 @@ registerCommandTask('clientOpenApiDriftPrevention', file('client'), ['bash', '-l
 tasks.named('clientCi') {
     dependsOn 'checkClientOpenApiModelsFresh', 'checkClientUserApiFresh', 'clientOpenApiDriftPrevention'
 }
+tasks.register('generatedApiCi') {
+    group = 'verification'
+    description = 'Verify code-first User/Admin exports and all generated HTTP consumers on one candidate.'
+    dependsOn 'checkOpenApiContractFresh',
+            ':weave-user-api-client:check',
+            ':weave-admin-api-client:check',
+            ':weave-mcp-server:test',
+            ':weave-product-e2e:test',
+            'clientCi',
+            'adminCi'
+}
 tasks.register('javaMcpServerCi') {
     group = 'verification'
     description = 'Run Java weave-mcp-server checks through the root Gradle multiproject build.'
