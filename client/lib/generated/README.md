@@ -1,29 +1,10 @@
-# Generated OpenAPI models
-
-`openapi_models.dart` is generated from the server-owned artifact at
-`contracts/openapi/weave-user-openapi.json`.
-
-Regenerate it from the repository root:
-
-```bash
-./gradlew generateClientOpenApiModels
-```
-
-Check freshness without accepting changes:
-
-```bash
-./gradlew checkClientOpenApiModelsFresh
-```
-
-Do not edit the generated Dart file by hand. This combined-contract projection
-remains for existing adapters while they migrate to the generated User client.
-New User HTTP operations and transport models use `user_api/` below.
+# Generated User API client
 
 `user_api/` contains the generated User HTTP operations and transport models
 from `contracts/openapi/weave-user-openapi.json`. It uses OpenAPI Generator
 7.17.0, pinned by version and SHA-256 in `tools/generate_client_user_api.py`.
-The script applies one deterministic correction for optional profile preferences:
-the generator otherwise sends an empty map in an unrelated partial update.
+The script applies narrow, fail-closed transport corrections for optional
+profile preferences, binary upload errors, and bodyless operations.
 
 ```bash
 ./gradlew generateClientUserApi

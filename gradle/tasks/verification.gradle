@@ -50,17 +50,15 @@ tasks.register('checkAdminApiClientFresh', Exec) {
 tasks.named('adminCi') {
     dependsOn 'checkAdminApiClientFresh', 'checkAdminOpenApiTypesFresh'
 }
-registerRootCommandTask('generateClientOpenApiModels', ['bash', '-lc', 'python3 tools/generate_client_openapi_models.py && dart format client/lib/generated/openapi_models.dart'], 'Generate Flutter/Dart JSON models from the server-owned OpenAPI artifact.')
 registerRootCommandTask('generateClientUserApi', ['python3', 'tools/generate_client_user_api.py'], 'Generate the pinned Dart User HTTP SDK from the server-owned User OpenAPI artifact.')
 registerRootCommandTask('checkClientUserApiFresh', ['python3', 'tools/generate_client_user_api.py', '--check'], 'Fail when the checked-in Dart User HTTP SDK differs from the server-owned User OpenAPI artifact.')
-registerRootCommandTask('checkClientOpenApiModelsFresh', ['python3', 'tools/generate_client_openapi_models.py', '--check'], 'Fail when Flutter/Dart generated OpenAPI models are stale.')
 registerRootCommandTask('clientGeneratedCalendarTemporalWire', ['bash', 'tools/check_generated_calendar_temporal_wire.sh'], 'Verify generated Calendar temporal wire values in UTC, Berlin and Apia.')
 tasks.named('clientGeneratedCalendarTemporalWire') {
     dependsOn 'checkClientUserApiFresh'
 }
 registerCommandTask('clientOpenApiDriftPrevention', file('client'), ['bash', '-lc', 'FLUTTER_BIN="${FLUTTER_BIN:-$(command -v flutter || true)}"; if [ -z "$FLUTTER_BIN" ] && [ -x "$HOME/flutter/bin/flutter" ]; then FLUTTER_BIN="$HOME/flutter/bin/flutter"; fi; if [ -z "$FLUTTER_BIN" ]; then echo "flutter not found; install Flutter or set FLUTTER_BIN" >&2; exit 127; fi; "$FLUTTER_BIN" test test/architecture/openapi_drift_prevention_contract_test.dart'], 'Block client OpenAPI facade drift for DTOs, raw JSON parsing, provider reachability, and hardcoded copy.')
 tasks.named('clientCi') {
-    dependsOn 'checkClientOpenApiModelsFresh', 'checkClientUserApiFresh', 'clientOpenApiDriftPrevention', 'clientGeneratedCalendarTemporalWire'
+    dependsOn 'checkClientUserApiFresh', 'clientOpenApiDriftPrevention', 'clientGeneratedCalendarTemporalWire'
 }
 tasks.register('generatedApiCi') {
     group = 'verification'
@@ -88,7 +86,7 @@ tasks.register('mcpCi') {
 tasks.register('contractAuthorityArchitectureCheck') {
     group = 'verification'
     description = 'Verify the root-orchestrated server/OpenAPI contract authority baseline without running live infrastructure.'
-    dependsOn ':server:test', 'mcpCi', 'docsStructureCheck', 'checkOpenApiContractFresh', 'checkAdminOpenApiTypesFresh', 'checkClientOpenApiModelsFresh'
+    dependsOn ':server:test', 'mcpCi', 'docsStructureCheck', 'checkOpenApiContractFresh', 'checkAdminOpenApiTypesFresh', 'checkClientUserApiFresh'
 }
 registerRootCommandTask('infraStatic', ['bash', '-lc', "find infra/weave-workspace/tests -maxdepth 1 -type f -name '*-test.sh' -print0 | sort -z | xargs -0 -n1 bash"], 'Run the canonical Compose, bounded Keycloak migration, and static infrastructure contract checks.')
 registerRootCommandTask('docsBuild', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; rm -rf build/docs/user build/docs/admin; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/user; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/admin'], 'Build deterministic user and admin MkDocs outputs with strict validation.')
