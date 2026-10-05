@@ -11,6 +11,7 @@ import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,11 +19,14 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 /** Exercises the User API service with real provider, mappings, intents and JPA transactions. */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:files-user-integration;DB_CLOSE_DELAY=-1",
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
         "weave.files.provider=weave-native",
         "weave.provider-bindings.bootstrap.files.enabled=true",
@@ -30,11 +34,20 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
         "weave.provider-bindings.bootstrap.files.adapter-key=weave-native",
         "weave.provider-bindings.bootstrap.files.configuration-ref=profile:weave-native"
 })
+@Testcontainers
+@Tag("postgres")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class FilesUserApiNativeIntegrationTest {
     @TempDir static Path directory;
+    @Container private static final PostgreSQLContainer<?> POSTGRES =
+            new PostgreSQLContainer<>("postgres:16-alpine");
 
     @DynamicPropertySource
     static void storage(DynamicPropertyRegistry properties) {
+        properties.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        properties.add("spring.datasource.username", POSTGRES::getUsername);
+        properties.add("spring.datasource.password", POSTGRES::getPassword);
+        properties.add("spring.datasource.driver-class-name", POSTGRES::getDriverClassName);
         properties.add("weave.files.native.filesystem-root", () -> directory.resolve("blobs").toString());
     }
 
