@@ -108,6 +108,7 @@ jobs:
         with:
           python-version: '3.13'
       - run: python3 tools/core_docs_check.py
+      - run: python3 tools/readme_release_notes_test.py
 
   generated_api:
     name: Generated API consumers

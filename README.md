@@ -32,6 +32,10 @@ This is an existing codebase with substantial implementation, tests, and infrast
 
 The approved [product consolidation epic #1470](https://github.com/masssi164/weave/issues/1470) and [pinned specification policy](docs/specification-source-of-truth.md) define the current standalone-product delivery contract. Its stories are #1471–#1476 and #1479–#1481; #1477–#1478 belong to [provider portability epic #1498](https://github.com/masssi164/weave/issues/1498). #1470 acceptance requires integrated user, admin, MCP, Matrix, Files, and Calendar journeys, not compilation alone. Provider adoption, migration, cutover, and rollback are #1498 acceptance. Older Core and gateway work remains historical or reusable only as classified in the epics.
 
+Weave does not claim public production readiness, unrestricted autonomous agents or universal provider interchangeability. The [product trust claim matrix](docs/product-trust-provider-choice-claim-matrix.md) records the scope and limitations of earlier evidence.
+
+The portability promise is no unaccounted data loss; perfect lossless migration is not claimed as delivered. #1498 requires activation to remain blocked whenever required data or effective permissions cannot be preserved.
+
 ## Develop and test
 
 Start from the implementation lane:
@@ -54,6 +58,16 @@ Use **Java 21** for the foundation gates below. Container tooling is needed for 
 Follow the [developer handbook](docs/developer-handbook.md) and [Gitflow workflow](docs/gitflow-pr-workflow.md) for prerequisites and protected promotion. Run focused checks for the area you change; full-stack checks require the corresponding local services.
 
 Flutter, Node, Xcode, TestFlight, and manual release evidence are not prerequisites for unrelated Server/Data/MCP work.
+
+Server controllers, transport models and validation generate the separate User and Admin OpenAPI artifacts. After changing that code, regenerate the consumers and verify the complete generation chain:
+
+```bash
+./gradlew generateOpenApiContract
+./gradlew generateClientUserApi generateClientOpenApiModels generateAdminOpenApiTypes generateAdminApiClient
+./gradlew generatedApiCi
+```
+
+Do not edit generated artifacts manually. Flutter consumes the User API, the Admin UI consumes the Admin API, and JVM consumers share the generated modules. Current MCP transport migration and real integrated acceptance remain open in the linked consolidation stories.
 
 ## Core architecture
 
@@ -85,6 +99,24 @@ The current release boundary is a server-owned code-first User/Admin API with ge
 - **Start contributing:** [Developer handbook](docs/developer-handbook.md), [Gitflow workflow](docs/gitflow-pr-workflow.md), and [contribution guide](CONTRIBUTING.md).
 - **Read implementation notes:** [Data-sovereignty core](docs/architecture/data-sovereignty-core.md), [package boundaries](docs/architecture/core-package-boundaries.md), and [transfer kernel](docs/architecture/canonical-transfer-kernel.md). Apply the current release profile when older plans conflict.
 - **Check the evidence:** [Workflow disposition](docs/development/workflow-disposition.md), [documentation audit](docs/documentation-audit.md), and [CI runs](https://github.com/masssi164/weave/actions).
+
+## Release notes
+
+Earlier release notes describe their own historical candidates. Current #1470 capabilities require the linked implementation and acceptance evidence; the draft below is not proof of a completed standalone product.
+
+<!-- WEAVE_RELEASE_NOTES_START -->
+- Historical change draft: [Unreleased](docs/release-notes/unreleased.md)
+- Release-note history and process: [Release notes](docs/release-notes/index.md)
+<!-- WEAVE_RELEASE_NOTES_END -->
+
+## Release evidence
+
+Final delivery requires the accepted product journeys, exact remote `main` commits and applicable post-merge checks. Generated clients, local fixtures and earlier sprint reports each prove only their stated scope. See [delivery story #1481](https://github.com/masssi164/weave/issues/1481) for the remaining closure requirements.
+
+<!-- WEAVE_RELEASE_NOTES:START -->
+- Offline release-note fixture review artifact: `build/release-notes/unreleased.md`
+- README pointer check: deterministic structure and generated-link validation; it does not establish product acceptance or release readiness.
+<!-- WEAVE_RELEASE_NOTES:END -->
 
 ## Get involved
 
