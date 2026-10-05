@@ -13,7 +13,7 @@ job. The latter uses pinned Flutter and Node tooling to regenerate the code-firs
 contracts and all JVM, Dart and TypeScript consumers and run their actual consumer gates.
 The ordinary server export uses a test-only Matrix protocol collaborator; it does not build
 or load JNI. The separate Server protocol foundation job retains the real native runtime.
-See [the generated API CI implementation contract](../../specs/generated-api-ci-contract.md)
+See [the generated API CI implementation contract](https://github.com/masssi164/weave/blob/dev/specs/generated-api-ci-contract.md)
 for inputs, commands, isolation, cleanup and failure evidence.
 
 The `Gradle CI` aggregate succeeds only when the real architecture, canonical data,
