@@ -84,6 +84,15 @@ Run tests with Java 21+:
 ./gradlew test
 ```
 
+When Docker is available, the optional S3 adapter integration test uses the verified
+source-built MinIO fixture. Prepare its local tag before running `:server:test`:
+
+```bash
+s3_fixture_id="$(infra/weave-workspace/scripts/build_runtime_state_image.sh)"
+docker tag "$s3_fixture_id" weave-runtime-state:ci-s3
+./gradlew :server:test
+```
+
 Or run them in Docker:
 
 ```bash
