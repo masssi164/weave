@@ -63,8 +63,11 @@ limited to the exact ownership-labeled namespace.
 `testApp` builds the optional RuntimeState S3 dependency automatically from pinned MinIO
 Community and `mc` source revisions. The former `minio/minio` registry digest is unavailable;
 the E2E run passes the verified local image ID to Compose. The image carries the upstream
-AGPL-3.0 licences and source revisions. This build is for disposable E2E only and does not
-change or publish a dogfood or production image.
+AGPL-3.0 licences and source revisions. Core CI and the Native Provider Gate build the same image before their optional
+S3 adapter test and tags the verified local result `weave-runtime-state:ci-s3`. To run that
+test locally, build it with `infra/weave-workspace/scripts/build_runtime_state_image.sh`, tag
+the printed image ID `weave-runtime-state:ci-s3`, then run the selected Gradle test. These
+disposable test builds do not change or publish a dogfood or production image.
 
 ## Dogfood and production
 
