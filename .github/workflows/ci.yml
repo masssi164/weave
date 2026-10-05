@@ -40,6 +40,7 @@ jobs:
 
   canonical_data:
     name: Canonical data
+    needs: core_architecture
     if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -53,6 +54,7 @@ jobs:
 
   postgres_persistence:
     name: PostgreSQL persistence
+    needs: canonical_data
     if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -66,6 +68,7 @@ jobs:
 
   protocol_foundation:
     name: Server protocol foundation
+    needs: postgres_persistence
     if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -86,6 +89,7 @@ jobs:
 
   mcp_foundation:
     name: MCP foundation
+    needs: protocol_foundation
     if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -99,6 +103,7 @@ jobs:
 
   core_docs:
     name: Core documentation
+    needs: mcp_foundation
     if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -112,6 +117,7 @@ jobs:
 
   generated_api:
     name: Generated API consumers
+    needs: core_docs
     if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     timeout-minutes: 30
