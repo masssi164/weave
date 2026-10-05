@@ -105,6 +105,33 @@ unique scope-name constraint. The corrected import omits that scope and the decl
 post-import operation updates its existing mapper. Renderer and Compose regression
 checks assert the complete coordinate; server missing/wrong-ID negatives remain unchanged.
 
+The product journey independently checks the isolated realm's exact native organization
+alias and ID in human and Admin tokens, including the fresh authorization-code/PKCE
+session obtained after reconciliation. Failure diagnostics distinguish absent, malformed,
+empty, multiple, wrong-alias and wrong-ID claims using fixed reason codes only; they never
+emit token contents, claim values or private provider payloads. These assertions do not
+relax Server admission or treat an empty organization object as an absent claim.
+
+The isolated `testApp` lifecycle must explicitly run `e2e keycloak-migration-apply`
+after its exact empty-namespace proof and before application startup or browser login.
+That existing one-shot operation qualifies the disposable environment, applies both
+declared operations, verifies readback/idempotency and retires its temporary authority.
+E2E application startup requires the completed receipt, as production startup already
+does. An import-only run leaves Keycloak's stock native-ID omission in place and cannot
+qualify the product. The previous structural test forbidding this explicit operation was
+obsolete after the manifest-bound native mapper migration; it is replaced by lifecycle
+ordering and fail-closed receipt assertions. Normal Server requests remain unable to
+reconcile static IAM, and persistent environments still require their reviewed migration.
+
+This is an explicit E2E conformance delta from the pinned identity specification's
+ADR-0022 development overlay exception: isolated E2E now uses the canonical
+`query-organizations`/`query-users` identity-administration grants and the qualified
+organization-scoped FGAP operation. Its former `manage-organizations`/`manage-users`
+overlay existed to avoid a second migration phase; that premise no longer holds when
+the native mapper operation is mandatory. The executor must continue rejecting broad
+steady-state grants. This narrows E2E authority and exercises the production boundary;
+the resettable dev/dogfood exception is not changed by this fix.
+
 Infrastructure must supply the primary coordinate to Server consistently with the
 Keycloak baseline/invitation target and preserve the canonical tenant used by Files
 bindings. Flutter's legacy provider-stack diagnostics currently use a User bearer;

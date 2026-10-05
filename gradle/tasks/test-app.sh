@@ -297,6 +297,7 @@ export WEAVE_E2E_EMPTY_NAMESPACE_PROOF="${empty_namespace_proof}"
 
 log "Starting one exact, import-initialized disposable Compose test stack."
 STACK_PREPARED=true
+bash "${COMPOSE}" e2e keycloak-migration-apply
 bash "${COMPOSE}" e2e up
 bash "${WORKSPACE_ROOT}/operator-check.sh" e2e
 
