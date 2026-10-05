@@ -75,7 +75,7 @@ Use Java 21.
 
 `coreCheck` retains focused foundation coverage. `generatedApiCi` verifies the shared
 code-first generation chain and actual JVM/Flutter/Admin consumers with pinned tools;
-see its [execution contract](../../specs/generated-api-ci-contract.md). Its metadata export
+see its [execution contract](https://github.com/masssi164/weave/blob/dev/specs/generated-api-ci-contract.md). Its metadata export
 requires no native Matrix runtime. Full Server protocol tests still build the required
 Rust/Ruma/JNI library. Neither gate alone proves the real #1480 system journeys.
 
