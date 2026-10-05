@@ -34,10 +34,12 @@ final class CollaborationJourney {
   private final ProductFlowEnvironment environment;
   private final JsonHttpClient http;
   private RetainedRoom retainedFirstPass;
+  private final GeneratedCalendarJourney calendar;
 
   CollaborationJourney(ProductFlowEnvironment environment, JsonHttpClient http) {
     this.environment = environment;
     this.http = http;
+    this.calendar = new GeneratedCalendarJourney(environment);
   }
 
   PassProof runPass(
@@ -58,13 +60,12 @@ final class CollaborationJourney {
 
     String suffix = runHash() + "-p" + pass;
     String fileName = "collaboration-" + suffix + ".txt";
-    String eventUid = "collaboration-" + suffix;
     String roomId = null;
     String authorEventId = null;
     String collaboratorEventId = null;
     String outageEventId = null;
     boolean fileCreated = false;
-    boolean calendarCreated = false;
+    GeneratedCalendarJourney.Proof calendarProof = null;
     boolean restartContinuityVerified = false;
     String nativeRevisionHash = null;
     try {
@@ -100,26 +101,8 @@ final class CollaborationJourney {
       requireBody(authorIdentity, "/dav/files/" + encode(fileName), updatedFile, "updated shared file");
       requireWebDavDenied(outsiderIdentity, fileName, pass);
 
-      String initialCalendar = calendar(eventUid, "Initial " + suffix);
-      String updatedCalendar = calendar(eventUid, "Updated " + suffix);
-      String calendarEtag = createCalendar(authorIdentity, eventUid, initialCalendar);
-      calendarCreated = true;
-      requireCalendar(
-          collaboratorIdentity,
-          "/caldav/workspace/" + encode(eventUid) + ".ics",
-          initialCalendar,
-          "shared calendar event");
-      String updatedCalendarEtag =
-          updateCalendar(authorIdentity, eventUid, calendarEtag, updatedCalendar);
-      if (calendarEtag.equals(updatedCalendarEtag)) {
-        throw new ProductFlowException("CalDAV revision did not advance after update");
-      }
-      requireCalendar(
-          collaboratorIdentity,
-          "/caldav/workspace/" + encode(eventUid) + ".ics",
-          updatedCalendar,
-          "updated shared calendar event");
-      requireCalendarDenied(outsiderIdentity, eventUid, pass);
+      calendarProof = calendar.createAndVerify(
+          authorIdentity.token(), collaboratorIdentity.token(), outsiderIdentity.token(), suffix);
       nativeRevisionHash =
           Hashing.sha256(
               authorEventId
@@ -128,7 +111,7 @@ final class CollaborationJourney {
                   + "\u0000"
                   + updatedFileEtag
                   + "\u0000"
-                  + updatedCalendarEtag);
+                  + calendarProof.revisionEvidence());
 
       proveProfileIsolation(pass, authorIdentity, collaboratorIdentity, outsiderIdentity);
       proveHomeProjection(authorIdentity, collaboratorIdentity, outsiderIdentity);
@@ -146,14 +129,13 @@ final class CollaborationJourney {
                     Hashing.sha256(collaboratorCiphertext)),
                 fileName,
                 updatedFile,
-                eventUid,
-                updatedCalendar);
+                calendarProof);
         roomId = null;
         authorEventId = null;
         collaboratorEventId = null;
         outageEventId = null;
         fileCreated = false;
-        calendarCreated = false;
+        calendarProof = null;
       } else {
         cleanRoomStrict(
             authorIdentity,
@@ -166,8 +148,8 @@ final class CollaborationJourney {
         roomId = null;
       }
       if (pass == 2) {
-        deleteStrict(authorIdentity, "/caldav/workspace/" + encode(eventUid) + ".ics", "calendar event");
-        calendarCreated = false;
+        calendar.delete(calendarProof, authorIdentity.token());
+        calendarProof = null;
         deleteStrict(authorIdentity, "/dav/files/" + encode(fileName), "file");
         fileCreated = false;
       }
@@ -199,12 +181,8 @@ final class CollaborationJourney {
         leaveBestEffort(collaboratorIdentity, roomId, pass);
         leaveBestEffort(authorIdentity, roomId, pass);
       }
-      if (calendarCreated) {
-        deleteBestEffort(
-            authorIdentity,
-            "/caldav/workspace/" + encode(eventUid) + ".ics",
-            "calendar event");
-      }
+      // Exact isolated namespace teardown cleans any Calendar objects if the journey fails.
+      // Successful paths delete through the generated API with strong current versions.
       if (fileCreated) {
         deleteBestEffort(authorIdentity, "/dav/files/" + encode(fileName), "file");
       }
@@ -232,17 +210,7 @@ final class CollaborationJourney {
     requireBody(author, "/dav/files/" + encode(room.fileName()), room.fileBody(), "restarted shared file");
     requireBody(collaborator, "/dav/files/" + encode(room.fileName()), room.fileBody(), "restarted shared file");
     requireWebDavDenied(outsider, room.fileName(), pass);
-    requireCalendar(
-        author,
-        "/caldav/workspace/" + encode(room.eventUid()) + ".ics",
-        room.calendarBody(),
-        "restarted shared calendar event");
-    requireCalendar(
-        collaborator,
-        "/caldav/workspace/" + encode(room.eventUid()) + ".ics",
-        room.calendarBody(),
-        "restarted shared calendar event");
-    requireCalendarDenied(outsider, room.eventUid(), pass);
+    calendar.verify(room.calendarProof(), author.token(), collaborator.token(), outsider.token());
     cleanRoomStrict(
         author,
         collaborator,
@@ -251,7 +219,7 @@ final class CollaborationJourney {
         room.collaboratorEventId(),
         room.outageEventId(),
         pass);
-    deleteStrict(author, "/caldav/workspace/" + encode(room.eventUid()) + ".ics", "retained calendar event");
+    calendar.delete(room.calendarProof(), author.token());
     deleteStrict(author, "/dav/files/" + encode(room.fileName()), "retained file");
     retainedFirstPass = null;
     return true;
@@ -628,53 +596,6 @@ final class CollaborationJourney {
         Set.of(403));
   }
 
-  private String createCalendar(Identity author, String uid, String content) {
-    JsonHttpClient.Response response =
-        http.send(
-            "create shared CalDAV event",
-            "PUT",
-            environment.api("/caldav/workspace/" + encode(uid) + ".ics"),
-            bearer(author.token(), Map.of("If-None-Match", "*")),
-            "text/calendar; charset=utf-8",
-            content.getBytes(StandardCharsets.UTF_8),
-            Set.of(201));
-    return requireEtag(response, "created CalDAV event");
-  }
-
-  private String updateCalendar(
-      Identity collaborator, String uid, String etag, String content) {
-    JsonHttpClient.Response response =
-        http.send(
-            "update shared CalDAV event",
-            "PUT",
-            environment.api("/caldav/workspace/" + encode(uid) + ".ics"),
-            bearer(collaborator.token(), Map.of("If-Match", etag)),
-            "text/calendar; charset=utf-8",
-            content.getBytes(StandardCharsets.UTF_8),
-            Set.of(204));
-    return requireEtag(response, "updated CalDAV event");
-  }
-
-  private void requireCalendarDenied(Identity outsider, String uid, int pass) {
-    http.send(
-        "deny outsider CalDAV read",
-        "GET",
-        environment.api("/caldav/workspace/" + encode(uid) + ".ics"),
-        bearer(outsider.token(), Map.of()),
-        null,
-        null,
-        Set.of(403, 404));
-    String outsiderUid = "outsider-denied-" + runHash() + "-" + pass;
-    http.send(
-        "deny outsider CalDAV write",
-        "PUT",
-        environment.api("/caldav/workspace/" + outsiderUid + ".ics"),
-        bearer(outsider.token(), Map.of("If-None-Match", "*")),
-        "text/calendar; charset=utf-8",
-        calendar(outsiderUid, "Denied").getBytes(StandardCharsets.UTF_8),
-        Set.of(403));
-  }
-
   private void requireBody(
       Identity identity, String path, String expected, String operation) {
     JsonHttpClient.Response response =
@@ -689,21 +610,6 @@ final class CollaborationJourney {
     if (!expected.equals(response.bodyText())) {
       throw new ProductFlowException(operation + " did not match exactly");
     }
-  }
-
-  private void requireCalendar(
-      Identity identity, String path, String expected, String operation) {
-    JsonHttpClient.Response response =
-        http.send(
-            "read " + operation,
-            "GET",
-            environment.api(path),
-            bearer(identity.token(), Map.of()),
-            null,
-            null,
-            Set.of(200));
-    IcalendarProjectionAssertions.requireWorkspaceProjection(
-        expected, response.bodyText(), operation);
   }
 
   private void proveProfileIsolation(
@@ -1186,24 +1092,6 @@ final class CollaborationJourney {
     return etag;
   }
 
-  private static String calendar(String uid, String summary) {
-    return "BEGIN:VCALENDAR\r\n"
-        + "VERSION:2.0\r\n"
-        + "PRODID:-//Weave//isolated testApp//EN\r\n"
-        + "BEGIN:VEVENT\r\n"
-        + "UID:"
-        + uid
-        + "\r\n"
-        + "DTSTAMP:20300101T000000Z\r\n"
-        + "DTSTART:20300102T100000Z\r\n"
-        + "DTEND:20300102T110000Z\r\n"
-        + "SUMMARY:"
-        + summary
-        + "\r\n"
-        + "END:VEVENT\r\n"
-        + "END:VCALENDAR\r\n";
-  }
-
   private String ciphertext(String actor, int pass) {
     return "cipher-" + Hashing.sha256(environment.runId() + "\u0000" + actor + "\u0000" + pass);
   }
@@ -1285,8 +1173,7 @@ final class CollaborationJourney {
       List<String> correlationHashes,
       String fileName,
       String fileBody,
-      String eventUid,
-      String calendarBody) {
+      GeneratedCalendarJourney.Proof calendarProof) {
     RetainedRoom {
       ciphertexts = List.copyOf(ciphertexts);
       correlationHashes = List.copyOf(correlationHashes);

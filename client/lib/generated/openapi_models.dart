@@ -677,6 +677,207 @@ class CalendarCredentialReadinessResponse {
   };
 }
 
+class CalendarEventAttendee {
+  const CalendarEventAttendee({
+    required this.address,
+    this.displayName,
+    this.response,
+    this.role,
+  });
+
+  factory CalendarEventAttendee.fromJson(Map<String, dynamic> json) =>
+      CalendarEventAttendee(
+        address: json["address"] as String,
+        displayName: json["displayName"] as String?,
+        response: json["response"] as String?,
+        role: json["role"] as String?,
+      );
+
+  final String address;
+  final String? displayName;
+  final String? response;
+  final String? role;
+
+  Map<String, dynamic> toJson() => {
+    "address": _openApiJsonValue(address),
+    "displayName": _openApiJsonValue(displayName),
+    "response": _openApiJsonValue(response),
+    "role": _openApiJsonValue(role),
+  };
+}
+
+class CalendarEventOverride {
+  const CalendarEventOverride({
+    this.cancelled,
+    this.description,
+    this.end,
+    this.location,
+    required this.recurrenceId,
+    this.start,
+    this.title,
+  });
+
+  factory CalendarEventOverride.fromJson(Map<String, dynamic> json) =>
+      CalendarEventOverride(
+        cancelled: json["cancelled"] as bool?,
+        description: json["description"] as String?,
+        end: json["end"] == null
+            ? null
+            : CalendarTimeValue.fromJson(json["end"] as Map<String, dynamic>),
+        location: json["location"] as String?,
+        recurrenceId: CalendarTimeValue.fromJson(
+          json["recurrenceId"] as Map<String, dynamic>,
+        ),
+        start: json["start"] == null
+            ? null
+            : CalendarTimeValue.fromJson(json["start"] as Map<String, dynamic>),
+        title: json["title"] as String?,
+      );
+
+  final bool? cancelled;
+  final String? description;
+  final CalendarTimeValue? end;
+  final String? location;
+  final CalendarTimeValue recurrenceId;
+  final CalendarTimeValue? start;
+  final String? title;
+
+  Map<String, dynamic> toJson() => {
+    "cancelled": _openApiJsonValue(cancelled),
+    "description": _openApiJsonValue(description),
+    "end": _openApiJsonValue(end),
+    "location": _openApiJsonValue(location),
+    "recurrenceId": _openApiJsonValue(recurrenceId),
+    "start": _openApiJsonValue(start),
+    "title": _openApiJsonValue(title),
+  };
+}
+
+class CalendarEventRecurrence {
+  const CalendarEventRecurrence({
+    required this.additionalDates,
+    required this.byDay,
+    required this.byMonth,
+    required this.byMonthDay,
+    required this.bySetPos,
+    this.count,
+    required this.excludedDates,
+    required this.frequency,
+    this.interval,
+    this.until,
+    this.weekStart,
+  });
+
+  factory CalendarEventRecurrence.fromJson(Map<String, dynamic> json) =>
+      CalendarEventRecurrence(
+        additionalDates: (json["additionalDates"] as List<dynamic>)
+            .map((e) => CalendarTimeValue.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        byDay: (json["byDay"] as List<dynamic>)
+            .map((e) => e as String)
+            .toList(),
+        byMonth: (json["byMonth"] as List<dynamic>)
+            .map((e) => (e as num).toInt())
+            .toList(),
+        byMonthDay: (json["byMonthDay"] as List<dynamic>)
+            .map((e) => (e as num).toInt())
+            .toList(),
+        bySetPos: (json["bySetPos"] as List<dynamic>)
+            .map((e) => (e as num).toInt())
+            .toList(),
+        count: (json["count"] as num?)?.toInt(),
+        excludedDates: (json["excludedDates"] as List<dynamic>)
+            .map((e) => CalendarTimeValue.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        frequency: json["frequency"] as String,
+        interval: (json["interval"] as num?)?.toInt(),
+        until: json["until"] == null
+            ? null
+            : CalendarTimeValue.fromJson(json["until"] as Map<String, dynamic>),
+        weekStart: json["weekStart"] as String?,
+      );
+
+  final List<CalendarTimeValue> additionalDates;
+  final List<String> byDay;
+  final List<int> byMonth;
+  final List<int> byMonthDay;
+  final List<int> bySetPos;
+  final int? count;
+  final List<CalendarTimeValue> excludedDates;
+  final String frequency;
+  final int? interval;
+  final CalendarTimeValue? until;
+  final String? weekStart;
+
+  Map<String, dynamic> toJson() => {
+    "additionalDates": _openApiJsonValue(additionalDates),
+    "byDay": _openApiJsonValue(byDay),
+    "byMonth": _openApiJsonValue(byMonth),
+    "byMonthDay": _openApiJsonValue(byMonthDay),
+    "bySetPos": _openApiJsonValue(bySetPos),
+    "count": _openApiJsonValue(count),
+    "excludedDates": _openApiJsonValue(excludedDates),
+    "frequency": _openApiJsonValue(frequency),
+    "interval": _openApiJsonValue(interval),
+    "until": _openApiJsonValue(until),
+    "weekStart": _openApiJsonValue(weekStart),
+  };
+}
+
+class CalendarEventWriteRequest {
+  const CalendarEventWriteRequest({
+    required this.attendees,
+    this.description,
+    required this.end,
+    this.location,
+    required this.overrides,
+    this.recurrence,
+    required this.start,
+    required this.title,
+  });
+
+  factory CalendarEventWriteRequest.fromJson(
+    Map<String, dynamic> json,
+  ) => CalendarEventWriteRequest(
+    attendees: (json["attendees"] as List<dynamic>)
+        .map((e) => CalendarEventAttendee.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    description: json["description"] as String?,
+    end: CalendarTimeValue.fromJson(json["end"] as Map<String, dynamic>),
+    location: json["location"] as String?,
+    overrides: (json["overrides"] as List<dynamic>)
+        .map((e) => CalendarEventOverride.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    recurrence: json["recurrence"] == null
+        ? null
+        : CalendarEventRecurrence.fromJson(
+            json["recurrence"] as Map<String, dynamic>,
+          ),
+    start: CalendarTimeValue.fromJson(json["start"] as Map<String, dynamic>),
+    title: json["title"] as String,
+  );
+
+  final List<CalendarEventAttendee> attendees;
+  final String? description;
+  final CalendarTimeValue end;
+  final String? location;
+  final List<CalendarEventOverride> overrides;
+  final CalendarEventRecurrence? recurrence;
+  final CalendarTimeValue start;
+  final String title;
+
+  Map<String, dynamic> toJson() => {
+    "attendees": _openApiJsonValue(attendees),
+    "description": _openApiJsonValue(description),
+    "end": _openApiJsonValue(end),
+    "location": _openApiJsonValue(location),
+    "overrides": _openApiJsonValue(overrides),
+    "recurrence": _openApiJsonValue(recurrence),
+    "start": _openApiJsonValue(start),
+    "title": _openApiJsonValue(title),
+  };
+}
+
 class CalendarExternalEndpointsResponse {
   const CalendarExternalEndpointsResponse({
     this.caldavDiscoveryUrl,
@@ -997,6 +1198,229 @@ class CalendarSetupCredentialResponse {
     "secretMaterialReturned": _openApiJsonValue(secretMaterialReturned),
     "state": _openApiJsonValue(state),
     "username": _openApiJsonValue(username),
+  };
+}
+
+class CalendarTimeValue {
+  const CalendarTimeValue({
+    this.date,
+    this.instant,
+    required this.kind,
+    this.localDateTime,
+    this.timeZone,
+  });
+
+  factory CalendarTimeValue.fromJson(Map<String, dynamic> json) =>
+      CalendarTimeValue(
+        date: json["date"] as String?,
+        instant: json["instant"] as String?,
+        kind: json["kind"] as String,
+        localDateTime: json["localDateTime"] as String?,
+        timeZone: json["timeZone"] as String?,
+      );
+
+  final String? date;
+  final String? instant;
+  final String kind;
+  final String? localDateTime;
+  final String? timeZone;
+
+  Map<String, dynamic> toJson() => {
+    "date": _openApiJsonValue(date),
+    "instant": _openApiJsonValue(instant),
+    "kind": _openApiJsonValue(kind),
+    "localDateTime": _openApiJsonValue(localDateTime),
+    "timeZone": _openApiJsonValue(timeZone),
+  };
+}
+
+class CalendarUserAgenda {
+  const CalendarUserAgenda({
+    required this.calendarId,
+    required this.evaluationTimeZone,
+    required this.events,
+    required this.from,
+    required this.occurrences,
+    required this.to,
+  });
+
+  factory CalendarUserAgenda.fromJson(Map<String, dynamic> json) =>
+      CalendarUserAgenda(
+        calendarId: json["calendarId"] as String,
+        evaluationTimeZone: json["evaluationTimeZone"] as String,
+        events: (json["events"] as List<dynamic>)
+            .map((e) => CalendarUserEvent.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        from: json["from"] as String,
+        occurrences: (json["occurrences"] as List<dynamic>)
+            .map(
+              (e) => CalendarUserOccurrence.fromJson(e as Map<String, dynamic>),
+            )
+            .toList(),
+        to: json["to"] as String,
+      );
+
+  final String calendarId;
+  final String evaluationTimeZone;
+  final List<CalendarUserEvent> events;
+  final String from;
+  final List<CalendarUserOccurrence> occurrences;
+  final String to;
+
+  Map<String, dynamic> toJson() => {
+    "calendarId": _openApiJsonValue(calendarId),
+    "evaluationTimeZone": _openApiJsonValue(evaluationTimeZone),
+    "events": _openApiJsonValue(events),
+    "from": _openApiJsonValue(from),
+    "occurrences": _openApiJsonValue(occurrences),
+    "to": _openApiJsonValue(to),
+  };
+}
+
+class CalendarUserCalendar {
+  const CalendarUserCalendar({
+    required this.allowedActions,
+    required this.id,
+    required this.scope,
+  });
+
+  factory CalendarUserCalendar.fromJson(Map<String, dynamic> json) =>
+      CalendarUserCalendar(
+        allowedActions: (json["allowedActions"] as List<dynamic>)
+            .map((e) => e as String)
+            .toList(),
+        id: json["id"] as String,
+        scope: CalendarUserScope.fromJson(
+          json["scope"] as Map<String, dynamic>,
+        ),
+      );
+
+  final List<String> allowedActions;
+  final String id;
+  final CalendarUserScope scope;
+
+  Map<String, dynamic> toJson() => {
+    "allowedActions": _openApiJsonValue(allowedActions),
+    "id": _openApiJsonValue(id),
+    "scope": _openApiJsonValue(scope),
+  };
+}
+
+class CalendarUserCalendars {
+  const CalendarUserCalendars({required this.calendars});
+
+  factory CalendarUserCalendars.fromJson(Map<String, dynamic> json) =>
+      CalendarUserCalendars(
+        calendars: (json["calendars"] as List<dynamic>)
+            .map(
+              (e) => CalendarUserCalendar.fromJson(e as Map<String, dynamic>),
+            )
+            .toList(),
+      );
+
+  final List<CalendarUserCalendar> calendars;
+
+  Map<String, dynamic> toJson() => {"calendars": _openApiJsonValue(calendars)};
+}
+
+class CalendarUserEvent {
+  const CalendarUserEvent({
+    required this.allowedActions,
+    required this.calendarId,
+    required this.content,
+    required this.id,
+    required this.meetingThreadRef,
+    required this.scope,
+    required this.version,
+  });
+
+  factory CalendarUserEvent.fromJson(Map<String, dynamic> json) =>
+      CalendarUserEvent(
+        allowedActions: (json["allowedActions"] as List<dynamic>)
+            .map((e) => e as String)
+            .toList(),
+        calendarId: json["calendarId"] as String,
+        content: CalendarEventWriteRequest.fromJson(
+          json["content"] as Map<String, dynamic>,
+        ),
+        id: json["id"] as String,
+        meetingThreadRef: json["meetingThreadRef"] as String,
+        scope: CalendarUserScope.fromJson(
+          json["scope"] as Map<String, dynamic>,
+        ),
+        version: json["version"] as String,
+      );
+
+  final List<String> allowedActions;
+  final String calendarId;
+  final CalendarEventWriteRequest content;
+  final String id;
+  final String meetingThreadRef;
+  final CalendarUserScope scope;
+  final String version;
+
+  Map<String, dynamic> toJson() => {
+    "allowedActions": _openApiJsonValue(allowedActions),
+    "calendarId": _openApiJsonValue(calendarId),
+    "content": _openApiJsonValue(content),
+    "id": _openApiJsonValue(id),
+    "meetingThreadRef": _openApiJsonValue(meetingThreadRef),
+    "scope": _openApiJsonValue(scope),
+    "version": _openApiJsonValue(version),
+  };
+}
+
+class CalendarUserOccurrence {
+  const CalendarUserOccurrence({
+    required this.endsAt,
+    required this.eventId,
+    required this.startsAt,
+  });
+
+  factory CalendarUserOccurrence.fromJson(Map<String, dynamic> json) =>
+      CalendarUserOccurrence(
+        endsAt: json["endsAt"] as String,
+        eventId: json["eventId"] as String,
+        startsAt: json["startsAt"] as String,
+      );
+
+  final String endsAt;
+  final String eventId;
+  final String startsAt;
+
+  Map<String, dynamic> toJson() => {
+    "endsAt": _openApiJsonValue(endsAt),
+    "eventId": _openApiJsonValue(eventId),
+    "startsAt": _openApiJsonValue(startsAt),
+  };
+}
+
+class CalendarUserScope {
+  const CalendarUserScope({
+    this.channelId,
+    required this.spaceId,
+    this.teamId,
+    required this.type,
+  });
+
+  factory CalendarUserScope.fromJson(Map<String, dynamic> json) =>
+      CalendarUserScope(
+        channelId: json["channelId"] as String?,
+        spaceId: json["spaceId"] as String,
+        teamId: json["teamId"] as String?,
+        type: json["type"] as String,
+      );
+
+  final String? channelId;
+  final String spaceId;
+  final String? teamId;
+  final String type;
+
+  Map<String, dynamic> toJson() => {
+    "channelId": _openApiJsonValue(channelId),
+    "spaceId": _openApiJsonValue(spaceId),
+    "teamId": _openApiJsonValue(teamId),
+    "type": _openApiJsonValue(type),
   };
 }
 

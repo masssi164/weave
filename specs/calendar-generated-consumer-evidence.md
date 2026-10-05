@@ -31,7 +31,9 @@ Server controllers and DTOs. No transport schema or generated file is hand edite
 Calendar payload DTOs preserve DATE/FLOATING/UTC/ZONED and typed recurrence without
 provider UIDs, ETags or collection paths becoming public references.
 
-Product E2E reuses the generated JVM User client. In the existing isolated Compose
+Product E2E replaces its handwritten northbound CalDAV event journey with the
+generated JVM User client. Existing iCalendar projection fixtures remain reusable
+protocol evidence and are not deleted. In the existing isolated Compose
 run it creates events through the actual member session, checks query/read/update
 and strong version preconditions, and independently denies outsider access.
 Temporal values, event identity, authorized scope and meeting-thread correlation
