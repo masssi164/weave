@@ -137,6 +137,12 @@ artifacts:
       - steering/devops-conformance.md
       - releases/rc-gates/release-candidate-gate.md
     notes: Replaced by weave-specs commit 78f6c58fef0ebb53684c5c861c2453b8c4c577c9; Forgejo delivery/runtime evidence is not active.
+  - path: specs/calendar-generated-consumer-evidence.md
+    status: implementation-evidence
+    action: retain-as-generated-calendar-consumer-and-runtime-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/calendar/spec.md
 cleanupSequence:
   - Add or update corpus files for any remaining product/domain meaning.
   - Update repo tests/gates to consume corpus contracts or generated projections.
