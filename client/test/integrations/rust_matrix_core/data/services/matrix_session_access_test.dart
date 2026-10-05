@@ -120,7 +120,22 @@ void main() {
         );
       });
 
-      await expectLater(authorize(client), throwsA(isA<ChatFailure>()));
+      await expectLater(
+        authorize(client),
+        throwsA(
+          isA<ChatFailure>()
+              .having(
+                (failure) => failure.type,
+                'localized failure category',
+                ChatFailureType.sessionRequired,
+              )
+              .having(
+                (failure) => failure.message,
+                'support-safe diagnostic code',
+                'M_WEAVE_MATRIX_ACCESS_DENIED',
+              ),
+        ),
+      );
     });
   }
 
@@ -131,7 +146,23 @@ void main() {
         (_) async => http.Response('', 401),
       );
 
-      await expectLater(authorize(client), throwsA(isA<ChatFailure>()));
+      await expectLater(
+        authorize(client),
+        throwsA(
+          isA<ChatFailure>()
+              .having(
+                (failure) => failure.type,
+                'localized failure category',
+                ChatFailureType.sessionRequired,
+              )
+              .having(
+                (failure) => failure.message,
+                'support-safe diagnostic code',
+                'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
+              )
+              .having((failure) => failure.cause, 'HTTP status only', 401),
+        ),
+      );
     },
   );
 }

@@ -67,9 +67,7 @@ class GeneratedMatrixSessionAccess implements MatrixSessionAccessPort {
                       .WorkspaceCapabilityStatusResponseReadinessEnum
                       .degraded) ||
           !chat!.grantedCapabilities.contains('chat.read')) {
-        throw const ChatFailure.sessionRequired(
-          'Chat is not authorized for this Weave account and organization.',
-        );
+        throw const ChatFailure.sessionRequired('M_WEAVE_MATRIX_ACCESS_DENIED');
       }
       return MatrixSessionAccess(
         organizationId: organizationId,
@@ -79,12 +77,12 @@ class GeneratedMatrixSessionAccess implements MatrixSessionAccessPort {
       rethrow;
     } on user_api.ApiException catch (error) {
       throw ChatFailure.sessionRequired(
-        'Current Chat access could not be confirmed.',
+        'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
         cause: error.code,
       );
     } catch (error) {
       throw ChatFailure.sessionRequired(
-        'Current Chat access could not be confirmed.',
+        'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
         cause: error,
       );
     }
