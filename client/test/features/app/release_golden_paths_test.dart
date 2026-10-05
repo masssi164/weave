@@ -471,7 +471,7 @@ void main() {
     });
 
     testWidgets(
-      'files-first journey connects Weave Files, browses folders, and keeps chat reachable',
+      'files-first journey uses the Weave session, browses folders, and keeps chat reachable',
       (tester) async {
         final secureStore = InMemorySecureStore({
           authSessionStorageKey: AuthSessionDto.fromSession(
@@ -479,8 +479,9 @@ void main() {
           ).encode(),
         });
         final filesRepository = _MutableFilesRepository(
-          initialConnectionState: FilesConnectionState.disconnected(
+          initialConnectionState: FilesConnectionState.connected(
             baseUrl: Uri.parse('https://files.home.internal'),
+            accountLabel: 'alice',
           ),
           listings: <String, DirectoryListing>{
             '/': const DirectoryListing(
@@ -491,6 +492,7 @@ void main() {
                   name: 'Projects',
                   path: '/Projects',
                   isDirectory: true,
+                  allowedActions: {'listChildren'},
                 ),
               ],
             ),
@@ -576,12 +578,8 @@ void main() {
         await tester.tap(find.byIcon(Icons.folder_outlined));
         await tester.pumpAndSettle();
 
-        expect(find.text('Connect Files'), findsWidgets);
-
-        await tester.tap(find.text('Connect Files').first);
-        await tester.pumpAndSettle();
-
-        expect(filesRepository.connectCalls, 1);
+        expect(find.text('Connect Files'), findsNothing);
+        expect(filesRepository.connectCalls, 0);
         expect(find.text('Projects'), findsWidgets);
 
         await tester.drag(
@@ -691,7 +689,7 @@ void main() {
     });
 
     testWidgets(
-      'changed Nextcloud server marks files as needing recovery without dropping shell access',
+      'changed Weave API marks files as needing recovery without dropping shell access',
       (tester) async {
         final secureStore = InMemorySecureStore({
           authSessionStorageKey: AuthSessionDto.fromSession(

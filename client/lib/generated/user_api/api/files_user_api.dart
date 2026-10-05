@@ -18,6 +18,8 @@ class FilesUserApi {
 
   /// Create an empty Files folder at an absent name
   ///
+  /// Requires createFolder in the parent's current allowedActions. The current release supports atomic root-folder creation; other parents fail closed until their identity can be bound atomically by the selected provider.
+  ///
   /// Note: This method returns the HTTP [Response].
   ///
   /// Parameters:
@@ -62,6 +64,8 @@ class FilesUserApi {
 
   /// Create an empty Files folder at an absent name
   ///
+  /// Requires createFolder in the parent's current allowedActions. The current release supports atomic root-folder creation; other parents fail closed until their identity can be bound atomically by the selected provider.
+  ///
   /// Parameters:
   ///
   /// * [String] ifNoneMatch (required):
@@ -98,6 +102,8 @@ class FilesUserApi {
   }
 
   /// Download bounded binary Files content
+  ///
+  /// Returns at most 26214400 bytes (25 MiB) from an identity-bound conditional provider read. Requires download in the item's current allowedActions. Larger files fail with 413.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -139,6 +145,8 @@ class FilesUserApi {
   }
 
   /// Download bounded binary Files content
+  ///
+  /// Returns at most 26214400 bytes (25 MiB) from an identity-bound conditional provider read. Requires download in the item's current allowedActions. Larger files fail with 413.
   ///
   /// Parameters:
   ///
@@ -295,6 +303,8 @@ class FilesUserApi {
 
   /// Replace bounded binary content against a strong validator
   ///
+  /// Accepts at most 26214400 bytes (25 MiB). Requires updateContent in the item's current allowedActions and a provider that atomically enforces both identity and version. Unsupported providers fail closed; a content ETag is distinct from the item revision.
+  ///
   /// Note: This method returns the HTTP [Response].
   ///
   /// Parameters:
@@ -350,6 +360,8 @@ class FilesUserApi {
 
   /// Replace bounded binary content against a strong validator
   ///
+  /// Accepts at most 26214400 bytes (25 MiB). Requires updateContent in the item's current allowedActions and a provider that atomically enforces both identity and version. Unsupported providers fail closed; a content ETag is distinct from the item revision.
+  ///
   /// Parameters:
   ///
   /// * [String] fileId (required):
@@ -394,6 +406,8 @@ class FilesUserApi {
   }
 
   /// Upload bounded binary content at an absent name
+  ///
+  /// Accepts at most 26214400 bytes (25 MiB), including an empty file. Requires upload in the parent's current allowedActions. The current release supports atomic creation in file:root; unsupported parent identity guarantees fail closed.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -453,6 +467,8 @@ class FilesUserApi {
   }
 
   /// Upload bounded binary content at an absent name
+  ///
+  /// Accepts at most 26214400 bytes (25 MiB), including an empty file. Requires upload in the parent's current allowedActions. The current release supports atomic creation in file:root; unsupported parent identity guarantees fail closed.
   ///
   /// Parameters:
   ///
