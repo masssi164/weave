@@ -1,6 +1,9 @@
 package com.massimotter.weave.e2e;
 
 import com.massimotter.weave.userapi.model.AuthenticatedUserResponse;
+import com.massimotter.weave.userapi.model.ProductProfileResponse;
+import com.massimotter.weave.userapi.model.WorkspaceHomeRecentActivityResponse;
+import com.massimotter.weave.userapi.model.WorkspaceHomeResponse;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -36,12 +39,14 @@ final class CollaborationJourney {
   private RetainedRoom retainedFirstPass;
   private final GeneratedCalendarJourney calendar;
   private final GeneratedFilesJourney files;
+  private final GeneratedProfileHomeApi profileHome;
 
   CollaborationJourney(ProductFlowEnvironment environment, JsonHttpClient http) {
     this.environment = environment;
     this.http = http;
     this.calendar = new GeneratedCalendarJourney(environment);
     this.files = new GeneratedFilesJourney(environment);
+    this.profileHome = new GeneratedProfileHomeApi(environment);
   }
 
   PassProof runPass(
@@ -543,54 +548,40 @@ final class CollaborationJourney {
       int pass, Identity author, Identity collaborator, Identity outsider) {
     Map<String, String> observed = new LinkedHashMap<>();
     for (Identity identity : List.of(author, collaborator, outsider)) {
-      ObjectNode update = http.mapper().createObjectNode();
       String displayName = "Weave " + identity.role() + " " + runHash() + " " + pass;
-      update.put("displayName", displayName);
-      update.put("locale", "collaborator".equals(identity.role()) ? "de" : "en");
-      update.put("timezone", "Europe/Berlin");
-      update.put("profileVisibility", "private");
-      update.putObject("accessibilityPreferences").put("reducedMotion", "true");
-      JsonNode updated =
-          http.json(
-              "update " + identity.role() + " product profile",
-              "PATCH",
-              environment.api("/api/profile"),
-              bearer(identity.token(), Map.of()),
-              update,
-              Set.of(200));
-      if (!displayName.equals(updated.path("displayName").asString())
-          || !"true".equals(
-              updated.path("accessibilityPreferences").path("reducedMotion").asString())) {
+      String locale = "collaborator".equals(identity.role()) ? "de" : "en";
+      ProductProfileResponse updated = profileHome.updateProfile(identity.token(), displayName, locale);
+      if (!displayName.equals(updated.getDisplayName())
+          || updated.getAccessibilityPreferences() == null
+          || !"true".equals(updated.getAccessibilityPreferences().get("reducedMotion"))) {
         throw new ProductFlowException(identity.role() + " profile update did not persist");
       }
-      JsonNode current =
-          http.json(
-              "read " + identity.role() + " product profile",
-              "GET",
-              environment.api("/api/profile"),
-              bearer(identity.token(), Map.of()),
-              null,
-              Set.of(200));
-      observed.put(identity.role(), current.path("userId").asString());
-      if (!displayName.equals(current.path("displayName").asString())) {
+      ProductProfileResponse current = profileHome.readProfile(identity.token());
+      observed.put(identity.role(), current.getUserId());
+      if (!displayName.equals(current.getDisplayName())
+          || !locale.equals(current.getLocale())
+          || !"Europe/Berlin".equals(current.getTimezone())
+          || current.getProfileVisibility()
+              != ProductProfileResponse.ProfileVisibilityEnum.PRIVATE
+          || current.getAccessibilityPreferences() == null
+          || !"true".equals(current.getAccessibilityPreferences().get("reducedMotion"))) {
         throw new ProductFlowException(identity.role() + " profile isolation did not persist");
       }
     }
-    if (observed.values().stream().anyMatch(String::isBlank)
+    if (observed.values().stream().anyMatch(value -> value == null || value.isBlank())
         || Set.copyOf(observed.values()).size() != 3) {
       throw new ProductFlowException("product profile identities are not isolated");
     }
   }
 
   private void proveHomeProjection(Identity author, Identity collaborator, Identity outsider) {
-    JsonNode authorHome = home(author);
+    WorkspaceHomeResponse authorHome = home(author);
     String privateActivityRef = null;
-    for (int index = 0; index < authorHome.path("recentActivity").size(); index++) {
-      JsonNode activity = authorHome.path("recentActivity").get(index);
-      if ("files.user_write.completed".equals(activity.path("action").asString())
-          && "private".equals(activity.path("visibility").asString())
-          && activity.path("actorIsCurrentUser").asBoolean(false)) {
-        privateActivityRef = activity.path("activityRef").asString();
+    for (WorkspaceHomeRecentActivityResponse activity : authorHome.getRecentActivity()) {
+      if ("files.user_write.completed".equals(activity.getAction())
+          && WorkspaceHomeRecentActivityResponse.VisibilityEnum.PRIVATE.equals(activity.getVisibility())
+          && Boolean.TRUE.equals(activity.getActorIsCurrentUser())) {
+        privateActivityRef = activity.getActivityRef();
         break;
       }
     }
@@ -598,26 +589,18 @@ final class CollaborationJourney {
       throw new ProductFlowException("completed User Files activity did not reach owner Home");
     }
     for (Identity identity : List.of(collaborator, outsider)) {
-      JsonNode otherHome = home(identity);
-      for (int index = 0; index < otherHome.path("recentActivity").size(); index++) {
-        if (privateActivityRef.equals(otherHome.path("recentActivity").get(index)
-            .path("activityRef").asString())) {
+      WorkspaceHomeResponse otherHome = home(identity);
+      for (WorkspaceHomeRecentActivityResponse activity : otherHome.getRecentActivity()) {
+        if (privateActivityRef.equals(activity.getActivityRef())) {
           throw new ProductFlowException("private User Files activity leaked to " + identity.role());
         }
       }
     }
   }
 
-  private JsonNode home(Identity identity) {
-    JsonNode response = http.json(
-        "read authorized Home activity as " + identity.role(),
-        "GET",
-        environment.api("/api/workspace/home"),
-        bearer(identity.token(), Map.of()),
-        null,
-        Set.of(200));
-    if (!response.path("supportSafe").asBoolean(false)
-        || !response.path("recentActivity").isArray()) {
+  private WorkspaceHomeResponse home(Identity identity) {
+    WorkspaceHomeResponse response = profileHome.home(identity.token());
+    if (!Boolean.TRUE.equals(response.getSupportSafe()) || response.getRecentActivity() == null) {
       throw new ProductFlowException(identity.role() + " Home activity response is invalid");
     }
     return response;
