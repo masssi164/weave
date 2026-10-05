@@ -17,6 +17,17 @@ organization. This fix preserves existing data and does not implement provider m
   explicit, operator-owned native organization coordinate. Their environment
   projections are `WEAVE_PRIMARY_ORGANIZATION_ID` and `WEAVE_PRIMARY_ORGANIZATION_ALIAS`.
   Both default to blank; missing configuration denies human product access.
+- Compose reads the native alias from the same `WEAVE_ORGANIZATION_ALIAS` overlay
+  used by realm rendering and invitation configuration; environment-specific aliases
+  must not be replaced with a hardcoded `weave` value. Host `dev` defaults to `weave-dev`.
+- The generated fresh-realm baseline explicitly configures Keycloak's built-in
+  organization membership mapper with `addOrganizationId=true`, JSON multivalued
+  projection and organization attributes/domains disabled. Keycloak 26.7.1 defaults
+  that ID flag to false. This uses the supported mapper, not a custom claim or token.
+  Existing realms need an explicit baseline/migration update and fresh tokens before
+  enabling admission; this change does not silently mutate a persistent realm.
+  The supported option is defined by the pinned
+  [Keycloak 26.7.1 organization mapper](https://github.com/keycloak/keycloak/blob/26.7.1/services/src/main/java/org/keycloak/organization/protocol/mappers/oidc/OrganizationMembershipMapper.java).
 - The configured coordinate maps to the existing canonical
   `weave.context.authorization.default-tenant-id`. No public request selects this
   mapping. The native `organization` claim must contain exactly that alias and ID.
@@ -71,6 +82,10 @@ revision and configured adapter state. A User-session request to the Admin statu
 must return 401. The existing fixture creates its own provider binding and subsequently
 verifies real Files bytes; a configured status alone is not live provider proof. Existing
 `testApp` ownership, sanitized evidence and exact namespace cleanup remain unchanged.
+The first real candidate correctly failed during reconciliation because its realm
+omitted the native organization ID and the server alias differed from the environment
+overlay. Renderer and Compose regression checks now assert the complete coordinate;
+the server's missing/wrong-ID negatives remain unchanged.
 
 Infrastructure must supply the primary coordinate to Server consistently with the
 Keycloak baseline/invitation target and preserve the canonical tenant used by Files

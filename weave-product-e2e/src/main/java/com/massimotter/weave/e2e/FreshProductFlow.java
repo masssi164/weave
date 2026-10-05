@@ -781,6 +781,11 @@ public final class FreshProductFlow {
     if (!hasExactWorkspaceScope(scopes)) {
       invalidClaims.add("workspace-scope");
     }
+    JsonNode organizations = claims.path("organization");
+    if (!organizations.isObject() || organizations.size() != 1
+        || organizations.properties().iterator().next().getValue().path("id").asString("").isBlank()) {
+      invalidClaims.add("native-organization-id");
+    }
     Set<String> organizationRoles = organizationRoles(claims, "weave-app");
     Set<String> productRoles = Set.of("owner", "admin", "member", "guest");
     long productRoleCount = organizationRoles.stream().filter(productRoles::contains).count();

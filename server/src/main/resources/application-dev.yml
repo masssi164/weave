@@ -29,7 +29,7 @@ weave:
     primary-organization:
       # The checked-in local Keycloak baseline owns this native coordinate.
       keycloak-id: ${WEAVE_PRIMARY_ORGANIZATION_ID:8f771be4-f526-5bef-97dc-00c8e2fa383d}
-      keycloak-alias: ${WEAVE_PRIMARY_ORGANIZATION_ALIAS:weave}
+      keycloak-alias: ${WEAVE_PRIMARY_ORGANIZATION_ALIAS:weave-dev}
   files:
     provider: weave-native
     native:
@@ -45,7 +45,7 @@ weave:
         base-url: http://127.0.0.1:${WEAVE_KEYCLOAK_HOST_PORT:48080}
         realm: weave
         organization-id: ${WEAVE_PRIMARY_ORGANIZATION_ID:8f771be4-f526-5bef-97dc-00c8e2fa383d}
-        organization-alias: ${WEAVE_PRIMARY_ORGANIZATION_ALIAS:weave}
+        organization-alias: ${WEAVE_PRIMARY_ORGANIZATION_ALIAS:weave-dev}
         admin-client-id: weave-identity-admin
         admin-credential-ref: credentialref://weave/keycloak/weave-identity-admin
         private-key-jwt-audience: https://auth.weave.test/realms/weave

@@ -312,6 +312,18 @@ def run() -> None:
     assert first["organizations"][0]["id"] == deterministic_organization_id(
         "organization:weave-primary"
     )
+    organization_scope = next(
+        scope for scope in first["clientScopes"] if scope["name"] == "organization"
+    )
+    membership = organization_scope["protocolMappers"]
+    assert len(membership) == 1
+    assert membership[0]["protocolMapper"] == "oidc-organization-membership-mapper"
+    assert membership[0]["config"]["addOrganizationId"] == "true"
+    assert membership[0]["config"]["multivalued"] == "true"
+    assert membership[0]["config"]["jsonType.label"] == "JSON"
+    assert membership[0]["config"]["access.token.claim"] == "true"
+    assert membership[0]["config"]["addOrganizationAttributes"] == "false"
+    assert membership[0]["config"]["addOrganizationDomain"] == "false"
     assert first["clientScopeMappings"] == {
         "realm-management": [
             {

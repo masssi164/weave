@@ -494,7 +494,34 @@ def project_realm(
             role_by_key[str(role["key"])] = {**role, "clientId": client_id}
         else:
             raise RealmProjectionError("role has unsupported scope")
-    projected_scopes: list[dict[str, object]] = []
+    # The stock built-in mapper omits IDs by default. Admission binds both the
+    # environment alias and immutable native ID, so project that supported option
+    # explicitly in the immutable fresh-realm artifact. No organization attributes
+    # or email-domain data are needed by the product boundary.
+    if "organization" in scope_names.values():
+        raise RealmProjectionError("the built-in organization scope cannot be shadowed")
+    projected_scopes: list[dict[str, object]] = [{
+        "name": "organization",
+        "protocol": "openid-connect",
+        "attributes": {"include.in.token.scope": "true"},
+        "protocolMappers": [{
+            "name": "organization",
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-organization-membership-mapper",
+            "config": {
+                "claim.name": "organization",
+                "jsonType.label": "JSON",
+                "multivalued": "true",
+                "addOrganizationId": "true",
+                "addOrganizationAttributes": "false",
+                "addOrganizationDomain": "false",
+                "access.token.claim": "true",
+                "id.token.claim": "true",
+                "userinfo.token.claim": "false",
+                "introspection.token.claim": "true",
+            },
+        }],
+    }]
     scope_mappings: list[dict[str, object]] = []
     for scope in scopes:
         projected_scopes.append(

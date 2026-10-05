@@ -74,8 +74,8 @@ assert "weave.identity.invitations.keycloak.private-key-jwt-audience:" in backen
 assert "weave.agent-runtime.workload-identity.issuer:" in backend
 assert "weave.security.required-audience:" in backend
 assert "weave.security.primary-organization.keycloak-id: 8f771be4-f526-5bef-97dc-00c8e2fa383d" in backend
-assert "weave.security.primary-organization.keycloak-alias: weave" in backend
-assert "weave.identity.invitations.keycloak.organization-alias: weave" in backend
+assert "weave.security.primary-organization.keycloak-alias: ${WEAVE_ORGANIZATION_ALIAS:?required}" in backend
+assert "weave.identity.invitations.keycloak.organization-alias: ${WEAVE_ORGANIZATION_ALIAS:?required}" in backend
 assert "weave.context.authorization.default-tenant-id: ${WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID:-tenant-default}" in backend
 assert "weave.mcp.resource-uri:" in mcp
 assert "weave.mcp.authorization-server:" in mcp

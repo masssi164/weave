@@ -19,9 +19,15 @@ native organization maps to `weave.context.authorization.default-tenant-id`, the
 canonical tenant already used by resource authorization and Files bindings.
 Token organization and tenant claims cannot choose a different data scope.
 The host `dev` profile uses the checked-in local realm's primary ID
-`8f771be4-f526-5bef-97dc-00c8e2fa383d` and alias `weave`, consistently for admission
+`8f771be4-f526-5bef-97dc-00c8e2fa383d` and alias `weave-dev`, consistently for admission
 and invitation provisioning; both can be overridden with the same primary variables.
 Other runtime profiles need explicit operator/Compose wiring.
+
+Compose uses `WEAVE_ORGANIZATION_ALIAS` from the same environment overlay as the realm
+renderer. The fresh-realm baseline enables the supported built-in organization mapper's
+`addOrganizationId` flag and keeps organization attributes/domains disabled. Existing
+realms require an explicit baseline/migration update and new tokens before admission
+is enabled; merely configuring the Server variables does not change Keycloak tokens.
 
 `GET /api/admin/providers/status` requires the dedicated Admin session plus current
 organization owner/admin authority. Its category selections are legacy deployment
