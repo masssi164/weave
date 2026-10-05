@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.config.RequestIdFilter;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
 import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
 import com.massimotter.weave.backend.service.PlatformContractService;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.stream.Stream;
@@ -26,6 +27,7 @@ public class HealthController {
     }
 
     @GetMapping("/api/health/live")
+    @Operation(operationId = "live")
     public HealthResponse live(HttpServletRequest request) {
         String requestId = RequestIdFilter.requestId(request);
         return new HealthResponse(
@@ -42,6 +44,7 @@ public class HealthController {
     }
 
     @GetMapping("/api/health/ready")
+    @Operation(operationId = "ready")
     public ResponseEntity<HealthResponse> ready(HttpServletRequest request) {
         PlatformStatusResponse status = platformContractService.status(RequestIdFilter.requestId(request));
         List<PlatformStatusResponse.DiagnosticCheck> backendChecks = Stream.concat(

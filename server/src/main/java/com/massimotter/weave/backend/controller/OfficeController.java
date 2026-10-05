@@ -46,7 +46,7 @@ public class OfficeController {
     }
 
     @PostMapping("/api/office/launch")
-    @Operation(summary = "Launch a future Office document session")
+    @Operation(operationId = "launch", summary = "Launch a future Office document session")
     @ApiResponse(responseCode = "200", description = "Office document launch session.",
             content = @Content(schema = @Schema(implementation = OfficeLaunchResponse.class)))
     @ApiResponse(responseCode = "503", description = "Office provider is not configured or unavailable.",

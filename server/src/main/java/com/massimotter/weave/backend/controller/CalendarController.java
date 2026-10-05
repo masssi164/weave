@@ -57,7 +57,7 @@ public class CalendarController {
     }
 
     @GetMapping("/api/calendar/scopes")
-    @Operation(summary = "List visible workspace, team, and channel calendar scopes")
+    @Operation(operationId = "scopes", summary = "List visible workspace, team, and channel calendar scopes")
     @ApiResponse(responseCode = "200", description = "Visible calendar scopes.",
             content = @Content(schema = @Schema(implementation = CalendarScopesResponse.class)))
     public CalendarScopesResponse scopes() {
@@ -65,7 +65,7 @@ public class CalendarController {
     }
 
     @GetMapping("/api/calendar/client-setup")
-    @Operation(summary = "Describe native calendar client setup options")
+    @Operation(operationId = "clientSetup", summary = "Describe native calendar client setup options")
     @ApiResponse(responseCode = "200", description = "Secret-free native calendar client setup metadata.",
             content = @Content(schema = @Schema(implementation = CalendarClientSetupResponse.class)))
     public CalendarClientSetupResponse clientSetup() {
@@ -84,13 +84,13 @@ public class CalendarController {
     }
 
     @GetMapping("/api/calendar/access-policy")
-    @Operation(summary = "Describe fail-closed private calendar access policy")
+    @Operation(operationId = "accessPolicy", summary = "Describe fail-closed private calendar access policy")
     public CalendarAccessPolicyResponse accessPolicy() {
         return calendarFacadeService.accessPolicy();
     }
 
     @GetMapping("/api/calendar/client-setup/credentials")
-    @Operation(summary = "List revocable calendar setup credential references")
+    @Operation(operationId = "setupCredentials", summary = "List revocable calendar setup credential references")
     @ApiResponse(responseCode = "200", description = "Calendar setup credentials without secret material.",
             content = @Content(schema = @Schema(implementation = CalendarSetupCredentialListResponse.class)))
     public CalendarSetupCredentialListResponse setupCredentials() {
@@ -98,7 +98,7 @@ public class CalendarController {
     }
 
     @PostMapping("/api/calendar/client-setup/credentials")
-    @Operation(summary = "Create a revocable calendar setup credential and return its secret once")
+    @Operation(operationId = "createSetupCredential", summary = "Create a revocable calendar setup credential and return its secret once")
     @ApiResponse(responseCode = "200", description = "New calendar credential with one-time secret material.",
             content = @Content(schema = @Schema(implementation = CalendarSetupCredentialResponse.class)))
     public CalendarSetupCredentialResponse createSetupCredential(
@@ -107,7 +107,7 @@ public class CalendarController {
     }
 
     @DeleteMapping("/api/calendar/client-setup/credentials/{credentialId}")
-    @Operation(summary = "Revoke a calendar setup credential reference")
+    @Operation(operationId = "revokeSetupCredential", summary = "Revoke a calendar setup credential reference")
     @ApiResponse(responseCode = "200", description = "Revoked calendar credential without secret material.",
             content = @Content(schema = @Schema(implementation = CalendarSetupCredentialResponse.class)))
     public CalendarSetupCredentialResponse revokeSetupCredential(@PathVariable @Size(max = 128) String credentialId) {
@@ -117,7 +117,7 @@ public class CalendarController {
     @GetMapping(
             value = "/api/calendar/client-setup/apple.mobileconfig",
             produces = "application/x-apple-aspen-config")
-    @Operation(summary = "Download a signed Apple Calendar setup profile")
+    @Operation(operationId = "appleMobileConfigProfile", summary = "Download a signed Apple Calendar setup profile")
     @ApiResponse(responseCode = "200", description = "Signed secret-free Apple Calendar .mobileconfig profile.",
             content = @Content(mediaType = "application/x-apple-aspen-config"))
     @ApiResponse(responseCode = "503", description = "Profile signing or revocable credential support is not configured yet.",

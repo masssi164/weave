@@ -5892,6 +5892,7 @@
     },
     "/api/files/items/folders": {
       "post": {
+        "description": "Requires createFolder in the parent's current allowedActions. The current release supports atomic root-folder creation; other parents fail closed until their identity can be bound atomically by the selected provider.",
         "operationId": "createFilesFolder",
         "parameters": [
           {
@@ -5909,6 +5910,8 @@
             "name": "Idempotency-Key",
             "required": true,
             "schema": {
+              "maxLength": 128,
+              "minLength": 16,
               "type": "string"
             }
           }
@@ -6028,6 +6031,7 @@
     },
     "/api/files/items/uploads": {
       "post": {
+        "description": "Accepts at most 26214400 bytes (25 MiB), including an empty file. Requires upload in the parent's current allowedActions. The current release supports atomic creation in file:root; unsupported parent identity guarantees fail closed.",
         "operationId": "uploadFilesItemContent",
         "parameters": [
           {
@@ -6043,6 +6047,8 @@
             "name": "name",
             "required": true,
             "schema": {
+              "maxLength": 255,
+              "minLength": 1,
               "type": "string"
             }
           },
@@ -6051,6 +6057,7 @@
             "name": "mediaType",
             "required": false,
             "schema": {
+              "maxLength": 255,
               "type": "string"
             }
           },
@@ -6069,6 +6076,8 @@
             "name": "Idempotency-Key",
             "required": true,
             "schema": {
+              "maxLength": 128,
+              "minLength": 16,
               "type": "string"
             }
           }
@@ -6305,6 +6314,7 @@
     },
     "/api/files/items/{fileId}/content": {
       "get": {
+        "description": "Returns at most 26214400 bytes (25 MiB) from an identity-bound conditional provider read. Requires download in the item's current allowedActions. Larger files fail with 413.",
         "operationId": "downloadFilesItemContent",
         "parameters": [
           {
@@ -6471,6 +6481,7 @@
         ]
       },
       "put": {
+        "description": "Accepts at most 26214400 bytes (25 MiB). Requires updateContent in the item's current allowedActions and a provider that atomically enforces both identity and version. Unsupported providers fail closed; a content ETag is distinct from the item revision.",
         "operationId": "updateFilesItemContent",
         "parameters": [
           {
@@ -6486,6 +6497,7 @@
             "name": "mediaType",
             "required": false,
             "schema": {
+              "maxLength": 255,
               "type": "string"
             }
           },
@@ -6504,6 +6516,8 @@
             "name": "Idempotency-Key",
             "required": true,
             "schema": {
+              "maxLength": 128,
+              "minLength": 16,
               "type": "string"
             }
           }

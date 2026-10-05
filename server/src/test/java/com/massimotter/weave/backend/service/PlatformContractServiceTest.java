@@ -125,11 +125,38 @@ class PlatformContractServiceTest {
                         null));
 
         assertThat(configured.config().protocols().matrixClientServerBaseUrl())
-                .isEqualTo("https://chat.weave.test");
+                .isEqualTo("https://api.weave.test");
         assertThat(configured.status("wrong-matrix-url").matrix().readiness()).isEqualTo("blocked");
         assertThat(derived.config().protocols().matrixClientServerBaseUrl())
                 .isEqualTo("https://api.weave.test");
         assertThat(derived.status("derived-matrix-url").matrix().readiness()).isEqualTo("ready");
+    }
+
+    @Test
+    void advertisesASeparatelyRoutedWeaveFacadeWhenItsRouteAndServerNameAgree() {
+        PlatformContractProperties platform = new PlatformContractProperties(
+                null, "https://api.weave.test/api", null, "https://chat.weave.test",
+                null, null, null, null);
+        PlatformContractService routed = service(
+                new MatrixChatProperties(false, null, null), true, platform,
+                "https://chat.weave.test/", "chat.weave.test");
+
+        assertThat(routed.config().protocols().matrixClientServerBaseUrl())
+                .isEqualTo("https://chat.weave.test");
+        assertThat(routed.status("separate-facade").matrix().readiness()).isEqualTo("ready");
+    }
+
+    @Test
+    void neverProjectsCredentialsOrAPathFromTheRoutedFacade() {
+        PlatformContractProperties platform = new PlatformContractProperties(
+                null, null, null, null, null, null, null, null);
+        PlatformContractService invalid = service(
+                new MatrixChatProperties(false, null, null), true, platform,
+                "https://user:secret@api.weave.test/_matrix/client", "api.weave.test");
+
+        assertThatThrownBy(invalid::config)
+                .isInstanceOf(com.massimotter.weave.backend.exception.ApiErrorException.class)
+                .hasMessageContaining("not configured safely");
     }
 
     @Test

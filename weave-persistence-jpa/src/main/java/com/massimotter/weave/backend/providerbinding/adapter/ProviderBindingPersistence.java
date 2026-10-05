@@ -223,20 +223,22 @@ class ProviderObjectMappingJpaEntity {
     }
 
     void observe(ProviderObjectMapping mapping) {
-        if (!firstObservedAt.toInstant().equals(mapping.firstObservedAt())) {
+        // Apply the timestamp(6) persistence precision before checking immutable/monotonic
+        // observations. Linux clocks may provide nanoseconds even for the initial insert.
+        Instant first = mapping.firstObservedAt().truncatedTo(ChronoUnit.MICROS);
+        Instant last = mapping.lastObservedAt().truncatedTo(ChronoUnit.MICROS);
+        if (!firstObservedAt.toInstant().equals(first)) {
             throw new IllegalArgumentException(
                     "provider mapping first observation cannot be rewritten");
         }
         if (lastObservedAt != null
-                && mapping.lastObservedAt().isBefore(lastObservedAt.toInstant())) {
+                && last.isBefore(lastObservedAt.toInstant())) {
             throw new IllegalArgumentException(
                     "provider mapping observation cannot move backwards");
         }
         providerObjectRef = mapping.providerObjectRef();
         provenance = mapping.provenance();
-        lastObservedAt = mapping.lastObservedAt()
-                .truncatedTo(ChronoUnit.MICROS)
-                .atOffset(ZoneOffset.UTC);
+        lastObservedAt = last.atOffset(ZoneOffset.UTC);
     }
 
     ProviderObjectMapping toDomain() {

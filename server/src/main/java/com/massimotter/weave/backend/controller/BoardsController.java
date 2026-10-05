@@ -47,7 +47,7 @@ public class BoardsController {
     }
 
     @GetMapping("/api/boards/workspace")
-    @Operation(summary = "Read the Boards/Tasks workspace snapshot")
+    @Operation(operationId = "workspace", summary = "Read the Boards/Tasks workspace snapshot")
     @ApiResponse(responseCode = "200", description = "Provider-neutral Boards/Tasks workspace snapshot.",
             content = @Content(schema = @Schema(implementation = BoardsWorkspaceResponse.class)))
     public BoardsWorkspaceResponse workspace(@AuthenticationPrincipal Jwt jwt) {
@@ -55,7 +55,7 @@ public class BoardsController {
     }
 
     @PostMapping("/api/boards/{boardId}/tasks")
-    @Operation(summary = "Create a task in the Boards/Tasks workspace with user-write authorization")
+    @Operation(operationId = "createTask", summary = "Create a task in the Boards/Tasks workspace with user-write authorization")
     @ApiResponse(responseCode = "200", description = "Created provider-neutral task.",
             content = @Content(schema = @Schema(implementation = TaskItem.class)))
     public TaskItem createTask(
@@ -66,7 +66,7 @@ public class BoardsController {
     }
 
     @PostMapping("/api/boards/tasks/{taskId}/move")
-    @Operation(summary = "Move a task without drag-and-drop in the Boards/Tasks workspace")
+    @Operation(operationId = "moveTask", summary = "Move a task without drag-and-drop in the Boards/Tasks workspace")
     @ApiResponse(responseCode = "200", description = "Moved provider-neutral task.",
             content = @Content(schema = @Schema(implementation = TaskItem.class)))
     public TaskItem moveTask(
@@ -78,7 +78,7 @@ public class BoardsController {
 
 
     @PostMapping("/api/boards/tasks/{taskId}/status")
-    @Operation(summary = "Update task status in the Boards/Tasks workspace")
+    @Operation(operationId = "updateTaskStatus", summary = "Update task status in the Boards/Tasks workspace")
     @ApiResponse(responseCode = "200", description = "Updated provider-neutral task.",
             content = @Content(schema = @Schema(implementation = TaskItem.class)))
     public TaskItem updateTaskStatus(
@@ -89,7 +89,7 @@ public class BoardsController {
     }
 
     @PostMapping("/api/boards/tasks/{taskId}/decision-links")
-    @Operation(summary = "Link a workspace decision to a task in the Boards/Tasks workspace")
+    @Operation(operationId = "linkDecision", summary = "Link a workspace decision to a task in the Boards/Tasks workspace")
     @ApiResponse(responseCode = "200", description = "Task with linked decision reference.",
             content = @Content(schema = @Schema(implementation = TaskItem.class)))
     public TaskItem linkDecision(
@@ -100,7 +100,7 @@ public class BoardsController {
     }
 
     @PostMapping("/api/boards/tasks/{taskId}/complete")
-    @Operation(summary = "Complete a task without drag-and-drop in the Boards/Tasks workspace")
+    @Operation(operationId = "completeTask", summary = "Complete a task without drag-and-drop in the Boards/Tasks workspace")
     @ApiResponse(responseCode = "200", description = "Completed provider-neutral task.",
             content = @Content(schema = @Schema(implementation = TaskItem.class)))
     public TaskItem completeTask(

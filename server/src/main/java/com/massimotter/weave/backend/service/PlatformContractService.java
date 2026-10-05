@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.PlatformConfigResponse;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
@@ -11,8 +12,10 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -52,7 +55,7 @@ public class PlatformContractService {
                 platformProperties.publicBaseUrl(),
                 platformProperties.apiBaseUrl(),
                 new PlatformConfigResponse.Oidc(oidcIssuerUrl(), securityProperties.clientId()),
-                new PlatformConfigResponse.Protocols(platformProperties.matrixHomeserverUrl()),
+                new PlatformConfigResponse.Protocols(advertisedMatrixFacadeUrl()),
                 releasePosture(),
                 List.of(
                         domain("identity", true, List.of(
@@ -99,6 +102,18 @@ public class PlatformContractService {
             return configuredIssuer;
         }
         return joinUrlPath(platformProperties.authBaseUrl(), "/realms/weave");
+    }
+
+    private String advertisedMatrixFacadeUrl() {
+        try {
+            return PlatformContractProperties.matrixFacadeOrigin(matrixFacadeBaseUrl);
+        } catch (IllegalArgumentException invalidRoute) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "matrix-facade-origin-unavailable",
+                    "The Weave Matrix Client-Server origin is not configured safely.",
+                    Map.of("module", "chat", "diagnosticsRedacted", true));
+        }
     }
 
     private String joinUrlPath(String baseUrl, String path) {

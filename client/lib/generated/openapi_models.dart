@@ -3831,6 +3831,113 @@ class FileSetupCredentialResponse {
   };
 }
 
+class FilesUserCreateFolderRequest {
+  const FilesUserCreateFolderRequest({
+    required this.name,
+    required this.parentFileId,
+  });
+
+  factory FilesUserCreateFolderRequest.fromJson(Map<String, dynamic> json) =>
+      FilesUserCreateFolderRequest(
+        name: json["name"] as String,
+        parentFileId: json["parentFileId"] as String,
+      );
+
+  final String name;
+  final String parentFileId;
+
+  Map<String, dynamic> toJson() => {
+    "name": _openApiJsonValue(name),
+    "parentFileId": _openApiJsonValue(parentFileId),
+  };
+}
+
+class FilesUserItemResponse {
+  const FilesUserItemResponse({
+    required this.allowedActions,
+    required this.displayPath,
+    required this.fileId,
+    required this.kind,
+    this.mediaType,
+    this.modifiedAt,
+    required this.name,
+    required this.parentFileId,
+    required this.revision,
+    required this.size,
+  });
+
+  factory FilesUserItemResponse.fromJson(Map<String, dynamic> json) =>
+      FilesUserItemResponse(
+        allowedActions: (json["allowedActions"] as List<dynamic>)
+            .map((e) => e as String)
+            .toList(),
+        displayPath: json["displayPath"] as String,
+        fileId: json["fileId"] as String,
+        kind: json["kind"] as String,
+        mediaType: json["mediaType"] as String?,
+        modifiedAt: json["modifiedAt"] as String?,
+        name: json["name"] as String,
+        parentFileId: json["parentFileId"] as String,
+        revision: json["revision"] as String,
+        size: (json["size"] as num).toInt(),
+      );
+
+  final List<String> allowedActions;
+  final String displayPath;
+  final String fileId;
+  final String kind;
+  final String? mediaType;
+  final String? modifiedAt;
+  final String name;
+  final String parentFileId;
+  final String revision;
+  final int size;
+
+  Map<String, dynamic> toJson() => {
+    "allowedActions": _openApiJsonValue(allowedActions),
+    "displayPath": _openApiJsonValue(displayPath),
+    "fileId": _openApiJsonValue(fileId),
+    "kind": _openApiJsonValue(kind),
+    "mediaType": _openApiJsonValue(mediaType),
+    "modifiedAt": _openApiJsonValue(modifiedAt),
+    "name": _openApiJsonValue(name),
+    "parentFileId": _openApiJsonValue(parentFileId),
+    "revision": _openApiJsonValue(revision),
+    "size": _openApiJsonValue(size),
+  };
+}
+
+class FilesUserListResponse {
+  const FilesUserListResponse({
+    required this.allowedActions,
+    required this.items,
+    required this.parentFileId,
+  });
+
+  factory FilesUserListResponse.fromJson(Map<String, dynamic> json) =>
+      FilesUserListResponse(
+        allowedActions: (json["allowedActions"] as List<dynamic>)
+            .map((e) => e as String)
+            .toList(),
+        items: (json["items"] as List<dynamic>)
+            .map(
+              (e) => FilesUserItemResponse.fromJson(e as Map<String, dynamic>),
+            )
+            .toList(),
+        parentFileId: json["parentFileId"] as String,
+      );
+
+  final List<String> allowedActions;
+  final List<FilesUserItemResponse> items;
+  final String parentFileId;
+
+  Map<String, dynamic> toJson() => {
+    "allowedActions": _openApiJsonValue(allowedActions),
+    "items": _openApiJsonValue(items),
+    "parentFileId": _openApiJsonValue(parentFileId),
+  };
+}
+
 class FlattenedRuntimeProfileJwsResponse {
   const FlattenedRuntimeProfileJwsResponse({
     this.payload,

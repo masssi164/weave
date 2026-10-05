@@ -36,7 +36,7 @@ public class DevopsController {
     }
 
     @GetMapping("/api/workspaces/{workspaceId}/channels/{channelId}/devops/summary")
-    @Operation(summary = "Read provider-neutral DevOps summary")
+    @Operation(operationId = "summary", summary = "Read provider-neutral DevOps summary")
     @ApiResponse(responseCode = "200", description = "Read-only support-safe DevOps summary.",
             content = @Content(schema = @Schema(implementation = DevopsSummaryResponse.class)))
     public DevopsSummaryResponse summary(

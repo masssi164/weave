@@ -2,18 +2,30 @@ package com.massimotter.weave.backend.controller;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
+import io.swagger.v3.oas.annotations.Operation;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.startsWith;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -31,6 +43,52 @@ class OpenApiDocumentationTest {
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
+
+    @Autowired
+    @Qualifier("requestMappingHandlerMapping")
+    private RequestMappingHandlerMapping handlerMapping;
+
+    @Test
+    void exportedOperationIdsAreExplicitUniqueAndIdenticalAcrossDocuments() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode combined = mapper.readTree(mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        Set<String> httpMethods = Set.of("get", "put", "post", "delete", "options", "head", "patch", "trace");
+        Map<String, String> operationIds = new HashMap<>();
+        for (String group : new String[] {"user", "admin"}) {
+            JsonNode document = mapper.readTree(mockMvc.perform(get("/v3/api-docs/" + group))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+            for (var pathEntry : document.path("paths").properties()) {
+                String path = pathEntry.getKey();
+                for (var methodEntry : pathEntry.getValue().properties()) {
+                    String method = methodEntry.getKey();
+                    if (!httpMethods.contains(method)) {
+                        continue;
+                    }
+                    String location = method.toUpperCase(java.util.Locale.ROOT) + " " + path;
+                    var handlers = handlerMapping.getHandlerMethods().entrySet().stream()
+                            .filter(entry -> entry.getKey().getPatternValues().contains(path))
+                            .filter(entry -> entry.getKey().getMethodsCondition().getMethods().stream()
+                                    .anyMatch(requestMethod -> requestMethod.name().equalsIgnoreCase(method)))
+                            .map(Map.Entry::getValue)
+                            .distinct()
+                            .toList();
+                    assertEquals(1, handlers.size(), "Expected one server handler for " + location);
+                    Operation declared = handlers.getFirst().getMethodAnnotation(Operation.class);
+                    assertNotNull(declared, "Missing explicit @Operation for " + location);
+                    assertFalse(declared.operationId().isBlank(), "Missing explicit operationId for " + location);
+                    assertEquals(declared.operationId(), methodEntry.getValue().path("operationId").asText(),
+                            "Grouped export changed the declared operationId for " + location);
+                    assertEquals(declared.operationId(),
+                            combined.path("paths").path(path).path(method).path("operationId").asText(),
+                            "Combined export changed the declared operationId for " + location);
+                    assertNull(operationIds.putIfAbsent(declared.operationId(), location),
+                            "Duplicate declared operationId " + declared.operationId() + " at " + location);
+                }
+            }
+        }
+        assertFalse(operationIds.isEmpty(), "No User/Admin operations were checked");
+    }
 
     @Test
     void separatesUserAndAdminOperations() throws Exception {
