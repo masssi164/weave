@@ -123,12 +123,17 @@ contains "${REALM_EVIDENCE}" 'manifest.get("schemaVersion") != "weave.compose-re
 contains "${REALM_EVIDENCE}" 'manifest.get("deploymentArtifacts")'
 contains "${REALM_EVIDENCE}" '"realmArtifacts" in manifest'
 
-contains "${CI_WORKFLOW}" 'group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}'
-contains "${CI_WORKFLOW}" "cancel-in-progress: \${{ github.event_name == 'pull_request' }}"
-contains "${CI_WORKFLOW}" 'timeout-minutes: 60'
+# Current Core CI separates label-only runs and requires every real consumer job.
+# The retired monolithic 60-minute lane is recorded in workflow-disposition.md.
+contains "${CI_WORKFLOW}" 'group: core-ci-${{ github.event.pull_request.number || github.ref }}-'
+contains "${CI_WORKFLOW}" "&& 'labels' || 'core'"
+contains "${CI_WORKFLOW}" 'cancel-in-progress: true'
 contains "${CI_WORKFLOW}" "github.event.action != 'labeled'"
 contains "${CI_WORKFLOW}" "github.event.action != 'unlabeled'"
-reject "${CI_WORKFLOW}" '- ready_for_review'
+contains "${CI_WORKFLOW}" '- ready_for_review'
+contains "${CI_WORKFLOW}" 'name: Generated API consumers'
+contains "${CI_WORKFLOW}" '${{ needs.generated_api.result }}'
+contains "${CI_WORKFLOW}" "if [ \"\$result\" != 'success' ]; then"
 
 if [[ -f "${WORKFLOW}" ]]; then
   reject "${WORKFLOW}" 'opentofu/setup-opentofu'

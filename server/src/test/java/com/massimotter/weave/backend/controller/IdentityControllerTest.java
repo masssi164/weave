@@ -40,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ProductProfileService.class
 })
 @org.springframework.test.context.TestPropertySource(properties = {
+        "weave.context.authorization.default-tenant-id=acme-prod",
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave"
 })
 class IdentityControllerTest {

@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
+import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -13,6 +14,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
@@ -35,10 +37,12 @@ public class FilesWebDavSecurityConfiguration {
     @Bean("filesWebDavJwtDecoder")
     JwtDecoder filesWebDavJwtDecoder(
             @Qualifier("jwtDecoder") JwtDecoder memberDecoder,
-            @Qualifier("filesMcpWorkloadJwtDecoder") JwtDecoder workloadDecoder) {
+            @Qualifier("filesMcpWorkloadJwtDecoder") JwtDecoder workloadDecoder,
+            DeploymentOrganizationAdmission organizationAdmission) {
         return token -> {
+            Jwt member;
             try {
-                return memberDecoder.decode(token);
+                member = memberDecoder.decode(token);
             } catch (JwtException memberRejected) {
                 try {
                     return workloadDecoder.decode(token);
@@ -47,6 +51,11 @@ public class FilesWebDavSecurityConfiguration {
                     throw workloadRejected;
                 }
             }
+            // A decoded human identity cannot become a workload after admission denial.
+            if (!organizationAdmission.allows(member)) {
+                throw new BadJwtException("The member token does not belong to this deployment organization.");
+            }
+            return member;
         };
     }
 

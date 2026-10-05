@@ -18,7 +18,9 @@ from compose_env import ComposeContext, ContractError
 SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 OPERATION_ID = "fgap-v2-primary-organization-post-import"
 RECEIPT_NAME = f"{OPERATION_ID}.receipt.json"
-RECEIPT_SCHEMA = "weave.keycloak-fgap-migration-receipt/v1"
+RECEIPT_SCHEMA = "weave.keycloak-fgap-migration-receipt/v2"
+ORGANIZATION_OPERATION_ID = "organization-membership-id-post-import"
+COMPLETED_OPERATION_IDS = [OPERATION_ID, ORGANIZATION_OPERATION_ID]
 BACKUP_PROOF_SCHEMA = "weave.keycloak-realm-migration-backup-proof/v1"
 FRESH_START_PROOF_SCHEMA = "weave.keycloak-realm-migration-fresh-start-proof/v1"
 DISPOSABLE_E2E_PROOF_SCHEMA = "weave.keycloak-realm-migration-disposable-e2e-proof/v1"
@@ -30,8 +32,36 @@ ALLOWED_MUTATIONS = frozenset(
         "update-primary-organization-permission",
         "create-users-lifecycle-permission",
         "update-users-lifecycle-permission",
+        "update-native-organization-membership-mapper",
     }
 )
+ORGANIZATION_MAPPER_OPERATION = {
+    "id": "organization-membership-id-post-import",
+    "phase": "post-realm-import",
+    "type": "keycloak-built-in-organization-mapper",
+    "desiredStatePointer": "/operations/1/desiredState",
+    "desiredState": {
+        "clientScopeName": "organization",
+        "name": "organization",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-organization-membership-mapper",
+        "config": {
+            "claim.name": "organization",
+            "jsonType.label": "JSON",
+            "multivalued": "true",
+            "addOrganizationId": "true",
+            "addOrganizationAttributes": "false",
+            "addOrganizationDomain": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+        }
+    },
+    "desiredStateDigest": "sha256:5e19f3dff3818e8093aff5c7b61dc6da6baf303bf25654d24b602c6526bee475",
+    "blockedBy": "keycloak-26.7-creates-built-in-scopes-before-realm-import",
+    "status": "requires-qualified-admin-rest-executor"
+}
 MAX_ARTIFACT_BYTES = 1024 * 1024
 
 
@@ -99,11 +129,14 @@ def migration_inputs(context: ComposeContext) -> MigrationInputs:
         != [{"digest": bundle_digest, "path": "keycloak/migrations/fresh-start-v1.json"}]
     ):
         raise ContractError("Keycloak migration manifest does not bind semantic and rendered realm identities")
+    operations = bundle.get("operations")
+    if not isinstance(operations, list) or len(operations) != 2 or not all(
+        isinstance(operation, dict) for operation in operations
+    ):
+        raise ContractError("Keycloak migration bundle must declare both exact post-import operations")
     expected_operation = {
         "blockedBy": "keycloak-26.7-imports-client-authorization-before-organizations",
-        "desiredStateDigest": bundle.get("operations", [{}])[0].get("desiredStateDigest")
-        if isinstance(bundle.get("operations"), list) and bundle.get("operations")
-        else None,
+        "desiredStateDigest": operations[0].get("desiredStateDigest"),
         "desiredStatePointer": "/fineGrainedAdminPermissions",
         "id": OPERATION_ID,
         "phase": "post-realm-import",
@@ -117,7 +150,7 @@ def migration_inputs(context: ComposeContext) -> MigrationInputs:
         or bundle.get("containsSecretValues") is not False
         or bundle.get("fromBaselineRevision") is not None
         or bundle.get("keycloakVersion") != "26.7.1"
-        or bundle.get("operations") != [expected_operation]
+        or bundle.get("operations") != [expected_operation, ORGANIZATION_MAPPER_OPERATION]
         or not SHA256.fullmatch(str(expected_operation["desiredStateDigest"]))
         or bundle.get("status") != "blocked-post-import-operation"
         or not isinstance(target_revision, str)
@@ -296,6 +329,7 @@ def require_completed_migration(context: ComposeContext) -> MigrationInputs:
             "schemaVersion",
             "status",
             "operationId",
+            "completedOperationIds",
             "keycloakVersion",
             "manifestDigest",
             "bundleDigest",
@@ -316,6 +350,7 @@ def require_completed_migration(context: ComposeContext) -> MigrationInputs:
         or receipt.get("schemaVersion") != RECEIPT_SCHEMA
         or receipt.get("status") != "complete"
         or receipt.get("operationId") != OPERATION_ID
+        or receipt.get("completedOperationIds") != COMPLETED_OPERATION_IDS
         or receipt.get("keycloakVersion") != "26.7.1"
         or receipt.get("manifestDigest") != inputs.manifest_digest
         or receipt.get("bundleDigest") != inputs.bundle_digest
@@ -326,6 +361,9 @@ def require_completed_migration(context: ComposeContext) -> MigrationInputs:
         or any(not isinstance(item, str) for item in mutations)
         or mutations != sorted(set(mutations))
         or not set(mutations).issubset(ALLOWED_MUTATIONS)
+        or len(mutations) > 4
+        or len({item.removeprefix("create-").removeprefix("update-") for item in mutations}) != len(mutations)
+        or type(receipt.get("firstRunMutationCount")) is not int
         or receipt.get("firstRunMutationCount") != len(mutations)
         or receipt.get("semanticReadbackVerified") is not True
         or receipt.get("secondRunPlanEmpty") is not True

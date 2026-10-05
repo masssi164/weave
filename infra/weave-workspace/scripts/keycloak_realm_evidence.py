@@ -14,8 +14,9 @@ from typing import Any
 
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
-RECEIPT_SCHEMA = "weave.keycloak-fgap-migration-receipt/v1"
+RECEIPT_SCHEMA = "weave.keycloak-fgap-migration-receipt/v2"
 OPERATION_ID = "fgap-v2-primary-organization-post-import"
+COMPLETED_OPERATION_IDS = [OPERATION_ID, "organization-membership-id-post-import"]
 
 
 class EvidenceError(ValueError):
@@ -124,6 +125,7 @@ def finalize(
         receipt.get("schemaVersion") != RECEIPT_SCHEMA
         or receipt.get("status") != "complete"
         or receipt.get("operationId") != OPERATION_ID
+        or receipt.get("completedOperationIds") != COMPLETED_OPERATION_IDS
         or receipt.get("semanticReadbackVerified") is not True
         or receipt.get("secondRunPlanEmpty") is not True
         or receipt.get("bootstrapAuthorityDeleted") is not True
@@ -142,6 +144,7 @@ def finalize(
         "renderedRealmDigest": current_identity["renderedRealmDigest"],
         "targetBaselineRevision": receipt.get("targetBaselineRevision"),
         "operationId": OPERATION_ID,
+        "completedOperationIds": COMPLETED_OPERATION_IDS,
         "firstRunOperations": receipt.get("firstRunOperations"),
         "firstRunMutationCount": receipt.get("firstRunMutationCount"),
         "secondRunPlanEmpty": True,

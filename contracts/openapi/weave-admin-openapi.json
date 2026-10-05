@@ -269,6 +269,128 @@
         },
         "type": "object"
       },
+      "CanonicalDomainRegistryEntryResponse": {
+        "properties": {
+          "adapterManifestRequirements": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "adminStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "canonicalObjects": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "capabilityKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "compatibilityAliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "memberStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "portabilityRequirements": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerRealityLevelByCandidate": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "sourceOfTruthModes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CanonicalDomainRegistryResponse": {
+        "properties": {
+          "adminStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "compatibilityAliases": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/CanonicalDomainRegistryEntryResponse"
+            },
+            "type": "array"
+          },
+          "lossClasses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "memberStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerNamesInMemberContractsAllowed": {
+            "type": "boolean"
+          },
+          "providerRealityLevels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "registryVersion": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "CapabilityHealth": {
         "properties": {
           "backoffUntil": {
@@ -714,6 +836,149 @@
         },
         "type": "object"
       },
+      "DomainAdapterCandidateResponse": {
+        "description": "Support-safe adapter candidate in the domain adapter registry. No endpoints, credentials, or raw provider diagnostics are exposed.",
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "adapterKey": {
+            "type": "string"
+          },
+          "choiceModel": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "diagnostics": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "migrationSupport": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerRealityLevel": {
+            "description": "Evidence-backed implementation maturity for provider candidates. Contract-only providers are never member-available.",
+            "enum": [
+              "contract_only",
+              "configured",
+              "live_read",
+              "live_write",
+              "migration_dry_run",
+              "migration_apply_ready",
+              "rollback_ready",
+              "release_ready"
+            ],
+            "type": "string"
+          },
+          "readiness": {
+            "description": "Admin Workspace Health readiness state for one provider-neutral category.",
+            "enum": [
+              "ready",
+              "disabled",
+              "degraded",
+              "policy_blocked",
+              "misconfigured"
+            ],
+            "type": "string"
+          },
+          "realityLevelRemediation": {
+            "type": "string"
+          },
+          "riskNotes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "DomainAdapterRegistryResponse": {
+        "description": "Admin/server-owned domain adapter registry. It enforces one active adapter per enabled Weave domain and redacts provider internals from member surfaces.",
+        "properties": {
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/DomainAdapterStatusResponse"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "memberProviderConfigurationAllowed": {
+            "type": "boolean"
+          },
+          "releaseStatus": {
+            "type": "string"
+          },
+          "singleActiveAdapterEnforced": {
+            "type": "boolean"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "DomainAdapterStatusResponse": {
+        "description": "One provider-neutral Weave domain with exactly one active adapter when enabled, or explicit fail-closed/disabled posture.",
+        "properties": {
+          "activeAdapter": {
+            "type": "string"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/DomainAdapterCandidateResponse"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "failClosed": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          },
+          "memberImpact": {
+            "type": "string"
+          },
+          "readiness": {
+            "description": "Admin Workspace Health readiness state for one provider-neutral category.",
+            "enum": [
+              "ready",
+              "disabled",
+              "degraded",
+              "policy_blocked",
+              "misconfigured"
+            ],
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "violations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "DomainMappingEvidence": {
         "properties": {
           "assumptions": {
@@ -974,6 +1239,44 @@
             "type": "boolean"
           }
         },
+        "type": "object"
+      },
+      "FilesBindingStatusResponse": {
+        "properties": {
+          "adapterKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bindingRevision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "bindingState": {
+            "enum": [
+              "ACTIVE",
+              "NO_ACTIVE_BINDING"
+            ],
+            "type": "string"
+          },
+          "readiness": {
+            "enum": [
+              "CONFIGURED",
+              "NOT_CONFIGURED",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "bindingState",
+          "readiness"
+        ],
         "type": "object"
       },
       "GoLiveReadinessResponse": {
@@ -2146,6 +2449,72 @@
         },
         "type": "object"
       },
+      "ProviderRegistryResponse": {
+        "properties": {
+          "adminSelectedMappingsRequired": {
+            "type": "boolean"
+          },
+          "backendOwnedFacades": {
+            "type": "boolean"
+          },
+          "bootstrapDefaultsAreSuggestionsOnly": {
+            "type": "boolean"
+          },
+          "canonicalDomainRegistry": {
+            "$ref": "#/components/schemas/CanonicalDomainRegistryResponse"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderCategoryStatusResponse"
+            },
+            "type": "array"
+          },
+          "domainAdapterRegistry": {
+            "$ref": "#/components/schemas/DomainAdapterRegistryResponse"
+          },
+          "filesBinding": {
+            "$ref": "#/components/schemas/FilesBindingStatusResponse"
+          },
+          "flutterDirectProviderCallsAllowed": {
+            "type": "boolean"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "organizationId": {
+            "description": "Configured canonical deployment organization.",
+            "type": "string"
+          },
+          "providerConfigSource": {
+            "type": "string"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderStatusResponse"
+            },
+            "type": "array"
+          },
+          "releaseStatus": {
+            "type": "string"
+          },
+          "selectedProviderMappings": {
+            "description": "Legacy deployment configuration selections; not evidence of active organization runtime bindings.",
+            "items": {
+              "$ref": "#/components/schemas/ProviderSelection"
+            },
+            "type": "array"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "filesBinding",
+          "organizationId"
+        ],
+        "type": "object"
+      },
       "ProviderReplacementDryRunRequest": {
         "description": "Support-safe provider replacement preflight. This validates an adapter swap without applying provider state.",
         "properties": {
@@ -2302,6 +2671,45 @@
         },
         "type": "object"
       },
+      "ProviderSelection": {
+        "properties": {
+          "applied": {
+            "type": "boolean"
+          },
+          "category": {
+            "type": "string"
+          },
+          "choiceModel": {
+            "type": "string"
+          },
+          "lossyMappingNotes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "migrationDryRunRequired": {
+            "type": "boolean"
+          },
+          "providerKey": {
+            "type": "string"
+          },
+          "secretRef": {
+            "type": "string"
+          },
+          "selectedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "selectedBy": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "ProviderSelectionRequest": {
         "description": "Admin-selected provider mapping. This is control-plane state; bootstrap defaults are only suggestions until this request is applied.",
         "properties": {
@@ -2390,6 +2798,113 @@
           },
           "supportSafe": {
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderStatusResponse": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "diagnostics": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "failClosed": {
+            "type": "boolean"
+          },
+          "module": {
+            "enum": [
+              "matrix",
+              "files",
+              "office",
+              "calendar",
+              "contacts",
+              "forms",
+              "boards",
+              "meetings",
+              "source-control",
+              "ci",
+              "issue-tracker",
+              "release"
+            ],
+            "type": "string"
+          },
+          "paidFeaturesRequired": {
+            "type": "boolean"
+          },
+          "providerKey": {
+            "type": "string"
+          },
+          "providerRealityLevel": {
+            "description": "Evidence-backed implementation maturity for provider candidates. Contract-only providers are never member-available.",
+            "enum": [
+              "contract_only",
+              "configured",
+              "live_read",
+              "live_write",
+              "migration_dry_run",
+              "migration_apply_ready",
+              "rollback_ready",
+              "release_ready"
+            ],
+            "type": "string"
+          },
+          "readOnly": {
+            "type": "boolean"
+          },
+          "readiness": {
+            "type": "string"
+          },
+          "redactionPolicy": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "disabled",
+              "not_configured",
+              "configured",
+              "ready",
+              "degraded",
+              "unsupported"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "supportSafeErrorCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportedCapabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "unsupportedOperations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
           }
         },
         "type": "object"
@@ -4231,6 +4746,52 @@
         ]
       }
     },
+    "/api/admin/providers/status": {
+      "get": {
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderRegistryResponse"
+                }
+              }
+            },
+            "description": "Deployment provider configuration and the configured organization's actual Files binding status."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing workspace scope, wrong deployment organization, or denied Admin readiness capability."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read support-safe admin/provider category capability and readiness status",
+        "tags": [
+          "Provider registry"
+        ]
+      }
+    },
     "/api/bootstrap/owner-invitation": {
       "post": {
         "operationId": "bootstrapOwnerInvitation",
@@ -4386,6 +4947,10 @@
     {
       "description": "Organization-scoped member invitations.",
       "name": "Organization invitations"
+    },
+    {
+      "description": "Backend-owned provider capability/readiness registry for optional provider-stack modules.",
+      "name": "Provider registry"
     },
     {
       "description": "Canonical Weave Chat facade with provider-neutral conversations/messages, Context/Space authorization, capability checks, audit, and support-safe provider replacement seams.",

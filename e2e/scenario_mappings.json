@@ -511,30 +511,26 @@
           ]
         },
         {
-          "path": "client/test/integrations/weave_api/data/services/weave_api_client_test.dart",
+          "path": "client/test/architecture/backend_facade_contract_test.dart",
           "fragments": [
-            "fetches provider stack readiness without direct provider URLs",
-            "ProviderCategoryReadiness.policyBlocked",
-            "keepsMemberSemanticsStable",
-            "external_existing_provider",
-            "rawProviderErrorsReturned"
+            "member app cannot acquire provider registry diagnostics with its User session",
+            "generated/admin_api/",
+            "workspaceCapabilitySnapshotProvider"
           ]
         },
         {
           "path": "client/test/features/settings/settings_screen_test.dart",
           "fragments": [
-            "Admin/operator readiness cockpit",
-            "Overall posture: Admin action required",
-            "Category health and member impact",
-            "Provider diagnostics hidden from normal members",
-            "Configure endpoint mappings and SecretRefs"
+            "owner health keeps User capability states without Admin diagnostics",
+            "expect(find.text('Workspace Readiness'), findsOneWidget)",
+            "expect(find.text('Provider stack readiness'), findsNothing)"
           ]
         },
         {
           "path": "docs/admin-operator-handbook.md",
           "fragments": [
-            "Workspace/Admin Health is the operator control plane for this posture.",
-            "overall posture, category health, support-safe evidence, member/admin boundaries, and the next operator action"
+            "The separately authenticated Admin Console owns provider diagnostics.",
+            "Flutter Workspace Health uses only member-safe capability and readiness snapshots"
           ]
         }
       ],

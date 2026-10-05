@@ -181,20 +181,6 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
   }
 
   @override
-  Future<ProviderStackSnapshot> fetchProviderStackStatus({
-    required Uri baseUrl,
-    required String accessToken,
-  }) async {
-    return const ProviderStackSnapshot(
-      releaseStatus: 'test',
-      backendOwnedFacades: true,
-      flutterDirectProviderCallsAllowed: false,
-      supportSafe: true,
-      providers: [],
-    );
-  }
-
-  @override
   Future<DevopsProviderSummarySnapshot> fetchDevopsSummary({
     required Uri baseUrl,
     required String accessToken,

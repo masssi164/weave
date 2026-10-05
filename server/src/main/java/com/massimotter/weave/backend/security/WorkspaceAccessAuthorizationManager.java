@@ -23,6 +23,11 @@ public final class WorkspaceAccessAuthorizationManager
     private static final String DEVICE_AUTH_METHOD = "device_credential";
     private static final Set<String> PRODUCT_ROLES =
             Set.of("owner", "admin", "member", "guest");
+    private final DeploymentOrganizationAdmission organizationAdmission;
+
+    public WorkspaceAccessAuthorizationManager(DeploymentOrganizationAdmission organizationAdmission) {
+        this.organizationAdmission = java.util.Objects.requireNonNull(organizationAdmission);
+    }
 
     @Override
     public AuthorizationResult authorize(
@@ -45,7 +50,8 @@ public final class WorkspaceAccessAuthorizationManager
                         .stream()
                         .filter(PRODUCT_ROLES::contains)
                         .count();
-        return new AuthorizationDecision(selectedProductRoleCount == 1);
+        return new AuthorizationDecision(selectedProductRoleCount == 1
+                && organizationAdmission.allows(jwtAuthentication.getToken()));
     }
 
     private boolean hasWorkspaceScope(Authentication authentication) {

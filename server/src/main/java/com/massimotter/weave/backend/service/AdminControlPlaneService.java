@@ -204,7 +204,7 @@ public class AdminControlPlaneService {
                 secretRefs(registry),
                 mcpServerBindings(registry),
                 Map.ofEntries(
-                        Map.entry("providers", "/api/providers/status"),
+                        Map.entry("providers", "/api/admin/providers/status"),
                         Map.entry("policy", "/api/admin/policies/capability-whitelist"),
                         Map.entry("audit", "/api/admin/audit/events"),
                         Map.entry("readinessTest", "/api/admin/providers/readiness-tests"),

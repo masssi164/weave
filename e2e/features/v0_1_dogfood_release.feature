@@ -59,11 +59,11 @@ Feature: Weave v0.1 dogfood production release
 
   @weave-v01-admin-health-policy-enforcement
   Scenario: Admin health enforces provider readiness and member policy boundaries
-    Given an owner or admin opens Workspace Health after selecting provider categories
+    Given an owner or admin opens the separately authenticated Admin Console after selecting provider categories
     When backend provider readiness and capability policy are evaluated
-    Then Workspace Health returns overall posture, support-safe category readiness, next actions, and evidence for available, disabled_by_policy, not_configured, degraded, unavailable, coming_later, and misconfigured states
+    Then Admin Console health returns overall posture, support-safe category readiness, next actions, and evidence for available, disabled_by_policy, not_configured, degraded, unavailable, coming_later, and misconfigured states
     And feature capabilities are separated from default and external provider adapters
-    And members receive only provider-neutral capability states without raw provider setup
+    And Flutter receives only provider-neutral capability states without raw provider setup even for owner and admin roles
     And member API writes are denied when Keycloak-derived capability policy does not grant the required category capability
     And Weaver remains disabled by default unless governed organization policy explicitly enables it
 

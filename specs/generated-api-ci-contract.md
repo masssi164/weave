@@ -66,3 +66,20 @@ authorization bridge. Merely running its existing tests does not prove that migr
 Real browser/OIDC, User/Admin/MCP, Matrix interoperability,
 Files/Calendar and session recovery journeys remain independently required by #1480.
 The disposable Compose lane provides runtime evidence; provider migration remains #1498.
+
+## Member diagnostic boundary
+
+Flutter's member session consumes User capabilities even when the member has an owner
+or admin role. Provider registry diagnostics belong to the separately authenticated Admin
+surface. Retire the historical `/api/providers/status` call, its Riverpod subscription and
+provider-stack rendering from Flutter settings; do not substitute an Admin call using the
+User bearer. Workspace health retains member-safe capability/readiness and recovery UI.
+Existing provider-coverage widget expectations are superseded by this release boundary;
+replacement tests assert visible capability states and absence of provider configuration
+for both members and administrators using the member app. Server/Admin tests retain
+provider redaction and administrative authorization evidence.
+
+The transitional Dart model projection also reads only the User artifact. The combined
+documentation export must not reintroduce Admin transport models into Flutter. Remove
+unused provider-registry mappers with that projection; preserve domain mappers still
+used by current User operations. Generator tests assert each consumer's artifact owner.

@@ -4,6 +4,45 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'member app cannot acquire provider registry diagnostics with its User session',
+    () async {
+      final transport = await File(
+        'lib/integrations/weave_api/data/services/weave_api_client.dart',
+      ).readAsString();
+      final providers = await File(
+        'lib/integrations/weave_api/presentation/providers/weave_api_provider.dart',
+      ).readAsString();
+      final settings = await File(
+        'lib/features/settings/presentation/settings_screen.dart',
+      ).readAsString();
+      expect(transport, isNot(contains("['providers', 'status']")));
+      expect(transport, isNot(contains('fetchProviderStackStatus')));
+      expect(
+        providers,
+        isNot(contains('weaveApiProviderStackSnapshotProvider')),
+      );
+      expect(
+        settings,
+        isNot(contains('weaveApiProviderStackSnapshotProvider')),
+      );
+      expect(settings, contains('workspaceCapabilitySnapshotProvider'));
+      for (final source in Directory(
+        'lib',
+      ).listSync(recursive: true).whereType<File>()) {
+        if (source.path.endsWith('.dart') &&
+            !source.path.contains('/generated/')) {
+          expect(
+            source.readAsStringSync(),
+            isNot(contains('generated/admin_api/')),
+            reason:
+                'The Flutter member app must not import an Admin client: ${source.path}',
+          );
+        }
+      }
+    },
+  );
+
   test('legacy direct Nextcloud Flutter integration is removed', () {
     expect(
       Directory('lib/integrations/nextcloud').existsSync(),

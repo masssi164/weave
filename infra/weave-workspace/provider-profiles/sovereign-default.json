@@ -14,7 +14,7 @@
     "organizationId": "weave-dogfood",
     "manifestRoute": "/api/organization/manifest",
     "adminControlPlaneRoute": "/api/admin/control-plane",
-    "providerRegistryRoute": "/api/providers/status",
+    "providerRegistryRoute": "/api/admin/providers/status",
     "capabilityWhitelistRoute": "/api/admin/policies/capability-whitelist",
     "auditRoute": "/api/admin/audit/events",
     "secretRefPrefix": "secretref://weave/provider/"

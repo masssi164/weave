@@ -13,7 +13,8 @@ import org.springframework.security.web.access.intercept.RequestAuthorizationCon
 
 class AdminApiAuthorizationManagerTest {
 
-    private final AdminApiAuthorizationManager manager = new AdminApiAuthorizationManager();
+    private final AdminApiAuthorizationManager manager = new AdminApiAuthorizationManager(
+            com.massimotter.weave.backend.support.HumanJwtTestSupport.organizationAdmission());
     private final RequestAuthorizationContext request = new RequestAuthorizationContext(new MockHttpServletRequest());
 
     @Test
@@ -45,8 +46,7 @@ class AdminApiAuthorizationManagerTest {
         Jwt token = Jwt.withTokenValue("test")
                 .header("alg", "none")
                 .subject("user-123")
-                .claim("organization", Map.of("selected", Map.of(
-                        "resource_access", Map.of("weave-app", Map.of("roles", roles)))))
+                .claim("organization", com.massimotter.weave.backend.support.HumanJwtTestSupport.organizationWithRoles(roles))
                 .build();
         var authorities = scope
                 ? List.of(new SimpleGrantedAuthority("SCOPE_weave:workspace"))

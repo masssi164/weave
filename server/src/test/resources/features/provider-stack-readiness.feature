@@ -1,6 +1,6 @@
 Feature: Provider stack readiness is backend-owned and fail-closed
   Weave exposes optional collaboration providers through backend-owned facades.
-  Provider readiness must be visible to the product app, safe for support bundles,
+  Provider readiness must be visible through the Admin API, safe for support bundles,
   and closed by default when optional provider runtimes are disabled or unconfigured.
 
   Background:
@@ -10,7 +10,7 @@ Feature: Provider stack readiness is backend-owned and fail-closed
   Scenario: Provider registry exposes support-safe backend facade readiness
     When the product app requests provider readiness through Weave
     Then the response status is 200
-    And the provider registry is visible through "GET /api/providers/status"
+    And the provider registry is visible through "GET /api/admin/providers/status"
     And backend-owned facades are required
     And direct Flutter provider calls are refused by contract
     And provider modules include files calendar boards office meetings contacts forms source-control issue-tracker ci and release

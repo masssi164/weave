@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.config;
 import com.massimotter.weave.backend.controller.BootstrapOwnerInvitationController;
 import com.massimotter.weave.backend.controller.IdentitySessionController;
 import com.massimotter.weave.backend.security.NativeOrganizationClaims;
+import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import com.massimotter.weave.backend.security.WorkspaceAccessAuthorizationManager;
 import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
 import java.util.Collection;
@@ -15,6 +16,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -23,6 +25,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
@@ -50,7 +53,8 @@ public class SecurityConfig {
     @Order(3)
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            WorkspaceAccessAuthorizationManager workspaceAccessAuthorizationManager)
+            WorkspaceAccessAuthorizationManager workspaceAccessAuthorizationManager,
+            DeploymentOrganizationAdmission organizationAdmission)
             throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -71,7 +75,11 @@ public class SecurityConfig {
                         .requestMatchers(ChatE2eProofSecurityConfiguration.PATH).permitAll()
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
                         .requestMatchers(BootstrapOwnerInvitationController.PATH).permitAll()
-                        .requestMatchers(HttpMethod.POST, IdentitySessionController.PATH).authenticated()
+                        .requestMatchers(HttpMethod.POST, IdentitySessionController.PATH)
+                                .access((authentication, context) -> new AuthorizationDecision(
+                                        authentication.get() instanceof JwtAuthenticationToken token
+                                                && token.isAuthenticated()
+                                                && organizationAdmission.allowsReconciliation(token.getToken())))
                         .requestMatchers("/dav/**", "/caldav/**", "/_matrix/client/**")
                                 .access(workspaceAccessAuthorizationManager)
                         .requestMatchers("/api/**").access(workspaceAccessAuthorizationManager)
@@ -88,8 +96,15 @@ public class SecurityConfig {
     }
 
     @Bean
-    WorkspaceAccessAuthorizationManager workspaceAccessAuthorizationManager() {
-        return new WorkspaceAccessAuthorizationManager();
+    WorkspaceAccessAuthorizationManager workspaceAccessAuthorizationManager(
+            DeploymentOrganizationAdmission organizationAdmission) {
+        return new WorkspaceAccessAuthorizationManager(organizationAdmission);
+    }
+
+    @Bean
+    DeploymentOrganizationAdmission deploymentOrganizationAdmission(
+            DeploymentOrganizationProperties primary, ContextAuthorizationProperties context) {
+        return new DeploymentOrganizationAdmission(primary, context);
     }
 
     @Bean

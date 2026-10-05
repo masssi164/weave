@@ -7,6 +7,30 @@
       "phase": "post-realm-import",
       "type": "keycloak-fgap-v2",
       "desiredStatePointer": "/fineGrainedAdminPermissions"
+    },
+    {
+      "id": "organization-membership-id-post-import",
+      "phase": "post-realm-import",
+      "type": "keycloak-built-in-organization-mapper",
+      "desiredStatePointer": "/operations/1/desiredState",
+      "desiredState": {
+        "clientScopeName": "organization",
+        "name": "organization",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-organization-membership-mapper",
+        "config": {
+          "claim.name": "organization",
+          "jsonType.label": "JSON",
+          "multivalued": "true",
+          "addOrganizationId": "true",
+          "addOrganizationAttributes": "false",
+          "addOrganizationDomain": "false",
+          "access.token.claim": "true",
+          "id.token.claim": "true",
+          "userinfo.token.claim": "false",
+          "introspection.token.claim": "true"
+        }
+      }
     }
   ],
   "containsSecretValues": false

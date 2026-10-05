@@ -25,6 +25,35 @@ from realm_renderer import (  # noqa: E402
 )
 
 
+EXPECTED_ORGANIZATION_MAPPER_OPERATION = {
+    "id": "organization-membership-id-post-import",
+    "phase": "post-realm-import",
+    "type": "keycloak-built-in-organization-mapper",
+    "desiredStatePointer": "/operations/1/desiredState",
+    "desiredState": {
+        "clientScopeName": "organization",
+        "name": "organization",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-organization-membership-mapper",
+        "config": {
+            "claim.name": "organization",
+            "jsonType.label": "JSON",
+            "multivalued": "true",
+            "addOrganizationId": "true",
+            "addOrganizationAttributes": "false",
+            "addOrganizationDomain": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+        }
+    },
+    "desiredStateDigest": "sha256:5e19f3dff3818e8093aff5c7b61dc6da6baf303bf25654d24b602c6526bee475",
+    "blockedBy": "keycloak-26.7-creates-built-in-scopes-before-realm-import",
+    "status": "requires-qualified-admin-rest-executor"
+}
+
+
 def private_jwk() -> dict[str, object]:
     return {
         "alg": "PS256",
@@ -312,6 +341,9 @@ def run() -> None:
     assert first["organizations"][0]["id"] == deterministic_organization_id(
         "organization:weave-primary"
     )
+    assert not any(scope["name"] == "organization" for scope in first["clientScopes"]), (
+        "Keycloak creates this built-in scope before custom-scope import"
+    )
     assert first["clientScopeMappings"] == {
         "realm-management": [
             {
@@ -348,7 +380,10 @@ def run() -> None:
     assert b"test-private-value-never-rendered" not in serialized
     assert_secret_free(first)
     baseline_digest = sha256_digest(serialized)
-    migration = fresh_start_migration_bundle(desired, baseline_digest)
+    migration = fresh_start_migration_bundle(
+        desired, baseline_digest,
+        json.loads((Path(__file__).resolve().parents[1] / "keycloak/migration-definition.json").read_text()),
+    )
     assert migration["baselineArtifactDigest"] == baseline_digest
     assert migration["containsSecretValues"] is False
     assert migration["status"] == "blocked-post-import-operation"
@@ -361,7 +396,8 @@ def run() -> None:
             "phase": "post-realm-import",
             "status": "requires-qualified-admin-rest-executor",
             "type": "keycloak-fgap-v2",
-        }
+        },
+        EXPECTED_ORGANIZATION_MAPPER_OPERATION,
     ]
     assert b"test-private-value-never-rendered" not in pretty_json(migration)
 

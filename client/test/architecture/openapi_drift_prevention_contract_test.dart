@@ -218,13 +218,6 @@ const _memberProviderGraphAllowlist = <LegacyFence>[
         'handoff and setup copy are provider-neutralized.',
   ),
   LegacyFence(
-    path: 'lib/features/settings/presentation/settings_screen.dart',
-    issue: '#906',
-    reason:
-        'Settings still renders provider-stack status while diagnostic/admin '
-        'reachability is being split from normal member paths.',
-  ),
-  LegacyFence(
     path: 'lib/features/shell/presentation/shell_workspace_status.dart',
     issue: '#906',
     reason:

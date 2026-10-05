@@ -278,10 +278,6 @@ class ApiClient {
           return CalendarSetupCredentialRequest.fromJson(value);
         case 'CalendarSetupCredentialResponse':
           return CalendarSetupCredentialResponse.fromJson(value);
-        case 'CanonicalDomainRegistryEntryResponse':
-          return CanonicalDomainRegistryEntryResponse.fromJson(value);
-        case 'CanonicalDomainRegistryResponse':
-          return CanonicalDomainRegistryResponse.fromJson(value);
         case 'ChatHistoryPolicy':
           return ChatHistoryPolicy.fromJson(value);
         case 'ChatProviderMappingRecord':
@@ -328,12 +324,6 @@ class ApiClient {
           return DiagnosticCheck.fromJson(value);
         case 'DiagnosticStatus':
           return DiagnosticStatus.fromJson(value);
-        case 'DomainAdapterCandidateResponse':
-          return DomainAdapterCandidateResponse.fromJson(value);
-        case 'DomainAdapterRegistryResponse':
-          return DomainAdapterRegistryResponse.fromJson(value);
-        case 'DomainAdapterStatusResponse':
-          return DomainAdapterStatusResponse.fromJson(value);
         case 'DomainCapability':
           return DomainCapability.fromJson(value);
         case 'E2eeStatus':
@@ -404,20 +394,8 @@ class ApiClient {
           return ProfileReadinessResponse.fromJson(value);
         case 'Protocols':
           return Protocols.fromJson(value);
-        case 'ProviderAdapterReadinessEvidenceResponse':
-          return ProviderAdapterReadinessEvidenceResponse.fromJson(value);
-        case 'ProviderCategoryContractResponse':
-          return ProviderCategoryContractResponse.fromJson(value);
-        case 'ProviderCategoryStatusResponse':
-          return ProviderCategoryStatusResponse.fromJson(value);
-        case 'ProviderChoiceModelResponse':
-          return ProviderChoiceModelResponse.fromJson(value);
         case 'ProviderRef':
           return ProviderRef.fromJson(value);
-        case 'ProviderRegistryResponse':
-          return ProviderRegistryResponse.fromJson(value);
-        case 'ProviderSelection':
-          return ProviderSelection.fromJson(value);
         case 'ProviderStatusResponse':
           return ProviderStatusResponse.fromJson(value);
         case 'RecoveryAction':

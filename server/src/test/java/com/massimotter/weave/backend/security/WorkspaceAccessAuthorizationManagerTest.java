@@ -15,7 +15,7 @@ import org.springframework.security.web.access.intercept.RequestAuthorizationCon
 class WorkspaceAccessAuthorizationManagerTest {
 
     private final WorkspaceAccessAuthorizationManager manager =
-            new WorkspaceAccessAuthorizationManager();
+            new WorkspaceAccessAuthorizationManager(HumanJwtTestSupport.organizationAdmission());
 
     @Test
     void acceptsExactScopeAndOneSelectedOrganizationProductRole() {

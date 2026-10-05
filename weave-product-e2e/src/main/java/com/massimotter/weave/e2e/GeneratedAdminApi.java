@@ -1,11 +1,13 @@
 package com.massimotter.weave.e2e;
 
 import com.massimotter.weave.adminapi.api.AdminControlPlaneApi;
+import com.massimotter.weave.adminapi.api.ProviderRegistryApi;
 import com.massimotter.weave.adminapi.invoker.ApiClient;
 import com.massimotter.weave.adminapi.invoker.ApiException;
 import com.massimotter.weave.adminapi.model.AdminControlPlaneResponse;
 import com.massimotter.weave.adminapi.model.ProviderSelectionRequest;
 import com.massimotter.weave.adminapi.model.ProviderSelectionResponse;
+import com.massimotter.weave.adminapi.model.ProviderRegistryResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
@@ -18,6 +20,7 @@ import java.util.Map;
 final class GeneratedAdminApi {
   private static final ObjectMapper ERROR_MAPPER = new ObjectMapper();
   private final AdminControlPlaneApi controlPlane;
+  private final ProviderRegistryApi providers;
 
   GeneratedAdminApi(URI apiOrigin, Path caCertificate) {
     this(
@@ -35,6 +38,20 @@ final class GeneratedAdminApi {
             .setReadTimeout(Duration.ofSeconds(30));
     client.updateBaseUri(apiOrigin.getScheme() + "://" + apiOrigin.getRawAuthority());
     controlPlane = new AdminControlPlaneApi(client);
+    providers = new ProviderRegistryApi(client);
+  }
+
+  ProviderRegistryResponse providerStatus(String bearer) {
+    try {
+      ProviderRegistryResponse result = providers.status(authHeaders(bearer));
+      if (result == null) {
+        throw new ProductFlowException("Admin provider status returned an empty response");
+      }
+      return result;
+    } catch (ApiException failure) {
+      throw new ProductFlowException("Admin provider status failed with HTTP " + failure.getCode()
+          + supportSafeErrorCode(failure));
+    }
   }
 
   AdminControlPlaneResponse controlPlane(String bearer) {

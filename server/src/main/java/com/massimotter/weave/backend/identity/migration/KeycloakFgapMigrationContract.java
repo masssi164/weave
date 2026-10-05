@@ -17,11 +17,13 @@ final class KeycloakFgapMigrationContract {
 
   static final String MANIFEST_SCHEMA = "weave.keycloak-realm-migration-manifest/v2";
   static final String BUNDLE_SCHEMA = "weave.keycloak-realm-migration-bundle/v1";
-  static final String RESULT_SCHEMA = "weave.keycloak-fgap-migration-receipt/v1";
+  static final String RESULT_SCHEMA = "weave.keycloak-fgap-migration-receipt/v2";
   static final String RECEIPT_PATH =
       "keycloak/migrations/fgap-v2-primary-organization-post-import.receipt.json";
   static final String BUNDLE_PATH = "keycloak/migrations/fresh-start-v1.json";
   static final String OPERATION_ID = "fgap-v2-primary-organization-post-import";
+  static final List<String> COMPLETED_OPERATION_IDS =
+      List.of(OPERATION_ID, KeycloakOrganizationMapperMigration.OPERATION_ID);
   static final String POLICY_NAME = "weave-identity-admin user policy";
   static final String ORGANIZATION_PERMISSION_NAME =
       "weave-identity-admin primary organization";
