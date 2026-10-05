@@ -8,6 +8,29 @@ This document is the backend runtime reference for operators and local integrati
 
 ## Optional platform and auth variables
 
+### Required human organization admission
+
+Set `WEAVE_PRIMARY_ORGANIZATION_ID` and `WEAVE_PRIMARY_ORGANIZATION_ALIAS` to the
+primary Keycloak organization's stable ID and exact alias. They bind to
+`weave.security.primary-organization.keycloak-id` and `.keycloak-alias`. Blank
+configuration fails closed for human User/Admin access, including reconciliation.
+Configure the invitation target to the same coordinate. The single configured
+native organization maps to `weave.context.authorization.default-tenant-id`, the
+canonical tenant already used by resource authorization and Files bindings.
+Token organization and tenant claims cannot choose a different data scope.
+The host `dev` profile uses the checked-in local realm's primary ID
+`8f771be4-f526-5bef-97dc-00c8e2fa383d` and alias `weave`, consistently for admission
+and invitation provisioning; both can be overridden with the same primary variables.
+Other runtime profiles need explicit operator/Compose wiring.
+
+`GET /api/admin/providers/status` requires the dedicated Admin session plus current
+organization owner/admin authority. Its category selections are legacy deployment
+configuration, not active runtime-binding evidence. `filesBinding` reports only
+the configured organization's actual current Files binding and resolver readiness;
+`CONFIGURED` is configuration evidence, not a live provider or migration proof.
+The old `/api/providers/status` route has no alias. Human User sessions, including
+members with an admin role, must use the member-safe capability APIs instead.
+
 - `WEAVE_OIDC_JWK_SET_URI`: internal JWKS URL for backend key discovery when it differs from the public issuer metadata route.
 - `WEAVE_OIDC_REQUIRED_AUDIENCE`: audience required in access tokens, defaults to `weave-app`.
 - `WEAVE_CLIENT_ID`: first-party Weave app client ID required in `azp` and/or `client_id`, defaults to `weave-app`.
@@ -87,7 +110,7 @@ Matrix v1.19 plus pinned MatrixRTC Profile 0 is the only member signaling contra
 - `WEAVE_LIVEKIT_API_SECRET`: backend-held LiveKit API secret reserved for the future RTC Authorizer. Blank keeps direct credential mode unconfigured. Never expose this value to Flutter, platform config, support logs, or support bundles.
 - `WEAVE_LIVEKIT_TOKEN_ENDPOINT`: optional internal SFU token endpoint that only the RTC Authorizer may call after current-context validation. Blank keeps token-endpoint mode unconfigured.
 
-Provider readiness is `configured` only when LiveKit is enabled and either `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_API_KEY` + `WEAVE_LIVEKIT_API_SECRET`, or `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_TOKEN_ENDPOINT`, are present. This proves configuration presence only; RTC Authorizer, TURN, media E2EE, revocation, consent/artifacts, interoperability, and physical-device evidence remain separate gates. `/api/providers/status` reports booleans such as `livekitUrlConfigured`, `apiKeyConfigured`, `apiSecretConfigured`, and `tokenEndpointConfigured`; it must not return raw keys, secrets, endpoint credentials, room tokens, credential-bearing join URLs, or raw LiveKit errors.
+Provider readiness is `configured` only when LiveKit is enabled and either `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_API_KEY` + `WEAVE_LIVEKIT_API_SECRET`, or `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_TOKEN_ENDPOINT`, are present. This proves configuration presence only; RTC Authorizer, TURN, media E2EE, revocation, consent/artifacts, interoperability, and physical-device evidence remain separate gates. `/api/admin/providers/status` reports booleans such as `livekitUrlConfigured`, `apiKeyConfigured`, `apiSecretConfigured`, and `tokenEndpointConfigured`; it must not return raw keys, secrets, endpoint credentials, room tokens, credential-bearing join URLs, or raw LiveKit errors.
 
 ## Files facade and Nextcloud WebDAV adapter
 

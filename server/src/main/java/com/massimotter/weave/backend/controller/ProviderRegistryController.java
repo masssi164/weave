@@ -1,9 +1,8 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.model.ApiErrorResponse;
-import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.provider.ProviderRegistryResponse;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.service.AdminProviderRegistryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -23,27 +22,23 @@ import org.springframework.web.bind.annotation.RestController;
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
                 content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-        @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies provider readiness access.",
+        @ApiResponse(responseCode = "403", description = "Missing workspace scope, wrong deployment organization, or denied Admin readiness capability.",
                 content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
 })
 public class ProviderRegistryController {
 
-    private final ProviderRegistry providerRegistry;
-    private final WorkspaceCapabilityService workspaceCapabilityService;
+    private final AdminProviderRegistryService providerRegistry;
 
-    public ProviderRegistryController(ProviderRegistry providerRegistry,
-            WorkspaceCapabilityService workspaceCapabilityService) {
+    public ProviderRegistryController(AdminProviderRegistryService providerRegistry) {
         this.providerRegistry = providerRegistry;
-        this.workspaceCapabilityService = workspaceCapabilityService;
     }
 
-    @GetMapping("/api/providers/status")
+    @GetMapping("/api/admin/providers/status")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(operationId = "status", summary = "Read support-safe admin/provider category capability and readiness status")
-    @ApiResponse(responseCode = "200", description = "Provider registry snapshot.",
+    @ApiResponse(responseCode = "200", description = "Deployment provider configuration and the configured organization's actual Files binding status.",
             content = @Content(schema = @Schema(implementation = ProviderRegistryResponse.class)))
     public ProviderRegistryResponse status(@AuthenticationPrincipal Jwt jwt) {
-        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "provider-registry", "status");
-        return providerRegistry.status();
+        return providerRegistry.status(jwt);
     }
 }

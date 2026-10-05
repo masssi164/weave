@@ -88,7 +88,7 @@ public class ProviderStackReadinessStepDefinitions {
 
     @When("the product app requests provider readiness through Weave")
     public void theProductAppRequestsProviderReadinessThroughWeave() throws Exception {
-        perform(get("/api/providers/status"));
+        perform(get("/api/admin/providers/status"));
     }
 
     @When("the product app requests profile readiness through Weave")
@@ -122,7 +122,7 @@ public class ProviderStackReadinessStepDefinitions {
 
     @Then("the provider registry is visible through {string}")
     public void theProviderRegistryIsVisibleThrough(String route) {
-        assertThat(route).isEqualTo("GET /api/providers/status");
+        assertThat(route).isEqualTo("GET /api/admin/providers/status");
         assertThat(lastJson.path("releaseStatus").asString()).isEqualTo("provider-stack-contract-v1");
         assertThat(lastJson.path("providerConfigSource").asString()).isEqualTo("admin-control-plane-selected-provider-mappings");
         assertThat(lastJson.path("adminSelectedMappingsRequired").asBoolean()).isTrue();
