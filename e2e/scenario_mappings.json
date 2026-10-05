@@ -5804,6 +5804,39 @@
         "HUMAN_TESTING_HAS_NO_MANIFEST_GATE"
       ],
       "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@calendar-user-api-runtime",
+      "scenario": "Shared scheduling preserves time and access after restart",
+      "feature": "e2e/features/calendar_user_api_generated.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
+      "evidenceMarkers": [
+        "WEAVE_TEST_APP_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "test-app"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedCalendarJourney.java",
+          "fragments": [
+            "expectedOccurrences",
+            "requireWorkspaceScope",
+            "stale identical update",
+            "beforeDeniedCreate",
+            "deleteCalendarEvent"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/CollaborationJourney.java",
+          "fragments": [
+            "calendar.createAndVerify",
+            "calendar.verify(room.calendarProof()",
+            "calendar.delete(room.calendarProof()"
+          ]
+        }
+      ]
     }
   ]
 }

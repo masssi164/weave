@@ -7,6 +7,7 @@ import com.massimotter.weave.userapi.model.CalendarEventRecurrence;
 import com.massimotter.weave.userapi.model.CalendarEventWriteRequest;
 import com.massimotter.weave.userapi.model.CalendarTimeValue;
 import com.massimotter.weave.userapi.model.CalendarUserEvent;
+import com.massimotter.weave.userapi.model.CalendarUserScope;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -42,6 +43,7 @@ final class GeneratedCalendarJourney {
       var workspace = calendars.getCalendars().stream()
           .filter(value -> "workspace-default".equals(value.getScope().getSpaceId()))
           .findFirst().orElseThrow(() -> failure("workspace calendar is unavailable"));
+      requireWorkspaceScope(workspace.getScope());
       String calendarId = workspace.getId();
       if (!calendarId.matches("calendar:[0-9a-f]{64}")) {
         throw failure("calendar identity is not an opaque Weave reference");
@@ -57,6 +59,7 @@ final class GeneratedCalendarJourney {
         CalendarUserEvent replayed = calendar.createCalendarEvent(calendarId, key, input, bearer(author));
         requireSame(created, replayed);
         requireContent(input, created);
+        requireWorkspaceScope(created.getScope());
         if (!created.getId().matches("event:[0-9a-f]{64}")
             || !calendarId.equals(created.getCalendarId())
             || created.getMeetingThreadRef().isBlank()) {
@@ -128,10 +131,24 @@ final class GeneratedCalendarJourney {
       }
       expectStatus(Set.of(403, 404), "outsider agenda", () ->
           calendar.queryCalendarAgenda(proof.calendarId(), FROM, TO, ZONE, bearer(outsider)));
+      try {
+        var outsiderCalendars = calendar.listUserCalendars(bearer(outsider));
+        if (outsiderCalendars.getCalendars().stream().anyMatch(value -> proof.calendarId().equals(value.getId()))) {
+          throw failure("outsider discovery exposed the workspace calendar");
+        }
+      } catch (ApiException denied) {
+        if (denied.getCode() != 403) throw denied;
+      }
+      List<String> beforeDeniedCreate = agenda.getEvents().stream().map(CalendarUserEvent::getId).sorted().toList();
       var first = proof.events().getFirst().event();
       expectStatus(Set.of(403, 404), "outsider create", () ->
           calendar.createCalendarEvent(proof.calendarId(), "calendar-outsider-denied-create",
               first.getContent(), bearer(outsider)));
+      var afterDeniedCreate = calendar.queryCalendarAgenda(proof.calendarId(), FROM, TO, ZONE, bearer(author));
+      if (!beforeDeniedCreate.equals(afterDeniedCreate.getEvents().stream()
+          .map(CalendarUserEvent::getId).sorted().toList())) {
+        throw failure("denied outsider create changed the complete agenda identity set");
+      }
       // All denied mutations must leave the authoritative object intact.
       requireSame(first, calendar.getCalendarEvent(proof.calendarId(), first.getId(), bearer(author)));
     } catch (ApiException failure) {
@@ -194,6 +211,14 @@ final class GeneratedCalendarJourney {
           "2026-10-25T08:00:00Z/2026-10-25T09:00:00Z", "2026-10-26T08:00:00Z/2026-10-26T09:00:00Z");
       default -> throw new IllegalArgumentException("Unknown Calendar fixture");
     };
+  }
+
+  private static void requireWorkspaceScope(CalendarUserScope scope) {
+    if (scope == null || scope.getType() != CalendarUserScope.TypeEnum.WORKSPACE
+        || !"workspace-default".equals(scope.getSpaceId())
+        || scope.getTeamId() != null || scope.getChannelId() != null) {
+      throw failure("workspace event has an incorrect authoritative scope");
+    }
   }
 
   private static void requireContent(CalendarEventWriteRequest expected, CalendarUserEvent actual) {

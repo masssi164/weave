@@ -4622,6 +4622,23 @@
         "full Compose E2E prerequisite",
         "no automatic release publication"
       ]
+    },
+    {
+      "tag": "@calendar-user-api-runtime",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "generated User client against the real active Calendar provider",
+        "independent time, version and Space access expectations",
+        "same references and exact content after provider restart",
+        "strong-version cleanup in the exact isolated namespace"
+      ]
     }
   ]
 }
