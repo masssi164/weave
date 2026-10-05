@@ -5828,6 +5828,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Error code: {code}'**
   String memberHandoffErrorCode(String code);
+
+  /// No description provided for @calendarScopesLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading your calendars…'**
+  String get calendarScopesLoading;
+
+  /// No description provided for @calendarScopesUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Your calendars could not be loaded. Retry to check your current access.'**
+  String get calendarScopesUnavailable;
+
+  /// No description provided for @calendarRecurringEditGuard.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeating event: editing or deleting a series or occurrence is not available in this editor. Your original schedule is preserved.'**
+  String get calendarRecurringEditGuard;
+
+  /// No description provided for @calendarVersionConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'This event changed. Refresh the calendar, review the latest event, and try again.'**
+  String get calendarVersionConflict;
+
+  /// No description provided for @calendarUnsupportedEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'This change cannot be saved without changing unsupported event details. Review the event and try again.'**
+  String get calendarUnsupportedEdit;
+
+  /// No description provided for @calendarEvaluationZone.
+  ///
+  /// In en, this message translates to:
+  /// **'Time zone: {zone}'**
+  String calendarEvaluationZone(String zone);
+
+  /// No description provided for @calendarAllDayExclusiveEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'For all-day events, the end date is the first day after the event.'**
+  String get calendarAllDayExclusiveEnd;
 }
 
 class _AppLocalizationsDelegate

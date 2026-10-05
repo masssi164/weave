@@ -46,16 +46,15 @@ class _FakeCalendarRepository implements CalendarRepository {
   Future<CalendarScopeList> loadScopes() async => const CalendarScopeList();
 
   @override
-  Future<CalendarEventList> loadEvents({CalendarScope? scope}) async {
+  Future<CalendarEventList> loadEvents({
+    CalendarScope? scope,
+    DateTime? from,
+    DateTime? to,
+  }) async {
     return CalendarEventList(
       scope: scope ?? CalendarScope.workspace,
       events: events,
     );
-  }
-
-  @override
-  Future<CalendarClientSetup> loadClientSetup() {
-    throw UnimplementedError();
   }
 
   @override
@@ -78,7 +77,7 @@ class _FakeCalendarRepository implements CalendarRepository {
   }
 
   @override
-  Future<void> deleteEvent(String id) {
+  Future<void> deleteEvent(String id, {String? etag}) {
     throw UnimplementedError();
   }
 }

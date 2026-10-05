@@ -3641,4 +3641,32 @@ class AppLocalizationsDe extends AppLocalizations {
   String memberHandoffErrorCode(String code) {
     return 'Fehlercode: $code';
   }
+
+  @override
+  String get calendarScopesLoading => 'Deine Kalender werden geladen…';
+
+  @override
+  String get calendarScopesUnavailable =>
+      'Deine Kalender konnten nicht geladen werden. Versuche es erneut, um deinen aktuellen Zugriff zu prüfen.';
+
+  @override
+  String get calendarRecurringEditGuard =>
+      'Wiederkehrender Termin: Serien und einzelne Vorkommen können in diesem Editor nicht bearbeitet oder gelöscht werden. Dein ursprünglicher Zeitplan bleibt erhalten.';
+
+  @override
+  String get calendarVersionConflict =>
+      'Dieser Termin wurde geändert. Aktualisiere den Kalender, prüfe den aktuellen Termin und versuche es erneut.';
+
+  @override
+  String get calendarUnsupportedEdit =>
+      'Diese Änderung würde nicht unterstützte Termindetails verändern. Prüfe den Termin und versuche es erneut.';
+
+  @override
+  String calendarEvaluationZone(String zone) {
+    return 'Zeitzone: $zone';
+  }
+
+  @override
+  String get calendarAllDayExclusiveEnd =>
+      'Bei ganztägigen Terminen ist das Enddatum der erste Tag nach dem Termin.';
 }

@@ -3590,4 +3590,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String memberHandoffErrorCode(String code) {
     return 'Error code: $code';
   }
+
+  @override
+  String get calendarScopesLoading => 'Loading your calendars…';
+
+  @override
+  String get calendarScopesUnavailable =>
+      'Your calendars could not be loaded. Retry to check your current access.';
+
+  @override
+  String get calendarRecurringEditGuard =>
+      'Repeating event: editing or deleting a series or occurrence is not available in this editor. Your original schedule is preserved.';
+
+  @override
+  String get calendarVersionConflict =>
+      'This event changed. Refresh the calendar, review the latest event, and try again.';
+
+  @override
+  String get calendarUnsupportedEdit =>
+      'This change cannot be saved without changing unsupported event details. Review the event and try again.';
+
+  @override
+  String calendarEvaluationZone(String zone) {
+    return 'Time zone: $zone';
+  }
+
+  @override
+  String get calendarAllDayExclusiveEnd =>
+      'For all-day events, the end date is the first day after the event.';
 }

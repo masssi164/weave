@@ -154,6 +154,12 @@ artifacts:
     corpusCandidates:
       - steering/release-2026-10-product-consolidation.md
       - domains/calendar/spec.md
+  - path: specs/calendar-flutter-generated-consumer.md
+    status: implementation-evidence
+    action: retain-as-flutter-calendar-generated-consumer-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/calendar/spec.md
 cleanupSequence:
   - Add or update corpus files for any remaining product/domain meaning.
   - Update repo tests/gates to consume corpus contracts or generated projections.

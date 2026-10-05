@@ -93,42 +93,13 @@ class _FakeCalendarRepository implements CalendarRepository {
       const CalendarScopeList(scopes: [CalendarScope.workspace]);
 
   @override
-  Future<CalendarEventList> loadEvents({CalendarScope? scope}) async =>
-      CalendarEventList(
-        scope: scope ?? CalendarScope.workspace,
-        events: const [],
-      );
-
-  @override
-  Future<CalendarClientSetup>
-  loadClientSetup() async => const CalendarClientSetup(
-    scope: CalendarScope.workspace,
-    username: 'member',
-    endpoints: CalendarExternalEndpoints(
-      serverUrl: 'https://files.weave.test',
-      caldavDiscoveryUrl: 'https://files.weave.test/remote.php/dav',
-      principalUrl:
-          'https://files.weave.test/remote.php/dav/principals/users/member/',
-    ),
-    credentialPolicy: 'No credentials are returned to the client.',
-    accessModel: CalendarAccessModel(
-      type: 'workspace-calendar',
-      productScope: 'workspace',
-      privateUserCalendarsAvailable: false,
-      privateUserCalendarsReason: 'Not part of this smoke test.',
-      externalClientCredentialModel: 'revocable-credentials',
-      notes: [],
-    ),
-    credentialReadiness: CalendarCredentialReadiness(
-      status: 'ready',
-      appleProfileSigned: false,
-      appleProfilePasswordIncluded: false,
-      revocableCredentialsAvailable: false,
-      readOnlySubscriptionTokensAvailable: false,
-      backendActorCredentialsExposed: false,
-      blockers: [],
-    ),
-    options: [],
+  Future<CalendarEventList> loadEvents({
+    CalendarScope? scope,
+    DateTime? from,
+    DateTime? to,
+  }) async => CalendarEventList(
+    scope: scope ?? CalendarScope.workspace,
+    events: const [],
   );
 
   @override
@@ -151,7 +122,7 @@ class _FakeCalendarRepository implements CalendarRepository {
   }
 
   @override
-  Future<void> deleteEvent(String id) {
+  Future<void> deleteEvent(String id, {String? etag}) {
     throw UnimplementedError();
   }
 }

@@ -1,666 +1,549 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
 import 'package:weave/features/calendar/data/services/calendar_facade_client.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_failure.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 
 import '../../../../helpers/auth_test_data.dart';
 import '../../../../helpers/server_config_test_data.dart';
 
-class _FakeServerConfigurationRepository
-    implements ServerConfigurationRepository {
-  _FakeServerConfigurationRepository(this.configuration);
-
-  ServerConfiguration? configuration;
-
-  @override
-  Future<void> clearConfiguration() async {}
-
+class _Configuration implements ServerConfigurationRepository {
+  ServerConfiguration? configuration = buildTestConfiguration(
+    backendApiBaseUrl: 'https://api.example.test/api',
+  );
   @override
   Future<ServerConfiguration?> loadConfiguration() async => configuration;
-
   @override
   Future<void> saveConfiguration(ServerConfiguration configuration) async {
     this.configuration = configuration;
   }
+
+  @override
+  Future<void> clearConfiguration() async {
+    configuration = null;
+  }
 }
 
-class _FakeAuthSessionRepository implements AuthSessionRepository {
-  _FakeAuthSessionRepository(this.state);
-
-  AuthState state;
-  AuthState? refreshedState;
-  int refreshCalls = 0;
-
-  @override
-  Future<void> clearLocalSession() async {}
-
-  @override
-  Future<AuthState> refreshSession(AuthConfiguration configuration) async {
-    refreshCalls++;
-    return refreshedState ?? state;
-  }
-
+class _Auth implements AuthSessionRepository {
+  AuthState state = AuthState.authenticated(
+    buildTestAuthSession(accessToken: 'old-token'),
+  );
+  int refreshes = 0;
   @override
   Future<AuthState> restoreSession(AuthConfiguration configuration) async =>
       state;
+  @override
+  Future<AuthState> refreshSession(AuthConfiguration configuration) async {
+    refreshes++;
+    state = AuthState.authenticated(
+      buildTestAuthSession(accessToken: 'new-token'),
+    );
+    return state;
+  }
 
   @override
-  Future<void> signOut(AuthConfiguration configuration) async {}
+  Future<void> clearLocalSession() async {
+    state = const AuthState.signedOut();
+  }
 
+  @override
+  Future<void> signOut(AuthConfiguration configuration) async =>
+      clearLocalSession();
   @override
   Future<AuthState> signIn(AuthConfiguration configuration) async => state;
 }
 
+const calendarId = 'calendar:12345678-1234-1234-1234-123456789abc';
+const eventId = 'event:12345678-1234-1234-1234-123456789abc';
+const scopeJson = {'type': 'WORKSPACE', 'spaceId': 'workspace-default'};
+const scope = CalendarScope(
+  id: calendarId,
+  type: 'workspace',
+  label: 'Workspace',
+  contextId: 'workspace-default',
+  capabilities: ['read', 'create', 'update', 'delete'],
+);
+const version = '"weave-version-1"';
+Map<String, Object?> content({String kind = 'ZONED'}) => {
+  'title': 'Planning',
+  'description': 'Details',
+  'location': 'Room',
+  'start': time(kind, false),
+  'end': time(kind, true),
+  'attendees': [
+    {
+      'address': 'mailto:member@example.test',
+      'displayName': 'Member',
+      'role': 'REQ-PARTICIPANT',
+      'response': 'ACCEPTED',
+    },
+  ],
+  'overrides': [],
+  'recurrence': null,
+};
+Map<String, Object?> time(String kind, bool end) => {
+  'kind': kind,
+  if (kind == 'DATE') 'date': end ? '2026-10-26' : '2026-10-25',
+  if (kind == 'UTC')
+    'instant': end ? '2026-10-25T11:00:00Z' : '2026-10-25T10:00:00Z',
+  if (kind == 'FLOATING' || kind == 'ZONED')
+    'localDateTime': end ? '2026-10-25T11:00:00' : '2026-10-25T10:00:00',
+  if (kind == 'ZONED') 'timeZone': 'Europe/Berlin',
+};
+Map<String, Object?> event({
+  Map<String, Object?>? payload,
+  List<String> actions = const ['read', 'update', 'delete'],
+}) => {
+  'id': eventId,
+  'calendarId': calendarId,
+  'scope': scopeJson,
+  'version': version,
+  'meetingThreadRef': 'meeting:stable',
+  'allowedActions': actions,
+  'content': payload ?? content(),
+};
+http.Response json(Object payload, [int status = 200]) => http.Response(
+  jsonEncode(payload),
+  status,
+  headers: {'content-type': 'application/json'},
+);
+Matcher fails(CalendarFailureKind kind) => throwsA(
+  isA<CalendarFailure>().having((failure) => failure.kind, 'kind', kind),
+);
+CalendarEventDraft draft({
+  String title = 'Planning',
+  CalendarTimeKind kind = CalendarTimeKind.zoned,
+  bool allDay = false,
+}) => CalendarEventDraft(
+  title: title,
+  description: 'Details',
+  location: 'Room',
+  startTime: DateTime(2026, 10, 25, allDay ? 0 : 10),
+  endTime: allDay ? DateTime(2026, 10, 26) : DateTime(2026, 10, 25, 11),
+  timezone: 'Europe/Berlin',
+  scope: scope,
+  timeKind: kind,
+  allDay: allDay,
+);
+
 void main() {
-  group('CalendarFacadeClient', () {
-    late _FakeServerConfigurationRepository configurationRepository;
-    late _FakeAuthSessionRepository authSessionRepository;
-
-    CalendarFacadeClient client(http.Client httpClient) {
-      return CalendarFacadeClient(
-        httpClient: httpClient,
-        serverConfigurationRepository: configurationRepository,
-        authSessionRepository: authSessionRepository,
+  late _Auth auth;
+  late _Configuration configuration;
+  late List<http.Request> calls;
+  String Function(String token)? subject;
+  String Function(String token)? organization;
+  late Map<String, Object?> stored;
+  late List<String> calendarActions;
+  CalendarFacadeClient client(
+    Future<http.Response?> Function(http.Request) handle, {
+    String zone = 'Europe/Berlin',
+  }) => CalendarFacadeClient(
+    httpClient: MockClient((request) async {
+      calls.add(request);
+      if (request.url.path == '/api/me') {
+        return json({
+          'subject':
+              subject?.call(request.headers['authorization']!) ?? 'member',
+          'organizationId':
+              organization?.call(request.headers['authorization']!) ?? 'org',
+          'identityIssuer': 'https://auth.home.internal',
+        });
+      }
+      if (request.url.path == '/api/calendar/calendars') {
+        return json({
+          'calendars': [
+            {
+              'id': calendarId,
+              'scope': scopeJson,
+              'allowedActions': calendarActions,
+            },
+          ],
+        });
+      }
+      final response = await handle(request);
+      if (response != null) return response;
+      if (request.url.path.endsWith('/events') && request.method == 'GET') {
+        return json({
+          'calendarId': calendarId,
+          'evaluationTimeZone': zone,
+          'from': '2026-10-01T00:00:00Z',
+          'to': '2026-11-01T00:00:00Z',
+          'events': [stored],
+          'occurrences': [
+            {
+              'eventId': eventId,
+              'startsAt': '2026-10-25T09:00:00Z',
+              'endsAt': '2026-10-25T10:00:00Z',
+            },
+          ],
+        });
+      }
+      if (request.method == 'GET') return json(stored);
+      if (request.method == 'DELETE') return http.Response('', 204);
+      final result = event(
+        payload: (jsonDecode(request.body) as Map).cast<String, Object?>(),
       );
-    }
-
-    setUp(() {
-      configurationRepository = _FakeServerConfigurationRepository(
-        buildTestConfiguration(
-          backendApiBaseUrl: 'https://api.home.internal/api',
-        ),
-      );
-      authSessionRepository = _FakeAuthSessionRepository(
-        AuthState.authenticated(
-          buildTestAuthSession(accessToken: 'calendar-token'),
-        ),
-      );
-    });
-
-    test('loads workspace, team, and channel calendar scopes', () async {
-      late http.Request capturedRequest;
-      final facade = client(
-        MockClient((request) async {
-          capturedRequest = request;
-          return http.Response(
-            jsonEncode({
-              'scopes': [
-                {
-                  'id': 'workspace',
-                  'type': 'workspace',
-                  'label': 'Weave workspace calendar',
-                  'workspaceId': 'workspace',
-                  'contextId': 'workspace-default',
-                  'accessModel': 'shared-workspace-calendar',
-                  'capabilities': ['read', 'create'],
-                },
-                {
-                  'id': 'team:engineering',
-                  'type': 'team',
-                  'label': 'Engineering team calendar',
-                  'workspaceId': 'workspace',
-                  'contextId': 'team-engineering',
-                  'teamId': 'engineering',
-                  'accessModel': 'shared-team-calendar',
-                  'capabilities': ['read', 'create'],
-                },
-                {
-                  'id': 'channel:engineering-general',
-                  'type': 'channel',
-                  'label': 'Engineering / general channel calendar',
-                  'workspaceId': 'workspace',
-                  'contextId': 'channel-engineering-general',
-                  'teamId': 'engineering',
-                  'channelId': 'engineering-general',
-                  'accessModel': 'shared-channel-calendar',
-                  'capabilities': ['read', 'create'],
-                },
-              ],
-            }),
-            200,
-          );
-        }),
-      );
-
-      final scopes = await facade.listScopes();
-
-      expect(capturedRequest.method, 'GET');
-      expect(
-        capturedRequest.url.toString(),
-        'https://api.home.internal/api/calendar/scopes',
-      );
-      expect(scopes.scopes.map((scope) => scope.type), [
-        'workspace',
-        'team',
-        'channel',
-      ]);
-      expect(scopes.scopes[1].teamId, 'engineering');
-      expect(scopes.scopes[1].contextId, 'team-engineering');
-      expect(scopes.scopes[2].channelId, 'engineering-general');
-      expect(scopes.scopes[2].contextId, 'channel-engineering-general');
-      expect(scopes.scopes[2].accessModel, 'shared-channel-calendar');
-    });
-
-    test('lists events through the CalDAV calendar facade', () async {
-      // FLUTTER_CALDAV_DATA_PLANE
-      late http.Request capturedRequest;
-      final facade = client(
-        MockClient((request) async {
-          capturedRequest = request;
-          return http.Response(
-            '''
-<?xml version="1.0" encoding="UTF-8"?>
-<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
-  <d:response>
-    <d:href>/caldav/channel%3Aengineering-general/planning.ics</d:href>
-    <d:propstat>
-      <d:prop>
-        <d:getetag>"abc"</d:getetag>
-        <c:calendar-data>BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:planning
-X-WEAVE-CONTEXT-ID:channel-engineering-general
-X-WEAVE-CHANNEL-ID:engineering-general
-X-WEAVE-MEETING-THREAD-ID:meeting:channel-engineering-general:79cc2c616b93
-DTSTAMP:20260426T084500Z
-DTSTART:20260426T090000Z
-DTEND:20260426T100000Z
-SUMMARY:Planning
-DESCRIPTION:Roadmap
-LOCATION:Office
-END:VEVENT
-END:VCALENDAR</c:calendar-data>
-      </d:prop>
-      <d:status>HTTP/1.1 200 OK</d:status>
-    </d:propstat>
-  </d:response>
-</d:multistatus>
-''',
-            207,
-            headers: {'content-type': 'application/xml'},
-          );
-        }),
-      );
-
-      final events = await facade.listEvents(
-        from: DateTime.utc(2026, 4, 26),
-        to: DateTime.utc(2026, 4, 27),
-        selectedScope: const CalendarScope(
-          id: 'channel:engineering-general',
-          type: 'channel',
-          label: 'Engineering / general channel calendar',
-          contextId: 'channel-engineering-general',
-          teamId: 'engineering',
-          channelId: 'engineering-general',
-          accessModel: 'shared-channel-calendar',
-        ),
-      );
-
-      expect(capturedRequest.method, 'REPORT');
-      expect(
-        capturedRequest.url.toString(),
-        'https://api.home.internal/caldav/channel:engineering-general',
-      );
-      expect(capturedRequest.headers['authorization'], 'Bearer calendar-token');
-      expect(
-        capturedRequest.headers['content-type'],
-        'application/xml; charset=utf-8',
-      );
-      expect(capturedRequest.body, contains('calendar-query'));
-      expect(capturedRequest.body, contains('20260426T000000Z'));
-      expect(capturedRequest.body, contains('20260427T000000Z'));
-      expect(events.scope.type, 'channel');
-      expect(events.scope.label, 'Engineering / general channel calendar');
-      expect(events.events, hasLength(1));
-      expect(
-        events.events.single.id,
-        'caldav:channel%3Aengineering-general:planning',
-      );
-      expect(events.events.single.title, 'Planning');
-      expect(events.events.single.startTime, DateTime.utc(2026, 4, 26, 9));
-      expect(events.events.single.endTime, DateTime.utc(2026, 4, 26, 10));
-      expect(events.events.single.timezone, 'UTC');
-      expect(events.events.single.etag, '"abc"');
-      expect(events.events.single.scope.type, 'channel');
-      expect(
-        events.events.single.scope.contextId,
-        'channel-engineering-general',
-      );
-      expect(events.events.single.threadRef.kind, 'context');
-      expect(
-        events.events.single.threadRef.contextId,
-        'channel-engineering-general',
-      );
-      expect(events.events.single.threadRef.channelId, 'engineering-general');
-      expect(
-        events.events.single.threadRef.meetingThreadId,
-        'meeting:channel-engineering-general:79cc2c616b93',
-      );
-      expect(events.events.single.threadRef.matrixThreadId, isNull);
-      expect(events.events.single.attendees, isEmpty);
-      expect(events.events.single.providerRef, isNull);
-      expect(events.events.single.updatedAt, DateTime.utc(2026, 4, 26, 8, 45));
-    });
-
-    test('preserves IANA TZID instants across daylight-saving time', () async {
-      final facade = client(
-        MockClient(
-          (_) async => http.Response(
-            '''
-<?xml version="1.0" encoding="UTF-8"?>
-<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
-  <d:response>
-    <d:href>/caldav/workspace/planning.ics</d:href>
-    <d:propstat>
-      <d:prop>
-        <d:getetag>"tz-etag"</d:getetag>
-        <c:calendar-data>BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:planning
-DTSTART;TZID=Europe/Berlin:20260426T100000
-DTEND;TZID=Europe/Berlin:20260426T110000
-SUMMARY:Planning
-END:VEVENT
-END:VCALENDAR</c:calendar-data>
-      </d:prop>
-      <d:status>HTTP/1.1 200 OK</d:status>
-    </d:propstat>
-  </d:response>
-</d:multistatus>
-''',
-            207,
-            headers: {'content-type': 'application/xml'},
-          ),
-        ),
-      );
-
-      final event = (await facade.listEvents()).events.single;
-
-      expect(event.startTime, DateTime.utc(2026, 4, 26, 8));
-      expect(event.endTime, DateTime.utc(2026, 4, 26, 9));
-      expect(event.timezone, 'Europe/Berlin');
-    });
-
-    test(
-      'rejects a malformed CalDAV time range without inventing dates',
-      () async {
-        final facade = client(
-          MockClient(
-            (_) async => http.Response('''
-<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
-  <d:response>
-    <d:href>/caldav/workspace/invalid.ics</d:href>
-    <d:propstat><d:prop>
-      <d:getetag>"invalid"</d:getetag>
-      <c:calendar-data>BEGIN:VCALENDAR
-BEGIN:VEVENT
-UID:invalid
-DTSTART;TZID=UTC:20260426T100000
-DTEND;TZID=UTC:20260426T100000
-SUMMARY:Invalid
-END:VEVENT
-END:VCALENDAR</c:calendar-data>
-    </d:prop></d:propstat>
-  </d:response>
-</d:multistatus>
-''', 207),
-          ),
-        );
-
-        await expectLater(
-          facade.listEvents(),
-          throwsA(
-            isA<AppFailure>()
-                .having(
-                  (failure) => failure.type,
-                  'type',
-                  AppFailureType.validation,
-                )
-                .having(
-                  (failure) => failure.message,
-                  'message',
-                  'The calendar event end must be after its start.',
-                ),
-          ),
-        );
-      },
-    );
-
-    test(
-      'defaults empty CalDAV multistatus payloads to workspace scope',
-      () async {
-        final facade = client(
-          MockClient(
-            (_) async => http.Response(
-              '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"/>',
-              207,
-              headers: {'content-type': 'application/xml'},
-            ),
-          ),
-        );
-
-        final events = await facade.listEvents();
-
-        expect(events.scope, CalendarScope.workspace);
-        expect(events.events, isEmpty);
-      },
-    );
-
-    test('loads secret-free external calendar client setup metadata', () async {
-      late http.Request capturedRequest;
-      final facade = client(
-        MockClient((request) async {
-          capturedRequest = request;
-          return http.Response(
-            jsonEncode({
-              'scope': {
-                'type': 'workspace',
-                'label': 'Weave workspace calendar',
-              },
-              'accessModel': {
-                'type': 'workspace-calendar',
-                'productScope': 'workspace',
-                'privateUserCalendarsAvailable': false,
-                'privateUserCalendarsReason':
-                    'Private personal calendars require a reviewed access model.',
-                'externalClientCredentialModel':
-                    'weave-issued-scoped-setup-credential',
-                'notes': ['Workspace calendar setup only.'],
-              },
-              'credentialReadiness': {
-                'status': 'revocable_credentials_ready',
-                'appleProfileSigned': false,
-                'appleProfilePasswordIncluded': false,
-                'revocableCredentialsAvailable': true,
-                'readOnlySubscriptionTokensAvailable': false,
-                'backendActorCredentialsExposed': false,
-                'blockers': ['Apple profiles are unsigned.'],
-              },
-              'username': 'user-123',
-              'endpoints': {
-                'serverUrl': '/caldav',
-                'caldavDiscoveryUrl': '/caldav',
-                'principalUrl': '/caldav/principals/users/user-123/',
-              },
-              'credentialPolicy':
-                  'The backend never returns passwords, bearer tokens, static profile secrets, or provider endpoints.',
-              'options': [
-                {
-                  'platform': 'apple',
-                  'method': 'mobileconfig',
-                  'available': false,
-                  'unavailableReason':
-                      'Signed .mobileconfig generation is not implemented yet.',
-                  'guidance': ['Do not embed permanent passwords.'],
-                },
-                {
-                  'platform': 'android',
-                  'method': 'sync-adapter',
-                  'available': false,
-                  'unavailableReason':
-                      'Android Calendar setup waits for the Weave Account/SyncAdapter boundary.',
-                  'guidance': ['Use the Weave SyncAdapter boundary.'],
-                },
-              ],
-            }),
-            200,
-          );
-        }),
-      );
-
-      final setup = await facade.clientSetup();
-
-      expect(capturedRequest.method, 'GET');
-      expect(
-        capturedRequest.url.toString(),
-        'https://api.home.internal/api/calendar/client-setup',
-      );
-      expect(capturedRequest.headers['authorization'], 'Bearer calendar-token');
-      expect(setup.scope.type, 'workspace');
-      expect(setup.username, 'user-123');
-      expect(setup.accessModel.privateUserCalendarsAvailable, isFalse);
-      expect(
-        setup.accessModel.externalClientCredentialModel,
-        'weave-issued-scoped-setup-credential',
-      );
-      expect(setup.credentialReadiness.appleProfileSigned, isFalse);
-      expect(setup.credentialReadiness.backendActorCredentialsExposed, isFalse);
-      expect(
-        setup.credentialReadiness.blockers,
-        contains('Apple profiles are unsigned.'),
-      );
-      expect(setup.endpoints.serverUrl, '/caldav');
-      expect(
-        setup.endpoints.principalUrl,
-        '/caldav/principals/users/user-123/',
-      );
-      expect(setup.credentialPolicy, contains('never returns'));
-      expect(setup.options.first.platform, 'apple');
-      expect(setup.options.first.available, isFalse);
-      expect(setup.options.last.method, 'sync-adapter');
-      expect(setup.options.last.available, isFalse);
-      expect(setup.options.last.actionUrl, isNull);
-    });
-
-    test('reads event details through the CalDAV calendar facade', () async {
-      late http.Request capturedRequest;
-      final facade = client(
-        MockClient((request) async {
-          capturedRequest = request;
-          return http.Response(
-            '''
-BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:calendar-workspace-1
-X-WEAVE-CONTEXT-ID:workspace-default
-X-WEAVE-MEETING-THREAD-ID:meeting:workspace-default:05d9f681bb3d
-DTSTART:20260426T090000Z
-DTEND:20260426T100000Z
-SUMMARY:Planning details
-DESCRIPTION:Fetched from CalDAV
-END:VEVENT
-END:VCALENDAR
-''',
-            200,
-            headers: {'etag': '"read-etag"', 'content-type': 'text/calendar'},
-          );
-        }),
-      );
-
-      final event = await facade.readEvent('calendar-workspace-1');
-
-      expect(capturedRequest.method, 'GET');
-      expect(
-        capturedRequest.url.toString(),
-        'https://api.home.internal/caldav/workspace/calendar-workspace-1.ics',
-      );
-      expect(capturedRequest.headers['authorization'], 'Bearer calendar-token');
-      expect(event.title, 'Planning details');
-      expect(event.description, 'Fetched from CalDAV');
-      expect(event.etag, '"read-etag"');
-      expect(event.scope.type, 'workspace');
-      expect(
-        event.threadRef.meetingThreadId,
-        'meeting:workspace-default:05d9f681bb3d',
-      );
-    });
-
-    test(
-      'creates, updates, and deletes events through CalDAV endpoints',
-      () async {
-        // FLUTTER_CALDAV_MUTATION_DATA_PLANE
-        final requests = <http.Request>[];
-        final facade = client(
-          MockClient((request) async {
-            requests.add(request);
-            if (request.method == 'DELETE') {
-              return http.Response('', 204);
-            }
-            if (request.method == 'GET') {
-              final uid = request.url.pathSegments.last.replaceAll('.ics', '');
-              return http.Response(
-                '''
-BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:$uid
-X-WEAVE-CONTEXT-ID:workspace-default
-X-WEAVE-MEETING-THREAD-ID:meeting:workspace-default:$uid
-DTSTART:20260426T090000Z
-DTEND:20260426T100000Z
-SUMMARY:Planning
-END:VEVENT
-END:VCALENDAR
-''',
-                200,
-                headers: {'etag': '"etag-$uid"'},
-              );
-            }
-            if (request.method == 'PUT' &&
-                request.headers['If-None-Match'] == '*') {
-              final uid = request.url.pathSegments.last.replaceAll('.ics', '');
-              return http.Response(
-                '',
-                201,
-                headers: {'location': '/caldav/workspace/$uid.ics'},
-              );
-            }
-            return http.Response('', 204, headers: {'etag': '"etag-updated"'});
-          }),
-        );
-
-        final created = await facade.createEvent(
-          CalendarEventDraft(
-            title: 'Planning',
-            startTime: DateTime.utc(2026, 4, 26, 9),
-            endTime: DateTime.utc(2026, 4, 26, 10),
-            timezone: 'Europe/Berlin',
-          ),
-        );
-        final updated = await facade.updateEvent(
-          id: 'planning',
-          patch: const CalendarEventPatch(
-            title: 'Updated Planning',
-            etag: 'abc',
-          ),
-        );
-        await facade.deleteEvent('planning');
-
-        expect(requests.map((request) => request.method), [
-          'PUT',
-          'GET',
-          'PUT',
-          'GET',
-          'DELETE',
-        ]);
-        expect(
-          requests[0].url.toString(),
-          startsWith('https://api.home.internal/caldav/workspace/weave-'),
-        );
-        expect(requests[0].headers['If-None-Match'], '*');
-        expect(
-          requests[0].headers['content-type'],
-          'text/calendar; charset=utf-8',
-        );
-        expect(requests[0].body, contains('BEGIN:VCALENDAR'));
-        expect(requests[0].body, contains('SUMMARY:Planning'));
-        expect(
-          requests[0].body,
-          contains('DTSTART;TZID=Europe/Berlin:20260426T110000'),
-        );
-        expect(
-          requests[0].body,
-          contains('DTEND;TZID=Europe/Berlin:20260426T120000'),
-        );
-        expect(
-          requests[2].url.toString(),
-          'https://api.home.internal/caldav/workspace/planning.ics',
-        );
-        expect(requests[2].headers['If-Match'], 'abc');
-        expect(
-          requests[2].headers['content-type'],
-          'text/calendar; charset=utf-8',
-        );
-        expect(requests[2].body, contains('SUMMARY:Updated Planning'));
-        expect(
-          created.threadRef.meetingThreadId,
-          'meeting:workspace-default:${created.id}',
-        );
-        expect(
-          updated.threadRef.meetingThreadId,
-          'meeting:workspace-default:planning',
-        );
-        expect(
-          requests[4].url.toString(),
-          'https://api.home.internal/caldav/workspace/planning.ics',
-        );
-      },
-    );
-
-    test('refreshes the Weave session once after a backend 401', () async {
-      authSessionRepository.refreshedState = AuthState.authenticated(
-        buildTestAuthSession(accessToken: 'fresh-calendar-token'),
-      );
-      final authorizationHeaders = <String?>[];
-      final facade = client(
-        MockClient((request) async {
-          authorizationHeaders.add(request.headers['authorization']);
-          if (authorizationHeaders.length == 1) {
-            return http.Response(
-              jsonEncode({'message': 'Authentication is required.'}),
-              401,
-            );
-          }
-          return http.Response(
-            '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"/>',
-            207,
-            headers: {'content-type': 'application/xml'},
-          );
-        }),
-      );
-
-      final events = await facade.listEvents();
-
-      expect(events.events, isEmpty);
-      expect(authSessionRepository.refreshCalls, 1);
-      expect(authorizationHeaders, [
-        'Bearer calendar-token',
-        'Bearer fresh-calendar-token',
-      ]);
-    });
-
-    test('maps backend failures without direct CalDAV fallback', () async {
-      final facade = client(
-        MockClient(
-          (_) async => http.Response(
-            jsonEncode({'message': 'Calendar facade is unavailable.'}),
-            503,
-          ),
-        ),
-      );
-
-      await expectLater(
-        facade.listEvents(),
-        throwsA(
-          isA<AppFailure>().having(
-            (failure) => failure.message,
-            'message',
-            'Calendar facade is unavailable.',
-          ),
-        ),
-      );
-    });
+      return json(result, request.method == 'POST' ? 201 : 200);
+    }),
+    serverConfigurationRepository: configuration,
+    authSessionRepository: auth,
+    evaluationTimeZone: () async => zone,
+  );
+  setUp(() {
+    auth = _Auth();
+    configuration = _Configuration();
+    calls = [];
+    subject = null;
+    organization = null;
+    stored = event();
+    calendarActions = ['read', 'create', 'update', 'delete'];
   });
+
+  test(
+    'CALENDAR_USER_API_GENERATED_CLIENT discovers opaque scope before bounded agenda',
+    () async {
+      final service = client((_) async => null);
+      final result = await service.listEvents(
+        from: DateTime.utc(2026, 10),
+        to: DateTime.utc(2026, 11),
+      );
+      final requests = calls
+          .where((request) => request.url.path.contains('/calendar/'))
+          .toList();
+      expect(requests.map((request) => request.method), ['GET', 'GET']);
+      expect(requests.first.url.path, '/api/calendar/calendars');
+      expect(
+        requests.last.url.path,
+        '/api/calendar/calendars/$calendarId/events',
+      );
+      expect(
+        requests.last.url.queryParameters['evaluationTimeZone'],
+        'Europe/Berlin',
+      );
+      expect(requests.last.headers['authorization'], 'Bearer old-token');
+      expect(result.scope.id, calendarId);
+      expect(result.events.single.startTime, DateTime.utc(2026, 10, 25, 10));
+      expect(result.events.single.threadRef.meetingThreadId, 'meeting:stable');
+      expect(result.events.single.threadRef.contextId, 'workspace-default');
+      expect(
+        calls.any((request) => request.url.path.contains('caldav')),
+        isFalse,
+      );
+    },
+  );
+
+  for (final kind in ['DATE', 'FLOATING', 'UTC', 'ZONED']) {
+    test(
+      'CALENDAR_USER_API_TEMPORAL_PRESERVATION $kind and attendee content survive update',
+      () async {
+        stored = event(payload: content(kind: kind));
+        final service = client((_) async => null);
+        await service.listEvents();
+        final read = await service.readEvent(eventId);
+        expect(
+          read.timeKind,
+          CalendarTimeKind.values.byName(kind.toLowerCase()),
+        );
+        final changed = CalendarEventDraft(
+          title: 'New title',
+          description: read.description,
+          location: read.location,
+          startTime: read.startTime,
+          endTime: read.endTime,
+          timezone: read.timezone ?? 'Europe/Berlin',
+          scope: read.scope,
+          allDay: read.allDay,
+          timeKind: read.timeKind,
+        );
+        await service.updateEvent(
+          id: eventId,
+          draft: changed,
+          version: read.etag,
+        );
+        final request = calls.singleWhere((call) => call.method == 'PUT');
+        expect(request.headers['if-match'], version);
+        final sent = jsonDecode(request.body) as Map;
+        for (final endpoint in ['start', 'end']) {
+          final original = time(kind, endpoint == 'end');
+          final actual = (sent[endpoint] as Map)
+            ..removeWhere((key, value) => value == null);
+          if (kind == 'UTC') {
+            // Generated DateTime transport emits a zero-only millisecond suffix.
+            expect(
+              DateTime.parse(actual['instant'] as String),
+              DateTime.parse(original['instant'] as String),
+            );
+            expect(actual['kind'], 'UTC');
+          } else {
+            expect(actual, original);
+          }
+        }
+        expect(sent['attendees'], content(kind: kind)['attendees']);
+      },
+    );
+  }
+
+  test(
+    'recurrence and override masters stay intact; occurrence editing/deletion is guarded',
+    () async {
+      final payload = content();
+      payload['recurrence'] = {
+        'frequency': 'WEEKLY',
+        'interval': 1,
+        'count': 3,
+        'byDay': ['SU'],
+        'byMonthDay': <int>[],
+        'byMonth': <int>[],
+        'bySetPos': <int>[],
+        'additionalDates': <Object>[],
+        'excludedDates': <Object>[],
+      };
+      stored = event(payload: payload);
+      final service = client((_) async => null);
+      final agenda = await service.listEvents();
+      expect(agenda.events.single.recurring, isTrue);
+      await expectLater(
+        service.updateEvent(id: eventId, draft: draft(), version: version),
+        fails(CalendarFailureKind.unsupportedEdit),
+      );
+      await expectLater(
+        service.deleteEvent(eventId, version: version),
+        fails(CalendarFailureKind.unsupportedEdit),
+      );
+      expect(
+        calls.where((call) => call.method == 'PUT' || call.method == 'DELETE'),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'create retries once with the same idempotency key and generated payload after same-member refresh',
+    () async {
+      var attempts = 0;
+      final service = client((request) async {
+        if (request.method == 'POST' && attempts++ == 0) {
+          return http.Response('', 401);
+        }
+        return null;
+      });
+      await service.createEvent(draft());
+      final writes = calls.where((call) => call.method == 'POST').toList();
+      expect(writes, hasLength(2));
+      expect(writes.first.headers['idempotency-key'], hasLength(32));
+      expect(
+        writes.last.headers['idempotency-key'],
+        writes.first.headers['idempotency-key'],
+      );
+      expect(writes.last.body, writes.first.body);
+      expect(writes.last.headers['authorization'], 'Bearer new-token');
+      expect(auth.refreshes, 1);
+    },
+  );
+
+  for (final boundary in ['member', 'organization']) {
+    test('refresh into a different $boundary never replays a write', () async {
+      if (boundary == 'member') {
+        subject = (token) => token.contains('new-token') ? 'other' : 'member';
+      }
+      if (boundary == 'organization') {
+        organization = (token) => token.contains('new-token') ? 'other' : 'org';
+      }
+      final service = client(
+        (request) async =>
+            request.method == 'POST' ? http.Response('', 401) : null,
+      );
+      await expectLater(
+        service.createEvent(draft()),
+        fails(CalendarFailureKind.session),
+      );
+      expect(calls.where((call) => call.method == 'POST'), hasLength(1));
+    });
+  }
+
+  test(
+    'late agenda response after sign-out is rejected and cannot populate event cache',
+    () async {
+      final reached = Completer<void>();
+      final resume = Completer<void>();
+      final service = client((request) async {
+        if (request.url.path.endsWith('/events')) {
+          reached.complete();
+          await resume.future;
+        }
+        return null;
+      });
+      final pending = service.listEvents();
+      final assertion = expectLater(
+        pending,
+        fails(CalendarFailureKind.session),
+      );
+      await reached.future;
+      await auth.clearLocalSession();
+      resume.complete();
+      await assertion;
+    },
+  );
+
+  test(
+    'changed server between discovery and mutation prevents any write',
+    () async {
+      final service = client((request) async {
+        if (request.method == 'GET') await configuration.clearConfiguration();
+        return null;
+      });
+      await expectLater(
+        service.listEvents(),
+        fails(CalendarFailureKind.session),
+      );
+      expect(calls.where((call) => call.method == 'POST'), isEmpty);
+    },
+  );
+
+  test(
+    'stale update/delete are actionable conflicts and are never blindly retried',
+    () async {
+      final service = client(
+        (request) async => request.method == 'PUT' || request.method == 'DELETE'
+            ? http.Response('', 412)
+            : null,
+      );
+      await service.listEvents();
+      await expectLater(
+        service.updateEvent(id: eventId, draft: draft(), version: version),
+        fails(CalendarFailureKind.conflict),
+      );
+      await expectLater(
+        service.deleteEvent(eventId, version: version),
+        fails(CalendarFailureKind.conflict),
+      );
+      expect(calls.where((call) => call.method == 'PUT'), hasLength(1));
+      expect(
+        calls
+            .singleWhere((call) => call.method == 'DELETE')
+            .headers['if-match'],
+        version,
+      );
+      expect(auth.refreshes, 0);
+    },
+  );
+
+  test('read-only allowed actions disable writes before transport', () async {
+    calendarActions = ['read'];
+    stored = event(actions: ['read']);
+    final service = client((_) async => null);
+    await service.listEvents();
+    await expectLater(
+      service.createEvent(draft()),
+      fails(CalendarFailureKind.permission),
+    );
+    await expectLater(
+      service.updateEvent(id: eventId, draft: draft(), version: version),
+      fails(CalendarFailureKind.permission),
+    );
+    await expectLater(
+      service.deleteEvent(eventId, version: version),
+      fails(CalendarFailureKind.permission),
+    );
+    expect(calls.every((call) => call.method == 'GET'), isTrue);
+  });
+
+  test('invalid IANA profile zone fails without an agenda request', () async {
+    final service = client((_) async => null, zone: 'CET invented zone');
+    await expectLater(
+      service.listEvents(),
+      fails(CalendarFailureKind.unavailable),
+    );
+    expect(calls.where((call) => call.url.path.endsWith('/events')), isEmpty);
+  });
+  test(
+    'uncertain create outcome reuses logical identity when the unchanged draft is retried',
+    () async {
+      var attempts = 0;
+      final service = client((request) async {
+        if (request.method == 'POST' && attempts++ == 0) {
+          return http.Response('', 503);
+        }
+        return null;
+      });
+      await expectLater(
+        service.createEvent(draft()),
+        fails(CalendarFailureKind.unavailable),
+      );
+      await service.createEvent(draft());
+      final requests = calls.where((call) => call.method == 'POST').toList();
+      expect(
+        requests[1].headers['idempotency-key'],
+        requests[0].headers['idempotency-key'],
+      );
+      await service.createEvent(draft());
+      expect(
+        calls.last.headers['idempotency-key'],
+        isNot(requests[0].headers['idempotency-key']),
+      );
+    },
+  );
+  for (final kind in ['FLOATING', 'ZONED', 'UTC']) {
+    test(
+      'host DST gap cannot normalize $kind source time on title-only update',
+      () async {
+        final payload = content(kind: kind);
+        payload['start'] = {
+          'kind': kind,
+          if (kind == 'UTC') 'instant': '2026-03-29T02:30:00Z',
+          if (kind != 'UTC') 'localDateTime': '2026-03-29T02:30:00',
+          if (kind == 'ZONED') 'timeZone': 'America/New_York',
+        };
+        payload['end'] = {
+          'kind': kind,
+          if (kind == 'UTC') 'instant': '2026-03-29T03:30:00Z',
+          if (kind != 'UTC') 'localDateTime': '2026-03-29T03:30:00',
+          if (kind == 'ZONED') 'timeZone': 'America/New_York',
+        };
+        stored = event(payload: payload);
+        final service = client((_) async => null);
+        await service.listEvents();
+        final master = await service.readEvent(eventId);
+        expect(master.startTime.hour, 2);
+        expect(master.startTime.minute, 30);
+        await service.updateEvent(
+          id: eventId,
+          version: version,
+          draft: CalendarEventDraft(
+            title: 'Title only',
+            startTime: master.startTime,
+            endTime: master.endTime,
+            timezone: master.timezone ?? 'Europe/Berlin',
+            timeKind: master.timeKind,
+            scope: master.scope,
+          ),
+        );
+        final sent =
+            jsonDecode(calls.singleWhere((call) => call.method == 'PUT').body)
+                as Map;
+        final start = sent['start'] as Map;
+        if (kind == 'UTC') {
+          expect(
+            DateTime.parse(start['instant'] as String),
+            DateTime.utc(2026, 3, 29, 2, 30),
+          );
+        } else {
+          expect(start['localDateTime'], '2026-03-29T02:30:00');
+          expect(
+            start['timeZone'],
+            kind == 'ZONED' ? 'America/New_York' : null,
+          );
+        }
+      },
+    );
+  }
 }

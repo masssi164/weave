@@ -8,8 +8,10 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/app/presentation/workspace_capability_recovery_presenter.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_failure.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 enum CalendarViewMode { agenda, day, week, month }
@@ -29,10 +31,22 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final capabilitySnapshot = ref.watch(workspaceCapabilitySnapshotProvider);
-    final canCreateEvent = capabilitySnapshot.maybeWhen(
-      data: (snapshot) => snapshot.calendar.isReady,
-      orElse: () => false,
+    final scopes =
+        ref.watch(calendarScopesProvider).asData?.value.scopes ??
+        const <CalendarScope>[];
+    final selection = ref.watch(selectedCalendarScopeProvider);
+    final active = scopes.where(
+      (scope) =>
+          scope.id == selection.id ||
+          (selection == CalendarScope.workspace && scope.isWorkspace),
     );
+    final canCreateEvent =
+        active.isNotEmpty &&
+        active.first.capabilities.contains('create') &&
+        capabilitySnapshot.maybeWhen(
+          data: (snapshot) => snapshot.calendar.isReady,
+          orElse: () => false,
+        );
 
     return Scaffold(
       appBar: AppBar(
@@ -58,8 +72,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               viewMode: _viewMode,
               focusedDate: _focusedDate,
               onViewModeChanged: (mode) => setState(() => _viewMode = mode),
-              onFocusedDateChanged: (date) =>
-                  setState(() => _focusedDate = date),
+              onFocusedDateChanged: (date) {
+                setState(() => _focusedDate = date);
+                ref.read(calendarViewDateProvider.notifier).select(date);
+              },
               onCreate: () => _showEventEditor(context),
               onEdit: (event) => _showEventEditor(context, event: event),
               onDelete: _confirmDelete,
@@ -89,29 +105,64 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   void _refreshCalendar() {
     ref
       ..invalidate(calendarProvider)
-      ..invalidate(calendarScopesProvider)
-      ..invalidate(calendarClientSetupProvider);
+      ..invalidate(calendarScopesProvider);
   }
 
   Future<void> _showEventEditor(
     BuildContext context, {
     CalendarEvent? event,
   }) async {
+    final l10n = AppLocalizations.of(context);
+    if (event?.recurring == true) {
+      _showSnackBar(context, l10n.calendarRecurringEditGuard);
+      return;
+    }
+    final editorSession = ref.read(weaveAuthenticatedSessionProvider);
+    CalendarEvent? editorEvent;
+    CalendarScope scope;
+    String zone;
+    try {
+      final scopes = await ref.read(calendarScopesProvider.future);
+      final selected = ref.read(selectedCalendarScopeProvider);
+      scope = scopes.scopes.firstWhere(
+        (scope) =>
+            scope.id == selected.id ||
+            (selected == CalendarScope.workspace && scope.isWorkspace),
+      );
+      zone = await ref.read(calendarEvaluationTimeZoneProvider.future);
+      if (event != null) {
+        editorEvent = await ref
+            .read(calendarRepositoryProvider)
+            .readEvent(event.id);
+        if (editorEvent.recurring || !editorEvent.canEdit) {
+          if (context.mounted) {
+            _showSnackBar(context, l10n.calendarRecurringEditGuard);
+          }
+          return;
+        }
+      }
+    } catch (error) {
+      if (context.mounted) _showSnackBar(context, _failureMessage(l10n, error));
+      return;
+    }
+    if (!context.mounted) return;
     final draft = await showDialog<CalendarEventDraft>(
       context: context,
-      builder: (context) {
-        return _CalendarEventEditorDialog(
-          initialEvent: event,
-          initialScope: ref.read(selectedCalendarScopeProvider),
-          initialDate: _focusedDate,
-        );
-      },
+      builder: (context) => _CalendarEventEditorDialog(
+        initialEvent: editorEvent,
+        initialScope: scope,
+        initialDate: _focusedDate,
+        evaluationTimeZone: zone,
+      ),
     );
     if (!context.mounted || draft == null) {
       return;
     }
+    if (ref.read(weaveAuthenticatedSessionProvider) != editorSession) {
+      _showSnackBar(context, l10n.calendarOperationFailure);
+      return;
+    }
 
-    final l10n = AppLocalizations.of(context);
     try {
       if (event == null) {
         await ref.read(calendarProvider.notifier).createEvent(draft);
@@ -121,20 +172,27 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       } else {
         await ref
             .read(calendarProvider.notifier)
-            .updateEvent(event.id, draft, etag: event.etag);
+            .updateEvent(event.id, draft, etag: editorEvent!.etag);
         if (context.mounted) {
           _showSnackBar(context, l10n.calendarUpdateSuccess);
         }
       }
-    } catch (_) {
+    } catch (error) {
       if (context.mounted) {
-        _showSnackBar(context, l10n.calendarOperationFailure);
+        _showSnackBar(context, _failureMessage(l10n, error));
       }
     }
   }
 
   Future<void> _confirmDelete(CalendarEvent event) async {
     final context = this.context;
+    if (event.recurring) {
+      _showSnackBar(
+        context,
+        AppLocalizations.of(context).calendarRecurringEditGuard,
+      );
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -158,13 +216,15 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
     final l10n = AppLocalizations.of(context);
     try {
-      await ref.read(calendarProvider.notifier).deleteEvent(event.id);
+      await ref
+          .read(calendarProvider.notifier)
+          .deleteEvent(event.id, etag: event.etag);
       if (context.mounted) {
         _showSnackBar(context, l10n.calendarDeleteSuccess);
       }
-    } catch (_) {
+    } catch (error) {
       if (context.mounted) {
-        _showSnackBar(context, l10n.calendarOperationFailure);
+        _showSnackBar(context, _failureMessage(l10n, error));
       }
     }
   }
@@ -202,7 +262,9 @@ class _CalendarAppBody extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final scopes = ref.watch(calendarScopesProvider);
     final events = ref.watch(calendarProvider);
-    final selectedScope = ref.watch(selectedCalendarScopeProvider);
+    final selectedScope =
+        events.asData?.value.scope ??
+        ref.watch<CalendarScope>(selectedCalendarScopeProvider);
     final copy = _copy(context);
 
     return RefreshIndicator(
@@ -219,11 +281,11 @@ class _CalendarAppBody extends ConsumerWidget {
             ),
             error: (_, _) => _InlineNotice(
               icon: Icons.info_outline,
-              title: l10n.calendarClientSetupUnavailable,
+              title: l10n.calendarScopesUnavailable,
             ),
             loading: () => _InlineNotice(
               icon: Icons.sync,
-              title: l10n.calendarClientSetupLoading,
+              title: l10n.calendarScopesLoading,
             ),
           ),
           const SizedBox(height: 12),
@@ -247,7 +309,9 @@ class _CalendarAppBody extends ConsumerWidget {
                   guidance: copy.emptyGuidance(viewMode),
                   icon: Icons.event_available_outlined,
                   actionLabel: l10n.calendarCreateButton,
-                  onAction: onCreate,
+                  onAction: selectedScope.capabilities.contains('create')
+                      ? onCreate
+                      : null,
                 );
               }
               return _CalendarEventCollection(
@@ -270,8 +334,6 @@ class _CalendarAppBody extends ConsumerWidget {
               icon: Icons.calendar_today_outlined,
             ),
           ),
-          const SizedBox(height: 12),
-          _CalendarClientSetupSummary(),
         ],
       ),
     );
@@ -540,7 +602,15 @@ class _WeekEventList extends StatelessWidget {
     final days = [
       for (var i = 0; i < 7; i++) _dateOnly(start.add(Duration(days: i))),
     ];
-    final groups = _groupEventsByDay(events);
+    final groups = {
+      for (final day in days)
+        day: events
+            .where(
+              (event) =>
+                  _overlaps(event, day, day.add(const Duration(days: 1))),
+            )
+            .toList(growable: false),
+    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -577,7 +647,7 @@ class _MonthEventList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final monthStart = DateTime(focusedDate.year, focusedDate.month);
+    final monthStart = DateTime.utc(focusedDate.year, focusedDate.month);
     final daysInMonth = DateUtils.getDaysInMonth(
       focusedDate.year,
       focusedDate.month,
@@ -586,7 +656,15 @@ class _MonthEventList extends StatelessWidget {
       for (var i = 0; i < daysInMonth; i++)
         _dateOnly(monthStart.add(Duration(days: i))),
     ];
-    final groups = _groupEventsByDay(events);
+    final groups = {
+      for (final day in days)
+        day: events
+            .where(
+              (event) =>
+                  _overlaps(event, day, day.add(const Duration(days: 1))),
+            )
+            .toList(growable: false),
+    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -667,6 +745,9 @@ class _CalendarEventCard extends StatelessWidget {
               if (event.location case final location?)
                 Text('${l10n.calendarDetailsLocationLabel}: $location'),
               Text('${l10n.calendarDetailsScopeLabel}: ${event.scope.label}'),
+              if (event.timezone != null)
+                Text(l10n.calendarEvaluationZone(event.timezone!)),
+              if (event.recurring) Text(l10n.calendarRecurringEditGuard),
             ],
           ),
           onTap: () => _showEventDetails(context, event),
@@ -675,65 +756,21 @@ class _CalendarEventCard extends StatelessWidget {
             children: [
               IconButton(
                 tooltip: l10n.calendarEditEventTooltip(event.title),
-                onPressed: () => onEdit(event),
+                onPressed: event.canEdit && !event.recurring
+                    ? () => onEdit(event)
+                    : null,
                 icon: const Icon(Icons.edit_outlined),
               ),
               IconButton(
                 tooltip: l10n.calendarDeleteEventTooltip(event.title),
-                onPressed: () => onDelete(event),
+                onPressed: event.canDelete && !event.recurring
+                    ? () => onDelete(event)
+                    : null,
                 icon: const Icon(Icons.delete_outline),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _CalendarClientSetupSummary extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final setup = ref.watch(calendarClientSetupProvider);
-    return setup.when(
-      data: (setup) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.calendarClientSetupTitle,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(l10n.calendarClientSetupDescription),
-              const SizedBox(height: 8),
-              Text(
-                '${l10n.calendarClientSetupUsernameLabel}: ${setup.username}',
-              ),
-              Text(
-                l10n.calendarClientSetupCredentialReadinessStatus(
-                  setup.credentialReadiness.status,
-                ),
-              ),
-              Text(
-                setup.credentialReadiness.backendActorCredentialsExposed
-                    ? l10n.calendarClientSetupCredentialsUnsafe
-                    : l10n.calendarClientSetupCredentialsSafe,
-              ),
-            ],
-          ),
-        ),
-      ),
-      error: (_, _) => _InlineNotice(
-        icon: Icons.info_outline,
-        title: l10n.calendarClientSetupUnavailable,
-      ),
-      loading: () => _InlineNotice(
-        icon: Icons.sync,
-        title: l10n.calendarClientSetupLoading,
       ),
     );
   }
@@ -806,12 +843,14 @@ class _CalendarEventEditorDialog extends StatefulWidget {
   const _CalendarEventEditorDialog({
     required this.initialScope,
     required this.initialDate,
+    required this.evaluationTimeZone,
     this.initialEvent,
   });
 
   final CalendarEvent? initialEvent;
   final CalendarScope initialScope;
   final DateTime initialDate;
+  final String evaluationTimeZone;
 
   @override
   State<_CalendarEventEditorDialog> createState() =>
@@ -890,6 +929,12 @@ class _CalendarEventEditorDialogState
               ),
             ),
             const SizedBox(height: 12),
+            Text(
+              l10n.calendarEvaluationZone(
+                widget.initialEvent?.timezone ?? widget.evaluationTimeZone,
+              ),
+            ),
+            if (_allDay) Text(l10n.calendarAllDayExclusiveEnd),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(copy.allDay),
@@ -931,15 +976,17 @@ class _CalendarEventEditorDialogState
 
   void _submit() {
     final l10n = AppLocalizations.of(context);
-    final title = _titleController.text.trim();
-    if (title.isEmpty) {
+    final title = _titleController.text;
+    if (title.trim().isEmpty) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(l10n.calendarTitleRequired)));
       return;
     }
-    if (!_endTime.isAfter(_startTime)) {
-      _endTime = _startTime.add(
+    final start = _allDay ? _dateOnly(_startTime) : _startTime;
+    var end = _allDay ? _dateOnly(_endTime) : _endTime;
+    if (!end.isAfter(start)) {
+      end = start.add(
         _allDay ? const Duration(days: 1) : const Duration(hours: 1),
       );
     }
@@ -947,9 +994,10 @@ class _CalendarEventEditorDialogState
       CalendarEventDraft(
         title: title,
         description: _blankToNull(_descriptionController.text),
-        startTime: _allDay ? _dateOnly(_startTime) : _startTime,
-        endTime: _allDay ? _dateOnly(_endTime) : _endTime,
-        timezone: DateTime.now().timeZoneName,
+        startTime: start,
+        endTime: end,
+        timezone: widget.initialEvent?.timezone ?? widget.evaluationTimeZone,
+        timeKind: widget.initialEvent?.timeKind ?? CalendarTimeKind.zoned,
         location: _blankToNull(_locationController.text),
         allDay: _allDay,
         scope: widget.initialEvent?.scope ?? widget.initialScope,
@@ -988,7 +1036,7 @@ class _DateTimePickerTile extends StatelessWidget {
         if (date == null || !context.mounted) {
           return;
         }
-        var selected = DateTime(
+        var selected = DateTime.utc(
           date.year,
           date.month,
           date.day,
@@ -1003,7 +1051,7 @@ class _DateTimePickerTile extends StatelessWidget {
           if (time == null) {
             return;
           }
-          selected = DateTime(
+          selected = DateTime.utc(
             date.year,
             date.month,
             date.day,
@@ -1105,25 +1153,34 @@ List<CalendarEvent> _visibleEvents(
 ) {
   final sorted = [...events]
     ..sort((a, b) => a.startTime.compareTo(b.startTime));
-  return switch (viewMode) {
-    CalendarViewMode.agenda => sorted,
-    CalendarViewMode.day =>
-      sorted
-          .where((event) => DateUtils.isSameDay(event.startTime, focusedDate))
-          .toList(growable: false),
-    CalendarViewMode.week =>
-      sorted
-          .where((event) => _isInSameWeek(event.startTime, focusedDate))
-          .toList(growable: false),
-    CalendarViewMode.month =>
-      sorted
-          .where(
-            (event) =>
-                event.startTime.year == focusedDate.year &&
-                event.startTime.month == focusedDate.month,
-          )
-          .toList(growable: false),
+  if (viewMode == CalendarViewMode.agenda) return sorted;
+  final start = switch (viewMode) {
+    CalendarViewMode.day => _dateOnly(focusedDate),
+    CalendarViewMode.week => _startOfWeek(focusedDate),
+    _ => DateTime.utc(focusedDate.year, focusedDate.month),
   };
+  final end = switch (viewMode) {
+    CalendarViewMode.day => start.add(const Duration(days: 1)),
+    CalendarViewMode.week => start.add(const Duration(days: 7)),
+    _ => DateTime.utc(focusedDate.year, focusedDate.month + 1),
+  };
+  return sorted
+      .where((event) => _overlaps(event, start, end))
+      .toList(growable: false);
+}
+
+bool _overlaps(CalendarEvent event, DateTime start, DateTime end) {
+  // Compare wall-clock fields, never the host time zone's implicit offset.
+  DateTime fields(DateTime value) => DateTime.utc(
+    value.year,
+    value.month,
+    value.day,
+    value.hour,
+    value.minute,
+    value.second,
+  );
+  return fields(event.startTime).isBefore(end) &&
+      fields(event.endTime).isAfter(start);
 }
 
 Map<DateTime, List<CalendarEvent>> _groupEventsByDay(
@@ -1145,7 +1202,7 @@ DateTime _shiftFocusedDate(
     CalendarViewMode.agenda ||
     CalendarViewMode.day => focusedDate.add(Duration(days: delta)),
     CalendarViewMode.week => focusedDate.add(Duration(days: delta * 7)),
-    CalendarViewMode.month => DateTime(
+    CalendarViewMode.month => DateTime.utc(
       focusedDate.year,
       focusedDate.month + delta,
       focusedDate.day,
@@ -1195,25 +1252,22 @@ String _formatDateTime(
 DateTime _defaultStart(DateTime focusedDate) {
   final now = DateTime.now();
   if (DateUtils.isSameDay(focusedDate, now)) {
-    return DateTime(now.year, now.month, now.day, now.hour + 1);
+    return DateTime.utc(now.year, now.month, now.day, now.hour + 1);
   }
-  return DateTime(focusedDate.year, focusedDate.month, focusedDate.day, 9);
+  return DateTime.utc(focusedDate.year, focusedDate.month, focusedDate.day, 9);
 }
 
 DateTime _dateOnly(DateTime value) =>
-    DateTime(value.year, value.month, value.day);
+    DateTime.utc(value.year, value.month, value.day);
 
 DateTime _startOfWeek(DateTime value) {
   final date = _dateOnly(value);
   return date.subtract(Duration(days: date.weekday - DateTime.monday));
 }
 
-bool _isInSameWeek(DateTime a, DateTime b) =>
-    _startOfWeek(a) == _startOfWeek(b);
-
 String? _blankToNull(String value) {
   final trimmed = value.trim();
-  return trimmed.isEmpty ? null : trimmed;
+  return trimmed.isEmpty ? null : value;
 }
 
 IconData _modeIcon(CalendarViewMode mode) {
@@ -1319,4 +1373,16 @@ class _CalendarCopy {
 
   String deleteMessage(String title) =>
       _deleteMessageTemplate.replaceFirst('{title}', title);
+}
+
+String _failureMessage(AppLocalizations l10n, Object error) {
+  if (error is CalendarFailure) {
+    if (error.kind == CalendarFailureKind.conflict) {
+      return l10n.calendarVersionConflict;
+    }
+    if (error.kind == CalendarFailureKind.unsupportedEdit) {
+      return l10n.calendarUnsupportedEdit;
+    }
+  }
+  return l10n.calendarOperationFailure;
 }

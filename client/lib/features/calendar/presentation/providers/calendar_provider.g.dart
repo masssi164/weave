@@ -55,7 +55,7 @@ final class CalendarFacadeClientProvider
 }
 
 String _$calendarFacadeClientHash() =>
-    r'afaed17dbe52673ec80727500a033f2346e2f6db';
+    r'459098a9b859969169a1c71dcbbae146ac2852b9';
 
 @ProviderFor(calendarRepository)
 final calendarRepositoryProvider = CalendarRepositoryProvider._();
@@ -138,7 +138,7 @@ final class SelectedCalendarScopeProvider
 }
 
 String _$selectedCalendarScopeHash() =>
-    r'631d8146a2929ac5c8f835811a53e156fa90c35a';
+    r'0c5e723169e1116b25402c7b9d6831a09d1ee6c9';
 
 abstract class _$SelectedCalendarScope extends $Notifier<CalendarScope> {
   CalendarScope build();
@@ -197,49 +197,42 @@ final class CalendarScopesProvider
   }
 }
 
-String _$calendarScopesHash() => r'b2935571b6cde8a8eb588a11d4ddc18943ca330e';
+String _$calendarScopesHash() => r'e9a5ea7efbf9aba9494c2e94cd67b5d479dab920';
 
-@ProviderFor(calendarClientSetup)
-final calendarClientSetupProvider = CalendarClientSetupProvider._();
+@ProviderFor(calendarEvaluationTimeZone)
+final calendarEvaluationTimeZoneProvider =
+    CalendarEvaluationTimeZoneProvider._();
 
-final class CalendarClientSetupProvider
-    extends
-        $FunctionalProvider<
-          AsyncValue<CalendarClientSetup>,
-          CalendarClientSetup,
-          FutureOr<CalendarClientSetup>
-        >
-    with
-        $FutureModifier<CalendarClientSetup>,
-        $FutureProvider<CalendarClientSetup> {
-  CalendarClientSetupProvider._()
+final class CalendarEvaluationTimeZoneProvider
+    extends $FunctionalProvider<AsyncValue<String>, String, FutureOr<String>>
+    with $FutureModifier<String>, $FutureProvider<String> {
+  CalendarEvaluationTimeZoneProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
-        name: r'calendarClientSetupProvider',
+        name: r'calendarEvaluationTimeZoneProvider',
         isAutoDispose: true,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
 
   @override
-  String debugGetCreateSourceHash() => _$calendarClientSetupHash();
+  String debugGetCreateSourceHash() => _$calendarEvaluationTimeZoneHash();
 
   @$internal
   @override
-  $FutureProviderElement<CalendarClientSetup> $createElement(
-    $ProviderPointer pointer,
-  ) => $FutureProviderElement(pointer);
+  $FutureProviderElement<String> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
 
   @override
-  FutureOr<CalendarClientSetup> create(Ref ref) {
-    return calendarClientSetup(ref);
+  FutureOr<String> create(Ref ref) {
+    return calendarEvaluationTimeZone(ref);
   }
 }
 
-String _$calendarClientSetupHash() =>
-    r'cfa2310a5679c86ccef7cfbaf2936cb61c814578';
+String _$calendarEvaluationTimeZoneHash() =>
+    r'fe8cdfe86de8e7f72f9d398f9e640a1299098188';
 
 @ProviderFor(calendarEvent)
 final calendarEventProvider = CalendarEventFamily._();
@@ -296,7 +289,7 @@ final class CalendarEventProvider
   }
 }
 
-String _$calendarEventHash() => r'637cafd78690cae4821a18608f2292bd25521592';
+String _$calendarEventHash() => r'9dbdbece19669a8f944a8881a81b0a3f79fc3d02';
 
 final class CalendarEventFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<CalendarEvent>, String> {
@@ -340,7 +333,7 @@ final class CalendarNotifierProvider
   CalendarNotifier create() => CalendarNotifier();
 }
 
-String _$calendarNotifierHash() => r'54bbf3a049a5bfc416fc5bde4c0918c6c610131c';
+String _$calendarNotifierHash() => r'f48c9f655cc36ddebb8f95b76dfbb211e6c404a3';
 
 abstract class _$CalendarNotifier extends $AsyncNotifier<CalendarEventList> {
   FutureOr<CalendarEventList> build();
