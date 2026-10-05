@@ -348,7 +348,7 @@ for required in \
   [[ -f "${required}" && ! -L "${required}" ]] ||
     fail "an exact TLS or bootstrap SecretRef input is unavailable"
 done
-log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
+log "Running invitation, real Chromium activation, PKCE, generated User Files/Calendar, ARC, and MCP."
 "${REPOSITORY_ROOT}/gradlew" \
   --no-daemon \
   --max-workers=2 \
@@ -408,7 +408,7 @@ jq -e \
   .samePersonRefAfterRegrant == true and
   .collaboration.repeatCount == 2 and
   .collaboration.selectedProviders == {"chat":"weave-native","files":"weave-native","calendar":"weave-native"} and
-  .collaboration.northboundFacades == {"matrix":true,"webdav":true,"caldav":true} and
+  .collaboration.northboundContracts == {"matrix":"matrix-client-server","files":"weave-user-api","calendar":"weave-user-api"} and
   .collaboration.southboundProviderDependencyObserved == false and
   (.collaboration.identityRefHashes.author | test("^sha256:[0-9a-f]{64}$")) and
   (.collaboration.identityRefHashes.collaborator | test("^sha256:[0-9a-f]{64}$")) and

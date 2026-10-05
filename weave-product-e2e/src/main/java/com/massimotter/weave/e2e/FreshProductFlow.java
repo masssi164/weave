@@ -1000,10 +1000,10 @@ public final class FreshProductFlow {
     selectedProviders.put("chat", "weave-native");
     selectedProviders.put("files", "weave-native");
     selectedProviders.put("calendar", "weave-native");
-    ObjectNode northboundFacades = collaboration.putObject("northboundFacades");
-    northboundFacades.put("matrix", true);
-    northboundFacades.put("webdav", true);
-    northboundFacades.put("caldav", true);
+    ObjectNode northboundContracts = collaboration.putObject("northboundContracts");
+    northboundContracts.put("matrix", "matrix-client-server");
+    northboundContracts.put("files", "weave-user-api");
+    northboundContracts.put("calendar", "weave-user-api");
     collaboration.put("southboundProviderDependencyObserved", false);
     ObjectNode identityHashes = collaboration.putObject("identityRefHashes");
     identityHashes.put("author", collaborationPasses.get(0).authorIdentityRefHash());

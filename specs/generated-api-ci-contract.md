@@ -76,6 +76,24 @@ Real browser/OIDC, User/Admin/MCP, Matrix interoperability,
 Files/Calendar and session recovery journeys remain independently required by #1480.
 The disposable Compose lane provides runtime evidence; provider migration remains #1498.
 
+## Full Compose Files collaboration proof
+
+The current-scope product journey creates, reads, updates and re-reads a member-owned
+File through the generated JVM User Files client. The update uses the current strong
+content ETag, and the separate item revision must advance. A different organization
+member without an explicit File grant and an outside-organization member must not
+read or write it. The first-pass File remains readable through the same product API
+after the isolated Server/PostgreSQL restart. The suite independently compares exact
+bytes and revision changes instead of treating generated models as the behavioral
+oracle. Its only cleanup requirement is teardown of the disposable Compose namespace
+and exact volumes because the User Files API does not yet offer deletion or sharing.
+
+The product acceptance evidence must report the generated User Files northbound
+surface. Public WebDAV/CalDAV probes may remain in separately named compatibility
+regressions, but the current-scope Full Compose product flow must not require them or
+report them as its product northbound contract. Matrix remains the explicit protocol
+exception and has its own independent-client qualification gate.
+
 ## Member diagnostic boundary
 
 Flutter's member session consumes User capabilities even when the member has an owner

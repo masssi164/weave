@@ -116,7 +116,11 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
             "collaboration": {
                 "repeatCount": 2,
                 "selectedProviders": {"chat": "weave-native", "files": "weave-native", "calendar": "weave-native"},
-                "northboundFacades": {"matrix": True, "webdav": True, "caldav": True},
+                "northboundContracts": {
+                    "matrix": "matrix-client-server",
+                    "files": "weave-user-api",
+                    "calendar": "weave-user-api",
+                },
                 "southboundProviderDependencyObserved": False,
                 "identityRefHashes": HASHES,
                 "passes": [pass_proof(1), pass_proof(2)],
