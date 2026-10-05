@@ -5,7 +5,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpMethod;
 
-/** Closed method/path allowlist for the one Keycloak 26.7 FGAP migration operation. */
+/** Closed method/path allowlist for the reviewed Keycloak 26.7 post-import operations. */
 final class KeycloakRealmMigrationOperationPolicy {
   private static final String REALM = "/admin/realms/weave";
   private static final String MASTER = "/admin/realms/master";
@@ -18,6 +18,12 @@ final class KeycloakRealmMigrationOperationPolicy {
   private static final List<Rule> RULES =
       List.of(
           rule("realm-readback", Set.of(HttpMethod.GET), REALM),
+          rule("native-scope-inventory", Set.of(HttpMethod.GET), REALM + "/client-scopes"),
+          rule("native-scope-readback", Set.of(HttpMethod.GET), REALM + "/client-scopes/" + ID),
+          rule("native-mapper-inventory", Set.of(HttpMethod.GET),
+              REALM + "/client-scopes/" + ID + "/protocol-mappers/models"),
+          rule("native-organization-mapper-update", Set.of(HttpMethod.PUT),
+              REALM + "/client-scopes/" + ID + "/protocol-mappers/models/" + ID),
           rule(
               "exact-client-readback",
               Set.of(HttpMethod.GET),

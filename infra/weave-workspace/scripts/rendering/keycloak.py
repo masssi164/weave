@@ -203,7 +203,9 @@ def render_keycloak(context: ComposeContext) -> dict[str, object]:
 
     realm_payload = pretty_json(project_realm(desired, public_keys))
     rendered_digest = sha256_digest(realm_payload)
-    migration_bundle = fresh_start_migration_bundle(desired, rendered_digest)
+    migration_bundle = fresh_start_migration_bundle(
+        desired, rendered_digest, json_object(migration_definition_source)
+    )
     migration_payload = pretty_json(migration_bundle)
     migration_digest = sha256_digest(migration_payload)
     semantic_payload = baseline_path.read_bytes()

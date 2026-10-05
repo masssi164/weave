@@ -24,6 +24,35 @@ sys.path.insert(0, str(ROOT / "keycloak"))
 import oauth_probe  # noqa: E402
 
 
+EXPECTED_ORGANIZATION_MAPPER_OPERATION = {
+    "id": "organization-membership-id-post-import",
+    "phase": "post-realm-import",
+    "type": "keycloak-built-in-organization-mapper",
+    "desiredStatePointer": "/operations/1/desiredState",
+    "desiredState": {
+        "clientScopeName": "organization",
+        "name": "organization",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-organization-membership-mapper",
+        "config": {
+            "claim.name": "organization",
+            "jsonType.label": "JSON",
+            "multivalued": "true",
+            "addOrganizationId": "true",
+            "addOrganizationAttributes": "false",
+            "addOrganizationDomain": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+        }
+    },
+    "desiredStateDigest": "sha256:5e19f3dff3818e8093aff5c7b61dc6da6baf303bf25654d24b602c6526bee475",
+    "blockedBy": "keycloak-26.7-creates-built-in-scopes-before-realm-import",
+    "status": "requires-qualified-admin-rest-executor"
+}
+
+
 def digest(payload: bytes) -> str:
     return "sha256:" + hashlib.sha256(payload).hexdigest()
 
@@ -70,7 +99,7 @@ def artifacts(root: Path) -> tuple[object, dict[str, object]]:
             "containsSecretValues": False,
             "fromBaselineRevision": None,
             "keycloakVersion": "26.7.1",
-            "operations": [operation],
+            "operations": [operation, EXPECTED_ORGANIZATION_MAPPER_OPERATION],
             "reason": "public test fixture",
             "status": "blocked-post-import-operation",
             "toBaselineRevision": target_revision,
@@ -149,9 +178,10 @@ def artifacts(root: Path) -> tuple[object, dict[str, object]]:
         },
     )
     receipt = {
-        "schemaVersion": "weave.keycloak-fgap-migration-receipt/v1",
+        "schemaVersion": "weave.keycloak-fgap-migration-receipt/v2",
         "status": "complete",
         "operationId": OPERATION_ID,
+        "completedOperationIds": [OPERATION_ID, "organization-membership-id-post-import"],
         "keycloakVersion": "26.7.1",
         "manifestDigest": digest(manifest_payload),
         "bundleDigest": bundle_digest,
@@ -233,6 +263,25 @@ def main() -> None:
         inputs = migration_inputs(context)
         write(inputs.receipt_file, receipt)
         require_completed_migration(context)
+        receipt["completedOperationIds"] = [OPERATION_ID]
+        write(inputs.receipt_file, receipt)
+        rejected(lambda: require_completed_migration(context))
+        receipt["completedOperationIds"] = [OPERATION_ID, "organization-membership-id-post-import"]
+        write(inputs.receipt_file, receipt)
+
+        bundle_path = inputs.artifact_root / "keycloak/migrations/fresh-start-v1.json"
+        manifest_path = inputs.artifact_root / "keycloak/migrations/manifest.json"
+        original_bundle = bundle_path.read_bytes()
+        original_manifest = manifest_path.read_bytes()
+        changed_bundle = json.loads(original_bundle)
+        changed_bundle["operations"][1]["desiredState"]["clientScopeName"] = "unreviewed-scope"
+        changed_payload = write(bundle_path, changed_bundle)
+        changed_manifest = json.loads(original_manifest)
+        changed_manifest["bundles"][0]["digest"] = digest(changed_payload)
+        write(manifest_path, changed_manifest)
+        rejected(lambda: migration_inputs(context))
+        bundle_path.write_bytes(original_bundle)
+        manifest_path.write_bytes(original_manifest)
 
         evidence = inputs.artifact_root / "keycloak/realm-render-evidence.json"
         original_evidence = json.loads(evidence.read_text(encoding="utf-8"))

@@ -494,34 +494,11 @@ def project_realm(
             role_by_key[str(role["key"])] = {**role, "clientId": client_id}
         else:
             raise RealmProjectionError("role has unsupported scope")
-    # The stock built-in mapper omits IDs by default. Admission binds both the
-    # environment alias and immutable native ID, so project that supported option
-    # explicitly in the immutable fresh-realm artifact. No organization attributes
-    # or email-domain data are needed by the product boundary.
+    # Keycloak creates built-in scopes before import. The explicit post-import
+    # migration configures its existing native organization mapper instead.
     if "organization" in scope_names.values():
         raise RealmProjectionError("the built-in organization scope cannot be shadowed")
-    projected_scopes: list[dict[str, object]] = [{
-        "name": "organization",
-        "protocol": "openid-connect",
-        "attributes": {"include.in.token.scope": "true"},
-        "protocolMappers": [{
-            "name": "organization",
-            "protocol": "openid-connect",
-            "protocolMapper": "oidc-organization-membership-mapper",
-            "config": {
-                "claim.name": "organization",
-                "jsonType.label": "JSON",
-                "multivalued": "true",
-                "addOrganizationId": "true",
-                "addOrganizationAttributes": "false",
-                "addOrganizationDomain": "false",
-                "access.token.claim": "true",
-                "id.token.claim": "true",
-                "userinfo.token.claim": "false",
-                "introspection.token.claim": "true",
-            },
-        }],
-    }]
+    projected_scopes: list[dict[str, object]] = []
     scope_mappings: list[dict[str, object]] = []
     for scope in scopes:
         projected_scopes.append(
@@ -714,7 +691,7 @@ def assert_secret_free(value: object, path: str = "$") -> None:
 
 
 def fresh_start_migration_bundle(
-    desired: dict[str, Any], baseline_digest: str
+    desired: dict[str, Any], baseline_digest: str, migration_definition: dict[str, Any]
 ) -> dict[str, object]:
     """Describe the honest empty-realm migration accompanying the full baseline."""
     if not baseline_digest.startswith("sha256:"):
@@ -726,6 +703,24 @@ def fresh_start_migration_bundle(
     if not isinstance(fgap, dict):
         raise RealmProjectionError("semantic FGAP contract is missing")
     fgap_digest = "sha256:" + hashlib.sha256(canonical_json(fgap)).hexdigest()
+    declared = migration_definition.get("operations")
+    if not isinstance(declared, list) or len(declared) != 2:
+        raise RealmProjectionError("exactly two reviewed post-import operations are required")
+    organization_operation = dict(declared[1])
+    organization_state = organization_operation.get("desiredState")
+    if (
+        organization_operation.get("id") != "organization-membership-id-post-import"
+        or organization_operation.get("type") != "keycloak-built-in-organization-mapper"
+        or organization_operation.get("phase") != "post-realm-import"
+        or organization_operation.get("desiredStatePointer") != "/operations/1/desiredState"
+        or not isinstance(organization_state, dict)
+    ):
+        raise RealmProjectionError("native organization mapper operation is missing")
+    organization_operation.update({
+        "blockedBy": "keycloak-26.7-creates-built-in-scopes-before-realm-import",
+        "desiredStateDigest": sha256_digest(canonical_json(organization_state)),
+        "status": "requires-qualified-admin-rest-executor",
+    })
     return {
         "apiVersion": FRESH_START_MIGRATION_SCHEMA,
         "applicability": "after-fresh-start-realm-import",
@@ -742,13 +737,16 @@ def fresh_start_migration_bundle(
                 "phase": "post-realm-import",
                 "status": "requires-qualified-admin-rest-executor",
                 "type": "keycloak-fgap-v2",
-            }
+            },
+            organization_operation,
         ],
         "reason": (
             "Keycloak 26.7 cannot import a specific-organization FGAP permission "
             "in the same RealmRepresentation because authorization settings are "
             "processed before organizations. The baseline remains default-deny; "
-            "an exact post-import Admin REST executor is required."
+            "an exact post-import Admin REST executor is required. The built-in organization "
+            "scope is created before import; its membership mapper requires a separate "
+            "post-import update to include the native organization ID."
         ),
         "status": "blocked-post-import-operation",
         "toBaselineRevision": baseline_revision,

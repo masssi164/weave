@@ -60,6 +60,7 @@ class KeycloakRealmEvidenceTest(unittest.TestCase):
             "schemaVersion": module.RECEIPT_SCHEMA,
             "status": "complete",
             "operationId": module.OPERATION_ID,
+            "completedOperationIds": module.COMPLETED_OPERATION_IDS,
             "baselineArtifactDigest": self.identity["renderedRealmDigest"],
             "targetBaselineRevision": self.identity["semanticRealmSourceDigest"],
             "firstRunOperations": [],
@@ -90,6 +91,11 @@ class KeycloakRealmEvidenceTest(unittest.TestCase):
     def test_rejects_render_evidence_bound_to_manifest_source_instead_of_lane(self) -> None:
         self.render_evidence["candidateCommit"] = self.source
         with self.assertRaisesRegex(module.EvidenceError, "stale or overclaims"):
+            self.finalize()
+
+    def test_rejects_fgap_only_receipt(self) -> None:
+        self.receipt["completedOperationIds"] = [module.OPERATION_ID]
+        with self.assertRaisesRegex(module.EvidenceError, "semantic provider convergence"):
             self.finalize()
 
     def test_rejects_unvalidated_lane_candidate(self) -> None:
