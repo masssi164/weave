@@ -35,6 +35,15 @@ No Home-core, dogfood, production service or deployment credential is involved.
    current foundation jobs. A skipped, failed or cancelled required job must not pass
    the aggregate. No branch-protection check is removed or replaced with unconditional success.
 
+The seven hosted foundation jobs are scheduled in a dependency chain on the same
+candidate: architecture, canonical data, PostgreSQL persistence, server
+protocol, MCP, documentation, then generated API consumers. This limits one Core CI
+foundation job to a hosted runner at a time. GitHub cancelled otherwise healthy
+parallel jobs before their first step after repeated runner-acquisition attempts;
+those cancellations are not accepted as test evidence. Each job keeps its real
+command, timeout and named check. The protected `Gradle CI` aggregate still waits
+for and requires all seven successful results, including generated consumers.
+
 ## Native protocol boundary
 
 OpenAPI metadata export substitutes only the Matrix protocol collaborator in its test
