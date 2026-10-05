@@ -44,11 +44,6 @@ abstract interface class WeaveApiClient {
     required String accessToken,
   });
 
-  Future<ProviderStackSnapshot> fetchProviderStackStatus({
-    required Uri baseUrl,
-    required String accessToken,
-  });
-
   Future<DevopsProviderSummarySnapshot> fetchDevopsSummary({
     required Uri baseUrl,
     required String accessToken,
@@ -181,24 +176,6 @@ class HttpWeaveApiClient implements WeaveApiClient {
     );
 
     return PlatformStatusResponseDto.fromJson(payload).toMatrixDiagnostic();
-  }
-
-  @override
-  Future<ProviderStackSnapshot> fetchProviderStackStatus({
-    required Uri baseUrl,
-    required String accessToken,
-  }) async {
-    final payload = await _getJson(
-      requestUri: _providerStatusUri(baseUrl),
-      accessToken: accessToken,
-      failureMessage: 'The Weave backend failed to return provider status.',
-      invalidPayloadMessage:
-          'The Weave backend returned an invalid provider status payload.',
-      decodeFailureMessage:
-          'Unable to decode provider status from the Weave backend.',
-    );
-
-    return openapi.ProviderRegistryResponse.fromJson(payload).toSnapshot();
   }
 
   @override
@@ -404,10 +381,6 @@ class HttpWeaveApiClient implements WeaveApiClient {
 
   Uri _platformStatusUri(Uri baseUrl) {
     return weaveApiUri(baseUrl, const ['platform', 'status']);
-  }
-
-  Uri _providerStatusUri(Uri baseUrl) {
-    return weaveApiUri(baseUrl, const ['providers', 'status']);
   }
 
   Uri _devopsSummaryUri(

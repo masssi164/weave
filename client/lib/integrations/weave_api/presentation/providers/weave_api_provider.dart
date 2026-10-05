@@ -79,16 +79,6 @@ final weaveApiMatrixE2eeDiagnosticProvider =
       });
     });
 
-final weaveApiProviderStackSnapshotProvider =
-    FutureProvider<ProviderStackSnapshot?>((ref) async {
-      return _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
-        return client.fetchProviderStackStatus(
-          baseUrl: baseUrl,
-          accessToken: accessToken,
-        );
-      });
-    });
-
 final weaveApiOfficeCapabilitiesSnapshotProvider =
     FutureProvider<OfficeCapabilitiesSnapshot?>((ref) async {
       return _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
