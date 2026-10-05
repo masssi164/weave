@@ -682,6 +682,10 @@ public final class FreshProductFlow {
   }
 
   private void validateAdminToken(JsonNode claims) {
+    String organizationViolation = NativeOrganizationClaims.violation(claims);
+    if (organizationViolation != null) {
+      throw new ProductFlowException("Admin token contract did not match " + organizationViolation);
+    }
     Set<String> audiences = strings(claims.path("aud"));
     Set<String> scopes = tokenScopes(claims);
     if (!"weave-admin-console".equals(claims.path("azp").asString())
@@ -781,10 +785,9 @@ public final class FreshProductFlow {
     if (!hasExactWorkspaceScope(scopes)) {
       invalidClaims.add("workspace-scope");
     }
-    JsonNode organizations = claims.path("organization");
-    if (!organizations.isObject() || organizations.size() != 1
-        || organizations.properties().iterator().next().getValue().path("id").asString("").isBlank()) {
-      invalidClaims.add("native-organization-id");
+    String organizationViolation = NativeOrganizationClaims.violation(claims);
+    if (organizationViolation != null) {
+      invalidClaims.add(organizationViolation);
     }
     Set<String> organizationRoles = organizationRoles(claims, "weave-app");
     Set<String> productRoles = Set.of("owner", "admin", "member", "guest");
