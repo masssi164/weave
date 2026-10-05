@@ -1,6 +1,11 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.model.ApiErrorResponse;
+import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import com.massimotter.weave.backend.model.calendar.CalendarUserModels.*;
 import com.massimotter.weave.backend.service.calendar.CalendarUserApiService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,7 +17,6 @@ import io.swagger.v3.oas.annotations.responses.*;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Pattern;
 import java.time.Instant;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,7 +38,13 @@ import org.springframework.web.bind.annotation.*;
 })
 public class CalendarUserController {
     private final CalendarUserApiService calendar;
-    public CalendarUserController(CalendarUserApiService calendar) { this.calendar = calendar; }
+    private final ApiErrorResponseWriter errors;
+    public CalendarUserController(CalendarUserApiService calendar, ApiErrorResponseWriter errors) { this.calendar = calendar; this.errors = errors; }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public void invalidQueryValue(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        errors.write(request, response, HttpStatus.BAD_REQUEST, "calendar-invalid-query", "Calendar query parameters are invalid.");
+    }
 
     @GetMapping
     @Operation(operationId = "listUserCalendars", summary = "Discover authorized workspace, team and channel calendars")
@@ -61,6 +71,7 @@ public class CalendarUserController {
     @PostMapping(value = "/{calendarId}/events", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(operationId = "createCalendarEvent", summary = "Create an event with a stable retry identity")
     @ApiResponse(responseCode = "201", description = "Created event, or unchanged successful replay.", headers = @Header(name = "ETag", schema = @Schema(type = "string")))
+    @ApiResponse(responseCode = "415", description = "Content-Type must be application/json.", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "409", description = "The create identity is already bound to another payload.", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     public ResponseEntity<Event> create(@AuthenticationPrincipal Jwt jwt, @PathVariable String calendarId,
             @RequestHeader(value = "Idempotency-Key", required = false)
@@ -74,6 +85,7 @@ public class CalendarUserController {
     @ApiResponse(responseCode = "200", description = "Updated event.", headers = @Header(name = "ETag", schema = @Schema(type = "string")))
     @ApiResponse(responseCode = "412", description = "The current event version differs.", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "428", description = "If-Match is missing.", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "415", description = "Content-Type must be application/json.", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     public ResponseEntity<Event> update(@AuthenticationPrincipal Jwt jwt, @PathVariable String calendarId, @PathVariable String eventId,
             @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) @Parameter(required = true, description = "Exactly one strong version returned by this API; wildcard and weak versions are rejected.") String version,
             @Valid @RequestBody WriteRequest request) {

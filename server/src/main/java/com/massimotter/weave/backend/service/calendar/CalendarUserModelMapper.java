@@ -14,6 +14,23 @@ final class CalendarUserModelMapper {
 
     static CalendarEvent event(CalendarId calendar, EventId id, CalendarScope scope, WriteRequest value) {
         TemporalValue start = temporal(value.start());
+        if (!value.overrides().isEmpty() && value.recurrence() == null) {
+            throw new IllegalArgumentException("An override requires a recurrence rule");
+        }
+        var seenOverrides = new java.util.HashSet<TemporalValue>();
+        for (var override : value.overrides()) {
+            TemporalValue recurrenceId = temporal(override.recurrenceId());
+            if (!seenOverrides.add(recurrenceId) || recurrenceId.kind() != start.kind()
+                    || start.kind() == TemporalKind.ZONED && !start.zoneId().equals(recurrenceId.zoneId())) {
+                throw new IllegalArgumentException("Override identities must be unique and retain DTSTART semantics");
+            }
+            if (!override.cancelled()) {
+                // Reuse the domain's complete interval validation for each replacement instance.
+                new CalendarEvent(calendar, id, scope, value.title(), null, temporal(override.start()), temporal(override.end()),
+                        null, List.of(), null, List.of(), EventVersion.unknown(), Instant.EPOCH);
+                if (override.start().kind() != start.kind()) throw new IllegalArgumentException("Override temporal kind must match DTSTART");
+            }
+        }
         var recurrence = value.recurrence();
         RecurrenceSet rule = recurrence == null ? null : new RecurrenceSet(recurrence.frequency(), recurrence.interval(),
                 recurrence.count(), until(recurrence.until(), start.kind()),
@@ -35,12 +52,20 @@ final class CalendarUserModelMapper {
         return event;
     }
 
+    static void requireLossless(CalendarEvent existing) {
+        CalendarEvent reconstructed = event(existing.calendarId(), existing.id(), existing.scope(), content(existing));
+        if (!existing.attendees().equals(reconstructed.attendees())
+                || !content(existing).equals(content(reconstructed))) {
+            throw new IllegalArgumentException("Existing Calendar fields cannot be preserved by this profile");
+        }
+    }
+
     static TemporalValue temporal(TimeValue value) {
         if (value == null || value.kind() == null) throw new IllegalArgumentException("Calendar time is required");
         if (value.localDateTime() != null && !value.localDateTime().matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}")) {
             throw new IllegalArgumentException("Calendar local time must preserve second precision without an offset");
         }
-        if (value.instant() != null && !value.instant().matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z")) {
+        if (value.instant() != null && !value.instant().matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.0{1,9})?Z")) {
             throw new IllegalArgumentException("Calendar UTC time must be a second-precision UTC instant");
         }
         ZoneId zone = value.timeZone() == null ? null : zone(value.timeZone());

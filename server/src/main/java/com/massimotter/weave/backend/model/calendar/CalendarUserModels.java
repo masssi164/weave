@@ -26,7 +26,7 @@ public final class CalendarUserModels {
             @NotNull TemporalKind kind,
             @Schema(type = "string", format = "date", nullable = true) String date,
             @Schema(type = "string", nullable = true, pattern = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}$") String localDateTime,
-            @Schema(type = "string", format = "date-time", nullable = true, pattern = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$", description = "Second-precision UTC instant ending in Z.") String instant,
+            @Schema(type = "string", format = "date-time", nullable = true, pattern = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.0{1,9})?Z$", description = "Second-precision UTC instant ending in Z; an optional all-zero fractional suffix is accepted and normalized.") String instant,
             @Schema(nullable = true, description = "IANA timezone; present only for ZONED.") String timeZone) implements ClosedInput {}
 
     @Schema(name = "CalendarEventRecurrence")
@@ -35,12 +35,12 @@ public final class CalendarUserModels {
             @Min(1) @Max(1000) int interval,
             @Min(1) @Max(100000) @Schema(nullable = true) Integer count,
             @Valid @Schema(nullable = true, description = "Exclusive with count. DATE/FLOATING match start kind; UTC and ZONED use a UTC instant.") TimeValue until,
-            @NotNull @Size(max = 1000) List<@Valid TimeValue> additionalDates,
-            @NotNull @Size(max = 1000) List<@Valid TimeValue> excludedDates,
-            @NotNull @Size(max = 366) List<@Pattern(regexp = "[+-]?[0-9]{0,2}(MO|TU|WE|TH|FR|SA|SU)") String> byDay,
-            @NotNull @Size(max = 62) List<@Min(-31) @Max(31) Integer> byMonthDay,
-            @NotNull @Size(max = 12) List<@Min(1) @Max(12) Integer> byMonth,
-            @NotNull @Size(max = 732) List<@Min(-366) @Max(366) Integer> bySetPos,
+            @NotNull @Size(max = 1000) List<@NotNull @Valid TimeValue> additionalDates,
+            @NotNull @Size(max = 1000) List<@NotNull @Valid TimeValue> excludedDates,
+            @NotNull @Size(max = 366) List<@NotNull @Pattern(regexp = "[+-]?[0-9]{0,2}(MO|TU|WE|TH|FR|SA|SU)") String> byDay,
+            @NotNull @Size(max = 62) List<@NotNull @Min(-31) @Max(31) Integer> byMonthDay,
+            @NotNull @Size(max = 12) List<@NotNull @Min(1) @Max(12) Integer> byMonth,
+            @NotNull @Size(max = 732) List<@NotNull @Min(-366) @Max(366) Integer> bySetPos,
             @Pattern(regexp = "MO|TU|WE|TH|FR|SA|SU") @Schema(nullable = true) String weekStart) implements ClosedInput {}
 
     @Schema(name = "CalendarEventOverride")
@@ -67,9 +67,9 @@ public final class CalendarUserModels {
             @NotNull @Valid TimeValue start,
             @NotNull @Valid TimeValue end,
             @Size(max = 2048) @Schema(nullable = true) String location,
-            @NotNull @Size(max = 500) List<@Valid Attendee> attendees,
+            @NotNull @Size(max = 500) List<@NotNull @Valid Attendee> attendees,
             @Valid @Schema(nullable = true) Recurrence recurrence,
-            @NotNull @Size(max = 1000) List<@Valid Override> overrides) implements ClosedInput {}
+            @NotNull @Size(max = 1000) List<@NotNull @Valid Override> overrides) implements ClosedInput {}
 
     @Schema(name = "CalendarUserScope")
     public record Scope(

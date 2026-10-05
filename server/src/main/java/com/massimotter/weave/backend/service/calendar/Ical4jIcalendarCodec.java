@@ -55,6 +55,13 @@ public final class Ical4jIcalendarCodec implements IcalendarCodec {
             EventVersion version,
             String calendarData) {
         var calendar = parseCalendar(calendarData);
+        for (var property : calendar.getProperties()) {
+            if (!java.util.Set.of("VERSION", "PRODID", "CALSCALE").contains(property.getName())
+                    || !property.getParameters().isEmpty()
+                    || "CALSCALE".equals(property.getName()) && !"GREGORIAN".equals(property.getValue())) {
+                throw invalid("Unsupported Calendar envelope property cannot be preserved.", null);
+            }
+        }
         for (var component : calendar.getComponents()) {
             if (!(component instanceof VEvent)) throw invalid("Unsupported Calendar component cannot be preserved.", null);
         }
@@ -357,7 +364,19 @@ public final class Ical4jIcalendarCodec implements IcalendarCodec {
         var supported = java.util.Set.of("UID", "DTSTAMP", "LAST-MODIFIED", "DTSTART", "DTEND", "SUMMARY",
                 "DESCRIPTION", "LOCATION", "ATTENDEE", "RRULE", "RDATE", "EXDATE", "RECURRENCE-ID", "STATUS",
                 "X-WEAVE-CONTEXT-ID", "X-WEAVE-CHANNEL-ID", "X-WEAVE-MEETING-THREAD-ID");
+        boolean override = property(event, Property.RECURRENCE_ID) != null;
+        var seen = new java.util.HashSet<String>();
         for (Property property : event.getProperties()) {
+            if (!java.util.Set.of("ATTENDEE", "RDATE", "EXDATE").contains(property.getName()) && !seen.add(property.getName())) {
+                throw invalid("Duplicate Calendar property cannot be preserved.", null);
+            }
+            if (override && java.util.Set.of("ATTENDEE", "RRULE", "RDATE", "EXDATE").contains(property.getName())) {
+                throw invalid("Override-specific Calendar property cannot be preserved.", null);
+            }
+            if ("CANCELLED".equals(nullableValue(event, Property.STATUS))
+                    && java.util.Set.of("DTSTART", "DTEND", "SUMMARY", "DESCRIPTION", "LOCATION").contains(property.getName())) {
+                throw invalid("Cancelled override content cannot be preserved.", null);
+            }
             if (!supported.contains(property.getName())) throw invalid("Unsupported Calendar property cannot be preserved.", null);
             if ("STATUS".equals(property.getName()) && (property(event, Property.RECURRENCE_ID) == null
                     || !"CANCELLED".equals(property.getValue()))) throw invalid("Unsupported Calendar status cannot be preserved.", null);

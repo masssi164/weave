@@ -62,6 +62,8 @@ class NativeCalendarProviderAdapterTest {
                 .isInstanceOf(RuntimeException.class);
 
         CalendarEvent updated = adapter.write(new CalendarWrite(withTitle(created, "Updated"), WriteIntent.UPDATE, created.version()));
+        assertThatThrownBy(() -> adapter.delete(CALENDAR, WORKSPACE, updated.id(), created.version())).isInstanceOf(RuntimeException.class);
+        assertThat(adapter.read(CALENDAR, WORKSPACE, updated.id()).title()).isEqualTo("Updated");
         adapter.delete(CALENDAR, WORKSPACE, updated.id(), updated.version());
 
         assertThatThrownBy(() -> adapter.read(CALENDAR, WORKSPACE, updated.id())).isInstanceOf(RuntimeException.class);
@@ -124,10 +126,14 @@ class NativeCalendarProviderAdapterTest {
         TemporalValue cancelled = temporal(kind, "2026-03-30T09:00:00");
         CalendarEvent incoming = new CalendarEvent(CALENDAR, new EventId("normalized"), WORKSPACE, "Normalized", "Exact payload", start, end,
                 "Room", List.of(new Attendee(null, "Member", "member@example.test", "REQ-PARTICIPANT", "ACCEPTED")),
-                new RecurrenceSet(RecurrenceFrequency.DAILY, 1, 5, null,
+                new RecurrenceSet(RecurrenceFrequency.DAILY, 1, null,
+                        (kind == TemporalKind.DATE ? java.time.LocalDate.parse("2026-04-01").atStartOfDay() : LocalDateTime.parse("2026-04-01T09:00:00")).atZone(ZoneOffset.UTC),
                         List.of(temporal(kind, "2026-04-05T09:00:00")), List.of(temporal(kind, "2026-03-29T09:00:00")),
                         List.of(), List.of(), List.of(), List.of(), "MO"),
-                List.of(new RecurrenceOverride(cancelled, null, null, true, null, null, null)), EventVersion.unknown(), CLOCK.instant());
+                List.of(new RecurrenceOverride(cancelled, null, null, true, null, null, null),
+                        new RecurrenceOverride(temporal(kind, "2026-03-31T09:00:00"), temporal(kind, "2026-04-03T11:00:00"),
+                                temporal(kind, kind == TemporalKind.DATE ? "2026-04-04T12:00:00" : "2026-04-03T12:00:00"),
+                                false, "Moved", "Preserved", "Other room")), EventVersion.unknown(), CLOCK.instant());
         CalendarEvent written = adapter(database).write(new CalendarWrite(incoming, WriteIntent.CREATE, EventVersion.unknown()));
         CalendarEvent read = adapter(database).read(CALENDAR, WORKSPACE, incoming.id());
         assertThat(read.startValue()).isEqualTo(incoming.startValue());
@@ -137,6 +143,9 @@ class NativeCalendarProviderAdapterTest {
         assertThat(read.attendees()).isEqualTo(incoming.attendees());
         assertThat(read.version()).isEqualTo(written.version());
         assertThat(adapter(database).query(CALENDAR, WORKSPACE, Instant.parse("2026-03-28T00:00:00Z"), Instant.parse("2026-04-07T00:00:00Z"))).hasSize(1);
+        String endColumn = switch (kind) { case DATE -> "end_date"; case FLOATING, ZONED -> "end_local"; case UTC -> "end_instant"; };
+        assertThatThrownBy(() -> new JdbcTemplate(database).update("update weave_calendar_event_temporals set " + endColumn + "=null"))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         adapter(database).delete(CALENDAR, WORKSPACE, incoming.id(), written.version());
         assertThat(new JdbcTemplate(database).queryForObject("select count(*) from weave_calendar_event_temporals", Integer.class)).isZero();
     }

@@ -65,9 +65,10 @@ public final class CalendarOccurrenceEngine {
                 addIfOverlapping(values, occurrence(event, override.start(), override.end(), evaluationZone), from, to);
             }
         }
+        if (values.size() > MAX_RESULTS) throw new CalendarAdapterException(CalendarAdapterException.Type.INVALID_REQUEST,
+                "Calendar occurrence window exceeds the result limit.", Map.of("errorCode", "calendar-window-too-large"));
         return values.values().stream()
                 .sorted(Comparator.comparing(CalendarOccurrence::start))
-                .limit(MAX_RESULTS)
                 .toList();
     }
 
@@ -83,25 +84,26 @@ public final class CalendarOccurrenceEngine {
             case DATE -> recurrenceEngine.dates(
                             rrule,
                             event.startValue().date(),
-                            from.atZone(evaluationZone).toLocalDate(),
+                            from.atZone(evaluationZone).toLocalDate().minusDays(java.time.temporal.ChronoUnit.DAYS.between(event.startValue().date(), event.endValue().date())),
                             to.atZone(evaluationZone).toLocalDate().plusDays(1),
                             MAX_RESULTS)
                     .stream().map(TemporalValue::date).forEach(starts::add);
             case FLOATING -> recurrenceEngine.floating(
                             rrule,
                             event.startValue().localDateTime(),
-                            LocalDateTime.ofInstant(from, evaluationZone),
+                            LocalDateTime.ofInstant(from, evaluationZone).minus(Duration.between(event.startValue().localDateTime(), event.endValue().localDateTime())),
                             LocalDateTime.ofInstant(to, evaluationZone),
                             MAX_RESULTS)
                     .stream().map(TemporalValue::floating).forEach(starts::add);
-            case UTC -> recurrenceEngine.utc(rrule, event.startValue().instant(), from, to, MAX_RESULTS)
+            case UTC -> recurrenceEngine.utc(rrule, event.startValue().instant(),
+                            from.minus(Duration.between(event.startValue().instant(), event.endValue().instant())), to, MAX_RESULTS)
                     .stream().map(TemporalValue::utc).forEach(starts::add);
             case ZONED -> {
                 ZoneId zone = event.startValue().zoneId();
                 recurrenceEngine.zoned(
                                 rrule,
                                 event.startValue().localDateTime().atZone(zone),
-                                from.atZone(zone),
+                                from.atZone(zone).toLocalDateTime().minus(Duration.between(event.startValue().localDateTime(), event.endValue().localDateTime())).atZone(zone),
                                 to.atZone(zone),
                                 MAX_RESULTS)
                         .stream()

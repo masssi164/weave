@@ -53,7 +53,7 @@ public class CalendarUserApiService {
 
     public Calendars calendars(Jwt jwt) {
         Member member = member(jwt, false);
-        Bound bound = bound(member);
+        bound(member);
         return new Calendars(scopes(member.organization()).stream()
                 .filter(scope -> allowed(member, scope, ContextPermission.VIEW))
                 .map(scope -> new CalendarUserModels.Calendar(calendarRef(member, scope), transportScope(scope), actions(member, scope)))
@@ -63,13 +63,21 @@ public class CalendarUserApiService {
     public Agenda agenda(Jwt jwt, String calendarRef, Instant from, Instant to, String evaluationTimeZone) {
         if (from == null || to == null || !from.isBefore(to) || Duration.between(from, to).compareTo(Duration.ofDays(366)) > 0) throw invalid();
         ZoneId zone;
-        try { zone = CalendarUserModelMapper.zone(evaluationTimeZone); } catch (IllegalArgumentException invalid) { throw invalid(); }
+        Instant queryFrom;
+        Instant queryTo;
+        try {
+            zone = CalendarUserModelMapper.zone(evaluationTimeZone);
+            queryFrom = from.minus(Duration.ofDays(2));
+            queryTo = to.plus(Duration.ofDays(2));
+            // Provider and recurrence libraries operate on calendar dates, not the wider Instant range.
+            if (queryFrom.atZone(zone).getYear() < 1 || queryTo.atZone(zone).plusDays(1).getYear() > 9999) throw invalid();
+        } catch (IllegalArgumentException | DateTimeException invalid) { throw invalid(); }
         Member member = member(jwt, false);
         CalendarScope scope = scope(member, calendarRef, ContextPermission.VIEW);
         Bound bound = bound(member);
         // Provider DATE/FLOATING query zones can differ; the exact member window is evaluated below.
         List<CalendarEvent> candidates = provider(() -> bound.provider().query(providerCalendar(member), scope,
-                from.minus(Duration.ofDays(2)), to.plus(Duration.ofDays(2))));
+                queryFrom, queryTo));
         if (candidates.size() > 1000) throw tooLarge();
         List<Event> events = new ArrayList<>();
         List<Occurrence> projected = new ArrayList<>();
@@ -230,6 +238,10 @@ public class CalendarUserApiService {
         String providerRef = providerRef(member, scope, id);
         var mapping = bindings.mappingByProviderRef(member.organization(), DOMAIN, bound.binding().revision(), providerRef);
         if (mapping.isPresent()) {
+            ProviderObjectMapping existing = mapping.get();
+            if (!member.organization().equals(existing.organizationRef()) || !DOMAIN.equals(existing.domain())
+                    || bound.binding().revision() != existing.bindingRevision() || !providerRef.equals(existing.providerObjectRef())
+                    || !existing.canonicalObjectId().matches("event:[0-9a-f]{64}")) throw unavailable();
             if (requested != null && !requested.equals(mapping.get().canonicalObjectId())) throw conflict();
             return mapping.get().canonicalObjectId();
         }
@@ -258,6 +270,8 @@ public class CalendarUserApiService {
     private void verifyEvent(Member member, CalendarScope scope, CalendarEvent event, EventId expected) {
         if (event == null || !providerCalendar(member).equals(event.calendarId()) || !scope.equals(event.scope())
                 || expected != null && !expected.equals(event.id())) throw unavailable();
+        try { CalendarUserModelMapper.requireLossless(event); }
+        catch (IllegalArgumentException | CalendarAdapterException unsupported) { throw unavailable(); }
     }
 
     private Event project(Member member, Bound bound, CalendarScope scope, String id, CalendarEvent event) {
@@ -277,15 +291,20 @@ public class CalendarUserApiService {
     }
 
     private void audit(Member member, CalendarScope scope, String id, String action, String version) {
-        AuditWriteGate.publishRequired(audit, new AuditEvent(member.organization(), space(scope), member.principal(), "weave:calendar-user-api",
-                AuditAction.CALENDAR_EVENT_WRITE_ATTEMPTED, Instant.now(), "calendar-write:" + digest(id + action + version),
-                AuditRedactionLevel.SUPPORT_SAFE, Map.of("module", DOMAIN, "operation", action, "supportSafe", true)));
+        try {
+            AuditWriteGate.publishRequired(audit, new AuditEvent(member.organization(), space(scope), member.principal(), "weave:calendar-user-api",
+                    AuditAction.CALENDAR_EVENT_WRITE_ATTEMPTED, Instant.now(), "calendar-write:" + digest(id + action + version),
+                    AuditRedactionLevel.SUPPORT_SAFE, Map.of("module", DOMAIN, "operation", action, "supportSafe", true)));
+        } catch (RuntimeException unavailable) {
+            throw error(HttpStatus.SERVICE_UNAVAILABLE, "calendar-audit-unavailable", "Calendar audit is unavailable.");
+        }
     }
 
     private <T> T provider(Supplier<T> operation) {
         try { return operation.get(); } catch (CalendarAdapterException failure) { throw translate(failure); }
     }
     private ApiErrorException translate(CalendarAdapterException failure) {
+        if ("calendar-window-too-large".equals(failure.details().get("errorCode"))) return tooLarge();
         return switch (failure.type()) { case NOT_FOUND -> missing(); case CONFLICT -> stale(); default -> unavailable(); };
     }
     private ApiErrorException missing() { return error(HttpStatus.NOT_FOUND, "calendar-event-not-found", "Calendar or event is unavailable."); }

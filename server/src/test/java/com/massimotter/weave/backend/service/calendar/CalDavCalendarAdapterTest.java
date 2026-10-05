@@ -187,6 +187,20 @@ class CalDavCalendarAdapterTest {
     }
 
     @Test
+    void rejectsUnmappedProviderObjectNamesInsteadOfReturningAnUnreadableIdentity() throws Exception {
+        server = server(exchange -> respond(exchange, 207, multistatus("different-object", """
+                UID:event-1&#13;
+                DTSTAMP:20260425T090000Z&#13;
+                DTSTART:20260426T100000Z&#13;
+                DTEND:20260426T110000Z&#13;
+                SUMMARY:Planning&#13;
+                """, "\"etag-1\""), null));
+        assertThatThrownBy(() -> adapter().query(calendarId(), CalendarScope.workspace(), null, null))
+                .isInstanceOfSatisfying(CalendarAdapterException.class,
+                        failure -> assertThat(failure.type()).isEqualTo(CalendarAdapterException.Type.INVALID_RESPONSE));
+    }
+
+    @Test
     void preservesBoundedRecurringEventsFromProvider() throws Exception {
         server = server(exchange -> respond(exchange, 207, multistatus("event-recurring", """
                 UID:event-recurring&#13;

@@ -50,7 +50,10 @@ public final class Ical4jRecurrenceEngine implements RecurrenceEngine {
         if (seed == null || from == null || to == null || !from.isBefore(to)) {
             throw invalid("Recurrence expansion requires a valid bounded UTC window.", null);
         }
-        return expand(rrule, seed, from, to, maximumResults);
+        // iCal4j's calendar-field rules require weekday/month fields that Instant does not expose.
+        // UTC is an explicit evaluation projection; persisted values and returned occurrences remain Instants.
+        return expand(rrule, seed.atZone(java.time.ZoneOffset.UTC), from.atZone(java.time.ZoneOffset.UTC),
+                to.atZone(java.time.ZoneOffset.UTC), maximumResults).stream().map(ZonedDateTime::toInstant).toList();
     }
 
     @Override
@@ -79,9 +82,10 @@ public final class Ical4jRecurrenceEngine implements RecurrenceEngine {
         int limit = requireLimit(maximumResults);
         try {
             Recur<T> recurrence = new Recur<>(rule, false);
-            List<T> result = recurrence.getDates(seed, from, to, limit);
+            List<T> result = recurrence.getDates(seed, from, to, limit + 1);
             if (result.size() > limit) {
-                throw invalid("Recurrence expansion exceeds the requested result limit.", null);
+                throw new CalendarAdapterException(CalendarAdapterException.Type.INVALID_REQUEST,
+                        "Recurrence expansion exceeds the requested result limit.", Map.of("errorCode", "calendar-window-too-large"));
             }
             return List.copyOf(result);
         } catch (IllegalArgumentException exception) {

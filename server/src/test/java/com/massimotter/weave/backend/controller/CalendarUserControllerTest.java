@@ -70,6 +70,28 @@ class CalendarUserControllerTest {
         verifyNoInteractions(calendar);
     }
 
+    @Test
+    void malformedAgendaTimeAndNullCollectionMembersAreClientErrors() throws Exception {
+        mvc.perform(get(ROUTE).with(member()).param("from", "not-an-instant").param("to", "2026-03-29T00:00:00Z")
+                        .param("evaluationTimeZone", "Europe/Berlin"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("calendar-invalid-query"));
+        mvc.perform(post(ROUTE).with(member()).contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY.replace("\"attendees\":[]", "\"attendees\":[null]")))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(calendar);
+    }
+
+    @Test
+    void writesRejectUnsupportedMediaTypeWithTheStableErrorEnvelope() throws Exception {
+        for (var request : List.of(post(ROUTE), put(ROUTE + "/event:test"))) {
+            mvc.perform(request.with(member()).contentType(MediaType.TEXT_PLAIN).content(BODY))
+                    .andExpect(status().isUnsupportedMediaType())
+                    .andExpect(jsonPath("$.code").value("unsupported-media-type"))
+                    .andExpect(jsonPath("$.supportRef").exists());
+        }
+        verifyNoInteractions(calendar);
+    }
+
     private org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor member() {
         return jwt().jwt(token -> token.subject("member").claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));

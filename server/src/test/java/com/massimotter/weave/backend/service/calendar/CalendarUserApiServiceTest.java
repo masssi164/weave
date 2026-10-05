@@ -64,6 +64,38 @@ class CalendarUserApiServiceTest {
     }
 
     @Test
+    void httpGeneratedUtcSerializationRoundTripsAndNonzeroFractionsCannotWrite() throws Exception {
+        var errors = new com.massimotter.weave.backend.config.ApiErrorResponseWriter(tools.jackson.databind.json.JsonMapper.builder().build());
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+                new com.massimotter.weave.backend.controller.CalendarUserController(service, errors))
+                .setControllerAdvice(new com.massimotter.weave.backend.exception.ApiExceptionHandler(errors))
+                .setCustomArgumentResolvers(new org.springframework.web.method.support.HandlerMethodArgumentResolver() {
+                    @java.lang.Override public boolean supportsParameter(org.springframework.core.MethodParameter parameter) { return parameter.getParameterType() == Jwt.class; }
+                    @java.lang.Override public Object resolveArgument(org.springframework.core.MethodParameter parameter,
+                            org.springframework.web.method.support.ModelAndViewContainer container,
+                            org.springframework.web.context.request.NativeWebRequest request,
+                            org.springframework.web.bind.support.WebDataBinderFactory binder) { return member; }
+                }).build();
+        String body = """
+                {"title":"Generated UTC","start":{"kind":"UTC","instant":"2026-10-25T09:00:00.000Z"},
+                 "end":{"kind":"UTC","instant":"2026-10-25T10:00:00.000Z"},"attendees":[],"overrides":[]}
+                """;
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/calendar/calendars/{id}/events", calendar)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON).header("Idempotency-Key", "calendar-http-key-1").content(body))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content.start.instant").value("2026-10-25T09:00:00Z"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content.end.instant").value("2026-10-25T10:00:00Z"));
+        clearInvocations(provider, audit);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/calendar/calendars/{id}/events", calendar)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON).header("Idempotency-Key", "calendar-http-key-2")
+                        .content(body.replace(".000Z", ".001Z")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value("calendar-invalid-request"));
+        verify(provider, never()).write(any());
+        verifyNoInteractions(audit);
+    }
+
+    @Test
     void stableIdentityRetryReadUpdateAndDeleteUsePrivateVersionsAndPreserveTemporalPayload() {
         WriteRequest first = content("Planning");
         Event created = service.create(member, calendar, first, "calendar-create-key-1");
@@ -98,9 +130,30 @@ class CalendarUserApiServiceTest {
         assertStatus(() -> service.create(member, calendar, content("Different"), "calendar-create-key-1"), HttpStatus.CONFLICT);
         clearInvocations(provider);
         doThrow(new IllegalStateException("audit unavailable")).when(audit).publish(any());
-        assertThatThrownBy(() -> service.update(member, calendar, created.id(), content("Updated"), created.version())).isInstanceOf(RuntimeException.class);
+        assertStatus(() -> service.update(member, calendar, created.id(), content("Updated"), created.version()), HttpStatus.SERVICE_UNAVAILABLE);
         verify(provider, never()).write(any());
         verify(provider, never()).delete(any(), any(), any(), any());
+    }
+
+    @Test
+    void unsupportedExistingAttendeeIdentityBlocksReplacementBeforeAnyProviderWrite() {
+        Event created = service.create(member, calendar, content("Planning"), "calendar-create-key-1");
+        CalendarEvent existing = events.values().iterator().next();
+        events.put(existing.id().value(), new CalendarEvent(existing.calendarId(), existing.id(), existing.scope(), existing.title(),
+                existing.description(), existing.startValue(), existing.endValue(), existing.location(),
+                List.of(new com.massimotter.weave.backend.calendar.domain.CalendarDomain.Attendee("member:private", "Member", "member@example.test", null, null)),
+                existing.recurrence(), existing.overrides(), existing.version(), existing.updatedAt()));
+        clearInvocations(provider, audit);
+        assertStatus(() -> service.update(member, calendar, created.id(), content("Updated"), created.version()), HttpStatus.SERVICE_UNAVAILABLE);
+        verify(provider, never()).write(any());
+        verifyNoInteractions(audit);
+    }
+
+    @Test
+    void extremeAgendaWindowsAreRejectedBeforeProviderAccess() {
+        assertStatus(() -> service.agenda(member, calendar, Instant.MIN, Instant.MIN.plusSeconds(3600), "UTC"), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.agenda(member, calendar, Instant.MAX.minusSeconds(3600), Instant.MAX, "UTC"), HttpStatus.BAD_REQUEST);
+        verifyNoInteractions(provider, audit);
     }
 
     @Test

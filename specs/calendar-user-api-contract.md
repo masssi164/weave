@@ -1,6 +1,7 @@
 # Calendar User API implementation contract
 
-Status: implementation in progress for #1472 and #1479.
+Status: backend slice validated for #1472 and #1479; generated-consumer and real
+product runtime integration remain separate acceptance requirements.
 Classification: cross-repo contract; Server owns implementation. This file is
 implementation evidence for pinned corpus `3b27ad2e667e462d9f63ff9c58fc02469e167f9b`,
 `steering/release-2026-10-product-consolidation.md`, `domains/calendar/spec.md` and
@@ -43,15 +44,24 @@ implementation evidence for pinned corpus `3b27ad2e667e462d9f63ff9c58fc02469e167
 ## Temporal and mutation contract
 
 - Public transport represents DATE, FLOATING, UTC and ZONED explicitly, with exactly
-  one date, local datetime or instant and a TZID only for ZONED. DATE end is exclusive.
+  one date, local datetime or instant and a TZID only for ZONED. UTC accepts
+  optional all-zero fractional seconds emitted by generated consumers, normalizing
+  equivalent whole-second values on read; nonzero fractions are rejected. DATE end is exclusive.
   Agenda evaluation requires an explicit IANA evaluation zone and a bounded window.
   Occurrence instants are query projections; persisted temporal intent is unchanged.
+  Expansion includes intervals beginning before the window that still overlap it,
+  and fails explicitly when a result limit would truncate the agenda.
 - Reuse the canonical Calendar recurrence model, iCal4j codec and bounded evaluator.
   Typed recurrence includes the supported frequency, interval, count or UNTIL,
   BYDAY/BYMONTHDAY/BYMONTH/BYSETPOS/WKST, RDATE/EXDATE and single-instance overrides.
   Preserve DTSTART-compatible UNTIL representations; DATE/FLOATING are not normalized
   to UTC in transport. Reject unsupported properties/parameters, temporal forms or
-  recurrence edits atomically instead of discarding fields.
+  recurrence edits atomically instead of discarding fields. Existing provider payloads
+  outside the complete transport/codec profile (including unmappable attendee member
+  references or override-only properties) fail closed before a replacing write.
+  Calendar envelope metadata is limited to VERSION/PRODID/GREGORIAN CALSCALE;
+  scheduling METHOD, custom envelope properties and embedded VTIMEZONE require a
+  separate preservation contract and are rejected.
 - Create uses a required 16–128 character Idempotency-Key to reserve a deterministic
   opaque identity per organization, calendar and actor. Repeating an unchanged create
   can return the same event; reusing the identity for a different payload conflicts.
@@ -73,3 +83,33 @@ Run existing Calendar integrity/security tests and code-first metadata tests.
 Root integration owns artifact/client generation, deployment bootstrap and real
 Flutter/MCP/provider journeys. Local mocks or compilation do not close the stories.
 Public CalDAV and provider migration acceptance remain deferred.
+
+## Committed backend validation evidence
+
+- `:server:test`: 1,098 tests, zero failures/errors. Four authoritative normalized
+  Calendar persistence cases are deliberately skipped here and run on PostgreSQL.
+- `:server:postgresJpaTest --tests '*NativeCalendarProviderAdapterTest'`: all eight
+  Calendar tests pass with zero skips, using entity-first PostgreSQL tables and the
+  production `NativeCalendarRelationalStore`. The existing Cucumber engine also runs
+  twelve unchanged Boards scenarios. Evidence includes all four temporal kinds,
+  attendees, typed UNTIL/RDATE/EXDATE, moved and cancelled instances, fresh adapter
+  read/query, exact versions, stale delete, deletion and database interval constraints.
+- HTTP/controller/service tests cover shared human organization admission, unknown
+  scope and denied Space without provider writes, stable retry identity and changed
+  replay conflict, required/stale write versions, audit failure, unsupported existing
+  payload rejection, strict unknown/null input and typed 400/415 errors. The real
+  service accepts generated UTC `.000Z`, returns equivalent whole seconds, and rejects
+  nonzero fractions before a provider write. Provider transport remains mocked in
+  these HTTP cases; root integration owns the real generated-client HTTP journey.
+- Calendar recurrence regressions prove all four temporal kinds include intervals
+  that start before and overlap an agenda window, UTC supports all four frequencies,
+  and result exhaustion fails instead of silently truncating.
+- `specCorpusConformance` passes against pinned corpus `3b27ad2e667e`; `docsCheck`
+  passes using the existing pinned docs dependency environment. Initial docs execution
+  with system Python lacked MkDocs; no documentation gate was relaxed.
+
+This is backend qualification, not closure of #1472/#1473/#1479. No generated artifact,
+Flutter/MCP consumer, infrastructure file or production deployment is changed here.
+CalDAV external interoperability, actual deployment journeys and generated consumers
+still require their integration evidence. Unsupported preservation cases remain
+blocked; native provider success does not qualify every possible provider payload.
