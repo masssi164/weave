@@ -1,5 +1,9 @@
 package com.massimotter.weave.e2e;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.massimotter.weave.userapi.api.CalendarUserApi;
 import com.massimotter.weave.userapi.invoker.ApiClient;
 import com.massimotter.weave.userapi.invoker.ApiException;
@@ -19,6 +23,7 @@ import java.util.Set;
 
 /** Real member Calendar proof with independently stated temporal and access expectations. */
 final class GeneratedCalendarJourney {
+  private static final ObjectMapper WIRE_MAPPER = ApiClient.createDefaultObjectMapper();
   private static final OffsetDateTime FROM = OffsetDateTime.parse("2026-10-23T00:00:00Z");
   private static final OffsetDateTime TO = OffsetDateTime.parse("2026-10-29T00:00:00Z");
   private static final String ZONE = "Europe/Berlin";
@@ -222,7 +227,33 @@ final class GeneratedCalendarJourney {
   }
 
   private static void requireContent(CalendarEventWriteRequest expected, CalendarUserEvent actual) {
-    if (actual == null || !expected.equals(actual.getContent())) throw failure("event content changed on readback");
+    if (actual == null || !sameContent(expected, actual.getContent())) {
+      throw failure("event content changed on readback");
+    }
+  }
+
+  static boolean sameContent(CalendarEventWriteRequest expected, CalendarEventWriteRequest actual) {
+    if (expected == null || actual == null) return false;
+    return omitOptionalNulls(WIRE_MAPPER.valueToTree(expected))
+        .equals(omitOptionalNulls(WIRE_MAPPER.valueToTree(actual)));
+  }
+
+  private static JsonNode omitOptionalNulls(JsonNode value) {
+    if (value.isObject()) {
+      ObjectNode result = WIRE_MAPPER.createObjectNode();
+      value.properties().forEach(field -> {
+        if (!field.getValue().isNull()) {
+          result.set(field.getKey(), omitOptionalNulls(field.getValue()));
+        }
+      });
+      return result;
+    }
+    if (value.isArray()) {
+      ArrayNode result = WIRE_MAPPER.createArrayNode();
+      value.forEach(item -> result.add(omitOptionalNulls(item)));
+      return result;
+    }
+    return value;
   }
 
   private static void requireSame(CalendarUserEvent expected, CalendarUserEvent actual) {

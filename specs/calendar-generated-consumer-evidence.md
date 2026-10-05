@@ -44,6 +44,10 @@ Temporal values, event identity, authorized scope and meeting-thread correlation
 must survive provider readback and the existing restart phase. Cleanup uses the
 same generated API where available, followed by teardown of only the exact owned
 namespace. Failure diagnostics report stages/statuses, never tokens or raw payloads.
+The generated JVM model distinguishes an omitted optional field from explicit JSON
+`null`; Calendar write/readback compares the complete supported content after
+normalizing only that optional absence/null distinction. Required fields, non-null
+values, list contents and every temporal/recurrence field must still agree.
 Generated compilation and fixture tests do not establish live acceptance.
 
 Run `generatedApiCi`, applicable Server Calendar/persistence tests, product E2E
