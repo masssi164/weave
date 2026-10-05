@@ -199,6 +199,9 @@ class AppLocalizationsDe extends AppLocalizations {
       'Geteilte Workspace-Aktivität';
 
   @override
+  String get homeRecentActivityPrivateVisibility => 'Private Aktivität';
+
+  @override
   String homeRecentActivityItemSemantic(
     String activity,
     String visibility,

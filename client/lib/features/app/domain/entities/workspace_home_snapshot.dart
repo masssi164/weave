@@ -37,9 +37,12 @@ class WorkspaceHomeSnapshot {
 
 enum WorkspaceHomeActivityDomain { files }
 
-enum WorkspaceHomeActivityAction { filesWebDavWriteCompleted }
+enum WorkspaceHomeActivityAction {
+  filesWebDavWriteCompleted,
+  filesUserWriteCompleted,
+}
 
-enum WorkspaceHomeActivityVisibility { workspace }
+enum WorkspaceHomeActivityVisibility { workspace, private }
 
 /// One support-safe, authorization-filtered activity projected by Weave Home.
 ///

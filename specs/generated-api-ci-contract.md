@@ -104,6 +104,9 @@ The activity projection requires a completed result from the User HTTP source; a
 attempted, ambiguous or generic intent record is not proof of a completed write.
 The code-first User OpenAPI Home activity visibility field declares both `workspace`
 and `private`; every generated consumer must parse the owner-only value.
+Flutter projects the generated User activity into its Home domain model and renders
+`private` with an accessible, generic visibility label. It rejects a private User
+Files activity that claims another member as its actor.
 The Full Compose journey asserts the author's activity and the absence of that
 activity from the collaborator and outsider Home views.
 

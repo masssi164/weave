@@ -422,6 +422,12 @@ abstract class AppLocalizations {
   /// **'Shared workspace activity'**
   String get homeRecentActivityWorkspaceVisibility;
 
+  /// Accessible visibility label for the current member's private Files activity
+  ///
+  /// In en, this message translates to:
+  /// **'Private activity'**
+  String get homeRecentActivityPrivateVisibility;
+
   /// Screen-reader summary for one generic support-safe Home activity
   ///
   /// In en, this message translates to:

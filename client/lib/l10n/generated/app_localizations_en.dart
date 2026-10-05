@@ -194,6 +194,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Shared workspace activity';
 
   @override
+  String get homeRecentActivityPrivateVisibility => 'Private activity';
+
+  @override
   String homeRecentActivityItemSemantic(
     String activity,
     String visibility,
