@@ -344,10 +344,13 @@ class WorkspaceHomeRecentActivityResponseVisibilityEnum {
 
   static const workspace =
       WorkspaceHomeRecentActivityResponseVisibilityEnum._(r'workspace');
+  static const private =
+      WorkspaceHomeRecentActivityResponseVisibilityEnum._(r'private');
 
   /// List of all possible values in this [enum][WorkspaceHomeRecentActivityResponseVisibilityEnum].
   static const values = <WorkspaceHomeRecentActivityResponseVisibilityEnum>[
     workspace,
+    private,
   ];
 
   static WorkspaceHomeRecentActivityResponseVisibilityEnum? fromJson(
@@ -400,6 +403,8 @@ class WorkspaceHomeRecentActivityResponseVisibilityEnumTypeTransformer {
       switch (data) {
         case r'workspace':
           return WorkspaceHomeRecentActivityResponseVisibilityEnum.workspace;
+        case r'private':
+          return WorkspaceHomeRecentActivityResponseVisibilityEnum.private;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

@@ -102,6 +102,8 @@ envelope only for its actor while User Files objects have owner-only access. It 
 not expose that object's activity to an ungranted member of the same organization.
 The activity projection requires a completed result from the User HTTP source; an
 attempted, ambiguous or generic intent record is not proof of a completed write.
+The code-first User OpenAPI Home activity visibility field declares both `workspace`
+and `private`; every generated consumer must parse the owner-only value.
 The Full Compose journey asserts the author's activity and the absence of that
 activity from the collaborator and outsider Home views.
 
