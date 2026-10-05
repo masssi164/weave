@@ -21,6 +21,7 @@ tasks.register('serverCi') {
 registerCommandTask('adminCi', file('admin-console'), ['npm', 'run', 'ci'], 'Run admin console npm CI checks.')
 registerRootCommandTask('generateOpenApiContract', ['bash', 'tools/generate_openapi_contract.sh'], 'Generate the server-owned OpenAPI artifact used by typed consumers.')
 registerRootCommandTask('checkOpenApiContractFresh', ['bash', 'tools/check_openapi_contract_fresh.sh'], 'Fail when the checked-in server OpenAPI artifact is stale.')
+registerRootCommandTask('openApiProjectionContractTest', ['python3', 'tools/openapi_codegen_test.py'], 'Verify generated type semantics and fail-closed freshness checks.')
 registerRootCommandTask('openApiNormalizationContractTest', ['python3', '-m', 'unittest', 'tools/normalize_openapi_contracts_test.py'], 'Verify generated OpenAPI partitioning and lossless normalization.')
 tasks.named('generateOpenApiContract') {
     dependsOn ':server:openApiContractExport'
@@ -31,7 +32,7 @@ tasks.named('checkOpenApiContractFresh') {
     environment 'WEAVE_OPENAPI_SKIP_EXPORT', 'true'
 }
 registerRootCommandTask('generateAdminOpenApiTypes', ['python3', 'tools/generate_admin_openapi_types.py'], 'Generate Admin Console TypeScript types from the server-owned OpenAPI artifact.')
-registerRootCommandTask('checkAdminOpenApiTypesFresh', ['bash', '-lc', 'tmp=$(mktemp); cp admin-console/src/generated/openapi.ts "$tmp"; python3 tools/generate_admin_openapi_types.py; cmp -s "$tmp" admin-console/src/generated/openapi.ts || { echo "Admin OpenAPI generated types are stale. Run ./gradlew generateAdminOpenApiTypes and commit the result." >&2; git --no-pager diff -- admin-console/src/generated/openapi.ts >&2 || true; rm -f "$tmp"; exit 1; }; rm -f "$tmp"'], 'Fail when Admin Console generated OpenAPI types are stale.')
+registerRootCommandTask('checkAdminOpenApiTypesFresh', ['python3', 'tools/generate_admin_openapi_types.py', '--check'], 'Fail when Admin Console generated OpenAPI types are stale.')
 configurations { adminOpenApiGenerator }
 dependencies { adminOpenApiGenerator 'org.openapitools:openapi-generator-cli:7.17.0' }
 tasks.register('generateAdminApiClient', Exec) {
@@ -52,7 +53,7 @@ tasks.named('adminCi') {
 registerRootCommandTask('generateClientOpenApiModels', ['bash', '-lc', 'python3 tools/generate_client_openapi_models.py && dart format client/lib/generated/openapi_models.dart'], 'Generate Flutter/Dart JSON models from the server-owned OpenAPI artifact.')
 registerRootCommandTask('generateClientUserApi', ['python3', 'tools/generate_client_user_api.py'], 'Generate the pinned Dart User HTTP SDK from the server-owned User OpenAPI artifact.')
 registerRootCommandTask('checkClientUserApiFresh', ['python3', 'tools/generate_client_user_api.py', '--check'], 'Fail when the checked-in Dart User HTTP SDK differs from the server-owned User OpenAPI artifact.')
-registerRootCommandTask('checkClientOpenApiModelsFresh', ['bash', '-lc', 'tmp=$(mktemp); cp client/lib/generated/openapi_models.dart "$tmp"; python3 tools/generate_client_openapi_models.py; dart format client/lib/generated/openapi_models.dart >/dev/null; cmp -s "$tmp" client/lib/generated/openapi_models.dart || { echo "Flutter OpenAPI generated models are stale. Run ./gradlew generateClientOpenApiModels and commit the result." >&2; git --no-pager diff -- client/lib/generated/openapi_models.dart >&2 || true; rm -f "$tmp"; exit 1; }; rm -f "$tmp"'], 'Fail when Flutter/Dart generated OpenAPI models are stale.')
+registerRootCommandTask('checkClientOpenApiModelsFresh', ['python3', 'tools/generate_client_openapi_models.py', '--check'], 'Fail when Flutter/Dart generated OpenAPI models are stale.')
 registerCommandTask('clientOpenApiDriftPrevention', file('client'), ['bash', '-lc', 'FLUTTER_BIN="${FLUTTER_BIN:-$(command -v flutter || true)}"; if [ -z "$FLUTTER_BIN" ] && [ -x "$HOME/flutter/bin/flutter" ]; then FLUTTER_BIN="$HOME/flutter/bin/flutter"; fi; if [ -z "$FLUTTER_BIN" ]; then echo "flutter not found; install Flutter or set FLUTTER_BIN" >&2; exit 127; fi; "$FLUTTER_BIN" test test/architecture/openapi_drift_prevention_contract_test.dart'], 'Block client OpenAPI facade drift for DTOs, raw JSON parsing, provider reachability, and hardcoded copy.')
 tasks.named('clientCi') {
     dependsOn 'checkClientOpenApiModelsFresh', 'checkClientUserApiFresh', 'clientOpenApiDriftPrevention'
@@ -61,6 +62,7 @@ tasks.register('generatedApiCi') {
     group = 'verification'
     description = 'Verify code-first User/Admin exports and all generated HTTP consumers on one candidate.'
     dependsOn 'checkOpenApiContractFresh',
+            'openApiProjectionContractTest',
             ':weave-user-api-client:check',
             ':weave-admin-api-client:check',
             ':weave-mcp-server:test',

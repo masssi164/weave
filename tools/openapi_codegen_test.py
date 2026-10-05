@@ -4,7 +4,13 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 
 import generate_admin_openapi_types as admin
 import generate_client_openapi_models as client
@@ -84,6 +90,66 @@ class OpenApi31TypeProjectionTest(unittest.TestCase):
                     assert_no_nullable(child, f"{location}[{index}]")
 
         assert_no_nullable(document)
+
+
+class FreshnessFailureContractTest(unittest.TestCase):
+    """Exercise the real generator CLI without changing repository outputs."""
+
+    def probe(self, language: str, *, invalid_source: bool = False,
+              formatter_exit: int = 0, stale: bool = False) -> subprocess.CompletedProcess:
+        generator = admin if language == "admin" else client
+        with tempfile.TemporaryDirectory(prefix="weave-codegen-probe-") as temporary:
+            root = Path(temporary)
+            script = root / "tools" / Path(generator.__file__).name
+            script.parent.mkdir()
+            shutil.copyfile(generator.__file__, script)
+            source = root / generator.OPENAPI.relative_to(generator.ROOT)
+            source.parent.mkdir(parents=True)
+            shutil.copyfile(generator.OPENAPI, source)
+            output = root / generator.OUT.relative_to(generator.ROOT)
+            output.parent.mkdir(parents=True)
+            output.write_text(generator.render())
+            if stale:
+                output.write_text("stale checked-in output")
+            before = output.read_bytes()
+            if invalid_source:
+                source.write_text("invalid JSON")
+            binaries = root / "bin"
+            binaries.mkdir()
+            formatter = binaries / "dart"
+            formatter.write_text(f"#!/bin/sh\nexit {formatter_exit}\n")
+            formatter.chmod(0o755)
+            result = subprocess.run(
+                [sys.executable, str(script), "--check"], cwd=root,
+                env={**os.environ, "PATH": str(binaries) + os.pathsep + os.environ["PATH"]},
+                text=True, capture_output=True, check=False)
+            self.assertEqual(before, output.read_bytes(), "check must not modify checked-in output")
+            return result
+
+    def test_equal_generated_output_succeeds_without_mutation(self) -> None:
+        for language in ("admin", "client"):
+            with self.subTest(language=language):
+                result = self.probe(language)
+                self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_generator_failure_cannot_pass_with_unchanged_output(self) -> None:
+        for language in ("admin", "client"):
+            with self.subTest(language=language):
+                result = self.probe(language, invalid_source=True)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("JSONDecodeError", result.stderr)
+
+    def test_formatter_failure_cannot_pass_with_unchanged_output(self) -> None:
+        result = self.probe("client", formatter_exit=42)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("exit status 42", result.stderr)
+
+    def test_stale_output_fails_without_overwriting_it(self) -> None:
+        for language in ("admin", "client"):
+            with self.subTest(language=language):
+                result = self.probe(language, stale=True)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("are stale", result.stderr)
 
 
 if __name__ == "__main__":

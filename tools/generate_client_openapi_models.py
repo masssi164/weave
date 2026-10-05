@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
+import sys
+import tempfile
+from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any
 
@@ -145,7 +149,7 @@ def emit_class(name: str, schema: dict[str, Any]) -> list[str]:
     return lines
 
 
-def main() -> None:
+def render() -> str:
     document = json.loads(OPENAPI.read_text())
     schemas = document["components"]["schemas"]
     lines = [
@@ -173,8 +177,30 @@ def main() -> None:
         if isinstance(schema, dict) and (schema.get("type") == "object" or "properties" in schema):
             lines.extend(emit_class(name, schema))
             lines.append("")
+    return "\n".join(lines)
+
+
+def main() -> int:
+    parser = ArgumentParser()
+    parser.add_argument("--check", action="store_true",
+                        help="fail without changing files when the formatted Dart projection is stale")
+    args = parser.parse_args()
+    generated = render()
+    if args.check:
+        with tempfile.TemporaryDirectory(prefix="weave-dart-model-check-") as temporary:
+            candidate = Path(temporary) / OUT.name
+            candidate.write_text(generated)
+            subprocess.run(["dart", "format", str(candidate)], check=True,
+                           stdout=subprocess.DEVNULL)
+            if not OUT.is_file() or OUT.read_bytes() != candidate.read_bytes():
+                print("Flutter OpenAPI generated models are stale. "
+                      "Run ./gradlew generateClientOpenApiModels and commit the result.",
+                      file=sys.stderr)
+                return 1
+        return 0
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text("\n".join(lines))
+    OUT.write_text(generated)
+    return 0
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

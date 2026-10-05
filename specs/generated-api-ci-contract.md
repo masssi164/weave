@@ -29,6 +29,8 @@ No Home-core, dogfood, production service or deployment credential is involved.
    HTTP SDK/types from the checked server artifacts; fail on any stale checked-in output.
    Run the existing Flutter and Admin consumer gates, including independent response,
    binary-body, partial-update, authorization-state and error assertions.
+   Freshness checks leave checked-in outputs unchanged and fail when generation or
+   formatting fails, even if the previous output would otherwise compare equal.
 4. Require this real job in the existing protected `Gradle CI` aggregate alongside all
    current foundation jobs. A skipped, failed or cancelled required job must not pass
    the aggregate. No branch-protection check is removed or replaced with unconditional success.
