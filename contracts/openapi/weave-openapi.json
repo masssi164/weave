@@ -11219,7 +11219,7 @@
                 }
               }
             },
-            "description": "Member or Space access denied."
+            "description": "Member, workload or Space access denied."
           },
           "404": {
             "content": {
@@ -11348,7 +11348,7 @@
                 }
               }
             },
-            "description": "Member or Space access denied."
+            "description": "Member, workload or Space access denied."
           },
           "404": {
             "content": {
@@ -11545,7 +11545,7 @@
                 }
               }
             },
-            "description": "Member or Space access denied."
+            "description": "Member, workload or Space access denied."
           },
           "404": {
             "content": {
@@ -11691,7 +11691,7 @@
                 }
               }
             },
-            "description": "Member or Space access denied."
+            "description": "Member, workload or Space access denied."
           },
           "404": {
             "content": {
@@ -11840,7 +11840,7 @@
                 }
               }
             },
-            "description": "Member or Space access denied."
+            "description": "Member, workload or Space access denied."
           },
           "404": {
             "content": {
@@ -12005,7 +12005,7 @@
                 }
               }
             },
-            "description": "Member or Space access denied."
+            "description": "Member, workload or Space access denied."
           },
           "404": {
             "content": {
@@ -13433,10 +13433,6 @@
       "name": "Admin control plane"
     },
     {
-      "description": "Member Files operations. Provider-visible objects without a Weave resource grant are hidden.",
-      "name": "Files User"
-    },
-    {
       "description": "Guest identity and explicit access policy contracts.",
       "name": "Guest Access"
     },
@@ -13459,6 +13455,10 @@
     {
       "description": "Provider-neutral read-only DevOps facade for the represented GitLab CE/FOSS adapter.",
       "name": "DevOps facade"
+    },
+    {
+      "description": "Member Files operations and read-only exchanged MCP workload reads. Provider-visible objects without a Weave resource grant are hidden.",
+      "name": "Files User"
     },
     {
       "description": "Keycloak-backed member lifecycle through opaque Weave references.",
