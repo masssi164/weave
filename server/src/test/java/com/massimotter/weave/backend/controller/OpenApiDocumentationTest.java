@@ -76,6 +76,12 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.components.schemas.CalendarTimeValue.properties.kind.enum").value(hasItems("DATE", "FLOATING", "UTC", "ZONED")))
                 .andExpect(jsonPath("$.components.schemas.CalendarTimeValue.properties.date.format").value("date"))
                 .andExpect(jsonPath("$.components.schemas.CalendarTimeValue.properties.localDateTime.format").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.CalendarTimeValue.additionalProperties").value(false))
+                .andExpect(jsonPath("$.components.schemas.CalendarEventRecurrence.additionalProperties").value(false))
+                .andExpect(jsonPath("$.components.schemas.CalendarEventOverride.additionalProperties").value(false))
+                .andExpect(jsonPath("$.components.schemas.CalendarEventAttendee.additionalProperties").value(false))
+                .andExpect(jsonPath("$.components.schemas.CalendarEventWriteRequest.additionalProperties").value(false))
+                .andExpect(jsonPath("$.components.schemas.CalendarEventRecurrence.required").value(hasItems("interval")))
                 .andExpect(jsonPath("$.components.schemas.CalendarUserEvent.properties.providerRef").doesNotExist());
         mockMvc.perform(get("/v3/api-docs/admin"))
                 .andExpect(status().isOk())

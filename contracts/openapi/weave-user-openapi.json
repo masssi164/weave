@@ -609,6 +609,7 @@
         "type": "object"
       },
       "CalendarEventAttendee": {
+        "additionalProperties": false,
         "properties": {
           "address": {
             "maxLength": 512,
@@ -644,6 +645,7 @@
         "type": "object"
       },
       "CalendarEventOverride": {
+        "additionalProperties": false,
         "properties": {
           "cancelled": {
             "type": "boolean"
@@ -690,6 +692,7 @@
         "type": "object"
       },
       "CalendarEventRecurrence": {
+        "additionalProperties": false,
         "properties": {
           "additionalDates": {
             "items": {
@@ -793,11 +796,13 @@
           "byMonthDay",
           "bySetPos",
           "excludedDates",
-          "frequency"
+          "frequency",
+          "interval"
         ],
         "type": "object"
       },
       "CalendarEventWriteRequest": {
+        "additionalProperties": false,
         "description": "Complete supported event content. Unknown fields are rejected, never silently discarded. Identity, calendar, scope and thread references are server-owned.",
         "properties": {
           "attendees": {
@@ -1147,6 +1152,7 @@
         "type": "object"
       },
       "CalendarTimeValue": {
+        "additionalProperties": false,
         "description": "Exactly one value: DATE=date, FLOATING=localDateTime, UTC=instant, ZONED=localDateTime+timeZone. DATE end is exclusive; local values never contain an offset.",
         "properties": {
           "date": {

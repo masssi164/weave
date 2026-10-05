@@ -30,6 +30,10 @@ Generate User/Admin artifacts and affected JVM, Dart and TypeScript consumers fr
 Server controllers and DTOs. No transport schema or generated file is hand edited.
 Calendar payload DTOs preserve DATE/FLOATING/UTC/ZONED and typed recurrence without
 provider UIDs, ETags or collection paths becoming public references.
+Closed write objects declare `additionalProperties: false` from their server
+annotations, matching runtime rejection of unknown fields. Recurrence interval is
+explicitly required because an omitted primitive defaults to zero and is rejected
+by server validation; generation must not advertise that invalid omission as valid.
 
 Product E2E replaces its handwritten northbound CalDAV event journey with the
 generated JVM User client. Existing iCalendar projection fixtures remain reusable

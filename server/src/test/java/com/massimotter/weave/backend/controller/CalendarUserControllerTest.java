@@ -71,6 +71,20 @@ class CalendarUserControllerTest {
     }
 
     @Test
+    void omittedRecurrenceIntervalIsRejectedBeforeAnyProviderWork() throws Exception {
+        String recurrence = """
+                "recurrence":{"frequency":"DAILY","count":3,"additionalDates":[],
+                "excludedDates":[],"byDay":[],"byMonthDay":[],"byMonth":[],"bySetPos":[]},
+                "overrides":[]
+                """;
+        mvc.perform(post(ROUTE).with(member()).contentType(MediaType.APPLICATION_JSON)
+                        .header("Idempotency-Key", "calendar-create-key-1")
+                        .content(BODY.replace("\"overrides\":[]", recurrence)))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(calendar);
+    }
+
+    @Test
     void malformedAgendaTimeAndNullCollectionMembersAreClientErrors() throws Exception {
         mvc.perform(get(ROUTE).with(member()).param("from", "not-an-instant").param("to", "2026-03-29T00:00:00Z")
                         .param("evaluationTimeZone", "Europe/Berlin"))
