@@ -3831,6 +3831,35 @@ class FileSetupCredentialResponse {
   };
 }
 
+class FilesBindingStatusResponse {
+  const FilesBindingStatusResponse({
+    this.adapterKey,
+    this.bindingRevision,
+    required this.bindingState,
+    required this.readiness,
+  });
+
+  factory FilesBindingStatusResponse.fromJson(Map<String, dynamic> json) =>
+      FilesBindingStatusResponse(
+        adapterKey: json["adapterKey"] as String?,
+        bindingRevision: (json["bindingRevision"] as num?)?.toInt(),
+        bindingState: json["bindingState"] as String,
+        readiness: json["readiness"] as String,
+      );
+
+  final String? adapterKey;
+  final int? bindingRevision;
+  final String bindingState;
+  final String readiness;
+
+  Map<String, dynamic> toJson() => {
+    "adapterKey": _openApiJsonValue(adapterKey),
+    "bindingRevision": _openApiJsonValue(bindingRevision),
+    "bindingState": _openApiJsonValue(bindingState),
+    "readiness": _openApiJsonValue(readiness),
+  };
+}
+
 class FilesUserCreateFolderRequest {
   const FilesUserCreateFolderRequest({
     required this.name,
@@ -6553,8 +6582,10 @@ class ProviderRegistryResponse {
     this.canonicalDomainRegistry,
     this.categories,
     this.domainAdapterRegistry,
+    required this.filesBinding,
     this.flutterDirectProviderCallsAllowed,
     this.generatedAt,
+    required this.organizationId,
     this.providerConfigSource,
     this.providers,
     this.releaseStatus,
@@ -6587,9 +6618,13 @@ class ProviderRegistryResponse {
         : DomainAdapterRegistryResponse.fromJson(
             json["domainAdapterRegistry"] as Map<String, dynamic>,
           ),
+    filesBinding: FilesBindingStatusResponse.fromJson(
+      json["filesBinding"] as Map<String, dynamic>,
+    ),
     flutterDirectProviderCallsAllowed:
         json["flutterDirectProviderCallsAllowed"] as bool?,
     generatedAt: json["generatedAt"] as String?,
+    organizationId: json["organizationId"] as String,
     providerConfigSource: json["providerConfigSource"] as String?,
     providers: (json["providers"] as List<dynamic>?)
         ?.map((e) => ProviderStatusResponse.fromJson(e as Map<String, dynamic>))
@@ -6608,8 +6643,10 @@ class ProviderRegistryResponse {
   final CanonicalDomainRegistryResponse? canonicalDomainRegistry;
   final List<ProviderCategoryStatusResponse>? categories;
   final DomainAdapterRegistryResponse? domainAdapterRegistry;
+  final FilesBindingStatusResponse filesBinding;
   final bool? flutterDirectProviderCallsAllowed;
   final String? generatedAt;
+  final String organizationId;
   final String? providerConfigSource;
   final List<ProviderStatusResponse>? providers;
   final String? releaseStatus;
@@ -6627,10 +6664,12 @@ class ProviderRegistryResponse {
     "canonicalDomainRegistry": _openApiJsonValue(canonicalDomainRegistry),
     "categories": _openApiJsonValue(categories),
     "domainAdapterRegistry": _openApiJsonValue(domainAdapterRegistry),
+    "filesBinding": _openApiJsonValue(filesBinding),
     "flutterDirectProviderCallsAllowed": _openApiJsonValue(
       flutterDirectProviderCallsAllowed,
     ),
     "generatedAt": _openApiJsonValue(generatedAt),
+    "organizationId": _openApiJsonValue(organizationId),
     "providerConfigSource": _openApiJsonValue(providerConfigSource),
     "providers": _openApiJsonValue(providers),
     "releaseStatus": _openApiJsonValue(releaseStatus),

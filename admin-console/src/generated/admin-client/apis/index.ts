@@ -7,3 +7,4 @@ export * from './IdentityBootstrapApi';
 export * from './MigrationApi';
 export * from './OrganizationInvitationsApi';
 export * from './OrganizationMembersApi';
+export * from './ProviderRegistryApi';

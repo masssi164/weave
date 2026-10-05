@@ -695,6 +695,14 @@ public final class FreshProductFlow {
   }
 
   private void assertSeparatedApiSessions(String userToken, String adminToken) {
+    JsonNode providerStatusDenied =
+        http.json(
+            "reject User session at Admin provider status",
+            "GET",
+            environment.api("/api/admin/providers/status"),
+            bearer(userToken, Map.of()),
+            null,
+            Set.of(401));
     JsonNode adminDenied =
         http.json(
             "reject User session at Admin API",
@@ -712,18 +720,32 @@ public final class FreshProductFlow {
             null,
             Set.of(401));
     if (!"unauthorized".equals(adminDenied.path("code").asString())
+        || !"unauthorized".equals(providerStatusDenied.path("code").asString())
         || !"unauthorized".equals(userDenied.path("code").asString())) {
       throw new ProductFlowException("User and Admin API sessions were not separated");
     }
   }
 
   private void assertGeneratedAdminControlPlane(String adminToken, String organizationId) {
-    var controlPlane =
-        new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate())
-            .controlPlane(adminToken);
+    var admin = new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate());
+    var controlPlane = admin.controlPlane(adminToken);
     if (!organizationId.equals(controlPlane.getOrganizationId())
         || !Boolean.TRUE.equals(controlPlane.getSupportSafe())) {
       throw new ProductFlowException("Admin control plane identity or projection did not match");
+    }
+    var status = admin.providerStatus(adminToken);
+    var binding = status.getFilesBinding();
+    if (!environment.tenantId().equals(status.getOrganizationId())
+        || !Boolean.TRUE.equals(status.getSupportSafe())
+        || binding == null
+        || binding.getBindingState()
+            != com.massimotter.weave.adminapi.model.FilesBindingStatusResponse.BindingStateEnum.ACTIVE
+        || binding.getBindingRevision() == null
+        || binding.getBindingRevision() < 1
+        || !"weave-native".equals(binding.getAdapterKey())
+        || binding.getReadiness()
+            != com.massimotter.weave.adminapi.model.FilesBindingStatusResponse.ReadinessEnum.CONFIGURED) {
+      throw new ProductFlowException("Admin status did not match the isolated Files binding");
     }
   }
 

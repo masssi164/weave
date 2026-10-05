@@ -3173,6 +3173,44 @@
         },
         "type": "object"
       },
+      "FilesBindingStatusResponse": {
+        "properties": {
+          "adapterKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bindingRevision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "bindingState": {
+            "enum": [
+              "ACTIVE",
+              "NO_ACTIVE_BINDING"
+            ],
+            "type": "string"
+          },
+          "readiness": {
+            "enum": [
+              "CONFIGURED",
+              "NOT_CONFIGURED",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "bindingState",
+          "readiness"
+        ],
+        "type": "object"
+      },
       "FilesUserCreateFolderRequest": {
         "properties": {
           "name": {
@@ -5367,11 +5405,18 @@
           "domainAdapterRegistry": {
             "$ref": "#/components/schemas/DomainAdapterRegistryResponse"
           },
+          "filesBinding": {
+            "$ref": "#/components/schemas/FilesBindingStatusResponse"
+          },
           "flutterDirectProviderCallsAllowed": {
             "type": "boolean"
           },
           "generatedAt": {
             "format": "date-time",
+            "type": "string"
+          },
+          "organizationId": {
+            "description": "Configured canonical deployment organization.",
             "type": "string"
           },
           "providerConfigSource": {
@@ -5387,6 +5432,7 @@
             "type": "string"
           },
           "selectedProviderMappings": {
+            "description": "Legacy deployment configuration selections; not evidence of active organization runtime bindings.",
             "items": {
               "$ref": "#/components/schemas/ProviderSelection"
             },
@@ -5396,6 +5442,10 @@
             "type": "boolean"
           }
         },
+        "required": [
+          "filesBinding",
+          "organizationId"
+        ],
         "type": "object"
       },
       "ProviderReplacementDryRunRequest": {
@@ -8302,6 +8352,52 @@
         "summary": "Apply or dry-run an Admin Console selected provider mapping",
         "tags": [
           "Admin control plane"
+        ]
+      }
+    },
+    "/api/admin/providers/status": {
+      "get": {
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderRegistryResponse"
+                }
+              }
+            },
+            "description": "Deployment provider configuration and the configured organization's actual Files binding status."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing workspace scope, wrong deployment organization, or denied Admin readiness capability."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read support-safe admin/provider category capability and readiness status",
+        "tags": [
+          "Provider registry"
         ]
       }
     },
@@ -11771,52 +11867,6 @@
         "summary": "Get product profile module sync status",
         "tags": [
           "Profile"
-        ]
-      }
-    },
-    "/api/providers/status": {
-      "get": {
-        "operationId": "status",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProviderRegistryResponse"
-                }
-              }
-            },
-            "description": "Provider registry snapshot."
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies provider readiness access."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Read support-safe admin/provider category capability and readiness status",
-        "tags": [
-          "Provider registry"
         ]
       }
     },

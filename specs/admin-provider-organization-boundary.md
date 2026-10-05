@@ -56,6 +56,14 @@ partitioning; and actual Files binding absence/configuration without cross-org r
 Use existing decoder, authorization, controller and metadata export tests. Root
 integration regenerates artifacts and consumers after this source change.
 
+The existing isolated `testApp` journey additionally reads provider status through the
+generated JVM Admin client after real browser/PKCE owner sign-in. It independently
+asserts the configured canonical tenant and the fixture's active native Files binding,
+revision and configured adapter state. A User-session request to the Admin status route
+must return 401. The existing fixture creates its own provider binding and subsequently
+verifies real Files bytes; a configured status alone is not live provider proof. Existing
+`testApp` ownership, sanitized evidence and exact namespace cleanup remain unchanged.
+
 Infrastructure must supply the primary coordinate to Server consistently with the
 Keycloak baseline/invitation target and preserve the canonical tenant used by Files
 bindings. Flutter's legacy provider-stack diagnostics currently use a User bearer;
