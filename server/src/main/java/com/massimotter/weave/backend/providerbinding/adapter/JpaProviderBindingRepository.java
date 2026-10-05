@@ -73,6 +73,14 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
                     expectedRevision,
                     actual);
         }
+        // Ordinary credential rotation and provider replacement both need a verified identity
+        // carry-forward before the active revision changes. Until that operation exists, retaining
+        // the current authority is safer than making public FileIds disappear or reminting them.
+        if (current != null && "files".equals(domain)
+                && mappings.existsByIdOrganizationRefAndIdDomainAndIdBindingRevision(
+                        organizationRef, domain, current.revision())) {
+            throw new FilesBindingIdentityTransitionBlockedException();
+        }
         if (current != null) {
             current.retire();
             // Release the unique active slot before inserting the successor revision.
@@ -136,6 +144,12 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
                 long actual) {
             super("provider binding changed for " + organizationRef + "/" + domain
                     + ": expected revision " + expected + " but found " + actual);
+        }
+    }
+
+    public static final class FilesBindingIdentityTransitionBlockedException extends RuntimeException {
+        public FilesBindingIdentityTransitionBlockedException() {
+            super("Files binding transition requires verified mapping and resource identity carry-forward");
         }
     }
 }

@@ -2263,6 +2263,107 @@
         },
         "type": "object"
       },
+      "FilesUserCreateFolderRequest": {
+        "properties": {
+          "name": {
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          },
+          "parentFileId": {
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "parentFileId"
+        ],
+        "type": "object"
+      },
+      "FilesUserItemResponse": {
+        "properties": {
+          "allowedActions": {
+            "description": "Actions currently authorized at the Weave member/resource boundary and supported by the active provider. A later provider state change may still reject an operation.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "displayPath": {
+            "description": "Display-only product path; never use as an identity.",
+            "type": "string"
+          },
+          "fileId": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "file",
+              "folder"
+            ],
+            "type": "string"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "modifiedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parentFileId": {
+            "type": "string"
+          },
+          "revision": {
+            "description": "Opaque resource revision; not a provider version.",
+            "type": "string"
+          },
+          "size": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "allowedActions",
+          "displayPath",
+          "fileId",
+          "kind",
+          "name",
+          "parentFileId",
+          "revision",
+          "size"
+        ],
+        "type": "object"
+      },
+      "FilesUserListResponse": {
+        "properties": {
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FilesUserItemResponse"
+            },
+            "type": "array"
+          },
+          "parentFileId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "allowedActions",
+          "items",
+          "parentFileId"
+        ],
+        "type": "object"
+      },
       "GuestAccessContractResponse": {
         "properties": {
           "auditEventTypes": {
@@ -5693,6 +5794,868 @@
         ]
       }
     },
+    "/api/files/items": {
+      "get": {
+        "operationId": "listFilesItems",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "parentId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilesUserListResponse"
+                }
+              }
+            },
+            "description": "Visible children."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Member or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Resource absent or not visible."
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Resource locked at the active provider."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Provider or identity mapping unavailable."
+          },
+          "507": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient provider storage."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "List Weave-authorized Files children",
+        "tags": [
+          "Files User"
+        ]
+      }
+    },
+    "/api/files/items/folders": {
+      "post": {
+        "description": "Requires createFolder in the parent's current allowedActions. The current release supports atomic root-folder creation; other parents fail closed until their identity can be bound atomically by the selected provider.",
+        "operationId": "createFilesFolder",
+        "parameters": [
+          {
+            "description": "Must be * for atomic absent-name creation.",
+            "in": "header",
+            "name": "If-None-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "16 to 128 character key for durable User HTTP intent.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FilesUserCreateFolderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilesUserItemResponse"
+                }
+              }
+            },
+            "description": "Created folder, or the same completed idempotent result."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Member or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Resource absent or not visible."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Name already exists or idempotency key conflicts."
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Resource locked at the active provider."
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "If-None-Match: * required."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Provider or identity mapping unavailable."
+          },
+          "507": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient provider storage."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Create an empty Files folder at an absent name",
+        "tags": [
+          "Files User"
+        ]
+      }
+    },
+    "/api/files/items/uploads": {
+      "post": {
+        "description": "Accepts at most 26214400 bytes (25 MiB), including an empty file. Requires upload in the parent's current allowedActions. The current release supports atomic creation in file:root; unsupported parent identity guarantees fail closed.",
+        "operationId": "uploadFilesItemContent",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "parentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mediaType",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Must be * for atomic absent-name creation.",
+            "in": "header",
+            "name": "If-None-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "16 to 128 character durable operation key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilesUserItemResponse"
+                }
+              }
+            },
+            "description": "Created file, or the same completed idempotent result."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Member or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Resource absent or not visible."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Name or idempotency key conflict."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Atomic absent-name precondition failed."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Upload exceeds the byte limit."
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Resource locked at the active provider."
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "If-None-Match: * required."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Provider or identity mapping unavailable."
+          },
+          "507": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient provider storage."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Upload bounded binary content at an absent name",
+        "tags": [
+          "Files User"
+        ]
+      }
+    },
+    "/api/files/items/{fileId}": {
+      "get": {
+        "operationId": "getFilesItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fileId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilesUserItemResponse"
+                }
+              }
+            },
+            "description": "Visible item metadata."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Member or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Resource absent or not visible."
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Resource locked at the active provider."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Provider or identity mapping unavailable."
+          },
+          "507": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient provider storage."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Inspect a Weave Files item",
+        "tags": [
+          "Files User"
+        ]
+      }
+    },
+    "/api/files/items/{fileId}/content": {
+      "get": {
+        "description": "Returns at most 26214400 bytes (25 MiB) from an identity-bound conditional provider read. Requires download in the item's current allowedActions. Larger files fail with 413.",
+        "operationId": "downloadFilesItemContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fileId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Exact content bytes with strong content ETag and SHA-256 digest.",
+            "headers": {
+              "Content-Digest": {
+                "description": "RFC 9530 SHA-256 digest of the returned bytes.",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "Content-Length": {
+                "description": "Exact returned byte count.",
+                "schema": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "style": "simple"
+              },
+              "Content-Type": {
+                "description": "Returned binary media type.",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "ETag": {
+                "description": "Strong SHA-256 content validator.",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "304": {
+            "description": "Strong content ETag matches If-None-Match.",
+            "headers": {
+              "ETag": {
+                "description": "Matching strong content validator.",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Member or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Resource absent or not visible."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Provider content changed during conditional download."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "File exceeds the bounded download limit."
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Resource locked at the active provider."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Provider or identity mapping unavailable."
+          },
+          "507": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient provider storage."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Download bounded binary Files content",
+        "tags": [
+          "Files User"
+        ]
+      },
+      "put": {
+        "description": "Accepts at most 26214400 bytes (25 MiB). Requires updateContent in the item's current allowedActions and a provider that atomically enforces both identity and version. Unsupported providers fail closed; a content ETag is distinct from the item revision.",
+        "operationId": "updateFilesItemContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fileId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mediaType",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Strong ETag returned by the last content download.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "16 to 128 character durable operation key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilesUserItemResponse"
+                }
+              }
+            },
+            "description": "Updated file metadata."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Member or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Resource absent or not visible."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Idempotency or provider conflict."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Weak or stale content validator."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Current or replacement content exceeds the byte limit."
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Resource locked at the active provider."
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Strong If-Match required."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Provider or identity mapping unavailable."
+          },
+          "507": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient provider storage."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Replace bounded binary content against a strong validator",
+        "tags": [
+          "Files User"
+        ]
+      }
+    },
     "/api/files/native-provider-setup": {
       "get": {
         "description": "Returns support-safe iOS File Provider and Android DocumentsProvider setup metadata backed only by Weave-owned file facade endpoints.",
@@ -7031,6 +7994,10 @@
       "name": "Boards workspace"
     },
     {
+      "description": "Member Files operations. Provider-visible objects without a Weave resource grant are hidden.",
+      "name": "Files User"
+    },
+    {
       "description": "Guest identity and explicit access policy contracts.",
       "name": "Guest Access"
     },
@@ -7043,16 +8010,16 @@
       "name": "Identity"
     },
     {
+      "description": "Authenticated Files setup and readiness. Generated User data-plane operations are under /api/files/items; the WebDAV facade remains a separate compatibility surface.",
+      "name": "Files"
+    },
+    {
       "description": "Authenticated product profile facade endpoints.",
       "name": "Profile"
     },
     {
       "description": "Provider-neutral read-only DevOps facade for the represented GitLab CE/FOSS adapter.",
       "name": "DevOps facade"
-    },
-    {
-      "description": "Authenticated Files control plane. File data-plane operations use the Weave WebDAV facade at /dav/files.",
-      "name": "Files"
     },
     {
       "description": "Workspace readiness and capability endpoints.",

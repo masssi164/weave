@@ -93,6 +93,16 @@ class CanonicalFilesTreeCommandsTest {
     }
 
     @Test
+    void repeatedCopyToTheSamePathNeverReusesThePreviousObjectIdentity() {
+        FilePath destination = new FilePath("/archive/a.txt");
+        FileObject first = commands.copy(SCOPE, new FilePath("/docs/a.txt"), destination, false);
+        FileObject replacement = commands.copy(SCOPE, new FilePath("/docs/a.txt"), destination, true);
+
+        assertNotEquals(first.id(), replacement.id());
+        assertEquals(replacement.id(), recordAt("/archive/a.txt").metadata().object().id());
+    }
+
+    @Test
     void moveKeepsCanonicalIdsAndCleansOverwrittenDestinationContent() {
         addCollection("old-destination", "/archive/docs", "old-destination-v1");
         addFile("old-file", "/archive/docs/old.txt", "obsolete");

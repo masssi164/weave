@@ -223,7 +223,7 @@ interface FileObjectJpaRepository
         extends JpaRepository<FileObjectJpaEntity, CanonicalFileId> {
 
     Optional<FileObjectJpaEntity>
-            findByIdOrganizationRefAndIdSpaceRefAndCanonicalPath(
+            findByIdOrganizationRefAndIdSpaceRefAndActivePathKey(
                     String organizationRef,
                     String spaceRef,
                     String canonicalPath);

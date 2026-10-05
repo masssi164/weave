@@ -45,6 +45,7 @@ public class WorkspaceController {
 
     @GetMapping("/api/organization/manifest")
     @Operation(
+            operationId = "organizationManifest",
             summary = "Get authenticated organization manifest",
             description = "Returns the support-safe org manifest consumed by Weave Client after org URL discovery and SSO. Provider setup, endpoint rotation, diagnostics, policy authoring, and whitelisting remain owned by the Organization/Admin Console.",
             security = @SecurityRequirement(name = "bearer-jwt"))
@@ -66,6 +67,7 @@ public class WorkspaceController {
 
     @GetMapping("/api/workspace/capabilities")
     @Operation(
+            operationId = "capabilities",
             summary = "Get workspace capability readiness",
             description = "Returns the backend-owned workspace capability snapshot consumed by the Weave client.",
             security = @SecurityRequirement(name = "bearer-jwt"))
@@ -86,6 +88,7 @@ public class WorkspaceController {
     @GetMapping("/api/workspace/capability-policy")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(
+            operationId = "capabilityPolicy",
             summary = "Get workspace capability policy",
             description = "Returns an admin/operator support-safe snapshot of IDM role/group intake, profile mapping, deny-by-default posture, and Weaver-disabled-by-default policy state.",
             security = @SecurityRequirement(name = "bearer-jwt"))
@@ -105,6 +108,7 @@ public class WorkspaceController {
 
     @GetMapping("/api/workspace/release-readiness")
     @Operation(
+            operationId = "releaseReadiness",
             summary = "Get workspace readiness",
             description = "Returns an operator-facing snapshot of the backend-owned core dependencies and remaining setup actions.",
             security = @SecurityRequirement(name = "bearer-jwt"))
@@ -124,6 +128,7 @@ public class WorkspaceController {
 
     @GetMapping("/api/workspace/home")
     @Operation(
+            operationId = "home",
             summary = "Get Weave Home daily-work snapshot",
             description = "Returns the backend-owned, support-safe daily work loop consumed by Weave Home.",
             security = @SecurityRequirement(name = "bearer-jwt"))

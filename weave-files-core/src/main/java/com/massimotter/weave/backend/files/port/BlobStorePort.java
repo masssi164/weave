@@ -30,6 +30,12 @@ public interface BlobStorePort {
 
     void readStream(BlobScope scope, BlobReference reference, OutputStream target);
 
+    /** Preflight the source size before allocating or transferring more than maxBytes. */
+    default void readStreamBounded(
+            BlobScope scope, BlobReference reference, OutputStream target, long maxBytes) {
+        throw new UnsupportedOperationException("bounded blob read is unavailable");
+    }
+
     default BlobReceipt put(
             BlobScope scope,
             BlobReference reference,

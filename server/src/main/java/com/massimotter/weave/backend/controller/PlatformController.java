@@ -21,7 +21,7 @@ public class PlatformController {
     }
 
     @GetMapping("/api/platform/config")
-    @Operation(summary = "Get public platform configuration")
+    @Operation(operationId = "config", summary = "Get public platform configuration")
     public PlatformConfigResponse config() {
         return platformContractService.config();
     }

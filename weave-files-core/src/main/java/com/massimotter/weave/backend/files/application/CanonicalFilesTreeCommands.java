@@ -30,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.UUID;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -79,7 +80,8 @@ public final class CanonicalFilesTreeCommands {
         for (StoredFileRecord sourceRecord : sourceTree) {
             CanonicalFileRecord sourceMetadata = sourceRecord.metadata();
             FilePath copiedPath = substitute(sourceMetadata.object().path(), source, destination);
-            FileId copiedId = canonicalId(scope, copiedPath);
+            // A copied object has a new identity even when a deleted path is reused.
+            FileId copiedId = new FileId("file:" + UUID.randomUUID());
             String digest = sourceMetadata.contentDigest();
             BlobBinding blobBinding = null;
             if (sourceMetadata.object().kind() == Kind.FILE) {
@@ -420,17 +422,6 @@ public final class CanonicalFilesTreeCommands {
                         ACTIVE,
                         now),
                 blobBinding);
-    }
-
-    private FileId canonicalId(
-            FilesCommandScope scope,
-            FilePath initialPath) {
-        String seed = scope.organizationRef()
-                + "\u0000"
-                + scope.spaceRef()
-                + "\u0000"
-                + initialPath.value();
-        return new FileId("file:" + hash(seed));
     }
 
     private BlobReference blobReference(
