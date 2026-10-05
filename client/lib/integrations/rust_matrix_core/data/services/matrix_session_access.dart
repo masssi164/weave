@@ -43,8 +43,12 @@ class GeneratedMatrixSessionAccess implements MatrixSessionAccessPort {
         accessToken: weaveAccessToken,
         httpClient: _httpClient,
       );
-      final identity = await user_api.IdentityApi(api).me();
-      final capabilities = await user_api.WorkspaceApi(api).capabilities();
+      final identity = await user_api.IdentityApi(
+        api,
+      ).me().timeout(const Duration(seconds: 8));
+      final capabilities = await user_api.WorkspaceApi(
+        api,
+      ).capabilities().timeout(const Duration(seconds: 8));
       final organizationId = identity?.organizationId?.trim();
       final subject = identity?.subject?.trim();
       final chat = capabilities?.chat;

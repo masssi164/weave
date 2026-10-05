@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
@@ -7,7 +9,6 @@ import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
 import 'package:weave/features/app/domain/use_cases/reconcile_identity_session.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
-import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 
 class ResolveAppBootstrap {
@@ -46,13 +47,10 @@ class ResolveAppBootstrap {
           await _authPort.clearLocalSession();
           return const BootstrapState.needsSignIn();
         }
-        try {
-          // Chat checks current member access before acquiring its separate
-          // Matrix audience/session. Chat failure does not sign out Weave.
-          await _chatSessionPort.ensureSession();
-        } on ChatFailure {
-          // The Chat screen reports and retries this capability's failure.
-        }
+        // Prepare the separate Matrix session automatically. The coordinator
+        // shares an in-flight open with Chat; independent capabilities do not
+        // wait for its network or browser recovery.
+        unawaited(_prepareChat());
         return const BootstrapState.ready();
       }
 
@@ -72,6 +70,15 @@ class ResolveAppBootstrap {
           cause: error,
         ),
       );
+    }
+  }
+
+  Future<void> _prepareChat() async {
+    try {
+      await _chatSessionPort.ensureSession();
+    } on Object {
+      // Chat owns its error/retry state. A late capability failure must not
+      // escape this background preparation or invalidate the Weave login.
     }
   }
 

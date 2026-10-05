@@ -288,6 +288,13 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   }
 }
 
+String? _localizedFilesFailure(FilesFailure? failure, AppLocalizations l10n) {
+  if (failure?.type == FilesFailureType.sessionRequired) {
+    return l10n.filesInvalidSessionMessage;
+  }
+  return failure?.message;
+}
+
 class _StaleDirectoryNotice extends StatelessWidget {
   const _StaleDirectoryNotice({required this.failure, required this.onRefresh});
 
@@ -298,7 +305,7 @@ class _StaleDirectoryNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final failureMessage = failure.message;
+    final failureMessage = _localizedFilesFailure(failure, l10n)!;
 
     return Semantics(
       container: true,
@@ -484,7 +491,8 @@ class _EntryActionStatusCard extends StatelessWidget {
                 actionStatus.destination ?? l10n.filesExportUserVisibleFallback,
               ),
       FilesEntryActionPhase.failed =>
-        actionStatus.failure?.message ?? l10n.filesEntryActionFailedMessage,
+        _localizedFilesFailure(actionStatus.failure, l10n) ??
+            l10n.filesEntryActionFailedMessage,
     };
     final icon = switch (actionStatus.phase) {
       FilesEntryActionPhase.createdFolder => Icons.check_circle_outline,
@@ -553,7 +561,7 @@ class _UploadStatusCard extends StatelessWidget {
             ? l10n.filesUploadCompletedUnknownMessage
             : l10n.filesUploadCompletedMessage(fileName),
       FilesUploadPhase.failed =>
-        uploadStatus.failure?.message ??
+        _localizedFilesFailure(uploadStatus.failure, l10n) ??
             (fileName == null
                 ? l10n.filesUploadFailedUnknownMessage
                 : l10n.filesUploadFailedMessage(fileName)),

@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
+import 'package:weave/features/auth/domain/entities/auth_session.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_download.dart';
@@ -68,11 +69,7 @@ class BackendFilesRepository
       );
     }
     return _connectionForReadiness(
-      _BackendFilesContext(
-        baseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
-        accessToken: authState.session!.accessToken,
-        authConfiguration: authConfiguration,
-      ),
+      await _contextForSession(configuration, authState.session!),
     );
   }
 
@@ -161,6 +158,7 @@ class BackendFilesRepository
         _uploadBody(content, onProgress: onProgress),
       ),
       fallbackMessage: 'Unable to upload the file through Weave Files.',
+      confirmIdentity: true,
     );
     if (result == null) {
       throw const FilesFailure.protocol(
@@ -183,17 +181,19 @@ class BackendFilesRepository
     final context = await _requireContext();
     final listing = await _listAtPath(context, _normalizePath(parentPath));
     _requireAction(listing.allowedActions, 'createFolder');
+    final key = _idempotencyKey();
     final result = await _invoke(
       context,
       (api) => api.createFilesFolder(
         '*',
-        _idempotencyKey(),
+        key,
         user_api.FilesUserCreateFolderRequest(
           parentFileId: listing.parentFileId,
           name: name,
         ),
       ),
       fallbackMessage: 'Unable to create the folder through Weave Files.',
+      confirmIdentity: true,
     );
     if (result == null) {
       throw const FilesFailure.protocol(
@@ -465,11 +465,82 @@ class BackendFilesRepository
         'Sign in to Weave before browsing files.',
       );
     }
+    return _contextForSession(configuration, session);
+  }
+
+  Future<_BackendFilesContext> _contextForSession(
+    ServerConfiguration configuration,
+    AuthSession session,
+  ) async {
+    final authConfiguration = _authConfiguration(configuration);
+    if (!session.matches(authConfiguration)) {
+      throw const FilesFailure.sessionRequired('WEAVE_FILES_SESSION_CHANGED');
+    }
+    final baseUrl = configuration.serviceEndpoints.backendApiBaseUrl;
     return _BackendFilesContext(
-      baseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
+      baseUrl: baseUrl,
       accessToken: session.accessToken,
       authConfiguration: authConfiguration,
+      identity: await _readIdentity(
+        baseUrl,
+        session.accessToken,
+        authConfiguration,
+      ),
     );
+  }
+
+  Future<_FilesRequestIdentity> _readIdentity(
+    Uri baseUrl,
+    String token,
+    AuthConfiguration authConfiguration,
+  ) async {
+    try {
+      final identity = await user_api.IdentityApi(
+        weaveUserApiClient(
+          apiBaseUrl: baseUrl,
+          accessToken: token,
+          httpClient: _httpClient,
+        ),
+      ).me().timeout(const Duration(seconds: 8));
+      final subject = identity?.subject;
+      final organizationId = identity?.organizationId;
+      if (subject == null ||
+          subject.isEmpty ||
+          organizationId == null ||
+          organizationId.isEmpty ||
+          identity?.identityIssuer != authConfiguration.issuer.toString()) {
+        throw const FilesFailure.sessionRequired(
+          'WEAVE_FILES_IDENTITY_UNCONFIRMED',
+        );
+      }
+      return _FilesRequestIdentity(subject, organizationId);
+    } on FilesFailure {
+      rethrow;
+    } catch (_) {
+      throw const FilesFailure.sessionRequired(
+        'WEAVE_FILES_IDENTITY_UNCONFIRMED',
+      );
+    }
+  }
+
+  Future<void> _assertContextCurrent(_BackendFilesContext context) async {
+    final configuration = await _serverConfigurationRepository
+        .loadConfiguration();
+    if (configuration == null ||
+        configuration.serviceEndpoints.backendApiBaseUrl != context.baseUrl ||
+        configuration.oidcIssuerUrl != context.authConfiguration.issuer ||
+        configuration.oidcClientRegistration.clientId.trim() !=
+            context.authConfiguration.clientId) {
+      throw const FilesFailure.sessionRequired('WEAVE_FILES_SESSION_CHANGED');
+    }
+    final current = await _authSessionRepository.restoreSession(
+      context.authConfiguration,
+    );
+    if (!current.isAuthenticated ||
+        current.session?.accessToken != context.accessToken ||
+        current.session?.matches(context.authConfiguration) != true) {
+      throw const FilesFailure.sessionRequired('WEAVE_FILES_SESSION_CHANGED');
+    }
   }
 
   Future<FilesConnectionState> _connectionForReadiness(
@@ -510,7 +581,8 @@ class BackendFilesRepository
             : impact,
       );
     } on FilesFailure catch (failure) {
-      if (failure.type == FilesFailureType.invalidCredentials) {
+      if (failure.type == FilesFailureType.invalidCredentials ||
+          failure.type == FilesFailureType.sessionRequired) {
         return FilesConnectionState.invalid(
           baseUrl: context.baseUrl,
           accountLabel: accountLabel,
@@ -528,24 +600,48 @@ class BackendFilesRepository
     _BackendFilesContext context,
     Future<T> Function(user_api.FilesUserApi) request, {
     required String fallbackMessage,
+    bool confirmIdentity = false,
   }) async {
-    Future<T> send(String token) => request(
-      user_api.FilesUserApi(
-        weaveUserApiClient(
-          apiBaseUrl: context.baseUrl,
-          accessToken: token,
-          httpClient: _httpClient,
+    Future<T> send(_BackendFilesContext selected) async {
+      // Never replay a buffered upload or a root-scoped write under another
+      // account, organization, or server selected while this request waited.
+      await _assertContextCurrent(selected);
+      if (confirmIdentity) {
+        final identity = await _readIdentity(
+          selected.baseUrl,
+          selected.accessToken,
+          selected.authConfiguration,
+        );
+        if (identity.subject != selected.identity.subject ||
+            identity.organizationId != selected.identity.organizationId) {
+          throw const FilesFailure.sessionRequired(
+            'WEAVE_FILES_SESSION_CHANGED',
+          );
+        }
+        await _assertContextCurrent(selected);
+      }
+      return request(
+        user_api.FilesUserApi(
+          weaveUserApiClient(
+            apiBaseUrl: selected.baseUrl,
+            accessToken: selected.accessToken,
+            httpClient: _httpClient,
+          ),
         ),
-      ),
-    ).timeout(const Duration(seconds: 20));
+      ).timeout(const Duration(seconds: 20));
+    }
+
     try {
-      return await send(context.accessToken);
+      return await send(context);
     } on user_api.ApiException catch (error) {
       if (error.code == 401) {
         final refreshed = await _refreshContext(context);
         if (refreshed != null && refreshed.accessToken != context.accessToken) {
+          // Advance only the bearer after the same server-confirmed identity
+          // passed refresh admission. Later steps retain this request's scope.
+          context.accessToken = refreshed.accessToken;
           try {
-            return await send(refreshed.accessToken);
+            return await send(context);
           } on user_api.ApiException catch (retryError) {
             throw _apiFailure(retryError);
           } catch (retryError) {
@@ -632,15 +728,30 @@ class BackendFilesRepository
     _BackendFilesContext context,
   ) async {
     try {
+      await _assertContextCurrent(context);
       final authState = await _authSessionRepository.refreshSession(
         context.authConfiguration,
       );
       final session = authState.session;
-      if (!authState.isAuthenticated || session == null) return null;
+      if (!authState.isAuthenticated ||
+          session == null ||
+          !session.matches(context.authConfiguration)) {
+        return null;
+      }
+      final identity = await _readIdentity(
+        context.baseUrl,
+        session.accessToken,
+        context.authConfiguration,
+      );
+      if (identity.subject != context.identity.subject ||
+          identity.organizationId != context.identity.organizationId) {
+        return null;
+      }
       return _BackendFilesContext(
         baseUrl: context.baseUrl,
         accessToken: session.accessToken,
         authConfiguration: context.authConfiguration,
+        identity: context.identity,
       );
     } catch (_) {
       return null;
@@ -649,13 +760,22 @@ class BackendFilesRepository
 }
 
 class _BackendFilesContext {
-  const _BackendFilesContext({
+  _BackendFilesContext({
     required this.baseUrl,
     required this.accessToken,
     required this.authConfiguration,
+    required this.identity,
   });
 
   final Uri baseUrl;
-  final String accessToken;
+  String accessToken;
   final AuthConfiguration authConfiguration;
+  final _FilesRequestIdentity identity;
+}
+
+class _FilesRequestIdentity {
+  const _FilesRequestIdentity(this.subject, this.organizationId);
+
+  final String subject;
+  final String organizationId;
 }

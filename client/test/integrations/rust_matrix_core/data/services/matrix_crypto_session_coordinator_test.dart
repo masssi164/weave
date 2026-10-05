@@ -86,6 +86,7 @@ class _ControlledInitializationBridge extends FakeRustMatrixCoreBridge {
 class _FakeMatrixOAuthBrowser implements MatrixOAuthBrowser {
   final List<Uri> opened = <Uri>[];
   bool cancelled = false;
+  Future<void> Function()? beforeCallback;
 
   @override
   Future<Uri> authorize(
@@ -97,6 +98,7 @@ class _FakeMatrixOAuthBrowser implements MatrixOAuthBrowser {
     if (cancelled) {
       throw const ChatFailure.cancelled('Matrix sign-in cancelled.');
     }
+    await beforeCallback?.call();
     return Uri.parse('$matrixOAuthRedirectUri?code=matrix-code&state=$state');
   }
 }
@@ -192,7 +194,73 @@ void main() {
       expect(session.userId, '@person-1:api.weave.test');
       expect(bridge.oauthStarts, hasLength(1));
       expect(browser.opened, hasLength(1));
-      expect(access.calls, 1);
+      expect(access.calls, 3);
+    },
+  );
+
+  for (final change in ['grant', 'account', 'organization']) {
+    test(
+      'delayed OAuth rejects a changed $change before importing or syncing',
+      () async {
+        browser.beforeCallback = () async {
+          if (change == 'grant') {
+            access.allowed = false;
+          } else if (change == 'account') {
+            authRepository.state = AuthState.authenticated(
+              buildTestAuthSession(idToken: _idToken(subject: 'person-2')),
+            );
+          } else {
+            access.organizationId = 'org-two';
+          }
+        };
+        await expectLater(
+          buildCoordinator(randomSeed: 1).open(),
+          throwsA(isA<ChatFailure>()),
+        );
+        expect(bridge.oauthActivations, isEmpty);
+        expect(bridge.syncProfiles, isEmpty);
+        expect(await secureStore.read(matrixOAuthCurrentBindingKey), isNull);
+      },
+    );
+  }
+
+  test(
+    'background preparation and Chat share one pending browser session',
+    () async {
+      final started = Completer<void>();
+      final callback = Completer<void>();
+      browser.beforeCallback = () async {
+        started.complete();
+        await callback.future;
+      };
+      final coordinator = buildCoordinator(randomSeed: 1);
+      final preparation = coordinator.open(synchronize: false);
+      await started.future;
+      final chat = coordinator.open(synchronize: false);
+      expect(browser.opened, hasLength(1));
+      callback.complete();
+      final sessions = await Future.wait([preparation, chat]);
+      expect(sessions[0].profileKey, sessions[1].profileKey);
+      expect(browser.opened, hasLength(1));
+      expect(bridge.oauthActivations, hasLength(1));
+    },
+  );
+
+  test(
+    'revocation during native activation disposes access before sync',
+    () async {
+      final controlled = _ControlledInitializationBridge();
+      controlled.oauthUserId = '@person-1:api.weave.test';
+      bridge = controlled;
+      final opening = buildCoordinator(randomSeed: 1).open();
+      final rejected = expectLater(opening, throwsA(isA<ChatFailure>()));
+      await controlled.initializationStarted.future;
+      access.allowed = false;
+      controlled.allowInitialization.complete();
+      await rejected;
+      expect(bridge.disposedProfiles, hasLength(1));
+      expect(bridge.syncProfiles, isEmpty);
+      expect(await secureStore.read(matrixOAuthCurrentBindingKey), isNull);
     },
   );
 

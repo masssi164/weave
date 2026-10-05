@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/failures/app_failure.dart';
@@ -98,10 +100,12 @@ class _FakeServerConfigurationPort implements ServerConfigurationPort {
 class _FakeChatSessionPort implements ChatSessionPort {
   int ensureCalls = 0;
   ChatFailure? failure;
+  Completer<void>? pending;
 
   @override
   Future<void> ensureSession() async {
     ensureCalls++;
+    await pending?.future;
     if (failure case final failure?) throw failure;
   }
 
@@ -200,6 +204,32 @@ void main() {
       expect((await useCase.call()).phase, BootstrapPhase.ready);
       expect(chatSessionPort.ensureCalls, 1);
     });
+
+    test(
+      'slow Chat preparation never blocks the shell and late failures stay contained',
+      () async {
+        final authPort = _FakeAppAuthPort()
+          ..restoreSessionHandler = (_) async =>
+              AuthState.authenticated(buildTestAuthSession());
+        final pending = Completer<void>();
+        final chatPort = _FakeChatSessionPort()..pending = pending;
+        final useCase = _buildUseCase(
+          authPort: authPort,
+          chatSessionPort: chatPort,
+          serverConfigurationPort: _FakeServerConfigurationPort(
+            configuration: buildTestConfiguration(),
+          ),
+        );
+        final ready = await useCase.call().timeout(const Duration(seconds: 1));
+        expect(ready.phase, BootstrapPhase.ready);
+        expect(pending.isCompleted, isFalse);
+        expect(chatPort.ensureCalls, 1);
+        pending.completeError(StateError('Chat transport failed later'));
+        await Future<void>.delayed(Duration.zero);
+        expect(ready.phase, BootstrapPhase.ready);
+        expect(authPort.clearCalls, 0);
+      },
+    );
 
     test(
       'requires sign-in when restored access needs reauthorization',

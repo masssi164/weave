@@ -100,7 +100,8 @@ class _FakeAuthSessionRepository implements AuthSessionRepository {
   @override
   Future<AuthState> refreshSession(AuthConfiguration configuration) async {
     refreshCalls++;
-    return refreshedState ?? state;
+    state = refreshedState ?? state;
+    return state;
   }
 
   @override
@@ -112,6 +113,45 @@ class _FakeAuthSessionRepository implements AuthSessionRepository {
 
   @override
   Future<AuthState> signIn(AuthConfiguration configuration) async => state;
+}
+
+class _IdentityAwareClient extends http.BaseClient {
+  _IdentityAwareClient(
+    this.delegate,
+    this.subjectForToken,
+    this.organizationForToken,
+  );
+
+  final http.Client delegate;
+  final String Function(String)? subjectForToken;
+  final String Function(String)? organizationForToken;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    if (request.url.path == '/api/me') {
+      final token = request.headers['authorization'] ?? '';
+      return Future.value(
+        http.StreamedResponse(
+          Stream.value(
+            utf8.encode(
+              jsonEncode({
+                'subject': subjectForToken?.call(token) ?? 'member-one',
+                'organizationId':
+                    organizationForToken?.call(token) ?? 'org-one',
+                'identityIssuer': 'https://auth.home.internal',
+              }),
+            ),
+          ),
+          200,
+          headers: {'content-type': 'application/json'},
+        ),
+      );
+    }
+    return delegate.send(request);
+  }
+
+  @override
+  void close() => delegate.close();
 }
 
 void main() {
@@ -141,12 +181,19 @@ void main() {
     late _FakeServerConfigurationRepository configurationRepository;
     late _FakeAuthSessionRepository authSessionRepository;
 
-    BackendFilesRepository repository(http.Client client) =>
-        BackendFilesRepository(
-          httpClient: client,
-          serverConfigurationRepository: configurationRepository,
-          authSessionRepository: authSessionRepository,
-        );
+    BackendFilesRepository repository(
+      http.Client client, {
+      String Function(String)? subjectForToken,
+      String Function(String)? organizationForToken,
+    }) => BackendFilesRepository(
+      httpClient: _IdentityAwareClient(
+        client,
+        subjectForToken,
+        organizationForToken,
+      ),
+      serverConfigurationRepository: configurationRepository,
+      authSessionRepository: authSessionRepository,
+    );
 
     setUp(() {
       configurationRepository = _FakeServerConfigurationRepository(
@@ -522,6 +569,154 @@ void main() {
         expect(progress, [3]);
       },
     );
+
+    test('folder retry preserves its original idempotency key', () async {
+      authSessionRepository.refreshedState = AuthState.authenticated(
+        buildTestAuthSession(accessToken: 'fresh-token'),
+      );
+      final keys = <String?>[];
+      final files = repository(
+        MockClient((request) async {
+          if (request.method == 'GET') return http.Response(_listing(), 200);
+          keys.add(request.headers['idempotency-key']);
+          if (keys.length == 1) return http.Response('{}', 401);
+          return http.Response(
+            jsonEncode(
+              _item(name: 'Reports', path: '/Reports', kind: 'folder'),
+            ),
+            200,
+          );
+        }),
+      );
+      await files.createFolder(parentPath: '/', name: 'Reports');
+      expect(keys, hasLength(2));
+      expect(keys.first, isNotEmpty);
+      expect(keys.last, keys.first);
+    });
+
+    test(
+      'folder preflight refresh keeps the following write in the same identity',
+      () async {
+        authSessionRepository.refreshedState = AuthState.authenticated(
+          buildTestAuthSession(accessToken: 'fresh-token'),
+        );
+        var writes = 0;
+        final files = repository(
+          MockClient((request) async {
+            if (request.headers['authorization'] == 'Bearer files-token') {
+              expect(request.method, 'GET');
+              return http.Response('{}', 401);
+            }
+            expect(request.headers['authorization'], 'Bearer fresh-token');
+            if (request.method == 'GET') return http.Response(_listing(), 200);
+            writes++;
+            return http.Response(
+              jsonEncode(
+                _item(name: 'Reports', path: '/Reports', kind: 'folder'),
+              ),
+              200,
+            );
+          }),
+        );
+        await files.createFolder(parentPath: '/', name: 'Reports');
+        expect(writes, 1);
+        expect(authSessionRepository.refreshCalls, 1);
+      },
+    );
+
+    for (final change in ['account', 'organization', 'server']) {
+      test(
+        'buffered upload stops when $change changes before publication',
+        () async {
+          var writes = 0;
+          var organizationId = 'org-one';
+          final files = repository(
+            MockClient((request) async {
+              if (request.method == 'GET') {
+                return http.Response(_listing(), 200);
+              }
+              writes++;
+              return http.Response(jsonEncode(_item()), 200);
+            }),
+            organizationForToken: (_) => organizationId,
+          );
+          Stream<List<int>> body() async* {
+            if (change == 'account') {
+              authSessionRepository.state = AuthState.authenticated(
+                buildTestAuthSession(accessToken: 'other-account-token'),
+              );
+            } else if (change == 'organization') {
+              organizationId = 'org-two';
+            } else {
+              configurationRepository.configuration = buildTestConfiguration(
+                backendApiBaseUrl: 'https://other.weave.test/api',
+              );
+            }
+            yield [1, 2, 3];
+          }
+
+          await expectLater(
+            files.uploadFile(
+              '/',
+              FileUploadRequest(
+                fileName: 'notes.txt',
+                sizeInBytes: 3,
+                byteStream: body(),
+              ),
+            ),
+            throwsA(isA<FilesFailure>()),
+          );
+          expect(writes, 0);
+        },
+      );
+    }
+
+    for (final change in ['account', 'organization']) {
+      test(
+        'upload retry rejects refreshed $change before sending bytes',
+        () async {
+          authSessionRepository.refreshedState = AuthState.authenticated(
+            buildTestAuthSession(accessToken: 'fresh-token'),
+          );
+          var requests = 0;
+          var writes = 0;
+          final files = repository(
+            MockClient((request) async {
+              if (request.method == 'GET') {
+                return http.Response(_listing(), 200);
+              }
+              requests++;
+              if (request.headers['authorization'] == 'Bearer files-token') {
+                return http.Response('{}', 401);
+              }
+              writes++;
+              return http.Response(jsonEncode(_item()), 200);
+            }),
+            subjectForToken: (token) =>
+                change == 'account' && token == 'Bearer fresh-token'
+                ? 'member-two'
+                : 'member-one',
+            organizationForToken: (token) =>
+                change == 'organization' && token == 'Bearer fresh-token'
+                ? 'org-two'
+                : 'org-one',
+          );
+          await expectLater(
+            files.uploadFile(
+              '/',
+              FileUploadRequest(
+                fileName: 'notes.txt',
+                sizeInBytes: 3,
+                byteStream: Stream.value([1, 2, 3]),
+              ),
+            ),
+            throwsA(isA<FilesFailure>()),
+          );
+          expect(requests, 1);
+          expect(writes, 0);
+        },
+      );
+    }
 
     test(
       'source stream failure stops upload without sending a partial body',

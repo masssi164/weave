@@ -104,7 +104,7 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
       await pending;
       // The Weave member or selected organization may have changed while the
       // first request waited for OAuth. Recheck access before sharing it.
-      return _open(
+      return open(
         synchronize: synchronize,
         allowInteractiveSignIn: allowInteractiveSignIn,
       );
@@ -331,6 +331,55 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
       await _dropActiveClient();
       rethrow;
     }
+    Future<void> revalidateAdmission() async {
+      final currentConfiguration = await _serverConfigurationRepository
+          .loadConfiguration();
+      if (currentConfiguration == null ||
+          currentConfiguration.oidcIssuerUrl != authConfiguration.issuer ||
+          currentConfiguration.oidcClientRegistration.clientId !=
+              authConfiguration.clientId ||
+          currentConfiguration.serviceEndpoints.backendApiBaseUrl !=
+              configuration.serviceEndpoints.backendApiBaseUrl ||
+          currentConfiguration.serviceEndpoints.matrixHomeserverUrl !=
+              configuration.serviceEndpoints.matrixHomeserverUrl) {
+        throw const ChatFailure.sessionRequired(
+          'M_WEAVE_MATRIX_SESSION_CHANGED',
+        );
+      }
+      final currentAuth = await _authSessionRepository.restoreSession(
+        authConfiguration,
+      );
+      final currentSession = currentAuth.session;
+      if (!currentAuth.isAuthenticated ||
+          currentSession == null ||
+          _validatedSubject(currentSession, authConfiguration) != subject) {
+        throw const ChatFailure.sessionRequired(
+          'M_WEAVE_MATRIX_SESSION_CHANGED',
+        );
+      }
+      final currentAccess = await _matrixSessionAccess.authorize(
+        userApiBaseUrl: currentConfiguration.serviceEndpoints.backendApiBaseUrl,
+        weaveAccessToken: currentSession.accessToken,
+        expectedSubject: subject,
+        expectedIssuer: authConfiguration.issuer,
+      );
+      if (currentAccess.organizationId != access.organizationId ||
+          currentAccess.subject != subject) {
+        throw const ChatFailure.sessionRequired(
+          'M_WEAVE_MATRIX_SESSION_CHANGED',
+        );
+      }
+      final afterCheck = await _authSessionRepository.restoreSession(
+        authConfiguration,
+      );
+      if (!afterCheck.isAuthenticated ||
+          afterCheck.session?.accessToken != currentSession.accessToken) {
+        throw const ChatFailure.sessionRequired(
+          'M_WEAVE_MATRIX_SESSION_CHANGED',
+        );
+      }
+    }
+
     final deviceId = await _matrixDeviceIdentityRepository.loadOrCreate();
     final homeserver = configuration.serviceEndpoints.matrixHomeserverUrl;
     final bindingKey =
@@ -463,6 +512,7 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
           deviceId: deviceId,
           subject: subject,
           organizationId: access.organizationId,
+          revalidateAdmission: revalidateAdmission,
           expectedBinding: binding,
         );
       }
@@ -482,6 +532,7 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
         deviceId: deviceId,
         subject: subject,
         organizationId: access.organizationId,
+        revalidateAdmission: revalidateAdmission,
       );
     }
     if (synchronize && !synchronized) {
@@ -500,6 +551,7 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
     required String deviceId,
     required String subject,
     required String organizationId,
+    required Future<void> Function() revalidateAdmission,
     _MatrixOAuthBinding? expectedBinding,
   }) async {
     final loginKey = _digest('$bindingKey|${homeserver.toString()}');
@@ -527,6 +579,9 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
           'Matrix signed in with an unexpected account or device identity.',
         );
       }
+      // The browser/token exchange may have outlived the Weave login, selected
+      // organization, or Chat grant. Do not import that now-stale admission.
+      await revalidateAdmission();
       final profileKey = _profileKey(homeserver, identity.userId, deviceId);
       if (expectedBinding != null && profileKey != expectedBinding.profileKey) {
         throw const ChatFailure.storage(
@@ -554,6 +609,14 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
         storePath: (await _storeDirectory(profileKey)).path,
         storePassphrase: passphrase,
       );
+      try {
+        await revalidateAdmission();
+      } on Object {
+        // Drop the imported access before sync or publication; retain existing
+        // encryption material for recovery.
+        await _rustMatrixCoreBridge.disposeClient(profileKey: profileKey);
+        rethrow;
+      }
       await _secureStore.write(
         '$matrixOAuthProfileOwnerKeyPrefix$profileKey',
         bindingKey,
