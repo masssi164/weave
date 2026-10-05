@@ -24,5 +24,7 @@ remain outside the member Home consumer.
 
 Validate generated HTTP route/authorization consumption, Home v3 mapping, nullable
 counts, negative and unsafe payloads, member failure presentation and stale response
-fencing. Run focused Flutter tests, analysis and spec conformance. These fixtures
+fencing. The architecture guard must require the generated `WorkspaceApi.home`
+operation and reject the superseded handwritten Home JSON decoder. Run focused
+Flutter tests, analysis and spec conformance. These fixtures
 are not live single-sign-in or integrated product acceptance evidence.
