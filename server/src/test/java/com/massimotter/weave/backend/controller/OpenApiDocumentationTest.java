@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -7,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 
 import io.swagger.v3.oas.annotations.Operation;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -26,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -44,9 +47,19 @@ class OpenApiDocumentationTest {
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
+    // Metadata export reads the real HTTP handlers and transport models; it does
+    // not exercise the Matrix wire codec. Runtime/protocol tests retain JNI.
+    @MockitoBean(enforceOverride = true)
+    private MatrixProtocolCoreService matrixProtocolCore;
+
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
     private RequestMappingHandlerMapping handlerMapping;
+
+    @AfterEach
+    void metadataExportDoesNotInvokeMatrixProtocolRuntime() {
+        verifyNoInteractions(matrixProtocolCore);
+    }
 
     @Test
     void exportedOperationIdsAreExplicitUniqueAndIdenticalAcrossDocuments() throws Exception {
@@ -99,6 +112,12 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/files/items/{fileId}'].patch").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/move']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/copy']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/items/uploads'].post.responses['400'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/files/items/uploads'].post.responses['415'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/files/items/folders'].post.responses['412'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
                 .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.responses['200'].headers['ETag'].schema.type")
                         .value("string"))
                 .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.responses['200'].headers['Content-Digest'].schema.type")

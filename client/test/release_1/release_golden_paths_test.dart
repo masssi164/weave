@@ -62,23 +62,22 @@ void main() {
             _MemoryServerConfigurationRepository();
         final filesRepository = _ScenarioFilesRepository(
           serverConfigurationRepository,
+          authRepository,
         );
         final discoveryClient = AppStartDiscoveryClient(
           httpClient: MockClient((request) async {
             expect(request.url.path, '/api/platform/config');
             return http.Response(
               jsonEncode({
-                'schemaVersion': 1,
+                'schemaVersion': 2,
                 'organizationOrigin': 'https://weave.test',
-                'controlPlaneBaseUrl': 'https://api.weave.test/api',
+                'userApiBaseUrl': 'https://api.weave.test/api',
                 'oidc': {
                   'issuer': 'https://auth.weave.test/realms/weave',
                   'clientId': 'weave-app',
                 },
                 'protocols': {
-                  'matrixClientServerBaseUrl': 'https://api.weave.test',
-                  'filesWebDavBaseUrl': 'https://api.weave.test/dav/files',
-                  'calendarCalDavBaseUrl': 'https://api.weave.test/caldav',
+                  'matrixClientServerBaseUrl': 'https://matrix.weave.test',
                 },
                 'releasePosture': 'dogfood',
                 'domains': [
@@ -203,19 +202,9 @@ void main() {
         await tester.tap(_navigationDestination('Files'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Connect Files'), findsWidgets);
-        await tester.tap(find.text('Connect Files').first);
-        await tester.pumpAndSettle();
-
+        expect(find.text('Connect Files'), findsNothing);
         expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
         expect(find.widgetWithText(ListTile, 'Readme.md'), findsOneWidget);
-
-        await tester.tap(find.widgetWithText(ListTile, 'Documents'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('/Documents'), findsOneWidget);
-        expect(find.widgetWithText(ListTile, 'Plans'), findsOneWidget);
-        expect(find.widgetWithText(ListTile, 'spec.pdf'), findsOneWidget);
 
         await tester.tap(find.text('New folder'));
         await tester.pumpAndSettle();
@@ -226,17 +215,18 @@ void main() {
 
         expect(find.widgetWithText(ListTile, 'Archive'), findsOneWidget);
         expect(find.text('Created folder Archive.'), findsOneWidget);
-        expect(filesRepository.createdFolders, contains('/Documents/Archive'));
+        expect(filesRepository.createdFolders, contains('/Archive'));
 
-        await tester.tap(find.byTooltip('Delete spec.pdf'));
-        await tester.pumpAndSettle();
-        expect(find.text('Delete spec.pdf?'), findsOneWidget);
-        await tester.tap(find.text('Delete').last);
+        await tester.tap(find.widgetWithText(ListTile, 'Documents'));
         await tester.pumpAndSettle();
 
-        expect(find.widgetWithText(ListTile, 'spec.pdf'), findsNothing);
-        expect(find.text('Deleted spec.pdf.'), findsOneWidget);
-        expect(filesRepository.deletedEntries, contains('spec'));
+        expect(find.text('/Documents'), findsOneWidget);
+        expect(find.widgetWithText(ListTile, 'Plans'), findsOneWidget);
+        expect(find.widgetWithText(ListTile, 'spec.pdf'), findsOneWidget);
+
+        expect(find.text('New folder'), findsNothing);
+        expect(find.byTooltip('Delete spec.pdf'), findsNothing);
+        expect(filesRepository.deletedEntries, isEmpty);
 
         await tester.tap(find.text('Up'));
         await tester.pumpAndSettle();
@@ -265,17 +255,14 @@ void main() {
         await tester.tap(_navigationDestination('Files'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Connect Files'), findsWidgets);
+        expect(find.text('Connect Files'), findsNothing);
         expect(
           filesRepository.lastConfiguredBaseUrl.toString(),
-          'https://api.weave.test/dav/files',
+          'https://api.weave.test/api',
         );
 
-        await tester.tap(find.text('Connect Files').first);
-        await tester.pumpAndSettle();
-
         expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
-        expect(filesRepository.connectCalls, 2);
+        expect(filesRepository.connectCalls, 0);
       },
     );
   });
@@ -419,9 +406,13 @@ class _ScenarioAuthSessionRepository implements AuthSessionRepository {
 
 class _ScenarioFilesRepository
     implements FilesRepository, FilesEntryMutationRepository {
-  _ScenarioFilesRepository(this._serverConfigurationRepository);
+  _ScenarioFilesRepository(
+    this._serverConfigurationRepository,
+    this._authSessionRepository,
+  );
 
   final _MemoryServerConfigurationRepository _serverConfigurationRepository;
+  final _ScenarioAuthSessionRepository _authSessionRepository;
   final Map<String, List<FileEntry>> _entriesByPath = <String, List<FileEntry>>{
     '/': List<FileEntry>.of(_rootEntries),
     '/Documents': List<FileEntry>.of(_documentsEntries),
@@ -436,8 +427,8 @@ class _ScenarioFilesRepository
       _serverConfigurationRepository
           .configuration
           ?.serviceEndpoints
-          .nextcloudBaseUrl ??
-      Uri.parse('https://files.weave.test');
+          .backendApiBaseUrl ??
+      Uri.parse('https://api.weave.test/api');
 
   @override
   Future<FilesConnectionState> connect() async {
@@ -456,12 +447,15 @@ class _ScenarioFilesRepository
   Future<DirectoryListing> listDirectory(String path) async {
     if (!_connected) {
       throw const FilesFailure.sessionRequired(
-        'Connect Files to browse your files.',
+        'Sign in to Weave to browse your files.',
       );
     }
 
     return DirectoryListing(
       path: path,
+      allowedActions: path == '/'
+          ? const {'listChildren', 'createFolder', 'upload'}
+          : const {'listChildren'},
       entries: List<FileEntry>.unmodifiable(
         _entriesByPath[path] ?? const <FileEntry>[],
       ),
@@ -489,6 +483,7 @@ class _ScenarioFilesRepository
       name: name,
       path: path,
       isDirectory: true,
+      allowedActions: const {'listChildren'},
     );
     createdFolders.add(path);
     _entriesByPath.putIfAbsent(parentPath, () => <FileEntry>[]).add(entry);
@@ -509,7 +504,10 @@ class _ScenarioFilesRepository
   }
 
   @override
-  Future<FilesConnectionState> restoreConnection() async => _connectionState();
+  Future<FilesConnectionState> restoreConnection() async {
+    _connected = _authSessionRepository.session != null;
+    return _connectionState();
+  }
 
   String _parentPath(String path) {
     final lastSlash = path.lastIndexOf('/');
@@ -534,6 +532,7 @@ class _ScenarioFilesRepository
       name: 'Documents',
       path: '/Documents',
       isDirectory: true,
+      allowedActions: {'listChildren'},
     ),
     FileEntry(
       id: 'readme',
@@ -541,6 +540,7 @@ class _ScenarioFilesRepository
       path: '/Readme.md',
       isDirectory: false,
       sizeInBytes: 1200,
+      allowedActions: {'download'},
     ),
   ];
 
@@ -550,6 +550,7 @@ class _ScenarioFilesRepository
       name: 'Plans',
       path: '/Documents/Plans',
       isDirectory: true,
+      allowedActions: {'listChildren'},
     ),
     FileEntry(
       id: 'spec',
@@ -557,6 +558,7 @@ class _ScenarioFilesRepository
       path: '/Documents/spec.pdf',
       isDirectory: false,
       sizeInBytes: 2048,
+      allowedActions: {'download'},
     ),
   ];
 }

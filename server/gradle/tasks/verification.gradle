@@ -48,11 +48,10 @@ tasks.named('test') {
 tasks.register('openApiContractExport', Test) {
     group = 'verification'
     description = 'Export the server-owned OpenAPI contract without mutating the main test results.'
-    dependsOn tasks.named('buildMatrixRustCoreJni'), tasks.named('testClasses')
+    dependsOn tasks.named('testClasses')
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     maxParallelForks = 1
-    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
     systemProperty 'weave.openapi.export.path', rootProject.layout.buildDirectory
             .file('openapi/weave-openapi.raw.json')
             .get()
@@ -61,7 +60,11 @@ tasks.register('openApiContractExport', Test) {
     filter {
         includeTestsMatching '*OpenApiDocumentationTest'
     }
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // Cucumber suites discover their own scenarios outside the class filter.
+        // Export runs only the Jupiter metadata tests, never runtime journeys.
+        includeEngines 'junit-jupiter'
+    }
     outputs.upToDateWhen { false }
 }
 

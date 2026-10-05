@@ -9959,6 +9959,16 @@
             },
             "description": "Created folder, or the same completed idempotent result."
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid folder name, parent or idempotency key."
+          },
           "401": {
             "content": {
               "application/json": {
@@ -9998,6 +10008,26 @@
               }
             },
             "description": "Name already exists or idempotency key conflicts."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Atomic absent-name precondition failed."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported request media type; use application/json."
           },
           "423": {
             "content": {
@@ -10126,6 +10156,16 @@
             },
             "description": "Created file, or the same completed idempotent result."
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid upload parameters or idempotency key."
+          },
           "401": {
             "content": {
               "application/json": {
@@ -10185,6 +10225,16 @@
               }
             },
             "description": "Upload exceeds the byte limit."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported request media type; use application/octet-stream."
           },
           "423": {
             "content": {
@@ -10566,6 +10616,16 @@
             },
             "description": "Updated file metadata."
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid content parameters or idempotency key."
+          },
           "401": {
             "content": {
               "application/json": {
@@ -10625,6 +10685,16 @@
               }
             },
             "description": "Current or replacement content exceeds the byte limit."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported request media type; use application/octet-stream."
           },
           "423": {
             "content": {

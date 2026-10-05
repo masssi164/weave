@@ -38,10 +38,6 @@ void main() {
         configuration.serviceEndpoints.matrixHomeserverUrl.toString(),
       );
       expect(
-        loaded?.serviceEndpoints.nextcloudBaseUrl.toString(),
-        'https://api.home.internal/dav/files',
-      );
-      expect(
         loaded?.serviceEndpoints.backendApiBaseUrl.toString(),
         configuration.serviceEndpoints.backendApiBaseUrl.toString(),
       );
@@ -101,6 +97,7 @@ void main() {
 
     test('rejects a missing stored client ID', () async {
       final raw = jsonEncode({
+        'schemaVersion': 2,
         'providerType': 'oidc',
         'oidcIssuerUrl': 'https://auth.home.internal',
         'oidcClientRegistrationMode': 'manual',
@@ -122,10 +119,10 @@ void main() {
       );
     });
 
-    test('preserves a Matrix homeserver separate from the Weave API', () async {
+    test('preserves a separate Weave Matrix northbound origin', () async {
       final store = InMemoryPreferencesStore(
         buildStoredConfiguration(
-          matrixHomeserverUrl: 'https://matrix.home.internal',
+          matrixHomeserverUrl: 'https://matrix.weave.home.internal',
           backendApiBaseUrl: 'https://api.home.internal/api',
         ),
       );
@@ -138,8 +135,46 @@ void main() {
       final loaded = await repository.loadConfiguration();
       expect(
         loaded?.serviceEndpoints.matrixHomeserverUrl.toString(),
-        'https://matrix.home.internal',
+        'https://matrix.weave.home.internal',
       );
+    });
+
+    test('keeps a v1 provider URL but requires fresh discovery', () async {
+      final raw = encodeTestConfiguration(
+        schemaVersion: 1,
+        matrixHomeserverUrl: 'https://provider.home.internal',
+      );
+      final store = InMemoryPreferencesStore({
+        serverConfigurationStorageKey: raw,
+      });
+      final container = ProviderContainer.test(
+        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+      );
+      addTearDown(container.dispose);
+      final repository = container.read(serverConfigurationRepositoryProvider);
+
+      expect(await repository.loadConfiguration(), isNull);
+      expect(await store.getString(serverConfigurationStorageKey), raw);
+    });
+
+    test('drops obsolete public DAV URL when resaving legacy state', () async {
+      final store = InMemoryPreferencesStore(
+        buildStoredConfiguration(
+          nextcloudBaseUrl: 'https://files.home.internal/dav/files',
+        ),
+      );
+      final container = ProviderContainer.test(
+        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+      );
+      addTearDown(container.dispose);
+      final repository = container.read(serverConfigurationRepositoryProvider);
+
+      final loaded = await repository.loadConfiguration();
+      expect(loaded, isNotNull);
+      await repository.saveConfiguration(loaded!);
+      final saved = await store.getString(serverConfigurationStorageKey);
+      expect(saved, isNot(contains('nextcloudBaseUrl')));
+      expect(saved, contains('backendApiBaseUrl'));
     });
 
     test('rejects Matrix URLs with credentials or provider paths', () async {

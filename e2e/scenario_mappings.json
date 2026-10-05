@@ -14,7 +14,7 @@
     },
     {
       "tag": "@files-webdav-read-list-download",
-      "scenario": "Member lists and reads files through the Weave WebDAV facade",
+      "scenario": "Historical WebDAV read tests retain provider isolation evidence",
       "feature": "e2e/features/files_webdav_facade.feature",
       "executableTest": "tools/files_webdav_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -29,20 +29,12 @@
             "getDownloadsFileThroughFacadePath",
             "not(containsString(\"remote.php\"))"
           ]
-        },
-        {
-          "path": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
-          "fragments": [
-            "lists files through the Weave WebDAV data plane with the Weave token",
-            "downloads files through the Weave WebDAV data plane",
-            "isNot(contains('WebDAV'))"
-          ]
         }
       ]
     },
     {
       "tag": "@files-webdav-write-mvp",
-      "scenario": "Member writes files through the Weave WebDAV facade with guarded preconditions",
+      "scenario": "Historical WebDAV write tests retain precondition and audit evidence",
       "feature": "e2e/features/files_webdav_facade.feature",
       "executableTest": "tools/files_webdav_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -68,7 +60,7 @@
     },
     {
       "tag": "@files-mcp-facade-no-provider-bypass",
-      "scenario": "Files MCP tools cannot bypass the Files facade",
+      "scenario": "Historical MCP Files contract records provider bypass restrictions",
       "feature": "e2e/features/files_webdav_facade.feature",
       "executableTest": "tools/files_webdav_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -102,17 +94,6 @@
             "getDownloadsFileThroughFacadePath",
             "putMkcolAndDeleteUseWebDavFacadeWriteUseCases"
           ]
-        },
-        {
-          "path": "client/lib/features/files/data/repositories/backend_files_repository.dart",
-          "fragments": [
-            "http.Request('PROPFIND'",
-            "'dav', 'files'",
-            "'PUT'",
-            "'MKCOL'",
-            "'DELETE'",
-            "'If-None-Match': '*'"
-          ]
         }
       ]
     },
@@ -122,8 +103,7 @@
       "feature": "e2e/features/target_standard_facade_hard_gate.feature",
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
-        "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP",
-        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
+        "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -154,17 +134,16 @@
       "feature": "e2e/features/target_standard_facade_hard_gate.feature",
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
-        "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP",
-        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
+        "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
           "path": "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
           "fragments": [
-            "WeaveMatrixFacadeChatRepository",
-            "Matrix Client-Server projection",
-            "`/api/chat/**` remains a control/product facade"
+            "NativeMatrixChatRepository",
+            "native Rust/Matrix SDK",
+            "Weave User API room bindings remain separate"
           ]
         },
         {
@@ -4616,24 +4595,37 @@
     },
     {
       "tag": "@files-flutter-webdav",
-      "scenario": "Flutter Files repository uses /dav/files for all file data-plane operations",
+      "scenario": "Historical Flutter WebDAV target is superseded",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [
-        "FLUTTER_FILES_WEBDAV_DATA_PLANE",
-        "FLUTTER_FILES_WEBDAV_COPY_MOVE"
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@files-user-api-generated-client",
+      "scenario": "Flutter uses generated Files operations and stable Weave references",
+      "feature": "e2e/features/files_user_api_generated.feature",
+      "executableTest": "tools/files_webdav_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "FILES_USER_API_GENERATED_CLIENT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/lib/features/files/data/repositories/backend_files_repository.dart",
+          "path": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
           "fragments": [
-            "http.Request('PROPFIND'",
-            "http.StreamedRequest('PUT'",
-            "http.Request('MKCOL'",
-            "method: 'COPY'",
-            "method: 'MOVE'",
-            "'DELETE'"
+            "uses the generated User API repository for release members",
+            "download validates exact bytes, length, digest and strong ETag",
+            "unsupported mutations and denied actions never use a fallback route"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/files/FilesUserApiServiceTest.java",
+          "fragments": [
+            "anotherOrganizationCannotResolveTheSameOpaqueFileId",
+            "currentReadOnlyGrantDoesNotAdvertiseMutationOrShareActions"
           ]
         }
       ]
@@ -4857,7 +4849,7 @@
     },
     {
       "tag": "@matrix-connect",
-      "scenario": "OIDC-provisioned member can connect to Matrix",
+      "scenario": "Weave sign-in establishes authorized Matrix access",
       "feature": "e2e/features/chat_matrix_facade.feature",
       "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -4866,11 +4858,25 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
             "MATRIX_CONNECT_CONTRACT",
-            "connect opens the OIDC-gated encrypted Rust session",
+            "connect opens the native encrypted Matrix session",
             "cryptoSession.synchronizeValues"
+          ]
+        },
+        {
+          "path": "client/test/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator_test.dart",
+          "fragments": [
+            "ordinary Chat access establishes Matrix through the Weave SSO context",
+            "a different organization cannot reuse the saved Matrix session",
+            "wrong OIDC issuer or audience never starts Matrix sign-in"
+          ]
+        },
+        {
+          "path": "client/test/features/chat/chat_screen_test.dart",
+          "fragments": [
+            "loads Chat without a separate member Connect action"
           ]
         }
       ]
@@ -4886,7 +4892,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
             "maps only Rust-projected encrypted rooms into chat entities",
             "MATRIX_SPACES_ROOMS_CONTRACT",
@@ -4906,7 +4912,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
             "MATRIX_MESSAGE_CONTRACT",
             "send, decrypt, and receipt stay inside the Rust Matrix core",
@@ -4946,7 +4952,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
             "markRoomRead",
             "bridge.receipts",
@@ -5048,7 +5054,7 @@
           "path": "client/test/architecture/backend_facade_contract_test.dart",
           "fragments": [
             "FLUTTER_MATRIX_BOUNDARY_CONTRACT",
-            "WeaveMatrixFacadeChatRepository",
+            "NativeMatrixChatRepository",
             "isNot(contains('BackendChatRepository('))",
             "isNot(contains('matrixSessionServiceProvider'))"
           ]
@@ -5735,7 +5741,7 @@
       "tag": "@matrix-e2ee-fail-closed-client",
       "scenario": "A client without E2EE capability cannot downgrade a room",
       "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+      "executableTest": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
       "evidenceMarkers": [
         "MATRIX_E2EE_CLIENT_FAILS_CLOSED"
       ],

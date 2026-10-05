@@ -9,7 +9,7 @@ void main() {
       Directory('lib/integrations/nextcloud').existsSync(),
       isFalse,
       reason:
-          'Normal member Files uses the Weave WebDAV facade; direct Flutter Nextcloud auth/session code must not be reintroduced.',
+          'Normal member Files uses the generated Weave User API; direct Flutter Nextcloud auth/session code must not be reintroduced.',
     );
   });
 
@@ -47,8 +47,12 @@ void main() {
     expect(mapper, contains('openapi.AuthenticatedUserResponse'));
     expect(mapper, contains('openapi.ProductProfileResponse'));
     expect(mapper, contains('openapi.UpdateProductProfileRequest'));
-    expect(client, contains('openapi.AuthenticatedUserResponse.fromJson'));
-    expect(client, contains('openapi.ProductProfileResponse.fromJson'));
+    expect(client, contains('generated/user_api/api.dart'));
+    expect(client, contains('user_api.IdentityApi(api).me()'));
+    expect(client, contains('user_api.ProfileApi('));
+    expect(client, contains('.updateProductProfile('));
+    expect(client, isNot(contains('jsonDecode')));
+    expect(client, isNot(contains('.fromJson(')));
     expect(mapper, isNot(contains('class UserProfileDto')));
     expect(client, isNot(contains('UserProfileDto.fromJson')));
   });
@@ -78,21 +82,36 @@ void main() {
       expect(chatRepository, isNot(contains('BackendChatRepository')));
       expect(matrixCoordinator, contains('startOAuth('));
       expect(matrixCoordinator, contains('restoreOAuth('));
-      expect(matrixCoordinator, isNot(contains('authSession.accessToken')));
+      // The Weave bearer authorizes current member access through the User API
+      // only; the Rust boundary has no token-import argument for Matrix OAuth.
+      expect(
+        matrixCoordinator,
+        contains('weaveAccessToken: authSession.accessToken'),
+      );
+      expect(
+        'authSession.accessToken'.allMatches(matrixCoordinator),
+        hasLength(1),
+      );
+      expect(matrixBridge, isNot(contains('accessToken')));
       expect(
         matrixCoordinator,
         isNot(contains('/_matrix/client/v3/account/whoami')),
       );
       expect(matrixBridge, isNot(contains('initializeClient(')));
 
-      expect(filesRepository, contains('PROPFIND'));
-      expect(filesRepository, contains('/dav/files'));
-      expect(filesRepository, contains("http.StreamedRequest('PUT'"));
-      expect(filesRepository, contains("'PUT'"));
-      expect(filesRepository, contains("'MKCOL'"));
-      expect(filesRepository, contains("'DELETE'"));
-      expect(filesRepository, contains("'If-None-Match': '*'"));
-      expect(filesRepository, contains("'If-Match': '*'"));
+      expect(filesRepository, contains('generated/user_api/api.dart'));
+      expect(filesRepository, contains('user_api.FilesUserApi('));
+      expect(filesRepository, contains('api.listFilesItems('));
+      expect(filesRepository, contains('api.createFilesFolder('));
+      expect(filesRepository, contains('api.uploadFilesItemContent('));
+      expect(
+        filesRepository,
+        contains('api.downloadFilesItemContentWithHttpInfo('),
+      );
+      expect(filesRepository, isNot(contains('PROPFIND')));
+      expect(filesRepository, isNot(contains('/dav/files')));
+      expect(filesRepository, isNot(contains('http.StreamedRequest(')));
+      expect(filesRepository, isNot(contains('http.Request(')));
       expect(filesRepository, isNot(contains('generated/openapi_models.dart')));
       expect(filesRepository, isNot(contains('/api/files/upload')));
       expect(filesRepository, isNot(contains('/api/files/folders')));
@@ -112,6 +131,12 @@ void main() {
           isNot(contains('generated/openapi_models.dart')),
           reason:
               '$file must consume feature domain models, not raw OpenAPI DTOs.',
+        );
+        expect(
+          source,
+          isNot(contains('generated/user_api/')),
+          reason:
+              '$file must consume feature domain models, not generated transport types.',
         );
         expect(
           source,
@@ -242,12 +267,14 @@ void main() {
     expect(screen, isNot(contains('chat_security_banner.dart')));
 
     final memberChatCopy = <String>[
-      l10n['chatConnectingLabel'] as String,
-      l10n['chatConnectingHint'] as String,
-      l10n['chatConnectButton'] as String,
+      l10n['chatLoadingLabel'] as String,
+      l10n['chatErrorSessionRequiredGuidance'] as String,
       l10n['chatStaleRoomsGuidance'] as String,
       l10n['helpChatBody'] as String,
     ].join('\n');
+
+    expect(l10n, isNot(contains('chatConnectButton')));
+    expect(screen, isNot(contains('onConnect')));
 
     for (final forbidden in <String>[
       'Connect'

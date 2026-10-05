@@ -50,7 +50,7 @@ class NativeMatrixChatRepository implements ChatRepository {
     } on RustMatrixCoreBridgeException catch (error) {
       if (isMatrixSessionExpiredCode(error.code)) {
         throw ChatFailure.sessionRequired(
-          'Reconnect Matrix Chat to authorize this device.',
+          'Chat authorization expired. Retry with your Weave sign-in.',
           cause: error,
         );
       }
@@ -93,7 +93,7 @@ class NativeMatrixChatRepository implements ChatRepository {
     } on RustMatrixCoreBridgeException catch (error) {
       if (isMatrixSessionExpiredCode(error.code)) {
         throw ChatFailure.sessionRequired(
-          'Reconnect Matrix Chat to authorize this device.',
+          'Chat authorization expired. Retry with your Weave sign-in.',
           cause: error,
         );
       }
@@ -141,7 +141,7 @@ class NativeMatrixChatRepository implements ChatRepository {
     } on RustMatrixCoreBridgeException catch (error) {
       if (isMatrixSessionExpiredCode(error.code)) {
         throw ChatFailure.sessionRequired(
-          'Reconnect Matrix Chat to authorize this device.',
+          'Chat authorization expired. Retry with your Weave sign-in.',
           cause: error,
         );
       }
@@ -169,7 +169,7 @@ class NativeMatrixChatRepository implements ChatRepository {
     } on RustMatrixCoreBridgeException catch (error) {
       if (isMatrixSessionExpiredCode(error.code)) {
         throw ChatFailure.sessionRequired(
-          'Reconnect Matrix Chat to authorize this device.',
+          'Chat authorization expired. Retry with your Weave sign-in.',
           cause: error,
         );
       }
@@ -209,7 +209,7 @@ class NativeMatrixChatRepository implements ChatRepository {
     } on RustMatrixCoreBridgeException catch (error) {
       if (isMatrixSessionExpiredCode(error.code)) {
         throw ChatFailure.sessionRequired(
-          'Reconnect Matrix Chat to authorize this device.',
+          'Chat authorization expired. Retry with your Weave sign-in.',
           cause: error,
         );
       }
@@ -223,7 +223,7 @@ class NativeMatrixChatRepository implements ChatRepository {
       await _matrixCryptoSessionCoordinator.open(allowInteractiveSignIn: true);
     } on RustMatrixCoreBridgeException catch (error) {
       throw ChatFailure.configuration(
-        'The selected Matrix homeserver could not establish an encrypted client session.',
+        'The Weave Matrix endpoint could not establish an encrypted client session.',
         cause: error,
       );
     }

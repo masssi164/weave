@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "organizationOrigin": "https://weave.local",
+  "userApiBaseUrl": "https://api.weave.local/api",
+  "oidc": {
+    "issuer": "https://auth.weave.local/realms/weave",
+    "clientId": "weave-app"
+  },
+  "protocols": {
+    "matrixClientServerBaseUrl": "https://matrix.weave.local"
+  },
+  "releasePosture": "development",
+  "domains": [
+    { "domain": "identity", "state": "available", "capabilities": [] },
+    { "domain": "chat", "state": "available", "capabilities": [] },
+    { "domain": "files", "state": "available", "capabilities": ["read", "write"] },
+    { "domain": "calendar", "state": "available", "capabilities": ["read", "write"] }
+  ],
+  "recoveryActions": []
+}

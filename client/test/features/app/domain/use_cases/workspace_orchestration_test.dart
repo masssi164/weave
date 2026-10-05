@@ -48,6 +48,9 @@ class _FakeAppAuthPort implements AppAuthPort {
 }
 
 class _FakeChatSessionPort implements ChatSessionPort {
+  @override
+  Future<void> ensureSession() async {}
+
   int signOutCalls = 0;
   int clearSessionCalls = 0;
   bool failSignOut = false;
@@ -276,7 +279,6 @@ void main() {
           configuration: buildTestConfiguration(),
           authConfigurationChanged: false,
           matrixHomeserverChanged: true,
-          nextcloudBaseUrlChanged: false,
           backendApiBaseUrlChanged: false,
         ),
       );
@@ -290,7 +292,7 @@ void main() {
       );
     });
 
-    test('clears only Nextcloud when the base URL changes', () async {
+    test('clears Files when the User API base URL changes', () async {
       final authPort = _FakeAppAuthPort();
       final chatSessionPort = _FakeChatSessionPort();
       final filesSessionPort = _FakeFilesSessionPort();
@@ -307,8 +309,7 @@ void main() {
           configuration: buildTestConfiguration(),
           authConfigurationChanged: false,
           matrixHomeserverChanged: false,
-          nextcloudBaseUrlChanged: true,
-          backendApiBaseUrlChanged: false,
+          backendApiBaseUrlChanged: true,
         ),
       );
 
@@ -336,7 +337,6 @@ void main() {
           configuration: buildTestConfiguration(),
           authConfigurationChanged: true,
           matrixHomeserverChanged: false,
-          nextcloudBaseUrlChanged: false,
           backendApiBaseUrlChanged: false,
         ),
       );
@@ -370,7 +370,6 @@ void main() {
             configuration: buildTestConfiguration(),
             authConfigurationChanged: false,
             matrixHomeserverChanged: false,
-            nextcloudBaseUrlChanged: false,
             backendApiBaseUrlChanged: true,
           ),
         );

@@ -10,8 +10,7 @@ ServerConfiguration buildTestConfiguration({
   OidcProviderType providerType = OidcProviderType.oidc,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
-  String matrixHomeserverUrl = 'https://api.home.internal',
-  String nextcloudBaseUrl = 'https://api.home.internal/dav/files',
+  String matrixHomeserverUrl = 'https://matrix.home.internal',
   String backendApiBaseUrl = 'https://api.home.internal/api',
 }) {
   return ServerConfiguration(
@@ -20,27 +19,28 @@ ServerConfiguration buildTestConfiguration({
     oidcClientRegistration: OidcClientRegistration.manual(clientId: clientId),
     serviceEndpoints: ServiceEndpoints(
       matrixHomeserverUrl: Uri.parse(matrixHomeserverUrl),
-      nextcloudBaseUrl: Uri.parse(nextcloudBaseUrl),
       backendApiBaseUrl: Uri.parse(backendApiBaseUrl),
     ),
   );
 }
 
 String encodeTestConfiguration({
+  int schemaVersion = 2,
   OidcProviderType providerType = OidcProviderType.oidc,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
-  String matrixHomeserverUrl = 'https://api.home.internal',
-  String nextcloudBaseUrl = 'https://api.home.internal/dav/files',
+  String matrixHomeserverUrl = 'https://matrix.home.internal',
+  String? nextcloudBaseUrl,
   String? backendApiBaseUrl = 'https://api.home.internal/api',
 }) {
   final json = <String, Object?>{
+    'schemaVersion': schemaVersion,
     'providerType': providerType.name,
     'oidcIssuerUrl': issuerUrl,
     'oidcClientRegistrationMode': 'manual',
     'oidcClientId': clientId,
     'matrixHomeserverUrl': matrixHomeserverUrl,
-    'nextcloudBaseUrl': nextcloudBaseUrl,
+    if (nextcloudBaseUrl != null) 'nextcloudBaseUrl': nextcloudBaseUrl,
   };
   if (backendApiBaseUrl != null) {
     json['backendApiBaseUrl'] = backendApiBaseUrl;
@@ -49,16 +49,18 @@ String encodeTestConfiguration({
 }
 
 Map<String, Object> buildStoredConfiguration({
+  int schemaVersion = 2,
   OidcProviderType providerType = OidcProviderType.oidc,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
-  String matrixHomeserverUrl = 'https://api.home.internal',
-  String nextcloudBaseUrl = 'https://api.home.internal/dav/files',
+  String matrixHomeserverUrl = 'https://matrix.home.internal',
+  String? nextcloudBaseUrl,
   String? backendApiBaseUrl = 'https://api.home.internal/api',
 }) {
   return {
     serverConfigurationStorageKey: encodeTestConfiguration(
       providerType: providerType,
+      schemaVersion: schemaVersion,
       issuerUrl: issuerUrl,
       clientId: clientId,
       matrixHomeserverUrl: matrixHomeserverUrl,

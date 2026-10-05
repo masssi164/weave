@@ -301,7 +301,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatErrorCancelledGuidance =>
-      'Die Chat-Anmeldung wurde abgebrochen. Verbinde Chat, um es erneut zu versuchen.';
+      'Die Chat-Anmeldung wurde nicht abgeschlossen. Versuche es mit deiner aktuellen Weave-Anmeldung erneut.';
 
   @override
   String get chatErrorAdminGuidance =>
@@ -309,7 +309,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatErrorSessionRequiredGuidance =>
-      'Verbinde Chat, um dich im Systembrowser bei Matrix anzumelden. Deine Matrix-Sitzung ist von der Weave-Anmeldung getrennt.';
+      'Der Chat-Zugriff konnte mit deiner aktuellen Weave-Anmeldung nicht eingerichtet werden. Versuche es erneut oder bitte einen Admin, deinen Zugriff zu prüfen.';
 
   @override
   String get chatErrorUnsupportedPlatformGuidance =>
@@ -459,16 +459,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get chatLoadingHint =>
       'Deine aktuellen Räume und der letzte Gesprächsstand werden geladen.';
-
-  @override
-  String get chatConnectingLabel => 'Verbinde mit Chat…';
-
-  @override
-  String get chatConnectingHint =>
-      'Die sichere Weave-Chat-Sitzung wird geöffnet und die erste Unterhaltungsliste synchronisiert.';
-
-  @override
-  String get chatConnectButton => 'Chat verbinden';
 
   @override
   String get chatRefreshingRoomsLabel => 'Chaträume werden aktualisiert';
@@ -673,16 +663,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesProductBoundaryBody =>
-      'Dateiaktionen laufen über die Weave-Workspace-Dienst-Fassade. Dateispeicher bleibt Teil der Admin- und Fallback-Ebene; rohe Dienstpfade und Zugangsdaten gehören nicht zur normalen Dateien-Oberfläche.';
-
-  @override
-  String get filesConnectButton => 'Dateien verbinden';
-
-  @override
-  String get filesReconnectButton => 'Dateien neu verbinden';
-
-  @override
-  String get filesDisconnectButton => 'Trennen';
+      'Dateiaktionen laufen über die Weave-User-API. Der Dateispeicher bleibt hinter der Provider-Grenze des Servers; rohe Provider-Pfade und Zugangsdaten gehören nicht zur normalen Dateien-Oberfläche.';
 
   @override
   String get filesRefreshButton => 'Aktualisieren';
@@ -724,15 +705,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesDisconnectedMessage =>
-      'Verbinde Weave-Dateien, um Arbeitsbereichsdateien zu durchsuchen.';
+      'Melde dich bei Weave an, um Arbeitsbereichsdateien zu durchsuchen.';
 
   @override
   String get filesInvalidSessionMessage =>
-      'Verbinde Dateien neu, weil die Weave-Sitzung nicht mehr gültig ist.';
+      'Deine Weave-Sitzung ist abgelaufen. Melde dich erneut bei Weave an, um Dateien wieder zu nutzen.';
 
   @override
   String get filesMisconfiguredMessage =>
-      'Schließe zuerst die Weave-Servereinrichtung ab, bevor du Dateien verbindest.';
+      'Schließe zuerst die Weave-Servereinrichtung ab, bevor du Dateien nutzt.';
 
   @override
   String filesConnectionConnected(String accountLabel) {
@@ -741,11 +722,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesConnectionDisconnected =>
-      'Dateien sind für diese Weave-Sitzung nicht verbunden.';
+      'Melde dich bei Weave an, um Dateien zu nutzen.';
 
   @override
   String get filesConnectionInvalid =>
-      'Die Weave-Dateisitzung braucht Aufmerksamkeit.';
+      'Deine Weave-Sitzung muss erneuert werden.';
+
+  @override
+  String get filesConnectionUnavailable =>
+      'Der Zugriff auf Dateien ist für diese Weave-Sitzung nicht verfügbar.';
 
   @override
   String get filesConnectionMisconfigured =>
@@ -2422,13 +2407,20 @@ class AppLocalizationsDe extends AppLocalizations {
       'Lade eine Datei hoch oder erstelle einen Ordner, wenn du Arbeitsbereichsdateien hinzufügen möchtest.';
 
   @override
-  String get filesDisconnectedTitle => 'Dateien sind nicht verbunden';
+  String get filesDisconnectedTitle => 'Für Dateien bei Weave anmelden';
 
   @override
   String get filesSetupNeededTitle => 'Dateien müssen eingerichtet werden';
 
   @override
-  String get filesSessionExpiredTitle => 'Dateien müssen neu verbunden werden';
+  String get filesSessionExpiredTitle => 'Weave-Sitzung abgelaufen';
+
+  @override
+  String get filesUnavailableTitle => 'Dateien sind nicht verfügbar';
+
+  @override
+  String get filesUnavailableGuidance =>
+      'Versuche es erneut, sobald der Zugriff verfügbar ist, oder bitte die Arbeitsbereichsadministration, deine Berechtigung zu prüfen.';
 
   @override
   String get filesLoadErrorTitle => 'Dateien konnten nicht geladen werden';
@@ -2477,7 +2469,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get serverConfigurationServicesHelper =>
-      'Standardwerte für Matrix, Dateien und die Backend-API werden aus dem Issuer-Host abgeleitet. Trage die echte Matrix-Homeserver-Adresse ein, falls sie abweicht; Matrix verwendet eine eigene Browser-Anmeldung.';
+      'Standardwerte für Weave Matrix und die Backend-API werden aus dem Issuer-Host abgeleitet. Falls sie abweicht, verwende die Weave Matrix Client-Server-Adresse aus dem Organisationsprofil. Der Chat wird nach der Weave-Anmeldung automatisch autorisiert.';
 
   @override
   String get serverConfigurationBackendApiHelper =>
@@ -2491,7 +2483,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Provider-Auswahl gehört in die Weave Admin Console und Backend-Control-Plane. Dieser Mitglieder-Client speichert nur kanonische Weave-Endpunkte für die Anmeldung.';
 
   @override
-  String get serverConfigurationMatrixLabel => 'Matrix-Homeserver-URL';
+  String get serverConfigurationMatrixLabel => 'Weave Matrix Client-Server-URL';
 
   @override
   String get serverConfigurationNextcloudLabel => 'Nextcloud-Basis-URL';

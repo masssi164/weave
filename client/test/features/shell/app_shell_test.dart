@@ -520,7 +520,11 @@ void main() {
         expect(find.textContaining('sha256:'), findsNothing);
         expect(find.textContaining('Roadmap.md'), findsNothing);
         expect(find.textContaining('Standup notes'), findsNothing);
-        expect(chatRepository.connectCalls, 0);
+        // Shared sign-in prepares Chat once. Rendering the support-safe
+        // activity projection must not fetch any conversation content.
+        expect(chatRepository.connectCalls, 1);
+        expect(chatRepository.loadConversationsCalls, 0);
+        expect(chatRepository.loadRoomTimelineCalls, 0);
         expect(filesRepository.requestedPaths, isEmpty);
       },
     );

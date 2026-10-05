@@ -3,6 +3,7 @@ enum FilesFailureType {
   configuration,
   sessionRequired,
   invalidCredentials,
+  permissionDenied,
   protocol,
   storage,
   unsupportedPlatform,
@@ -32,6 +33,13 @@ class FilesFailure implements Exception {
   const FilesFailure.invalidCredentials(String message, {Object? cause})
     : this(
         type: FilesFailureType.invalidCredentials,
+        message: message,
+        cause: cause,
+      );
+
+  const FilesFailure.permissionDenied(String message, {Object? cause})
+    : this(
+        type: FilesFailureType.permissionDenied,
         message: message,
         cause: cause,
       );

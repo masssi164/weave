@@ -68,6 +68,7 @@ final reconcileIdentitySessionProvider = Provider<ReconcileIdentitySession>((
 final resolveAppBootstrapProvider = Provider<ResolveAppBootstrap>((ref) {
   return ResolveAppBootstrap(
     authPort: ref.watch(appAuthPortProvider),
+    chatSessionPort: ref.watch(chatSessionPortProvider),
     reconcileIdentitySession: ref.watch(reconcileIdentitySessionProvider),
     serverConfigurationPort: ref.watch(serverConfigurationPortProvider),
   );
@@ -169,6 +170,9 @@ class _RiverpodChatSessionPort implements ChatSessionPort {
   final Ref _ref;
 
   ChatRepository get _repository => _ref.read(chatRepositoryProvider);
+
+  @override
+  Future<void> ensureSession() => _repository.connect();
 
   @override
   Future<void> clearSession() => _repository.clearSession();

@@ -5,7 +5,7 @@ import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 
-enum ChatViewPhase { loading, connecting, content, empty, error, unsupported }
+enum ChatViewPhase { loading, content, empty, error, unsupported }
 
 class ChatUiState {
   const ChatUiState._({
@@ -17,8 +17,6 @@ class ChatUiState {
   });
 
   const ChatUiState.loading() : this._(phase: ChatViewPhase.loading);
-
-  const ChatUiState.connecting() : this._(phase: ChatViewPhase.connecting);
 
   const ChatUiState.content(
     List<ChatConversation> conversations, {
@@ -73,28 +71,6 @@ class ChatController extends Notifier<ChatUiState> {
 
     state = ChatUiState.content(cachedConversations, isRefreshing: true);
     await _loadConversations(staleConversations: cachedConversations);
-  }
-
-  Future<void> connect() async {
-    if (state.phase == ChatViewPhase.connecting) {
-      return;
-    }
-
-    state = const ChatUiState.connecting();
-
-    try {
-      await ref.read(chatRepositoryProvider).connect();
-      await _loadConversations();
-    } on ChatFailure catch (failure) {
-      state = _stateForFailure(failure);
-    } catch (error) {
-      state = ChatUiState.error(
-        ChatFailure.unknown(
-          'Unable to connect to chat right now.',
-          cause: error,
-        ),
-      );
-    }
   }
 
   Future<ChatConversation> createConversation({required String title}) async {

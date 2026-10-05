@@ -76,8 +76,8 @@ void main() {
         isEmpty,
         reason:
             'Normal member providers/screens must depend on Weave facades, not '
-            'Nextcloud, provider status, or platform diagnostic seams. Matrix '
-            'Client-Server projection wiring is allowed for the Chat data plane. '
+            'Nextcloud, provider status, or platform diagnostic seams. Native '
+            'Rust Matrix SDK wiring is allowed for the Chat data plane. '
             'Diagnostic/admin exceptions require an allowlist expiry issue.',
       );
     });
