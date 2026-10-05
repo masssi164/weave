@@ -76,8 +76,8 @@ void main() {
         isEmpty,
         reason:
             'Normal member providers/screens must depend on Weave facades, not '
-            'Nextcloud, provider status, or platform diagnostic seams. Matrix '
-            'Client-Server projection wiring is allowed for the Chat data plane. '
+            'Nextcloud, provider status, or platform diagnostic seams. Native '
+            'Rust Matrix SDK wiring is allowed for the Chat data plane. '
             'Diagnostic/admin exceptions require an allowlist expiry issue.',
       );
     });
@@ -216,13 +216,6 @@ const _memberProviderGraphAllowlist = <LegacyFence>[
     reason:
         'Member setup UI still carries Matrix/Nextcloud legacy fields until the '
         'handoff and setup copy are provider-neutralized.',
-  ),
-  LegacyFence(
-    path: 'lib/features/settings/presentation/settings_screen.dart',
-    issue: '#906',
-    reason:
-        'Settings still renders provider-stack status while diagnostic/admin '
-        'reachability is being split from normal member paths.',
   ),
   LegacyFence(
     path: 'lib/features/shell/presentation/shell_workspace_status.dart',

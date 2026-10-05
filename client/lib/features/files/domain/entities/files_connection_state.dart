@@ -1,4 +1,10 @@
-enum FilesConnectionStatus { misconfigured, disconnected, connected, invalid }
+enum FilesConnectionStatus {
+  misconfigured,
+  disconnected,
+  connected,
+  invalid,
+  unavailable,
+}
 
 class FilesConnectionState {
   const FilesConnectionState({
@@ -37,6 +43,13 @@ class FilesConnectionState {
          accountLabel: accountLabel,
          message: message,
        );
+
+  const FilesConnectionState.unavailable({Uri? baseUrl, String? message})
+    : this(
+        status: FilesConnectionStatus.unavailable,
+        baseUrl: baseUrl,
+        message: message,
+      );
 
   final FilesConnectionStatus status;
   final Uri? baseUrl;

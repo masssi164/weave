@@ -170,6 +170,55 @@ class FirstPartyIdentityContractTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"admin-console-admin-role", "admin-console-owner-role"})
+    void providerRegistryUsesTheDedicatedAdminSessionForTheConfiguredOrganization(String token) throws Exception {
+        mockMvc.perform(get("/api/admin/providers/status")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.organizationId").value("tenant-default"))
+                .andExpect(jsonPath("$.filesBinding.bindingState").value("NO_ACTIVE_BINDING"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"client-admin-role", "valid-contract", "mcp-workload"})
+    void providerRegistryRejectsUserAndWorkloadBearers(String token) throws Exception {
+        mockMvc.perform(get("/api/admin/providers/status")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"admin-wrong-org-id", "admin-wrong-org-alias", "admin-multiple-orgs",
+            "admin-missing-org", "admin-conflicting-tenant", "admin-conflicting-fallback", "admin-console-member-role"})
+    void legacyAdminRegistryOverviewSelectionAndReadinessCannotCrossOrganizations(String token) throws Exception {
+        for (String path : List.of("/api/admin/providers/status", "/api/admin/control-plane")) {
+            mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                    .andExpect(status().isForbidden());
+        }
+        for (String path : List.of("/api/admin/providers/selections", "/api/admin/providers/readiness-tests")) {
+            mockMvc.perform(post(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"user-wrong-org-id", "user-wrong-org-alias", "user-conflicting-tenant"})
+    void humanUserAndReconciliationRoutesRejectConflictingOrganizationClaims(String token) throws Exception {
+        mockMvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post(IdentitySessionController.PATH).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void formerUserProviderRegistryRouteHasNoCompatibilityAlias() throws Exception {
+        mockMvc.perform(get("/api/providers/status")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer client-admin-role"))
+                .andExpect(status().isNotFound());
+    }
+
     @Test
     void normalizesIssuedForFromClientIdWhenAzpIsAbsent() throws Exception {
         mockMvc.perform(get("/api/me")
@@ -199,6 +248,9 @@ class FirstPartyIdentityContractTest {
 
     private Jwt decode(String tokenValue) {
         Jwt jwt = switch (tokenValue) {
+            case "user-wrong-org-id", "user-wrong-org-alias", "user-conflicting-tenant" ->
+                    jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                            mismatchedOrganizationClaims(tokenValue, FIRST_PARTY_CLIENT_ID));
             case "valid-contract" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
                     Map.of(
                             "azp", FIRST_PARTY_CLIENT_ID,
@@ -273,6 +325,17 @@ class FirstPartyIdentityContractTest {
 
     private Jwt decodeAdmin(String tokenValue) {
         Jwt jwt = switch (tokenValue) {
+            case "admin-wrong-org-id", "admin-wrong-org-alias", "admin-multiple-orgs",
+                    "admin-missing-org", "admin-conflicting-tenant", "admin-conflicting-fallback" ->
+                    jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                            mismatchedOrganizationClaims(tokenValue, "weave-admin-console"));
+            case "admin-console-owner-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                    Map.of("azp", "weave-admin-console", "organization", organizationWithRole("owner")));
+            case "admin-console-member-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                    Map.of("azp", "weave-admin-console", "organization", organizationWithRole("member")));
+            case "client-admin-role" -> decode(tokenValue);
+            case "mcp-workload" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                    Map.of("azp", "weave-mcp-server", "organization", organizationWithRole("admin")));
             case "admin-console-admin-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
                     Map.of("azp", "weave-admin-console", "organization", organizationWithRole("admin")));
             case "admin-console-top-level-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
@@ -292,12 +355,28 @@ class FirstPartyIdentityContractTest {
     }
 
     private Map<String, Object> organizationWithRole(String role) {
-        return Map.of(
-                "weave-dogfood",
-                Map.of(
-                        "groups", List.of("/" + role + "s"),
-                        "resource_access",
-                        Map.of(FIRST_PARTY_CLIENT_ID, Map.of("roles", List.of(role)))));
+        return com.massimotter.weave.backend.support.HumanJwtTestSupport.organizationWithRole(role);
+    }
+
+    private Map<String, Object> mismatchedOrganizationClaims(String token, String client) {
+        var claims = new java.util.HashMap<String, Object>();
+        claims.put("azp", client);
+        var organizations = new java.util.HashMap<>(organizationWithRole("admin"));
+        String alias = com.massimotter.weave.backend.support.HumanJwtTestSupport.ORGANIZATION_ALIAS;
+        if (token.endsWith("wrong-org-id")) {
+            @SuppressWarnings("unchecked")
+            var selected = new java.util.HashMap<>((Map<String, Object>) organizations.get(alias));
+            selected.put("id", "another-native-organization");
+            organizations.put(alias, selected);
+        } else if (token.endsWith("wrong-org-alias")) {
+            organizations.put("another-alias", organizations.remove(alias));
+        } else if (token.endsWith("multiple-orgs")) {
+            organizations.put("another-alias", organizations.get(alias));
+        }
+        if (!token.endsWith("missing-org")) claims.put("organization", organizations);
+        if (token.endsWith("conflicting-tenant")) claims.put("weave_tenant_id", "other-tenant");
+        if (token.endsWith("conflicting-fallback")) claims.put("tenant_id", "other-tenant");
+        return claims;
     }
 
     private Jwt jwt(String tokenValue, List<String> audience, String scope, Map<String, Object> claims) {

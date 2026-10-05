@@ -1,5 +1,11 @@
 # Unreleased
 
+Historical accumulated change draft; not a current #1470 acceptance report. Entries below
+retain the boundaries and evidence of their original changes, including superseded public
+DAV, ARC and earlier release claims. Apply [the current release profile](../specification-source-of-truth.md)
+and [delivery story #1481](https://github.com/masssi164/weave/issues/1481) before treating any
+entry as a current capability. Provider adoption/migration is tracked separately in #1498.
+
 Use this page for release-affecting changes that have merged but are not included in a tagged release yet. `v0.1.0-rc.3` is the latest published prerelease; older post-RC2 entries moved into the versioned v0.1 release notes and RC3 evidence audit.
 
 ## Added

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
@@ -95,6 +97,84 @@ void main() {
       expect(state.status, AuthStatus.authenticated);
       expect(secureStore.rawValue(authSessionStorageKey), isNotNull);
       expect(secureStore.rawValue(authSessionStorageKey), contains('access-1'));
+    });
+
+    for (final rejected in [false, true]) {
+      test(
+        'late ${rejected ? 'rejected' : 'successful'} refresh preserves a newer login',
+        () async {
+          await secureStore.write(
+            authSessionStorageKey,
+            AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+          );
+          final started = Completer<void>();
+          final refresh = Completer<OidcTokenBundle>();
+          oidcClient.refreshHandler = (_, _) {
+            started.complete();
+            return refresh.future;
+          };
+          oidcClient.authorizeHandler = (_) async => const OidcTokenBundle(
+            accessToken: 'new-login-access',
+            refreshToken: 'new-login-refresh',
+            idToken: 'new-login-id',
+            expiresAt: null,
+            tokenType: 'Bearer',
+            scopes: [],
+          );
+          final pending = repository.refreshSession(configuration);
+          await started.future;
+          await repository.signIn(configuration);
+          final current = await secureStore.read(authSessionStorageKey);
+          if (rejected) {
+            refresh.completeError(
+              const AuthFailure.sessionRejected('Refresh rejected'),
+            );
+            expect((await pending).status, AuthStatus.signedOut);
+          } else {
+            refresh.complete(
+              const OidcTokenBundle(
+                accessToken: 'old-account-refreshed',
+                refreshToken: 'old-refresh',
+                idToken: 'old-id',
+                expiresAt: null,
+                tokenType: 'Bearer',
+                scopes: [],
+              ),
+            );
+            await expectLater(pending, throwsA(isA<AuthFailure>()));
+          }
+          expect(await secureStore.read(authSessionStorageKey), current);
+          expect(current, contains('new-login-access'));
+        },
+      );
+    }
+
+    test('late refresh cannot restore a signed-out session', () async {
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+      );
+      final started = Completer<void>();
+      final refresh = Completer<OidcTokenBundle>();
+      oidcClient.refreshHandler = (_, _) {
+        started.complete();
+        return refresh.future;
+      };
+      final pending = repository.refreshSession(configuration);
+      await started.future;
+      await repository.clearLocalSession();
+      refresh.complete(
+        const OidcTokenBundle(
+          accessToken: 'old-account-refreshed',
+          refreshToken: 'old-refresh',
+          idToken: 'old-id',
+          expiresAt: null,
+          tokenType: 'Bearer',
+          scopes: [],
+        ),
+      );
+      await expectLater(pending, throwsA(isA<AuthFailure>()));
+      expect(await secureStore.read(authSessionStorageKey), isNull);
     });
 
     test('a new repository instance restores the persisted session', () async {

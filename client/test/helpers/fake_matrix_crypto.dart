@@ -20,7 +20,7 @@ class FakeMatrixCryptoSessionPort implements MatrixCryptoSessionPort {
   @override
   Future<MatrixCryptoSession> open({
     bool synchronize = true,
-    bool allowInteractiveSignIn = false,
+    bool allowInteractiveSignIn = true,
   }) async {
     synchronizeValues.add(synchronize);
     interactiveValues.add(allowInteractiveSignIn);

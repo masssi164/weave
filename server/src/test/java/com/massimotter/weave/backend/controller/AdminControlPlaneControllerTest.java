@@ -89,6 +89,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         AdminControlPlaneControllerTest.AuditTestConfig.class
 })
 @TestPropertySource(properties = {
+        "weave.context.authorization.default-tenant-id=weave-dogfood",
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
         "weave.calls.sfu.livekit.enabled=true",
         "weave.calls.sfu.livekit.api-key=server-test-key-that-must-never-appear",

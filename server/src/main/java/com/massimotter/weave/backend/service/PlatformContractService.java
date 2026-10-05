@@ -4,13 +4,18 @@ import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.PlatformConfigResponse;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -21,6 +26,8 @@ public class PlatformContractService {
     private final MatrixChatProperties matrixProperties;
     private final WeaveSecurityProperties securityProperties;
     private final WorkspaceCapabilityProperties workspaceProperties;
+    private final String matrixFacadeBaseUrl;
+    private final String matrixFacadeServerName;
 
     @Value("${weave.platform.release-posture:dogfood}")
     private String releasePosture = "dogfood";
@@ -30,12 +37,16 @@ public class PlatformContractService {
             PlatformContractProperties platformProperties,
             MatrixChatProperties matrixProperties,
             WeaveSecurityProperties securityProperties,
-            WorkspaceCapabilityProperties workspaceProperties) {
+            WorkspaceCapabilityProperties workspaceProperties,
+            @Value("${weave.matrix.facade.base-url:https://api.weave.test}") String matrixFacadeBaseUrl,
+            @Value("${weave.matrix.facade.server-name:api.weave.test}") String matrixFacadeServerName) {
         this.resourceServerProperties = resourceServerProperties;
         this.platformProperties = platformProperties;
         this.matrixProperties = matrixProperties;
         this.securityProperties = securityProperties;
         this.workspaceProperties = workspaceProperties;
+        this.matrixFacadeBaseUrl = matrixFacadeBaseUrl;
+        this.matrixFacadeServerName = matrixFacadeServerName;
     }
 
     public PlatformConfigResponse config() {
@@ -44,7 +55,7 @@ public class PlatformContractService {
                 platformProperties.publicBaseUrl(),
                 platformProperties.apiBaseUrl(),
                 new PlatformConfigResponse.Oidc(oidcIssuerUrl(), securityProperties.clientId()),
-                new PlatformConfigResponse.Protocols(platformProperties.matrixHomeserverUrl()),
+                new PlatformConfigResponse.Protocols(advertisedMatrixFacadeUrl()),
                 releasePosture(),
                 List.of(
                         domain("identity", true, List.of(
@@ -91,6 +102,18 @@ public class PlatformContractService {
             return configuredIssuer;
         }
         return joinUrlPath(platformProperties.authBaseUrl(), "/realms/weave");
+    }
+
+    private String advertisedMatrixFacadeUrl() {
+        try {
+            return PlatformContractProperties.matrixFacadeOrigin(matrixFacadeBaseUrl);
+        } catch (IllegalArgumentException invalidRoute) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "matrix-facade-origin-unavailable",
+                    "The Weave Matrix Client-Server origin is not configured safely.",
+                    Map.of("module", "chat", "diagnosticsRedacted", true));
+        }
     }
 
     private String joinUrlPath(String baseUrl, String path) {
@@ -187,15 +210,51 @@ public class PlatformContractService {
                 auth,
                 "Set WEAVE_MATRIX_BASE_URL to the southbound Matrix provider URL; clients receive the Weave facade from the API origin.",
                 "Enable WEAVE_WORKSPACE_CHAT_ENABLED when chat should be available.");
+        if (workspaceProperties.chat().enabled() && !matrixFacadeAuthorityMatches()) {
+            status = new PlatformStatusResponse.DiagnosticStatus(
+                    "blocked",
+                    "blocked",
+                    "The advertised Weave Matrix URL, routed facade URL, and Matrix server name disagree.",
+                    "Configure the public Weave Matrix facade origin and server name consistently; do not advertise a southbound provider URL.");
+        }
         return new PlatformStatusResponse.MatrixStatus(
                 status.status(),
                 status.readiness(),
                 status.message(),
                 status.action(),
                 matrixProperties.federationEnabled(),
-                workspaceProperties.chat().enabled() && matrixProperties.e2ee().fullyValidated(),
+                "ready".equals(status.readiness()) && matrixProperties.e2ee().fullyValidated(),
                 e2eeStatus(),
                 backendBoundary());
+    }
+
+    private boolean matrixFacadeAuthorityMatches() {
+        try {
+            URI advertised = URI.create(platformProperties.matrixHomeserverUrl());
+            URI routed = URI.create(matrixFacadeBaseUrl);
+            if (!isHttpsOrigin(advertised) || !isHttpsOrigin(routed)) {
+                return false;
+            }
+            String advertisedOrigin = advertised.getScheme().toLowerCase(Locale.ROOT)
+                    + "://" + advertised.getRawAuthority().toLowerCase(Locale.ROOT);
+            String routedOrigin = routed.getScheme().toLowerCase(Locale.ROOT)
+                    + "://" + routed.getRawAuthority().toLowerCase(Locale.ROOT);
+            String serverName = matrixFacadeServerName.toLowerCase(Locale.ROOT);
+            return advertisedOrigin.equals(routedOrigin)
+                    && (serverName.equals(advertised.getHost().toLowerCase(Locale.ROOT))
+                    || serverName.equals(advertised.getRawAuthority().toLowerCase(Locale.ROOT)));
+        } catch (IllegalArgumentException | NullPointerException ignored) {
+            return false;
+        }
+    }
+
+    private boolean isHttpsOrigin(URI url) {
+        return "https".equalsIgnoreCase(url.getScheme())
+                && url.getHost() != null
+                && url.getRawUserInfo() == null
+                && (url.getRawPath() == null || url.getRawPath().isEmpty() || "/".equals(url.getRawPath()))
+                && url.getRawQuery() == null
+                && url.getRawFragment() == null;
     }
 
     private PlatformStatusResponse.E2eeStatus e2eeStatus() {

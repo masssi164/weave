@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Validate the full open-standards gateway archive is tracked honestly.
+"""Validate that historical open-standards gateway evidence remains tracked.
 
-The July 2026 archive describes the final northbound target. This gate is
-deliberately stricter than the current MVP hard gate: it proves the required
-feature inventory is checked in and records which target slices are still not
-complete so PRs cannot close the umbrella by relying on partial WebDAV,
-CalDAV, Matrix, or Calls evidence.
+The July 2026 public DAV and Calls target was superseded for #1470. This
+archive check preserves its feature inventory and surviving server integrity
+tests. It does not qualify those routes, Flutter DAV consumption, or Calls as
+current product acceptance. Current Files and Calendar use generated User APIs.
 """
 
 from __future__ import annotations

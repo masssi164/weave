@@ -11,6 +11,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.security.access.AccessDeniedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,6 +102,20 @@ public class ApiExceptionHandler {
                 HttpStatus.BAD_REQUEST,
                 "invalid-request-body",
                 "Request body could not be parsed.");
+    }
+
+    @ExceptionHandler(ServletRequestBindingException.class)
+    public void handleRequestParameters(ServletRequestBindingException exception,
+            HttpServletRequest request, HttpServletResponse response) throws IOException {
+        errorResponseWriter.write(request, response, HttpStatus.BAD_REQUEST,
+                "invalid-request-parameters", "Required request parameters are missing or invalid.");
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public void handleUnsupportedMediaType(HttpMediaTypeNotSupportedException exception,
+            HttpServletRequest request, HttpServletResponse response) throws IOException {
+        errorResponseWriter.write(request, response, HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "unsupported-media-type", "The request media type is not supported by this operation.");
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

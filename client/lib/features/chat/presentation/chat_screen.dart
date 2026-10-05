@@ -99,14 +99,6 @@ class ChatScreen extends ConsumerWidget {
               icon: Icons.chat_bubble_outline,
             ),
           ),
-          ChatViewPhase.connecting => SliverFillRemaining(
-            hasScrollBody: true,
-            child: LoadingState(
-              message: l10n.chatConnectingLabel,
-              hint: l10n.chatConnectingHint,
-              icon: Icons.sync_outlined,
-            ),
-          ),
           ChatViewPhase.empty => SliverFillRemaining(
             hasScrollBody: true,
             child: EmptyState(
@@ -123,7 +115,6 @@ class ChatScreen extends ConsumerWidget {
             child: _ChatErrorState(
               failure: state.failure!,
               onRetry: () => ref.read(chatProvider.notifier).retry(),
-              onConnect: () => ref.read(chatProvider.notifier).connect(),
             ),
           ),
           ChatViewPhase.content => _ChatOverviewSliver(
@@ -332,32 +323,21 @@ class _ChatStaleNotice extends StatelessWidget {
 }
 
 class _ChatErrorState extends StatelessWidget {
-  const _ChatErrorState({
-    required this.failure,
-    required this.onRetry,
-    required this.onConnect,
-  });
+  const _ChatErrorState({required this.failure, required this.onRetry});
 
   final ChatFailure failure;
   final VoidCallback onRetry;
-  final VoidCallback onConnect;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final usesConnectAction =
-        failure.type == ChatFailureType.cancelled ||
-        failure.type == ChatFailureType.sessionRequired ||
-        failure.type == ChatFailureType.unsupportedConfiguration;
     final hasAction = failure.type != ChatFailureType.unsupportedPlatform;
 
     return ErrorState(
       message: l10n.chatErrorTitle,
       guidance: _guidanceForFailure(l10n, failure.type),
-      retryLabel: hasAction
-          ? (usesConnectAction ? l10n.chatConnectButton : l10n.retryButton)
-          : null,
-      onRetry: hasAction ? (usesConnectAction ? onConnect : onRetry) : null,
+      retryLabel: hasAction ? l10n.retryButton : null,
+      onRetry: hasAction ? onRetry : null,
     );
   }
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/profile/data/services/backend_profile_client.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 
@@ -67,6 +68,10 @@ void main() {
             jsonDecode((request as http.Request).body),
             containsPair('displayName', 'Alice Updated'),
           );
+          expect(
+            (jsonDecode(request.body) as Map<String, dynamic>),
+            isNot(contains('accessibilityPreferences')),
+          );
           return _jsonResponse({
             'userId': 'user-123',
             'username': 'alice',
@@ -100,5 +105,35 @@ void main() {
       expect(profile.displayName, 'Alice Updated');
       expect(profile.locale, 'de');
     });
+
+    test(
+      'rejects an expired session without exposing the response body',
+      () async {
+        final client = BackendProfileClient(
+          httpClient: _RecordingHttpClient((request) async {
+            return http.StreamedResponse(
+              Stream.value(utf8.encode('{"error":"secret diagnostic"}')),
+              401,
+            );
+          }),
+        );
+
+        expect(
+          client.fetchProfile(
+            baseUrl: Uri.parse('https://api.weave.test/api'),
+            accessToken: 'expired-token',
+          ),
+          throwsA(
+            isA<AppFailure>()
+                .having((failure) => failure.cause, 'status', 401)
+                .having(
+                  (failure) => failure.message,
+                  'message',
+                  isNot(contains('secret diagnostic')),
+                ),
+          ),
+        );
+      },
+    );
   });
 }

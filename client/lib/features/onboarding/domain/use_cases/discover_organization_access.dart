@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/generated/user_api/api.dart' as user_api;
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
@@ -51,8 +52,7 @@ class DiscoverOrganizationAccess {
           ),
           serviceEndpoints: ServiceEndpoints(
             matrixHomeserverUrl: appStart.matrixClientServerBaseUrl,
-            nextcloudBaseUrl: appStart.filesWebDavBaseUrl,
-            backendApiBaseUrl: appStart.controlPlaneBaseUrl,
+            backendApiBaseUrl: appStart.userApiBaseUrl,
           ),
         ),
       );
@@ -178,18 +178,14 @@ class AppStartConfiguration {
   const AppStartConfiguration({
     required this.oidcIssuerUrl,
     required this.oidcClientId,
-    required this.controlPlaneBaseUrl,
+    required this.userApiBaseUrl,
     required this.matrixClientServerBaseUrl,
-    required this.filesWebDavBaseUrl,
-    required this.calendarCalDavBaseUrl,
   });
 
   final Uri oidcIssuerUrl;
   final String oidcClientId;
-  final Uri controlPlaneBaseUrl;
+  final Uri userApiBaseUrl;
   final Uri matrixClientServerBaseUrl;
-  final Uri filesWebDavBaseUrl;
-  final Uri calendarCalDavBaseUrl;
 }
 
 class AppStartDiscoveryClient {
@@ -217,7 +213,11 @@ class AppStartDiscoveryClient {
   ) async {
     final http.Response response;
     try {
-      response = await _httpClient.get(uri, headers: _headers(access));
+      final client = user_api.ApiClient(
+        basePath: uri.replace(path: '', query: null, fragment: null).toString(),
+      )..client = _httpClient;
+      _headers(access).forEach(client.addDefaultHeader);
+      response = await user_api.PlatformApi(client).configWithHttpInfo();
     } catch (error) {
       throw AppFailure.bootstrap(
         '${_transportErrorCode(error)}: The workspace start configuration could not be reached.',
@@ -280,10 +280,13 @@ class AppStartDiscoveryClient {
   String _transportErrorCode(Object error) {
     final type = error.runtimeType.toString();
     final message = error.toString().toLowerCase();
-    if (type.contains('TimeoutException')) {
+    if (type.contains('TimeoutException') ||
+        message.contains('timeoutexception') ||
+        message.contains('timed out')) {
       return 'WEAVE-APP-START-TIMEOUT';
     }
     if (type.contains('HandshakeException') ||
+        message.contains('handshake') ||
         message.contains('certificate') ||
         message.contains('cert_verify') ||
         message.contains('trust')) {
@@ -322,16 +325,16 @@ class AppStartDiscoveryClient {
     _requireExactKeys(json, const {
       'schemaVersion',
       'organizationOrigin',
-      'controlPlaneBaseUrl',
+      'userApiBaseUrl',
       'oidc',
       'protocols',
       'releasePosture',
       'domains',
       'recoveryActions',
     });
-    if (json['schemaVersion'] != 1) {
+    if (json['schemaVersion'] != 2) {
       throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: schemaVersion must be 1.',
+        'WEAVE-APP-START-DISCOVERY-INVALID: schemaVersion must be 2.',
       );
     }
     const releasePostures = {
@@ -345,11 +348,8 @@ class AppStartDiscoveryClient {
         'WEAVE-APP-START-DISCOVERY-INVALID: releasePosture is not supported.',
       );
     }
-    if (json.containsKey('recoveryActions') &&
-        json['recoveryActions'] is! List) {
-      throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: recoveryActions must be an array.',
-      );
+    if (json.containsKey('recoveryActions')) {
+      _validateRecoveryActions(json['recoveryActions']);
     }
     final organizationOrigin = _uri(
       json['organizationOrigin'],
@@ -364,66 +364,51 @@ class AppStartDiscoveryClient {
     final oidc = _object(json['oidc'], fieldName: 'oidc');
     _requireExactKeys(oidc, const {'issuer', 'clientId'});
     final protocols = _object(json['protocols'], fieldName: 'protocols');
-    _requireExactKeys(protocols, const {
-      'matrixClientServerBaseUrl',
-      'filesWebDavBaseUrl',
-      'calendarCalDavBaseUrl',
-    });
-    final oidcIssuerUrl = _uri(oidc['issuer'], fieldName: 'oidc.issuer');
-    final oidcClientId = _clientId(oidc['clientId']);
-    final controlPlaneBaseUrl = _uri(
-      json['controlPlaneBaseUrl'],
-      fieldName: 'controlPlaneBaseUrl',
+    _requireExactKeys(protocols, const {'matrixClientServerBaseUrl'});
+    _uri(oidc['issuer'], fieldName: 'oidc.issuer');
+    _clientId(oidc['clientId']);
+    final userApiBaseUrl = _uri(
+      json['userApiBaseUrl'],
+      fieldName: 'userApiBaseUrl',
     );
-    final controlPlaneSegments = controlPlaneBaseUrl.pathSegments
+    final userApiSegments = userApiBaseUrl.pathSegments
         .where((segment) => segment.trim().isNotEmpty)
         .toList(growable: false);
-    if (controlPlaneSegments.isEmpty || controlPlaneSegments.last != 'api') {
+    if (userApiSegments.isEmpty || userApiSegments.last != 'api') {
       throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: controlPlaneBaseUrl must end in /api.',
+        'WEAVE-APP-START-DISCOVERY-INVALID: userApiBaseUrl must end in /api.',
       );
     }
     final matrixClientServerBaseUrl = _uri(
       protocols['matrixClientServerBaseUrl'],
       fieldName: 'protocols.matrixClientServerBaseUrl',
     );
-    final expectedMatrixFacadeUrl = _apiOrigin(controlPlaneBaseUrl);
     final matrixPath = matrixClientServerBaseUrl.path;
-    if (_apiOrigin(matrixClientServerBaseUrl) != expectedMatrixFacadeUrl ||
-        (matrixPath.isNotEmpty && matrixPath != '/')) {
+    if (matrixPath.isNotEmpty && matrixPath != '/') {
       throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: protocols.matrixClientServerBaseUrl must be the Weave API origin.',
+        'WEAVE-APP-START-DISCOVERY-INVALID: protocols.matrixClientServerBaseUrl must be a homeserver origin.',
       );
     }
-    final filesWebDavBaseUrl = _uri(
-      protocols['filesWebDavBaseUrl'],
-      fieldName: 'protocols.filesWebDavBaseUrl',
-    );
-    final calendarCalDavBaseUrl = _uri(
-      protocols['calendarCalDavBaseUrl'],
-      fieldName: 'protocols.calendarCalDavBaseUrl',
-    );
-    _requireFacade(
-      filesWebDavBaseUrl,
-      expectedMatrixFacadeUrl,
-      '/dav/files',
-      'filesWebDavBaseUrl',
-    );
-    _requireFacade(
-      calendarCalDavBaseUrl,
-      expectedMatrixFacadeUrl,
-      '/caldav',
-      'calendarCalDavBaseUrl',
-    );
     _validateDomains(json['domains']);
 
+    // Exact field validation above rejects unknown public protocol surfaces;
+    // the generated transport model then supplies the values consumed by the
+    // client configuration. Its decoder alone tolerates unknown JSON fields.
+    final transport = user_api.PlatformConfigResponse.fromJson(json)!;
+    final transportOidc = transport.oidc!;
+    final transportProtocols = transport.protocols!;
+
     return AppStartConfiguration(
-      oidcIssuerUrl: oidcIssuerUrl,
-      oidcClientId: oidcClientId,
-      controlPlaneBaseUrl: controlPlaneBaseUrl,
-      matrixClientServerBaseUrl: expectedMatrixFacadeUrl,
-      filesWebDavBaseUrl: filesWebDavBaseUrl,
-      calendarCalDavBaseUrl: calendarCalDavBaseUrl,
+      oidcIssuerUrl: _uri(transportOidc.issuer, fieldName: 'oidc.issuer'),
+      oidcClientId: _clientId(transportOidc.clientId),
+      userApiBaseUrl: _uri(
+        transport.userApiBaseUrl,
+        fieldName: 'userApiBaseUrl',
+      ),
+      matrixClientServerBaseUrl: _uri(
+        transportProtocols.matrixClientServerBaseUrl,
+        fieldName: 'protocols.matrixClientServerBaseUrl',
+      ).replace(path: ''),
     );
   }
 
@@ -445,31 +430,25 @@ class AppStartDiscoveryClient {
     }
   }
 
-  void _requireFacade(
-    Uri uri,
-    Uri expectedOrigin,
-    String path,
-    String fieldName,
-  ) {
-    if (_apiOrigin(uri) != expectedOrigin || uri.path != path) {
-      throw AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: protocols.$fieldName must use the canonical Weave $path facade.',
-      );
-    }
-  }
-
   void _validateDomains(Object? value) {
     if (value is! List) {
       throw const AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: domains must be an array.',
       );
     }
-    const requiredDomains = {
+    if (value.isEmpty) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: domains must not be empty.',
+      );
+    }
+    const allowedDomains = {
       'identity',
       'chat',
       'files',
       'calendar',
+      'calls',
       'boards',
+      'agent-runtime-control',
       'health',
     };
     const allowedStates = {
@@ -477,7 +456,10 @@ class AppStartDiscoveryClient {
       'degraded',
       'unavailable',
       'disabled_by_policy',
+      'not_entitled',
       'not_configured',
+      'migration_blocked',
+      'unsupported',
     };
     final observed = <String>{};
     for (final item in value) {
@@ -489,7 +471,7 @@ class AppStartDiscoveryClient {
         'supportReference',
       });
       if (domain['domain'] case final String name
-          when requiredDomains.contains(name)) {
+          when allowedDomains.contains(name)) {
         if (!observed.add(name)) {
           throw const AppFailure.validation(
             'WEAVE-APP-START-DISCOVERY-INVALID: domains must be unique.',
@@ -507,16 +489,38 @@ class AppStartDiscoveryClient {
           capabilities is! List ||
           capabilities.any(
             (capability) => capability is! String || capability.trim().isEmpty,
-          )) {
+          ) ||
+          capabilities.toSet().length != capabilities.length ||
+          (domain['supportReference'] != null &&
+              (domain['supportReference'] is! String ||
+                  (domain['supportReference'] as String).isEmpty))) {
         throw const AppFailure.validation(
           'WEAVE-APP-START-DISCOVERY-INVALID: domains entries are incomplete.',
         );
       }
     }
-    if (!observed.containsAll(requiredDomains)) {
+  }
+
+  void _validateRecoveryActions(Object? value) {
+    if (value is! List) {
       throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: domains must include every active dogfood domain.',
+        'WEAVE-APP-START-DISCOVERY-INVALID: recoveryActions must be an array.',
       );
+    }
+    for (final item in value) {
+      final action = _object(item, fieldName: 'recoveryActions[]');
+      _requireExactKeys(action, const {'code', 'label', 'supportReference'});
+      if (action['code'] is! String ||
+          (action['code'] as String).isEmpty ||
+          action['label'] is! String ||
+          (action['label'] as String).isEmpty ||
+          (action['supportReference'] != null &&
+              (action['supportReference'] is! String ||
+                  (action['supportReference'] as String).isEmpty))) {
+        throw const AppFailure.validation(
+          'WEAVE-APP-START-DISCOVERY-INVALID: recoveryActions entries are incomplete.',
+        );
+      }
     }
   }
 

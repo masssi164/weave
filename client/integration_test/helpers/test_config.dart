@@ -10,7 +10,6 @@ class TestConfig {
     required this.issuerUrl,
     required this.clientId,
     required this.matrixHomeserverUrl,
-    required this.nextcloudBaseUrl,
     required this.backendApiBaseUrl,
     required this.offlineContractOnly,
   });
@@ -51,16 +50,6 @@ class TestConfig {
           fragment: null,
         ),
       ),
-      nextcloudBaseUrl: _configuredOrDefault(
-        'WEAVE_NEXTCLOUD_BASE_URL',
-        const String.fromEnvironment('WEAVE_NEXTCLOUD_BASE_URL'),
-        backendApiBaseUrl.replace(
-          host: 'files.$workspaceHost',
-          pathSegments: const [],
-          query: null,
-          fragment: null,
-        ),
-      ),
       backendApiBaseUrl: backendApiBaseUrl,
       offlineContractOnly:
           const String.fromEnvironment(
@@ -73,7 +62,6 @@ class TestConfig {
   final Uri issuerUrl;
   final String clientId;
   final Uri matrixHomeserverUrl;
-  final Uri nextcloudBaseUrl;
   final Uri backendApiBaseUrl;
   final bool offlineContractOnly;
 
@@ -81,7 +69,6 @@ class TestConfig {
     issuerUrl: issuerUrl,
     clientId: clientId,
     matrixHomeserverUrl: matrixHomeserverUrl,
-    nextcloudBaseUrl: nextcloudBaseUrl,
     backendApiBaseUrl: backendApiBaseUrl ?? this.backendApiBaseUrl,
     offlineContractOnly: offlineContractOnly,
   );

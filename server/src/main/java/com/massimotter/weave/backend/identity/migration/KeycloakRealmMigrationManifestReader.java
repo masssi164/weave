@@ -128,11 +128,13 @@ final class KeycloakRealmMigrationManifestReader {
         "Keycloak 26.7 cannot import a specific-organization FGAP permission "
             + "in the same RealmRepresentation because authorization settings are "
             + "processed before organizations. The baseline remains default-deny; "
-            + "an exact post-import Admin REST executor is required.")) {
+            + "an exact post-import Admin REST executor is required. The built-in organization "
+            + "scope is created before import; its membership mapper requires a separate "
+            + "post-import update to include the native organization ID.")) {
       throw blocked("bundle-reason-mismatch");
     }
     JsonNode operations = bundle.path("operations");
-    if (!operations.isArray() || operations.size() != 1) {
+    if (!operations.isArray() || operations.size() != 2) {
       throw blocked("bundle-operation-count-invalid");
     }
     JsonNode operation = operations.get(0);
@@ -148,6 +150,37 @@ final class KeycloakRealmMigrationManifestReader {
         || !"requires-qualified-admin-rest-executor".equals(operation.path("status").asString())
         || !"keycloak-fgap-v2".equals(operation.path("type").asString())) {
       throw blocked("bundle-operation-contract-mismatch");
+    }
+    validateOrganizationMapperOperation(operations.get(1));
+  }
+
+  private static void validateOrganizationMapperOperation(JsonNode operation) {
+    Set<String> fields = new java.util.HashSet<>(OPERATION_FIELDS);
+    fields.add("desiredState");
+    requireExactFields(operation, fields, "bundle-operation-shape-invalid");
+    JsonNode state = operation.path("desiredState");
+    requireExactFields(state,
+        Set.of("clientScopeName", "name", "protocol", "protocolMapper", "config"),
+        "bundle-organization-mapper-contract-mismatch");
+    JsonNode config = state.path("config");
+    requireExactFields(config, KeycloakOrganizationMapperMigration.REQUIRED_CONFIG.keySet(),
+        "bundle-organization-mapper-contract-mismatch");
+    if (!"keycloak-26.7-creates-built-in-scopes-before-realm-import"
+            .equals(operation.path("blockedBy").asString())
+        || !"/operations/1/desiredState".equals(operation.path("desiredStatePointer").asString())
+        || !KeycloakOrganizationMapperMigration.OPERATION_ID.equals(operation.path("id").asString())
+        || !"post-realm-import".equals(operation.path("phase").asString())
+        || !"requires-qualified-admin-rest-executor".equals(operation.path("status").asString())
+        || !"keycloak-built-in-organization-mapper".equals(operation.path("type").asString())
+        || !"sha256:5e19f3dff3818e8093aff5c7b61dc6da6baf303bf25654d24b602c6526bee475".equals(operation.path("desiredStateDigest").asString())
+        || !"organization".equals(state.path("clientScopeName").asString())
+        || !"organization".equals(state.path("name").asString())
+        || !"openid-connect".equals(state.path("protocol").asString())
+        || !KeycloakOrganizationMapperMigration.MAPPER_TYPE.equals(state.path("protocolMapper").asString())
+        || config.valueStream().anyMatch(value -> !value.isString())
+        || KeycloakOrganizationMapperMigration.REQUIRED_CONFIG.entrySet().stream()
+            .anyMatch(entry -> !entry.getValue().equals(config.path(entry.getKey()).asString()))) {
+      throw blocked("bundle-organization-mapper-contract-mismatch");
     }
   }
 

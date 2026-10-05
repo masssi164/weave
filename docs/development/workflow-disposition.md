@@ -1,6 +1,6 @@
 # Workflow disposition
 
-Status: active transition inventory for issue #1307.
+Status: current implementation inventory for #1470/#1480; historical #1307 foundation jobs remain where useful.
 
 Every GitHub Actions workflow has one current disposition. This document describes whether a workflow proves the data-sovereignty core, supports a temporary transition, is manual release/client work, or must be retired. The classification does not make a historical workflow architecture authority.
 
@@ -8,11 +8,19 @@ Every GitHub Actions workflow has one current disposition. This document describ
 
 ### `ci.yml`
 
-Runs the focused Java/Server/Data/MCP foundation gates. It no longer installs Flutter, Node, MkDocs, the external specification corpus, marketing tooling, or release-evidence dependencies.
+Runs the focused Java/Server/Data/MCP foundation gates and the `Generated API consumers`
+job. The latter uses pinned Flutter and Node tooling to regenerate the code-first User/Admin
+contracts and all JVM, Dart and TypeScript consumers and run their actual consumer gates.
+The ordinary server export uses a test-only Matrix protocol collaborator; it does not build
+or load JNI. The separate Server protocol foundation job retains the real native runtime.
+See [the generated API CI implementation contract](https://github.com/masssi164/weave/blob/dev/specs/generated-api-ci-contract.md)
+for inputs, commands, isolation, cleanup and failure evidence.
 
-The temporary `Gradle CI` compatibility context succeeds only when the real architecture, canonical data, PostgreSQL persistence, Server regression, MCP foundation, and documentation jobs succeed.
+The `Gradle CI` aggregate succeeds only when the real architecture, canonical data,
+PostgreSQL persistence, Server regression, MCP foundation, documentation and generated API
+consumer jobs succeed. A cancelled or skipped required job fails the aggregate.
 
-The `Release Notes Label Check` context remains temporarily because current branch protection expects it. It is not part of `coreCheck` and must be removed after branch protection is migrated to the real core contexts.
+The `Release Notes Label Check` remains required by the current protected workflow.
 
 ## Transitional optional core
 
@@ -26,7 +34,11 @@ Retain temporarily as an additional native-composition regression lane while #13
 
 ### `live-stack-e2e.yml`
 
-Retain temporarily as an extra disposable-stack regression. It is not the final data-sovereignty E2E and cannot close #1412. Replace it with `coreSystemE2e` after the seven-phase scenario exists.
+Provides isolated real-runtime regression, including generated User Files calls and
+browser/OIDC member access. Its historical DAV/native collaboration portions do not prove
+all revised #1480 journeys. Single-sign-in Flutter, generated Calendar and independent
+Matrix-client interoperability still require their own runtime evidence. Provider migration
+and cutover proof belongs to #1498.
 
 ## Manual release or client
 
@@ -56,6 +68,7 @@ protocolFacadeFoundationCi
 mcpFoundationCi
 coreDocsCheck
 coreCheck
+generatedApiCi
 ```
 
 Future required commands are introduced only when their tests exist:

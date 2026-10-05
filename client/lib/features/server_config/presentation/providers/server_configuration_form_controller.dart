@@ -19,18 +19,14 @@ class ServerConfigurationFormState {
     required this.issuerUrl,
     required this.clientId,
     required this.matrixHomeserverUrl,
-    required this.nextcloudBaseUrl,
     required this.backendApiBaseUrl,
     required this.derivedMatrixHomeserverUrl,
-    required this.derivedNextcloudBaseUrl,
     required this.derivedBackendApiBaseUrl,
     required this.matrixOverridden,
-    required this.nextcloudOverridden,
     required this.backendApiOverridden,
     this.issuerError,
     this.clientIdError,
     this.matrixError,
-    this.nextcloudError,
     this.backendApiError,
     this.saveFailure,
   });
@@ -42,18 +38,14 @@ class ServerConfigurationFormState {
       issuerUrl = '',
       clientId = oidcDefaultClientId,
       matrixHomeserverUrl = '',
-      nextcloudBaseUrl = '',
       backendApiBaseUrl = '',
       derivedMatrixHomeserverUrl = '',
-      derivedNextcloudBaseUrl = '',
       derivedBackendApiBaseUrl = '',
       matrixOverridden = false,
-      nextcloudOverridden = false,
       backendApiOverridden = false,
       issuerError = null,
       clientIdError = null,
       matrixError = null,
-      nextcloudError = null,
       backendApiError = null,
       saveFailure = null;
 
@@ -63,24 +55,19 @@ class ServerConfigurationFormState {
   final String issuerUrl;
   final String clientId;
   final String matrixHomeserverUrl;
-  final String nextcloudBaseUrl;
   final String backendApiBaseUrl;
   final String derivedMatrixHomeserverUrl;
-  final String derivedNextcloudBaseUrl;
   final String derivedBackendApiBaseUrl;
   final bool matrixOverridden;
-  final bool nextcloudOverridden;
   final bool backendApiOverridden;
   final String? issuerError;
   final String? clientIdError;
   final String? matrixError;
-  final String? nextcloudError;
   final String? backendApiError;
   final AppFailure? saveFailure;
 
   bool get hasDerivedDefaults =>
       derivedMatrixHomeserverUrl.isNotEmpty &&
-      derivedNextcloudBaseUrl.isNotEmpty &&
       derivedBackendApiBaseUrl.isNotEmpty;
 
   ServerConfigurationFormState copyWith({
@@ -90,24 +77,19 @@ class ServerConfigurationFormState {
     String? issuerUrl,
     String? clientId,
     String? matrixHomeserverUrl,
-    String? nextcloudBaseUrl,
     String? backendApiBaseUrl,
     String? derivedMatrixHomeserverUrl,
-    String? derivedNextcloudBaseUrl,
     String? derivedBackendApiBaseUrl,
     bool? matrixOverridden,
-    bool? nextcloudOverridden,
     bool? backendApiOverridden,
     String? issuerError,
     String? clientIdError,
     String? matrixError,
-    String? nextcloudError,
     String? backendApiError,
     AppFailure? saveFailure,
     bool clearIssuerError = false,
     bool clearClientIdError = false,
     bool clearMatrixError = false,
-    bool clearNextcloudError = false,
     bool clearBackendApiError = false,
     bool clearSaveFailure = false,
   }) {
@@ -118,25 +100,18 @@ class ServerConfigurationFormState {
       issuerUrl: issuerUrl ?? this.issuerUrl,
       clientId: clientId ?? this.clientId,
       matrixHomeserverUrl: matrixHomeserverUrl ?? this.matrixHomeserverUrl,
-      nextcloudBaseUrl: nextcloudBaseUrl ?? this.nextcloudBaseUrl,
       backendApiBaseUrl: backendApiBaseUrl ?? this.backendApiBaseUrl,
       derivedMatrixHomeserverUrl:
           derivedMatrixHomeserverUrl ?? this.derivedMatrixHomeserverUrl,
-      derivedNextcloudBaseUrl:
-          derivedNextcloudBaseUrl ?? this.derivedNextcloudBaseUrl,
       derivedBackendApiBaseUrl:
           derivedBackendApiBaseUrl ?? this.derivedBackendApiBaseUrl,
       matrixOverridden: matrixOverridden ?? this.matrixOverridden,
-      nextcloudOverridden: nextcloudOverridden ?? this.nextcloudOverridden,
       backendApiOverridden: backendApiOverridden ?? this.backendApiOverridden,
       issuerError: clearIssuerError ? null : (issuerError ?? this.issuerError),
       clientIdError: clearClientIdError
           ? null
           : (clientIdError ?? this.clientIdError),
       matrixError: clearMatrixError ? null : (matrixError ?? this.matrixError),
-      nextcloudError: clearNextcloudError
-          ? null
-          : (nextcloudError ?? this.nextcloudError),
       backendApiError: clearBackendApiError
           ? null
           : (backendApiError ?? this.backendApiError),
@@ -150,7 +125,6 @@ class ServerConfigurationFormController
     extends _$ServerConfigurationFormController {
   String? _initialAuthSignature;
   String? _initialMatrixSignature;
-  String? _initialNextcloudSignature;
   String? _initialBackendApiSignature;
 
   @override
@@ -165,7 +139,6 @@ class ServerConfigurationFormController
     if (configuration == null) {
       _initialAuthSignature = null;
       _initialMatrixSignature = null;
-      _initialNextcloudSignature = null;
       _initialBackendApiSignature = null;
       state = state.copyWith(initialized: true, clientId: oidcDefaultClientId);
       return;
@@ -176,8 +149,6 @@ class ServerConfigurationFormController
     );
     final matrixUrl = configuration.serviceEndpoints.matrixHomeserverUrl
         .toString();
-    final nextcloudUrl = configuration.serviceEndpoints.nextcloudBaseUrl
-        .toString();
     final backendApiUrl = configuration.serviceEndpoints.backendApiBaseUrl
         .toString();
     _initialAuthSignature = _authSignature(
@@ -185,7 +156,6 @@ class ServerConfigurationFormController
       configuration.oidcClientRegistration.clientId,
     );
     _initialMatrixSignature = _matrixSignature(matrixUrl);
-    _initialNextcloudSignature = _nextcloudSignature(nextcloudUrl);
     _initialBackendApiSignature = _backendApiSignature(backendApiUrl);
 
     state = state.copyWith(
@@ -194,27 +164,20 @@ class ServerConfigurationFormController
       issuerUrl: configuration.oidcIssuerUrl.toString(),
       clientId: configuration.oidcClientRegistration.clientId,
       matrixHomeserverUrl: matrixUrl,
-      nextcloudBaseUrl: nextcloudUrl,
       backendApiBaseUrl: backendApiUrl,
       derivedMatrixHomeserverUrl:
           derivedEndpoints?.matrixHomeserverUrl.toString() ?? '',
-      derivedNextcloudBaseUrl:
-          derivedEndpoints?.nextcloudBaseUrl.toString() ?? '',
       derivedBackendApiBaseUrl:
           derivedEndpoints?.backendApiBaseUrl.toString() ?? '',
       matrixOverridden:
           derivedEndpoints != null &&
           matrixUrl != derivedEndpoints.matrixHomeserverUrl.toString(),
-      nextcloudOverridden:
-          derivedEndpoints != null &&
-          nextcloudUrl != derivedEndpoints.nextcloudBaseUrl.toString(),
       backendApiOverridden:
           derivedEndpoints != null &&
           backendApiUrl != derivedEndpoints.backendApiBaseUrl.toString(),
       clearIssuerError: true,
       clearClientIdError: true,
       clearMatrixError: true,
-      clearNextcloudError: true,
       clearBackendApiError: true,
       clearSaveFailure: true,
     );
@@ -227,7 +190,6 @@ class ServerConfigurationFormController
   void updateIssuerUrl(String issuerUrl) {
     final derivedEndpoints = _tryDeriveFromIssuer(issuerUrl);
     final matrixWillBeReplaced = !state.matrixOverridden;
-    final nextcloudWillBeReplaced = !state.nextcloudOverridden;
     final backendApiWillBeReplaced = !state.backendApiOverridden;
 
     state = state.copyWith(
@@ -235,23 +197,17 @@ class ServerConfigurationFormController
       clientId: _validateClientId(state.clientId),
       derivedMatrixHomeserverUrl:
           derivedEndpoints?.matrixHomeserverUrl.toString() ?? '',
-      derivedNextcloudBaseUrl:
-          derivedEndpoints?.nextcloudBaseUrl.toString() ?? '',
       derivedBackendApiBaseUrl:
           derivedEndpoints?.backendApiBaseUrl.toString() ?? '',
       matrixHomeserverUrl: state.matrixOverridden
           ? state.matrixHomeserverUrl
           : (derivedEndpoints?.matrixHomeserverUrl.toString() ?? ''),
-      nextcloudBaseUrl: state.nextcloudOverridden
-          ? state.nextcloudBaseUrl
-          : (derivedEndpoints?.nextcloudBaseUrl.toString() ?? ''),
       backendApiBaseUrl: state.backendApiOverridden
           ? state.backendApiBaseUrl
           : (derivedEndpoints?.backendApiBaseUrl.toString() ?? ''),
       clearIssuerError: true,
       clearClientIdError: true,
       clearMatrixError: matrixWillBeReplaced,
-      clearNextcloudError: nextcloudWillBeReplaced,
       clearBackendApiError: backendApiWillBeReplaced,
       clearSaveFailure: true,
     );
@@ -275,20 +231,6 @@ class ServerConfigurationFormController
           ? trimmed.isNotEmpty
           : trimmed != derivedValue,
       clearMatrixError: true,
-      clearSaveFailure: true,
-    );
-  }
-
-  void updateNextcloudBaseUrl(String value) {
-    final trimmed = value.trim();
-    final derivedValue = state.derivedNextcloudBaseUrl;
-
-    state = state.copyWith(
-      nextcloudBaseUrl: value,
-      nextcloudOverridden: derivedValue.isEmpty
-          ? trimmed.isNotEmpty
-          : trimmed != derivedValue,
-      clearNextcloudError: true,
       clearSaveFailure: true,
     );
   }
@@ -320,21 +262,16 @@ class ServerConfigurationFormController
       state = state.copyWith(
         clientId: clientId,
         derivedMatrixHomeserverUrl: defaults.matrixHomeserverUrl.toString(),
-        derivedNextcloudBaseUrl: defaults.nextcloudBaseUrl.toString(),
         derivedBackendApiBaseUrl: defaults.backendApiBaseUrl.toString(),
         matrixHomeserverUrl: state.matrixOverridden
             ? state.matrixHomeserverUrl
             : defaults.matrixHomeserverUrl.toString(),
-        nextcloudBaseUrl: state.nextcloudOverridden
-            ? state.nextcloudBaseUrl
-            : defaults.nextcloudBaseUrl.toString(),
         backendApiBaseUrl: state.backendApiOverridden
             ? state.backendApiBaseUrl
             : defaults.backendApiBaseUrl.toString(),
         clearIssuerError: true,
         clearClientIdError: true,
         clearMatrixError: !state.matrixOverridden,
-        clearNextcloudError: !state.nextcloudOverridden,
         clearBackendApiError: !state.backendApiOverridden,
       );
       return true;
@@ -360,14 +297,12 @@ class ServerConfigurationFormController
       final matrixUrl = deriver.parseMatrixHomeserverUrl(
         state.matrixHomeserverUrl,
       );
-      final nextcloudUrl = deriver.filesFacadeFromBackendApi(backendApiUrl);
 
       state = state.copyWith(
         isSaving: true,
         clearIssuerError: true,
         clearClientIdError: true,
         clearMatrixError: true,
-        clearNextcloudError: true,
         clearBackendApiError: true,
         clearSaveFailure: true,
       );
@@ -380,7 +315,6 @@ class ServerConfigurationFormController
         ),
         serviceEndpoints: ServiceEndpoints(
           matrixHomeserverUrl: matrixUrl,
-          nextcloudBaseUrl: nextcloudUrl,
           backendApiBaseUrl: backendApiUrl,
         ),
       );
@@ -403,12 +337,6 @@ class ServerConfigurationFormController
       final matrixHomeserverChanged =
           _initialMatrixSignature != null &&
           _initialMatrixSignature != nextMatrixSignature;
-      final nextNextcloudSignature = _nextcloudSignature(
-        nextcloudUrl.toString(),
-      );
-      final nextcloudBaseUrlChanged =
-          _initialNextcloudSignature != null &&
-          _initialNextcloudSignature != nextNextcloudSignature;
       final nextBackendApiSignature = _backendApiSignature(
         backendApiUrl.toString(),
       );
@@ -417,14 +345,12 @@ class ServerConfigurationFormController
           _initialBackendApiSignature != nextBackendApiSignature;
       _initialAuthSignature = nextAuthSignature;
       _initialMatrixSignature = nextMatrixSignature;
-      _initialNextcloudSignature = nextNextcloudSignature;
       _initialBackendApiSignature = nextBackendApiSignature;
 
       return ServerConfigurationSaveResult(
         configuration: configuration,
         authConfigurationChanged: authConfigurationChanged,
         matrixHomeserverChanged: matrixHomeserverChanged,
-        nextcloudBaseUrlChanged: nextcloudBaseUrlChanged,
         backendApiBaseUrlChanged: backendApiBaseUrlChanged,
       );
     } on AppFailure catch (failure) {
@@ -443,11 +369,6 @@ class ServerConfigurationFormController
               failure.message.contains('Matrix')
           ? failure.message
           : null;
-      final nextcloudMessage =
-          failure.type == AppFailureType.validation &&
-              failure.message.contains('Nextcloud')
-          ? failure.message
-          : null;
       final backendApiMessage =
           failure.type == AppFailureType.validation &&
               failure.message.contains('backend API')
@@ -459,13 +380,11 @@ class ServerConfigurationFormController
         issuerError: issuerMessage,
         clientIdError: clientIdMessage,
         matrixError: matrixMessage,
-        nextcloudError: nextcloudMessage,
         backendApiError: backendApiMessage,
         saveFailure: failure.type == AppFailureType.validation ? null : failure,
         clearIssuerError: issuerMessage == null,
         clearClientIdError: clientIdMessage == null,
         clearMatrixError: matrixMessage == null,
-        clearNextcloudError: nextcloudMessage == null,
         clearBackendApiError: backendApiMessage == null,
         clearSaveFailure: failure.type == AppFailureType.validation,
       );
@@ -508,10 +427,6 @@ class ServerConfigurationFormController
 
   String _matrixSignature(String matrixHomeserverUrl) {
     return matrixHomeserverUrl.trim();
-  }
-
-  String _nextcloudSignature(String nextcloudBaseUrl) {
-    return nextcloudBaseUrl.trim();
   }
 
   String _backendApiSignature(String backendApiBaseUrl) {

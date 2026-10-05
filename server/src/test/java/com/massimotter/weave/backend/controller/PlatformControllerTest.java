@@ -91,7 +91,7 @@ class PlatformControllerTest {
                 .andExpect(jsonPath("$.userApiBaseUrl").value("https://api.weave.test/api"))
                 .andExpect(jsonPath("$.oidc.issuer").value("https://auth.weave.test/realms/weave"))
                 .andExpect(jsonPath("$.oidc.clientId").value("weave-app"))
-                .andExpect(jsonPath("$.protocols.matrixClientServerBaseUrl").value("https://matrix.weave.test"))
+                .andExpect(jsonPath("$.protocols.matrixClientServerBaseUrl").value("https://api.weave.test"))
                 .andExpect(jsonPath("$.protocols.filesWebDavBaseUrl").doesNotExist())
                 .andExpect(jsonPath("$.protocols.calendarCalDavBaseUrl").doesNotExist())
                 .andExpect(jsonPath("$.releasePosture").value("dogfood"))

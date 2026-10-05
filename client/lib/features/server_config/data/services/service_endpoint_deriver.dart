@@ -76,7 +76,7 @@ class ServiceEndpointDeriver {
         uri.hasFragment ||
         uri.userInfo.isNotEmpty) {
       throw const AppFailure.validation(
-        'Enter the Matrix homeserver origin using HTTP or HTTPS.',
+        'Enter the Weave Matrix Client-Server origin using HTTP or HTTPS.',
       );
     }
     return uri.replace(path: '');
@@ -87,14 +87,10 @@ class ServiceEndpointDeriver {
     final scheme = issuerUrl.scheme;
 
     return ServiceEndpoints(
-      matrixHomeserverUrl: Uri.parse('$scheme://matrix.$baseHost'),
-      nextcloudBaseUrl: Uri.parse('$scheme://api.$baseHost/dav/files'),
+      matrixHomeserverUrl: Uri.parse('$scheme://api.$baseHost'),
       backendApiBaseUrl: Uri.parse('$scheme://api.$baseHost/api'),
     );
   }
-
-  Uri filesFacadeFromBackendApi(Uri backendApiBaseUrl) =>
-      backendApiBaseUrl.replace(path: '/dav/files');
 
   String _deriveWorkspaceBaseHost(String issuerHost) {
     final labels = issuerHost.split('.');

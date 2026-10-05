@@ -7,6 +7,8 @@ import re
 import sys
 from pathlib import Path
 
+import readme_release_notes
+
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
 ACTIVE_DOCS = (
@@ -102,6 +104,14 @@ def main() -> int:
     for heading in REQUIRED_HEADINGS:
         if heading not in readme_text:
             fail(f"README is missing heading: {heading}", failures)
+
+    try:
+        readme_release_notes.check_readme_structure(readme_text)
+        expected = readme_release_notes.replace_blocks(readme_text, readme_release_notes.DEFAULT_SOURCE)
+        if expected != readme_text:
+            fail("README managed release pointers are stale", failures)
+    except SystemExit:
+        fail("README managed release pointers or their source are invalid", failures)
 
     for path in ACTIVE_DOCS:
         text = path.read_text(encoding="utf-8")

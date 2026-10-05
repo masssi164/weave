@@ -1,35 +1,38 @@
 # Core development workflow
 
-Status: active contributor entry point for Server, canonical data, protocol, persistence, provider connector, and MCP work.
+Status: active contributor entry point for the #1470 standalone product consolidation.
 
 ## Scope
 
-The current core covers Files, Calendar, Chat, and Files/Calendar MCP. Client, Calls, release, TestFlight, Home-core, and named-provider work do not block it.
+Apply the pinned corpus `steering/release-2026-10-product-consolidation.md` and current
+#1470 stories. Server code owns separate generated User/Admin HTTP contracts. Flutter,
+Admin, MCP and product E2E consume their generated clients. Chat uses the bounded Weave
+Matrix Client-Server facade and native clients. User/Admin isolation, current organization
+and resource authorization, one member-facing sign-in and real provider-backed journeys
+are required. Provider adoption/migration is tracked separately in #1498; public northbound
+DAV, Calls, private execution and Home-core dependency are outside this release.
 
 ## Branch line
 
-Until convergence:
-
-- `dev` is the implementation base;
-- `main` is still the older architecture line;
-- PR #1413 is the only `dev` to `main` convergence path.
-
-Foundation work is stacked in this order: architecture boundary, canonical transfer kernel, CI/documentation truth, main convergence, persistence, then domain verticals.
+`dev` is the protected integration base. Use focused PRs and the
+[lane-based protected workflow](../gitflow-pr-workflow.md). #1481 owns final verified
+mainline delivery; historical convergence PRs are not automatic promotion authority.
+A merge must neither publish a release nor mutate a live deployment without authorization.
 
 ## Issue ownership
 
-- #1024: dependency boundaries;
-- #1012: canonical transfer kernel;
-- #1320: Flyway/JPA persistence;
-- #1326: Files/WebDAV;
-- #1301: Calendar/CalDAV;
-- #1302: Chat/Matrix;
-- #1263 and #1415: Files/Calendar MCP;
-- #1014: provider conformance;
-- #1304 and #1306: standalone IAM/topology;
-- #1412: final E2E;
-- #1307: CI and obsolete workflow removal;
-- #1416: documentation.
+- #1471: scope, specifications and existing-work disposition;
+- #1472/#1473: server code-first API and generated consumers;
+- #1474: supported identity and Weaver/MCP integration;
+- #1475: Matrix facade, native clients and independent interoperability;
+- #1476: provider-neutral domain references, bindings and authorization;
+- #1479: usable Files/Calendar product surfaces;
+- #1480: exact-candidate generation and real product acceptance;
+- #1481: licensing, accurate documentation and protected mainline delivery;
+- #1498, with #1477/#1478: provider adoption, migration and rollback.
+
+Reuse earlier foundation source and tests according to #1470's disposition. Their older
+priority labels and protocol assumptions do not expand current acceptance.
 
 ## Code placement
 
@@ -48,7 +51,10 @@ For a core domain, target packages are:
 <domain>/boot
 ```
 
-Domain code is framework-free. Application code depends inward and on ports. JPA implements persistence ports. External systems implement source/target provider ports. WebDAV, CalDAV, Matrix, and MCP are northbound projections.
+Domain code is framework-free. Application code depends inward and on ports. JPA implements
+persistence ports. Providers implement the southbound ports. Files and Calendar use generated
+User HTTP operations; their adapters may use DAV. Chat's northbound wire boundary is Matrix.
+Curated MCP tools call the generated User client with current member/resource authorization.
 
 `weave-native` belongs in boot composition, not in a second business implementation.
 
@@ -64,11 +70,14 @@ Use Java 21.
 ./gradlew mcpFoundationCi
 ./gradlew coreDocsCheck
 ./gradlew coreCheck
+./gradlew generatedApiCi
 ```
 
-The final focused `protocolFacadeCi`, `providerConnectorCi`, `mcpFilesCalendarCi`, and `coreSystemE2e` commands are added only when their full executable contracts exist.
-
-Do not require Flutter, Node, MkDocs, Xcode, TestFlight, screenshots, or manual release evidence for unrelated Server/Data/MCP changes.
+`coreCheck` retains focused foundation coverage. `generatedApiCi` verifies the shared
+code-first generation chain and actual JVM/Flutter/Admin consumers with pinned tools;
+see its [execution contract](https://github.com/masssi164/weave/blob/dev/specs/generated-api-ci-contract.md). Its metadata export
+requires no native Matrix runtime. Full Server protocol tests still build the required
+Rust/Ruma/JNI library. Neither gate alone proves the real #1480 system journeys.
 
 ## Change sequence
 

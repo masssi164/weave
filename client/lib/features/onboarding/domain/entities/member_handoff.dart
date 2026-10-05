@@ -193,7 +193,13 @@ class MemberHandoffParser {
   ) {
     final explicit = query['platform_config_url'] ?? query['discovery_url'];
     if (explicit != null && explicit.trim().isNotEmpty) {
-      return _parseAbsoluteHttpUri(explicit, 'platform_config_url');
+      final parsed = _parseAbsoluteHttpUri(explicit, 'platform_config_url');
+      if (parsed.path != '/api/platform/config') {
+        throw const AppFailure.validation(
+          'WEAVE-HANDOFF-INVALID: platform_config_url must use the canonical Weave discovery path.',
+        );
+      }
+      return parsed;
     }
 
     final base = uri.scheme == 'weave' || uri.scheme.isEmpty

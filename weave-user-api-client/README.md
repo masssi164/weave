@@ -12,19 +12,22 @@ every operation and schema in the artifact has generated Java code. Run
 `./gradlew checkOpenApiContractFresh` to compare the server's current code-first
 export with the checked-in OpenAPI artifacts. The narrow post-processing script
 in `tools/patch_openapi_java_enum_query.py` corrects a Java template type error
-for `BoardProviderCapabilities` enum arrays; it fails closed if that output
-changes.
+for `BoardProviderCapabilities` enum arrays. The equally narrow
+`tools/patch_openapi_java_binary_body.py` sends Files `application/octet-stream`
+request bodies as file bytes instead of JSON-serializing a `File`. Both fail
+closed if the pinned generator output changes. A transport test checks the
+actual POST and PUT bytes on a local HTTP endpoint.
 
-The product JVM E2E uses the generated `IdentityApi.me` operation during the
-Chat outage journey. The test still independently checks the returned issuer,
-subject, organization, and immutable identity key against OIDC claims. Raw
+The product JVM E2E uses generated `IdentityApi.me` and `FilesUserApi`
+operations. It independently checks identity claims and a native Files binary
+round trip, idempotent FileId, outsider denial and restart continuity. Raw
 malformed/security probes remain on the bounded test HTTP client.
 
-This is a partial migration. MCP currently calls the Weave Files WebDAV facade
-for `SEARCH` and `GET`. The User artifact exposes Files setup/readiness routes,
-but no Files content/search routes. Therefore the MCP Files tools cannot yet
-switch to a generated User HTTP operation without a server-owned contract
-addition. Product E2E still has handwritten normal User calls for profile
+This is a partial migration. The User artifact now has a bounded, owner-scoped
+Files list/inspect/upload/update/download slice. MCP still calls the legacy
+Weave Files WebDAV facade for `SEARCH` and `GET`, and the remaining Files
+operations and resource grants are not complete. Other product E2E flows still
+have handwritten normal User calls for profile
 readiness, Chat readiness, identity reconciliation, public platform config,
 profile read/update, and workspace Home. Its Admin, WebDAV/CalDAV, Matrix,
 OAuth, MCP protocol, and deliberately malformed/security traffic remains

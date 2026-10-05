@@ -73,6 +73,10 @@ mcp = service("mcp")
 assert "weave.identity.invitations.keycloak.private-key-jwt-audience:" in backend
 assert "weave.agent-runtime.workload-identity.issuer:" in backend
 assert "weave.security.required-audience:" in backend
+assert "weave.security.primary-organization.keycloak-id: 8f771be4-f526-5bef-97dc-00c8e2fa383d" in backend
+assert "weave.security.primary-organization.keycloak-alias: ${WEAVE_ORGANIZATION_ALIAS:?required}" in backend
+assert "weave.identity.invitations.keycloak.organization-alias: ${WEAVE_ORGANIZATION_ALIAS:?required}" in backend
+assert "weave.context.authorization.default-tenant-id: ${WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID:-tenant-default}" in backend
 assert "weave.mcp.resource-uri:" in mcp
 assert "weave.mcp.authorization-server:" in mcp
 assert "weave.identity.invitations.keycloak.private-key-jwt-audience:" not in schema
@@ -129,6 +133,7 @@ require "${ROOT_DIR}/compose.yaml" 'keycloak-realm-migration-bootstrap:'
 require "${ROOT_DIR}/compose.yaml" '      - --optimized'
 require "${ROOT_DIR}/compose.yaml" 'keycloak-realm-migration-receipt-check:'
 require "${ROOT_DIR}/keycloak/Dockerfile.runtime" 'kc.sh build --db=postgres --vault=file'
+require "${ROOT_DIR}/keycloak/Dockerfile.runtime" '--health-enabled=true'
 require "${ROOT_DIR}/compose.yaml" 'network_mode: none'
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.operation: keycloak-realm-migration-receipt-verify'
 require "${ROOT_DIR}/scripts/keycloak_migration.py" 'bootstrapAuthorityNegativeReadbackVerified'

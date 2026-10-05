@@ -1,19 +1,34 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
+import io.swagger.v3.oas.annotations.Operation;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.startsWith;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -32,17 +47,102 @@ class OpenApiDocumentationTest {
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
+    // Metadata export reads the real HTTP handlers and transport models; it does
+    // not exercise the Matrix wire codec. Runtime/protocol tests retain JNI.
+    @MockitoBean(enforceOverride = true)
+    private MatrixProtocolCoreService matrixProtocolCore;
+
+    @Autowired
+    @Qualifier("requestMappingHandlerMapping")
+    private RequestMappingHandlerMapping handlerMapping;
+
+    @AfterEach
+    void metadataExportDoesNotInvokeMatrixProtocolRuntime() {
+        verifyNoInteractions(matrixProtocolCore);
+    }
+
+    @Test
+    void exportedOperationIdsAreExplicitUniqueAndIdenticalAcrossDocuments() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode combined = mapper.readTree(mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        Set<String> httpMethods = Set.of("get", "put", "post", "delete", "options", "head", "patch", "trace");
+        Map<String, String> operationIds = new HashMap<>();
+        for (String group : new String[] {"user", "admin"}) {
+            JsonNode document = mapper.readTree(mockMvc.perform(get("/v3/api-docs/" + group))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+            for (var pathEntry : document.path("paths").properties()) {
+                String path = pathEntry.getKey();
+                for (var methodEntry : pathEntry.getValue().properties()) {
+                    String method = methodEntry.getKey();
+                    if (!httpMethods.contains(method)) {
+                        continue;
+                    }
+                    String location = method.toUpperCase(java.util.Locale.ROOT) + " " + path;
+                    var handlers = handlerMapping.getHandlerMethods().entrySet().stream()
+                            .filter(entry -> entry.getKey().getPatternValues().contains(path))
+                            .filter(entry -> entry.getKey().getMethodsCondition().getMethods().stream()
+                                    .anyMatch(requestMethod -> requestMethod.name().equalsIgnoreCase(method)))
+                            .map(Map.Entry::getValue)
+                            .distinct()
+                            .toList();
+                    assertEquals(1, handlers.size(), "Expected one server handler for " + location);
+                    Operation declared = handlers.getFirst().getMethodAnnotation(Operation.class);
+                    assertNotNull(declared, "Missing explicit @Operation for " + location);
+                    assertFalse(declared.operationId().isBlank(), "Missing explicit operationId for " + location);
+                    assertEquals(declared.operationId(), methodEntry.getValue().path("operationId").asText(),
+                            "Grouped export changed the declared operationId for " + location);
+                    assertEquals(declared.operationId(),
+                            combined.path("paths").path(path).path(method).path("operationId").asText(),
+                            "Combined export changed the declared operationId for " + location);
+                    assertNull(operationIds.putIfAbsent(declared.operationId(), location),
+                            "Duplicate declared operationId " + declared.operationId() + " at " + location);
+                }
+            }
+        }
+        assertFalse(operationIds.isEmpty(), "No User/Admin operations were checked");
+    }
+
     @Test
     void separatesUserAndAdminOperations() throws Exception {
         MvcResult user = mockMvc.perform(get("/v3/api-docs/user"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/me']").exists())
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}'].delete").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}'].patch").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/move']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/copy']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/items/uploads'].post.responses['400'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/files/items/uploads'].post.responses['415'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/files/items/folders'].post.responses['412'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.responses['200'].headers['ETag'].schema.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.responses['200'].headers['Content-Digest'].schema.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.responses['200'].headers['Content-Length'].schema.type")
+                        .value("integer"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.responses['200'].headers['Content-Type'].schema.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.responses['304'].headers['ETag'].schema.type")
+                        .value("string"))
                 .andExpect(jsonPath("$.paths['/api/admin/control-plane']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/providers/status']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/admin/providers/status']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation']").doesNotExist())
                 .andReturn();
         MvcResult admin = mockMvc.perform(get("/v3/api-docs/admin"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/admin/control-plane']").exists())
+                .andExpect(jsonPath("$.paths['/api/admin/providers/status'].get.operationId").value("status"))
+                .andExpect(jsonPath("$.components.schemas.ProviderRegistryResponse.required", hasItems("organizationId", "filesBinding")))
+                .andExpect(jsonPath("$.components.schemas.FilesBindingStatusResponse.properties.bindingState.enum",
+                        hasItems("ACTIVE", "NO_ACTIVE_BINDING")))
+                .andExpect(jsonPath("$.components.schemas.FilesBindingStatusResponse.properties.readiness.enum",
+                        hasItems("CONFIGURED", "NOT_CONFIGURED", "UNAVAILABLE")))
+                .andExpect(jsonPath("$.paths['/api/providers/status']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation']").exists())
                 .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.operationId")
                         .value("listOrganizationInvitations"))
@@ -92,6 +192,17 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/files']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/files/upload']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/files/folders']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/items'].get.operationId").value("listFilesItems"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}'].get.operationId")
+                        .value("getFilesItem"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.operationId")
+                        .value("downloadFilesItemContent"))
+                .andExpect(jsonPath("$.paths['/api/files/items/folders'].post.operationId")
+                        .value("createFilesFolder"))
+                .andExpect(jsonPath("$.paths['/api/files/items/uploads'].post.operationId")
+                        .value("uploadFilesItemContent"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].put.operationId")
+                        .value("updateFilesItemContent"))
                 .andExpect(jsonPath("$.paths['/api/files/readiness']").exists())
                 .andExpect(jsonPath("$.paths['/api/files/readiness'].get.operationId").value("getFilesReadiness"))
                 .andExpect(jsonPath("$.paths['/api/files/readiness'].get.responses['200'].content['*/*'].schema['$ref']")
@@ -125,7 +236,7 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/workspace/home'].get.responses['200'].content['*/*'].schema['$ref']")
                         .value("#/components/schemas/WorkspaceHomeResponse"))
                 .andExpect(jsonPath("$.paths['/api/workspace/release-readiness']").exists())
-                .andExpect(jsonPath("$.paths['/api/providers/status']").exists())
+                .andExpect(jsonPath("$.paths['/api/admin/providers/status']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/workspace/capabilities']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/workspace/release-readiness']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/interop/status']").exists())

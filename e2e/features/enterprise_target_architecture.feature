@@ -7,8 +7,9 @@ Feature: Enterprise target architecture evidence spine
   Scenario: The approved consolidation release governs architecture evidence
     Given the pinned specification corpus contains the accepted #1470 release profile
     When Weave records implementation and acceptance evidence
-    Then separate generated User and Admin APIs, native Matrix, one active provider per organization and module, and a permission-preserving Files replacement govern current work
-    And deferred public DAV, server Matrix facade, Calls, and private Runner work cannot become current release gates
+    Then separate generated User and Admin APIs, a bounded Weave Matrix facade, and one active provider per organization and module govern current work
+    And Files migration and rollback belong to #1498 rather than #1470 closure
+    And deferred public DAV, Calls, and private Runner work cannot become current release gates
 
   @enterprise-target-open-standard-northbound
   Scenario: Current client boundaries separate generated HTTP, native Matrix, and private adapters
@@ -31,7 +32,7 @@ Feature: Enterprise target architecture evidence spine
 
   @enterprise-target-no-transitional-compatibility
   Scenario: Superseded architecture stays historical while current safeguards remain
-    Given prior DAV, Matrix-facade, and Runner plans remain available as historical records
+    Given prior public DAV, direct-provider Matrix gateway, and Runner plans remain available as historical records
     When a current release scenario is mapped to executable evidence
     Then superseded architecture text is not cited as active proof
     And authorization, privacy, permission, data integrity, and recovery assertions remain mapped
@@ -83,5 +84,5 @@ Feature: Enterprise target architecture evidence spine
     Given provider selections, product profile overrides, audit events, and migration run evidence have persistence foundations
     When an admin computes an offline provider replacement dry-run
     Then Weave records a support-safe baseline snapshot, switch plan, content counts, and read-model comparison
-    And a Files switch remains blocked until real target readback preserves all data, stable references, and effective permissions
+    And #1498 keeps a Files switch blocked until real target readback preserves all data, stable references, and effective permissions
     And this offline dry-run does not claim activation, rollback, or restore success

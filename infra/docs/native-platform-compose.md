@@ -49,6 +49,7 @@ then run an isolated namespace:
 cd infra/weave-workspace
 WEAVE_E2E_STACK_SCOPE=isolated \
 WEAVE_E2E_RUN_ID=<unique-run-id> \
+WEAVE_RUNTIME_STATE_IMAGE="$(bash ./scripts/build_runtime_state_image.sh)" \
 WEAVE_ENV_FILE=/absolute/path/to/reviewed-e2e.env \
 ./compose.sh e2e up
 ```
@@ -58,6 +59,15 @@ flow. Its generated root, SecretRefs, ports, network, and volumes are derived fr
 The realm import uses the same development identity-role projection as dogfood, so invitation
 testing does not depend on a backup, receipt, or post-import FGAP migration. Cleanup remains
 limited to the exact ownership-labeled namespace.
+
+`testApp` builds the optional RuntimeState S3 dependency automatically from pinned MinIO
+Community and `mc` source revisions. The former `minio/minio` registry digest is unavailable;
+the E2E run passes the verified local image ID to Compose. The image carries the upstream
+AGPL-3.0 licences and source revisions. Core CI and the Native Provider Gate build the same image before their optional
+S3 adapter test and tags the verified local result `weave-runtime-state:ci-s3`. To run that
+test locally, build it with `infra/weave-workspace/scripts/build_runtime_state_image.sh`, tag
+the printed image ID `weave-runtime-state:ci-s3`, then run the selected Gradle test. These
+disposable test builds do not change or publish a dogfood or production image.
 
 ## Dogfood and production
 

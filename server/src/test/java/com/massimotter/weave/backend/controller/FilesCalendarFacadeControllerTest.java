@@ -30,6 +30,7 @@ import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
+import com.massimotter.weave.backend.service.files.FilesUserApiService;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.files.application.FilesLockService;
@@ -87,6 +88,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(
         controllers = {
                 FilesController.class,
+                FilesUserItemsController.class,
                 FilesWebDavController.class,
                 CalendarController.class,
                 CalDavCalendarController.class},
@@ -155,6 +157,9 @@ class FilesCalendarFacadeControllerTest {
     private FilesMutationIntentService filesMutationIntentService;
 
     @MockitoBean
+    private FilesUserApiService filesUserApiService;
+
+    @MockitoBean
     private com.massimotter.weave.backend.service.files.FilesProviderResolver filesProviderResolver;
 
     @BeforeEach
@@ -200,6 +205,53 @@ class FilesCalendarFacadeControllerTest {
         mockMvc.perform(get("/api/files/readiness"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("unauthorized"));
+    }
+
+    @Test
+    void generatedFilesRequestFailuresUseTypedErrorsBeforeServiceAccess() throws Exception {
+        mockMvc.perform(post("/api/files/items/folders").with(workspaceJwt())
+                        .contentType("application/json")
+                        .content("{\"parentFileId\":\"file:root\",\"name\":\"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation-error"));
+
+        mockMvc.perform(post("/api/files/items/uploads").with(workspaceJwt())
+                        .param("parentId", "file:root")
+                        .contentType("application/octet-stream").content(new byte[] {1}))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid-request-parameters"));
+
+        mockMvc.perform(post("/api/files/items/uploads").with(workspaceJwt())
+                        .param("parentId", "file:root").param("name", "item.bin")
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.code").value("unsupported-media-type"));
+
+        org.mockito.Mockito.verifyNoInteractions(filesUserApiService);
+    }
+
+    @Test
+    void generatedFilesUserDownloadPreservesExactBytesAndStrongConditionalResponse() throws Exception {
+        byte[] payload = {0, 1, (byte) 255, 42};
+        String etag = "\"sha256-example\"";
+        when(filesUserApiService.download(any(), eq("file:stable")))
+                .thenReturn(new FilesUserApiService.Download(payload, "application/octet-stream",
+                        etag, "sha-256=:LIsYu9unKp0PjpkQekKzXKNkVnwLDvDo08FKPLgglhY=:"));
+
+        mockMvc.perform(get("/api/files/items/file:stable/content"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/files/items/file:stable/content").with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ETAG, etag))
+                .andExpect(header().string("Content-Digest", "sha-256=:LIsYu9unKp0PjpkQekKzXKNkVnwLDvDo08FKPLgglhY=:"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .bytes(payload));
+        mockMvc.perform(get("/api/files/items/file:stable/content")
+                        .with(workspaceJwt()).header(HttpHeaders.IF_NONE_MATCH, "\"different\", W/" + etag))
+                .andExpect(status().isNotModified())
+                .andExpect(header().string(HttpHeaders.ETAG, etag))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .bytes(new byte[0]));
     }
 
     @Test

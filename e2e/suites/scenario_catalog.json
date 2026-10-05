@@ -305,9 +305,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "WebDAV northbound data plane",
-        "OpenAPI control-plane boundary",
-        "support-safe file read/list/download"
+        "historical WebDAV server read and provider isolation evidence",
+        "not current #1470 Files northbound acceptance"
       ]
     },
     {
@@ -324,10 +323,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "PUT/MKCOL/DELETE WebDAV write behavior",
-        "ETag and conditional preconditions",
-        "support-safe mutation audit",
-        "no OpenAPI data-plane fallback"
+        "historical WebDAV server precondition and audit evidence",
+        "not current #1470 Files northbound acceptance"
       ]
     },
     {
@@ -344,9 +341,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "MCP Files facade projection",
-        "canonical file references",
-        "raw provider bypass rejection"
+        "historical MCP contract rejects raw provider inputs",
+        "#1474 current generated User API MCP proof remains open"
       ]
     },
     {
@@ -362,9 +358,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "WebDAV read/write evidence",
-        "Flutter WebDAV read/download path",
-        "remaining client/native cutover debt"
+        "historical WebDAV server read and write evidence",
+        "generated Files User API client requires independent evidence"
       ]
     },
     {
@@ -3211,18 +3206,17 @@
         "files",
         "calendar",
         "chat",
-        "meetings-calls",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "OpenAPI stays setup/readiness/revoke/manifest/admin/generated convenience",
-        "transitional Chat and Calendar REST data-plane routes are deprecated with cleanup issue evidence",
-        "Files REST data-plane routes remain absent"
+        "member manifest advertises generated User domain APIs",
+        "bounded Weave Matrix Client-Server compatibility remains guarded",
+        "deferred public DAV and Calls surfaces are absent from member discovery"
       ]
     },
     {
-      "tag": "@openapi-control-only",
+      "tag": "@openapi-domain-boundaries",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member",
@@ -3233,14 +3227,13 @@
         "files",
         "calendar",
         "chat",
-        "meetings-calls",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "OIDC bearer authentication gates the Matrix facade",
-        "versions and whoami are shaped by the shared Rust core",
-        "provider credentials and southbound URLs are absent"
+        "generated User OpenAPI contains Files, Calendar, and Chat domain entrypoints",
+        "public DAV is absent from the generated User API",
+        "conversation data uses the bounded Matrix protocol rather than proprietary Chat REST routes"
       ]
     },
     {
@@ -3633,9 +3626,24 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "historical public DAV client scenario is superseded",
+        "current Flutter Files uses generated User API"
+      ]
+    },
+    {
+      "tag": "@files-user-api-generated-client",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "generated User API transport and opaque references",
+        "bounded binary integrity and denied action tests",
+        "live provider-backed E2E remains open"
       ]
     },
     {

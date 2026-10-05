@@ -337,7 +337,7 @@
   "@chatProvisioningAdminAction": {
     "description": "Provider-neutral action for member-visible chat provisioning issues"
   },
-  "chatErrorCancelledGuidance": "Chat sign-in was cancelled. Connect chat to try again.",
+  "chatErrorCancelledGuidance": "Chat sign-in did not finish. Retry with your current Weave sign-in.",
   "@chatErrorCancelledGuidance": {
     "description": "Provider-neutral guidance after chat sign-in cancellation"
   },
@@ -345,7 +345,7 @@
   "@chatErrorAdminGuidance": {
     "description": "Provider-neutral guidance when chat setup or configuration is not member-actionable"
   },
-  "chatErrorSessionRequiredGuidance": "Connect chat to sign in to Matrix in your system browser. Your Matrix session is separate from your Weave sign-in.",
+  "chatErrorSessionRequiredGuidance": "Chat access could not be established with your current Weave sign-in. Retry, or ask an admin to review your access.",
   "@chatErrorSessionRequiredGuidance": {
     "description": "Provider-neutral guidance when a chat session is required"
   },
@@ -500,18 +500,6 @@
   "chatLoadingHint": "Gathering your latest rooms and recent conversation state.",
   "@chatLoadingHint": {
     "description": "Supporting copy shown while the chat conversation list is loading"
-  },
-  "chatConnectingLabel": "Connecting to chat…",
-  "@chatConnectingLabel": {
-    "description": "Message shown while Matrix OAuth sign-in is in progress"
-  },
-  "chatConnectingHint": "We are opening your secure Weave chat session and syncing the first conversation list.",
-  "@chatConnectingHint": {
-    "description": "Supporting copy shown while Matrix sign-in is connecting"
-  },
-  "chatConnectButton": "Connect chat",
-  "@chatConnectButton": {
-    "description": "Button label to start or retry Matrix sign-in"
   },
   "chatRefreshingRoomsLabel": "Refreshing chat rooms",
   "@chatRefreshingRoomsLabel": {
@@ -777,29 +765,17 @@
   "@filesProductBoundaryTitle": {
     "description": "Title for a Files card explaining the product/provider boundary"
   },
-  "filesProductBoundaryBody": "Files actions use the Weave workspace service facade. File storage stays behind the admin/fallback surface; raw service paths and credentials are not part of the normal Files UX.",
+  "filesProductBoundaryBody": "Files actions use the Weave User API. File storage stays behind the server's provider boundary; raw provider paths and credentials are not part of the normal Files experience.",
   "@filesProductBoundaryBody": {
     "description": "Body for a Files card explaining the product/provider boundary"
   },
-  "filesConnectButton": "Connect Files",
-  "@filesConnectButton": {
-    "description": "Button label used to start the Files connection flow"
-  },
-  "filesReconnectButton": "Reconnect Files",
-  "@filesReconnectButton": {
-    "description": "Button label used to reconnect an invalid Files session"
-  },
-  "filesDisconnectButton": "Disconnect",
-  "@filesDisconnectButton": {
-    "description": "Button label used to disconnect the saved Files session"
-  },
   "filesRefreshButton": "Refresh",
   "@filesRefreshButton": {
-    "description": "Button label used to refresh the current Nextcloud directory"
+    "description": "Button label used to refresh the current Weave Files directory"
   },
   "filesUpButton": "Up",
   "@filesUpButton": {
-    "description": "Button label used to open the parent Nextcloud directory"
+    "description": "Button label used to open the parent Weave Files directory"
   },
   "filesRootBreadcrumb": "Root",
   "@filesRootBreadcrumb": {
@@ -835,15 +811,15 @@
       }
     }
   },
-  "filesDisconnectedMessage": "Connect Weave Files to browse workspace files.",
+  "filesDisconnectedMessage": "Sign in to Weave to browse workspace files.",
   "@filesDisconnectedMessage": {
     "description": "Message shown when the Files screen is disconnected"
   },
-  "filesInvalidSessionMessage": "Reconnect Files because the Weave session is no longer valid.",
+  "filesInvalidSessionMessage": "Your Weave session has expired. Sign in to Weave again to restore Files.",
   "@filesInvalidSessionMessage": {
     "description": "Message shown when the saved Files session is no longer valid"
   },
-  "filesMisconfiguredMessage": "Finish Weave server setup before connecting files.",
+  "filesMisconfiguredMessage": "Finish Weave server setup before using Files.",
   "@filesMisconfiguredMessage": {
     "description": "Message shown when the Files feature is missing required server setup"
   },
@@ -856,13 +832,17 @@
       }
     }
   },
-  "filesConnectionDisconnected": "Files are not connected for this Weave session.",
+  "filesConnectionDisconnected": "Sign in to Weave to use Files.",
   "@filesConnectionDisconnected": {
     "description": "Status message shown when Files are not connected"
   },
-  "filesConnectionInvalid": "The Weave Files session needs attention.",
+  "filesConnectionInvalid": "Your Weave session needs to be renewed.",
   "@filesConnectionInvalid": {
     "description": "Status message shown when the Files session is invalid"
+  },
+  "filesConnectionUnavailable": "Files access is unavailable for this Weave session.",
+  "@filesConnectionUnavailable": {
+    "description": "Status message shown when Files readiness or authorization cannot be confirmed"
   },
   "filesConnectionMisconfigured": "Server setup is incomplete for Weave Files.",
   "@filesConnectionMisconfigured": {
@@ -2900,7 +2880,7 @@
   "@filesEmptyGuidance": {
     "description": "Guidance shown below the files empty-state title"
   },
-  "filesDisconnectedTitle": "Files are not connected",
+  "filesDisconnectedTitle": "Sign in to use Files",
   "@filesDisconnectedTitle": {
     "description": "Friendly empty-state title shown when files require a connection"
   },
@@ -2908,9 +2888,17 @@
   "@filesSetupNeededTitle": {
     "description": "Friendly empty-state title shown when files are misconfigured"
   },
-  "filesSessionExpiredTitle": "Files need to reconnect",
+  "filesSessionExpiredTitle": "Weave session expired",
   "@filesSessionExpiredTitle": {
     "description": "Friendly error-state title shown when the files session is invalid"
+  },
+  "filesUnavailableTitle": "Files are unavailable",
+  "@filesUnavailableTitle": {
+    "description": "Title shown when Files readiness or authorization cannot be confirmed"
+  },
+  "filesUnavailableGuidance": "Retry when Files access is available, or ask a workspace admin to review your access.",
+  "@filesUnavailableGuidance": {
+    "description": "Recovery guidance when Files readiness or authorization is unavailable"
   },
   "filesLoadErrorTitle": "Files could not be loaded",
   "@filesLoadErrorTitle": {
@@ -2968,7 +2956,7 @@
   "@serverConfigurationServicesLabel": {
     "description": "Section title for derived service endpoints"
   },
-  "serverConfigurationServicesHelper": "Matrix, Files, and backend defaults are derived from the issuer host. Set the real Matrix homeserver origin if it differs; Matrix sign-in uses a separate browser session.",
+  "serverConfigurationServicesHelper": "Weave Matrix and backend defaults are derived from the issuer host. Use the Weave Matrix Client-Server origin from your organization profile if it differs. Chat authorization follows your Weave sign-in automatically.",
   "@serverConfigurationServicesHelper": {
     "description": "Helper text for the service endpoints section"
   },
@@ -2984,9 +2972,9 @@
   "@serverConfigurationIdentityEndpointHelper": {
     "description": "Helper text for the identity endpoint section in setup and settings"
   },
-  "serverConfigurationMatrixLabel": "Matrix homeserver URL",
+  "serverConfigurationMatrixLabel": "Weave Matrix Client-Server URL",
   "@serverConfigurationMatrixLabel": {
-    "description": "Label for the real Matrix homeserver URL field"
+    "description": "Label for the Weave Matrix northbound Client-Server origin"
   },
   "serverConfigurationNextcloudLabel": "Nextcloud Base URL",
   "@serverConfigurationNextcloudLabel": {

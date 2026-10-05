@@ -500,6 +500,123 @@ class NextcloudFilesAdapterTest {
     }
 
     @Test
+    void boundedDownloadRejectsOversizedBodyAfterAtMostLimitPlusOneBytes() {
+        String path = "https://files.example.test/remote.php/dav/files/weave-service/large.bin";
+        server.expect(requestTo(path))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(new byte[] {0, 1, 2, 3}, MediaType.APPLICATION_OCTET_STREAM));
+        assertThatThrownBy(() -> adapter.readBounded(new FileId(FilePathCodec.toId("/large.bin")), 3))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+                    assertThat(exception.code()).isEqualTo("files-download-too-large");
+                });
+        server.verify();
+    }
+
+    @Test
+    void conditionalBoundedDownloadRequiresTheObservedStrongProviderVersion() {
+        String path = "https://files.example.test/remote.php/dav/files/weave-service/locked.bin";
+        server.expect(requestTo(path))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header(HttpHeaders.IF_MATCH, "\"v1\""))
+                .andRespond(withSuccess(new byte[] {0, 1}, MediaType.APPLICATION_OCTET_STREAM)
+                        .header(HttpHeaders.ETAG, "\"v1\""));
+        server.expect(requestTo(path))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header(HttpHeaders.IF_MATCH, "\"v1\""))
+                .andRespond(withStatus(HttpStatus.PRECONDITION_FAILED));
+
+        FileId id = new FileId(FilePathCodec.toId("/locked.bin"));
+        assertThat(adapter.readBoundedIfVersion(id, 2, new FileVersion("\"v1\"")).bytes())
+                .containsExactly((byte) 0, (byte) 1);
+        assertThatThrownBy(() -> adapter.readBoundedIfVersion(id, 2, new FileVersion("\"v1\"")))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status()).isEqualTo(HttpStatus.PRECONDITION_FAILED));
+        server.verify();
+    }
+
+    @Test
+    void conditionalWritesSendAtomicProviderPreconditions() {
+        String target = "https://files.example.test/remote.php/dav/files/weave-service/new.txt";
+        server.expect(requestTo(target))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(header(HttpHeaders.IF_NONE_MATCH, "*"))
+                .andRespond(withStatus(HttpStatus.CREATED).header("OC-FileId", "00000042ocabc"));
+        server.expect(requestTo(target))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(header(HttpHeaders.IF_MATCH, "\"provider-v1\""))
+                .andRespond(withStatus(HttpStatus.PRECONDITION_FAILED));
+
+        FileWrite write = new FileWrite(new FilePath("/new.txt"), new byte[] {0, 1}, "text/plain");
+        var created = adapter.writeIfAbsent(write);
+        assertThat(created.item().path()).isEqualTo(write.path());
+        assertThat(created.providerObjectRef()).isEqualTo("nextcloud-object:00000042ocabc");
+        assertThatThrownBy(() -> adapter.writeIfVersion(write, new FileVersion("\"provider-v1\"")))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.PRECONDITION_FAILED);
+                    assertThat(exception.code()).isEqualTo("files-precondition-failed");
+                });
+        server.verify();
+    }
+
+    @Test
+    void atomicFolderCreateRequiresDavCreatedStatus() {
+        String target = "https://files.example.test/remote.php/dav/files/weave-service/new-folder";
+        server.expect(requestTo(target))
+                .andExpect(method(HttpMethod.valueOf("MKCOL")))
+                .andRespond(withStatus(HttpStatus.CREATED).header("OC-FileId", "00000042ocabc"));
+        server.expect(requestTo(target))
+                .andExpect(method(HttpMethod.valueOf("MKCOL")))
+                .andRespond(withStatus(HttpStatus.OK));
+
+        assertThat(adapter.createCollectionIfAbsent(new FilePath("/new-folder")).item().kind())
+                .isEqualTo(Kind.COLLECTION);
+        assertThatThrownBy(() -> adapter.createCollectionIfAbsent(new FilePath("/new-folder")))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status()).isEqualTo(HttpStatus.CONFLICT));
+        server.verify();
+    }
+
+    @Test
+    void resolvesStableNextcloudFileIdInsteadOfPathDerivedAdapterId() {
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/Team/readme.md"))
+                .andExpect(method(HttpMethod.valueOf("PROPFIND")))
+                .andExpect(header("Depth", "0"))
+                .andRespond(withStatus(HttpStatus.MULTI_STATUS).contentType(MediaType.APPLICATION_XML).body("""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
+                          <d:response><d:href>/remote.php/dav/files/weave-service/Team/readme.md</d:href>
+                            <d:propstat><d:prop><oc:fileid>42</oc:fileid>
+                              <oc:id>00000042ocabc</oc:id></d:prop>
+                              <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+                          </d:response>
+                        </d:multistatus>
+                        """));
+        assertThat(adapter.providerObjectRef(new FilePath("/Team/readme.md")))
+                .contains("nextcloud-object:00000042ocabc");
+        server.verify();
+    }
+
+    @Test
+    void missingNextcloudFileIdBlocksStableUserIdentity() {
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/Team/readme.md"))
+                .andExpect(method(HttpMethod.valueOf("PROPFIND")))
+                .andRespond(withStatus(HttpStatus.MULTI_STATUS).contentType(MediaType.APPLICATION_XML).body("""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <d:multistatus xmlns:d="DAV:">
+                          <d:response><d:href>/remote.php/dav/files/weave-service/Team/readme.md</d:href>
+                            <d:propstat><d:prop></d:prop>
+                              <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+                          </d:response>
+                        </d:multistatus>
+                        """));
+        assertThatThrownBy(() -> adapter.providerObjectRef(new FilePath("/Team/readme.md")))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.code()).isEqualTo("nextcloud-access-response-invalid"));
+        server.verify();
+    }
+
+    @Test
     void mapsDownstreamNotFoundToStableProductError() {
         server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/Missing"))
                 .andExpect(method(HttpMethod.valueOf("PROPFIND")))

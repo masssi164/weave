@@ -403,7 +403,10 @@ def main() -> int:
     ]
     e2e_rendered = _desired(canonical, {**overlay, "environment": "e2e"})
     assert e2e_rendered["clientPolicies"] == canonical["clientPolicies"]
-    assert e2e_rendered["serviceAccountRoleGrants"][0]["roleRefs"] == development_roles
+    assert e2e_rendered["serviceAccountRoleGrants"][0]["roleRefs"] == [
+        "builtin-role:realm-management:query-organizations",
+        "builtin-role:realm-management:query-users",
+    ]
     prod_rendered = _desired(canonical, {**overlay, "environment": "prod"})
     assert prod_rendered["clientPolicies"] == canonical["clientPolicies"]
     assert prod_rendered["serviceAccountRoleGrants"][0]["roleRefs"] == [
@@ -436,6 +439,9 @@ def main() -> int:
         prod = load_context(
             "prod", ROOT, str(materialize_example("prod", root / "prod.env"))
         )
+        assert dogfood.env["WEAVE_API_HOST"] == "api.weave.test"
+        assert dogfood.env["WEAVE_API_HOST"] != dogfood.env["WEAVE_MATRIX_HOST"]
+        assert prod.env["WEAVE_API_HOST"] == "api.weave.example"
         assert _image_digest(dogfood) == "sha256:" + "a" * 64
         assert active_volume_keys(dogfood) == (
             "WEAVE_DB_DATA_VOLUME",
@@ -459,6 +465,7 @@ def main() -> int:
             "WEAVE_BACKEND_IMAGE": "sha256:" + "b" * 64,
             "WEAVE_MCP_IMAGE": "sha256:" + "b" * 64,
             "WEAVE_KEYCLOAK_IMAGE": "sha256:" + "b" * 64,
+            "WEAVE_RUNTIME_STATE_IMAGE": "sha256:" + "c" * 64,
         }
         previous = {key: os.environ.get(key) for key in isolated_overrides}
         try:
@@ -468,6 +475,7 @@ def main() -> int:
             )
             assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
             assert _image_digest(isolated) == "sha256:" + "b" * 64
+            assert isolated.env["WEAVE_RUNTIME_STATE_IMAGE"] == "sha256:" + "c" * 64
             network_labels = compose_runtime_module.labels(
                 isolated, "network", isolated.env["WEAVE_DOCKER_NETWORK"]
             )

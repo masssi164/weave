@@ -1,118 +1,6 @@
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/generated/openapi_models.dart' as openapi;
 
-extension ProviderRegistryOpenApiMapper on openapi.ProviderRegistryResponse {
-  ProviderStackSnapshot toSnapshot() => ProviderStackSnapshot(
-    releaseStatus: _string(releaseStatus, fallback: 'unknown'),
-    backendOwnedFacades: backendOwnedFacades == true,
-    flutterDirectProviderCallsAllowed:
-        flutterDirectProviderCallsAllowed == true,
-    supportSafe: supportSafe == true,
-    providerConfigSource: _string(providerConfigSource, fallback: 'unknown'),
-    bootstrapDefaultsAreSuggestionsOnly:
-        bootstrapDefaultsAreSuggestionsOnly ?? true,
-    adminSelectedMappingsRequired: adminSelectedMappingsRequired ?? true,
-    generatedAt: _dateTime(generatedAt),
-    categories: categories
-        .orEmpty()
-        .map((category) => category.toSnapshot())
-        .toList(growable: false),
-    providers: providers
-        .orEmpty()
-        .map((provider) => provider.toSnapshot())
-        .toList(growable: false),
-  );
-}
-
-extension ProviderCategoryStatusOpenApiMapper
-    on openapi.ProviderCategoryStatusResponse {
-  ProviderCategoryStatusSnapshot toSnapshot() {
-    final categoryName = _string(category, fallback: 'unknown');
-    return ProviderCategoryStatusSnapshot(
-      category: categoryName,
-      label: _safeText(label),
-      contract:
-          contract?.toSnapshot(fallbackCategory: categoryName) ??
-          openapi.ProviderCategoryContractResponse(
-            category: categoryName,
-          ).toSnapshot(fallbackCategory: categoryName),
-      readiness: _providerCategoryReadiness(
-        _string(readiness, fallback: 'unknown'),
-      ),
-      providerRealityLevel: _providerRealityLevel(
-        _string(providerRealityLevel, fallback: 'unknown'),
-      ),
-      memberCapabilityState: _memberCapabilityState(memberCapabilityState),
-      realityLevelRemediation: _safeText(realityLevelRemediation),
-      policyState: _string(policyState, fallback: 'unknown'),
-      memberImpact: _safeText(memberImpact),
-      modules: _safeStringList(modules),
-      providerCandidates: _safeStringList(providerCandidates),
-      selectedProviderKey: _string(
-        selectedProviderKey,
-        fallback: 'awaiting_admin_selection',
-      ),
-      choiceModel: _string(choiceModel, fallback: 'not_selected'),
-      selectedByAdmin: selectedByAdmin == true,
-      bootstrapSuggestionOnly: bootstrapSuggestionOnly ?? true,
-      lossyMappingNotes: _safeStringList(lossyMappingNotes),
-      adapterEvidence: adapterEvidence
-          .orEmpty()
-          .map((evidence) => evidence.toSnapshot())
-          .toList(growable: false),
-      diagnostics: _safeDiagnostics(diagnostics),
-    );
-  }
-}
-
-extension ProviderAdapterReadinessEvidenceOpenApiMapper
-    on openapi.ProviderAdapterReadinessEvidenceResponse {
-  ProviderAdapterReadinessEvidenceSnapshot toSnapshot() =>
-      ProviderAdapterReadinessEvidenceSnapshot(
-        domain: _string(domain, fallback: 'unknown'),
-        adapterKey: _safeProviderKey(adapterKey),
-        configured: configured == true,
-        reachable: reachable == true,
-        health: _safeText(health),
-        providerRealityLevel: _providerRealityLevel(
-          _string(providerRealityLevel, fallback: 'unknown'),
-        ),
-        failClosed: failClosed == true,
-        supportSafeDiagnostics: _safeDiagnostics(supportSafeDiagnostics),
-        evidenceTimestamp: _dateTime(evidenceTimestamp),
-      );
-}
-
-extension ProviderCategoryContractOpenApiMapper
-    on openapi.ProviderCategoryContractResponse {
-  ProviderCategoryContractSnapshot toSnapshot({
-    required String fallbackCategory,
-  }) => ProviderCategoryContractSnapshot(
-    category: _string(category, fallback: fallbackCategory),
-    featureCapabilities: _safeStringList(featureCapabilities),
-    defaultAdapters: _safeStringList(defaultAdapters),
-    externalAdapters: _safeStringList(externalAdapters),
-    choiceModels: choiceModels
-        .orEmpty()
-        .map((choiceModel) => choiceModel.toSnapshot())
-        .toList(growable: false),
-    adapterModules: _safeStringList(adapterModules),
-    stableMemberImpactStates: _safeStringList(stableMemberImpactStates),
-    adminSelectable: adminSelectable ?? true,
-    normalMembersConfigureProviders: normalMembersConfigureProviders == true,
-  );
-}
-
-extension ProviderChoiceModelOpenApiMapper
-    on openapi.ProviderChoiceModelResponse {
-  ProviderChoiceModelSnapshot toSnapshot() => ProviderChoiceModelSnapshot(
-    choiceModel: _string(choiceModel, fallback: 'unknown'),
-    adapters: _safeStringList(adapters),
-    adminRiskNotes: _safeStringList(adminRiskNotes),
-    recommended: recommended == true,
-  );
-}
-
 extension ProviderStatusOpenApiMapper on openapi.ProviderStatusResponse {
   ProviderStatusSnapshot toSnapshot() => ProviderStatusSnapshot(
     module: _string(module, fallback: 'unknown'),
@@ -406,17 +294,6 @@ String _supportRef(String requestId) {
   return ['support', value].join(':');
 }
 
-ProviderCategoryReadiness _providerCategoryReadiness(String value) {
-  return switch (value) {
-    'ready' => ProviderCategoryReadiness.ready,
-    'disabled' => ProviderCategoryReadiness.disabled,
-    'degraded' => ProviderCategoryReadiness.degraded,
-    'policy_blocked' => ProviderCategoryReadiness.policyBlocked,
-    'misconfigured' => ProviderCategoryReadiness.misconfigured,
-    _ => ProviderCategoryReadiness.unknown,
-  };
-}
-
 ProviderRealityLevel _providerRealityLevel(String value) {
   switch (value) {
     case 'contract_only':
@@ -438,19 +315,6 @@ ProviderRealityLevel _providerRealityLevel(String value) {
     default:
       return ProviderRealityLevel.unknown;
   }
-}
-
-String _memberCapabilityState(Object? value) {
-  final state = _string(value, fallback: 'unavailable');
-  const allowed = <String>{
-    'available',
-    'disabled_by_policy',
-    'not_configured',
-    'degraded',
-    'unavailable',
-    'coming_later',
-  };
-  return allowed.contains(state) ? state : 'unavailable';
 }
 
 ProviderState _providerState(String value) {

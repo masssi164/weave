@@ -30,13 +30,13 @@ public class MigrationController {
     }
 
     @PostMapping("/api/migration/dry-runs")
-    @Operation(summary = "Create a replay-safe migration inventory dry-run")
+    @Operation(operationId = "dryRun", summary = "Create a replay-safe migration inventory dry-run")
     public MigrationDryRunResponse dryRun(@Valid @RequestBody MigrationDryRunRequest request) {
         return migrationDryRunService.dryRun(request);
     }
 
     @PostMapping("/api/migration/apply-gates")
-    @Operation(summary = "Validate generic provider migration apply gates without mutating providers")
+    @Operation(operationId = "applyGate", summary = "Validate generic provider migration apply gates without mutating providers")
     public MigrationApplyGateResponse applyGate(@Valid @RequestBody MigrationApplyGateRequest request) {
         return migrationApplyGateService.evaluate(request);
     }

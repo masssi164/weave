@@ -24,6 +24,7 @@ import java.io.ByteArrayInputStream;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Canonical provider-independent Files collection-creation and content-write use cases.
@@ -44,6 +45,15 @@ public final class CanonicalFilesCommands {
     }
 
     public FileObject write(FilesCommandScope scope, FileWrite write) {
+        return write(scope, write, false);
+    }
+
+    /** Creates only when the destination name is absent at metadata activation. */
+    public FileObject writeIfAbsent(FilesCommandScope scope, FileWrite write) {
+        return write(scope, write, true);
+    }
+
+    private FileObject write(FilesCommandScope scope, FileWrite write, boolean requireAbsent) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(write, "write must not be null");
         ensureParent(scope, write.path());
@@ -58,9 +68,12 @@ public final class CanonicalFilesCommands {
                     PATH_CONFLICT,
                     "A collection already exists at the requested Files path.");
         }
+        if (requireAbsent && existing != null) {
+            throw failure(PATH_CONFLICT, "A Files object already exists at the requested path.");
+        }
 
         FileId id = existing == null
-                ? canonicalId(scope, write.path())
+                ? newFileId()
                 : existing.metadata().object().id();
         BlobReference reference = blobReference(id, digest);
         blobs.putStream(
@@ -90,6 +103,9 @@ public final class CanonicalFilesCommands {
         try {
             return authority.activate(activation).metadata().object();
         } catch (ConcurrentMutationException concurrentMutation) {
+            if (requireAbsent) {
+                throw failure(METADATA_CONFLICT, "The Files destination changed concurrently.");
+            }
             StoredFileRecord concurrent = authority
                     .findByPath(scope.organizationRef(), scope.spaceRef(), write.path())
                     .orElseThrow(() -> failure(
@@ -118,7 +134,7 @@ public final class CanonicalFilesCommands {
 
         Instant now = Instant.now(clock);
         FileObject object = new FileObject(
-                canonicalId(scope, path),
+                newFileId(),
                 path,
                 Kind.COLLECTION,
                 0,
@@ -186,13 +202,10 @@ public final class CanonicalFilesCommands {
                 blobBinding);
     }
 
-    private FileId canonicalId(FilesCommandScope scope, FilePath initialPath) {
-        String seed = scope.organizationRef()
-                + "\u0000"
-                + scope.spaceRef()
-                + "\u0000"
-                + initialPath.value();
-        return new FileId("file:" + hash(seed));
+    private FileId newFileId() {
+        // Existing records retain their identifiers. A name reused after deletion
+        // must never regain the former object's identity or inherited mapping.
+        return new FileId("file:" + UUID.randomUUID());
     }
 
     private BlobReference blobReference(FileId id, String digest) {

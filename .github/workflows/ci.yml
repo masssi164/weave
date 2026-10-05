@@ -75,6 +75,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Prepare verified source-built S3 test fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_id="$(infra/weave-workspace/scripts/build_runtime_state_image.sh)"
+          docker tag "$image_id" weave-runtime-state:ci-s3
+          echo 'WEAVE_MINIO_TEST_IMAGE=weave-runtime-state:ci-s3' >> "$GITHUB_ENV"
       - run: ./gradlew --no-daemon --stacktrace protocolFacadeFoundationCi
 
   mcp_foundation:
@@ -101,6 +108,45 @@ jobs:
         with:
           python-version: '3.13'
       - run: python3 tools/core_docs_check.py
+      - run: python3 tools/readme_release_notes_test.py
+
+  generated_api:
+    name: Generated API consumers
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '24.18.0'
+          cache: npm
+          cache-dependency-path: admin-console/package-lock.json
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+      - name: Resolve locked consumer dependencies
+        run: |
+          npm ci --prefix admin-console
+          cd client
+          flutter pub get --enforce-lockfile
+      - name: Check code-first exports and generated consumers
+        run: ./gradlew --no-daemon --stacktrace generatedApiCi
+      - name: Preserve schema/export diagnostics
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: generated-api-diagnostics-${{ github.sha }}
+          path: |
+            build/openapi/
+            server/build/reports/tests/openApiContractExport/
+          if-no-files-found: ignore
+          retention-days: 7
 
   gradle_ci:
     name: Gradle CI
@@ -112,6 +158,7 @@ jobs:
       - protocol_foundation
       - mcp_foundation
       - core_docs
+      - generated_api
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -123,7 +170,8 @@ jobs:
             '${{ needs.postgres_persistence.result }}' \
             '${{ needs.protocol_foundation.result }}' \
             '${{ needs.mcp_foundation.result }}' \
-            '${{ needs.core_docs.result }}'; do
+            '${{ needs.core_docs.result }}' \
+            '${{ needs.generated_api.result }}'; do
             if [ "$result" != 'success' ]; then
               echo "A required core foundation job finished as: $result" >&2
               exit 1

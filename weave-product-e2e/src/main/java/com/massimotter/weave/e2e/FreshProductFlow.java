@@ -54,7 +54,8 @@ public final class FreshProductFlow {
       new FreshProductFlow(environment).run();
       System.out.println(
           "WEAVE_TEST_APP_RESULT status=passed activation=browser pkce=S256 "
-              + "workload=private_key_jwt tool=files.search projection=webdav supportSafe=true");
+              + "workload=private_key_jwt tool=files.search projection=webdav "
+              + "userFiles=generated supportSafe=true");
     } catch (RuntimeException failure) {
       System.err.println(
           "WEAVE_TEST_APP_ERROR "
@@ -227,6 +228,11 @@ public final class FreshProductFlow {
       outsiderSession = awaitAuthority(browser, outsiderSession, "/guests", "guest");
       validateHumanWorkspaceToken(browser.jwtPayload(outsiderSession.accessToken()), "weave-app");
 
+      GeneratedFilesJourney generatedFiles = new GeneratedFilesJourney(environment);
+      GeneratedFilesJourney.Proof generatedFilesProof =
+          generatedFiles.createAndVerify(
+              memberSession.accessToken(), outsiderSession.accessToken(), environment.runId());
+
       CollaborationJourney collaboration = new CollaborationJourney(environment, http);
       collaborationPasses.add(
           collaboration.runPass(
@@ -263,6 +269,8 @@ public final class FreshProductFlow {
               outsiderEmail,
               outsiderPassword,
               "outsider-post-collaboration-restart");
+      generatedFiles.verify(
+          generatedFilesProof, memberSession.accessToken(), outsiderSession.accessToken());
       collaborationPasses.add(
           collaboration.runPass(
               2,
@@ -674,6 +682,10 @@ public final class FreshProductFlow {
   }
 
   private void validateAdminToken(JsonNode claims) {
+    String organizationViolation = NativeOrganizationClaims.violation(claims);
+    if (organizationViolation != null) {
+      throw new ProductFlowException("Admin token contract did not match " + organizationViolation);
+    }
     Set<String> audiences = strings(claims.path("aud"));
     Set<String> scopes = tokenScopes(claims);
     if (!"weave-admin-console".equals(claims.path("azp").asString())
@@ -687,6 +699,14 @@ public final class FreshProductFlow {
   }
 
   private void assertSeparatedApiSessions(String userToken, String adminToken) {
+    JsonNode providerStatusDenied =
+        http.json(
+            "reject User session at Admin provider status",
+            "GET",
+            environment.api("/api/admin/providers/status"),
+            bearer(userToken, Map.of()),
+            null,
+            Set.of(401));
     JsonNode adminDenied =
         http.json(
             "reject User session at Admin API",
@@ -704,18 +724,32 @@ public final class FreshProductFlow {
             null,
             Set.of(401));
     if (!"unauthorized".equals(adminDenied.path("code").asString())
+        || !"unauthorized".equals(providerStatusDenied.path("code").asString())
         || !"unauthorized".equals(userDenied.path("code").asString())) {
       throw new ProductFlowException("User and Admin API sessions were not separated");
     }
   }
 
   private void assertGeneratedAdminControlPlane(String adminToken, String organizationId) {
-    var controlPlane =
-        new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate())
-            .controlPlane(adminToken);
+    var admin = new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate());
+    var controlPlane = admin.controlPlane(adminToken);
     if (!organizationId.equals(controlPlane.getOrganizationId())
         || !Boolean.TRUE.equals(controlPlane.getSupportSafe())) {
       throw new ProductFlowException("Admin control plane identity or projection did not match");
+    }
+    var status = admin.providerStatus(adminToken);
+    var binding = status.getFilesBinding();
+    if (!environment.tenantId().equals(status.getOrganizationId())
+        || !Boolean.TRUE.equals(status.getSupportSafe())
+        || binding == null
+        || binding.getBindingState()
+            != com.massimotter.weave.adminapi.model.FilesBindingStatusResponse.BindingStateEnum.ACTIVE
+        || binding.getBindingRevision() == null
+        || binding.getBindingRevision() < 1
+        || !"weave-native".equals(binding.getAdapterKey())
+        || binding.getReadiness()
+            != com.massimotter.weave.adminapi.model.FilesBindingStatusResponse.ReadinessEnum.CONFIGURED) {
+      throw new ProductFlowException("Admin status did not match the isolated Files binding");
     }
   }
 
@@ -750,6 +784,10 @@ public final class FreshProductFlow {
     }
     if (!hasExactWorkspaceScope(scopes)) {
       invalidClaims.add("workspace-scope");
+    }
+    String organizationViolation = NativeOrganizationClaims.violation(claims);
+    if (organizationViolation != null) {
+      invalidClaims.add(organizationViolation);
     }
     Set<String> organizationRoles = organizationRoles(claims, "weave-app");
     Set<String> productRoles = Set.of("owner", "admin", "member", "guest");

@@ -12,7 +12,6 @@ class ServerConfigurationDto {
     required this.oidcClientRegistrationMode,
     required this.oidcClientId,
     required this.matrixHomeserverUrl,
-    required this.nextcloudBaseUrl,
     required this.backendApiBaseUrl,
   });
 
@@ -27,8 +26,6 @@ class ServerConfigurationDto {
       oidcClientId: configuration.oidcClientRegistration.clientId,
       matrixHomeserverUrl: configuration.serviceEndpoints.matrixHomeserverUrl
           .toString(),
-      nextcloudBaseUrl: configuration.serviceEndpoints.nextcloudBaseUrl
-          .toString(),
       backendApiBaseUrl: configuration.serviceEndpoints.backendApiBaseUrl
           .toString(),
     );
@@ -41,7 +38,6 @@ class ServerConfigurationDto {
       oidcClientRegistrationMode: json['oidcClientRegistrationMode'] as String,
       oidcClientId: json['oidcClientId'] as String,
       matrixHomeserverUrl: json['matrixHomeserverUrl'] as String,
-      nextcloudBaseUrl: json['nextcloudBaseUrl'] as String,
       backendApiBaseUrl: json['backendApiBaseUrl'] as String,
     );
   }
@@ -51,7 +47,6 @@ class ServerConfigurationDto {
   final String oidcClientRegistrationMode;
   final String oidcClientId;
   final String matrixHomeserverUrl;
-  final String nextcloudBaseUrl;
   final String backendApiBaseUrl;
 
   ServerConfiguration toConfiguration() {
@@ -66,7 +61,6 @@ class ServerConfigurationDto {
       ),
       serviceEndpoints: ServiceEndpoints(
         matrixHomeserverUrl: Uri.parse(matrixHomeserverUrl),
-        nextcloudBaseUrl: Uri.parse(nextcloudBaseUrl),
         backendApiBaseUrl: Uri.parse(backendApiBaseUrl),
       ),
     );
@@ -76,12 +70,12 @@ class ServerConfigurationDto {
 
   Map<String, dynamic> toJson() {
     return {
+      'schemaVersion': 2,
       'providerType': providerType,
       'oidcIssuerUrl': oidcIssuerUrl,
       'oidcClientRegistrationMode': oidcClientRegistrationMode,
       'oidcClientId': oidcClientId,
       'matrixHomeserverUrl': matrixHomeserverUrl,
-      'nextcloudBaseUrl': nextcloudBaseUrl,
       'backendApiBaseUrl': backendApiBaseUrl,
     };
   }

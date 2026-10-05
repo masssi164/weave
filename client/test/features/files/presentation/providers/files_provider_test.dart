@@ -160,7 +160,7 @@ void main() {
     test('restores the saved session and loads the root directory', () async {
       final repository = _FakeFilesRepository(
         restoreConnectionHandler: () async => FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://files.home.internal'),
+          baseUrl: Uri.parse('https://api.home.internal/api'),
           accountLabel: 'alice',
         ),
         connectHandler: () async => throw UnimplementedError(),
@@ -204,7 +204,7 @@ void main() {
         var listCalls = 0;
         final repository = _FakeFilesRepository(
           restoreConnectionHandler: () async => FilesConnectionState.connected(
-            baseUrl: Uri.parse('https://files.home.internal'),
+            baseUrl: Uri.parse('https://api.home.internal/api'),
             accountLabel: 'alice',
           ),
           connectHandler: () async => throw UnimplementedError(),
@@ -261,14 +261,14 @@ void main() {
       () async {
         final repository = _FakeFilesRepository(
           restoreConnectionHandler: () async => FilesConnectionState.connected(
-            baseUrl: Uri.parse('https://files.home.internal'),
+            baseUrl: Uri.parse('https://api.home.internal/api'),
             accountLabel: 'alice',
           ),
           connectHandler: () async => throw UnimplementedError(),
           disconnectHandler: () async {},
           listDirectoryHandler: (path) async {
             throw const FilesFailure.invalidCredentials(
-              'The saved Nextcloud credentials are no longer valid.',
+              'The Weave sign-in needs to be renewed.',
             );
           },
         );
@@ -288,12 +288,49 @@ void main() {
         expect(state.connectionState.status, FilesConnectionStatus.invalid);
         expect(
           state.connectionState.message,
-          'The saved Nextcloud credentials are no longer valid.',
+          'The Weave sign-in needs to be renewed.',
         );
         expect(state.directoryListing, isNull);
         expect(
           state.directoryFailure?.type,
           FilesFailureType.invalidCredentials,
+        );
+      },
+    );
+
+    test(
+      'a Files permission denial keeps the Weave session connected',
+      () async {
+        final repository = _FakeFilesRepository(
+          restoreConnectionHandler: () async => FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://api.home.internal/api'),
+            accountLabel: 'alice',
+          ),
+          connectHandler: () async => throw UnimplementedError(),
+          disconnectHandler: () async {},
+          listDirectoryHandler: (_) async =>
+              throw const FilesFailure.permissionDenied(
+                'This member cannot inspect that folder.',
+              ),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final state = await container.read(filesProvider.future);
+        expect(state.connectionState.status, FilesConnectionStatus.connected);
+        expect(state.directoryListing, isNull);
+        expect(state.directoryFailure?.type, FilesFailureType.permissionDenied);
+        expect(
+          state.directoryFailure?.message,
+          'This member cannot inspect that folder.',
         );
       },
     );
@@ -305,16 +342,16 @@ void main() {
         final repository = _FakeFilesRepository(
           restoreConnectionHandler: () async => connected
               ? FilesConnectionState.connected(
-                  baseUrl: Uri.parse('https://files.home.internal'),
+                  baseUrl: Uri.parse('https://api.home.internal/api'),
                   accountLabel: 'alice',
                 )
               : FilesConnectionState.disconnected(
-                  baseUrl: Uri.parse('https://files.home.internal'),
+                  baseUrl: Uri.parse('https://api.home.internal/api'),
                 ),
           connectHandler: () async {
             connected = true;
             return FilesConnectionState.connected(
-              baseUrl: Uri.parse('https://files.home.internal'),
+              baseUrl: Uri.parse('https://api.home.internal/api'),
               accountLabel: 'alice',
             );
           },
@@ -327,7 +364,7 @@ void main() {
             }
 
             throw const FilesFailure.invalidCredentials(
-              'The saved Nextcloud credentials are no longer valid.',
+              'The Weave sign-in needs to be renewed.',
             );
           },
         );
@@ -362,6 +399,48 @@ void main() {
     );
 
     test(
+      'unavailable Files readiness never starts a directory request',
+      () async {
+        var listCalls = 0;
+        final unavailable = FilesConnectionState.unavailable(
+          baseUrl: Uri.parse('https://api.home.internal/api'),
+          message: 'Files access is blocked by workspace policy.',
+        );
+        final repository = _FakeFilesRepository(
+          restoreConnectionHandler: () async => unavailable,
+          connectHandler: () async => unavailable,
+          disconnectHandler: () async {},
+          listDirectoryHandler: (_) async {
+            listCalls++;
+            return const DirectoryListing(path: '/', entries: []);
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        expect(
+          (await container.read(filesProvider.future)).connectionState.status,
+          FilesConnectionStatus.unavailable,
+        );
+        await container.read(filesProvider.notifier).connect();
+
+        expect(listCalls, 0);
+        expect(
+          container.read(filesProvider).requireValue.connectionState.status,
+          FilesConnectionStatus.unavailable,
+        );
+      },
+    );
+
+    test(
       'uploads a picked file, reports completion, and refreshes the folder',
       () async {
         var uploadedDirectoryPath = '';
@@ -369,7 +448,7 @@ void main() {
         var uploadComplete = false;
         final repository = _FakeFilesRepository(
           restoreConnectionHandler: () async => FilesConnectionState.connected(
-            baseUrl: Uri.parse('https://files.home.internal'),
+            baseUrl: Uri.parse('https://api.home.internal/api'),
             accountLabel: 'alice',
           ),
           connectHandler: () async => throw UnimplementedError(),
@@ -441,7 +520,7 @@ void main() {
         var listCalls = 0;
         final repository = _FakeFilesRepository(
           restoreConnectionHandler: () async => FilesConnectionState.connected(
-            baseUrl: Uri.parse('https://files.home.internal'),
+            baseUrl: Uri.parse('https://api.home.internal/api'),
             accountLabel: 'alice',
           ),
           connectHandler: () async => throw UnimplementedError(),
@@ -499,7 +578,7 @@ void main() {
         var listCalls = 0;
         final repository = _FakeFilesRepository(
           restoreConnectionHandler: () async => FilesConnectionState.connected(
-            baseUrl: Uri.parse('https://files.home.internal'),
+            baseUrl: Uri.parse('https://api.home.internal/api'),
             accountLabel: 'alice',
           ),
           connectHandler: () async => throw UnimplementedError(),
@@ -570,7 +649,7 @@ void main() {
       var creationComplete = false;
       final repository = _FakeFilesRepository(
         restoreConnectionHandler: () async => FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://files.home.internal'),
+          baseUrl: Uri.parse('https://api.home.internal/api'),
           accountLabel: 'alice',
         ),
         connectHandler: () async => throw UnimplementedError(),
@@ -639,7 +718,7 @@ void main() {
       );
       final repository = _FakeFilesRepository(
         restoreConnectionHandler: () async => FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://files.home.internal'),
+          baseUrl: Uri.parse('https://api.home.internal/api'),
           accountLabel: 'alice',
         ),
         connectHandler: () async => throw UnimplementedError(),
@@ -687,7 +766,7 @@ void main() {
       FileEntry? downloadedEntry;
       final repository = _FakeFilesRepository(
         restoreConnectionHandler: () async => FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://files.home.internal'),
+          baseUrl: Uri.parse('https://api.home.internal/api'),
           accountLabel: 'alice',
         ),
         connectHandler: () async => throw UnimplementedError(),

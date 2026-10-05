@@ -43,6 +43,7 @@ DEPLOYMENT_PROCESS_OVERRIDES = {
     "WEAVE_BACKEND_IMAGE",
     "WEAVE_KEYCLOAK_IMAGE",
     "WEAVE_MCP_IMAGE",
+    "WEAVE_RUNTIME_STATE_IMAGE",
 }
 OPERATOR_PROCESS_INPUTS = {
     "WEAVE_BACKUP_ROOT",
@@ -361,6 +362,9 @@ def load_context(selector: str, root: Path, supplied_env_file: str | None = None
     env.setdefault("WEAVE_RUNTIME_UID", str(os.getuid()))
     env.setdefault("WEAVE_RUNTIME_GID", str(os.getgid()))
     env.setdefault("WEAVE_MATRIX_HOST", urlsplit(env.get("WEAVE_MATRIX_URL", "")).hostname or "")
+    # The public Weave Matrix server name follows the API facade host, not the
+    # selected southbound Matrix provider host.
+    env["WEAVE_API_HOST"] = urlsplit(env.get("WEAVE_API_ORIGIN", "")).hostname or ""
     public = urlsplit(env.get("WEAVE_PUBLIC_URL", ""))
     admin_host = f"{env.get('WEAVE_ADMIN_SUBDOMAIN', 'admin')}.{env.get('WEAVE_TENANT_DOMAIN', '')}"
     admin_authority = admin_host + (f":{public.port}" if public.port is not None else "")
@@ -531,6 +535,9 @@ def _validate_environment(environment: str, profile: str, env: Mapping[str, str]
             # exact local image IDs so the current checkout can be tested
             # without publishing; production still requires registry digests.
             local_candidate_images.add("WEAVE_KEYCLOAK_IMAGE")
+            # The optional S3 test image is built from pinned upstream source
+            # and addressed by its exact local image ID for this isolated run.
+            local_candidate_images.add("WEAVE_RUNTIME_STATE_IMAGE")
         unpinned = [
             name for name in image_names
             if not PUBLISHED_DIGEST_IMAGE_RE.fullmatch(env[name])

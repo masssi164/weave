@@ -20,6 +20,7 @@ public final class FilesMutationIntentService {
 
     private static final String DOMAIN = "files";
     private static final String PROFILE = "weave.webdav.files/v1";
+    private static final String USER_HTTP_PROFILE = "weave.user.files/v1";
 
     private final OperationIntentService intents;
     private final ProviderBindingRepository bindings;
@@ -31,6 +32,20 @@ public final class FilesMutationIntentService {
 
     public PinnedMutation begin(Command command) {
         Objects.requireNonNull(command, "command must not be null");
+        return begin(command, new ProtocolProjection("webdav", command.operation(), PROFILE), false);
+    }
+
+    /** The generated User HTTP plane requires an explicit key and records its own projection. */
+    public PinnedMutation beginUserApi(Command command) {
+        Objects.requireNonNull(command, "command must not be null");
+        return begin(command, new ProtocolProjection("http", command.operation(), USER_HTTP_PROFILE), true);
+    }
+
+    private PinnedMutation begin(Command command, ProtocolProjection projection, boolean explicitKey) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (explicitKey && (command.idempotencyKey() == null || command.idempotencyKey().isBlank())) {
+            throw new InvalidIdempotencyKeyException();
+        }
         String argumentsDigest = digest(command.canonicalArguments());
         String idempotencyKey = normalizeIdempotencyKey(
                 command.idempotencyKey(), command.organizationRef(), command.personRef(),
@@ -48,7 +63,7 @@ public final class FilesMutationIntentService {
                 command.organizationRef(),
                 new HumanActor(command.personRef(), command.subjectRef()),
                 DOMAIN,
-                new ProtocolProjection("webdav", command.operation(), PROFILE),
+                projection,
                 digest(command.operation()),
                 argumentsDigest,
                 command.objectRefs(),

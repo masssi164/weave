@@ -14,6 +14,11 @@ import org.springframework.security.web.access.intercept.RequestAuthorizationCon
 public final class AdminApiAuthorizationManager implements AuthorizationManager<RequestAuthorizationContext> {
 
     private static final Set<String> PRODUCT_ROLES = Set.of("owner", "admin", "member", "guest");
+    private final DeploymentOrganizationAdmission organizationAdmission;
+
+    public AdminApiAuthorizationManager(DeploymentOrganizationAdmission organizationAdmission) {
+        this.organizationAdmission = java.util.Objects.requireNonNull(organizationAdmission);
+    }
 
     @Override
     public AuthorizationResult authorize(
@@ -30,6 +35,7 @@ public final class AdminApiAuthorizationManager implements AuthorizationManager<
         List<String> roles = NativeOrganizationClaims.clientRoles(jwtAuthentication.getToken(), "weave-app");
         List<String> productRoles = roles.stream().filter(PRODUCT_ROLES::contains).toList();
         return new AuthorizationDecision(productRoles.size() == 1
+                && organizationAdmission.allows(jwtAuthentication.getToken())
                 && (productRoles.contains("owner") || productRoles.contains("admin")));
     }
 }

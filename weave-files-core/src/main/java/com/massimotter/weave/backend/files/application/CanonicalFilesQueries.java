@@ -1,10 +1,12 @@
 package com.massimotter.weave.backend.files.application;
 
 import static com.massimotter.weave.backend.files.application.FilesApplicationException.Code.CONTENT_INTEGRITY_FAILED;
+import static com.massimotter.weave.backend.files.application.FilesApplicationException.Code.CONTENT_TOO_LARGE;
 import static com.massimotter.weave.backend.files.application.FilesApplicationException.Code.INVALID_BLOB_REFERENCE;
 import static com.massimotter.weave.backend.files.application.FilesApplicationException.Code.NOT_A_COLLECTION;
 import static com.massimotter.weave.backend.files.application.FilesApplicationException.Code.NOT_A_FILE;
 import static com.massimotter.weave.backend.files.application.FilesApplicationException.Code.NOT_FOUND;
+import static com.massimotter.weave.backend.files.application.FilesApplicationException.Code.VERSION_CHANGED;
 
 import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
@@ -107,6 +109,36 @@ public final class CanonicalFilesQueries {
         return new FileContent(record.metadata().object(), target.toByteArray());
     }
 
+    /** Reads one immutable blob only when its canonical object and strong version still match. */
+    public FileContent readBoundedIfVersion(
+            FilesScope scope, FileId id, int maxBytes, FileVersion expectedVersion) {
+        Objects.requireNonNull(expectedVersion, "expectedVersion must not be null");
+        return readBounded(scope, id, maxBytes, expectedVersion);
+    }
+
+    public FileContent readBounded(FilesScope scope, FileId id, int maxBytes) {
+        return readBounded(scope, id, maxBytes, null);
+    }
+
+    private FileContent readBounded(
+            FilesScope scope, FileId id, int maxBytes, FileVersion expectedVersion) {
+        if (maxBytes < 0) {
+            throw new IllegalArgumentException("maximum read size must not be negative");
+        }
+        StoredFileRecord record = file(scope, id);
+        if (expectedVersion != null
+                && (!expectedVersion.known() || !expectedVersion.equals(record.metadata().version()))) {
+            throw failure(VERSION_CHANGED, "The Files content version changed.");
+        }
+        if (record.metadata().object().size() > maxBytes) {
+            throw failure(CONTENT_TOO_LARGE, "The Files content exceeds the read limit.");
+        }
+        ByteArrayOutputStream target = new ByteArrayOutputStream(
+                Math.toIntExact(record.metadata().object().size()));
+        readVerified(scope, record, target, maxBytes);
+        return new FileContent(record.metadata().object(), target.toByteArray());
+    }
+
     public void readTo(FilesScope scope, FileId id, OutputStream target) {
         Objects.requireNonNull(target, "target must not be null");
         readVerified(scope, file(scope, id), target);
@@ -156,6 +188,14 @@ public final class CanonicalFilesQueries {
             FilesScope scope,
             StoredFileRecord record,
             OutputStream target) {
+        readVerified(scope, record, target, -1);
+    }
+
+    private void readVerified(
+            FilesScope scope,
+            StoredFileRecord record,
+            OutputStream target,
+            long maxBytes) {
         CanonicalFileRecord metadata = record.metadata();
         MessageDigest digest = FilesDigests.newSha256();
         long[] count = {0};
@@ -172,7 +212,11 @@ public final class CanonicalFilesQueries {
                 count[0] += length;
             }
         }, digest);
-        blobs.readStream(blobScope(scope), reference(record), verifying);
+        if (maxBytes >= 0) {
+            blobs.readStreamBounded(blobScope(scope), reference(record), verifying, maxBytes);
+        } else {
+            blobs.readStream(blobScope(scope), reference(record), verifying);
+        }
         String actualDigest = "sha256:" + java.util.HexFormat.of().formatHex(digest.digest());
         if (count[0] != metadata.object().size()
                 || metadata.contentDigest() == null

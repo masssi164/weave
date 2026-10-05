@@ -93,7 +93,9 @@ def _desired(baseline: dict[str, object], overlay: dict[str, object]) -> dict[st
         # disposable E2E lane deliberately retains this policy because it
         # proves the complete Weaver workload lifecycle.
         desired["clientPolicies"] = []
-    if overlay["environment"] in {"dev", "dogfood", "e2e"}:
+    # Isolated E2E explicitly qualifies the production FGAP migration before
+    # application startup; it must not retain the development role bypass.
+    if overlay["environment"] in {"dev", "dogfood"}:
         grants = desired.get("serviceAccountRoleGrants")
         if not isinstance(grants, list):
             raise ContractError("canonical service-account role grants are required")
@@ -203,7 +205,9 @@ def render_keycloak(context: ComposeContext) -> dict[str, object]:
 
     realm_payload = pretty_json(project_realm(desired, public_keys))
     rendered_digest = sha256_digest(realm_payload)
-    migration_bundle = fresh_start_migration_bundle(desired, rendered_digest)
+    migration_bundle = fresh_start_migration_bundle(
+        desired, rendered_digest, json_object(migration_definition_source)
+    )
     migration_payload = pretty_json(migration_bundle)
     migration_digest = sha256_digest(migration_payload)
     semantic_payload = baseline_path.read_bytes()

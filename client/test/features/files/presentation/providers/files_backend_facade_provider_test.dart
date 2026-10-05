@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -18,9 +19,55 @@ import 'package:weave/features/files/presentation/providers/files_repository_pro
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/generated/user_api/api.dart' as user_api;
+import 'package:weave/integrations/weave_api/data/services/weave_user_api_client.dart';
 
 import '../../../../helpers/auth_test_data.dart';
 import '../../../../helpers/server_config_test_data.dart';
+
+String _readiness({
+  bool enabled = true,
+  String policyState = 'allowed',
+  String readiness = 'ready',
+  List<String> grants = const ['files.read', 'files.upload'],
+  String? memberImpact,
+}) => jsonEncode({
+  'enabled': enabled,
+  'policyState': policyState,
+  'readiness': readiness,
+  'grantedCapabilities': grants,
+  if (memberImpact != null) 'memberImpact': memberImpact,
+});
+
+Map<String, Object?> _item({
+  String id = 'file:123e4567-e89b-12d3-a456-426614174000',
+  String parentId = BackendFilesRepository.rootFileId,
+  String name = 'notes.txt',
+  String path = '/notes.txt',
+  String kind = 'file',
+  List<String> actions = const ['inspect', 'download'],
+}) => {
+  'fileId': id,
+  'parentFileId': parentId,
+  'name': name,
+  'displayPath': path,
+  'kind': kind,
+  'size': kind == 'file' ? 3 : 0,
+  'mediaType': kind == 'file' ? 'text/plain' : null,
+  'modifiedAt': '2026-10-04T10:00:00Z',
+  'revision': 'sha256:revision',
+  'allowedActions': actions,
+};
+
+String _listing({
+  String parentId = BackendFilesRepository.rootFileId,
+  List<String> actions = const ['listChildren', 'createFolder', 'upload'],
+  List<Map<String, Object?>> items = const [],
+}) => jsonEncode({
+  'parentFileId': parentId,
+  'allowedActions': actions,
+  'items': items,
+});
 
 class _FakeServerConfigurationRepository
     implements ServerConfigurationRepository {
@@ -53,7 +100,8 @@ class _FakeAuthSessionRepository implements AuthSessionRepository {
   @override
   Future<AuthState> refreshSession(AuthConfiguration configuration) async {
     refreshCalls++;
-    return refreshedState ?? state;
+    state = refreshedState ?? state;
+    return state;
   }
 
   @override
@@ -67,9 +115,48 @@ class _FakeAuthSessionRepository implements AuthSessionRepository {
   Future<AuthState> signIn(AuthConfiguration configuration) async => state;
 }
 
+class _IdentityAwareClient extends http.BaseClient {
+  _IdentityAwareClient(
+    this.delegate,
+    this.subjectForToken,
+    this.organizationForToken,
+  );
+
+  final http.Client delegate;
+  final String Function(String)? subjectForToken;
+  final String Function(String)? organizationForToken;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    if (request.url.path == '/api/me') {
+      final token = request.headers['authorization'] ?? '';
+      return Future.value(
+        http.StreamedResponse(
+          Stream.value(
+            utf8.encode(
+              jsonEncode({
+                'subject': subjectForToken?.call(token) ?? 'member-one',
+                'organizationId':
+                    organizationForToken?.call(token) ?? 'org-one',
+                'identityIssuer': 'https://auth.home.internal',
+              }),
+            ),
+          ),
+          200,
+          headers: {'content-type': 'application/json'},
+        ),
+      );
+    }
+    return delegate.send(request);
+  }
+
+  @override
+  void close() => delegate.close();
+}
+
 void main() {
-  group('filesRepositoryProvider backend-facade seam', () {
-    test('always uses the backend facade in release client paths', () {
+  group('filesRepositoryProvider', () {
+    test('uses the generated User API repository for release members', () {
       final container = ProviderContainer(
         overrides: [
           serverConfigurationRepositoryProvider.overrideWithValue(
@@ -83,7 +170,6 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
-
       expect(
         container.read(filesRepositoryProvider),
         isA<BackendFilesRepository>(),
@@ -91,17 +177,23 @@ void main() {
     });
   });
 
-  group('BackendFilesRepository', () {
+  group('BackendFilesRepository generated operations', () {
     late _FakeServerConfigurationRepository configurationRepository;
     late _FakeAuthSessionRepository authSessionRepository;
 
-    BackendFilesRepository repository(http.Client client) {
-      return BackendFilesRepository(
-        httpClient: client,
-        serverConfigurationRepository: configurationRepository,
-        authSessionRepository: authSessionRepository,
-      );
-    }
+    BackendFilesRepository repository(
+      http.Client client, {
+      String Function(String)? subjectForToken,
+      String Function(String)? organizationForToken,
+    }) => BackendFilesRepository(
+      httpClient: _IdentityAwareClient(
+        client,
+        subjectForToken,
+        organizationForToken,
+      ),
+      serverConfigurationRepository: configurationRepository,
+      authSessionRepository: authSessionRepository,
+    );
 
     setUp(() {
       configurationRepository = _FakeServerConfigurationRepository(
@@ -117,291 +209,250 @@ void main() {
     });
 
     test(
-      'restores as connected when Weave auth and backend URL are present',
+      'readiness grants gate browser; denied and unknown stay closed',
       () async {
-        final state = await repository(
-          MockClient((_) async => http.Response('', 500)),
-        ).restoreConnection();
-
-        expect(state.status, FilesConnectionStatus.connected);
-        expect(state.baseUrl, Uri.parse('https://api.home.internal/api'));
-        expect(state.accountLabel, BackendFilesRepository.accountLabel);
-      },
-    );
-
-    test(
-      'lists files through the Weave WebDAV data plane with the Weave token',
-      () async {
-        late http.Request capturedRequest;
-        final client = MockClient((request) async {
-          capturedRequest = request;
-          return http.Response(
-            '''
-            <?xml version="1.0" encoding="UTF-8"?>
-            <d:multistatus xmlns:d="DAV:">
-              <d:response>
-                <d:href>/dav/files/Team/</d:href>
-                <d:propstat><d:prop><d:displayname>Team</d:displayname><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
-              </d:response>
-              <d:response>
-                <d:href>/dav/files/Team/Design/</d:href>
-                <d:propstat><d:prop><d:displayname>Design</d:displayname><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
-              </d:response>
-              <d:response>
-                <d:href>/dav/files/Team/readme.md</d:href>
-                <d:propstat><d:prop><d:displayname>readme.md</d:displayname><d:resourcetype/><d:getcontentlength>42</d:getcontentlength><d:getcontenttype>text/markdown</d:getcontenttype><d:getlastmodified>Sat, 04 Jul 2026 12:01:00 GMT</d:getlastmodified></d:prop></d:propstat>
-              </d:response>
-            </d:multistatus>
-            ''',
-            207,
-            headers: {'content-type': 'application/xml'},
-          );
-        });
-
-        final listing = await repository(client).listDirectory('/Team');
-
-        expect(capturedRequest.method, 'PROPFIND');
-        expect(
-          capturedRequest.url.toString(),
-          'https://api.home.internal/dav/files/Team',
-        );
-        expect(capturedRequest.headers['authorization'], 'Bearer files-token');
-        expect(capturedRequest.headers['depth'], '1');
-        expect(listing.path, '/Team');
-        expect(listing.entries, hasLength(2));
-        expect(listing.entries.first.isDirectory, isTrue);
-        expect(listing.entries.last.sizeInBytes, 42);
-        expect(
-          listing.entries.last.modifiedAt,
-          DateTime.utc(2026, 7, 4, 12, 1),
-        );
-      },
-    );
-
-    test('fails closed when WebDAV files response is malformed', () async {
-      final client = MockClient(
-        (_) async => http.Response('<d:multistatus>', 207),
-      );
-
-      await expectLater(
-        repository(client).listDirectory('/Team'),
-        throwsA(
-          isA<FilesFailure>()
-              .having(
-                (failure) => failure.type,
-                'type',
-                FilesFailureType.protocol,
-              )
-              .having(
-                (failure) => failure.message,
-                'message',
-                contains('invalid WebDAV files listing'),
-              ),
-        ),
-      );
-    });
-
-    test('downloads files through the Weave WebDAV data plane', () async {
-      final requests = <http.Request>[];
-      final client = MockClient((request) async {
-        requests.add(request);
-        return http.Response.bytes(
-          const [1, 2, 3],
-          200,
-          headers: {
-            'content-disposition':
-                "attachment; filename*=UTF-8''readme%20export.md",
-          },
-        );
-      });
-      final backendRepository = repository(client);
-
-      final download = await backendRepository.downloadFile(
-        const FileEntry(
-          id: 'files:/Team/readme.md',
-          name: 'readme.md',
-          path: '/Team/readme.md',
-          isDirectory: false,
-        ),
-      );
-
-      expect(download.fileName, 'readme export.md');
-      expect(download.bytes, <int>[1, 2, 3]);
-      expect(requests.single.headers['authorization'], 'Bearer files-token');
-      expect(requests.map((request) => '${request.method} ${request.url}'), [
-        'GET https://api.home.internal/dav/files/Team/readme.md',
-      ]);
-    });
-
-    test('writes files through the Weave WebDAV data plane', () async {
-      // FLUTTER_FILES_WEBDAV_DATA_PLANE
-      final requests = <http.BaseRequest>[];
-      final uploadedBodies = <List<int>>[];
-      final client = MockClient.streaming((request, bodyStream) async {
-        requests.add(request);
-        if (request.method == 'PUT') {
-          uploadedBodies.add(await bodyStream.toBytes());
-        }
-        return switch (request.method) {
-          'PUT' => http.StreamedResponse(
-            const Stream.empty(),
-            201,
-            headers: {'etag': '"created"'},
-          ),
-          'MKCOL' => http.StreamedResponse(
-            const Stream.empty(),
-            201,
-            headers: {'location': '/dav/files/Team/Design/'},
-          ),
-          'DELETE' => http.StreamedResponse(const Stream.empty(), 204),
-          _ => http.StreamedResponse(const Stream.empty(), 500),
-        };
-      });
-      final backendRepository = repository(client);
-      final progress = <String>[];
-
-      await backendRepository.uploadFile(
-        '/Team',
-        FileUploadRequest(
-          fileName: 'notes.txt',
-          sizeInBytes: 5,
-          byteStream: Stream<List<int>>.fromIterable(const [
-            [1, 2],
-            [3, 4, 5],
-          ]),
-        ),
-        onProgress: (uploaded, total) => progress.add('$uploaded/$total'),
-      );
-      final created = await backendRepository.createFolder(
-        parentPath: '/Team',
-        name: 'Design',
-      );
-      await backendRepository.deleteEntry(
-        const FileEntry(
-          id: 'files:/Team/old.md',
-          name: 'old.md',
-          path: '/Team/old.md',
-          isDirectory: false,
-        ),
-      );
-
-      expect(progress, ['2/5', '5/5']);
-      expect(created.path, '/Team/Design');
-      expect(created.isDirectory, isTrue);
-      expect(requests.map((request) => '${request.method} ${request.url}'), [
-        'PUT https://api.home.internal/dav/files/Team/notes.txt',
-        'MKCOL https://api.home.internal/dav/files/Team/Design',
-        'DELETE https://api.home.internal/dav/files/Team/old.md',
-      ]);
-      expect(requests[0].headers['authorization'], 'Bearer files-token');
-      expect(requests[0].headers['if-none-match'], '*');
-      expect(requests[0].headers['content-type'], 'application/octet-stream');
-      expect(requests[0].contentLength, 5);
-      expect(uploadedBodies.single, <int>[1, 2, 3, 4, 5]);
-      expect(requests[1].headers['if-none-match'], '*');
-      expect(requests[2].headers['authorization'], 'Bearer files-token');
-      expect(requests[2].headers['if-match'], '*');
-    });
-
-    test(
-      'copies and moves entries through the Weave WebDAV data plane',
-      () async {
-        // FLUTTER_FILES_WEBDAV_COPY_MOVE
-        final requests = <http.Request>[];
-        final client = MockClient((request) async {
-          requests.add(request);
-          return http.Response(
-            '',
-            request.method == 'COPY' ? 201 : 204,
-            headers: {
-              'location': request.method == 'COPY'
-                  ? '/dav/files/Team/readme-copy.md'
-                  : '/dav/files/Archive/readme.md',
-            },
-          );
-        });
-        final backendRepository = repository(client);
-        const source = FileEntry(
-          id: 'files:/Team/readme.md',
-          name: 'readme.md',
-          path: '/Team/readme.md',
-          isDirectory: false,
-          sizeInBytes: 42,
-        );
-
-        final copied = await backendRepository.copyEntry(
-          source,
-          destinationPath: '/Team/readme-copy.md',
-        );
-        final moved = await backendRepository.moveEntry(
-          source,
-          destinationPath: '/Archive/readme.md',
-          overwrite: true,
-        );
-
-        expect(copied.path, '/Team/readme-copy.md');
-        expect(moved.path, '/Archive/readme.md');
-        expect(requests.map((request) => request.method), ['COPY', 'MOVE']);
-        expect(requests[0].url.path, '/dav/files/Team/readme.md');
-        expect(
-          requests[0].headers['destination'],
-          'https://api.home.internal/dav/files/Team/readme-copy.md',
-        );
-        expect(requests[0].headers['overwrite'], 'F');
-        expect(requests[0].headers['if-match'], '*');
-        expect(requests[1].headers['overwrite'], 'T');
-        expect(
-          requests.every(
-            (request) =>
-                request.headers['authorization'] == 'Bearer files-token',
-          ),
-          isTrue,
-        );
-      },
-    );
-
-    test(
-      'rejects unsupported WebDAV child names before network calls',
-      () async {
-        var networkCalls = 0;
-        final backendRepository = repository(
-          MockClient((_) async {
-            networkCalls++;
-            return http.Response('', 500);
+        var calls = 0;
+        final ready = repository(
+          MockClient((request) async {
+            calls++;
+            expect(request.url.path, '/api/files/readiness');
+            expect(request.headers['authorization'], 'Bearer files-token');
+            return http.Response(_readiness(), 200);
           }),
         );
+        expect(
+          (await ready.restoreConnection()).status,
+          FilesConnectionStatus.connected,
+        );
+        expect(calls, 1);
 
-        await expectLater(
-          backendRepository.uploadFile(
-            '/Team',
-            FileUploadRequest(
-              fileName: '..',
-              sizeInBytes: 1,
-              byteStream: Stream<List<int>>.fromIterable(const [
-                [1],
-              ]),
+        final denied = repository(
+          MockClient(
+            (_) async => http.Response(
+              _readiness(
+                policyState: 'denied',
+                memberImpact: 'Ask your admin.',
+              ),
+              200,
             ),
           ),
-          throwsA(
-            isA<FilesFailure>()
-                .having(
-                  (failure) => failure.type,
-                  'type',
-                  FilesFailureType.protocol,
-                )
-                .having(
-                  (failure) => failure.message,
-                  'message',
-                  contains('file name is not valid'),
-                ),
+        );
+        final deniedState = await denied.connect();
+        expect(deniedState.status, FilesConnectionStatus.unavailable);
+        expect(deniedState.message, 'Ask your admin.');
+
+        final missingGrant = repository(
+          MockClient(
+            (_) async =>
+                http.Response(_readiness(grants: const ['files.upload']), 200),
           ),
         );
+        expect(
+          (await missingGrant.connect()).status,
+          FilesConnectionStatus.unavailable,
+        );
 
-        await expectLater(
-          backendRepository.createFolder(
-            parentPath: '/Team',
-            name: r'bad\name',
+        final unknown = repository(
+          MockClient(
+            (_) async => http.Response(_readiness(readiness: 'unknown'), 200),
           ),
+        );
+        expect(
+          (await unknown.connect()).status,
+          FilesConnectionStatus.unavailable,
+        );
+      },
+    );
+
+    test('readiness retries once after refreshed Weave token', () async {
+      authSessionRepository.refreshedState = AuthState.authenticated(
+        buildTestAuthSession(accessToken: 'fresh-token'),
+      );
+      final seen = <String?>[];
+      final files = repository(
+        MockClient((request) async {
+          seen.add(request.headers['authorization']);
+          return request.headers['authorization'] == 'Bearer files-token'
+              ? http.Response('{}', 401)
+              : http.Response(_readiness(), 200);
+        }),
+      );
+      expect((await files.connect()).status, FilesConnectionStatus.connected);
+      expect(seen, ['Bearer files-token', 'Bearer fresh-token']);
+      expect(authSessionRepository.refreshCalls, 1);
+    });
+
+    test('Files list retries once with the refreshed User token', () async {
+      authSessionRepository.refreshedState = AuthState.authenticated(
+        buildTestAuthSession(accessToken: 'fresh-token'),
+      );
+      final seen = <String?>[];
+      final files = repository(
+        MockClient((request) async {
+          expect(request.url.path, '/api/files/items');
+          seen.add(request.headers['authorization']);
+          return request.headers['authorization'] == 'Bearer files-token'
+              ? http.Response('{}', 401)
+              : http.Response(_listing(), 200);
+        }),
+      );
+      expect((await files.listDirectory('/')).entries, isEmpty);
+      expect(seen, ['Bearer files-token', 'Bearer fresh-token']);
+      expect(authSessionRepository.refreshCalls, 1);
+    });
+
+    test(
+      'lists typed items with opaque IDs, paths and server actions',
+      () async {
+        final files = repository(
+          MockClient((request) async {
+            expect(request.url.path, '/api/files/items');
+            expect(
+              request.url.queryParameters['parentId'],
+              BackendFilesRepository.rootFileId,
+            );
+            expect(request.headers['authorization'], 'Bearer files-token');
+            return http.Response(_listing(items: [_item()]), 200);
+          }),
+        );
+        final listing = await files.listDirectory('/');
+        expect(listing.parentFileId, BackendFilesRepository.rootFileId);
+        expect(listing.allows('createFolder'), isTrue);
+        expect(listing.entries.single.id, startsWith('file:'));
+        expect(listing.entries.single.path, '/notes.txt');
+        expect(listing.entries.single.revision, 'sha256:revision');
+        expect(listing.entries.single.allows('download'), isTrue);
+      },
+    );
+
+    test(
+      'nested navigation resolves opaque folder IDs, never DAV paths',
+      () async {
+        const folderId = 'file:123e4567-e89b-12d3-a456-426614174001';
+        final paths = <String>[];
+        final files = repository(
+          MockClient((request) async {
+            paths.add(request.url.toString());
+            final parent = request.url.queryParameters['parentId'];
+            if (parent == BackendFilesRepository.rootFileId) {
+              return http.Response(
+                _listing(
+                  items: [
+                    _item(
+                      id: folderId,
+                      name: 'Team',
+                      path: '/Team',
+                      kind: 'folder',
+                      actions: const ['inspect', 'listChildren'],
+                    ),
+                  ],
+                ),
+                200,
+              );
+            }
+            expect(parent, folderId);
+            return http.Response(
+              _listing(
+                parentId: folderId,
+                items: [_item(parentId: folderId, path: '/Team/notes.txt')],
+              ),
+              200,
+            );
+          }),
+        );
+        final listing = await files.listDirectory('/Team');
+        expect(listing.path, '/Team');
+        expect(listing.parentFileId, folderId);
+        expect(listing.entries.single.path, '/Team/notes.txt');
+        expect(paths, everyElement(contains('/api/files/items')));
+        expect(paths, isNot(contains(contains('/dav/files'))));
+      },
+    );
+
+    test('malformed parent and item mapping fail closed', () async {
+      final wrongParent = repository(
+        MockClient(
+          (_) async => http.Response(_listing(parentId: 'file:wrong'), 200),
+        ),
+      );
+      await expectLater(
+        wrongParent.listDirectory('/'),
+        throwsA(isA<FilesFailure>()),
+      );
+      final wrongItem = repository(
+        MockClient(
+          (_) async => http.Response(
+            _listing(items: [_item(parentId: 'file:wrong')]),
+            200,
+          ),
+        ),
+      );
+      await expectLater(
+        wrongItem.listDirectory('/'),
+        throwsA(isA<FilesFailure>()),
+      );
+      final pathLikeId = repository(
+        MockClient(
+          (_) async => http.Response(
+            _listing(items: [_item(id: 'file:../private')]),
+            200,
+          ),
+        ),
+      );
+      await expectLater(
+        pathLikeId.listDirectory('/'),
+        throwsA(isA<FilesFailure>()),
+      );
+    });
+
+    test(
+      'download validates exact bytes, length, digest and strong ETag',
+      () async {
+        final bytes = utf8.encode('abc');
+        final digest = base64Encode(sha256.convert(bytes).bytes);
+        final entry = FileEntry(
+          id: _item()['fileId']! as String,
+          name: 'notes.txt',
+          path: '/notes.txt',
+          isDirectory: false,
+          allowedActions: const {'download'},
+        );
+        final files = repository(
+          MockClient((request) async {
+            expect(request.url.path, '/api/files/items/${entry.id}/content');
+            expect(request.headers['authorization'], 'Bearer files-token');
+            return http.Response.bytes(
+              bytes,
+              200,
+              headers: {
+                'content-type': 'text/plain',
+                'content-length': '${bytes.length}',
+                'content-digest': 'sha-256=:$digest:',
+                'etag': '"sha256-${sha256.convert(bytes)}"',
+              },
+            );
+          }),
+        );
+        final content = await files.downloadFile(entry);
+        expect(content.bytes, bytes);
+        expect(content.fileName, 'notes.txt');
+
+        final tampered = repository(
+          MockClient(
+            (_) async => http.Response.bytes(
+              bytes,
+              200,
+              headers: {
+                'content-type': 'text/plain',
+                'content-length': '${bytes.length}',
+                'content-digest': 'sha-256=:wrong:',
+                'etag': '"sha256-${sha256.convert(bytes)}"',
+              },
+            ),
+          ),
+        );
+        await expectLater(
+          tampered.downloadFile(entry),
           throwsA(
             isA<FilesFailure>().having(
               (failure) => failure.type,
@@ -410,153 +461,400 @@ void main() {
             ),
           ),
         );
-        expect(networkCalls, 0);
-      },
-    );
 
-    test('maps WebDAV write precondition failures support-safely', () async {
-      final client = MockClient(
-        (_) async => http.Response(
-          '''
-          <?xml version="1.0" encoding="UTF-8"?>
-          <d:error xmlns:d="DAV:">
-            <d:responsedescription>The file operation conflicts with the current workspace state.</d:responsedescription>
-          </d:error>
-          ''',
-          412,
-          headers: {'content-type': 'application/xml'},
-        ),
-      );
-
-      await expectLater(
-        repository(client).uploadFile(
-          '/Team',
-          FileUploadRequest(
-            fileName: 'notes.txt',
-            sizeInBytes: 5,
-            byteStream: Stream<List<int>>.fromIterable(const [
-              [1, 2, 3, 4, 5],
-            ]),
-          ),
-        ),
-        throwsA(
-          isA<FilesFailure>()
-              .having(
-                (failure) => failure.type,
-                'type',
-                FilesFailureType.protocol,
-              )
-              .having(
-                (failure) => failure.message,
-                'message',
-                allOf(
-                  contains('conflicts with the current workspace state'),
-                  isNot(contains('Nextcloud')),
-                  isNot(contains('remote.php')),
-                ),
-              ),
-        ),
-      );
-    });
-
-    test(
-      'refreshes the Weave session once after a backend 401 and retries',
-      () async {
-        authSessionRepository.refreshedState = AuthState.authenticated(
-          buildTestAuthSession(accessToken: 'fresh-files-token'),
-        );
-        final authorizationHeaders = <String?>[];
-        final client = MockClient((request) async {
-          authorizationHeaders.add(request.headers['authorization']);
-          if (authorizationHeaders.length == 1) {
-            return http.Response(
-              jsonEncode({'message': 'Authentication is required.'}),
-              401,
-            );
-          }
-          return http.Response(
-            '''
-            <?xml version="1.0" encoding="UTF-8"?>
-            <d:multistatus xmlns:d="DAV:">
-              <d:response>
-                <d:href>/dav/files/</d:href>
-                <d:propstat><d:prop><d:displayname>Files</d:displayname><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
-              </d:response>
-            </d:multistatus>
-            ''',
-            207,
-            headers: {'content-type': 'application/xml'},
-          );
-        });
-
-        final listing = await repository(client).listDirectory('/');
-
-        expect(listing.entries, isEmpty);
-        expect(authSessionRepository.refreshCalls, 1);
-        expect(authorizationHeaders, [
-          'Bearer files-token',
-          'Bearer fresh-files-token',
-        ]);
-      },
-    );
-
-    test(
-      'maps backend auth rejection without falling back to direct Nextcloud',
-      () async {
-        final client = MockClient(
-          (_) async => http.Response(
-            jsonEncode({
-              'message': 'The Weave backend rejected the current session.',
-            }),
-            401,
+        final wrongEtag = repository(
+          MockClient(
+            (_) async => http.Response.bytes(
+              bytes,
+              200,
+              headers: {
+                'content-type': 'text/plain',
+                'content-length': '${bytes.length}',
+                'content-digest': 'sha-256=:$digest:',
+                'etag': '"sha256-${sha256.convert(utf8.encode('other'))}"',
+              },
+            ),
           ),
         );
-
         await expectLater(
-          repository(client).listDirectory('/'),
+          wrongEtag.downloadFile(entry),
           throwsA(
             isA<FilesFailure>().having(
               (failure) => failure.type,
               'type',
-              FilesFailureType.invalidCredentials,
+              FilesFailureType.protocol,
             ),
           ),
         );
       },
     );
 
-    test('uses support-safe memberImpact instead of raw backend message', () async {
-      final client = MockClient(
-        (_) async => http.Response(
-          jsonEncode({
-            'message':
-                'Nextcloud WebDAV failed at https://files.home.internal/remote.php/dav',
-            'memberImpact':
-                'Files need admin attention before members can use them reliably.',
+    test(
+      'folder creation requires generated JSON, absent-name and durable key',
+      () async {
+        final seen = <http.Request>[];
+        final files = repository(
+          MockClient((request) async {
+            seen.add(request);
+            if (request.method == 'GET') return http.Response(_listing(), 200);
+            expect(request.method, 'POST');
+            expect(request.url.path, '/api/files/items/folders');
+            expect(request.headers['if-none-match'], '*');
+            expect(
+              request.headers['idempotency-key'],
+              hasLength(greaterThanOrEqualTo(16)),
+            );
+            expect(jsonDecode(request.body), {
+              'parentFileId': BackendFilesRepository.rootFileId,
+              'name': 'Reports',
+            });
+            return http.Response(
+              jsonEncode(
+                _item(
+                  name: 'Reports',
+                  path: '/Reports',
+                  kind: 'folder',
+                  actions: const ['inspect', 'listChildren'],
+                ),
+              ),
+              200,
+            );
           }),
-          503,
+        );
+        final folder = await files.createFolder(
+          parentPath: '/',
+          name: 'Reports',
+        );
+        expect(folder.isDirectory, isTrue);
+        expect(folder.id, startsWith('file:'));
+        expect(seen.length, 2);
+      },
+    );
+
+    test(
+      'upload sends exact bounded binary body and idempotency headers',
+      () async {
+        final progress = <int>[];
+        final files = repository(
+          MockClient((request) async {
+            if (request.method == 'GET') return http.Response(_listing(), 200);
+            expect(request.url.path, '/api/files/items/uploads');
+            expect(
+              request.url.queryParameters['parentId'],
+              BackendFilesRepository.rootFileId,
+            );
+            expect(request.url.queryParameters['name'], 'notes.txt');
+            expect(request.headers['content-type'], 'application/octet-stream');
+            expect(request.headers['if-none-match'], '*');
+            expect(
+              request.headers['idempotency-key'],
+              hasLength(greaterThanOrEqualTo(16)),
+            );
+            expect(request.bodyBytes, [1, 2, 3]);
+            return http.Response(jsonEncode(_item()), 200);
+          }),
+        );
+        await files.uploadFile(
+          '/',
+          FileUploadRequest(
+            fileName: 'notes.txt',
+            sizeInBytes: 3,
+            byteStream: Stream.fromIterable(const [
+              [1],
+              [2, 3],
+            ]),
+          ),
+          onProgress: (done, _) => progress.add(done),
+        );
+        expect(progress, [3]);
+      },
+    );
+
+    test('folder retry preserves its original idempotency key', () async {
+      authSessionRepository.refreshedState = AuthState.authenticated(
+        buildTestAuthSession(accessToken: 'fresh-token'),
+      );
+      final keys = <String?>[];
+      final files = repository(
+        MockClient((request) async {
+          if (request.method == 'GET') return http.Response(_listing(), 200);
+          keys.add(request.headers['idempotency-key']);
+          if (keys.length == 1) return http.Response('{}', 401);
+          return http.Response(
+            jsonEncode(
+              _item(name: 'Reports', path: '/Reports', kind: 'folder'),
+            ),
+            200,
+          );
+        }),
+      );
+      await files.createFolder(parentPath: '/', name: 'Reports');
+      expect(keys, hasLength(2));
+      expect(keys.first, isNotEmpty);
+      expect(keys.last, keys.first);
+    });
+
+    test(
+      'folder preflight refresh keeps the following write in the same identity',
+      () async {
+        authSessionRepository.refreshedState = AuthState.authenticated(
+          buildTestAuthSession(accessToken: 'fresh-token'),
+        );
+        var writes = 0;
+        final files = repository(
+          MockClient((request) async {
+            if (request.headers['authorization'] == 'Bearer files-token') {
+              expect(request.method, 'GET');
+              return http.Response('{}', 401);
+            }
+            expect(request.headers['authorization'], 'Bearer fresh-token');
+            if (request.method == 'GET') return http.Response(_listing(), 200);
+            writes++;
+            return http.Response(
+              jsonEncode(
+                _item(name: 'Reports', path: '/Reports', kind: 'folder'),
+              ),
+              200,
+            );
+          }),
+        );
+        await files.createFolder(parentPath: '/', name: 'Reports');
+        expect(writes, 1);
+        expect(authSessionRepository.refreshCalls, 1);
+      },
+    );
+
+    for (final change in ['account', 'organization', 'server']) {
+      test(
+        'buffered upload stops when $change changes before publication',
+        () async {
+          var writes = 0;
+          var organizationId = 'org-one';
+          final files = repository(
+            MockClient((request) async {
+              if (request.method == 'GET') {
+                return http.Response(_listing(), 200);
+              }
+              writes++;
+              return http.Response(jsonEncode(_item()), 200);
+            }),
+            organizationForToken: (_) => organizationId,
+          );
+          Stream<List<int>> body() async* {
+            if (change == 'account') {
+              authSessionRepository.state = AuthState.authenticated(
+                buildTestAuthSession(accessToken: 'other-account-token'),
+              );
+            } else if (change == 'organization') {
+              organizationId = 'org-two';
+            } else {
+              configurationRepository.configuration = buildTestConfiguration(
+                backendApiBaseUrl: 'https://other.weave.test/api',
+              );
+            }
+            yield [1, 2, 3];
+          }
+
+          await expectLater(
+            files.uploadFile(
+              '/',
+              FileUploadRequest(
+                fileName: 'notes.txt',
+                sizeInBytes: 3,
+                byteStream: body(),
+              ),
+            ),
+            throwsA(isA<FilesFailure>()),
+          );
+          expect(writes, 0);
+        },
+      );
+    }
+
+    for (final change in ['account', 'organization']) {
+      test(
+        'upload retry rejects refreshed $change before sending bytes',
+        () async {
+          authSessionRepository.refreshedState = AuthState.authenticated(
+            buildTestAuthSession(accessToken: 'fresh-token'),
+          );
+          var requests = 0;
+          var writes = 0;
+          final files = repository(
+            MockClient((request) async {
+              if (request.method == 'GET') {
+                return http.Response(_listing(), 200);
+              }
+              requests++;
+              if (request.headers['authorization'] == 'Bearer files-token') {
+                return http.Response('{}', 401);
+              }
+              writes++;
+              return http.Response(jsonEncode(_item()), 200);
+            }),
+            subjectForToken: (token) =>
+                change == 'account' && token == 'Bearer fresh-token'
+                ? 'member-two'
+                : 'member-one',
+            organizationForToken: (token) =>
+                change == 'organization' && token == 'Bearer fresh-token'
+                ? 'org-two'
+                : 'org-one',
+          );
+          await expectLater(
+            files.uploadFile(
+              '/',
+              FileUploadRequest(
+                fileName: 'notes.txt',
+                sizeInBytes: 3,
+                byteStream: Stream.value([1, 2, 3]),
+              ),
+            ),
+            throwsA(isA<FilesFailure>()),
+          );
+          expect(requests, 1);
+          expect(writes, 0);
+        },
+      );
+    }
+
+    test(
+      'source stream failure stops upload without sending a partial body',
+      () async {
+        var posts = 0;
+        final files = repository(
+          MockClient((request) async {
+            if (request.method == 'GET') return http.Response(_listing(), 200);
+            posts++;
+            return http.Response(jsonEncode(_item()), 200);
+          }),
+        );
+        await expectLater(
+          files.uploadFile(
+            '/',
+            FileUploadRequest(
+              fileName: 'notes.txt',
+              sizeInBytes: 3,
+              byteStream: Stream<List<int>>.error(StateError('read failed')),
+            ),
+          ),
+          throwsA(isA<FilesFailure>()),
+        );
+        expect(posts, 0);
+      },
+    );
+
+    test(
+      'generated binary transport propagates an upload source error',
+      () async {
+        final client = MockClient(
+          (_) async => http.Response(jsonEncode(_item()), 200),
+        );
+        final api = user_api.FilesUserApi(
+          weaveUserApiClient(
+            apiBaseUrl: Uri.parse('https://api.home.internal/api'),
+            accessToken: 'files-token',
+            httpClient: client,
+          ),
+        );
+        await expectLater(
+          api.uploadFilesItemContent(
+            BackendFilesRepository.rootFileId,
+            'notes.txt',
+            '*',
+            'abcdef0123456789abcdef0123456789',
+            http.MultipartFile(
+              'body',
+              Stream<List<int>>.error(StateError('source failed')),
+              3,
+            ),
+          ),
+          throwsA(anything),
+        );
+      },
+    );
+
+    test(
+      'unsupported mutations and denied actions never use a fallback route',
+      () async {
+        var posts = 0;
+        final files = repository(
+          MockClient((request) async {
+            if (request.method == 'GET') {
+              return http.Response(
+                _listing(actions: const ['listChildren']),
+                200,
+              );
+            }
+            posts++;
+            return http.Response('{}', 200);
+          }),
+        );
+        const entry = FileEntry(
+          id: 'file:123e4567-e89b-12d3-a456-426614174000',
+          name: 'notes.txt',
+          path: '/notes.txt',
+          isDirectory: false,
+        );
+        await expectLater(
+          files.createFolder(parentPath: '/', name: 'No'),
+          throwsA(isA<FilesFailure>()),
+        );
+        await expectLater(
+          files.deleteEntry(entry),
+          throwsA(isA<FilesFailure>()),
+        );
+        await expectLater(
+          files.copyEntry(entry, destinationPath: '/copy.txt'),
+          throwsA(isA<FilesFailure>()),
+        );
+        await expectLater(
+          files.moveEntry(entry, destinationPath: '/move.txt'),
+          throwsA(isA<FilesFailure>()),
+        );
+        expect(posts, 0);
+      },
+    );
+
+    test('auth rejection and provider failure remain support-safe', () async {
+      final forbidden = repository(
+        MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'memberImpact': 'Ask an administrator.',
+              'message': 'raw-secret',
+            }),
+            403,
+          ),
         ),
       );
-
       await expectLater(
-        repository(client).listDirectory('/'),
+        forbidden.listDirectory('/'),
         throwsA(
           isA<FilesFailure>()
               .having(
                 (failure) => failure.type,
                 'type',
-                FilesFailureType.configuration,
+                FilesFailureType.permissionDenied,
               )
               .having(
                 (failure) => failure.message,
                 'message',
-                allOf(
-                  contains('Files need admin attention'),
-                  isNot(contains('Nextcloud')),
-                  isNot(contains('WebDAV')),
-                  isNot(contains('home.internal')),
-                ),
+                'Ask an administrator.',
               ),
+        ),
+      );
+      final unavailable = repository(
+        MockClient((_) async => http.Response('{}', 503)),
+      );
+      await expectLater(
+        unavailable.listDirectory('/'),
+        throwsA(
+          isA<FilesFailure>().having(
+            (failure) => failure.type,
+            'type',
+            FilesFailureType.configuration,
+          ),
         ),
       );
     });
