@@ -18,6 +18,10 @@ No Home-core, dogfood, production service or deployment credential is involved.
    `openApiContractExport` test context and export separate User/Admin artifacts.
    Compare the deterministic exports with the checked-in documents. Explicit operation
    IDs, partitioning, ordered examples, errors, headers and schema semantics remain checked.
+   Files HTTP probes assert support-safe `ApiErrorResponse` failures before service/provider
+   access: invalid folder DTOs and missing required upload query parameters return 400;
+   an unsupported upload media type returns 415. A raced absent-name folder precondition
+   remains a 412. Their generated responses must match these actual server semantics.
 2. Regenerate the JVM User and Admin clients twice, compare sources and compile them.
    Run the User binary transport tests and compile/test product E2E against these modules.
    Retain the existing MCP security/transport regression alongside those checks.
