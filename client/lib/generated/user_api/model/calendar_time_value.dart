@@ -105,7 +105,7 @@ class CalendarTimeValue {
       }());
 
       return CalendarTimeValue(
-        date: mapDateTime(json, r'date', r''),
+        date: mapDateOnly(json, r'date'),
         instant: mapDateTime(json, r'instant',
             r'/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.0{1,9})?Z$/'),
         kind: CalendarTimeValueKindEnum.fromJson(json[r'kind'])!,

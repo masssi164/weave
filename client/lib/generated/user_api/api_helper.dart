@@ -95,6 +95,18 @@ Map<K, V>? mapCastOfType<K, V>(dynamic map, String key) {
   return value is Map ? value.cast<K, V>() : null;
 }
 
+/// Decodes a date-only value without applying the host timezone.
+DateTime? mapDateOnly(dynamic map, String key) {
+  final dynamic value = map is Map ? map[key] : null;
+  if (value is! String || !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) {
+    return null;
+  }
+  final date = DateTime.tryParse('${value}T00:00:00Z');
+  return date != null && date.toIso8601String().substring(0, 10) == value
+      ? date
+      : null;
+}
+
 /// Returns a valid [DateTime] found at the specified Map [key], null otherwise.
 DateTime? mapDateTime(dynamic map, String key, [String? pattern]) {
   final dynamic value = map is Map ? map[key] : null;
@@ -106,13 +118,6 @@ DateTime? mapDateTime(dynamic map, String key, [String? pattern]) {
       if (_isEpochMarker(pattern)) {
         millis = int.tryParse(value);
       } else {
-        if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) {
-          final date = DateTime.tryParse('${value}T00:00:00Z');
-          return date != null &&
-                  date.toIso8601String().substring(0, 10) == value
-              ? date
-              : null;
-        }
         return DateTime.tryParse(value);
       }
     }
