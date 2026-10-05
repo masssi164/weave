@@ -136,6 +136,8 @@ The new empty realm does not require a fabricated backup. Recovery evidence belo
 
 Disposable E2E may use the same static migration without durable backup only when machine-verifiable preflight proves the exact run-owned Docker namespace and resources do not yet exist. Profile name alone is insufficient.
 
+The isolated E2E realm uses the canonical query-only identity-administration roles and the organization-scoped FGAP migration. It does not use the resettable dev/dogfood overlay's broad identity-administration roles; the explicit E2E phase now qualifies the same narrow authority required in production.
+
 ### Existing persistent realm
 
 A genuinely existing non-empty dogfood or production realm changes only through a versioned migration bound to:

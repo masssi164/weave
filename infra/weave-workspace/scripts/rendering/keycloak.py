@@ -93,7 +93,9 @@ def _desired(baseline: dict[str, object], overlay: dict[str, object]) -> dict[st
         # disposable E2E lane deliberately retains this policy because it
         # proves the complete Weaver workload lifecycle.
         desired["clientPolicies"] = []
-    if overlay["environment"] in {"dev", "dogfood", "e2e"}:
+    # Isolated E2E explicitly qualifies the production FGAP migration before
+    # application startup; it must not retain the development role bypass.
+    if overlay["environment"] in {"dev", "dogfood"}:
         grants = desired.get("serviceAccountRoleGrants")
         if not isinstance(grants, list):
             raise ContractError("canonical service-account role grants are required")

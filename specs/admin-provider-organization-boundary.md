@@ -123,6 +123,15 @@ obsolete after the manifest-bound native mapper migration; it is replaced by lif
 ordering and fail-closed receipt assertions. Normal Server requests remain unable to
 reconcile static IAM, and persistent environments still require their reviewed migration.
 
+This is an explicit E2E conformance delta from the pinned identity specification's
+ADR-0022 development overlay exception: isolated E2E now uses the canonical
+`query-organizations`/`query-users` identity-administration grants and the qualified
+organization-scoped FGAP operation. Its former `manage-organizations`/`manage-users`
+overlay existed to avoid a second migration phase; that premise no longer holds when
+the native mapper operation is mandatory. The executor must continue rejecting broad
+steady-state grants. This narrows E2E authority and exercises the production boundary;
+the resettable dev/dogfood exception is not changed by this fix.
+
 Infrastructure must supply the primary coordinate to Server consistently with the
 Keycloak baseline/invitation target and preserve the canonical tenant used by Files
 bindings. Flutter's legacy provider-stack diagnostics currently use a User bearer;
