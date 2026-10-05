@@ -663,16 +663,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesProductBoundaryBody =>
-      'Dateiaktionen laufen über die Weave-Workspace-Dienst-Fassade. Dateispeicher bleibt Teil der Admin- und Fallback-Ebene; rohe Dienstpfade und Zugangsdaten gehören nicht zur normalen Dateien-Oberfläche.';
-
-  @override
-  String get filesConnectButton => 'Dateien verbinden';
-
-  @override
-  String get filesReconnectButton => 'Dateien neu verbinden';
-
-  @override
-  String get filesDisconnectButton => 'Trennen';
+      'Dateiaktionen laufen über die Weave-User-API. Der Dateispeicher bleibt hinter der Provider-Grenze des Servers; rohe Provider-Pfade und Zugangsdaten gehören nicht zur normalen Dateien-Oberfläche.';
 
   @override
   String get filesRefreshButton => 'Aktualisieren';
@@ -714,15 +705,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesDisconnectedMessage =>
-      'Verbinde Weave-Dateien, um Arbeitsbereichsdateien zu durchsuchen.';
+      'Melde dich bei Weave an, um Arbeitsbereichsdateien zu durchsuchen.';
 
   @override
   String get filesInvalidSessionMessage =>
-      'Verbinde Dateien neu, weil die Weave-Sitzung nicht mehr gültig ist.';
+      'Deine Weave-Sitzung ist abgelaufen. Melde dich erneut bei Weave an, um Dateien wieder zu nutzen.';
 
   @override
   String get filesMisconfiguredMessage =>
-      'Schließe zuerst die Weave-Servereinrichtung ab, bevor du Dateien verbindest.';
+      'Schließe zuerst die Weave-Servereinrichtung ab, bevor du Dateien nutzt.';
 
   @override
   String filesConnectionConnected(String accountLabel) {
@@ -731,11 +722,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesConnectionDisconnected =>
-      'Dateien sind für diese Weave-Sitzung nicht verbunden.';
+      'Melde dich bei Weave an, um Dateien zu nutzen.';
 
   @override
   String get filesConnectionInvalid =>
-      'Die Weave-Dateisitzung braucht Aufmerksamkeit.';
+      'Deine Weave-Sitzung muss erneuert werden.';
 
   @override
   String get filesConnectionUnavailable =>
@@ -2416,13 +2407,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Lade eine Datei hoch oder erstelle einen Ordner, wenn du Arbeitsbereichsdateien hinzufügen möchtest.';
 
   @override
-  String get filesDisconnectedTitle => 'Dateien sind nicht verbunden';
+  String get filesDisconnectedTitle => 'Für Dateien bei Weave anmelden';
 
   @override
   String get filesSetupNeededTitle => 'Dateien müssen eingerichtet werden';
 
   @override
-  String get filesSessionExpiredTitle => 'Dateien müssen neu verbunden werden';
+  String get filesSessionExpiredTitle => 'Weave-Sitzung abgelaufen';
 
   @override
   String get filesUnavailableTitle => 'Dateien sind nicht verfügbar';

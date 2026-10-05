@@ -657,16 +657,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filesProductBoundaryBody =>
-      'Files actions use the Weave workspace service facade. File storage stays behind the admin/fallback surface; raw service paths and credentials are not part of the normal Files UX.';
-
-  @override
-  String get filesConnectButton => 'Connect Files';
-
-  @override
-  String get filesReconnectButton => 'Reconnect Files';
-
-  @override
-  String get filesDisconnectButton => 'Disconnect';
+      'Files actions use the Weave User API. File storage stays behind the server\'s provider boundary; raw provider paths and credentials are not part of the normal Files experience.';
 
   @override
   String get filesRefreshButton => 'Refresh';
@@ -708,15 +699,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filesDisconnectedMessage =>
-      'Connect Weave Files to browse workspace files.';
+      'Sign in to Weave to browse workspace files.';
 
   @override
   String get filesInvalidSessionMessage =>
-      'Reconnect Files because the Weave session is no longer valid.';
+      'Your Weave session has expired. Sign in to Weave again to restore Files.';
 
   @override
   String get filesMisconfiguredMessage =>
-      'Finish Weave server setup before connecting files.';
+      'Finish Weave server setup before using Files.';
 
   @override
   String filesConnectionConnected(String accountLabel) {
@@ -724,12 +715,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get filesConnectionDisconnected =>
-      'Files are not connected for this Weave session.';
+  String get filesConnectionDisconnected => 'Sign in to Weave to use Files.';
 
   @override
   String get filesConnectionInvalid =>
-      'The Weave Files session needs attention.';
+      'Your Weave session needs to be renewed.';
 
   @override
   String get filesConnectionUnavailable =>
@@ -2381,13 +2371,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Upload a file or create a folder when you are ready to add workspace files.';
 
   @override
-  String get filesDisconnectedTitle => 'Files are not connected';
+  String get filesDisconnectedTitle => 'Sign in to use Files';
 
   @override
   String get filesSetupNeededTitle => 'Files need setup';
 
   @override
-  String get filesSessionExpiredTitle => 'Files need to reconnect';
+  String get filesSessionExpiredTitle => 'Weave session expired';
 
   @override
   String get filesUnavailableTitle => 'Files are unavailable';

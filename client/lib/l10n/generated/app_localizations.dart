@@ -1149,34 +1149,16 @@ abstract class AppLocalizations {
   /// Body for a Files card explaining the product/provider boundary
   ///
   /// In en, this message translates to:
-  /// **'Files actions use the Weave workspace service facade. File storage stays behind the admin/fallback surface; raw service paths and credentials are not part of the normal Files UX.'**
+  /// **'Files actions use the Weave User API. File storage stays behind the server\'s provider boundary; raw provider paths and credentials are not part of the normal Files experience.'**
   String get filesProductBoundaryBody;
 
-  /// Button label used to start the Files connection flow
-  ///
-  /// In en, this message translates to:
-  /// **'Connect Files'**
-  String get filesConnectButton;
-
-  /// Button label used to reconnect an invalid Files session
-  ///
-  /// In en, this message translates to:
-  /// **'Reconnect Files'**
-  String get filesReconnectButton;
-
-  /// Button label used to disconnect the saved Files session
-  ///
-  /// In en, this message translates to:
-  /// **'Disconnect'**
-  String get filesDisconnectButton;
-
-  /// Button label used to refresh the current Nextcloud directory
+  /// Button label used to refresh the current Weave Files directory
   ///
   /// In en, this message translates to:
   /// **'Refresh'**
   String get filesRefreshButton;
 
-  /// Button label used to open the parent Nextcloud directory
+  /// Button label used to open the parent Weave Files directory
   ///
   /// In en, this message translates to:
   /// **'Up'**
@@ -1209,19 +1191,19 @@ abstract class AppLocalizations {
   /// Message shown when the Files screen is disconnected
   ///
   /// In en, this message translates to:
-  /// **'Connect Weave Files to browse workspace files.'**
+  /// **'Sign in to Weave to browse workspace files.'**
   String get filesDisconnectedMessage;
 
   /// Message shown when the saved Files session is no longer valid
   ///
   /// In en, this message translates to:
-  /// **'Reconnect Files because the Weave session is no longer valid.'**
+  /// **'Your Weave session has expired. Sign in to Weave again to restore Files.'**
   String get filesInvalidSessionMessage;
 
   /// Message shown when the Files feature is missing required server setup
   ///
   /// In en, this message translates to:
-  /// **'Finish Weave server setup before connecting files.'**
+  /// **'Finish Weave server setup before using Files.'**
   String get filesMisconfiguredMessage;
 
   /// Status message shown when the Files feature is connected through Weave
@@ -1233,13 +1215,13 @@ abstract class AppLocalizations {
   /// Status message shown when Files are not connected
   ///
   /// In en, this message translates to:
-  /// **'Files are not connected for this Weave session.'**
+  /// **'Sign in to Weave to use Files.'**
   String get filesConnectionDisconnected;
 
   /// Status message shown when the Files session is invalid
   ///
   /// In en, this message translates to:
-  /// **'The Weave Files session needs attention.'**
+  /// **'Your Weave session needs to be renewed.'**
   String get filesConnectionInvalid;
 
   /// Status message shown when Files readiness or authorization cannot be confirmed
@@ -3992,7 +3974,7 @@ abstract class AppLocalizations {
   /// Friendly empty-state title shown when files require a connection
   ///
   /// In en, this message translates to:
-  /// **'Files are not connected'**
+  /// **'Sign in to use Files'**
   String get filesDisconnectedTitle;
 
   /// Friendly empty-state title shown when files are misconfigured
@@ -4004,7 +3986,7 @@ abstract class AppLocalizations {
   /// Friendly error-state title shown when the files session is invalid
   ///
   /// In en, this message translates to:
-  /// **'Files need to reconnect'**
+  /// **'Weave session expired'**
   String get filesSessionExpiredTitle;
 
   /// Title shown when Files readiness or authorization cannot be confirmed

@@ -180,12 +180,6 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
             message: l10n.filesDisconnectedTitle,
             guidance: l10n.filesDisconnectedMessage,
             icon: Icons.cloud_off_outlined,
-            actionLabel: l10n.filesConnectButton,
-            onAction: state.isBusy
-                ? null
-                : () {
-                    ref.read(filesProvider.notifier).connect();
-                  },
           ),
         );
       case FilesConnectionStatus.invalid:
@@ -193,12 +187,6 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
           child: ErrorState(
             message: l10n.filesSessionExpiredTitle,
             guidance: l10n.filesInvalidSessionMessage,
-            retryLabel: l10n.filesReconnectButton,
-            onRetry: state.isBusy
-                ? null
-                : () {
-                    ref.read(filesProvider.notifier).connect();
-                  },
           ),
         );
       case FilesConnectionStatus.unavailable:
@@ -765,45 +753,19 @@ class _ConnectionCard extends ConsumerWidget {
                 body: l10n.filesProductBoundaryBody,
               ),
             ],
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                if (connectionState.status != FilesConnectionStatus.connected)
-                  AccessibleButton(
-                    onPressed: state.isBusy
-                        ? null
-                        : () {
-                            ref.read(filesProvider.notifier).connect();
-                          },
-                    semanticLabel: switch (connectionState.status) {
-                      FilesConnectionStatus.invalid =>
-                        l10n.filesReconnectButton,
-                      FilesConnectionStatus.unavailable => l10n.retryButton,
-                      _ => l10n.filesConnectButton,
-                    },
-                    child: Text(switch (connectionState.status) {
-                      FilesConnectionStatus.invalid =>
-                        l10n.filesReconnectButton,
-                      FilesConnectionStatus.unavailable => l10n.retryButton,
-                      _ => l10n.filesConnectButton,
-                    }),
-                  ),
-                if (connectionState.status == FilesConnectionStatus.connected ||
-                    connectionState.status == FilesConnectionStatus.invalid)
-                  AccessibleButton(
-                    outlined: true,
-                    onPressed: state.isBusy
-                        ? null
-                        : () {
-                            ref.read(filesProvider.notifier).disconnect();
-                          },
-                    semanticLabel: l10n.filesDisconnectButton,
-                    child: Text(l10n.filesDisconnectButton),
-                  ),
-              ],
-            ),
+            if (connectionState.status ==
+                FilesConnectionStatus.unavailable) ...[
+              const SizedBox(height: 16),
+              AccessibleButton(
+                onPressed: state.isBusy
+                    ? null
+                    : () {
+                        ref.read(filesProvider.notifier).connect();
+                      },
+                semanticLabel: l10n.retryButton,
+                child: Text(l10n.retryButton),
+              ),
+            ],
           ],
         ),
       ),

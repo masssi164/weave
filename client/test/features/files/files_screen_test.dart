@@ -154,7 +154,7 @@ class _FakeFilesImportPicker implements FilesImportPicker {
 
 void main() {
   group('FilesScreen', () {
-    testWidgets('shows a connect action when Weave Files is disconnected', (
+    testWidgets('points to the shared Weave sign-in when Files has no session', (
       tester,
     ) async {
       final repository = _FakeFilesRepository(
@@ -177,25 +177,23 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Connect Files'), findsNWidgets(2));
-      expect(find.text('Files are not connected'), findsOneWidget);
+      expect(find.text('Connect Files'), findsNothing);
+      expect(find.text('Sign in to use Files'), findsOneWidget);
       expect(
-        find.text('Connect Weave Files to browse workspace files.'),
+        find.text('Sign in to Weave to browse workspace files.'),
         findsOneWidget,
       );
       expect(find.text('Weave Files'), findsOneWidget);
       expect(find.text('Weave product boundary'), findsOneWidget);
       expect(
-        find.textContaining(
-          'Files actions use the Weave workspace service facade',
-        ),
+        find.textContaining('Files actions use the Weave User API'),
         findsOneWidget,
       );
       expect(find.text('https://files.home.internal'), findsNothing);
       expect(
         find.bySemanticsLabel(
           RegExp(
-            'Weave product boundary.*workspace service facade.*raw service paths and credentials',
+            'Weave product boundary.*Weave User API.*raw provider paths and credentials',
             dotAll: true,
           ),
         ),

@@ -765,29 +765,17 @@
   "@filesProductBoundaryTitle": {
     "description": "Title for a Files card explaining the product/provider boundary"
   },
-  "filesProductBoundaryBody": "Files actions use the Weave workspace service facade. File storage stays behind the admin/fallback surface; raw service paths and credentials are not part of the normal Files UX.",
+  "filesProductBoundaryBody": "Files actions use the Weave User API. File storage stays behind the server's provider boundary; raw provider paths and credentials are not part of the normal Files experience.",
   "@filesProductBoundaryBody": {
     "description": "Body for a Files card explaining the product/provider boundary"
   },
-  "filesConnectButton": "Connect Files",
-  "@filesConnectButton": {
-    "description": "Button label used to start the Files connection flow"
-  },
-  "filesReconnectButton": "Reconnect Files",
-  "@filesReconnectButton": {
-    "description": "Button label used to reconnect an invalid Files session"
-  },
-  "filesDisconnectButton": "Disconnect",
-  "@filesDisconnectButton": {
-    "description": "Button label used to disconnect the saved Files session"
-  },
   "filesRefreshButton": "Refresh",
   "@filesRefreshButton": {
-    "description": "Button label used to refresh the current Nextcloud directory"
+    "description": "Button label used to refresh the current Weave Files directory"
   },
   "filesUpButton": "Up",
   "@filesUpButton": {
-    "description": "Button label used to open the parent Nextcloud directory"
+    "description": "Button label used to open the parent Weave Files directory"
   },
   "filesRootBreadcrumb": "Root",
   "@filesRootBreadcrumb": {
@@ -823,15 +811,15 @@
       }
     }
   },
-  "filesDisconnectedMessage": "Connect Weave Files to browse workspace files.",
+  "filesDisconnectedMessage": "Sign in to Weave to browse workspace files.",
   "@filesDisconnectedMessage": {
     "description": "Message shown when the Files screen is disconnected"
   },
-  "filesInvalidSessionMessage": "Reconnect Files because the Weave session is no longer valid.",
+  "filesInvalidSessionMessage": "Your Weave session has expired. Sign in to Weave again to restore Files.",
   "@filesInvalidSessionMessage": {
     "description": "Message shown when the saved Files session is no longer valid"
   },
-  "filesMisconfiguredMessage": "Finish Weave server setup before connecting files.",
+  "filesMisconfiguredMessage": "Finish Weave server setup before using Files.",
   "@filesMisconfiguredMessage": {
     "description": "Message shown when the Files feature is missing required server setup"
   },
@@ -844,11 +832,11 @@
       }
     }
   },
-  "filesConnectionDisconnected": "Files are not connected for this Weave session.",
+  "filesConnectionDisconnected": "Sign in to Weave to use Files.",
   "@filesConnectionDisconnected": {
     "description": "Status message shown when Files are not connected"
   },
-  "filesConnectionInvalid": "The Weave Files session needs attention.",
+  "filesConnectionInvalid": "Your Weave session needs to be renewed.",
   "@filesConnectionInvalid": {
     "description": "Status message shown when the Files session is invalid"
   },
@@ -2892,7 +2880,7 @@
   "@filesEmptyGuidance": {
     "description": "Guidance shown below the files empty-state title"
   },
-  "filesDisconnectedTitle": "Files are not connected",
+  "filesDisconnectedTitle": "Sign in to use Files",
   "@filesDisconnectedTitle": {
     "description": "Friendly empty-state title shown when files require a connection"
   },
@@ -2900,7 +2888,7 @@
   "@filesSetupNeededTitle": {
     "description": "Friendly empty-state title shown when files are misconfigured"
   },
-  "filesSessionExpiredTitle": "Files need to reconnect",
+  "filesSessionExpiredTitle": "Weave session expired",
   "@filesSessionExpiredTitle": {
     "description": "Friendly error-state title shown when the files session is invalid"
   },
