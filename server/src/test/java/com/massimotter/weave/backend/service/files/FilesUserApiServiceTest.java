@@ -1,6 +1,11 @@
 package com.massimotter.weave.backend.service.files;
 
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
+import com.massimotter.weave.backend.agentruntime.domain.ExchangedWorkloadToken;
+import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -27,8 +32,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
@@ -68,6 +75,76 @@ class FilesUserApiServiceTest {
         when(authorization.check(any())).thenReturn(ContextAuthorizationDecision.allow("member"));
         when(bindings.current("org-a", "files")).thenReturn(Optional.of(binding));
         when(resolver.pinned(binding, "org-a", "workspace-default")).thenReturn(provider);
+    }
+
+    @Test
+    void currentWorkloadMayListOnlyTheOwnersGeneratedUserResources() {
+        FilesUserApiService workloadService = workloadService();
+        when(resources.activeChildren("org-a", FilesUserApiService.ROOT_ID)).thenReturn(List.of());
+
+        var listed = workloadService.list(workloadJwt(), null);
+
+        assertThat(listed.parentFileId()).isEqualTo(FilesUserApiService.ROOT_ID);
+        assertThat(listed.allowedActions()).containsExactly("listChildren");
+        assertThat(listed.items()).isEmpty();
+        verify(authorization).check(new com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest(
+                "org-a", "workspace-default", "user:alice",
+                com.massimotter.weave.backend.context.authz.ContextPermission.VIEW));
+        verify(auditEvents).publish(any());
+        verify(provider, never()).list(any());
+    }
+
+    @Test
+    void workloadMutationFailsBeforeProviderAccess() {
+        FilesUserApiService workloadService = workloadService();
+
+        assertThatThrownBy(() -> workloadService.createFolder(workloadJwt(),
+                FilesUserApiService.ROOT_ID, "denied", "*", "0123456789abcdef"))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.code()).isEqualTo("mcp-workload-files-forbidden"));
+        verifyNoInteractions(provider, resources, intents);
+    }
+
+    @Test
+    void revokedWorkloadSpacePermissionFailsBeforeProviderAccess() {
+        FilesUserApiService workloadService = workloadService();
+        when(authorization.check(any())).thenReturn(ContextAuthorizationDecision.deny("revoked"));
+
+        assertThatThrownBy(() -> workloadService.list(workloadJwt(), null))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.code()).isEqualTo("mcp-workload-files-forbidden"));
+        verifyNoInteractions(provider, resources);
+    }
+
+    @SuppressWarnings("unchecked")
+    private FilesUserApiService workloadService() {
+        McpWorkloadAuthorizationService workloadAuthorization = mock(McpWorkloadAuthorizationService.class);
+        McpExchangedTokenPolicy tokenPolicy = mock(McpExchangedTokenPolicy.class);
+        ObjectProvider<McpWorkloadAuthorizationService> authorizationProvider = mock(ObjectProvider.class);
+        ObjectProvider<McpExchangedTokenPolicy> tokenProvider = mock(ObjectProvider.class);
+        when(authorizationProvider.getIfAvailable()).thenReturn(workloadAuthorization);
+        when(tokenProvider.getIfAvailable()).thenReturn(tokenPolicy);
+        Instant now = Instant.now();
+        ExchangedWorkloadToken exchanged = new ExchangedWorkloadToken(
+                "https://auth.weave.test/realms/weave", "workload-subject", "weave-mcp-server",
+                Set.of("files.read"), now, now.plusSeconds(60), "exchange-1");
+        WeaverWorkloadPrincipal principal = new WeaverWorkloadPrincipal(
+                exchanged.issuer(), exchanged.subject(), "weaver-cell-1", "weave-mcp-server",
+                "org-a", "person-1", new RuntimeMemberBinding(exchanged.issuer(), "alice"),
+                "alice", "cell-1", "profile-1", "sha256:profile", "entitlement-1",
+                now.plusSeconds(60), Set.of("files.read"), Set.of("files.read"));
+        when(tokenPolicy.resolve(any())).thenReturn(exchanged);
+        when(workloadAuthorization.authorize(exchanged)).thenReturn(principal);
+        return new FilesUserApiService(
+                OrganizationIdentityContextResolver.configured(contextProperties), contextProperties,
+                authorization, capabilities, bindings, resolver, resources, intents, transactions,
+                auditEvents, authorizationProvider, tokenProvider);
+    }
+
+    private Jwt workloadJwt() {
+        return Jwt.withTokenValue("workload-token").header("alg", "RS256")
+                .issuer("https://auth.weave.test/realms/weave").subject("workload-subject")
+                .claim("azp", "weave-mcp-server").build();
     }
 
     @Test

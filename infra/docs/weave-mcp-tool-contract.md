@@ -2,7 +2,7 @@
 
 Status: **Guarded / first read-only Files slice active**. The identity, admission,
 token-exchange, and current-context path is implemented. `files.search` and the canonical
-`weave://files/{canonicalFileId}` resource are active over the Weave WebDAV facade. This is not a
+`weave://files/{canonicalFileId}` resource consume the generated Weave User Files API. This is not a
 production-ready Weaver or autonomous-action claim.
 
 ## Identity and protocol contract
@@ -34,8 +34,9 @@ production-ready Weaver or autonomous-action claim.
 - protected-resource discovery and the MCP Client Credentials extension handshake;
 - server-owned ARC binding and current backend context resolution;
 - downscoped workload token exchange with no refresh or ID token;
-- `files.search` through bounded WebDAV `SEARCH`, with provider-neutral structured output;
-- exact canonical-ID resource resolution followed by a bounded WebDAV `GET`;
+- `files.search` through the generated User list operation, with bounded traversal and
+  provider-neutral structured output;
+- exact canonical-ID resource resolution through generated User metadata and bounded download;
 - negative rejection of human tokens, unbound service accounts, missing extension negotiation,
   missing scopes, upscope attempts, stale profiles, and direct workload access to admin routes.
 

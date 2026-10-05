@@ -18,7 +18,7 @@ tasks.register('playwrightInstall', JavaExec) {
 
 tasks.register('productFlow', JavaExec) {
     group = 'verification'
-    description = 'Run invitation, browser activation, PKCE, ARC, MCP, and WebDAV against one isolated stack.'
+    description = 'Run invitation, browser activation, PKCE, ARC, generated User Files, and MCP against one isolated stack.'
     dependsOn tasks.named('playwrightInstall'), tasks.named('classes')
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.massimotter.weave.e2e.FreshProductFlow'

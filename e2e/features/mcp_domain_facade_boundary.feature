@@ -2,10 +2,10 @@ Feature: MCP domain facade boundary
   MCP is a workload-only protocol edge. A domain projection opens only when its owning domain has a complete, independently authorized read or action contract.
 
   @mcp-files-facade
-  Scenario: MCP Files read slice projects the existing authorized WebDAV facade
+  Scenario: MCP Files read slice projects the generated User Files API
     Given Files remains authoritative for its own content and authorization
     When runtime-approved MCP discovery is evaluated
-    Then files.search and canonical file resources use bounded WebDAV SEARCH and GET
+    Then files.search and canonical file resources use generated User list, metadata and bounded download operations
     And no raw provider URL or unrestricted WebDAV scripting surface is exposed
 
   @mcp-calendar-facade
