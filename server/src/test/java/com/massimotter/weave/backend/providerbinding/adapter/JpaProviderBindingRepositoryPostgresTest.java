@@ -31,6 +31,33 @@ class JpaProviderBindingRepositoryPostgresTest {
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
     @Test
+    void nanosecondClockObservationPersistsAtDatabasePrecisionWithoutLosingTimeGuards() {
+        var repository = ProviderBindingJpaTestFactory.create(migratedDataSource());
+        Instant first = Instant.parse("2026-10-05T11:00:00.123456789Z");
+        Instant later = Instant.parse("2026-10-05T11:01:00.987654321Z");
+        var original = new ProviderObjectMapping("org:clock", "files", 1,
+                "file:clock-proof", "file:provider-proof", "weave-user-http-create", first, first);
+
+        var created = repository.saveMapping(original);
+        assertThat(created.firstObservedAt()).isEqualTo(Instant.parse("2026-10-05T11:00:00.123456Z"));
+        assertThat(repository.mappingByCanonicalId("org:clock", "files", 1, "file:clock-proof"))
+                .contains(created);
+        assertThat(repository.saveMapping(original)).isEqualTo(created);
+
+        var updated = repository.saveMapping(new ProviderObjectMapping("org:clock", "files", 1,
+                "file:clock-proof", "file:provider-proof", "weave-user-http-create", first, later));
+        assertThat(updated.lastObservedAt()).isEqualTo(Instant.parse("2026-10-05T11:01:00.987654Z"));
+        assertThatThrownBy(() -> repository.saveMapping(original))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("cannot move backwards");
+        assertThatThrownBy(() -> repository.saveMapping(new ProviderObjectMapping("org:clock", "files", 1,
+                "file:clock-proof", "file:provider-proof", "weave-user-http-create",
+                first.plusNanos(1000), later)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("cannot be rewritten");
+    }
+
+    @Test
     void mappedFilesBindingCannotRotateOrReplaceWithoutVerifiedIdentityCarryForward() {
         DriverManagerDataSource dataSource = migratedDataSource();
         var repository = ProviderBindingJpaTestFactory.create(dataSource);
