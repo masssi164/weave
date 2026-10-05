@@ -394,7 +394,7 @@ jq -e \
   .humanOAuth == "authorization_code_pkce_s256" and
   .workloadOAuth == "client_credentials_private_key_jwt" and
   .mcpTool == "files.search" and
-  .serverProjection == "weave-webdav" and
+  .serverProjection == "weave-user-api" and
   .canonicalResourceSeen == true and
   .postgresRestartObserved == true and
   .runtimeStateRestartObserved == true and

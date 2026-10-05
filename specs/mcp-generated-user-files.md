@@ -45,3 +45,6 @@ transport fixtures, negative workload and member authorization tests, and an
 isolated product E2E run proving real `files.search` and bounded read with a
 current member. These are independent semantic assertions; generated code alone
 does not prove current authorization or complete retrieval.
+The Fresh product-flow evidence guard requires `serverProjection` to equal
+`weave-user-api`, matching the generated User API transport exercised by the
+MCP journey. A historical `weave-webdav` marker does not satisfy this proof.
