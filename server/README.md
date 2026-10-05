@@ -1,10 +1,10 @@
 # Weave Backend
 
-[![CI](https://github.com/masssi164/weave-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/masssi164/weave-backend/actions/workflows/ci.yml)
+[![CI](https://github.com/masssi164/weave/actions/workflows/ci.yml/badge.svg)](https://github.com/masssi164/weave/actions/workflows/ci.yml)
 
 **Product API/BFF for safe Weave collaboration surfaces.**
 
-`weave-backend` is the Spring Boot product boundary between Weave clients and the self-hosted provider stack. It validates Weave access tokens, exposes stable product APIs, normalizes readiness/errors, keeps backend-owned credentials server-side, and refuses unsafe provider paths by default.
+The `server/` module is the Spring Boot product boundary between Weave clients and configured providers. It validates Weave access tokens, exposes product APIs, normalizes readiness/errors, keeps backend-owned credentials server-side, and refuses unsafe provider paths by default. Weave does not depend on the owner's private Home-core installation.
 
 It is intentionally not a generic proxy for Matrix, Nextcloud, Keycloak, OpenProject, GitLab, ONLYOFFICE, Collabora, or future connectors. Flutter may use native OIDC and Matrix flows where those are the correct client protocols; everything that needs product orchestration, provider secrets, support-safe diagnostics, or fail-closed behavior belongs here.
 
@@ -26,9 +26,11 @@ It is intentionally not a generic proxy for Matrix, Nextcloud, Keycloak, OpenPro
 - Direct Flutter-to-provider contracts for Nextcloud WebDAV/OCS/CalDAV, OpenProject, GitLab, ONLYOFFICE, Collabora, Slack, Teams, or other provider runtimes.
 - Provider writes without current authorization, audit, preconditions, and recovery evidence.
 
-## Active API scope
+## API implementation and release boundary
 
-Currently implemented or contract-backed surfaces:
+The approved release is tracked in [#1470](https://github.com/masssi164/weave/issues/1470). The inventory below includes older compatibility code; its presence does not establish current release acceptance. Public northbound DAV, Calls and private runtime execution are outside this release. Provider adoption and migration are tracked separately in [#1498](https://github.com/masssi164/weave/issues/1498). Matrix compatibility is bounded by the [normative support profile](../docs/reference/matrix-client-server-support-profile.md); independent-client interoperability, automatic audience-bound session establishment and client-owned E2EE still require their acceptance evidence.
+
+Current implementation inventory:
 
 - Public health/platform bootstrap endpoints for gateways and smoke checks.
 - `GET /api/me` caller snapshot.
@@ -40,8 +42,9 @@ Currently implemented or contract-backed surfaces:
 - Admin/operator Chat provider replacement dry-run at `/api/admin/chat/provider-replacements/dry-run` with lossy-mapping warnings, conflict evidence, and redacted provider diagnostics.
 - Canonical domain registry v1 in `/api/providers/status` from `src/main/resources/canonical-domain-registry-v1.json`, copied deterministically from `specs/0004-domain-registry/canonical-domain-registry-v1.json` and guarded by `./gradlew domainRegistryCheck`, covering identity, people, spaces, chat, files, documents, calendar, boards, calls, decisions, notifications, health, and Weaver with member/admin states, compatibility aliases, portability metadata, and no-unaccounted-data-loss migration primitives.
 - Canonical non-Chat domain facade contracts for Files/Documents, Calendar/Meetings, Boards/Tasks, and Identity/Admin/Policy. These server-side seams evaluate Weave capability policy before provider lookup, fail closed for unknown capabilities, expose SecretRef-only admin mappings, and return empty Weave-domain skeleton collections until concrete adapters are promoted.
-- Generated User Files routes under `/api/files/items` list and inspect explicitly Weave-attached items, download exact bounded bytes, and create folders or upload bounded content through the active Nextcloud binding. A content-update route is generated but requires a provider with atomic object-identity and version checks. Writes require explicit idempotency keys and strong creation/content preconditions; the User response keeps an opaque Weave `FileId`, a display-only path, and actions evaluated at the current member/Space boundary. Binary transfers are limited to 25 MiB.
-- The User Files route exposes only records created or explicitly attached with a known Weave Space and owner grant. Unmapped pre-existing Nextcloud objects, even if visible to the backend service account, remain hidden until #1498 adoption and effective-permission import. Root-level creation captures Nextcloud `OC-FileId` from the atomic response and compares it to `oc:id` on readback before publishing the private mapping; a reused path cannot inherit a prior Weave `FileId`. Creation beneath a mapped folder returns a support-safe `503` before intent/provider access because standard DAV cannot atomically bind the child write to that parent's `oc:id`; such folders advertise no create/upload action. Root-level writes assume that the active binding's validated service-account root remains the same namespace during the request; an out-of-band storage remount is not atomically fenced. Download checks `oc:id` before and after a strong-ETag conditional path GET, but Nextcloud's standard DAV GET does not bind bytes atomically to an `oc:id`; a path replacement with the same ETag between checks remains unresolved. The generated content-update operation is unavailable on Nextcloud and returns a support-safe `503`, because DAV `If-Match` checks a path's ETag without atomically checking `oc:id`; `updateContent` is not advertised. Share, move, copy, and delete are also not advertised until their effective rights and identity transitions are proven. A binding revision with existing Files mappings currently blocks credential rotation or provider replacement pending verified same-namespace identity carry-forward or #1498 replacement.
+- Generated User Files routes under `/api/files/items` list and inspect explicitly Weave-attached items and dispatch supported operations through the active Files binding. The native adapter supports root-folder creation, absent-name upload and identity-bound bounded downloads. Responses keep an opaque Weave `FileId`, a display-only logical path and current `allowedActions`. Creation requires an explicit idempotency key and `If-None-Match: *`; downloads return a strong content ETag and `Content-Digest`. Binary transfers are limited to 25 MiB. The generated content-update operation requires atomic object-identity and version checks, which the current adapters do not advertise.
+- Files exposes only resources with a known Weave Space and owner grant. Service-account-visible, unmapped provider objects remain hidden. Nextcloud root creation checks the returned `OC-FileId` against `oc:id` readback before publishing a mapping. Its path-bound conditional DAV GET cannot atomically guarantee object identity, so the User API does **not** advertise or serve Nextcloud downloads. Creation beneath a mapped folder also fails closed before intent/provider access; those folders do not advertise upload or create actions. Root creation assumes the binding's validated provider root remains the same namespace during the request; an out-of-band remount is not atomically fenced.
+- Files sharing, rename/move, copy, delete and general permission inspection remain unfinished in this User slice. A binding with existing mappings currently blocks credential rotation and replacement until verified identity carry-forward exists. These limitations are not evidence of completed #1472 or #1498 acceptance.
 - CalDAV/iCalendar facade for workspace/team/channel collections, including stable canonical context and meeting-thread metadata on northbound `VEVENT` projections; unsafe private-personal calendar templates fail closed.
 - Secret-free calendar client setup metadata at `GET /api/calendar/client-setup`.
 - Provider stack readiness at `GET /api/providers/status`, including Nextcloud WebDAV/CalDAV/CardDAV/Forms, Keycloak OIDC, Synapse/Matrix, MAS, fail-closed meeting support, and OpenProject readiness seams.
@@ -49,6 +52,14 @@ Currently implemented or contract-backed surfaces:
 - Documents/collaboration and Office-style launch seams remain postponed behind backend facades; any existing experimental launch errors stay support-safe and fail closed.
 - Boards/Tasks workspace facade and OpenProject workspace-sync validation contracts behind explicit runtime, authorization, and audit gates.
 - Separate generated User/Admin OpenAPI JSON at `/v3/api-docs/user` and `/v3/api-docs/admin` (plus the combined diagnostic document at `/v3/api-docs`).
+
+### Code-first OpenAPI
+
+Controller annotations, transport DTOs and validation own the HTTP artifacts. From the repository root, run `./gradlew generateOpenApiContract` after a contract change and `./gradlew checkOpenApiContractFresh` to verify the committed projections. Do not edit `contracts/openapi/*.json` by hand. Every currently exported User/Admin operation has an explicit ID; export tests compare it with the actual Spring handler, check uniqueness and require equality across grouped and combined documents. Normalization preserves ordered examples, schema meaning, security metadata, response headers and error responses.
+
+JVM consumers use `weave-user-api-client` and `weave-admin-api-client`; their `check` tasks regenerate and compare the pinned client output. The User client includes a guarded generator correction for binary request bodies, verified against actual HTTP bytes. Generated transport consistency does not replace independent authorization and behavioral assertions. The product E2E uses that same User client to verify Files identity, exact bytes, validators, retry conflicts, outsider denial and persistence after service restart.
+
+The current export is an implementation inventory, not a claim that the complete product operation set is delivered. Calendar event REST operations, complete Files operations and classification of older privileged readiness/setup routes remain tracked by #1472/#1479.
 
 ## Provider and readiness posture
 
