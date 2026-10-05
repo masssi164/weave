@@ -73,7 +73,9 @@ new product consumers. Current live Calendar behavior is mapped separately to th
 isolated product journey and is not inferred from Flutter transport fixtures.
 
 Generated Dart DATE values use a UTC field container on decode and serialize their
-calendar fields directly, without converting them to another instant. This is a
+calendar fields directly, without converting them to another instant. The date-only
+decoder applies only to DATE fields; generic date-time parsing stays unchanged, so
+member timestamp validation cannot mistake a date-only string for a UTC instant. This is a
 deterministic generator correction, not a hand edit of generated models. Date-only
 wire round trips must preserve a civil date even when the host zone skipped that
 date (Pacific/Apia, 2011-12-30). Date-time values still preserve their instant. The

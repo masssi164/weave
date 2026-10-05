@@ -151,14 +151,20 @@ def preserve_calendar_date_fields(destination: Path) -> None:
     """
     helper = destination / "api_helper.dart"
     source = helper.read_text()
-    before = "return DateTime.tryParse(value);"
-    after = """if (RegExp(r'^\\d{4}-\\d{2}-\\d{2}$').hasMatch(value)) {
-          final date = DateTime.tryParse('${value}T00:00:00Z');
-          return date != null && date.toIso8601String().substring(0, 10) == value
-              ? date
-              : null;
-        }
-        return DateTime.tryParse(value);"""
+    before = "/// Returns a valid [DateTime] found at the specified Map [key], null otherwise."
+    after = """/// Decodes a date-only value without applying the host timezone.
+DateTime? mapDateOnly(dynamic map, String key) {
+  final dynamic value = map is Map ? map[key] : null;
+  if (value is! String || !RegExp(r'^\\d{4}-\\d{2}-\\d{2}$').hasMatch(value)) {
+    return null;
+  }
+  final date = DateTime.tryParse('${value}T00:00:00Z');
+  return date != null && date.toIso8601String().substring(0, 10) == value
+      ? date
+      : null;
+}
+
+""" + before
     if source.count(before) != 1:
         raise RuntimeError("OpenAPI Generator date-only decoding changed")
     helper.write_text(source.replace(before, after, 1))
@@ -168,7 +174,11 @@ def preserve_calendar_date_fields(destination: Path) -> None:
     before = "_dateFormatter.format(this.date!.toUtc())"
     if source.count(before) != 1:
         raise RuntimeError("OpenAPI Generator Calendar DATE serialization changed")
-    model.write_text(source.replace(before, "_dateFormatter.format(this.date!)", 1))
+    source = source.replace(before, "_dateFormatter.format(this.date!)", 1)
+    before = "date: mapDateTime(json, r'date', r'')"
+    if source.count(before) != 1:
+        raise RuntimeError("OpenAPI Generator Calendar DATE decoding changed")
+    model.write_text(source.replace(before, "date: mapDateOnly(json, r'date')", 1))
 
 
 def same_sources(left: Path, right: Path) -> bool:
