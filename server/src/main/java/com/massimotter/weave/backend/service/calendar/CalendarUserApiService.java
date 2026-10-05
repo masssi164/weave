@@ -293,7 +293,8 @@ public class CalendarUserApiService {
     private void audit(Member member, CalendarScope scope, String id, String action, String version) {
         try {
             AuditWriteGate.publishRequired(audit, new AuditEvent(member.organization(), space(scope), member.principal(), "weave:calendar-user-api",
-                    AuditAction.CALENDAR_EVENT_WRITE_ATTEMPTED, Instant.now(), "calendar-write:" + digest(id + action + version),
+                    AuditAction.CALENDAR_EVENT_WRITE_ATTEMPTED, Instant.now(),
+                    "calendar-write:" + digest(id + "\0" + action + "\0" + version + "\0" + UUID.randomUUID()),
                     AuditRedactionLevel.SUPPORT_SAFE, Map.of("module", DOMAIN, "operation", action, "supportSafe", true)));
         } catch (RuntimeException unavailable) {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "calendar-audit-unavailable", "Calendar audit is unavailable.");
