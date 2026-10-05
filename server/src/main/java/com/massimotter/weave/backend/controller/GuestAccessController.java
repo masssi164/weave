@@ -29,13 +29,13 @@ public class GuestAccessController {
     }
 
     @GetMapping("/api/guest/access-contract")
-    @Operation(summary = "Get guest identity and policy contract")
+    @Operation(operationId = "contract", summary = "Get guest identity and policy contract")
     public GuestAccessContractResponse contract() {
         return guestAccessService.contract();
     }
 
     @PostMapping("/api/guest/invitations")
-    @Operation(summary = "Create a guest invitation when guest access is enabled")
+    @Operation(operationId = "invite", summary = "Create a guest invitation when guest access is enabled")
     @ApiResponse(responseCode = "503", description = "Guest access is disabled by default.",
             content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     public GuestInvitationResponse invite(@Valid @RequestBody GuestInvitationRequest request) {

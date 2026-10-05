@@ -84,7 +84,10 @@ public class FilesUserItemsController {
     }
 
     @PostMapping(value = "/api/files/items/folders", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(operationId = "createFilesFolder", summary = "Create an empty Files folder at an absent name")
+    @Operation(operationId = "createFilesFolder", summary = "Create an empty Files folder at an absent name",
+            description = "Requires createFolder in the parent's current allowedActions. The current release "
+                    + "supports atomic root-folder creation; other parents fail closed until their identity "
+                    + "can be bound atomically by the selected provider.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Created folder, or the same completed idempotent result.",
                     content = @Content(schema = @Schema(implementation = FilesUserItemResponse.class))),
@@ -99,14 +102,18 @@ public class FilesUserItemsController {
             @Valid @RequestBody FilesUserCreateFolderRequest request,
             @Parameter(required = true, description = "Must be * for atomic absent-name creation.")
             @RequestHeader(name = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch,
-            @Parameter(required = true, description = "16 to 128 character key for durable User HTTP intent.")
+            @Parameter(required = true, description = "16 to 128 character key for durable User HTTP intent.",
+                    schema = @Schema(minLength = 16, maxLength = 128))
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey) {
         return files.createFolder(jwt, request.parentFileId(), request.name(), ifNoneMatch, idempotencyKey);
     }
 
     @PostMapping(value = "/api/files/items/uploads", consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(operationId = "uploadFilesItemContent", summary = "Upload bounded binary content at an absent name")
+    @Operation(operationId = "uploadFilesItemContent", summary = "Upload bounded binary content at an absent name",
+            description = "Accepts at most 26214400 bytes (25 MiB), including an empty file. Requires upload "
+                    + "in the parent's current allowedActions. The current release supports atomic creation "
+                    + "in file:root; unsupported parent identity guarantees fail closed.")
     @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
             content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE,
                     schema = @Schema(type = "string", format = "binary")))
@@ -127,11 +134,14 @@ public class FilesUserItemsController {
                             schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public FilesUserItemResponse upload(@AuthenticationPrincipal Jwt jwt,
-            @RequestParam String parentId, @RequestParam String name,
+            @RequestParam String parentId,
+            @Parameter(schema = @Schema(minLength = 1, maxLength = 255)) @RequestParam String name,
+            @Parameter(schema = @Schema(maxLength = 255))
             @RequestParam(required = false) String mediaType,
             @Parameter(required = true, description = "Must be * for atomic absent-name creation.")
             @RequestHeader(name = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch,
-            @Parameter(required = true, description = "16 to 128 character durable operation key.")
+            @Parameter(required = true, description = "16 to 128 character durable operation key.",
+                    schema = @Schema(minLength = 16, maxLength = 128))
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
             HttpServletRequest request) throws IOException {
         return files.upload(jwt, parentId, name, mediaType, boundedBody(request), ifNoneMatch, idempotencyKey);
@@ -139,7 +149,10 @@ public class FilesUserItemsController {
 
     @PutMapping(value = "/api/files/items/{fileId}/content", consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(operationId = "updateFilesItemContent", summary = "Replace bounded binary content against a strong validator")
+    @Operation(operationId = "updateFilesItemContent", summary = "Replace bounded binary content against a strong validator",
+            description = "Accepts at most 26214400 bytes (25 MiB). Requires updateContent in the item's "
+                    + "current allowedActions and a provider that atomically enforces both identity and version. "
+                    + "Unsupported providers fail closed; a content ETag is distinct from the item revision.")
     @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
             content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE,
                     schema = @Schema(type = "string", format = "binary")))
@@ -160,10 +173,12 @@ public class FilesUserItemsController {
                             schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public FilesUserItemResponse update(@AuthenticationPrincipal Jwt jwt, @PathVariable String fileId,
+            @Parameter(schema = @Schema(maxLength = 255))
             @RequestParam(required = false) String mediaType,
             @Parameter(required = true, description = "Strong ETag returned by the last content download.")
             @RequestHeader(name = HttpHeaders.IF_MATCH, required = false) String ifMatch,
-            @Parameter(required = true, description = "16 to 128 character durable operation key.")
+            @Parameter(required = true, description = "16 to 128 character durable operation key.",
+                    schema = @Schema(minLength = 16, maxLength = 128))
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
             HttpServletRequest request) throws IOException {
         return files.update(jwt, fileId, mediaType, boundedBody(request), ifMatch, idempotencyKey);
@@ -186,7 +201,9 @@ public class FilesUserItemsController {
     }
 
     @GetMapping("/api/files/items/{fileId}/content")
-    @Operation(operationId = "downloadFilesItemContent", summary = "Download bounded binary Files content")
+    @Operation(operationId = "downloadFilesItemContent", summary = "Download bounded binary Files content",
+            description = "Returns at most 26214400 bytes (25 MiB) from an identity-bound conditional provider "
+                    + "read. Requires download in the item's current allowedActions. Larger files fail with 413.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exact content bytes with strong content ETag and SHA-256 digest.",
                     headers = {

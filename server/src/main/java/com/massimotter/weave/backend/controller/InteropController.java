@@ -52,13 +52,13 @@ public class InteropController {
     }
 
     @GetMapping("/api/interop/slack/status")
-    @Operation(summary = "Get Slack one-channel on-ramp readiness")
+    @Operation(operationId = "slackStatus", summary = "Get Slack one-channel on-ramp readiness")
     public SlackStatusResponse slackStatus() {
         return interopGatewayService.slackStatus();
     }
 
     @PostMapping("/api/interop/slack/oauth/callback")
-    @Operation(summary = "Accept a Slack OAuth callback skeleton without token exchange")
+    @Operation(operationId = "slackOAuthCallback", summary = "Accept a Slack OAuth callback skeleton without token exchange")
     @ApiResponse(responseCode = "503", description = "Slack bridge is disabled or secret brokering is not configured.",
             content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     public Map<String, Object> slackOAuthCallback(@Valid @RequestBody SlackOAuthCallbackRequest request) {
@@ -66,7 +66,7 @@ public class InteropController {
     }
 
     @PostMapping("/api/interop/slack/events")
-    @Operation(summary = "Convert a Slack text event into a canonical bridge event in sandbox mode")
+    @Operation(operationId = "slackEvent", summary = "Convert a Slack text event into a canonical bridge event in sandbox mode")
     @ApiResponse(responseCode = "503", description = "Slack bridge is disabled, unmapped, or not configured.",
             content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     public CanonicalBridgeEventResponse slackEvent(
@@ -79,7 +79,7 @@ public class InteropController {
     }
 
     @PostMapping("/api/interop/slack/messages")
-    @Operation(summary = "Map a Weave text message to the Slack sandbox outbound adapter")
+    @Operation(operationId = "slackMessage", summary = "Map a Weave text message to the Slack sandbox outbound adapter")
     @ApiResponse(responseCode = "503", description = "Slack bridge is disabled, unmapped, or not configured.",
             content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     public SlackOutboundMessageResponse slackMessage(@Valid @RequestBody SlackOutboundMessageRequest request) {
@@ -87,7 +87,7 @@ public class InteropController {
     }
 
     @GetMapping("/api/interop/teams/contract")
-    @Operation(summary = "Get the Teams gated bridge contract")
+    @Operation(operationId = "teamsContract", summary = "Get the Teams gated bridge contract")
     public TeamsContractResponse teamsContract() {
         return interopGatewayService.teamsContract();
     }

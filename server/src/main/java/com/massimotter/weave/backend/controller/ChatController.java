@@ -64,7 +64,7 @@ public class ChatController {
     }
 
     @GetMapping("/api/chat/conversations/{conversationId}/decisions")
-    @Operation(summary = "Read channel Decision Ledger records")
+    @Operation(operationId = "decisions", summary = "Read channel Decision Ledger records")
     @ApiResponse(responseCode = "200", description = "Source-linked Decision Ledger records.",
             content = @Content(schema = @Schema(implementation = DecisionLedgerRecordsResponse.class)))
     public DecisionLedgerRecordsResponse decisions(
@@ -74,7 +74,7 @@ public class ChatController {
     }
 
     @PostMapping("/api/chat/conversations/{conversationId}/decisions")
-    @Operation(summary = "Create a channel Decision Ledger record")
+    @Operation(operationId = "createDecision", summary = "Create a channel Decision Ledger record")
     @ApiResponse(responseCode = "200", description = "Created source-linked Decision Ledger record.",
             content = @Content(schema = @Schema(implementation = DecisionLedgerRecordResponse.class)))
     public DecisionLedgerRecordResponse createDecision(
@@ -85,7 +85,7 @@ public class ChatController {
     }
 
     @GetMapping("/api/chat/conversations/{conversationId}/meeting-capsules")
-    @Operation(summary = "Read channel Meeting Capsules")
+    @Operation(operationId = "meetingCapsules", summary = "Read channel Meeting Capsules")
     @ApiResponse(responseCode = "200", description = "Durable channel Meeting Capsules with fail-closed media controls.",
             content = @Content(schema = @Schema(implementation = MeetingCapsulesResponse.class)))
     public MeetingCapsulesResponse meetingCapsules(
@@ -95,7 +95,7 @@ public class ChatController {
     }
 
     @PostMapping("/api/chat/conversations/{conversationId}/meeting-capsules")
-    @Operation(summary = "Create a channel Meeting Capsule")
+    @Operation(operationId = "createMeetingCapsule", summary = "Create a channel Meeting Capsule")
     @ApiResponse(responseCode = "200", description = "Created Meeting Capsule.",
             content = @Content(schema = @Schema(implementation = MeetingCapsuleResponse.class)))
     public MeetingCapsuleResponse createMeetingCapsule(

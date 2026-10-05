@@ -25,13 +25,13 @@ public class ConnectorController {
     }
 
     @GetMapping("/api/connectors/boundary")
-    @Operation(summary = "Get internal connector runtime boundary")
+    @Operation(operationId = "boundary", summary = "Get internal connector runtime boundary")
     public ConnectorBoundaryResponse boundary() {
         return connectorRuntimeService.boundary();
     }
 
     @PostMapping("/api/connectors/manifest/validate")
-    @Operation(summary = "Validate an internal connector manifest without accepting secret values")
+    @Operation(operationId = "validate", summary = "Validate an internal connector manifest without accepting secret values")
     public ConnectorManifestValidationResponse validate(@Valid @RequestBody ConnectorManifestValidationRequest request) {
         return connectorRuntimeService.validate(request);
     }

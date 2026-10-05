@@ -39,7 +39,7 @@ public class ProviderRegistryController {
 
     @GetMapping("/api/providers/status")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
-    @Operation(summary = "Read support-safe admin/provider category capability and readiness status")
+    @Operation(operationId = "status", summary = "Read support-safe admin/provider category capability and readiness status")
     @ApiResponse(responseCode = "200", description = "Provider registry snapshot.",
             content = @Content(schema = @Schema(implementation = ProviderRegistryResponse.class)))
     public ProviderRegistryResponse status(@AuthenticationPrincipal Jwt jwt) {
