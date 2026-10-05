@@ -38,8 +38,12 @@ by server validation; generation must not advertise that invalid omission as val
 Product E2E replaces its handwritten northbound CalDAV event journey with the
 generated JVM User client. Existing iCalendar projection fixtures remain reusable
 protocol evidence and are not deleted. In the existing isolated Compose
-run it creates events through the actual member session, checks query/read/update
+run it creates events through the actual owner session, checks query/read/update
 and strong version preconditions, and independently denies outsider access.
+The isolated collaboration actors have owner and member roles. The owner can
+create/update Calendar events; the member has `calendar.read` and must be denied
+`calendar.manage_events` writes even when the same Space grants VIEW. The E2E
+journey checks that denial leaves the event unchanged before the owner updates it.
 Temporal values, event identity, authorized scope and meeting-thread correlation
 must survive provider readback and the existing restart phase. Cleanup uses the
 same generated API where available, followed by teardown of only the exact owned
