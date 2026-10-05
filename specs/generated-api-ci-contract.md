@@ -18,8 +18,9 @@ No Home-core, dogfood, production service or deployment credential is involved.
    `openApiContractExport` test context and export separate User/Admin artifacts.
    Compare the deterministic exports with the checked-in documents. Explicit operation
    IDs, partitioning, ordered examples, errors, headers and schema semantics remain checked.
-2. Regenerate the JVM User and Admin clients twice, compare sources, compile them and
-   run their transport tests. Compile/test MCP and product E2E against these same modules.
+2. Regenerate the JVM User and Admin clients twice, compare sources and compile them.
+   Run the User binary transport tests and compile/test product E2E against these modules.
+   Retain the existing MCP security/transport regression alongside those checks.
 3. Regenerate the Dart User HTTP SDK and transport projection and the Admin TypeScript
    HTTP SDK/types from the checked server artifacts; fail on any stale checked-in output.
    Run the existing Flutter and Admin consumer gates, including independent response,
@@ -52,7 +53,10 @@ The job preserves the raw generated OpenAPI documents and the export test report
 failure. These contain public transport metadata and fixture assertions, not bearer
 tokens or private provider data. Tool and dependency versions are in setup/build logs.
 
-Passing this gate proves deterministic code-first generation and tested consumers on
-one source candidate. Real browser/OIDC, User/Admin/MCP, Matrix interoperability,
+Passing this gate proves deterministic code-first generation and the current generated
+consumers on one source candidate. The existing MCP Files transport still uses historical
+DAV; #1474 must replace it with the generated User module and the current member/context
+authorization bridge. Merely running its existing tests does not prove that migration.
+Real browser/OIDC, User/Admin/MCP, Matrix interoperability,
 Files/Calendar and session recovery journeys remain independently required by #1480.
 The disposable Compose lane provides runtime evidence; provider migration remains #1498.
