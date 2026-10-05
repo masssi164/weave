@@ -54,9 +54,13 @@ registerRootCommandTask('generateClientOpenApiModels', ['bash', '-lc', 'python3 
 registerRootCommandTask('generateClientUserApi', ['python3', 'tools/generate_client_user_api.py'], 'Generate the pinned Dart User HTTP SDK from the server-owned User OpenAPI artifact.')
 registerRootCommandTask('checkClientUserApiFresh', ['python3', 'tools/generate_client_user_api.py', '--check'], 'Fail when the checked-in Dart User HTTP SDK differs from the server-owned User OpenAPI artifact.')
 registerRootCommandTask('checkClientOpenApiModelsFresh', ['python3', 'tools/generate_client_openapi_models.py', '--check'], 'Fail when Flutter/Dart generated OpenAPI models are stale.')
+registerRootCommandTask('clientGeneratedCalendarTemporalWire', ['bash', 'tools/check_generated_calendar_temporal_wire.sh'], 'Verify generated Calendar temporal wire values in UTC, Berlin and Apia.')
+tasks.named('clientGeneratedCalendarTemporalWire') {
+    dependsOn 'checkClientUserApiFresh'
+}
 registerCommandTask('clientOpenApiDriftPrevention', file('client'), ['bash', '-lc', 'FLUTTER_BIN="${FLUTTER_BIN:-$(command -v flutter || true)}"; if [ -z "$FLUTTER_BIN" ] && [ -x "$HOME/flutter/bin/flutter" ]; then FLUTTER_BIN="$HOME/flutter/bin/flutter"; fi; if [ -z "$FLUTTER_BIN" ]; then echo "flutter not found; install Flutter or set FLUTTER_BIN" >&2; exit 127; fi; "$FLUTTER_BIN" test test/architecture/openapi_drift_prevention_contract_test.dart'], 'Block client OpenAPI facade drift for DTOs, raw JSON parsing, provider reachability, and hardcoded copy.')
 tasks.named('clientCi') {
-    dependsOn 'checkClientOpenApiModelsFresh', 'checkClientUserApiFresh', 'clientOpenApiDriftPrevention'
+    dependsOn 'checkClientOpenApiModelsFresh', 'checkClientUserApiFresh', 'clientOpenApiDriftPrevention', 'clientGeneratedCalendarTemporalWire'
 }
 tasks.register('generatedApiCi') {
     group = 'verification'

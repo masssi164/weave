@@ -811,6 +811,260 @@
         },
         "type": "object"
       },
+      "CalendarEventAttendee": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "maxLength": 512,
+            "minLength": 0,
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 512,
+            "minLength": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "response": {
+            "pattern": "NEEDS-ACTION|ACCEPTED|DECLINED|TENTATIVE|DELEGATED",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "pattern": "CHAIR|REQ-PARTICIPANT|OPT-PARTICIPANT|NON-PARTICIPANT",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "type": "object"
+      },
+      "CalendarEventOverride": {
+        "additionalProperties": false,
+        "properties": {
+          "cancelled": {
+            "type": "boolean"
+          },
+          "description": {
+            "maxLength": 8192,
+            "minLength": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "end": {
+            "$ref": "#/components/schemas/CalendarTimeValue",
+            "type": "null"
+          },
+          "location": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recurrenceId": {
+            "$ref": "#/components/schemas/CalendarTimeValue"
+          },
+          "start": {
+            "$ref": "#/components/schemas/CalendarTimeValue",
+            "type": "null"
+          },
+          "title": {
+            "maxLength": 512,
+            "minLength": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "recurrenceId"
+        ],
+        "type": "object"
+      },
+      "CalendarEventRecurrence": {
+        "additionalProperties": false,
+        "properties": {
+          "additionalDates": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarTimeValue"
+            },
+            "maxItems": 1000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "byDay": {
+            "items": {
+              "pattern": "[+-]?[0-9]{0,2}(MO|TU|WE|TH|FR|SA|SU)",
+              "type": "string"
+            },
+            "maxItems": 366,
+            "minItems": 0,
+            "type": "array"
+          },
+          "byMonth": {
+            "items": {
+              "format": "int32",
+              "maximum": 12,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxItems": 12,
+            "minItems": 0,
+            "type": "array"
+          },
+          "byMonthDay": {
+            "items": {
+              "format": "int32",
+              "maximum": 31,
+              "minimum": -31,
+              "type": "integer"
+            },
+            "maxItems": 62,
+            "minItems": 0,
+            "type": "array"
+          },
+          "bySetPos": {
+            "items": {
+              "format": "int32",
+              "maximum": 366,
+              "minimum": -366,
+              "type": "integer"
+            },
+            "maxItems": 732,
+            "minItems": 0,
+            "type": "array"
+          },
+          "count": {
+            "format": "int32",
+            "maximum": 100000,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "excludedDates": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarTimeValue"
+            },
+            "maxItems": 1000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "frequency": {
+            "enum": [
+              "DAILY",
+              "WEEKLY",
+              "MONTHLY",
+              "YEARLY"
+            ],
+            "type": "string"
+          },
+          "interval": {
+            "format": "int32",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "until": {
+            "$ref": "#/components/schemas/CalendarTimeValue",
+            "description": "Exclusive with count. DATE/FLOATING match start kind; UTC and ZONED use a UTC instant.",
+            "type": "null"
+          },
+          "weekStart": {
+            "pattern": "MO|TU|WE|TH|FR|SA|SU",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "additionalDates",
+          "byDay",
+          "byMonth",
+          "byMonthDay",
+          "bySetPos",
+          "excludedDates",
+          "frequency",
+          "interval"
+        ],
+        "type": "object"
+      },
+      "CalendarEventWriteRequest": {
+        "additionalProperties": false,
+        "description": "Complete supported event content. Unknown fields are rejected, never silently discarded. Identity, calendar, scope and thread references are server-owned.",
+        "properties": {
+          "attendees": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarEventAttendee"
+            },
+            "maxItems": 500,
+            "minItems": 0,
+            "type": "array"
+          },
+          "description": {
+            "maxLength": 8192,
+            "minLength": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "end": {
+            "$ref": "#/components/schemas/CalendarTimeValue"
+          },
+          "location": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overrides": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarEventOverride"
+            },
+            "maxItems": 1000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "recurrence": {
+            "$ref": "#/components/schemas/CalendarEventRecurrence",
+            "type": "null"
+          },
+          "start": {
+            "$ref": "#/components/schemas/CalendarTimeValue"
+          },
+          "title": {
+            "maxLength": 512,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "attendees",
+          "end",
+          "overrides",
+          "start",
+          "title"
+        ],
+        "type": "object"
+      },
       "CalendarExternalEndpointsResponse": {
         "description": "Secret-free Weave CalDAV projection paths for external calendar clients.",
         "properties": {
@@ -1098,6 +1352,222 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "CalendarTimeValue": {
+        "additionalProperties": false,
+        "description": "Exactly one value: DATE=date, FLOATING=localDateTime, UTC=instant, ZONED=localDateTime+timeZone. DATE end is exclusive; local values never contain an offset.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "instant": {
+            "description": "Second-precision UTC instant ending in Z; an optional all-zero fractional suffix is accepted and normalized.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.0{1,9})?Z$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "enum": [
+              "DATE",
+              "FLOATING",
+              "UTC",
+              "ZONED"
+            ],
+            "type": "string"
+          },
+          "localDateTime": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timeZone": {
+            "description": "IANA timezone; present only for ZONED.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "CalendarUserAgenda": {
+        "properties": {
+          "calendarId": {
+            "type": "string"
+          },
+          "evaluationTimeZone": {
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarUserEvent"
+            },
+            "type": "array"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "occurrences": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarUserOccurrence"
+            },
+            "type": "array"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "calendarId",
+          "evaluationTimeZone",
+          "events",
+          "from",
+          "occurrences",
+          "to"
+        ],
+        "type": "object"
+      },
+      "CalendarUserCalendar": {
+        "properties": {
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/CalendarUserScope"
+          }
+        },
+        "required": [
+          "allowedActions",
+          "id",
+          "scope"
+        ],
+        "type": "object"
+      },
+      "CalendarUserCalendars": {
+        "properties": {
+          "calendars": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarUserCalendar"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "calendars"
+        ],
+        "type": "object"
+      },
+      "CalendarUserEvent": {
+        "properties": {
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "calendarId": {
+            "type": "string"
+          },
+          "content": {
+            "$ref": "#/components/schemas/CalendarEventWriteRequest"
+          },
+          "id": {
+            "type": "string"
+          },
+          "meetingThreadRef": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/CalendarUserScope"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "allowedActions",
+          "calendarId",
+          "content",
+          "id",
+          "meetingThreadRef",
+          "scope",
+          "version"
+        ],
+        "type": "object"
+      },
+      "CalendarUserOccurrence": {
+        "description": "An agenda-window projection. Event content retains its exact temporal intent.",
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eventId": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endsAt",
+          "eventId",
+          "startsAt"
+        ],
+        "type": "object"
+      },
+      "CalendarUserScope": {
+        "properties": {
+          "channelId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "spaceId": {
+            "type": "string"
+          },
+          "teamId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "enum": [
+              "WORKSPACE",
+              "TEAM",
+              "CHANNEL"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "spaceId",
+          "type"
+        ],
         "type": "object"
       },
       "CanonicalDomainRegistryEntryResponse": {
@@ -8939,6 +9409,703 @@
         ]
       }
     },
+    "/api/calendar/calendars": {
+      "get": {
+        "operationId": "listUserCalendars",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarUserCalendars"
+                }
+              }
+            },
+            "description": "Visible calendars and effective actions."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or unsupported Calendar input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "A valid User session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Organization, capability or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Calendar or event is absent or not visible."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Current provider, mapping, audit or lossless profile support unavailable."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Discover authorized workspace, team and channel calendars",
+        "tags": [
+          "Calendar User"
+        ]
+      }
+    },
+    "/api/calendar/calendars/{calendarId}/events": {
+      "get": {
+        "operationId": "queryCalendarAgenda",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "IANA timezone for DATE/FLOATING occurrence evaluation; stored intent is unchanged.",
+            "in": "query",
+            "name": "evaluationTimeZone",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarUserAgenda"
+                }
+              }
+            },
+            "description": "Exact event content and occurrence projections for the requested window."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or unsupported Calendar input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "A valid User session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Organization, capability or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Calendar or event is absent or not visible."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Event or occurrence result limit exceeded; request a smaller window."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Current provider, mapping, audit or lossless profile support unavailable."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Query a bounded Calendar agenda with an explicit evaluation timezone",
+        "tags": [
+          "Calendar User"
+        ]
+      },
+      "post": {
+        "operationId": "createCalendarEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "pattern": "[A-Za-z0-9._:-]{16,128}",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarEventWriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarUserEvent"
+                }
+              }
+            },
+            "description": "Created event, or unchanged successful replay.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or unsupported Calendar input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "A valid User session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Organization, capability or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Calendar or event is absent or not visible."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The create identity is already bound to another payload."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Content-Type must be application/json."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Current provider, mapping, audit or lossless profile support unavailable."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Create an event with a stable retry identity",
+        "tags": [
+          "Calendar User"
+        ]
+      }
+    },
+    "/api/calendar/calendars/{calendarId}/events/{eventId}": {
+      "delete": {
+        "operationId": "deleteCalendarEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exactly one strong version returned by this API.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Event deleted."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or unsupported Calendar input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "A valid User session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Organization, capability or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Calendar or event is absent or not visible."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The current event version differs."
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "If-Match is missing."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Current provider, mapping, audit or lossless profile support unavailable."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Delete an event with a strong version precondition",
+        "tags": [
+          "Calendar User"
+        ]
+      },
+      "get": {
+        "operationId": "getCalendarEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarUserEvent"
+                }
+              }
+            },
+            "description": "Exact current event content.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or unsupported Calendar input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "A valid User session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Organization, capability or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Calendar or event is absent or not visible."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Current provider, mapping, audit or lossless profile support unavailable."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read a stable Weave Calendar event",
+        "tags": [
+          "Calendar User"
+        ]
+      },
+      "put": {
+        "operationId": "updateCalendarEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exactly one strong version returned by this API; wildcard and weak versions are rejected.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarEventWriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarUserEvent"
+                }
+              }
+            },
+            "description": "Updated event.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or unsupported Calendar input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "A valid User session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Organization, capability or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Calendar or event is absent or not visible."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The current event version differs."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Content-Type must be application/json."
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "If-Match is missing."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Current provider, mapping, audit or lossless profile support unavailable."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Replace supported event content with a strong version precondition",
+        "tags": [
+          "Calendar User"
+        ]
+      }
+    },
     "/api/calendar/client-setup": {
       "get": {
         "operationId": "clientSetup",
@@ -12312,6 +13479,10 @@
     {
       "description": "Internal connector runtime boundary; public SDK remains deferred.",
       "name": "Connectors"
+    },
+    {
+      "description": "Calendar product operations under current member and Space authorization.",
+      "name": "Calendar User"
     },
     {
       "description": "Provider-neutral Office document collaboration facade.",

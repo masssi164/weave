@@ -55,6 +55,35 @@ EXPECTED_ORGANIZATION_MAPPER_OPERATION = {
 }
 
 
+EXPECTED_ORGANIZATION_MAPPER_OPERATION = {
+    "id": "organization-membership-id-post-import",
+    "phase": "post-realm-import",
+    "type": "keycloak-built-in-organization-mapper",
+    "desiredStatePointer": "/operations/1/desiredState",
+    "desiredState": {
+        "clientScopeName": "organization",
+        "name": "organization",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-organization-membership-mapper",
+        "config": {
+            "claim.name": "organization",
+            "jsonType.label": "JSON",
+            "multivalued": "true",
+            "addOrganizationId": "true",
+            "addOrganizationAttributes": "false",
+            "addOrganizationDomain": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+        }
+    },
+    "desiredStateDigest": "sha256:5e19f3dff3818e8093aff5c7b61dc6da6baf303bf25654d24b602c6526bee475",
+    "blockedBy": "keycloak-26.7-creates-built-in-scopes-before-realm-import",
+    "status": "requires-qualified-admin-rest-executor"
+}
+
+
 def digest(payload: bytes) -> str:
     return "sha256:" + hashlib.sha256(payload).hexdigest()
 

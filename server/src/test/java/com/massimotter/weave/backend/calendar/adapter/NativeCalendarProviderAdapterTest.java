@@ -23,6 +23,13 @@ import java.time.ZoneOffset;
 import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.TemporalKind;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceOverride;
+import com.massimotter.weave.backend.service.calendar.CalendarOccurrenceEngine;
+import com.massimotter.weave.backend.service.calendar.Ical4jRecurrenceEngine;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 class NativeCalendarProviderAdapterTest {
 
@@ -50,8 +57,13 @@ class NativeCalendarProviderAdapterTest {
         assertThatThrownBy(() -> adapter.write(new CalendarWrite(
                 withTitle(created, "Wrong"), WriteIntent.UPDATE, new EventVersion("\"stale\""))))
                 .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> adapter.write(new CalendarWrite(
+                created, WriteIntent.UPDATE, new EventVersion("\"stale\""))))
+                .isInstanceOf(RuntimeException.class);
 
         CalendarEvent updated = adapter.write(new CalendarWrite(withTitle(created, "Updated"), WriteIntent.UPDATE, created.version()));
+        assertThatThrownBy(() -> adapter.delete(CALENDAR, WORKSPACE, updated.id(), created.version())).isInstanceOf(RuntimeException.class);
+        assertThat(adapter.read(CALENDAR, WORKSPACE, updated.id()).title()).isEqualTo("Updated");
         adapter.delete(CALENDAR, WORKSPACE, updated.id(), updated.version());
 
         assertThatThrownBy(() -> adapter.read(CALENDAR, WORKSPACE, updated.id())).isInstanceOf(RuntimeException.class);
@@ -86,12 +98,66 @@ class NativeCalendarProviderAdapterTest {
     }
 
     private NativeCalendarProviderAdapter adapter(DataSource database) {
+        if (Boolean.getBoolean("weave.test.postgres")) {
+            NativeCalendarRelationalStore store = new NativeCalendarRelationalStore(new JdbcTemplate(database));
+            NativeCalendarProviderAdapter target = new NativeCalendarProviderAdapter(
+                    JpaTestDatabase.repository(database, CalendarCollectionJpaRepository.class),
+                    JpaTestDatabase.repository(database, CalendarEventJpaRepository.class),
+                    JpaTestDatabase.repository(database, CalendarChangeJpaRepository.class),
+                    JpaTestDatabase.repository(database, CalendarSnapshotChangeRepository.class), store,
+                    new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()), ZoneOffset.UTC, CLOCK);
+            return JpaTestDatabase.transactional(database, target);
+        }
         NativeCalendarProviderAdapter target = new NativeCalendarProviderAdapter(
                 JpaTestDatabase.repository(database, CalendarCollectionJpaRepository.class),
                 JpaTestDatabase.repository(database, CalendarEventJpaRepository.class),
                 JpaTestDatabase.repository(database, CalendarChangeJpaRepository.class),
                 CLOCK);
         return JpaTestDatabase.transactional(database, target);
+    }
+
+    @ParameterizedTest
+    @EnumSource(TemporalKind.class)
+    void normalizedPostgresPayloadSurvivesRestartWithExactRecurrenceAndOverrides(TemporalKind kind) {
+        org.junit.jupiter.api.Assumptions.assumeTrue(Boolean.getBoolean("weave.test.postgres"), "Authoritative PostgreSQL gate");
+        DataSource database = JpaTestDatabase.entityFirstDataSource("calendar-normalized-" + kind);
+        TemporalValue start = temporal(kind, "2026-03-28T09:00:00");
+        TemporalValue end = temporal(kind, kind == TemporalKind.DATE ? "2026-03-29T10:00:00" : "2026-03-28T10:00:00");
+        TemporalValue cancelled = temporal(kind, "2026-03-30T09:00:00");
+        CalendarEvent incoming = new CalendarEvent(CALENDAR, new EventId("normalized"), WORKSPACE, "Normalized", "Exact payload", start, end,
+                "Room", List.of(new Attendee(null, "Member", "member@example.test", "REQ-PARTICIPANT", "ACCEPTED")),
+                new RecurrenceSet(RecurrenceFrequency.DAILY, 1, null,
+                        (kind == TemporalKind.DATE ? java.time.LocalDate.parse("2026-04-01").atStartOfDay() : LocalDateTime.parse("2026-04-01T09:00:00")).atZone(ZoneOffset.UTC),
+                        List.of(temporal(kind, "2026-04-05T09:00:00")), List.of(temporal(kind, "2026-03-29T09:00:00")),
+                        List.of(), List.of(), List.of(), List.of(), "MO"),
+                List.of(new RecurrenceOverride(cancelled, null, null, true, null, null, null),
+                        new RecurrenceOverride(temporal(kind, "2026-03-31T09:00:00"), temporal(kind, "2026-04-03T11:00:00"),
+                                temporal(kind, kind == TemporalKind.DATE ? "2026-04-04T12:00:00" : "2026-04-03T12:00:00"),
+                                false, "Moved", "Preserved", "Other room")), EventVersion.unknown(), CLOCK.instant());
+        CalendarEvent written = adapter(database).write(new CalendarWrite(incoming, WriteIntent.CREATE, EventVersion.unknown()));
+        CalendarEvent read = adapter(database).read(CALENDAR, WORKSPACE, incoming.id());
+        assertThat(read.startValue()).isEqualTo(incoming.startValue());
+        assertThat(read.endValue()).isEqualTo(incoming.endValue());
+        assertThat(read.recurrence()).isEqualTo(incoming.recurrence());
+        assertThat(read.overrides()).isEqualTo(incoming.overrides());
+        assertThat(read.attendees()).isEqualTo(incoming.attendees());
+        assertThat(read.version()).isEqualTo(written.version());
+        assertThat(adapter(database).query(CALENDAR, WORKSPACE, Instant.parse("2026-03-28T00:00:00Z"), Instant.parse("2026-04-07T00:00:00Z"))).hasSize(1);
+        String endColumn = switch (kind) { case DATE -> "end_date"; case FLOATING, ZONED -> "end_local"; case UTC -> "end_instant"; };
+        assertThatThrownBy(() -> new JdbcTemplate(database).update("update weave_calendar_event_temporals set " + endColumn + "=null"))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        adapter(database).delete(CALENDAR, WORKSPACE, incoming.id(), written.version());
+        assertThat(new JdbcTemplate(database).queryForObject("select count(*) from weave_calendar_event_temporals", Integer.class)).isZero();
+    }
+
+    private TemporalValue temporal(TemporalKind kind, String value) {
+        LocalDateTime local = LocalDateTime.parse(value);
+        return switch (kind) {
+            case DATE -> TemporalValue.date(local.toLocalDate());
+            case FLOATING -> TemporalValue.floating(local);
+            case UTC -> TemporalValue.utc(local.toInstant(ZoneOffset.UTC));
+            case ZONED -> TemporalValue.zoned(local, ZoneId.of("Europe/Berlin"));
+        };
     }
 
     private CalendarEvent event(String id, String title) {

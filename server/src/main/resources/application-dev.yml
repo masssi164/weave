@@ -39,6 +39,13 @@ weave:
     provider: weave-native
   calendar:
     provider: weave-native
+  provider-bindings:
+    bootstrap:
+      calendar:
+        enabled: true
+        organization-ref: ${WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID:tenant-default}
+        adapter-key: weave-native
+        configuration-ref: configuration:calendar:deployment
   identity:
     invitations:
       keycloak:

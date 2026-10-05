@@ -262,6 +262,14 @@ class ApiClient {
           return CalendarClientSetupResponse.fromJson(value);
         case 'CalendarCredentialReadinessResponse':
           return CalendarCredentialReadinessResponse.fromJson(value);
+        case 'CalendarEventAttendee':
+          return CalendarEventAttendee.fromJson(value);
+        case 'CalendarEventOverride':
+          return CalendarEventOverride.fromJson(value);
+        case 'CalendarEventRecurrence':
+          return CalendarEventRecurrence.fromJson(value);
+        case 'CalendarEventWriteRequest':
+          return CalendarEventWriteRequest.fromJson(value);
         case 'CalendarExternalEndpointsResponse':
           return CalendarExternalEndpointsResponse.fromJson(value);
         case 'CalendarNativeSyncOptionResponse':
@@ -278,6 +286,20 @@ class ApiClient {
           return CalendarSetupCredentialRequest.fromJson(value);
         case 'CalendarSetupCredentialResponse':
           return CalendarSetupCredentialResponse.fromJson(value);
+        case 'CalendarTimeValue':
+          return CalendarTimeValue.fromJson(value);
+        case 'CalendarUserAgenda':
+          return CalendarUserAgenda.fromJson(value);
+        case 'CalendarUserCalendar':
+          return CalendarUserCalendar.fromJson(value);
+        case 'CalendarUserCalendars':
+          return CalendarUserCalendars.fromJson(value);
+        case 'CalendarUserEvent':
+          return CalendarUserEvent.fromJson(value);
+        case 'CalendarUserOccurrence':
+          return CalendarUserOccurrence.fromJson(value);
+        case 'CalendarUserScope':
+          return CalendarUserScope.fromJson(value);
         case 'ChatHistoryPolicy':
           return ChatHistoryPolicy.fromJson(value);
         case 'ChatProviderMappingRecord':

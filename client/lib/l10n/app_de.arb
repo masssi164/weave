@@ -1178,5 +1178,19 @@
         "type": "String"
       }
     }
+  },
+  "calendarScopesLoading": "Deine Kalender werden geladen…",
+  "calendarScopesUnavailable": "Deine Kalender konnten nicht geladen werden. Versuche es erneut, um deinen aktuellen Zugriff zu prüfen.",
+  "calendarRecurringEditGuard": "Wiederkehrender Termin: Serien und einzelne Vorkommen können in diesem Editor nicht bearbeitet oder gelöscht werden. Dein ursprünglicher Zeitplan bleibt erhalten.",
+  "calendarVersionConflict": "Dieser Termin wurde geändert. Aktualisiere den Kalender, prüfe den aktuellen Termin und versuche es erneut.",
+  "calendarUnsupportedEdit": "Diese Änderung würde nicht unterstützte Termindetails verändern. Prüfe den Termin und versuche es erneut.",
+  "calendarEvaluationZone": "Zeitzone: {zone}",
+  "calendarAllDayExclusiveEnd": "Bei ganztägigen Terminen ist das Enddatum der erste Tag nach dem Termin.",
+  "@calendarEvaluationZone": {
+    "placeholders": {
+      "zone": {
+        "type": "String"
+      }
+    }
   }
 }

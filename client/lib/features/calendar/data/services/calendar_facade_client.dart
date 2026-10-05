@@ -1,54 +1,68 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:http/http.dart' as http;
+import 'package:crypto/crypto.dart';
 import 'package:timezone/data/latest.dart' as timezone_data;
-import 'package:timezone/timezone.dart' as timezone;
-import 'package:weave/core/failures/app_failure.dart';
+import 'package:timezone/timezone.dart' as tz;
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
-import 'package:weave/features/calendar/data/dtos/calendar_openapi_mappers.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
-import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_failure.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
-import 'package:weave/generated/openapi_models.dart' as openapi;
-import 'package:xml/xml.dart';
+import 'package:weave/generated/user_api/api.dart' as api;
+import 'package:weave/integrations/weave_api/data/services/weave_user_api_client.dart';
 
-final bool _calendarTimeZonesInitialized = (() {
+final bool _zonesReady = (() {
   timezone_data.initializeTimeZones();
   return true;
 })();
 
-/// HTTP client for the Weave backend calendar product facade.
-///
-/// OpenAPI is used for setup/readiness/control metadata. Event data-plane
-/// behavior uses the Weave CalDAV/iCalendar facade under `/caldav/**`.
+/// Calendar product operations use only the generated User HTTP contract.
+/// Complete generated content stays separate from agenda display projections.
 class CalendarFacadeClient {
-  const CalendarFacadeClient({
+  CalendarFacadeClient({
     required http.Client httpClient,
     required ServerConfigurationRepository serverConfigurationRepository,
     required AuthSessionRepository authSessionRepository,
-  }) : _httpClient = httpClient,
-       _serverConfigurationRepository = serverConfigurationRepository,
-       _authSessionRepository = authSessionRepository;
+    required Future<String> Function() evaluationTimeZone,
+  }) : _http = httpClient,
+       _configuration = serverConfigurationRepository,
+       _auth = authSessionRepository,
+       _evaluationTimeZone = evaluationTimeZone;
 
-  final http.Client _httpClient;
-  final ServerConfigurationRepository _serverConfigurationRepository;
-  final AuthSessionRepository _authSessionRepository;
+  final http.Client _http;
+  final ServerConfigurationRepository _configuration;
+  final AuthSessionRepository _auth;
+  final Future<String> Function() _evaluationTimeZone;
+  final _events = <String, _EventSnapshot>{};
+  final _calendars = <String, CalendarScope>{};
+  String? _owner;
+  final _pendingCreates = <String, String>{};
 
   Future<CalendarScopeList> listScopes() async {
-    final context = await _requireContext();
-    final response = await _sendAuthenticated(
+    final context = await _context();
+    return _discover(context);
+  }
+
+  Future<CalendarScopeList> _discover(_Context context) async {
+    final result = await _invoke(
       context,
-      (accessToken) => _httpClient.get(
-        _apiUri(context.baseUrl, const ['api', 'calendar', 'scopes']),
-        headers: _jsonHeaders(accessToken),
-      ),
-      fallbackMessage: 'Unable to load calendar scopes from the Weave backend.',
+      (client) => client.listUserCalendars(),
     );
-    _ensureSuccess(response, successCodes: const {200});
-    return openapi.CalendarScopesResponse.fromJson(
-      _decodeObject(response.body),
-    ).toDomain();
+    if (result == null) {
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+    final scopes = result.calendars
+        .map((calendar) {
+          _requireId(calendar.id, 'calendar');
+          return _scope(calendar.id, calendar.scope, calendar.allowedActions);
+        })
+        .toList(growable: false);
+    _calendars
+      ..clear()
+      ..addEntries(scopes.map((scope) => MapEntry(scope.id, scope)));
+    return CalendarScopeList(scopes: scopes);
   }
 
   Future<CalendarEventList> listEvents({
@@ -56,812 +70,499 @@ class CalendarFacadeClient {
     DateTime? to,
     CalendarScope? selectedScope,
   }) async {
-    final context = await _requireContext();
-    final scope = selectedScope ?? CalendarScope.workspace;
-    final rangeStart =
-        from ?? DateTime.now().toUtc().subtract(const Duration(days: 30));
-    final rangeEnd =
-        to ?? DateTime.now().toUtc().add(const Duration(days: 365));
-    final response = await _sendAuthenticated(
+    final context = await _context();
+    final zone = await _zone();
+    final scopes = await _discover(context);
+    if (scopes.scopes.isEmpty) return const CalendarEventList();
+    final scope = _selected(scopes, selectedScope);
+    final now = DateTime.now().toUtc();
+    final result = await _invoke(
       context,
-      (accessToken) async => http.Response.fromStream(
-        await _httpClient.send(
-          http.Request('REPORT', _caldavUri(context.baseUrl, [scope.id]))
-            ..headers.addAll(
-              _caldavHeaders(
-                accessToken,
-                contentType: 'application/xml; charset=utf-8',
-              ),
-            )
-            ..headers['Depth'] = '1'
-            ..body = _calendarQueryBody(rangeStart, rangeEnd),
+      (client) => client.queryCalendarAgenda(
+        scope.id,
+        from ?? now.subtract(const Duration(days: 30)),
+        to ?? now.add(const Duration(days: 180)),
+        zone.name,
+      ),
+    );
+    if (result == null ||
+        result.calendarId != scope.id ||
+        result.evaluationTimeZone != zone.name) {
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+    final masters = <String, api.CalendarUserEvent>{};
+    for (final event in result.events) {
+      _remember(context, event, scope.id);
+      masters[event.id] = event;
+    }
+    final rows = <CalendarEvent>[];
+    for (final occurrence in result.occurrences) {
+      final event = masters[occurrence.eventId];
+      if (event == null) {
+        throw const CalendarFailure(CalendarFailureKind.unavailable);
+      }
+      rows.add(
+        _view(
+          event,
+          scope,
+          start: _wallClock(tz.TZDateTime.from(occurrence.startsAt, zone)),
+          end: _wallClock(tz.TZDateTime.from(occurrence.endsAt, zone)),
+          displayZone: zone.name,
         ),
-      ),
-      fallbackMessage: 'Unable to load calendar events from the Weave backend.',
-    );
-    _ensureSuccess(response, successCodes: const {207});
-    return CalendarEventList(
-      scope: scope,
-      events: _eventsFromMultistatus(response.body, defaultScope: scope),
-    );
-  }
-
-  Future<CalendarClientSetup> clientSetup() async {
-    final context = await _requireContext();
-    final response = await _sendAuthenticated(
-      context,
-      (accessToken) => _httpClient.get(
-        _apiUri(context.baseUrl, const ['api', 'calendar', 'client-setup']),
-        headers: _jsonHeaders(accessToken),
-      ),
-      fallbackMessage:
-          'Unable to load calendar setup metadata from the Weave backend.',
-    );
-    _ensureSuccess(response, successCodes: const {200});
-    return openapi.CalendarClientSetupResponse.fromJson(
-      _decodeObject(response.body),
-    ).toDomain();
+      );
+    }
+    rows.sort((left, right) => left.startTime.compareTo(right.startTime));
+    return CalendarEventList(scope: scope, events: rows);
   }
 
   Future<CalendarEvent> readEvent(String id) async {
-    final ref = _eventRef(id);
-    return _readEvent(ref);
-  }
-
-  Future<CalendarEvent> _readEvent(_CalDavEventRef ref) async {
-    final context = await _requireContext();
-    final response = await _sendAuthenticated(
+    final context = await _context();
+    final previous = _snapshot(context, id);
+    final result = await _invoke(
       context,
-      (accessToken) => _httpClient.get(
-        _caldavUri(context.baseUrl, [ref.scope.id, '${ref.uid}.ics']),
-        headers: _caldavHeaders(accessToken),
-      ),
-      fallbackMessage: 'Unable to read the calendar event.',
+      (client) => client.getCalendarEvent(previous.calendarId, id),
     );
-    _ensureSuccess(response, successCodes: const {200});
-    return _eventFromIcs(
-      response.body,
-      id: _domainEventId(ref.scope, ref.uid),
-      etag: response.headers['etag'],
-      scope: ref.scope,
-    );
+    if (result == null || result.id != id) {
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+    _remember(context, result, previous.calendarId);
+    return _view(result, _calendars[result.calendarId]!);
   }
 
   Future<CalendarEvent> createEvent(CalendarEventDraft draft) async {
-    final context = await _requireContext();
-    final uid = 'weave-${DateTime.now().toUtc().microsecondsSinceEpoch}';
-    final response = await _sendAuthenticated(
+    final context = await _context();
+    final scopes = await _discover(context);
+    final scope = _selected(scopes, draft.scope);
+    _allow(scope.capabilities, 'create');
+    final content = _content(draft);
+    // An uncertain network outcome must retain the same logical create identity
+    // when the member retries the unchanged draft in this session.
+    final fingerprint = sha256
+        .convert(utf8.encode(jsonEncode([context.owner, scope.id, content])))
+        .toString();
+    final key = _pendingCreates.putIfAbsent(fingerprint, () {
+      final random = Random.secure();
+      return base64UrlEncode(
+        List<int>.generate(24, (_) => random.nextInt(256)),
+      );
+    });
+    final result = await _invoke(
       context,
-      (accessToken) => _httpClient.put(
-        _caldavUri(context.baseUrl, [draft.scope.id, '$uid.ics']),
-        headers: {
-          ..._caldavHeaders(
-            accessToken,
-            contentType: 'text/calendar; charset=utf-8',
-          ),
-          'If-None-Match': '*',
-        },
-        body: _toIcalendar(uid, draft),
-      ),
-      fallbackMessage: 'Unable to create the calendar event.',
+      (client) => client.createCalendarEvent(scope.id, key, content),
+      mutation: true,
     );
-    _ensureSuccess(response, successCodes: const {201, 204});
-    final createdUid =
-        _eventIdFromLocation(response.headers['location']) ?? uid;
-    return _readEvent(_CalDavEventRef(scope: draft.scope, uid: createdUid));
+    if (result == null) {
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+    _remember(context, result, scope.id);
+    _pendingCreates.remove(fingerprint);
+    return _view(result, scope);
   }
 
   Future<CalendarEvent> updateEvent({
     required String id,
-    required CalendarEventPatch patch,
+    required CalendarEventDraft draft,
+    String? version,
   }) async {
-    final context = await _requireContext();
-    final ref = _eventRef(id, fallbackScope: patch.scope);
-    final scope = patch.scope ?? ref.scope;
-    final response = await _sendAuthenticated(
+    final context = await _context();
+    final original = _snapshot(context, id);
+    _allow(original.allowedActions, 'update');
+    if (_recurring(original)) {
+      throw const CalendarFailure(CalendarFailureKind.unsupportedEdit);
+    }
+    if (version == null ||
+        version != original.version ||
+        draft.scope.id != original.calendarId) {
+      throw const CalendarFailure(CalendarFailureKind.conflict);
+    }
+    final content = _content(draft, original: original.content);
+    final result = await _invoke(
       context,
-      (accessToken) => _httpClient.put(
-        _caldavUri(context.baseUrl, [scope.id, '${ref.uid}.ics']),
-        headers: {
-          ..._caldavHeaders(
-            accessToken,
-            contentType: 'text/calendar; charset=utf-8',
-          ),
-          if (patch.etag != null) 'If-Match': patch.etag!,
-        },
-        body: _toIcalendar(
-          ref.uid,
-          CalendarEventDraft(
-            title: patch.title ?? 'Calendar event',
-            description: patch.description,
-            startTime: patch.startTime ?? DateTime.now().toUtc(),
-            endTime:
-                patch.endTime ??
-                (patch.startTime ?? DateTime.now().toUtc()).add(
-                  const Duration(hours: 1),
-                ),
-            timezone: patch.timezone ?? 'UTC',
-            location: patch.location,
-            allDay: patch.allDay ?? false,
-            scope: scope,
-          ),
-        ),
-      ),
-      fallbackMessage: 'Unable to update the calendar event.',
+      (client) =>
+          client.updateCalendarEvent(original.calendarId, id, version, content),
+      mutation: true,
     );
-    _ensureSuccess(response, successCodes: const {200, 204});
-    return _readEvent(_CalDavEventRef(scope: scope, uid: ref.uid));
+    if (result == null || result.id != id) {
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+    _remember(context, result, original.calendarId);
+    return _view(result, _calendars[result.calendarId]!);
   }
 
-  Future<void> deleteEvent(String id) async {
-    final context = await _requireContext();
-    final ref = _eventRef(id);
-    final response = await _sendAuthenticated(
+  Future<void> deleteEvent(String id, {String? version}) async {
+    final context = await _context();
+    final original = _snapshot(context, id);
+    _allow(original.allowedActions, 'delete');
+    if (_recurring(original)) {
+      throw const CalendarFailure(CalendarFailureKind.unsupportedEdit);
+    }
+    if (version == null || version != original.version) {
+      throw const CalendarFailure(CalendarFailureKind.conflict);
+    }
+    await _invoke(
       context,
-      (accessToken) => _httpClient.delete(
-        _caldavUri(context.baseUrl, [ref.scope.id, '${ref.uid}.ics']),
-        headers: _caldavHeaders(accessToken),
-      ),
-      fallbackMessage: 'Unable to delete the calendar event.',
+      (client) => client.deleteCalendarEvent(original.calendarId, id, version),
+      mutation: true,
     );
-    _ensureSuccess(response, successCodes: const {200, 204});
+    _events.remove(id);
   }
 
-  Future<_CalendarFacadeContext> _requireContext() async {
-    final configuration = await _serverConfigurationRepository
-        .loadConfiguration();
+  CalendarScope _selected(CalendarScopeList scopes, CalendarScope? selected) {
+    if (selected == null || selected.id == CalendarScope.workspace.id) {
+      return scopes.scopes.firstWhere(
+        (scope) => scope.isWorkspace,
+        orElse: () =>
+            throw const CalendarFailure(CalendarFailureKind.permission),
+      );
+    }
+    return scopes.scopes.firstWhere(
+      (scope) => scope.id == selected.id,
+      orElse: () => throw const CalendarFailure(CalendarFailureKind.permission),
+    );
+  }
+
+  CalendarScope _scope(
+    String id,
+    api.CalendarUserScope scope,
+    List<String> actions,
+  ) => CalendarScope(
+    id: id,
+    type: scope.type.value.toLowerCase(),
+    label: scope.channelId ?? scope.teamId ?? scope.spaceId,
+    contextId: scope.spaceId,
+    teamId: scope.teamId,
+    channelId: scope.channelId,
+    capabilities: List.unmodifiable(actions),
+  );
+
+  void _remember(
+    _Context context,
+    api.CalendarUserEvent event,
+    String calendarId,
+  ) {
+    _requireId(event.id, 'event');
+    if (event.calendarId != calendarId ||
+        !_calendars.containsKey(calendarId) ||
+        !RegExp(r'^"[^"\r\n]+"$').hasMatch(event.version)) {
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+    final scope = _calendars[calendarId]!;
+    if (event.scope.spaceId != scope.contextId ||
+        event.scope.type.value.toLowerCase() != scope.type ||
+        event.scope.teamId != scope.teamId ||
+        event.scope.channelId != scope.channelId) {
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+    _events[event.id] = _EventSnapshot(context.owner, event);
+  }
+
+  api.CalendarUserEvent _snapshot(_Context context, String id) {
+    final snapshot = _events[id];
+    if (snapshot == null || snapshot.owner != context.owner) {
+      throw const CalendarFailure(CalendarFailureKind.conflict);
+    }
+    return snapshot.event;
+  }
+
+  bool _recurring(api.CalendarUserEvent event) =>
+      event.content.recurrence != null || event.content.overrides.isNotEmpty;
+
+  CalendarEvent _view(
+    api.CalendarUserEvent event,
+    CalendarScope scope, {
+    DateTime? start,
+    DateTime? end,
+    String? displayZone,
+  }) {
+    final content = event.content;
+    return CalendarEvent(
+      id: event.id,
+      title: content.title,
+      description: content.description,
+      location: content.location,
+      startTime: start ?? _time(content.start),
+      endTime: end ?? _time(content.end),
+      timezone:
+          displayZone ??
+          content.start.timeZone ??
+          (content.start.kind == api.CalendarTimeValueKindEnum.UTC
+              ? 'UTC'
+              : null),
+      allDay: content.start.kind == api.CalendarTimeValueKindEnum.DATE,
+      timeKind: CalendarTimeKind.values.byName(
+        content.start.kind.value.toLowerCase(),
+      ),
+      recurring: _recurring(event),
+      allowedActions: List.unmodifiable(event.allowedActions),
+      etag: event.version,
+      scope: scope,
+      threadRef: CalendarThreadRef(
+        contextId: scope.contextId,
+        channelId: scope.channelId,
+        meetingThreadId: event.meetingThreadRef,
+      ),
+      attendees: content.attendees
+          .map(
+            (attendee) => CalendarAttendee(
+              name: attendee.displayName,
+              email: attendee.address,
+              role: attendee.role,
+              responseStatus: attendee.response,
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  DateTime _time(api.CalendarTimeValue value) {
+    if (value.kind == api.CalendarTimeValueKindEnum.DATE &&
+        value.date != null) {
+      return DateTime.utc(value.date!.year, value.date!.month, value.date!.day);
+    }
+    if (value.kind == api.CalendarTimeValueKindEnum.UTC &&
+        value.instant != null) {
+      return _wallClock(value.instant!.toUtc());
+    }
+    if ((value.kind == api.CalendarTimeValueKindEnum.FLOATING ||
+            value.kind == api.CalendarTimeValueKindEnum.ZONED) &&
+        value.localDateTime != null) {
+      return DateTime.parse('${value.localDateTime!}Z');
+    }
+    throw const CalendarFailure(CalendarFailureKind.unavailable);
+  }
+
+  api.CalendarEventWriteRequest _content(
+    CalendarEventDraft draft, {
+    api.CalendarEventWriteRequest? original,
+  }) {
+    if (!draft.endTime.isAfter(draft.startTime) || draft.title.trim().isEmpty) {
+      throw const CalendarFailure(CalendarFailureKind.unsupportedEdit);
+    }
+    return api.CalendarEventWriteRequest(
+      title: draft.title,
+      description: draft.description,
+      location: draft.location,
+      start: _value(draft.startTime, draft),
+      end: _value(draft.endTime, draft),
+      attendees: original?.attendees ?? const [],
+      recurrence: original?.recurrence,
+      overrides: original?.overrides ?? const [],
+    );
+  }
+
+  api.CalendarTimeValue _value(DateTime value, CalendarEventDraft draft) {
+    if (draft.allDay) {
+      return api.CalendarTimeValue(
+        kind: api.CalendarTimeValueKindEnum.DATE,
+        date: DateTime.utc(value.year, value.month, value.day),
+      );
+    }
+    final wall = DateTime.utc(
+      value.year,
+      value.month,
+      value.day,
+      value.hour,
+      value.minute,
+      value.second,
+    );
+    if (draft.timeKind == CalendarTimeKind.utc) {
+      return api.CalendarTimeValue(
+        kind: api.CalendarTimeValueKindEnum.UTC,
+        instant: wall,
+      );
+    }
+    final local = wall.toIso8601String().substring(0, 19);
+    if (draft.timeKind == CalendarTimeKind.floating) {
+      return api.CalendarTimeValue(
+        kind: api.CalendarTimeValueKindEnum.FLOATING,
+        localDateTime: local,
+      );
+    }
+    _location(draft.timezone);
+    return api.CalendarTimeValue(
+      kind: api.CalendarTimeValueKindEnum.ZONED,
+      localDateTime: local,
+      timeZone: draft.timezone,
+    );
+  }
+
+  DateTime _wallClock(DateTime date) => DateTime.utc(
+    date.year,
+    date.month,
+    date.day,
+    date.hour,
+    date.minute,
+    date.second,
+  );
+  Future<tz.Location> _zone() async => _location(await _evaluationTimeZone());
+  tz.Location _location(String name) {
+    if (!_zonesReady) {
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+    try {
+      return tz.getLocation(name);
+    } catch (_) {
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+  }
+
+  void _requireId(String value, String prefix) {
+    if (!RegExp('^$prefix:[a-zA-Z0-9-]+\$').hasMatch(value)) {
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+  }
+
+  void _allow(List<String> actions, String action) {
+    if (!actions.contains(action)) {
+      throw const CalendarFailure(CalendarFailureKind.permission);
+    }
+  }
+
+  api.ApiClient _client(_Context context) => weaveUserApiClient(
+    apiBaseUrl: context.url,
+    accessToken: context.token,
+    httpClient: _http,
+  );
+
+  Future<_Context> _context() async {
+    final configuration = await _configuration.loadConfiguration();
     if (configuration == null) {
-      throw const AppFailure.unknown(
-        'Finish server setup before opening calendar.',
-      );
+      throw const CalendarFailure(CalendarFailureKind.session);
     }
-
-    final authConfiguration = _authConfiguration(configuration);
-    final authState = await _authSessionRepository.restoreSession(
-      authConfiguration,
-    );
-    final session = authState.session;
-    if (!authState.isAuthenticated || session == null) {
-      throw const AppFailure.unknown(
-        'Sign in to Weave before opening calendar.',
-      );
-    }
-
-    return _CalendarFacadeContext(
-      baseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
-      accessToken: session.accessToken,
-      authConfiguration: authConfiguration,
-    );
-  }
-
-  AuthConfiguration _authConfiguration(ServerConfiguration configuration) {
-    return AuthConfiguration(
+    final auth = AuthConfiguration(
       issuer: configuration.oidcIssuerUrl,
       clientId: configuration.oidcClientRegistration.clientId.trim(),
     );
+    final state = await _auth.restoreSession(auth);
+    if (!state.isAuthenticated || state.session?.matches(auth) != true) {
+      throw const CalendarFailure(CalendarFailureKind.session);
+    }
+    final context = _Context(
+      configuration.serviceEndpoints.backendApiBaseUrl,
+      auth,
+      state.session!.accessToken,
+    );
+    context.identity = await _identity(context);
+    await _assertCurrent(context);
+    if (_owner != context.owner) {
+      _events.clear();
+      _calendars.clear();
+      _pendingCreates.clear();
+      _owner = context.owner;
+    }
+    return context;
   }
 
-  Future<http.Response> _send(
-    Future<http.Response> Function() request, {
-    required String fallbackMessage,
-  }) async {
+  Future<String> _identity(_Context context) async {
     try {
-      return await request().timeout(const Duration(seconds: 20));
-    } on AppFailure {
+      final identity = await api.IdentityApi(
+        _client(context),
+      ).me().timeout(const Duration(seconds: 8));
+      if (identity?.subject?.isNotEmpty != true ||
+          identity?.organizationId?.isNotEmpty != true ||
+          identity?.identityIssuer != context.auth.issuer.toString()) {
+        throw const CalendarFailure(CalendarFailureKind.session);
+      }
+      return jsonEncode([identity!.subject, identity.organizationId]);
+    } catch (_) {
+      throw const CalendarFailure(CalendarFailureKind.session);
+    }
+  }
+
+  Future<void> _assertCurrent(_Context context) async {
+    final configuration = await _configuration.loadConfiguration();
+    final state = await _auth.restoreSession(context.auth);
+    if (configuration?.serviceEndpoints.backendApiBaseUrl != context.url ||
+        configuration?.oidcIssuerUrl != context.auth.issuer ||
+        configuration?.oidcClientRegistration.clientId.trim() !=
+            context.auth.clientId ||
+        !state.isAuthenticated ||
+        state.session?.matches(context.auth) != true ||
+        state.session?.accessToken != context.token) {
+      throw const CalendarFailure(CalendarFailureKind.session);
+    }
+  }
+
+  Future<T> _invoke<T>(
+    _Context context,
+    Future<T> Function(api.CalendarUserApi) request, {
+    bool mutation = false,
+  }) async {
+    Future<T> send() async {
+      await _assertCurrent(context);
+      if (mutation) {
+        if (await _identity(context) != context.identity) {
+          throw const CalendarFailure(CalendarFailureKind.session);
+        }
+        await _assertCurrent(context);
+      }
+      final result = await request(
+        api.CalendarUserApi(_client(context)),
+      ).timeout(const Duration(seconds: 20));
+      await _assertCurrent(context);
+      return result;
+    }
+
+    try {
+      return await send();
+    } on api.ApiException catch (error) {
+      if (error.code == 401) {
+        await _assertCurrent(context);
+        final state = await _auth.refreshSession(context.auth);
+        final session = state.session;
+        if (!state.isAuthenticated ||
+            session == null ||
+            !session.matches(context.auth) ||
+            session.accessToken == context.token) {
+          throw const CalendarFailure(CalendarFailureKind.session);
+        }
+        context.token = session.accessToken;
+        if (await _identity(context) != context.identity) {
+          throw const CalendarFailure(CalendarFailureKind.session);
+        }
+        try {
+          return await send();
+        } on api.ApiException catch (retry) {
+          throw _failure(retry.code);
+        } on CalendarFailure {
+          rethrow;
+        } catch (_) {
+          throw const CalendarFailure(CalendarFailureKind.unavailable);
+        }
+      }
+      throw _failure(error.code);
+    } on CalendarFailure {
       rethrow;
-    } catch (error) {
-      throw AppFailure.unknown(fallbackMessage, cause: error);
-    }
-  }
-
-  Future<http.Response> _sendAuthenticated(
-    _CalendarFacadeContext context,
-    Future<http.Response> Function(String accessToken) request, {
-    required String fallbackMessage,
-  }) async {
-    final response = await _send(
-      () => request(context.accessToken),
-      fallbackMessage: fallbackMessage,
-    );
-    if (response.statusCode != 401) {
-      return response;
-    }
-
-    final refreshedContext = await _refreshContext(context);
-    if (refreshedContext == null ||
-        refreshedContext.accessToken == context.accessToken) {
-      return response;
-    }
-
-    return _send(
-      () => request(refreshedContext.accessToken),
-      fallbackMessage: fallbackMessage,
-    );
-  }
-
-  Future<_CalendarFacadeContext?> _refreshContext(
-    _CalendarFacadeContext context,
-  ) async {
-    try {
-      final authState = await _authSessionRepository.refreshSession(
-        context.authConfiguration,
-      );
-      final session = authState.session;
-      if (!authState.isAuthenticated || session == null) {
-        return null;
-      }
-      return _CalendarFacadeContext(
-        baseUrl: context.baseUrl,
-        accessToken: session.accessToken,
-        authConfiguration: context.authConfiguration,
-      );
     } catch (_) {
-      return null;
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
   }
 
-  void _ensureSuccess(
-    http.Response response, {
-    required Set<int> successCodes,
-  }) {
-    if (successCodes.contains(response.statusCode)) {
-      return;
-    }
-
-    final message = _errorMessage(response.body);
-    if (response.statusCode == 401 || response.statusCode == 403) {
-      throw AppFailure.unknown(
-        message ?? 'The Weave backend rejected the current session.',
-        cause: response.statusCode,
-      );
-    }
-    if (response.statusCode == 503) {
-      throw AppFailure.unknown(
-        message ?? 'The Weave backend calendar facade is unavailable.',
-        cause: response.statusCode,
-      );
-    }
-    throw AppFailure.unknown(
-      message ?? 'The Weave backend failed the calendar request.',
-      cause: response.statusCode,
-    );
-  }
-
-  Map<String, dynamic> _decodeObject(String body) {
-    try {
-      final payload = jsonDecode(body);
-      if (payload is Map<String, dynamic>) {
-        return payload;
-      }
-    } catch (_) {
-      // Fall through to failure below.
-    }
-    throw const AppFailure.unknown(
-      'The Weave backend returned an invalid calendar payload.',
-    );
-  }
-
-  String? _errorMessage(String body) {
-    try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map<String, dynamic>) {
-        final message = decoded['message'];
-        if (message is String && message.trim().isNotEmpty) {
-          return message;
-        }
-      }
-    } catch (_) {
-      // CalDAV errors are XML; try that shape below.
-    }
-    try {
-      final document = XmlDocument.parse(body);
-      for (final element in document.descendants.whereType<XmlElement>()) {
-        if (element.name.local != 'responsedescription') {
-          continue;
-        }
-        final description = element.innerText.trim();
-        if (description.isNotEmpty) {
-          return description;
-        }
-      }
-    } catch (_) {
-      return null;
-    }
-    return null;
-  }
-
-  Map<String, String> _jsonHeaders(String accessToken) {
-    return {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $accessToken',
-    };
-  }
-
-  Map<String, String> _caldavHeaders(
-    String accessToken, {
-    String? contentType,
-  }) {
-    return {
-      'Accept': 'application/xml, text/calendar, */*',
-      if (contentType != null) 'Content-Type': contentType,
-      'Authorization': 'Bearer $accessToken',
-    };
-  }
-
-  Uri _apiUri(
-    Uri baseUrl,
-    List<String> pathSegments, {
-    Map<String, String>? query,
-  }) {
-    return baseUrl.replace(
-      pathSegments: _apiPath(baseUrl, pathSegments),
-      queryParameters: query,
-    );
-  }
-
-  List<String> _apiPath(Uri baseUrl, List<String> pathSegments) {
-    final baseSegments = baseUrl.pathSegments
-        .where((segment) => segment.isNotEmpty)
-        .toList(growable: false);
-    if (baseSegments.isNotEmpty &&
-        pathSegments.isNotEmpty &&
-        baseSegments.last == 'api' &&
-        pathSegments.first == 'api') {
-      return [...baseSegments, ...pathSegments.skip(1)];
-    }
-
-    return [...baseSegments, ...pathSegments];
-  }
-
-  Uri _caldavUri(Uri baseUrl, List<String> pathSegments) {
-    final origin = baseUrl.replace(path: '/', query: null, fragment: null);
-    return origin.replace(
-      pathSegments: [
-        'caldav',
-        ...pathSegments
-            .where((segment) => segment.isNotEmpty)
-            .map((segment) => segment.replaceAll(RegExp(r'^/+|/+$'), '')),
-      ],
-    );
-  }
-
-  String _calendarQueryBody(DateTime from, DateTime to) {
-    return '''
-<?xml version="1.0" encoding="UTF-8"?>
-<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
-  <d:prop>
-    <d:getetag/>
-    <c:calendar-data/>
-  </d:prop>
-  <c:filter>
-    <c:comp-filter name="VCALENDAR">
-      <c:comp-filter name="VEVENT">
-        <c:time-range start="${_caldavTime(from)}" end="${_caldavTime(to)}"/>
-      </c:comp-filter>
-    </c:comp-filter>
-  </c:filter>
-</c:calendar-query>
-''';
-  }
-
-  List<CalendarEvent> _eventsFromMultistatus(
-    String body, {
-    required CalendarScope defaultScope,
-  }) {
-    final document = XmlDocument.parse(body);
-    final events = <CalendarEvent>[];
-    for (final response in document.descendants.whereType<XmlElement>()) {
-      if (response.name.local != 'response') continue;
-      final calendarData = _firstChildText(response, 'calendar-data');
-      if (calendarData == null || calendarData.trim().isEmpty) continue;
-      final href = _firstChildText(response, 'href');
-      final etag = _firstChildText(response, 'getetag');
-      events.add(
-        _eventFromIcs(
-          calendarData,
-          id: _domainEventId(
-            defaultScope,
-            _eventIdFromLocation(href) ?? 'calendar-event',
-          ),
-          etag: etag,
-          scope: defaultScope,
-        ),
-      );
-    }
-    events.sort((left, right) => left.startTime.compareTo(right.startTime));
-    return events;
-  }
-
-  CalendarEvent _eventFromIcs(
-    String body, {
-    required String id,
-    required String? etag,
-    required CalendarScope scope,
-  }) {
-    final fields = <String, _IcsProperty>{};
-    final unfoldedLines = <String>[];
-    for (final line
-        in body.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n')) {
-      if ((line.startsWith(' ') || line.startsWith('\t')) &&
-          unfoldedLines.isNotEmpty) {
-        unfoldedLines[unfoldedLines.length - 1] += line.substring(1);
-      } else {
-        unfoldedLines.add(line);
-      }
-    }
-    for (final line in unfoldedLines) {
-      final property = _IcsProperty.tryParse(line);
-      if (property != null) {
-        fields[property.name] = property;
-      }
-    }
-    final startProperty = fields['DTSTART'];
-    final endProperty = fields['DTEND'];
-    final start = _parseIcsDate(startProperty, fieldName: 'DTSTART');
-    final end = _parseIcsDate(endProperty, fieldName: 'DTEND');
-    if (!end.isAfter(start)) {
-      throw const AppFailure.validation(
-        'The calendar event end must be after its start.',
-      );
-    }
-    final projectedContextId = _optionalIcsText(
-      fields['X-WEAVE-CONTEXT-ID']?.value,
-    );
-    final projectedChannelId = _optionalIcsText(
-      fields['X-WEAVE-CHANNEL-ID']?.value,
-    );
-    if (projectedContextId != null && projectedContextId != scope.contextId) {
-      throw const AppFailure.unknown(
-        'The calendar facade returned an event for a different context.',
-      );
-    }
-    if (projectedChannelId != null && projectedChannelId != scope.channelId) {
-      throw const AppFailure.unknown(
-        'The calendar facade returned an event for a different channel.',
-      );
-    }
-    return CalendarEvent(
-      id: id,
-      title: _optionalIcsText(fields['SUMMARY']?.value) ?? 'Calendar event',
-      description: _optionalIcsText(fields['DESCRIPTION']?.value),
-      startTime: start,
-      endTime: end,
-      timezone: _calendarTimeZone(startProperty),
-      location: _optionalIcsText(fields['LOCATION']?.value),
-      allDay: _isAllDay(startProperty),
-      etag: etag,
-      scope: scope,
-      threadRef: CalendarThreadRef(
-        contextId: projectedContextId ?? scope.contextId,
-        meetingThreadId: _optionalIcsText(
-          fields['X-WEAVE-MEETING-THREAD-ID']?.value,
-        ),
-        channelId:
-            projectedChannelId ?? (scope.isChannel ? scope.channelId : null),
-      ),
-      updatedAt: _parseOptionalIcsDate(
-        fields['LAST-MODIFIED'] ?? fields['DTSTAMP'],
-        fieldName: 'calendar timestamp',
-      ),
-    );
-  }
-
-  String _toIcalendar(String uid, CalendarEventDraft draft) {
-    return '''
-BEGIN:VCALENDAR\r
-VERSION:2.0\r
-PRODID:-//Weave//Flutter CalDAV Facade//EN\r
-BEGIN:VEVENT\r
-UID:${_icsText(uid)}\r
-DTSTAMP:${_caldavTime(DateTime.now().toUtc())}\r
-${_icsDateTimeProperty('DTSTART', draft.startTime, draft.timezone, draft.allDay)}\r
-${_icsDateTimeProperty('DTEND', draft.endTime, draft.timezone, draft.allDay)}\r
-SUMMARY:${_icsText(draft.title)}\r
-${draft.description == null ? '' : 'DESCRIPTION:${_icsText(draft.description!)}\r\n'}${draft.location == null ? '' : 'LOCATION:${_icsText(draft.location!)}\r\n'}END:VEVENT\r
-END:VCALENDAR\r
-''';
-  }
-
-  DateTime _parseIcsDate(_IcsProperty? property, {required String fieldName}) {
-    final parsed = _parseOptionalIcsDate(property, fieldName: fieldName);
-    if (parsed == null) {
-      throw AppFailure.validation(
-        'The calendar event is missing its required $fieldName value.',
-      );
-    }
-    return parsed;
-  }
-
-  DateTime? _parseOptionalIcsDate(
-    _IcsProperty? property, {
-    required String fieldName,
-  }) {
-    if (property == null || property.value.trim().isEmpty) {
-      return null;
-    }
-    try {
-      final value = property.value.trim().toUpperCase();
-      final dateOnly = _isAllDay(property);
-      final match =
-          (dateOnly
-                  ? RegExp(r'^(\d{4})(\d{2})(\d{2})$')
-                  : RegExp(
-                      r'^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$',
-                    ))
-              .firstMatch(value);
-      if (match == null) {
-        throw const FormatException('Unsupported iCalendar date shape.');
-      }
-      final year = int.parse(match.group(1)!);
-      final month = int.parse(match.group(2)!);
-      final day = int.parse(match.group(3)!);
-      final hour = dateOnly ? 0 : int.parse(match.group(4)!);
-      final minute = dateOnly ? 0 : int.parse(match.group(5)!);
-      final second = dateOnly ? 0 : int.parse(match.group(6)!);
-      final isUtc = !dateOnly && match.group(7) != null;
-      final parsed = isUtc
-          ? DateTime.utc(year, month, day, hour, minute, second)
-          : timezone.TZDateTime(
-              _timeZoneLocation(_calendarTimeZone(property)),
-              year,
-              month,
-              day,
-              hour,
-              minute,
-              second,
-            ).toUtc();
-      final local = isUtc
-          ? parsed
-          : timezone.TZDateTime.from(
-              parsed,
-              _timeZoneLocation(_calendarTimeZone(property)),
-            );
-      if (local.year != year ||
-          local.month != month ||
-          local.day != day ||
-          local.hour != hour ||
-          local.minute != minute ||
-          local.second != second) {
-        throw const FormatException('Invalid iCalendar local date.');
-      }
-      return parsed;
-    } catch (error) {
-      throw AppFailure.validation(
-        'The calendar event contains an invalid $fieldName value.',
-        cause: error,
-      );
-    }
-  }
-
-  bool _isAllDay(_IcsProperty? property) =>
-      property?.parameters['VALUE']?.toUpperCase() == 'DATE';
-
-  String _calendarTimeZone(_IcsProperty? property) {
-    if (property == null || property.value.trim().toUpperCase().endsWith('Z')) {
-      return 'UTC';
-    }
-    final timeZoneId = property.parameters['TZID']?.trim();
-    return timeZoneId == null || timeZoneId.isEmpty ? 'UTC' : timeZoneId;
-  }
-
-  timezone.Location _timeZoneLocation(String timeZoneId) {
-    final normalized = timeZoneId.trim();
-    if (!RegExp(r'^[A-Za-z0-9_+./-]{1,128}$').hasMatch(normalized)) {
-      throw const AppFailure.validation(
-        'The calendar event timezone is invalid.',
-      );
-    }
-    if (<String>{
-      'UTC',
-      'ETC/UTC',
-      'GMT',
-      'Z',
-    }.contains(normalized.toUpperCase())) {
-      return timezone.UTC;
-    }
-    if (!_calendarTimeZonesInitialized) {
-      throw const AppFailure.validation(
-        'The calendar timezone database is unavailable.',
-      );
-    }
-    try {
-      return timezone.getLocation(normalized);
-    } on timezone.LocationNotFoundException catch (error) {
-      throw AppFailure.validation(
-        'The calendar event timezone is not supported.',
-        cause: error,
-      );
-    }
-  }
-
-  String _icsDateTimeProperty(
-    String name,
-    DateTime value,
-    String timeZoneId,
-    bool allDay,
-  ) {
-    final location = _timeZoneLocation(timeZoneId);
-    final local = timezone.TZDateTime.from(value.toUtc(), location);
-    String two(int number) => number.toString().padLeft(2, '0');
-    final date = '${local.year}${two(local.month)}${two(local.day)}';
-    if (allDay) {
-      return '$name;VALUE=DATE:$date';
-    }
-    if (identical(location, timezone.UTC)) {
-      return '$name:${_caldavTime(value)}';
-    }
-    final localTime =
-        '${date}T${two(local.hour)}${two(local.minute)}'
-        '${two(local.second)}';
-    return '$name;TZID=$timeZoneId:$localTime';
-  }
-
-  String _caldavTime(DateTime value) {
-    final utc = value.toUtc();
-    String two(int number) => number.toString().padLeft(2, '0');
-    return '${utc.year}${two(utc.month)}${two(utc.day)}T'
-        '${two(utc.hour)}${two(utc.minute)}${two(utc.second)}Z';
-  }
-
-  String _icsText(String value) {
-    return value
-        .replaceAll('\\', r'\\')
-        .replaceAll('\n', r'\n')
-        .replaceAll(',', r'\,')
-        .replaceAll(';', r'\;');
-  }
-
-  String? _optionalIcsText(String? value) {
-    if (value == null || value.trim().isEmpty) return null;
-    final decoded = StringBuffer();
-    var escaped = false;
-    for (final codePoint in value.runes) {
-      final character = String.fromCharCode(codePoint);
-      if (escaped) {
-        decoded.write(character.toLowerCase() == 'n' ? '\n' : character);
-        escaped = false;
-      } else if (character == r'\') {
-        escaped = true;
-      } else {
-        decoded.write(character);
-      }
-    }
-    if (escaped) decoded.write(r'\');
-    return decoded.toString();
-  }
-
-  String? _firstChildText(XmlElement element, String localName) {
-    for (final child in element.descendants.whereType<XmlElement>()) {
-      if (child.name.local == localName) {
-        return child.innerText;
-      }
-    }
-    return null;
-  }
-
-  String? _eventIdFromLocation(String? location) {
-    if (location == null || location.trim().isEmpty) return null;
-    final uri = Uri.tryParse(location);
-    final path = uri?.path ?? location;
-    final segments = path.split('/').where((segment) => segment.isNotEmpty);
-    final last = segments.isEmpty ? null : segments.last;
-    if (last == null) return null;
-    return last.endsWith('.ics') ? last.substring(0, last.length - 4) : last;
-  }
-
-  String _domainEventId(CalendarScope scope, String uid) {
-    if (scope.isWorkspace) {
-      return uid;
-    }
-    return 'caldav:${Uri.encodeComponent(scope.id)}:$uid';
-  }
-
-  _CalDavEventRef _eventRef(String id, {CalendarScope? fallbackScope}) {
-    if (id.startsWith('caldav:')) {
-      final parts = id.split(':');
-      if (parts.length >= 3) {
-        final scopeId = Uri.decodeComponent(parts[1]);
-        final uid = parts.sublist(2).join(':');
-        return _CalDavEventRef(scope: _scopeFromId(scopeId), uid: uid);
-      }
-    }
-    return _CalDavEventRef(
-      scope: fallbackScope ?? CalendarScope.workspace,
-      uid: id,
-    );
-  }
-
-  CalendarScope _scopeFromId(String scopeId) {
-    if (scopeId == 'workspace' || scopeId.isEmpty) {
-      return CalendarScope.workspace;
-    }
-    if (scopeId.startsWith('team:')) {
-      final teamId = scopeId.substring('team:'.length);
-      return CalendarScope(
-        id: scopeId,
-        type: 'team',
-        label: '$teamId team calendar',
-        contextId: 'team-$teamId',
-        teamId: teamId,
-        accessModel: 'shared-team-calendar',
-      );
-    }
-    if (scopeId.startsWith('channel:')) {
-      final channelId = scopeId.substring('channel:'.length);
-      return CalendarScope(
-        id: scopeId,
-        type: 'channel',
-        label: '$channelId channel calendar',
-        contextId: 'channel-$channelId',
-        teamId: 'engineering',
-        channelId: channelId,
-        accessModel: 'shared-channel-calendar',
-      );
-    }
-    return CalendarScope.workspace;
-  }
-}
-
-class _CalendarFacadeContext {
-  const _CalendarFacadeContext({
-    required this.baseUrl,
-    required this.accessToken,
-    required this.authConfiguration,
+  CalendarFailure _failure(int status) => CalendarFailure(switch (status) {
+    401 => CalendarFailureKind.session,
+    403 => CalendarFailureKind.permission,
+    409 || 412 || 428 => CalendarFailureKind.conflict,
+    400 || 422 => CalendarFailureKind.unsupportedEdit,
+    _ => CalendarFailureKind.unavailable,
   });
-
-  final Uri baseUrl;
-  final String accessToken;
-  final AuthConfiguration authConfiguration;
 }
 
-class _CalDavEventRef {
-  const _CalDavEventRef({required this.scope, required this.uid});
-
-  final CalendarScope scope;
-  final String uid;
+class _Context {
+  _Context(this.url, this.auth, this.token);
+  final Uri url;
+  final AuthConfiguration auth;
+  String token;
+  late final String identity;
+  String get owner => jsonEncode([
+    url.toString(),
+    auth.issuer.toString(),
+    auth.clientId,
+    identity,
+  ]);
 }
 
-class _IcsProperty {
-  const _IcsProperty({
-    required this.name,
-    required this.parameters,
-    required this.value,
-  });
-
-  static _IcsProperty? tryParse(String line) {
-    final separator = line.indexOf(':');
-    if (separator <= 0) {
-      return null;
-    }
-    final metadata = line.substring(0, separator).split(';');
-    final name = metadata.first.trim().toUpperCase();
-    if (name.isEmpty) {
-      return null;
-    }
-    final parameters = <String, String>{};
-    for (final component in metadata.skip(1)) {
-      final equals = component.indexOf('=');
-      if (equals <= 0 || equals == component.length - 1) {
-        continue;
-      }
-      final key = component.substring(0, equals).trim().toUpperCase();
-      var value = component.substring(equals + 1).trim();
-      if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
-        value = value.substring(1, value.length - 1);
-      }
-      if (key.isNotEmpty && value.isNotEmpty) {
-        parameters[key] = value;
-      }
-    }
-    return _IcsProperty(
-      name: name,
-      parameters: Map.unmodifiable(parameters),
-      value: line.substring(separator + 1),
-    );
-  }
-
-  final String name;
-  final Map<String, String> parameters;
-  final String value;
+class _EventSnapshot {
+  _EventSnapshot(this.owner, this.event);
+  final String owner;
+  final api.CalendarUserEvent event;
 }

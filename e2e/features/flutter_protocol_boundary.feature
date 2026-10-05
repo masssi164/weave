@@ -1,5 +1,7 @@
-Feature: Flutter protocol boundary
-  Flutter product repositories use Weave-owned protocol facades.
+Feature: Historical Flutter protocol boundary
+  This July gateway target is retained as an archive, not current #1470 acceptance.
+  Files and Calendar now use generated User operations with the shared Weave login.
+  Matrix remains the deliberate protocol exception and Calls remain deferred.
 
   @flutter-files-webdav
   Scenario: Flutter Files uses WebDAV for data plane

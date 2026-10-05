@@ -14,13 +14,12 @@ class BackendCalendarRepository implements CalendarRepository {
   }
 
   @override
-  Future<CalendarEventList> loadEvents({CalendarScope? scope}) {
-    return _client.listEvents(selectedScope: scope);
-  }
-
-  @override
-  Future<CalendarClientSetup> loadClientSetup() {
-    return _client.clientSetup();
+  Future<CalendarEventList> loadEvents({
+    CalendarScope? scope,
+    DateTime? from,
+    DateTime? to,
+  }) {
+    return _client.listEvents(selectedScope: scope, from: from, to: to);
   }
 
   @override
@@ -39,14 +38,11 @@ class BackendCalendarRepository implements CalendarRepository {
     CalendarEventDraft draft, {
     String? etag,
   }) {
-    return _client.updateEvent(
-      id: id,
-      patch: draft.toPatch(etag: etag),
-    );
+    return _client.updateEvent(id: id, draft: draft, version: etag);
   }
 
   @override
-  Future<void> deleteEvent(String id) {
-    return _client.deleteEvent(id);
+  Future<void> deleteEvent(String id, {String? etag}) {
+    return _client.deleteEvent(id, version: etag);
   }
 }

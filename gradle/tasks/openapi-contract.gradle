@@ -1,13 +1,13 @@
 registerRootCommandTask(
     'generateOpenApiContract',
     ['bash', 'tools/generate_openapi_contract.sh'],
-    'Generate the server-owned OpenAPI 3.1 control-plane artifact used by typed consumers.'
+    'Generate the server-owned OpenAPI 3.1 User/Admin artifacts used by product consumers.'
 )
 
 registerRootCommandTask(
     'checkOpenApiContractFresh',
     ['bash', 'tools/check_openapi_contract_fresh.sh'],
-    'Fail when the checked-in server OpenAPI 3.1 artifact is stale.'
+    'Fail when the checked-in server OpenAPI 3.1 User/Admin artifacts are stale.'
 )
 
 registerRootCommandTask(

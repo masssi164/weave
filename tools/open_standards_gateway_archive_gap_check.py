@@ -21,7 +21,8 @@ REQUIRED_FEATURES = {
     "open_standards_gateway_manifest.feature": 3,
     "oidc_protocol_access.feature": 5,
     "files_webdav_full_facade.feature": 11,
-    "calendar_caldav_facade.feature": 10,
+    # The former Flutter DAV scenario is replaced by generated User API evidence.
+    "calendar_caldav_facade.feature": 9,
     "chat_matrix_facade.feature": 13,
     "calls_webrtc_join_grants.feature": 9,
     "mcp_domain_facade_boundary.feature": 9,

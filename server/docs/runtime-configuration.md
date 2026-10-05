@@ -136,20 +136,45 @@ This resolves private provider accounts; it does not prove Files permission pari
 
 The generic Admin provider-selection endpoint rejects a non-dry-run Files selection with `files-provider-activation-unverified`; it cannot change the organization Files binding. Its Files replacement dry-run reports `dry-run-blocked-for-apply` and unmeasured counts until a real source inventory, target readback, effective-rights comparison, consistency boundary and rollback proof exist. It records only the attempted dry-run audit ref, not synthetic migration artifacts.
 
-## Calendar facade and CalDAV adapter
+## Calendar User API and provider adapters
 
-Normal member event operations use the OIDC-gated CalDAV/iCalendar facade under `/caldav/**`. `/api/calendar/**` is retained only for scopes, readiness, setup, scoped credential lifecycle, and other control-plane metadata. Only the backend adapter talks to the selected southbound calendar provider.
+Member Calendar discovery and event operations use the code-first User API under
+`/api/calendar/calendars`. Each operation enforces the admitted organization,
+Calendar capability and current Space access before resolving that organization's
+single ACTIVE Calendar binding. Public calendar/event identifiers and versions are
+Weave references; provider collection IDs, event UIDs and ETags remain private.
+The older northbound CalDAV surface is outside #1470 acceptance.
 
-- `WEAVE_CALDAV_BASE_URL`: Nextcloud origin used by the backend CalDAV adapter, defaults to `WEAVE_NEXTCLOUD_BASE_URL` or `https://files.weave.test`.
-- `WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE`: CalDAV calendar collection path for the backend-owned workspace calendar, defaults to `/remote.php/dav/calendars/${WEAVE_CALDAV_BACKEND_USERNAME:-weave-backend}/personal/`. Optional scope placeholders `{scopeId}`, `{scopeType}`, `{team}`, and `{channel}` can be used by operators who provision explicit workspace/team/channel collections.
-- `WEAVE_CALDAV_AUTH_MODE`: backend actor credential mode (`BASIC` or `BEARER`), defaults to `BASIC`.
-- `WEAVE_CALDAV_BACKEND_USERNAME`: backend actor username for Basic auth; required with `BASIC`.
-- `WEAVE_CALDAV_BACKEND_TOKEN`: backend actor app password/token or bearer token; required for the CalDAV adapter to call Nextcloud.
-- `WEAVE_CALDAV_REQUEST_TIMEOUT_SECONDS`: CalDAV request timeout, defaults to `10`.
+The binding adapter must match `weave.calendar.provider`. Its supported private
+configuration reference is `configuration:calendar:deployment`, which resolves the
+existing single-deployment Calendar adapter properties. Missing or conflicting
+bindings fail closed. To initialize an explicitly selected provider, private Spring
+configuration supports `weave.provider-bindings.bootstrap.calendar.enabled`
+(default `false`), `.organization-ref`, `.adapter-key` and `.configuration-ref`.
+The organization must match the configured canonical tenant. Bootstrap creates a
+missing binding and rejects a different existing binding without replacing it.
+The host-only `dev` profile and disposable E2E overlay explicitly enable native
+Calendar bootstrap. Persistent environments require deliberate operator setup;
+these inputs do not perform adoption, migration or cutover.
 
-The active Calendar facade stores Weave workspace/team/channel scopes in backend-actor CalDAV collections. With the default path template, workspace events use the configured collection, while team and channel scopes derive sibling backend-owned collections such as `weave-team-engineering` and `weave-channel-engineering-general` to avoid cross-scope event leakage. `WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE` values containing `{user}` are private-personal calendar targets and fail closed because private calendar ingestion is not a current product goal. Northbound `VEVENT` responses carry canonical `X-WEAVE-CONTEXT-ID`, `X-WEAVE-CHANNEL-ID` where applicable, and a stable `X-WEAVE-MEETING-THREAD-ID`; those fields are never written to the southbound provider.
+Nextcloud CalDAV remains a southbound adapter option:
 
-When required actor credentials are missing or a private-personal template is configured, calendar operations fail closed with `nextcloud-adapter-not-configured`. The CalDAV/iCalendar data plane accepts bounded `DAILY` and `WEEKLY` RRULEs using `COUNT` or `UNTIL`, plus `RDATE` and `EXDATE`, and preserves local wall-clock intent across DST transitions. Unsupported or unbounded recurrence fails closed with `caldav-recurrence-unsupported`. The Flutter Calendar UI does not yet provide a recurrence authoring form.
+- `WEAVE_CALDAV_BASE_URL`: Nextcloud origin, defaults to `WEAVE_NEXTCLOUD_BASE_URL` or `https://files.weave.test`.
+- `WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE`: backend-owned calendar collection path, defaults to `/remote.php/dav/calendars/${WEAVE_CALDAV_BACKEND_USERNAME:-weave-backend}/personal/`. Explicit provisioned scope paths may use `{scopeId}`, `{scopeType}`, `{team}` and `{channel}`. Private-personal `{user}` templates fail closed.
+- `WEAVE_CALDAV_AUTH_MODE`: backend actor credential mode, `BASIC` or `BEARER`.
+- `WEAVE_CALDAV_BACKEND_USERNAME`: actor username, required for `BASIC`.
+- `WEAVE_CALDAV_BACKEND_TOKEN`: actor app password/token or bearer token.
+- `WEAVE_CALDAV_REQUEST_TIMEOUT_SECONDS`: request timeout, defaults to `10`.
+
+The generated contract represents DATE, FLOATING, UTC and ZONED temporal intent
+explicitly. Agenda evaluation requires an explicit zone and bounded window;
+DATE end is exclusive. Typed recurrence and exception support is governed by the
+[Calendar support profile](../../docs/reference/calendar-support-profile.md).
+Unsupported or lossy edits fail atomically. Create requires an Idempotency-Key;
+update/delete require the current strong public If-Match version. The Server owns
+scope and stable meeting-thread correlation. It does not create a chat room merely
+by creating an event. Client authoring and real integrated acceptance must be
+verified separately from generated transport freshness.
 
 ## Profile persistence
 

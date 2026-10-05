@@ -33,18 +33,6 @@ class CalendarScope {
   bool get isTeam => type == 'team';
   bool get isChannel => type == 'channel';
 
-  Map<String, Object?> toJson() => {
-    'id': id,
-    'type': type,
-    'label': label,
-    'workspaceId': workspaceId,
-    'contextId': contextId,
-    if (teamId != null) 'teamId': teamId,
-    if (channelId != null) 'channelId': channelId,
-    'accessModel': accessModel,
-    'capabilities': capabilities,
-  };
-
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -108,24 +96,6 @@ class CalendarAttendee {
   }
 }
 
-class CalendarProviderRef {
-  const CalendarProviderRef({
-    required this.provider,
-    required this.objectKind,
-    this.opaqueId,
-    this.etag,
-    this.lastSyncedAt,
-    this.rawProviderPathExposed = false,
-  });
-
-  final String provider;
-  final String objectKind;
-  final String? opaqueId;
-  final String? etag;
-  final DateTime? lastSyncedAt;
-  final bool rawProviderPathExposed;
-}
-
 class CalendarScopeList {
   const CalendarScopeList({this.scopes = const [CalendarScope.workspace]});
 
@@ -142,112 +112,7 @@ class CalendarEventList {
   final List<CalendarEvent> events;
 }
 
-class CalendarExternalEndpoints {
-  const CalendarExternalEndpoints({
-    required this.serverUrl,
-    required this.caldavDiscoveryUrl,
-    required this.principalUrl,
-  });
-
-  final String serverUrl;
-  final String caldavDiscoveryUrl;
-  final String principalUrl;
-}
-
-class CalendarAccessModel {
-  const CalendarAccessModel({
-    required this.type,
-    required this.productScope,
-    required this.privateUserCalendarsAvailable,
-    required this.privateUserCalendarsReason,
-    required this.externalClientCredentialModel,
-    this.notes = const [],
-  });
-
-  static const workspaceBlockedPrivateCalendars = CalendarAccessModel(
-    type: 'workspace-calendar',
-    productScope: 'workspace',
-    privateUserCalendarsAvailable: false,
-    privateUserCalendarsReason:
-        'Private personal calendars are out of scope for Weave shared scheduling.',
-    externalClientCredentialModel: 'secret-free-setup-metadata',
-  );
-
-  final String type;
-  final String productScope;
-  final bool privateUserCalendarsAvailable;
-  final String privateUserCalendarsReason;
-  final String externalClientCredentialModel;
-  final List<String> notes;
-}
-
-class CalendarCredentialReadiness {
-  const CalendarCredentialReadiness({
-    required this.status,
-    required this.appleProfileSigned,
-    required this.appleProfilePasswordIncluded,
-    required this.revocableCredentialsAvailable,
-    required this.readOnlySubscriptionTokensAvailable,
-    required this.backendActorCredentialsExposed,
-    this.blockers = const [],
-  });
-
-  static const revocableCredentialsReady = CalendarCredentialReadiness(
-    status: 'revocable_credentials_ready',
-    appleProfileSigned: false,
-    appleProfilePasswordIncluded: false,
-    revocableCredentialsAvailable: true,
-    readOnlySubscriptionTokensAvailable: false,
-    backendActorCredentialsExposed: false,
-  );
-
-  final String status;
-  final bool appleProfileSigned;
-  final bool appleProfilePasswordIncluded;
-  final bool revocableCredentialsAvailable;
-  final bool readOnlySubscriptionTokensAvailable;
-  final bool backendActorCredentialsExposed;
-  final List<String> blockers;
-}
-
-class CalendarClientSetupOption {
-  const CalendarClientSetupOption({
-    required this.platform,
-    required this.method,
-    required this.available,
-    this.actionUrl,
-    this.unavailableReason,
-    this.guidance = const [],
-  });
-
-  final String platform;
-  final String method;
-  final bool available;
-  final String? actionUrl;
-  final String? unavailableReason;
-  final List<String> guidance;
-}
-
-class CalendarClientSetup {
-  const CalendarClientSetup({
-    required this.scope,
-    required this.username,
-    required this.endpoints,
-    required this.credentialPolicy,
-    required this.options,
-    this.accessModel = CalendarAccessModel.workspaceBlockedPrivateCalendars,
-    this.credentialReadiness =
-        CalendarCredentialReadiness.revocableCredentialsReady,
-  });
-
-  final CalendarScope scope;
-  final String username;
-  final CalendarExternalEndpoints endpoints;
-  final String credentialPolicy;
-  final CalendarAccessModel accessModel;
-  final CalendarCredentialReadiness credentialReadiness;
-  final List<CalendarClientSetupOption> options;
-}
+enum CalendarTimeKind { date, floating, utc, zoned }
 
 class CalendarEvent {
   CalendarEvent({
@@ -263,13 +128,18 @@ class CalendarEvent {
     this.scope = CalendarScope.workspace,
     CalendarThreadRef? threadRef,
     this.attendees = const [],
-    this.providerRef,
+    this.timeKind = CalendarTimeKind.utc,
+    this.recurring = false,
+    this.allowedActions = const [],
     this.updatedAt,
   }) : threadRef = threadRef ?? CalendarThreadRef.forScope(scope);
 
   final String id;
   final String title;
   final String? description;
+
+  /// Wall-clock fields held in UTC containers to avoid host DST normalization.
+  /// The separate timeKind/timezone fields carry the actual temporal intent.
   final DateTime startTime;
   final DateTime endTime;
   final String? timezone;
@@ -279,7 +149,12 @@ class CalendarEvent {
   final CalendarScope scope;
   final CalendarThreadRef threadRef;
   final List<CalendarAttendee> attendees;
-  final CalendarProviderRef? providerRef;
+  final CalendarTimeKind timeKind;
+  final bool recurring;
+  final List<String> allowedActions;
+
+  bool get canEdit => allowedActions.contains('update');
+  bool get canDelete => allowedActions.contains('delete');
   final DateTime? updatedAt;
 }
 
@@ -292,6 +167,7 @@ class CalendarEventDraft {
     this.description,
     this.location,
     this.allDay = false,
+    this.timeKind = CalendarTimeKind.zoned,
     this.scope = CalendarScope.workspace,
   });
 
@@ -302,66 +178,6 @@ class CalendarEventDraft {
   final String timezone;
   final String? location;
   final bool allDay;
+  final CalendarTimeKind timeKind;
   final CalendarScope scope;
-
-  CalendarEventPatch toPatch({String? etag}) {
-    return CalendarEventPatch(
-      title: title,
-      description: description,
-      startTime: startTime,
-      endTime: endTime,
-      timezone: timezone,
-      location: location,
-      allDay: allDay,
-      etag: etag,
-      scope: scope,
-    );
-  }
-
-  Map<String, Object?> toJson() => {
-    'title': title,
-    'description': description,
-    'startsAt': startTime.toUtc().toIso8601String(),
-    'endsAt': endTime.toUtc().toIso8601String(),
-    'timezone': timezone,
-    'location': location,
-    'allDay': allDay,
-    'scope': scope.toJson(),
-  };
-}
-
-class CalendarEventPatch {
-  const CalendarEventPatch({
-    this.title,
-    this.description,
-    this.startTime,
-    this.endTime,
-    this.timezone,
-    this.location,
-    this.allDay,
-    this.etag,
-    this.scope,
-  });
-
-  final String? title;
-  final String? description;
-  final DateTime? startTime;
-  final DateTime? endTime;
-  final String? timezone;
-  final String? location;
-  final bool? allDay;
-  final String? etag;
-  final CalendarScope? scope;
-
-  Map<String, Object?> toJson() => {
-    if (title != null) 'title': title,
-    if (description != null) 'description': description,
-    if (startTime != null) 'startsAt': startTime!.toUtc().toIso8601String(),
-    if (endTime != null) 'endsAt': endTime!.toUtc().toIso8601String(),
-    if (timezone != null) 'timezone': timezone,
-    if (location != null) 'location': location,
-    if (allDay != null) 'allDay': allDay,
-    if (etag != null) 'etag': etag,
-    if (scope != null) 'scope': scope!.toJson(),
-  };
 }

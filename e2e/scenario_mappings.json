@@ -4810,38 +4810,19 @@
             "X-WEAVE-CHANNEL-ID:engineering-general",
             "X-WEAVE-MEETING-THREAD-ID:meeting:channel-engineering-general:"
           ]
-        },
-        {
-          "path": "client/test/features/calendar/data/services/calendar_facade_client_test.dart",
-          "fragments": [
-            "meeting:channel-engineering-general:79cc2c616b93",
-            "events.events.single.threadRef.meetingThreadId"
-          ]
         }
       ]
     },
     {
-      "tag": "@calendar-flutter-caldav",
-      "scenario": "Flutter Calendar repository uses CalDAV and iCalendar for calendar data",
-      "feature": "e2e/features/calendar_caldav_facade.feature",
+      "tag": "@calendar-flutter-generated-user",
+      "scenario": "Calendar app uses the shared member session and preserves scheduling intent",
+      "feature": "e2e/features/calendar_user_api_generated.feature",
       "executableTest": "client/test/features/calendar/data/services/calendar_facade_client_test.dart",
       "evidenceMarkers": [
-        "FLUTTER_CALDAV_DATA_PLANE",
-        "FLUTTER_CALDAV_MUTATION_DATA_PLANE"
+        "CALENDAR_USER_API_GENERATED_CLIENT",
+        "CALENDAR_USER_API_TEMPORAL_PRESERVATION"
       ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "client/lib/features/calendar/data/services/calendar_facade_client.dart",
-          "fragments": [
-            "calendar-query",
-            "text/calendar",
-            "If-None-Match",
-            "If-Match",
-            "_httpClient.delete("
-          ]
-        }
-      ]
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@matrix-connect",
@@ -5804,6 +5785,39 @@
         "HUMAN_TESTING_HAS_NO_MANIFEST_GATE"
       ],
       "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@calendar-user-api-runtime",
+      "scenario": "Shared scheduling preserves time and access after restart",
+      "feature": "e2e/features/calendar_user_api_generated.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
+      "evidenceMarkers": [
+        "WEAVE_TEST_APP_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "test-app"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedCalendarJourney.java",
+          "fragments": [
+            "expectedOccurrences",
+            "requireWorkspaceScope",
+            "stale identical update",
+            "beforeDeniedCreate",
+            "deleteCalendarEvent"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/CollaborationJourney.java",
+          "fragments": [
+            "calendar.createAndVerify",
+            "calendar.verify(room.calendarProof()",
+            "calendar.delete(room.calendarProof()"
+          ]
+        }
+      ]
     }
   ]
 }

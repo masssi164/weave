@@ -36,6 +36,12 @@ obsoleteLocalMeanings:
     obsolete: Handwritten HTTP transport DTOs and routes for Weave product operations
     canonicalReplacement: Generated User API client and transport models within the existing MCP runtime
 artifacts:
+  - path: specs/calendar-user-api-contract.md
+    status: implementation-evidence
+    action: keep-as-generated-calendar-user-api-conformance-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/calendar/spec.md
   - path: specs/readme-release-evidence-contract.md
     status: implementation-evidence
     action: keep-as-readme-release-pointer-and-claim-conformance
@@ -142,6 +148,18 @@ artifacts:
       - steering/devops-conformance.md
       - releases/rc-gates/release-candidate-gate.md
     notes: Replaced by weave-specs commit 78f6c58fef0ebb53684c5c861c2453b8c4c577c9; Forgejo delivery/runtime evidence is not active.
+  - path: specs/calendar-generated-consumer-evidence.md
+    status: implementation-evidence
+    action: retain-as-generated-calendar-consumer-and-runtime-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/calendar/spec.md
+  - path: specs/calendar-flutter-generated-consumer.md
+    status: implementation-evidence
+    action: retain-as-flutter-calendar-generated-consumer-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/calendar/spec.md
 cleanupSequence:
   - Add or update corpus files for any remaining product/domain meaning.
   - Update repo tests/gates to consume corpus contracts or generated projections.
