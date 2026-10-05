@@ -106,6 +106,7 @@ class FilesUserApiServiceTest {
     @Test
     void ownerDownloadUsesPrivateMappingAndPreservesExactBinary() {
         when(provider.supportsConditionalBoundedRead()).thenReturn(true);
+        when(provider.supportsIdentityBoundConditionalRead()).thenReturn(true);
         FilesUserResource owned = file("alice", 4);
         when(resources.find("org-a", owned.fileId())).thenReturn(Optional.of(owned));
         when(bindings.mappingByCanonicalId("org-a", "files", 4, owned.fileId()))
@@ -141,6 +142,7 @@ class FilesUserApiServiceTest {
                 new VersionedFile(object, new FileVersion("W/\"provider-v1\""))));
         when(provider.providerObjectRef(path)).thenReturn(Optional.of("nextcloud-fileid:42"));
         when(provider.supportsConditionalBoundedRead()).thenReturn(true);
+        when(provider.supportsIdentityBoundConditionalRead()).thenReturn(true);
 
         assertThat(service.inspect(jwt("org-a", "alice"), owned.fileId()).allowedActions())
                 .containsExactly("inspect");
@@ -148,6 +150,26 @@ class FilesUserApiServiceTest {
                 .isInstanceOfSatisfying(ApiErrorException.class,
                         error -> assertThat(error.code()).isEqualTo("files-strong-version-unavailable"));
         verify(provider, never()).readBoundedIfVersion(any(), eq(FilesUserApiService.MAX_DOWNLOAD_BYTES), any());
+    }
+
+    @Test
+    void nativeContentDigestVersionAdvertisesOnlyVerifiedDownload() {
+        FilesUserResource owned = file("alice", 4);
+        when(resources.find("org-a", owned.fileId())).thenReturn(Optional.of(owned));
+        when(bindings.mappingByCanonicalId("org-a", "files", 4, owned.fileId()))
+                .thenReturn(Optional.of(mapping(owned)));
+        FilePath path = new FilePath("/x.bin");
+        FileObject object = new FileObject(new FileId("files:/x.bin"), path, Kind.FILE,
+                4, "application/octet-stream", Instant.parse("2026-01-01T00:00:00Z"), false);
+        String digest = "sha256:" + "a".repeat(64);
+        when(provider.find(path)).thenReturn(Optional.of(new VersionedFile(object, new FileVersion(digest))));
+        when(provider.providerObjectRef(path)).thenReturn(Optional.of("nextcloud-fileid:42"));
+        when(provider.supportsConditionalBoundedRead()).thenReturn(true);
+        when(provider.supportsIdentityBoundConditionalRead()).thenReturn(true);
+
+        assertThat(service.inspect(jwt("org-a", "alice"), owned.fileId()).allowedActions())
+                .containsExactly("inspect", "download")
+                .doesNotContain("updateContent");
     }
 
     @Test
@@ -168,13 +190,36 @@ class FilesUserApiServiceTest {
                 .containsExactly("inspect");
         assertThatThrownBy(() -> service.download(jwt("org-a", "alice"), owned.fileId()))
                 .isInstanceOfSatisfying(ApiErrorException.class,
-                        error -> assertThat(error.code()).isEqualTo("files-conditional-read-unavailable"));
+                        error -> assertThat(error.code()).isEqualTo("files-identity-bound-read-unavailable"));
+        verify(provider, never()).readBoundedIfVersion(any(), eq(FilesUserApiService.MAX_DOWNLOAD_BYTES), any());
+    }
+
+    @Test
+    void pathBoundConditionalReadDoesNotAdvertiseOrServeAUserDownload() {
+        FilesUserResource owned = file("alice", 4);
+        when(resources.find("org-a", owned.fileId())).thenReturn(Optional.of(owned));
+        when(bindings.mappingByCanonicalId("org-a", "files", 4, owned.fileId()))
+                .thenReturn(Optional.of(mapping(owned)));
+        FilePath path = new FilePath("/x.bin");
+        FileObject object = new FileObject(new FileId("files:/x.bin"), path, Kind.FILE,
+                4, "application/octet-stream", Instant.parse("2026-01-01T00:00:00Z"), false);
+        when(provider.find(path)).thenReturn(Optional.of(
+                new VersionedFile(object, new FileVersion("\"provider-v1\""))));
+        when(provider.providerObjectRef(path)).thenReturn(Optional.of("nextcloud-fileid:42"));
+        when(provider.supportsConditionalBoundedRead()).thenReturn(true);
+
+        assertThat(service.inspect(jwt("org-a", "alice"), owned.fileId()).allowedActions())
+                .containsExactly("inspect");
+        assertThatThrownBy(() -> service.download(jwt("org-a", "alice"), owned.fileId()))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.code()).isEqualTo("files-identity-bound-read-unavailable"));
         verify(provider, never()).readBoundedIfVersion(any(), eq(FilesUserApiService.MAX_DOWNLOAD_BYTES), any());
     }
 
     @Test
     void pathReuseCannotInheritPreviousWeaveFileId() {
         when(provider.supportsConditionalBoundedRead()).thenReturn(true);
+        when(provider.supportsIdentityBoundConditionalRead()).thenReturn(true);
         FilesUserResource owned = file("alice", 4);
         when(resources.find("org-a", owned.fileId())).thenReturn(Optional.of(owned));
         when(bindings.mappingByCanonicalId("org-a", "files", 4, owned.fileId()))
@@ -195,6 +240,7 @@ class FilesUserApiServiceTest {
     @Test
     void observedPathReplacementDuringDownloadFailsClosed() {
         when(provider.supportsConditionalBoundedRead()).thenReturn(true);
+        when(provider.supportsIdentityBoundConditionalRead()).thenReturn(true);
         FilesUserResource owned = file("alice", 4);
         when(resources.find("org-a", owned.fileId())).thenReturn(Optional.of(owned));
         when(bindings.mappingByCanonicalId("org-a", "files", 4, owned.fileId()))
@@ -288,6 +334,7 @@ class FilesUserApiServiceTest {
         when(provider.supportsConditionalWrite()).thenReturn(true);
         when(provider.supportsBoundedRead()).thenReturn(true);
         when(provider.supportsConditionalBoundedRead()).thenReturn(true);
+        when(provider.supportsIdentityBoundConditionalRead()).thenReturn(true);
         FilePath path = new FilePath("/payload.bin");
         FileObject object = new FileObject(new FileId(FilePathCodec.toId(path.value())), path, Kind.FILE,
                 4, "application/octet-stream", Instant.parse("2026-01-01T00:00:00Z"), false);

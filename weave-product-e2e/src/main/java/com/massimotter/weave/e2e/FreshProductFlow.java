@@ -54,7 +54,8 @@ public final class FreshProductFlow {
       new FreshProductFlow(environment).run();
       System.out.println(
           "WEAVE_TEST_APP_RESULT status=passed activation=browser pkce=S256 "
-              + "workload=private_key_jwt tool=files.search projection=webdav supportSafe=true");
+              + "workload=private_key_jwt tool=files.search projection=webdav "
+              + "userFiles=generated supportSafe=true");
     } catch (RuntimeException failure) {
       System.err.println(
           "WEAVE_TEST_APP_ERROR "
@@ -227,6 +228,11 @@ public final class FreshProductFlow {
       outsiderSession = awaitAuthority(browser, outsiderSession, "/guests", "guest");
       validateHumanWorkspaceToken(browser.jwtPayload(outsiderSession.accessToken()), "weave-app");
 
+      GeneratedFilesJourney generatedFiles = new GeneratedFilesJourney(environment);
+      GeneratedFilesJourney.Proof generatedFilesProof =
+          generatedFiles.createAndVerify(
+              memberSession.accessToken(), outsiderSession.accessToken(), environment.runId());
+
       CollaborationJourney collaboration = new CollaborationJourney(environment, http);
       collaborationPasses.add(
           collaboration.runPass(
@@ -263,6 +269,8 @@ public final class FreshProductFlow {
               outsiderEmail,
               outsiderPassword,
               "outsider-post-collaboration-restart");
+      generatedFiles.verify(
+          generatedFilesProof, memberSession.accessToken(), outsiderSession.accessToken());
       collaborationPasses.add(
           collaboration.runPass(
               2,

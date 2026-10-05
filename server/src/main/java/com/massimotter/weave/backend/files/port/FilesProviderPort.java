@@ -61,7 +61,7 @@ public interface FilesProviderPort {
         throw new UnsupportedOperationException("bounded Files read is unsupported by this provider");
     }
 
-    /** Bounded GET whose provider enforces and returns the observed strong version. */
+    /** Bounded read that enforces the observed strong version; object identity is a separate capability. */
     default FileContent readBoundedIfVersion(FileId id, int maxBytes, FileVersion expectedVersion) {
         throw new UnsupportedOperationException("conditional bounded Files read is unsupported by this provider");
     }
@@ -72,6 +72,11 @@ public interface FilesProviderPort {
 
     /** True only when bounded reads enforce the expected strong provider version. */
     default boolean supportsConditionalBoundedRead() {
+        return false;
+    }
+
+    /** True only when the bounded version check also binds bytes to the requested object ID. */
+    default boolean supportsIdentityBoundConditionalRead() {
         return false;
     }
 

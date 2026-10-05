@@ -195,11 +195,32 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         }
     }
 
+    private Optional<String> providerObjectRef(FilesRequestScope scope, FilePath path) {
+        return find(scope, path).map(found -> found.item().id().value());
+    }
+
     private FileContent read(FilesRequestScope scope, FileId id) {
         try {
             return queries.read(queryScope(scope), id);
         } catch (FilesApplicationException exception) {
             throw queryFailure(exception, "read");
+        }
+    }
+
+    private FileContent readBounded(FilesRequestScope scope, FileId id, int maxBytes) {
+        try {
+            return queries.readBounded(queryScope(scope), id, maxBytes);
+        } catch (FilesApplicationException exception) {
+            throw queryFailure(exception, "read-bounded");
+        }
+    }
+
+    private FileContent readBoundedIfVersion(
+            FilesRequestScope scope, FileId id, int maxBytes, FileVersion expectedVersion) {
+        try {
+            return queries.readBoundedIfVersion(queryScope(scope), id, maxBytes, expectedVersion);
+        } catch (FilesApplicationException exception) {
+            throw queryFailure(exception, "read-bounded");
         }
     }
 
@@ -211,12 +232,27 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         }
     }
 
+    private FilesProviderPort.CreatedObject writeIfAbsent(FilesRequestScope scope, FileWrite write) {
+        try {
+            FileObject created = commands.writeIfAbsent(commandScope(scope), write);
+            return new FilesProviderPort.CreatedObject(created, created.id().value());
+        } catch (FilesCommandException exception) {
+            throw commandFailure(exception);
+        }
+    }
+
     private FileObject createCollection(FilesRequestScope scope, FilePath path) {
         try {
             return commands.createCollection(commandScope(scope), path);
         } catch (FilesCommandException exception) {
             throw commandFailure(exception);
         }
+    }
+
+    private FilesProviderPort.CreatedObject createCollectionIfAbsent(
+            FilesRequestScope scope, FilePath path) {
+        FileObject created = createCollection(scope, path);
+        return new FilesProviderPort.CreatedObject(created, created.id().value());
     }
 
     private FileObject copy(
@@ -276,6 +312,12 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
                     "files-native-not-a-collection", exception.getMessage());
             case NOT_A_FILE -> conflict(
                     "files-native-not-a-file", exception.getMessage());
+            case VERSION_CHANGED -> precondition(exception.getMessage());
+            case CONTENT_TOO_LARGE -> new ApiErrorException(
+                    HttpStatus.PAYLOAD_TOO_LARGE,
+                    "files-native-content-too-large",
+                    "The native Files content exceeds the read limit.",
+                    Map.of("module", "files", "adapter", ADAPTER_KEY, "diagnosticsRedacted", true));
             case INVALID_BLOB_REFERENCE -> conflict(
                     "files-native-metadata-blob-mismatch", exception.getMessage());
             case CONTENT_INTEGRITY_FAILED -> conflict(
@@ -377,9 +419,20 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         @Override public ProviderConformanceProfile conformanceProfile() { return WeaveNativeFilesAdapter.this.conformanceProfile(); }
         @Override public VersionedListing list(FilePath path) { return WeaveNativeFilesAdapter.this.list(scope, path); }
         @Override public Optional<VersionedFile> find(FilePath path) { return WeaveNativeFilesAdapter.this.find(scope, path); }
+        @Override public Optional<String> providerObjectRef(FilePath path) { return WeaveNativeFilesAdapter.this.providerObjectRef(scope, path); }
+        @Override public boolean supportsStableObjectRefs() { return true; }
         @Override public FileContent read(FileId id) { return WeaveNativeFilesAdapter.this.read(scope, id); }
+        @Override public FileContent readBounded(FileId id, int maxBytes) { return WeaveNativeFilesAdapter.this.readBounded(scope, id, maxBytes); }
+        @Override public FileContent readBoundedIfVersion(FileId id, int maxBytes, FileVersion version) { return WeaveNativeFilesAdapter.this.readBoundedIfVersion(scope, id, maxBytes, version); }
+        @Override public boolean supportsBoundedRead() { return true; }
+        @Override public boolean supportsConditionalBoundedRead() { return true; }
+        @Override public boolean supportsIdentityBoundConditionalRead() { return true; }
         @Override public FileObject write(FileWrite write) { return WeaveNativeFilesAdapter.this.write(scope, write); }
+        @Override public CreatedObject writeIfAbsent(FileWrite write) { return WeaveNativeFilesAdapter.this.writeIfAbsent(scope, write); }
+        @Override public boolean supportsConditionalWrite() { return true; }
         @Override public FileObject createCollection(FilePath path) { return WeaveNativeFilesAdapter.this.createCollection(scope, path); }
+        @Override public CreatedObject createCollectionIfAbsent(FilePath path) { return WeaveNativeFilesAdapter.this.createCollectionIfAbsent(scope, path); }
+        @Override public boolean supportsAtomicCollectionCreate() { return true; }
         @Override public FileObject copy(FilePath source, FilePath destination, boolean overwrite) { return WeaveNativeFilesAdapter.this.copy(scope, source, destination, overwrite); }
         @Override public FileObject move(FilePath source, FilePath destination, boolean overwrite) { return WeaveNativeFilesAdapter.this.move(scope, source, destination, overwrite); }
         @Override public void delete(FilePath path, FileVersion expectedVersion) { WeaveNativeFilesAdapter.this.delete(scope, path, expectedVersion); }

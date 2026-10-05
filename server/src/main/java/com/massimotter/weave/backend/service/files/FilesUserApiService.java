@@ -128,9 +128,10 @@ public class FilesUserApiService {
         }
         ProviderBinding binding = activeBinding(member.organizationRef());
         FilesProviderPort provider = pinnedProvider(binding, member.organizationRef());
-        if (!provider.supportsConditionalBoundedRead()) {
-            throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-conditional-read-unavailable",
-                    "The active Files provider cannot enforce a conditional bounded download.");
+        if (!provider.supportsConditionalBoundedRead()
+                || !provider.supportsIdentityBoundConditionalRead()) {
+            throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-identity-bound-read-unavailable",
+                    "The active Files provider cannot bind a bounded download to the expected file identity.");
         }
         VersionedFile current = requireMapped(binding, provider, resource);
         if (current.item().size() > MAX_DOWNLOAD_BYTES) {
@@ -599,6 +600,7 @@ public class FilesUserApiService {
         if (item.kind() == Kind.COLLECTION) {
             actions.addAll(collectionActions(member, provider, false));
         } else if (item.size() <= MAX_DOWNLOAD_BYTES && provider.supportsConditionalBoundedRead()
+                && provider.supportsIdentityBoundConditionalRead()
                 && hasStrongProviderVersion(found.version())) {
             actions.add("download");
             if (member.canEdit() && provider.supportsConditionalWrite()
@@ -627,8 +629,12 @@ public class FilesUserApiService {
     }
 
     private boolean hasStrongProviderVersion(FileVersion version) {
-        return version != null && version.known() && version.value().startsWith("\"")
-                && version.value().endsWith("\"");
+        if (version == null || !version.known()) {
+            return false;
+        }
+        String token = version.value();
+        return (token.startsWith("\"") && token.endsWith("\""))
+                || token.matches("sha256:[a-f0-9]{64}");
     }
 
     private ApiErrorException unsupportedParentCreation() {

@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.files.adapter.FilesAuthorityJpaTestFactory;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
@@ -70,6 +71,46 @@ class WeaveNativeFilesAdapterTest {
         assertThat(restarted.read(written.id()).bytes()).isEqualTo(content);
         assertThat(restarted.find(new FilePath("/readme.txt"))).isPresent();
         assertThat(blobs.inventory(blobScope(ALPHA), 10)).hasSize(1);
+    }
+
+    @Test
+    void userPortCreatesDistinctStableObjectsAndBoundsVersionedReads() {
+        FilesProviderPort scoped = adapter(authority).scoped(ALPHA);
+        FilePath path = new FilePath("/owned.txt");
+        FileWrite firstWrite = new FileWrite(path, new byte[] {1, 2, 3}, "application/octet-stream");
+
+        assertThat(scoped.supportsStableObjectRefs()).isTrue();
+        assertThat(scoped.supportsConditionalWrite()).isTrue();
+        assertThat(scoped.supportsAtomicCollectionCreate()).isTrue();
+        assertThat(scoped.supportsConditionalBoundedRead()).isTrue();
+        assertThat(scoped.supportsIdentityBoundConditionalRead()).isTrue();
+        var first = scoped.writeIfAbsent(firstWrite);
+        var version = scoped.find(path).orElseThrow().version();
+        assertThat(scoped.providerObjectRef(path)).contains(first.providerObjectRef());
+        assertThat(first.providerObjectRef()).isEqualTo(first.item().id().value());
+        assertThat(scoped.readBoundedIfVersion(first.item().id(), 3, version).bytes())
+                .containsExactly(1, 2, 3);
+        assertThatThrownBy(() -> scoped.readBoundedIfVersion(first.item().id(), 2, version))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status().value()).isEqualTo(413));
+        assertThatThrownBy(() -> scoped.readBoundedIfVersion(
+                first.item().id(), 3, new FileVersion("stale")))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status().value()).isEqualTo(412));
+        assertThatThrownBy(() -> scoped.writeIfAbsent(firstWrite))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status().value()).isEqualTo(409));
+
+        scoped.delete(path, version);
+        var second = scoped.writeIfAbsent(firstWrite);
+        assertThat(second.providerObjectRef()).isNotEqualTo(first.providerObjectRef());
+        assertThat(scoped.providerObjectRef(path)).contains(second.providerObjectRef());
+        assertThatThrownBy(() -> scoped.readBounded(first.item().id(), 3))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status().value()).isEqualTo(404));
+        assertThatThrownBy(() -> adapter(authority).scoped(BETA).readBounded(second.item().id(), 3))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status().value()).isEqualTo(404));
     }
 
     @Test

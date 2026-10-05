@@ -20,6 +20,8 @@ public final class FilesApplicationException extends RuntimeException {
         NOT_FOUND,
         NOT_A_COLLECTION,
         NOT_A_FILE,
+        VERSION_CHANGED,
+        CONTENT_TOO_LARGE,
         INVALID_BLOB_REFERENCE,
         CONTENT_INTEGRITY_FAILED
     }

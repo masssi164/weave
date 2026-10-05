@@ -43,11 +43,16 @@ tasks.register('generateUserApiClient', JavaExec) {
     inputs.file(userContract)
     inputs.property('generatorVersion', generatorVersion)
     inputs.file(rootProject.file('tools/patch_openapi_java_enum_query.py'))
+    inputs.file(rootProject.file('tools/patch_openapi_java_binary_body.py'))
     outputs.dir(generatedRoot)
     doFirst { delete(generatedRoot) }
     doLast {
         exec {
             commandLine 'python3', rootProject.file('tools/patch_openapi_java_enum_query.py'),
+                    generatedRoot.get().asFile.absolutePath
+        }
+        exec {
+            commandLine 'python3', rootProject.file('tools/patch_openapi_java_binary_body.py'),
                     generatedRoot.get().asFile.absolutePath
         }
     }
@@ -62,11 +67,16 @@ tasks.register('generateUserApiClientComparison', JavaExec) {
     inputs.file(userContract)
     inputs.property('generatorVersion', generatorVersion)
     inputs.file(rootProject.file('tools/patch_openapi_java_enum_query.py'))
+    inputs.file(rootProject.file('tools/patch_openapi_java_binary_body.py'))
     outputs.dir(comparisonRoot)
     doFirst { delete(comparisonRoot) }
     doLast {
         exec {
             commandLine 'python3', rootProject.file('tools/patch_openapi_java_enum_query.py'),
+                    comparisonRoot.get().asFile.absolutePath
+        }
+        exec {
+            commandLine 'python3', rootProject.file('tools/patch_openapi_java_binary_body.py'),
                     comparisonRoot.get().asFile.absolutePath
         }
     }
