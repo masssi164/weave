@@ -206,3 +206,18 @@ closure evidence is retained. This change alone does not close #1472 or #1470.
   The existing product-flow structural guard now checks its actual separate Admin
   session and Files dry-run/409 activation fence plus current binding metadata,
   replacing obsolete assertions for a User-session setup and applied Files selection.
+
+### Generated integrated diagnostic and Home proof
+
+The isolated product journey calls both workspace diagnostics through the generated
+JVM Admin client with its separately obtained Admin session. Independent assertions
+require the admitted capability policy and the documented configuration-check set;
+reading that snapshot does not count as live provider readiness. Deliberate negative
+HTTP probes reject the User bearer at both Admin diagnostic routes.
+
+The member journey reads Home through the generated JVM User client and asserts
+version 3, the accepted section set, explicit unknown counts and absence of operator
+setup instructions. The same read after restart must retain those semantics. Failure
+evidence reports only fixed diagnostic stages and HTTP status, never response bodies
+or session tokens. Transport fixtures and compilation remain separate from a green
+actual Compose run.

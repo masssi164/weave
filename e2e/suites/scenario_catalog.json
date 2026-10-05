@@ -4639,6 +4639,25 @@
         "same references and exact content after provider restart",
         "strong-version cleanup in the exact isolated namespace"
       ]
+    },
+    {
+      "tag": "@generated-workspace-user-admin-runtime",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "spaces",
+        "admin-health-ops"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "separate generated User and Admin clients with distinct OIDC audiences",
+        "honest Home version and unknown counts without operator instructions",
+        "exact Admin policy/checks and opposite-audience denial",
+        "member Home remains valid after service restart"
+      ]
     }
   ]
 }

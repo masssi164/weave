@@ -5818,6 +5818,45 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@generated-workspace-user-admin-runtime",
+      "scenario": "The member sees honest availability while the operator sees private setup checks",
+      "feature": "e2e/features/generated_workspace_user_admin.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
+      "evidenceMarkers": [
+        "WEAVE_TEST_APP_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "test-app"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedAdminApi.java",
+          "fragments": [
+            "AdminWorkspaceApi",
+            "verifyWorkspaceDiagnostics",
+            "admin_control_plane.readiness_read"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedWorkspaceJourney.java",
+          "fragments": [
+            "WorkspaceApi",
+            "verifyHome",
+            "getItemCount() != null"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
+          "fragments": [
+            "reject User session at Admin workspace diagnostics",
+            "assertSeparatedApiSessions",
+            "verifyHome(memberSession.accessToken())"
+          ]
+        }
+      ]
     }
   ]
 }

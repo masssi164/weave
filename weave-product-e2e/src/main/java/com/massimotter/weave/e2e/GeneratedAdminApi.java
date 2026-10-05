@@ -1,6 +1,7 @@
 package com.massimotter.weave.e2e;
 
 import com.massimotter.weave.adminapi.api.AdminControlPlaneApi;
+import com.massimotter.weave.adminapi.api.AdminWorkspaceApi;
 import com.massimotter.weave.adminapi.api.ProviderRegistryApi;
 import com.massimotter.weave.adminapi.invoker.ApiClient;
 import com.massimotter.weave.adminapi.invoker.ApiException;
@@ -15,12 +16,15 @@ import java.net.http.HttpClient;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** TLS-bound consumer of the generated server-owned Admin contract. */
 final class GeneratedAdminApi {
   private static final ObjectMapper ERROR_MAPPER = new ObjectMapper();
   private final AdminControlPlaneApi controlPlane;
   private final ProviderRegistryApi providers;
+  private final AdminWorkspaceApi workspace;
 
   GeneratedAdminApi(URI apiOrigin, Path caCertificate) {
     this(
@@ -39,6 +43,27 @@ final class GeneratedAdminApi {
     client.updateBaseUri(apiOrigin.getScheme() + "://" + apiOrigin.getRawAuthority());
     controlPlane = new AdminControlPlaneApi(client);
     providers = new ProviderRegistryApi(client);
+    workspace = new AdminWorkspaceApi(client);
+  }
+
+  void verifyWorkspaceDiagnostics(String bearer) {
+    try {
+      var policy = workspace.capabilityPolicy(authHeaders(bearer));
+      if (policy == null || !Boolean.TRUE.equals(policy.getSupportSafe())
+          || !Boolean.TRUE.equals(policy.getDenyByDefault())
+          || !policy.getGrantedCapabilities().contains("admin_control_plane.readiness_read")) {
+        throw new ProductFlowException("Admin workspace policy did not match current authority");
+      }
+      var readiness = workspace.releaseReadiness(authHeaders(bearer));
+      if (readiness == null || readiness.getReadiness() == null || readiness.getChecks() == null
+          || !readiness.getChecks().stream().map(value -> value.getKey()).collect(Collectors.toSet())
+              .equals(Set.of("auth-contract", "chat", "files"))) {
+        throw new ProductFlowException("Admin workspace configuration checks did not match");
+      }
+    } catch (ApiException failure) {
+      throw new ProductFlowException("Admin workspace diagnostics failed with HTTP " + failure.getCode()
+          + supportSafeErrorCode(failure));
+    }
   }
 
   ProviderRegistryResponse providerStatus(String bearer) {

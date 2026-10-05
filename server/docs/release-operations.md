@@ -61,9 +61,9 @@ Use `401` for missing or invalid tokens. Use `403` when the token is authenticat
 
 `GET /api/profile`, `PATCH /api/profile`, and `GET /api/profile/sync-status` are the authenticated product profile facade. `PATCH /api/profile` supports partial updates to `displayName`, `avatar`, `locale`, `timezone`, `accessibilityPreferences`, and `profileVisibility`; validation errors use the same stable JSON error envelope. Mutable profile overrides use the same code-first JPA authority as the other server domains: H2 in the host-only `dev` environment and PostgreSQL with one-shot schema initialization plus serving validation in `dogfood`, `prod`, and `e2e`. Spring's `test` profile remains test-fixture configuration only and is not an operator environment. There is no production JSON/file fallback. Matrix/Nextcloud profile sync still reports `not_configured` until module propagation is implemented.
 
-`/api/workspace/release-readiness` is the backend-owned operator snapshot for the core workspace. It rolls auth, Matrix chat, and Nextcloud files into one response and lists the exact remaining setup actions when the workspace is still degraded or blocked.
+`/api/admin/workspace/release-readiness` is the Admin-only configuration and cached capability snapshot. It summarizes authentication, Chat and Files configuration and operator actions. It neither verifies live provider operations nor proves release eligibility. Files diagnostics describe the currently configured provider without requiring Nextcloud.
 
-Only the canonical `/api/workspace/capabilities` and `/api/workspace/release-readiness` paths exist after the Fresh Start; no alternate versioned application routes are retained.
+Members use `/api/workspace/capabilities` and `/api/workspace/home`. Home version 3 reports unknown item counts as null and excludes operator setup instructions. Capability-policy diagnostics use `/api/admin/workspace/capability-policy`; readiness uses `/api/admin/workspace/release-readiness`. Both require a separate Admin Console session with current organization and owner/admin authorization. The former User diagnostic paths are removed.
 
 ## Minimum operator checks
 
@@ -75,7 +75,9 @@ Only the canonical `/api/workspace/capabilities` and `/api/workspace/release-rea
 - `GET /api/profile` and `PATCH /api/profile` with a valid first-party token should return the product profile facade and updated mutable profile fields
 - `GET /api/profile/sync-status` with a valid first-party token should return frontend-safe Matrix/Nextcloud profile sync state
 - `GET /api/workspace/capabilities` with a valid first-party token should return the client-facing capability snapshot
-- `GET /api/workspace/release-readiness` with a valid first-party token should return operator-facing workspace setup status and remaining actions
+- `GET /api/admin/workspace/release-readiness` with a valid Admin Console token should return configuration/cached availability and operator actions
+- `GET /api/admin/workspace/capability-policy` with the same authorized Admin session should return the support-safe capability-policy snapshot
+- A User bearer must be rejected at both Admin diagnostic routes; an Admin bearer must not be reused for ordinary User operations
 
 ## Logging and audit baseline
 

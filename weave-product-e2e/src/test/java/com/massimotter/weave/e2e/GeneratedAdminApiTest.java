@@ -16,6 +16,38 @@ import org.junit.jupiter.api.Test;
 
 final class GeneratedAdminApiTest {
   @Test
+  void workspaceDiagnosticsUseTheGeneratedAdminRoutesWithOneAdminSession() throws Exception {
+    AtomicReference<String> policyAuthorization = new AtomicReference<>();
+    AtomicReference<String> readinessAuthorization = new AtomicReference<>();
+    HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext("/api/admin/workspace/capability-policy", request -> {
+      policyAuthorization.set(request.getRequestHeaders().getFirst("Authorization"));
+      byte[] body = "{\"platformIdentityCategory\":\"platform identity and security\",\"platformIdentityAuthority\":\"Keycloak\",\"federationContract\":\"OIDC\",\"principalSource\":\"issuer and subject\",\"roles\":[\"admin\"],\"groups\":[],\"profileKeys\":[],\"supportSafe\":true,\"denyByDefault\":true,\"grantedCapabilities\":[\"admin_control_plane.readiness_read\"],\"agentRuntimeControlPosture\":\"disabled\"}"
+          .getBytes(StandardCharsets.UTF_8);
+      request.getResponseHeaders().set("Content-Type", "application/json");
+      request.sendResponseHeaders(200, body.length);
+      try (var output = request.getResponseBody()) { output.write(body); }
+    });
+    server.createContext("/api/admin/workspace/release-readiness", request -> {
+      readinessAuthorization.set(request.getRequestHeaders().getFirst("Authorization"));
+      byte[] body = "{\"readiness\":\"ready\",\"checks\":[{\"key\":\"auth-contract\"},{\"key\":\"chat\"},{\"key\":\"files\"}]}"
+          .getBytes(StandardCharsets.UTF_8);
+      request.getResponseHeaders().set("Content-Type", "application/json");
+      request.sendResponseHeaders(200, body.length);
+      try (var output = request.getResponseBody()) { output.write(body); }
+    });
+    server.start();
+    try {
+      URI origin = URI.create("http://127.0.0.1:" + server.getAddress().getPort());
+      new GeneratedAdminApi(origin, HttpClient.newBuilder()).verifyWorkspaceDiagnostics("admin-token");
+      assertThat(policyAuthorization.get()).isEqualTo("Bearer admin-token");
+      assertThat(readinessAuthorization.get()).isEqualTo("Bearer admin-token");
+    } finally {
+      server.stop(0);
+    }
+  }
+
+  @Test
   void selectsProviderThroughGeneratedAdminTransportAndTypedResponse() throws Exception {
     AtomicReference<String> authorization = new AtomicReference<>();
     AtomicReference<String> requestBody = new AtomicReference<>();

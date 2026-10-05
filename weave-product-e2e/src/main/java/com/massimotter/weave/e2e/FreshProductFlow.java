@@ -271,6 +271,7 @@ public final class FreshProductFlow {
               "outsider-post-collaboration-restart");
       generatedFiles.verify(
           generatedFilesProof, memberSession.accessToken(), outsiderSession.accessToken());
+      new GeneratedWorkspaceJourney(environment).verifyHome(memberSession.accessToken());
       collaborationPasses.add(
           collaboration.runPass(
               2,
@@ -545,6 +546,7 @@ public final class FreshProductFlow {
   }
 
   private void proveMemberApi(String token) {
+    new GeneratedWorkspaceJourney(environment).verifyHome(token);
     JsonNode readiness =
         http.json(
             "read authenticated profile readiness",
@@ -695,6 +697,13 @@ public final class FreshProductFlow {
   }
 
   private void assertSeparatedApiSessions(String userToken, String adminToken) {
+    for (String path : List.of("/api/admin/workspace/capability-policy", "/api/admin/workspace/release-readiness")) {
+      JsonNode denied = http.json("reject User session at Admin workspace diagnostics", "GET",
+          environment.api(path), bearer(userToken, Map.of()), null, Set.of(401));
+      if (!"unauthorized".equals(denied.path("code").asString())) {
+        throw new ProductFlowException("Admin workspace diagnostics accepted a User session");
+      }
+    }
     JsonNode providerStatusDenied =
         http.json(
             "reject User session at Admin provider status",
@@ -728,6 +737,7 @@ public final class FreshProductFlow {
 
   private void assertGeneratedAdminControlPlane(String adminToken, String organizationId) {
     var admin = new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate());
+    admin.verifyWorkspaceDiagnostics(adminToken);
     var controlPlane = admin.controlPlane(adminToken);
     if (!organizationId.equals(controlPlane.getOrganizationId())
         || !Boolean.TRUE.equals(controlPlane.getSupportSafe())) {
