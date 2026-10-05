@@ -3793,8 +3793,8 @@
       ]
     },
     {
-      "tag": "@calendar-flutter-caldav",
-      "suiteId": "open-standards-gateway-archive-target",
+      "tag": "@calendar-flutter-generated-user",
+      "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
         "member"
       ],
@@ -3803,9 +3803,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "generated User operations and opaque Calendar discovery",
+        "temporal and meeting-reference preservation",
+        "idempotent create, strong versions and current session boundaries"
       ]
     },
     {

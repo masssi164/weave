@@ -4810,38 +4810,19 @@
             "X-WEAVE-CHANNEL-ID:engineering-general",
             "X-WEAVE-MEETING-THREAD-ID:meeting:channel-engineering-general:"
           ]
-        },
-        {
-          "path": "client/test/features/calendar/data/services/calendar_facade_client_test.dart",
-          "fragments": [
-            "meeting:channel-engineering-general:79cc2c616b93",
-            "events.events.single.threadRef.meetingThreadId"
-          ]
         }
       ]
     },
     {
-      "tag": "@calendar-flutter-caldav",
-      "scenario": "Flutter Calendar repository uses CalDAV and iCalendar for calendar data",
-      "feature": "e2e/features/calendar_caldav_facade.feature",
+      "tag": "@calendar-flutter-generated-user",
+      "scenario": "Calendar app uses the shared member session and preserves scheduling intent",
+      "feature": "e2e/features/calendar_user_api_generated.feature",
       "executableTest": "client/test/features/calendar/data/services/calendar_facade_client_test.dart",
       "evidenceMarkers": [
-        "FLUTTER_CALDAV_DATA_PLANE",
-        "FLUTTER_CALDAV_MUTATION_DATA_PLANE"
+        "CALENDAR_USER_API_GENERATED_CLIENT",
+        "CALENDAR_USER_API_TEMPORAL_PRESERVATION"
       ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "client/lib/features/calendar/data/services/calendar_facade_client.dart",
-          "fragments": [
-            "calendar-query",
-            "text/calendar",
-            "If-None-Match",
-            "If-Match",
-            "_httpClient.delete("
-          ]
-        }
-      ]
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@matrix-connect",

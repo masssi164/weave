@@ -106,6 +106,13 @@ DateTime? mapDateTime(dynamic map, String key, [String? pattern]) {
       if (_isEpochMarker(pattern)) {
         millis = int.tryParse(value);
       } else {
+        if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) {
+          final date = DateTime.tryParse('${value}T00:00:00Z');
+          return date != null &&
+                  date.toIso8601String().substring(0, 10) == value
+              ? date
+              : null;
+        }
         return DateTime.tryParse(value);
       }
     }

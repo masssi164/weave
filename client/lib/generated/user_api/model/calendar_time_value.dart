@@ -58,7 +58,7 @@ class CalendarTimeValue {
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     if (this.date != null) {
-      json[r'date'] = _dateFormatter.format(this.date!.toUtc());
+      json[r'date'] = _dateFormatter.format(this.date!);
     } else {
       json[r'date'] = null;
     }

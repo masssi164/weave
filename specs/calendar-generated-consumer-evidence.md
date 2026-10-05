@@ -47,3 +47,31 @@ contract tests, infra product/Compose checks, `specCorpusConformance`, and the
 actual Full Compose E2E workflow. Flutter and MCP journey evidence remains explicit
 until the corresponding consumers are integrated; no Calendar closure is inferred
 from the Server-only increment. Migration/cutover remains #1498 scope.
+
+## Flutter evidence reconciliation
+
+The current Flutter Calendar scenario uses generated User operations for discovery,
+agenda, event reads and versioned mutations. Its transport tests independently
+assert temporal kinds, attendee and meeting-thread metadata, create retry identity,
+precondition failures and session invalidation. Calendar state must not restore an
+old member or scope snapshot after a late response. Floating/zoned wall-clock values
+must survive the host time zone's daylight-saving gaps without normalization.
+Visible event filtering uses interval overlap and preserves the exclusive all-day
+end; recurring occurrences cannot silently overwrite or delete their master.
+
+The former `@calendar-flutter-caldav` scenario is replaced by
+`@calendar-flutter-generated-user`. Nine CalDAV server fixtures remain historical
+protocol/integrity evidence. Their archive inventory count changes deliberately
+from ten to nine; this does not remove a permission, temporal or version assertion.
+The separate July Flutter protocol feature remains an explicitly historical target,
+not current #1470 acceptance. Its old DAV/control-only direction cannot constrain
+new product consumers. Current live Calendar behavior is mapped separately to the
+isolated product journey and is not inferred from Flutter transport fixtures.
+
+Generated Dart DATE values use a UTC field container on decode and serialize their
+calendar fields directly, without converting them to another instant. This is a
+deterministic generator correction, not a hand edit of generated models. Date-only
+wire round trips must preserve a civil date even when the host zone skipped that
+date (Pacific/Apia, 2011-12-30). Date-time values still preserve their instant. The
+generator fails if its pinned upstream template shape changes, and consumer wire
+tests run in UTC, Europe/Berlin and Pacific/Apia to expose host-zone dependence.

@@ -66,6 +66,7 @@ def generate(destination: Path) -> None:
     preserve_partial_profile_update(destination)
     correct_enum_map_decoding(destination)
     propagate_binary_upload_errors(destination)
+    preserve_calendar_date_fields(destination)
     subprocess.run(["dart", "format", str(destination)], check=True, stdout=subprocess.DEVNULL)
 
 
@@ -137,6 +138,37 @@ def propagate_binary_upload_errors(destination: Path) -> None:
     if source.count(before) != 1:
         raise RuntimeError("OpenAPI Generator binary upload handling changed")
     client.write_text(source.replace(before, after, 1))
+
+
+def preserve_calendar_date_fields(destination: Path) -> None:
+    """Keep date-only values independent of the consumer's host timezone.
+
+    Generator 7.17.0 parses DATE into host-local midnight and converts it to UTC
+    during serialization. That changes dates east of UTC and can normalize a
+    skipped civil day before the application sees it. Use a neutral UTC carrier
+    for date-only wire values, and serialize calendar fields without conversion.
+    Date-time parsing retains its existing instant semantics.
+    """
+    helper = destination / "api_helper.dart"
+    source = helper.read_text()
+    before = "return DateTime.tryParse(value);"
+    after = """if (RegExp(r'^\\d{4}-\\d{2}-\\d{2}$').hasMatch(value)) {
+          final date = DateTime.tryParse('${value}T00:00:00Z');
+          return date != null && date.toIso8601String().substring(0, 10) == value
+              ? date
+              : null;
+        }
+        return DateTime.tryParse(value);"""
+    if source.count(before) != 1:
+        raise RuntimeError("OpenAPI Generator date-only decoding changed")
+    helper.write_text(source.replace(before, after, 1))
+
+    model = destination / "model/calendar_time_value.dart"
+    source = model.read_text()
+    before = "_dateFormatter.format(this.date!.toUtc())"
+    if source.count(before) != 1:
+        raise RuntimeError("OpenAPI Generator Calendar DATE serialization changed")
+    model.write_text(source.replace(before, "_dateFormatter.format(this.date!)", 1))
 
 
 def same_sources(left: Path, right: Path) -> bool:
