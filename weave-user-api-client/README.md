@@ -25,9 +25,10 @@ operations, while independently asserting identity, access denial, private
 activity, idempotent Files references, binary content and restart behavior.
 Raw malformed/security probes remain on the bounded test HTTP client.
 
-Migration of normal-purpose Weave HTTP traffic is still in progress. The
-remaining product E2E bootstrap/invitation and Admin mutation calls must move
-to their matching generated User or Admin operations. Matrix,
+The current product E2E User and Admin operations use the matching generated
+clients. Raw requests remain for deliberate authorization and fail-closed
+probes, plus historical private Agent Runtime proof traffic outside the current
+User/Admin artifacts. Matrix,
 OIDC/OAuth, MCP protocol, internal E2E proof and deliberate negative probes
 remain outside the Weave OpenAPI client because they follow their own protocol
 or test boundaries. Files operations and resource grants beyond the current

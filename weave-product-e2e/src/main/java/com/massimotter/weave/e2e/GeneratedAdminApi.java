@@ -2,13 +2,22 @@ package com.massimotter.weave.e2e;
 
 import com.massimotter.weave.adminapi.api.AdminControlPlaneApi;
 import com.massimotter.weave.adminapi.api.AdminWorkspaceApi;
+import com.massimotter.weave.adminapi.api.IdentityBootstrapApi;
+import com.massimotter.weave.adminapi.api.OrganizationInvitationsApi;
+import com.massimotter.weave.adminapi.api.OrganizationMembersApi;
 import com.massimotter.weave.adminapi.api.ProviderRegistryApi;
 import com.massimotter.weave.adminapi.invoker.ApiClient;
 import com.massimotter.weave.adminapi.invoker.ApiException;
 import com.massimotter.weave.adminapi.model.AdminControlPlaneResponse;
+import com.massimotter.weave.adminapi.model.BootstrapOwnerInvitationRequest;
+import com.massimotter.weave.adminapi.model.MemberInvitationRequest;
+import com.massimotter.weave.adminapi.model.MemberInvitationResponse;
+import com.massimotter.weave.adminapi.model.OrganizationMemberPageResponse;
+import com.massimotter.weave.adminapi.model.OrganizationMemberResponse;
 import com.massimotter.weave.adminapi.model.ProviderSelectionRequest;
 import com.massimotter.weave.adminapi.model.ProviderSelectionResponse;
 import com.massimotter.weave.adminapi.model.ProviderRegistryResponse;
+import com.massimotter.weave.adminapi.model.WeaverEntitlementUpdateRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
@@ -25,6 +34,9 @@ final class GeneratedAdminApi {
   private final AdminControlPlaneApi controlPlane;
   private final ProviderRegistryApi providers;
   private final AdminWorkspaceApi workspace;
+  private final IdentityBootstrapApi bootstrap;
+  private final OrganizationInvitationsApi invitations;
+  private final OrganizationMembersApi members;
 
   GeneratedAdminApi(URI apiOrigin, Path caCertificate) {
     this(
@@ -44,6 +56,89 @@ final class GeneratedAdminApi {
     controlPlane = new AdminControlPlaneApi(client);
     providers = new ProviderRegistryApi(client);
     workspace = new AdminWorkspaceApi(client);
+    bootstrap = new IdentityBootstrapApi(client);
+    invitations = new OrganizationInvitationsApi(client);
+    members = new OrganizationMembersApi(client);
+  }
+
+  MemberInvitationResponse bootstrapOwner(String token, String idempotencyKey, String email) {
+    try {
+      MemberInvitationResponse result =
+          bootstrap.bootstrapOwnerInvitation(
+              token,
+              idempotencyKey,
+              new BootstrapOwnerInvitationRequest()
+                  .email(email)
+                  .displayName("Weave E2E Owner"));
+      if (result == null) {
+        throw new ProductFlowException("Owner bootstrap returned no invitation");
+      }
+      return result;
+    } catch (ApiException failure) {
+      throw new ProductFlowException("Owner bootstrap failed with HTTP " + failure.getCode());
+    }
+  }
+
+  MemberInvitationResponse inviteMember(
+      String bearer,
+      String organizationId,
+      String idempotencyKey,
+      String email,
+      String displayName,
+      String role) {
+    try {
+      MemberInvitationResponse result =
+          invitations.createOrganizationInvitation(
+              organizationId,
+              idempotencyKey,
+              new MemberInvitationRequest().email(email).displayName(displayName).role(role),
+              authHeaders(bearer));
+      if (result == null) {
+        throw new ProductFlowException("Member invitation returned no projection");
+      }
+      return result;
+    } catch (ApiException failure) {
+      throw new ProductFlowException("Member invitation failed with HTTP " + failure.getCode());
+    }
+  }
+
+  OrganizationMemberPageResponse listMembers(String bearer, String organizationId) {
+    try {
+      OrganizationMemberPageResponse result =
+          members.listOrganizationMembers(organizationId, null, 100, authHeaders(bearer));
+      if (result == null || result.getItems() == null) {
+        throw new ProductFlowException("Member listing returned no page");
+      }
+      return result;
+    } catch (ApiException failure) {
+      throw new ProductFlowException("Member listing failed with HTTP " + failure.getCode());
+    }
+  }
+
+  OrganizationMemberResponse updateWeaverEntitlement(
+      String bearer,
+      String organizationId,
+      String memberHandle,
+      String version,
+      String idempotencyKey,
+      boolean entitled) {
+    try {
+      OrganizationMemberResponse result =
+          members.updateOrganizationMemberWeaverEntitlement(
+              organizationId,
+              memberHandle,
+              version,
+              idempotencyKey,
+              new WeaverEntitlementUpdateRequest().entitled(entitled),
+              authHeaders(bearer));
+      if (result == null) {
+        throw new ProductFlowException("Weaver entitlement update returned no member");
+      }
+      return result;
+    } catch (ApiException failure) {
+      throw new ProductFlowException(
+          "Weaver entitlement update failed with HTTP " + failure.getCode());
+    }
   }
 
   void verifyWorkspaceDiagnostics(String bearer) {
