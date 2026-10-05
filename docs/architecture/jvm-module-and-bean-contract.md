@@ -1,8 +1,16 @@
 # JVM module, dependency, and bean contract
 
-This document is the implementation inventory for the Java/Spring architecture. The binding
-product decisions remain in the pinned Specification Corpus; this inventory prevents Gradle
-dependencies, component scanning, and convenience beans from creating a second architecture.
+Status: historical Java/Spring implementation inventory. Its northbound DAV,
+MCP-over-DAV, OpenAPI-control-only, and private ARC/Runner delivery assertions
+are superseded for the current release by the pinned
+`steering/release-2026-10-product-consolidation.md` profile and #1470. Server
+code generates separate User and Admin OpenAPI artifacts; Files and Calendar use
+the generated User API, MCP and product E2E share the generated JVM User client,
+and Chat uses the bounded Weave Matrix Client-Server facade. Provider adoption
+and migration belong to #1498. The module dependency and security notes below
+remain useful historical evidence only where they agree with current source and
+the pinned corpus. Do not use the older transport or private-execution examples
+as implementation instructions.
 
 ## Module dependency direction
 

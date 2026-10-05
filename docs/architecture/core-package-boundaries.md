@@ -1,6 +1,8 @@
 # Canonical core package boundaries
 
-Status: active architecture contract for #1024 and #1299.
+Status: dependency-direction guidance for the current #1470 release. The pinned
+`steering/release-2026-10-product-consolidation.md` profile supersedes the
+historical #1024/#1299 transport and delivery targets in this document.
 
 ## Purpose
 
@@ -64,14 +66,18 @@ The repository is intentionally being migrated in vertical slices rather than th
 
 ### Transitional server packages
 
-Packages such as `server/.../controller`, `domainfacade`, broad provider packages and domain-local mixed adapter packages are transitional. New canonical behavior must not be added there when the target domain/application/port boundary exists. Removal or decomposition is owned by #1326, #1301, #1302 and #1019.
+Packages such as `server/.../controller`, `domainfacade`, broad provider packages
+and domain-local mixed adapter packages are transitional. New canonical behavior
+must not be added there when the target domain/application/port boundary exists.
+Reconcile removal or decomposition against current #1470/#1498 stories rather
+than treating the older #1326/#1301/#1302/#1019 delivery order as authority.
 
 ## Reference vertical: Files
 
-The first complete target path is:
+For an optional native Files provider, the reference path is:
 
 ```text
-WebDAV PUT/GET
+Generated Files User API operations
   -> Files application service
     -> canonical Files repository port
     -> canonical BlobStore port
@@ -85,14 +91,18 @@ A provider source/target connector is a sibling southbound adapter. It is never 
 
 After the Files reference slice is green, Calendar and Chat follow the same dependency shape:
 
-- Calendar: CalDAV/iCalendar projection -> canonical Calendar application -> persistence/provider ports.
-- Chat: Matrix Client-Server projection -> canonical Chat application/ledger -> persistence/provider ports.
+- Calendar: generated User API operations -> canonical Calendar application -> persistence/provider ports. CalDAV/iCalendar may be used southbound.
+- Chat: Matrix Client-Server projection -> canonical Chat application -> `ChatProviderPort` -> the active southbound provider. The facade is not a second Chat ledger.
 
 Chat has no MCP projection. Weaver/OpenClaw uses Matrix for conversational traffic.
 
 ## MCP boundary
 
-`weave-mcp-server` is a northbound semantic projection for Files and Calendar only. It uses typed authenticated WebDAV and CalDAV clients to reach Weave Server. It owns no DataSource, JPA repository, Flyway migration, provider adapter, BlobStore or canonical business authority.
+`weave-mcp-server` is a curated semantic tool surface for Files and Calendar. It
+must use the same generated JVM User HTTP client and transport models as product E2E
+to reach Weave Server, with distinct workload identity and current member and
+resource authorization. It owns no DataSource, JPA repository, Flyway migration,
+provider adapter, BlobStore or canonical business authority.
 
 ## Enforcement
 
