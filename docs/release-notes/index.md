@@ -1,5 +1,11 @@
 # Release notes
 
+Historical notes describe their original candidates and may include superseded release
+boundaries. The current standalone product is governed by [#1470](https://github.com/masssi164/weave/issues/1470)
+and [the pinned release profile](../specification-source-of-truth.md). Provider migration
+belongs to [#1498](https://github.com/masssi164/weave/issues/1498). No historical note or draft
+replaces current exact-source product acceptance and post-merge evidence.
+
 Release notes are the durable, user/admin/operator-facing record of what changed. They complement PR descriptions and acceptance evidence; they do not replace tests or support-safe artifacts.
 
 ## Files
