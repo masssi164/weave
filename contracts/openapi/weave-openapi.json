@@ -5290,19 +5290,10 @@
           "matrixClientServerBaseUrl": {
             "format": "uri",
             "type": "string"
-          },
-          "matrixOAuthClientId": {
-            "type": "string"
-          },
-          "matrixOAuthIssuer": {
-            "format": "uri",
-            "type": "string"
           }
         },
         "required": [
-          "matrixClientServerBaseUrl",
-          "matrixOAuthClientId",
-          "matrixOAuthIssuer"
+          "matrixClientServerBaseUrl"
         ],
         "type": "object"
       },

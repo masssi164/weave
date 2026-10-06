@@ -78,8 +78,6 @@ void main() {
                 },
                 'protocols': {
                   'matrixClientServerBaseUrl': 'https://matrix.weave.test',
-                  'matrixOAuthIssuer': 'https://auth.weave.test/realms/weave',
-                  'matrixOAuthClientId': 'weave-matrix-app',
                 },
                 'releasePosture': 'dogfood',
                 'domains': [

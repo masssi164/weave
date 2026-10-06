@@ -70,20 +70,20 @@ class OpenApi31TypeProjectionTest(unittest.TestCase):
 
         assert_no_nullable(document)
 
-    def test_user_manifest_requires_separate_matrix_oauth_discovery_fields(self) -> None:
+    def test_user_manifest_advertises_only_the_credential_free_matrix_endpoint(self) -> None:
         schemas = json.loads(client.CONTRACT.read_text())["components"]["schemas"]
         manifest = schemas["PlatformConfigResponse"]
         self.assertTrue({"oidc", "protocols", "userApiBaseUrl"}.issubset(manifest["required"]))
         self.assertEqual(
-            {"matrixClientServerBaseUrl", "matrixOAuthIssuer", "matrixOAuthClientId"},
+            {"matrixClientServerBaseUrl"},
             set(schemas["Protocols"]["required"]),
         )
-        self.assertEqual(
-            "uri", schemas["Protocols"]["properties"]["matrixOAuthIssuer"]["format"]
-        )
+        self.assertEqual({"matrixClientServerBaseUrl"}, set(schemas["Protocols"]["properties"]))
+        self.assertEqual("uri", schemas["Protocols"]["properties"]["matrixClientServerBaseUrl"]["format"])
         generated = (client.OUTPUT / "model/protocols.dart").read_text()
-        for field in ("matrixClientServerBaseUrl", "matrixOAuthIssuer", "matrixOAuthClientId"):
-            self.assertIn(f"required this.{field}", generated)
+        self.assertIn("required this.matrixClientServerBaseUrl", generated)
+        self.assertNotIn("matrixOAuthIssuer", generated)
+        self.assertNotIn("matrixOAuthClientId", generated)
 
 
 class AdminFreshnessFailureContractTest(unittest.TestCase):

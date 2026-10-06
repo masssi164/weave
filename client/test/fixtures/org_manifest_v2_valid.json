@@ -7,9 +7,7 @@
     "clientId": "weave-app"
   },
   "protocols": {
-    "matrixClientServerBaseUrl": "https://api.weave.local",
-    "matrixOAuthIssuer": "https://auth.weave.local/realms/weave",
-    "matrixOAuthClientId": "weave-matrix-app"
+    "matrixClientServerBaseUrl": "https://api.weave.local"
   },
   "releasePosture": "development",
   "domains": [

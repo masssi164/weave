@@ -14,40 +14,28 @@ class Protocols {
   /// Returns a new [Protocols] instance.
   Protocols({
     required this.matrixClientServerBaseUrl,
-    required this.matrixOAuthClientId,
-    required this.matrixOAuthIssuer,
   });
 
   String matrixClientServerBaseUrl;
-
-  String matrixOAuthClientId;
-
-  String matrixOAuthIssuer;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is Protocols &&
-          other.matrixClientServerBaseUrl == matrixClientServerBaseUrl &&
-          other.matrixOAuthClientId == matrixOAuthClientId &&
-          other.matrixOAuthIssuer == matrixOAuthIssuer;
+          other.matrixClientServerBaseUrl == matrixClientServerBaseUrl;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (matrixClientServerBaseUrl.hashCode) +
-      (matrixOAuthClientId.hashCode) +
-      (matrixOAuthIssuer.hashCode);
+      (matrixClientServerBaseUrl.hashCode);
 
   @override
   String toString() =>
-      'Protocols[matrixClientServerBaseUrl=$matrixClientServerBaseUrl, matrixOAuthClientId=$matrixOAuthClientId, matrixOAuthIssuer=$matrixOAuthIssuer]';
+      'Protocols[matrixClientServerBaseUrl=$matrixClientServerBaseUrl]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'matrixClientServerBaseUrl'] = this.matrixClientServerBaseUrl;
-    json[r'matrixOAuthClientId'] = this.matrixOAuthClientId;
-    json[r'matrixOAuthIssuer'] = this.matrixOAuthIssuer;
     return json;
   }
 
@@ -74,9 +62,6 @@ class Protocols {
       return Protocols(
         matrixClientServerBaseUrl:
             mapValueOfType<String>(json, r'matrixClientServerBaseUrl')!,
-        matrixOAuthClientId:
-            mapValueOfType<String>(json, r'matrixOAuthClientId')!,
-        matrixOAuthIssuer: mapValueOfType<String>(json, r'matrixOAuthIssuer')!,
       );
     }
     return null;
@@ -134,7 +119,5 @@ class Protocols {
   /// The list of required keys that must be present in a JSON.
   static const requiredKeys = <String>{
     'matrixClientServerBaseUrl',
-    'matrixOAuthClientId',
-    'matrixOAuthIssuer',
   };
 }
