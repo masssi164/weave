@@ -113,7 +113,6 @@ public class CalendarUserApiService {
         String eventRef = "event:" + identity;
         EventId providerId = new EventId("weave-" + identity + "@calendar");
         CalendarEvent incoming = content(member, scope, providerId, request);
-        identity(member, bound, scope, providerId, eventRef);
         current(member, bound);
         audit(member, scope, eventRef, "create", "new");
         CalendarEvent result;
@@ -127,6 +126,9 @@ public class CalendarUserApiService {
         verifyEvent(member, scope, result, providerId);
         if (!CalendarUserModelMapper.content(incoming).equals(CalendarUserModelMapper.content(result))) throw unavailable();
         current(member, bound);
+        // The deterministic provider ID makes an uncertain write retryable. Publish its stable
+        // Weave mapping only after the provider confirms the exact requested event.
+        identity(member, bound, scope, providerId, eventRef);
         return project(member, bound, scope, eventRef, result);
     }
 
