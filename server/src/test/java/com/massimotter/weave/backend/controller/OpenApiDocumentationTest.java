@@ -234,6 +234,36 @@ class OpenApiDocumentationTest {
     }
 
     @Test
+    void securedPreviewAndBootstrapRoutesDocumentTheirActualErrorBoundaries() throws Exception {
+        mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/guest/access-contract'].get.responses['401'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/guest/access-contract'].get.responses['403'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/guest/invitations'].post.responses['401'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/guest/invitations'].post.responses['403'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"));
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/migration/dry-runs'].post.responses['401'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/migration/dry-runs'].post.responses['403'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/migration/apply-gates'].post.responses['401'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/migration/apply-gates'].post.responses['403'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['201'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/MemberInvitationResponse"))
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['401'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['503'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"));
+    }
+
+    @Test
     void separatesUserAndAdminOperations() throws Exception {
         MvcResult user = mockMvc.perform(get("/v3/api-docs/user"))
                 .andExpect(status().isOk())

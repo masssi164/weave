@@ -5409,7 +5409,27 @@
                 }
               }
             },
-            "description": "Created"
+            "description": "First owner invitation."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid owner-bootstrap credential."
+          },
+          "503": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner bootstrap is unavailable."
           }
         },
         "security": [
@@ -5445,7 +5465,27 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Provider migration apply-gate evaluation."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Admin token lacks organization or administration authority."
           }
         },
         "security": [
@@ -5481,7 +5521,27 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Replay-safe migration inventory dry-run."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Admin token lacks organization or administration authority."
           }
         },
         "security": [
