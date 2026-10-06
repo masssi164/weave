@@ -6,6 +6,7 @@ user_api.ApiClient weaveUserApiClient({
   required Uri apiBaseUrl,
   required String accessToken,
   required http.Client httpClient,
+  String accept = 'application/json',
 }) {
   if (apiBaseUrl.pathSegments
               .where((segment) => segment.isNotEmpty)
@@ -21,7 +22,9 @@ user_api.ApiClient weaveUserApiClient({
   }
   final authentication = user_api.HttpBearerAuth()..accessToken = accessToken;
   return user_api.ApiClient(
-    basePath: apiBaseUrl.origin,
-    authentication: authentication,
-  )..client = httpClient;
+      basePath: apiBaseUrl.origin,
+      authentication: authentication,
+    )
+    ..client = httpClient
+    ..addDefaultHeader('Accept', accept);
 }

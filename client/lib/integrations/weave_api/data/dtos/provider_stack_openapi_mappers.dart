@@ -1,5 +1,5 @@
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
-import 'package:weave/generated/openapi_models.dart' as openapi;
+import 'package:weave/generated/user_api/api.dart' as openapi;
 
 extension ProviderStatusOpenApiMapper on openapi.ProviderStatusResponse {
   ProviderStatusSnapshot toSnapshot() => ProviderStatusSnapshot(
@@ -14,8 +14,8 @@ extension ProviderStatusOpenApiMapper on openapi.ProviderStatusResponse {
     supportSafe: supportSafe == true,
     paidFeaturesRequired: paidFeaturesRequired == true,
     summary: _safeText(summary),
-    supportedCapabilities: _safeStringList(supportedCapabilities),
-    unsupportedOperations: _safeStringList(unsupportedOperations),
+    supportedCapabilities: _safeStringList(supportedCapabilities.toList()),
+    unsupportedOperations: _safeStringList(unsupportedOperations.toList()),
     supportSafeErrorCodes: _safeStringList(supportSafeErrorCodes),
     redactionPolicy: _safeText(redactionPolicy),
     candidates: _safeStringList(candidates),
@@ -282,6 +282,9 @@ OfficeLaunchSnapshot officeLaunchFailClosedSnapshot(
       fallback: _supportRef(fallbackRequestId),
     ),
   });
+  if (error == null) {
+    throw const FormatException();
+  }
   return OfficeLaunchSnapshot.failClosed(
     errorCode: _string(error.code, fallback: 'office-launch-fail-closed'),
     message: _safeText(error.message),
@@ -424,6 +427,7 @@ Object? _safeDiagnosticValue(Object? value) {
 }
 
 DateTime? _dateTime(Object? value) {
+  if (value is DateTime) return value;
   if (value is String && value.trim().isNotEmpty) {
     return DateTime.tryParse(value.trim());
   }

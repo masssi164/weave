@@ -6,65 +6,47 @@ import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/boards/data/dtos/boards_openapi_mappers.dart';
 import 'package:weave/features/boards/domain/entities/board_workspace.dart';
 import 'package:weave/features/boards/domain/repositories/boards_workspace_repository.dart';
-import 'package:weave/generated/openapi_models.dart' as openapi;
-import 'package:weave/integrations/weave_api/data/services/weave_api_uri_builder.dart';
+import 'package:weave/generated/user_api/api.dart' as user_api;
+import 'package:weave/integrations/weave_api/data/services/weave_user_api_client.dart';
 
 class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
   BackendBoardsWorkspaceRepository({
     required http.Client httpClient,
     required Uri apiBaseUrl,
     required String accessToken,
-  }) : _httpClient = httpClient,
-       _apiBaseUrl = apiBaseUrl,
-       _accessToken = accessToken;
+  }) : _api = user_api.BoardsWorkspaceApi(
+         weaveUserApiClient(
+           apiBaseUrl: apiBaseUrl,
+           accessToken: accessToken,
+           httpClient: httpClient,
+         ),
+       );
 
-  final http.Client _httpClient;
-  final Uri _apiBaseUrl;
-  final String _accessToken;
+  final user_api.BoardsWorkspaceApi _api;
 
   @override
   Future<BoardWorkspace> loadWorkspace() async {
-    late http.Response response;
     try {
-      response = await _httpClient
-          .get(
-            _boardsWorkspaceUri(),
-            headers: {
-              'Accept': 'application/json',
-              'Authorization': 'Bearer $_accessToken',
-            },
-          )
-          .timeout(const Duration(seconds: 5));
-    } catch (error) {
-      throw AppFailure.unknown(
-        'Unable to reach the Weave backend Boards workspace right now.',
-        cause: error,
+      final response = await _api.workspace().timeout(
+        const Duration(seconds: 5),
       );
-    }
-
-    if (response.statusCode != 200) {
-      if (response.statusCode == 503) {
-        return const BoardWorkspace.backendBlocked();
-      }
-      throw AppFailure.unknown(
-        'The Weave backend Boards workspace is not enabled right now.',
-        cause: response.statusCode,
-      );
-    }
-
-    try {
-      final decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) {
+      if (response == null) {
         throw const AppFailure.unknown(
           'The Weave backend returned an invalid Boards workspace payload.',
         );
       }
-      return openapi.BoardsWorkspaceResponse.fromJson(decoded).toDomain();
+      return response.toDomain();
+    } on user_api.ApiException catch (error) {
+      if (error.code == 503) return const BoardWorkspace.backendBlocked();
+      throw AppFailure.unknown(
+        'The Weave backend Boards workspace is not enabled right now.',
+        cause: error.code,
+      );
     } on AppFailure {
       rethrow;
     } catch (error) {
       throw AppFailure.unknown(
-        'Unable to decode Boards workspace data from the Weave backend.',
+        'Unable to reach or decode the Weave backend Boards workspace.',
         cause: error,
       );
     }
@@ -74,61 +56,70 @@ class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
     required String taskId,
     required String targetColumnId,
     required int targetPosition,
-  }) async {
-    final response = await _postJson(
-      _taskMoveUri(taskId),
-      body: {
-        'targetColumnId': targetColumnId,
-        'targetPosition': targetPosition,
-      },
-    );
-    _requireMutationSuccess(response);
-  }
+  }) => _mutate(
+    () => _api.moveTask(
+      taskId,
+      user_api.BoardsMoveTaskRequest(
+        targetColumnId: targetColumnId,
+        targetPosition: targetPosition,
+      ),
+    ),
+  );
 
-  Future<void> completeTask(String taskId) async {
-    final response = await _postJson(_taskCompleteUri(taskId));
-    _requireMutationSuccess(response);
-  }
+  Future<void> completeTask(String taskId) =>
+      _mutate(() => _api.completeTask(taskId));
 
   Future<void> updateTaskStatus({
     required String taskId,
     required String status,
     String? targetColumnId,
-  }) async {
-    final response = await _postJson(
-      _taskStatusUri(taskId),
-      body: {
-        'status': status,
-        if (targetColumnId != null) 'targetColumnId': targetColumnId,
-      },
-    );
-    _requireMutationSuccess(response);
-  }
+  }) => _mutate(
+    () => _api.updateTaskStatus(
+      taskId,
+      user_api.BoardsUpdateTaskStatusRequest(
+        status: status,
+        targetColumnId: targetColumnId,
+      ),
+    ),
+  );
 
   Future<void> linkDecision({
     required String taskId,
     required String decisionRef,
-  }) async {
-    final response = await _postJson(
-      _taskDecisionLinksUri(taskId),
-      body: {'decisionRef': decisionRef},
-    );
-    _requireMutationSuccess(response);
-  }
+  }) => _mutate(
+    () => _api.linkDecision(
+      taskId,
+      user_api.BoardsLinkDecisionRequest(decisionRef: decisionRef),
+    ),
+  );
 
-  Future<http.Response> _postJson(Uri uri, {Map<String, Object?>? body}) async {
+  Future<void> _mutate(Future<user_api.TaskItem?> Function() operation) async {
     try {
-      return await _httpClient
-          .post(
-            uri,
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $_accessToken',
-            },
-            body: body == null ? null : jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 5));
+      if (await operation().timeout(const Duration(seconds: 5)) == null) {
+        throw const AppFailure.unknown(
+          'The Weave backend returned no Boards task after the action.',
+        );
+      }
+    } on user_api.ApiException catch (error) {
+      final code = _errorCode(error.message);
+      if (error.code == 409 || code == 'boards-conflict') {
+        throw AppFailure.validation(
+          'Task changed somewhere else. Refresh the board and try the action again.',
+          cause: code ?? 'boards-conflict',
+        );
+      }
+      if (code == 'boards-unsupported_capability') {
+        throw AppFailure.validation(
+          'This board provider cannot apply that action yet. Use a supported move or ask an admin to check provider readiness.',
+          cause: code,
+        );
+      }
+      throw AppFailure.unknown(
+        'The Weave backend did not accept the Boards workspace task action.',
+        cause: error.code,
+      );
+    } on AppFailure {
+      rethrow;
     } catch (error) {
       throw AppFailure.unknown(
         'Unable to reach the Weave backend Boards workspace right now.',
@@ -137,33 +128,9 @@ class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
     }
   }
 
-  void _requireMutationSuccess(http.Response response) {
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return;
-    }
-
-    final code = _errorCode(response.body);
-    if (response.statusCode == 409 || code == 'boards-conflict') {
-      throw AppFailure.validation(
-        'Task changed somewhere else. Refresh the board and try the action again.',
-        cause: code ?? 'boards-conflict',
-      );
-    }
-    if (code == 'boards-unsupported_capability') {
-      throw AppFailure.validation(
-        'This board provider cannot apply that action yet. Use a supported move or ask an admin to check provider readiness.',
-        cause: code,
-      );
-    }
-    throw AppFailure.unknown(
-      'The Weave backend did not accept the Boards workspace task action.',
-      cause: response.statusCode,
-    );
-  }
-
-  String? _errorCode(String body) {
+  String? _errorCode(String? body) {
     try {
-      final decoded = jsonDecode(body);
+      final decoded = jsonDecode(body ?? '');
       return decoded is Map<String, dynamic>
           ? decoded['code'] as String?
           : null;
@@ -171,22 +138,4 @@ class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
       return null;
     }
   }
-
-  Uri _boardsWorkspaceUri() =>
-      weaveApiUri(_apiBaseUrl, const ['boards', 'workspace']);
-
-  Uri _taskMoveUri(String taskId) =>
-      _apiUri(['boards', 'tasks', taskId, 'move']);
-
-  Uri _taskCompleteUri(String taskId) =>
-      _apiUri(['boards', 'tasks', taskId, 'complete']);
-
-  Uri _taskStatusUri(String taskId) =>
-      _apiUri(['boards', 'tasks', taskId, 'status']);
-
-  Uri _taskDecisionLinksUri(String taskId) =>
-      _apiUri(['boards', 'tasks', taskId, 'decision-links']);
-
-  Uri _apiUri(List<String> tailSegments) =>
-      weaveApiUri(_apiBaseUrl, tailSegments);
 }

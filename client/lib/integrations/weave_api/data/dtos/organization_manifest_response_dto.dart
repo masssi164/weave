@@ -1,6 +1,6 @@
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
-import 'package:weave/generated/openapi_models.dart' as openapi;
+import 'package:weave/generated/user_api/api.dart' as openapi;
 import 'package:weave/integrations/weave_api/data/dtos/workspace_capabilities_response_dto.dart';
 
 extension OrganizationManifestResponseMapper
@@ -33,7 +33,7 @@ extension OrganizationManifestResponseMapper
       organizationId: _requiredText(organizationId, 'organizationId'),
       displayName: _requiredText(displayName, 'displayName'),
       organizationAuthUrl: authUrl,
-      generatedAt: _dateTime(generatedAt),
+      generatedAt: generatedAt,
       supportSafe: safe,
       providerConfigurationExposed: exposesProviders,
       diagnosticsExposed: exposesDiagnostics,
@@ -58,17 +58,12 @@ openapi.WorkspaceCapabilitiesResponse _requiredCapabilities(
 }
 
 Map<String, MemberCapabilityState> _memberCapabilityStates(
-  Map<String, Object?>? value,
+  Map<String, openapi.OrganizationManifestResponseMemberCapabilityStatesEnum>
+  value,
 ) {
-  final raw = value ?? const <String, Object?>{};
-  return raw.map((key, value) {
-    if (value is! String) {
-      throw const AppFailure.unknown(
-        'The backend returned an invalid member capability state.',
-      );
-    }
-    return MapEntry(key, _memberCapabilityState(value));
-  });
+  return value.map(
+    (key, value) => MapEntry(key, _memberCapabilityState(value.value)),
+  );
 }
 
 MemberCapabilityState _memberCapabilityState(String rawValue) {
@@ -86,9 +81,8 @@ MemberCapabilityState _memberCapabilityState(String rawValue) {
   };
 }
 
-List<String> _safeStringList(List<String>? value) {
-  return value?.map(_cleanText).toList(growable: false) ?? const <String>[];
-}
+List<String> _safeStringList(List<String> value) =>
+    value.map(_cleanText).toList(growable: false);
 
 String _safeText(String? value) => value is String ? _cleanText(value) : '';
 
@@ -105,11 +99,6 @@ String _requiredText(String? value, String field) {
 
 String _string(String? value, {required String fallback}) {
   return value != null && value.trim().isNotEmpty ? value.trim() : fallback;
-}
-
-DateTime? _dateTime(String? value) {
-  if (value == null) return null;
-  return DateTime.tryParse(value);
 }
 
 String _cleanText(String value) => value.replaceAll(RegExp(r'\s+'), ' ').trim();
