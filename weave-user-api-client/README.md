@@ -18,17 +18,17 @@ request bodies as file bytes instead of JSON-serializing a `File`. Both fail
 closed if the pinned generator output changes. A transport test checks the
 actual POST and PUT bytes on a local HTTP endpoint.
 
-The product JVM E2E uses generated `IdentityApi.me` and `FilesUserApi`
-operations. It independently checks identity claims and a native Files binary
-round trip, idempotent FileId, outsider denial and restart continuity. Raw
-malformed/security probes remain on the bounded test HTTP client.
+The MCP Files projection and product JVM E2E depend on this same generated User
+client. E2E uses generated Identity, identity-session reconciliation, platform
+configuration, Chat readiness, Files, Calendar, Workspace Home and profile
+operations, while independently asserting identity, access denial, private
+activity, idempotent Files references, binary content and restart behavior.
+Raw malformed/security probes remain on the bounded test HTTP client.
 
-This is a partial migration. The User artifact now has a bounded, owner-scoped
-Files list/inspect/upload/update/download slice. MCP still calls the legacy
-Weave Files WebDAV facade for `SEARCH` and `GET`, and the remaining Files
-operations and resource grants are not complete. Other product E2E flows still
-have handwritten normal User calls for profile
-readiness, Chat readiness, identity reconciliation, public platform config,
-profile read/update, and workspace Home. Its Admin, WebDAV/CalDAV, Matrix,
-OAuth, MCP protocol, and deliberately malformed/security traffic remains
-separate according to those protocol contracts and test roles.
+Migration of normal-purpose Weave HTTP traffic is still in progress. The
+remaining product E2E bootstrap/invitation and Admin mutation calls must move
+to their matching generated User or Admin operations. Matrix,
+OIDC/OAuth, MCP protocol, internal E2E proof and deliberate negative probes
+remain outside the Weave OpenAPI client because they follow their own protocol
+or test boundaries. Files operations and resource grants beyond the current
+generated slice require further server contract work.

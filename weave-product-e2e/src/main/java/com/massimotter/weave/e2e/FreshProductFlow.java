@@ -2,6 +2,9 @@ package com.massimotter.weave.e2e;
 
 import com.massimotter.weave.adminapi.model.ProviderSelectionRequest;
 import com.massimotter.weave.adminapi.model.ProviderSelectionResponse;
+import com.massimotter.weave.userapi.model.ChatReadiness;
+import com.massimotter.weave.userapi.model.IdentitySessionReconcileResponse;
+import com.massimotter.weave.userapi.model.ProfileReadinessResponse;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -541,15 +544,10 @@ public final class FreshProductFlow {
 
   private void proveMemberApi(String token) {
     new GeneratedWorkspaceJourney(environment).verifyHome(token);
-    JsonNode readiness =
-        http.json(
-            "read authenticated profile readiness",
-            "GET",
-            environment.api("/api/profile/readiness"),
-            bearer(token, Map.of()),
-            null,
-            Set.of(200));
-    if (!readiness.path("supportSafe").asBoolean(false)) {
+    ProfileReadinessResponse readiness =
+        new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
+            .profileReadiness(token);
+    if (!Boolean.TRUE.equals(readiness.getSupportSafe())) {
       throw new ProductFlowException("profile readiness was not support-safe");
     }
   }
@@ -626,20 +624,15 @@ public final class FreshProductFlow {
   private void awaitChatReadiness(String ownerToken) {
     Instant deadline = Instant.now().plus(environment.convergenceTimeout());
     String observedState = "unavailable";
+    GeneratedUserApi userApi = new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate());
     while (Instant.now().isBefore(deadline)) {
-      JsonNode readiness =
-          http.json(
-              "read Chat provider readiness",
-              "GET",
-              environment.api("/api/chat/readiness"),
-              bearer(ownerToken, Map.of()),
-              null,
-              Set.of(200));
-      observedState = readiness.path("memberState").asString();
-      if ("available".equals(observedState)
-          && "chat".equals(readiness.path("domain").asString())
-          && !readiness.path("failClosed").asBoolean(true)
-          && readiness.path("supportSafe").asBoolean(false)) {
+      ChatReadiness readiness = userApi.chatReadiness(ownerToken);
+      observedState = readiness.getMemberState() == null
+          ? "unavailable" : readiness.getMemberState().getValue();
+      if (readiness.getMemberState() == ChatReadiness.MemberStateEnum.AVAILABLE
+          && "chat".equals(readiness.getDomain())
+          && Boolean.FALSE.equals(readiness.getFailClosed())
+          && Boolean.TRUE.equals(readiness.getSupportSafe())) {
         return;
       }
       sleep();
@@ -654,17 +647,11 @@ public final class FreshProductFlow {
       String expectedRole,
       String email,
       String password) {
-    JsonNode response =
-        http.json(
-            "reconcile authenticated identity session",
-            "POST",
-            environment.api("/api/v1/identity/session/reconcile"),
-            bearer(session.accessToken(), Map.of()),
-            null,
-            Set.of(200));
-    if (!"access_updated".equals(response.path("state").asString())
-        || !response.path("reauthorizationRequired").asBoolean(false)
-        || response.has("sessionRefreshRequired")) {
+    IdentitySessionReconcileResponse response =
+        new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
+            .reconcileIdentitySession(session.accessToken());
+    if (response.getState() != IdentitySessionReconcileResponse.StateEnum.ACCESS_UPDATED
+        || !Boolean.TRUE.equals(response.getReauthorizationRequired())) {
       throw new ProductFlowException(
           "identity session did not apply the pending " + expectedRole + " intent");
     }
