@@ -108,6 +108,8 @@ public class ChatController {
     @GetMapping("/api/admin/chat/readiness")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
     @Operation(operationId = "getAdminChatReadiness", summary = "Get admin Chat readiness", description = "Returns support-safe Chat provider mapping and readiness diagnostics for admins/operators.")
+    @ApiResponse(responseCode = "200", description = "Support-safe Admin Chat readiness.",
+            content = @Content(schema = @Schema(implementation = ChatReadiness.class)))
     public ChatReadiness adminReadiness(@AuthenticationPrincipal Jwt jwt) {
         return chatDomainFacadeService.adminReadiness(jwt);
     }
@@ -115,6 +117,8 @@ public class ChatController {
     @PostMapping("/api/admin/chat/migration-preflights")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
     @Operation(operationId = "createChatMigrationPreflight", summary = "Dry-run a future Chat provider replacement", description = "Creates a support-safe, audited dry-run report for Chat provider replacement. Destructive apply is intentionally unavailable in this contract.")
+    @ApiResponse(responseCode = "200", description = "Support-safe Chat migration preflight report.",
+            content = @Content(schema = @Schema(implementation = ChatMigrationPreflightReport.class)))
     public ChatMigrationPreflightReport migrationPreflight(
             @RequestBody(required = false) ChatMigrationPreflightRequest request,
             @AuthenticationPrincipal Jwt jwt) {

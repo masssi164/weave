@@ -254,6 +254,10 @@ class ApiClient {
           return BoardsUpdateTaskStatusRequest.fromJson(value);
         case 'BoardsWorkspaceResponse':
           return BoardsWorkspaceResponse.fromJson(value);
+        case 'CalendarAccessModelResponse':
+          return CalendarAccessModelResponse.fromJson(value);
+        case 'CalendarAccessPolicyResponse':
+          return CalendarAccessPolicyResponse.fromJson(value);
         case 'CalendarEventAttendee':
           return CalendarEventAttendee.fromJson(value);
         case 'CalendarEventOverride':
@@ -280,6 +284,10 @@ class ApiClient {
           return CalendarUserOccurrence.fromJson(value);
         case 'CalendarUserScope':
           return CalendarUserScope.fromJson(value);
+        case 'CanonicalBridgeEventResponse':
+          return CanonicalBridgeEventResponse.fromJson(value);
+        case 'CapabilityResponse':
+          return CapabilityResponse.fromJson(value);
         case 'ChatHistoryPolicy':
           return ChatHistoryPolicy.fromJson(value);
         case 'ChatProviderMappingRecord':
@@ -294,10 +302,14 @@ class ApiClient {
           return ClientAccessProtocolSurfaceResponse.fromJson(value);
         case 'ConnectorBoundaryResponse':
           return ConnectorBoundaryResponse.fromJson(value);
+        case 'ConnectorBoundarySummaryResponse':
+          return ConnectorBoundarySummaryResponse.fromJson(value);
         case 'ConnectorManifestValidationRequest':
           return ConnectorManifestValidationRequest.fromJson(value);
         case 'ConnectorManifestValidationResponse':
           return ConnectorManifestValidationResponse.fromJson(value);
+        case 'ConsentCapabilityRegistryResponse':
+          return ConsentCapabilityRegistryResponse.fromJson(value);
         case 'DecisionLedgerCreateRequest':
           return DecisionLedgerCreateRequest.fromJson(value);
         case 'DecisionLedgerEvidencePostureResponse':
@@ -330,6 +342,8 @@ class ApiClient {
           return DomainCapability.fromJson(value);
         case 'E2eeStatus':
           return E2eeStatus.fromJson(value);
+        case 'ExternalConnectionResponse':
+          return ExternalConnectionResponse.fromJson(value);
         case 'FilesUserCreateFolderRequest':
           return FilesUserCreateFolderRequest.fromJson(value);
         case 'FilesUserItemResponse':
@@ -340,10 +354,14 @@ class ApiClient {
           return GuestAccessContractResponse.fromJson(value);
         case 'GuestInvitationRequest':
           return GuestInvitationRequest.fromJson(value);
+        case 'GuestInvitationResponse':
+          return GuestInvitationResponse.fromJson(value);
         case 'HealthResponse':
           return HealthResponse.fromJson(value);
         case 'IdentitySessionReconcileResponse':
           return IdentitySessionReconcileResponse.fromJson(value);
+        case 'InteropStatusResponse':
+          return InteropStatusResponse.fromJson(value);
         case 'LinkedSourceProjectResponse':
           return LinkedSourceProjectResponse.fromJson(value);
         case 'MatrixBackendBoundary':
@@ -394,12 +412,22 @@ class ApiClient {
           return RecoveryAction.fromJson(value);
         case 'SlackOAuthCallbackRequest':
           return SlackOAuthCallbackRequest.fromJson(value);
+        case 'SlackOAuthCallbackResponse':
+          return SlackOAuthCallbackResponse.fromJson(value);
         case 'SlackOutboundMessageRequest':
           return SlackOutboundMessageRequest.fromJson(value);
+        case 'SlackOutboundMessageResponse':
+          return SlackOutboundMessageResponse.fromJson(value);
+        case 'SlackStatusResponse':
+          return SlackStatusResponse.fromJson(value);
         case 'SourceRepositoryResponse':
           return SourceRepositoryResponse.fromJson(value);
+        case 'SupportBundlePolicyResponse':
+          return SupportBundlePolicyResponse.fromJson(value);
         case 'TaskItem':
           return TaskItem.fromJson(value);
+        case 'TeamsContractResponse':
+          return TeamsContractResponse.fromJson(value);
         case 'UpdateProductProfileRequest':
           return UpdateProductProfileRequest.fromJson(value);
         case 'WeaveProject':

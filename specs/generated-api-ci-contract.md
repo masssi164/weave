@@ -106,7 +106,14 @@ Files/Calendar User operations and their security, version and binary behavior
 remain in the generated contract. Historical credential issuance, revocation,
 permission and recovery tests remain available as service or opt-in compatibility
 tests; ordinary release tests assert that the retired setup routes cannot issue a
-credential. Matrix remains the explicit protocol exception and has its own
+credential. The active Calendar access-policy operation must expose its typed
+success response in the User artifact so generated consumers can read it. Every
+exported User/Admin operation that can succeed must declare a real 2xx response;
+non-204 success bodies must have a typed schema, including disabled-by-default
+preview operations that can be enabled. Describing a pre-existing Admin migration
+preflight accurately does not make provider adoption, cutover or rollback part of
+#1470 acceptance; #1498 owns those outcomes. Matrix
+remains the explicit protocol exception and has its own
 independent-client qualification gate.
 Member Home may project a completed User Files write from the support-safe audit
 envelope only for its actor while User Files objects have owner-only access. It must

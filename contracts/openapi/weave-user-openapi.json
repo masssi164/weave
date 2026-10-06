@@ -455,6 +455,71 @@
         },
         "type": "object"
       },
+      "CalendarAccessModelResponse": {
+        "description": "Explicit calendar ownership/access model for product and external-client setup flows.",
+        "properties": {
+          "externalClientCredentialModel": {
+            "description": "Credential model expected for external CalDAV clients.",
+            "type": "string"
+          },
+          "notes": {
+            "description": "Human-readable notes that keep the user/admin boundary honest.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "privateUserCalendarsAvailable": {
+            "description": "Whether private per-user calendars are available through the product facade.",
+            "example": false,
+            "type": "boolean"
+          },
+          "privateUserCalendarsReason": {
+            "description": "Support-safe reason private per-user calendars are unavailable or constrained.",
+            "type": "string"
+          },
+          "productScope": {
+            "description": "Product calendar scope served by the Weave CalDAV facade.",
+            "example": "workspace",
+            "type": "string"
+          },
+          "type": {
+            "description": "Stable access model identifier.",
+            "example": "workspace-calendar",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CalendarAccessPolicyResponse": {
+        "properties": {
+          "accessModel": {
+            "$ref": "#/components/schemas/CalendarAccessModelResponse"
+          },
+          "allowedScopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "backendActorMayReadPrivateUserCalendars": {
+            "type": "boolean"
+          },
+          "deniedScopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requiredBeforePrivateCalendars": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "CalendarEventAttendee": {
         "additionalProperties": false,
         "properties": {
@@ -996,6 +1061,53 @@
         ],
         "type": "object"
       },
+      "CanonicalBridgeEventResponse": {
+        "properties": {
+          "actorRef": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "dryRunOnly": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "roomRef": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "workspaceRef": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CapabilityResponse": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "requiresAdminConsent": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "ChatHistoryPolicy": {
         "properties": {
           "exportAllowed": {
@@ -1253,6 +1365,23 @@
         },
         "type": "object"
       },
+      "ConnectorBoundarySummaryResponse": {
+        "properties": {
+          "publicSdkAvailable": {
+            "type": "boolean"
+          },
+          "rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "runtimeBoundary": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ConnectorManifestValidationRequest": {
         "properties": {
           "capabilities": {
@@ -1339,6 +1468,17 @@
           "warnings": {
             "items": {
               "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ConsentCapabilityRegistryResponse": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/CapabilityResponse"
             },
             "type": "array"
           }
@@ -1900,6 +2040,38 @@
         },
         "type": "object"
       },
+      "ExternalConnectionResponse": {
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "credentialState": {
+            "type": "string"
+          },
+          "mappingState": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "readiness": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "FilesUserCreateFolderRequest": {
         "properties": {
           "name": {
@@ -2067,6 +2239,32 @@
         ],
         "type": "object"
       },
+      "GuestInvitationResponse": {
+        "properties": {
+          "explicitPolicyRequired": {
+            "type": "boolean"
+          },
+          "grantedCapabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "guestId": {
+            "type": "string"
+          },
+          "identityType": {
+            "type": "string"
+          },
+          "internalUserMerged": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "HealthResponse": {
         "properties": {
           "actions": {
@@ -2112,6 +2310,51 @@
           "reauthorizationRequired",
           "state"
         ],
+        "type": "object"
+      },
+      "InteropStatusResponse": {
+        "description": "Disabled-by-default interop gateway status and support-safe contract.",
+        "properties": {
+          "auditEventTypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalConnectionResponse"
+            },
+            "type": "array"
+          },
+          "connectorBoundary": {
+            "$ref": "#/components/schemas/ConnectorBoundarySummaryResponse"
+          },
+          "consentRegistry": {
+            "$ref": "#/components/schemas/ConsentCapabilityRegistryResponse"
+          },
+          "degradedStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "rateLimitStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "readiness": {
+            "type": "string"
+          },
+          "supportBundle": {
+            "$ref": "#/components/schemas/SupportBundlePolicyResponse"
+          }
+        },
         "type": "object"
       },
       "LinkedSourceProjectResponse": {
@@ -2992,6 +3235,23 @@
         },
         "type": "object"
       },
+      "SlackOAuthCallbackResponse": {
+        "properties": {
+          "credentialStored": {
+            "type": "boolean"
+          },
+          "installed": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SlackOutboundMessageRequest": {
         "properties": {
           "eventId": {
@@ -3016,6 +3276,77 @@
         ],
         "type": "object"
       },
+      "SlackOutboundMessageResponse": {
+        "properties": {
+          "channelRef": {
+            "type": "string"
+          },
+          "deliveryStatus": {
+            "type": "string"
+          },
+          "dryRunOnly": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "productionCallAttempted": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "workspaceRef": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SlackStatusResponse": {
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "channelMappingConfigured": {
+            "type": "boolean"
+          },
+          "degradedStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "oauthConfigured": {
+            "type": "boolean"
+          },
+          "productionCallsAllowed": {
+            "type": "boolean"
+          },
+          "readiness": {
+            "type": "string"
+          },
+          "signingConfigured": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tokenReferenceConfigured": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "SourceRepositoryResponse": {
         "properties": {
           "archived": {
@@ -3034,6 +3365,23 @@
             "type": "string"
           },
           "providerKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SupportBundlePolicyResponse": {
+        "properties": {
+          "providerSecretsRedacted": {
+            "type": "boolean"
+          },
+          "redactedFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "redactionMode": {
             "type": "string"
           }
         },
@@ -3116,6 +3464,32 @@
           },
           "updatedAt": {
             "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TeamsContractResponse": {
+        "properties": {
+          "degradedStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "gatedBehindSlackHardening": {
+            "type": "boolean"
+          },
+          "requiredBeforeImplementation": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "status": {
             "type": "string"
           }
         },
@@ -3943,6 +4317,16 @@
       "get": {
         "operationId": "accessPolicy",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarAccessPolicyResponse"
+                }
+              }
+            },
+            "description": "Effective private Calendar access policy."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -6163,6 +6547,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestInvitationResponse"
+                }
+              }
+            },
+            "description": "Created guest invitation."
+          },
           "503": {
             "content": {
               "*/*": {
@@ -6257,6 +6651,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanonicalBridgeEventResponse"
+                }
+              }
+            },
+            "description": "Canonical sandbox bridge event."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -6313,6 +6717,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackOutboundMessageResponse"
+                }
+              }
+            },
+            "description": "Sandbox outbound bridge result."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -6369,6 +6783,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackOAuthCallbackResponse"
+                }
+              }
+            },
+            "description": "Disabled token-exchange callback result."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -6415,6 +6839,16 @@
       "get": {
         "operationId": "slackStatus",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackStatusResponse"
+                }
+              }
+            },
+            "description": "Slack bridge readiness."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -6451,6 +6885,16 @@
       "get": {
         "operationId": "getInteropStatus",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/InteropStatusResponse"
+                }
+              }
+            },
+            "description": "Support-safe interop gateway status."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -6487,6 +6931,16 @@
       "get": {
         "operationId": "teamsContract",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamsContractResponse"
+                }
+              }
+            },
+            "description": "Gated Teams bridge contract."
+          },
           "401": {
             "content": {
               "*/*": {

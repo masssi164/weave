@@ -44,6 +44,8 @@ public class CalendarController {
 
     @GetMapping("/api/calendar/access-policy")
     @Operation(operationId = "accessPolicy", summary = "Describe fail-closed private calendar access policy")
+    @ApiResponse(responseCode = "200", description = "Effective private Calendar access policy.",
+            content = @Content(schema = @Schema(implementation = CalendarAccessPolicyResponse.class)))
     public CalendarAccessPolicyResponse accessPolicy() {
         return calendarFacadeService.accessPolicy();
     }

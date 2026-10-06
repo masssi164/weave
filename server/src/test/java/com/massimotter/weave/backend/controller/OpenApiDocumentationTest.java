@@ -172,7 +172,11 @@ class OpenApiDocumentationTest {
                     if (!httpMethods.contains(method.getKey())) {
                         continue;
                     }
+                    boolean hasSuccess = false;
                     for (var response : method.getValue().path("responses").properties()) {
+                        if (response.getKey().matches("2\\d\\d")) {
+                            hasSuccess = true;
+                        }
                         if (response.getKey().matches("2\\d\\d") && !"204".equals(response.getKey())) {
                             assertTrue(response.getValue().has("content")
                                             && response.getValue().path("content").size() > 0,
@@ -180,6 +184,8 @@ class OpenApiDocumentationTest {
                                             + " exported an untyped success response " + response.getKey());
                         }
                     }
+                    assertTrue(hasSuccess, group + " " + method.getKey() + " " + path.getKey()
+                            + " omitted its success response");
                 }
             }
         }
@@ -340,6 +346,8 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/calendar/client-setup']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/native-sync-setup']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/access-policy']").exists())
+                .andExpect(jsonPath("$.paths['/api/calendar/access-policy'].get.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/CalendarAccessPolicyResponse"))
                 .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials/{credentialId}']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/client-setup/apple.mobileconfig']").doesNotExist())
