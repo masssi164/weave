@@ -250,11 +250,11 @@ public class OrganizationManifestService {
                         surface("openapi", "Weave Chat control and context API", "/api/chat", "control_plane_available",
                                 "Generated User operations expose Chat readiness and context; Matrix Client-Server is the separate conversation protocol."),
                         surface("standard-protocol", "Weave Matrix Client-Server projection", "/_matrix/client", "compatibility_guarded",
-                                "The versioned Matrix support profile defines the bounded surface. OAuth metadata, independent-client interoperability and E2EE remain guarded until demonstrated; federation is disabled by default.")),
+                                "The versioned Matrix support profile defines the bounded surface. Weave-owned client interoperability and policy-governed E2EE remain guarded until demonstrated; federation is disabled by default.")),
                 credentialLifecycle(
-                        "matrix_oauth_session_guarded",
+                        "member_oidc_session_guarded",
                         List.of("/api/chat/readiness"),
-                        List.of("registered Matrix OAuth client and device scopes", "independent-client interoperability")),
+                        List.of("Weave-owned Matrix client compatibility", "policy-governed E2EE qualification")),
                 true,
                 false);
     }
