@@ -552,7 +552,8 @@ public class FilesUserApiService {
         }
         mutation = intents.dispatch(mutation);
         try {
-            FileObject updated = provider.writeIfVersion(
+            FileObject updated = provider.writeIfIdAndVersion(
+                    observed.item().id(),
                     new FileWrite(new FilePath(resource.path()), bytes, nextMediaType), observed.version());
             if (!updated.id().equals(observed.item().id()) || !updated.path().equals(observed.item().path())) {
                 throw new IllegalStateException("provider changed Files identity during content update");

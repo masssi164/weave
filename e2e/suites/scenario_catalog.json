@@ -4543,7 +4543,7 @@
       "testLevel": "live-e2e",
       "assertionFocus": [
         "weave-native provider selection",
-        "Matrix WebDAV and CalDAV northbound facades",
+        "Matrix northbound and generated Files and Calendar User APIs",
         "PostgreSQL and backend restart continuity",
         "no external provider runtime dependency"
       ]

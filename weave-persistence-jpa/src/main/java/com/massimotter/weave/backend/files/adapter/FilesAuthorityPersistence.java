@@ -222,6 +222,10 @@ class CanonicalFileId implements Serializable {
 interface FileObjectJpaRepository
         extends JpaRepository<FileObjectJpaEntity, CanonicalFileId> {
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select file from FileObjectJpaEntity file where file.id = :id")
+    Optional<FileObjectJpaEntity> lockById(@Param("id") CanonicalFileId id);
+
     Optional<FileObjectJpaEntity>
             findByIdOrganizationRefAndIdSpaceRefAndActivePathKey(
                     String organizationRef,

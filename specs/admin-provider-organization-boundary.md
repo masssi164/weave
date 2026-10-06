@@ -104,8 +104,11 @@ organization. This fix preserves existing data and does not implement provider m
   to retrying the affected capability or contacting the organization administrator.
 - Home response version 3 represents an unmeasured section `itemCount` as nullable
   integer, never a synthetic zero or one derived from capability availability.
-  Existing section keys and navigation references remain stable. Activity records
-  are still filtered by current Context/Space authorization; they do not imply a
+  Existing section keys and navigation references remain stable. Shared activity
+  records remain filtered by current Context/Space authorization. Completed User
+  Files writes remain visible only to the actor while those Files are owner-only;
+  Context/Space VIEW alone does not grant visibility into another member's File.
+  Activity records do not imply a
   measured count for unrelated sections.
 - Focused HTTP evidence must cover Admin owner/admin success, User-session admin,
   member, workload, anonymous and foreign/malformed organization denial; absence of

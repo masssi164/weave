@@ -429,10 +429,12 @@ def build_live(
         "chat": "weave-native", "files": "weave-native", "calendar": "weave-native"
     }:
         raise EvidenceError("default collaboration providers must all be weave-native")
-    if collaboration.get("northboundFacades") != {
-        "matrix": True, "webdav": True, "caldav": True
+    if collaboration.get("northboundContracts") != {
+        "matrix": "matrix-client-server",
+        "files": "weave-user-api",
+        "calendar": "weave-user-api",
     }:
-        raise EvidenceError("native collaboration must prove all northbound facades")
+        raise EvidenceError("native collaboration must prove current northbound contracts")
     if collaboration.get("southboundProviderDependencyObserved") is not False:
         raise EvidenceError("native collaboration observed a southbound provider dependency")
     hashes = collaboration.get("identityRefHashes")

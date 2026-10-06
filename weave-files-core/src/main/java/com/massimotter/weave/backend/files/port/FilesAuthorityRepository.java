@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.files.port;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +23,12 @@ public interface FilesAuthorityRepository {
      */
     default StoredFileRecord activate(StoredFileRecord record) {
         return save(record);
+    }
+
+    /** Replace only the same active object, path and strong version in one metadata transaction. */
+    default StoredFileRecord activateIfIdAndVersion(
+            StoredFileRecord replacement, FileId expectedId, FileVersion expectedVersion) {
+        throw new UnsupportedOperationException("identity-bound Files activation is unsupported");
     }
 
     Optional<StoredFileRecord> findByPath(

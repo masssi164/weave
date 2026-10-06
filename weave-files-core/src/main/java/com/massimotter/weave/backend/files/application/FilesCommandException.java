@@ -20,6 +20,7 @@ public final class FilesCommandException extends RuntimeException {
         PATH_CONFLICT,
         PARENT_MISSING,
         PARENT_NOT_COLLECTION,
-        METADATA_CONFLICT
+        METADATA_CONFLICT,
+        VERSION_CHANGED
     }
 }

@@ -123,6 +123,7 @@
   "homeRecentActivityCurrentMemberFilesCompleted": "Du hast eine Dateiänderung abgeschlossen",
   "homeRecentActivityOtherMemberFilesCompleted": "Ein Workspace-Mitglied hat eine Dateiänderung abgeschlossen",
   "homeRecentActivityWorkspaceVisibility": "Geteilte Workspace-Aktivität",
+  "homeRecentActivityPrivateVisibility": "Private Aktivität",
   "homeRecentActivityItemSemantic": "{activity}. {visibility}. {recency}.",
   "shellRecentActivityNow": "jetzt",
   "shellRecentActivityMinutesAgo": "vor {minutes} Min.",

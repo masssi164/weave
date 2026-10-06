@@ -110,9 +110,9 @@ void main() {
             activityRef:
                 'activity:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
             domain: WorkspaceHomeActivityDomain.files,
-            action: WorkspaceHomeActivityAction.filesWebDavWriteCompleted,
+            action: WorkspaceHomeActivityAction.filesUserWriteCompleted,
             occurredAt: now.toUtc(),
-            visibility: WorkspaceHomeActivityVisibility.workspace,
+            visibility: WorkspaceHomeActivityVisibility.private,
             actorRefHash:
                 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
             actorIsCurrentUser: true,
@@ -155,6 +155,12 @@ void main() {
       expect(find.text('Continue'), findsOneWidget);
       expect(find.text('Planning sync'), findsOneWidget);
       expect(find.text('You completed a Files change'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          RegExp('You completed a Files change.*Private activity'),
+        ),
+        findsOneWidget,
+      );
       expect(
         find.text('A workspace member completed a Files change'),
         findsOneWidget,

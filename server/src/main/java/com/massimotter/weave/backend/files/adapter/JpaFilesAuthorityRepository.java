@@ -6,6 +6,7 @@ import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.ConcurrentMutationException;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.LockConflictException;
@@ -57,6 +58,37 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
                  | OptimisticLockingFailureException
                  | ConstraintViolationException concurrentMutation) {
             throw concurrent(requested.metadata().object().path(), concurrentMutation);
+        }
+    }
+
+    @Override
+    @Transactional
+    public StoredFileRecord activateIfIdAndVersion(
+            StoredFileRecord replacement, FileId expectedId, FileVersion expectedVersion) {
+        StoredFileRecord requested = requireNonNull(replacement, "replacement");
+        FilePath path = requested.metadata().object().path();
+        if (!requested.metadata().object().id().equals(requireNonNull(expectedId, "expectedId"))) {
+            throw concurrent(path, null);
+        }
+        try {
+            FileObjectJpaEntity entity = files.lockById(CanonicalFileId.from(requested))
+                    .orElseThrow(() -> concurrent(path, null));
+            StoredFileRecord current = entity.toStoredRecord();
+            if (current.metadata().lifecycle() != Lifecycle.ACTIVE
+                    || !current.metadata().object().path().equals(path)
+                    || !current.metadata().version().equals(requireNonNull(expectedVersion, "expectedVersion"))
+                    || current.metadata().providerBindingRevision()
+                            != requested.metadata().providerBindingRevision()) {
+                throw concurrent(path, null);
+            }
+            entity.observe(requested);
+            return files.saveAndFlush(entity).toStoredRecord();
+        } catch (DataIntegrityViolationException
+                 | OptimisticLockingFailureException
+                 | OptimisticLockException
+                 | ConstraintViolationException
+                 | StaleStateException concurrentMutation) {
+            throw concurrent(path, concurrentMutation);
         }
     }
 

@@ -517,6 +517,16 @@ void main() {
         _workspaceHomeActivityJson(action: 'files.unknown.completed'),
         _workspaceHomeActivityJson(domain: 'provider-files'),
         _workspaceHomeActivityJson(visibility: 'context:private-id'),
+        _workspaceHomeActivityJson(
+          action: 'files.user_write.completed',
+          visibility: 'private',
+          actorIsCurrentUser: false,
+        ),
+        _workspaceHomeActivityJson(
+          action: 'files.user_write.completed',
+          visibility: 'workspace',
+          actorIsCurrentUser: true,
+        ),
         _workspaceHomeActivityJson(occurredAt: '2026-07-12T10:00:00'),
         _workspaceHomeActivityJson(occurredAt: '2026-07-12'),
         _workspaceHomeActivityJson(supportSafe: false),
@@ -546,6 +556,45 @@ void main() {
         );
       }
     });
+
+    test(
+      'projects completed private User Files activity for its actor',
+      () async {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            return _jsonResponse({
+              'version': 3,
+              'readiness': 'ready',
+              'summary': 'Weave Home is ready.',
+              'supportSafe': true,
+              'sections': [],
+              'actions': [],
+              'recentActivity': [
+                _workspaceHomeActivityJson(
+                  action: 'files.user_write.completed',
+                  visibility: 'private',
+                  actorIsCurrentUser: true,
+                ),
+              ],
+            });
+          }),
+        );
+
+        final home = await client.fetchWorkspaceHome(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accessToken: 'token-123',
+        );
+
+        expect(
+          home.recentActivity.single.action,
+          WorkspaceHomeActivityAction.filesUserWriteCompleted,
+        );
+        expect(
+          home.recentActivity.single.visibility,
+          WorkspaceHomeActivityVisibility.private,
+        );
+      },
+    );
 
     test('rejects duplicate Weave Home activity references', () async {
       final activity = _workspaceHomeActivityJson();

@@ -124,6 +124,8 @@ class _ActivityTile extends StatelessWidget {
     final visibility = switch (activity.visibility) {
       WorkspaceHomeActivityVisibility.workspace =>
         l10n.homeRecentActivityWorkspaceVisibility,
+      WorkspaceHomeActivityVisibility.private =>
+        l10n.homeRecentActivityPrivateVisibility,
     };
     final recency = _formatRecency(context, activity.occurredAt);
 
@@ -169,6 +171,11 @@ class _ActivityTile extends StatelessWidget {
         activity.actorIsCurrentUser
             ? l10n.homeRecentActivityCurrentMemberFilesCompleted
             : l10n.homeRecentActivityOtherMemberFilesCompleted,
+      (
+        WorkspaceHomeActivityDomain.files,
+        WorkspaceHomeActivityAction.filesUserWriteCompleted,
+      ) =>
+        l10n.homeRecentActivityCurrentMemberFilesCompleted,
     };
   }
 }
