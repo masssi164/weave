@@ -31,4 +31,5 @@ Feature: Target standard facade hard gate
     Then Flutter uses its native Rust/Matrix SDK against the Weave facade without a proprietary REST message data plane
     And the server Matrix projection supports whoami, sync, joined rooms, room messages, and send through the canonical Chat facade without provider payloads
     And obsolete Chat REST conversation and message routes remain absent from OpenAPI and runtime routing
-    And the versioned support profile guards every capability until separate Matrix OAuth and independent-client evidence qualifies it
+    And the versioned support profile guards every capability until protocol and real Weave-owned client evidence qualifies it
+    And independent third-party Matrix-client OAuth and interoperability remain deferred
