@@ -163,6 +163,48 @@ class JpaFilesAuthorityRepositoryPostgresTest {
     }
 
     @Test
+    void conditionalActivationRequiresTheSameIdentityPathVersionAndProviderBinding() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaTestDatabase.initializeSchema(dataSource);
+        var repository = repository(dataSource);
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        String organization = "org:conditional:" + suffix;
+        String space = "space:home";
+        FileId id = new FileId("file:conditional:" + suffix);
+        FilePath path = new FilePath("/Conditional/" + suffix + ".txt");
+        Instant now = Instant.parse("2026-08-19T03:00:00Z");
+        StoredFileRecord original = activeFile(organization, space, id, path, "a", now);
+        StoredFileRecord replacement = activeFile(organization, space, id, path, "b", now.plusSeconds(1));
+        repository.activate(original);
+
+        assertThat(repository.activateIfIdAndVersion(replacement, id, original.metadata().version()))
+                .isEqualTo(replacement);
+        assertThatThrownBy(() -> repository.activateIfIdAndVersion(
+                original, id, original.metadata().version()))
+                .isInstanceOf(ConcurrentMutationException.class);
+        assertThatThrownBy(() -> repository.activateIfIdAndVersion(
+                original, new FileId("file:other:" + suffix), replacement.metadata().version()))
+                .isInstanceOf(ConcurrentMutationException.class);
+
+        StoredFileRecord differentPath = activeFile(organization, space, id,
+                new FilePath("/Conditional/moved-" + suffix + ".txt"), "c", now.plusSeconds(2));
+        assertThatThrownBy(() -> repository.activateIfIdAndVersion(
+                differentPath, id, replacement.metadata().version()))
+                .isInstanceOf(ConcurrentMutationException.class);
+
+        StoredFileRecord differentBinding = new StoredFileRecord(new CanonicalFileRecord(
+                organization, space, replacement.metadata().object(), replacement.metadata().version(),
+                replacement.metadata().contentDigest(), 2, Lifecycle.ACTIVE, now.plusSeconds(2)),
+                replacement.blobBinding());
+        assertThatThrownBy(() -> repository.activateIfIdAndVersion(
+                differentBinding, id, replacement.metadata().version()))
+                .isInstanceOf(ConcurrentMutationException.class);
+
+        assertThat(repository(dataSource).findById(organization, space, id).orElseThrow())
+                .isEqualTo(replacement);
+    }
+
+    @Test
     void replaceTreePersistsPrivateBindingsAndRollsBackMetadataWithBindingOnConflict() {
         DriverManagerDataSource dataSource = dataSource();
         JpaTestDatabase.initializeSchema(dataSource);

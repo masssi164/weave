@@ -10,125 +10,120 @@
 
 part of weave_user_api;
 
-class CalendarClientSetupOptionResponse {
-  /// Returns a new [CalendarClientSetupOptionResponse] instance.
-  CalendarClientSetupOptionResponse({
-    this.actionUrl,
-    this.available,
-    this.method,
-    this.notes = const [],
-    this.platform,
-    this.unavailableReason,
+class GuestInvitationResponse {
+  /// Returns a new [GuestInvitationResponse] instance.
+  GuestInvitationResponse({
+    this.explicitPolicyRequired,
+    this.grantedCapabilities = const [],
+    this.guestId,
+    this.identityType,
+    this.internalUserMerged,
+    this.state,
   });
 
-  /// Optional action URL for supported external clients. Contains no credential.
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  String? actionUrl;
+  bool? explicitPolicyRequired;
 
-  /// Whether this setup method is currently safe for feature-gated use.
+  List<String> grantedCapabilities;
+
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  bool? available;
+  String? guestId;
 
-  /// Setup mechanism.
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  String? method;
+  String? identityType;
 
-  /// Human-readable setup notes for the authenticated user.
-  List<String> notes;
-
-  /// Stable platform identifier.
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  String? platform;
+  bool? internalUserMerged;
 
-  /// Support-safe reason when the option is not available yet.
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  String? unavailableReason;
+  String? state;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is CalendarClientSetupOptionResponse &&
-          other.actionUrl == actionUrl &&
-          other.available == available &&
-          other.method == method &&
-          _deepEquality.equals(other.notes, notes) &&
-          other.platform == platform &&
-          other.unavailableReason == unavailableReason;
+      other is GuestInvitationResponse &&
+          other.explicitPolicyRequired == explicitPolicyRequired &&
+          _deepEquality.equals(
+              other.grantedCapabilities, grantedCapabilities) &&
+          other.guestId == guestId &&
+          other.identityType == identityType &&
+          other.internalUserMerged == internalUserMerged &&
+          other.state == state;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (actionUrl == null ? 0 : actionUrl!.hashCode) +
-      (available == null ? 0 : available!.hashCode) +
-      (method == null ? 0 : method!.hashCode) +
-      (notes.hashCode) +
-      (platform == null ? 0 : platform!.hashCode) +
-      (unavailableReason == null ? 0 : unavailableReason!.hashCode);
+      (explicitPolicyRequired == null ? 0 : explicitPolicyRequired!.hashCode) +
+      (grantedCapabilities.hashCode) +
+      (guestId == null ? 0 : guestId!.hashCode) +
+      (identityType == null ? 0 : identityType!.hashCode) +
+      (internalUserMerged == null ? 0 : internalUserMerged!.hashCode) +
+      (state == null ? 0 : state!.hashCode);
 
   @override
   String toString() =>
-      'CalendarClientSetupOptionResponse[actionUrl=$actionUrl, available=$available, method=$method, notes=$notes, platform=$platform, unavailableReason=$unavailableReason]';
+      'GuestInvitationResponse[explicitPolicyRequired=$explicitPolicyRequired, grantedCapabilities=$grantedCapabilities, guestId=$guestId, identityType=$identityType, internalUserMerged=$internalUserMerged, state=$state]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    if (this.actionUrl != null) {
-      json[r'actionUrl'] = this.actionUrl;
+    if (this.explicitPolicyRequired != null) {
+      json[r'explicitPolicyRequired'] = this.explicitPolicyRequired;
     } else {
-      json[r'actionUrl'] = null;
+      json[r'explicitPolicyRequired'] = null;
     }
-    if (this.available != null) {
-      json[r'available'] = this.available;
+    json[r'grantedCapabilities'] = this.grantedCapabilities;
+    if (this.guestId != null) {
+      json[r'guestId'] = this.guestId;
     } else {
-      json[r'available'] = null;
+      json[r'guestId'] = null;
     }
-    if (this.method != null) {
-      json[r'method'] = this.method;
+    if (this.identityType != null) {
+      json[r'identityType'] = this.identityType;
     } else {
-      json[r'method'] = null;
+      json[r'identityType'] = null;
     }
-    json[r'notes'] = this.notes;
-    if (this.platform != null) {
-      json[r'platform'] = this.platform;
+    if (this.internalUserMerged != null) {
+      json[r'internalUserMerged'] = this.internalUserMerged;
     } else {
-      json[r'platform'] = null;
+      json[r'internalUserMerged'] = null;
     }
-    if (this.unavailableReason != null) {
-      json[r'unavailableReason'] = this.unavailableReason;
+    if (this.state != null) {
+      json[r'state'] = this.state;
     } else {
-      json[r'unavailableReason'] = null;
+      json[r'state'] = null;
     }
     return json;
   }
 
-  /// Returns a new [CalendarClientSetupOptionResponse] instance and imports its values from
+  /// Returns a new [GuestInvitationResponse] instance and imports its values from
   /// [value] if it's a [Map], null otherwise.
   // ignore: prefer_constructors_over_static_methods
-  static CalendarClientSetupOptionResponse? fromJson(dynamic value) {
+  static GuestInvitationResponse? fromJson(dynamic value) {
     if (value is Map) {
       final json = value.cast<String, dynamic>();
 
@@ -138,37 +133,38 @@ class CalendarClientSetupOptionResponse {
       assert(() {
         requiredKeys.forEach((key) {
           assert(json.containsKey(key),
-              'Required key "CalendarClientSetupOptionResponse[$key]" is missing from JSON.');
+              'Required key "GuestInvitationResponse[$key]" is missing from JSON.');
           assert(json[key] != null,
-              'Required key "CalendarClientSetupOptionResponse[$key]" has a null value in JSON.');
+              'Required key "GuestInvitationResponse[$key]" has a null value in JSON.');
         });
         return true;
       }());
 
-      return CalendarClientSetupOptionResponse(
-        actionUrl: mapValueOfType<String>(json, r'actionUrl'),
-        available: mapValueOfType<bool>(json, r'available'),
-        method: mapValueOfType<String>(json, r'method'),
-        notes: json[r'notes'] is Iterable
-            ? (json[r'notes'] as Iterable)
+      return GuestInvitationResponse(
+        explicitPolicyRequired:
+            mapValueOfType<bool>(json, r'explicitPolicyRequired'),
+        grantedCapabilities: json[r'grantedCapabilities'] is Iterable
+            ? (json[r'grantedCapabilities'] as Iterable)
                 .cast<String>()
                 .toList(growable: false)
             : const [],
-        platform: mapValueOfType<String>(json, r'platform'),
-        unavailableReason: mapValueOfType<String>(json, r'unavailableReason'),
+        guestId: mapValueOfType<String>(json, r'guestId'),
+        identityType: mapValueOfType<String>(json, r'identityType'),
+        internalUserMerged: mapValueOfType<bool>(json, r'internalUserMerged'),
+        state: mapValueOfType<String>(json, r'state'),
       );
     }
     return null;
   }
 
-  static List<CalendarClientSetupOptionResponse> listFromJson(
+  static List<GuestInvitationResponse> listFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final result = <CalendarClientSetupOptionResponse>[];
+    final result = <GuestInvitationResponse>[];
     if (json is List && json.isNotEmpty) {
       for (final row in json) {
-        final value = CalendarClientSetupOptionResponse.fromJson(row);
+        final value = GuestInvitationResponse.fromJson(row);
         if (value != null) {
           result.add(value);
         }
@@ -177,13 +173,12 @@ class CalendarClientSetupOptionResponse {
     return result.toList(growable: growable);
   }
 
-  static Map<String, CalendarClientSetupOptionResponse> mapFromJson(
-      dynamic json) {
-    final map = <String, CalendarClientSetupOptionResponse>{};
+  static Map<String, GuestInvitationResponse> mapFromJson(dynamic json) {
+    final map = <String, GuestInvitationResponse>{};
     if (json is Map && json.isNotEmpty) {
       json = json.cast<String, dynamic>(); // ignore: parameter_assignments
       for (final entry in json.entries) {
-        final value = CalendarClientSetupOptionResponse.fromJson(entry.value);
+        final value = GuestInvitationResponse.fromJson(entry.value);
         if (value != null) {
           map[entry.key] = value;
         }
@@ -192,17 +187,17 @@ class CalendarClientSetupOptionResponse {
     return map;
   }
 
-  // maps a json object with a list of CalendarClientSetupOptionResponse-objects as value to a dart map
-  static Map<String, List<CalendarClientSetupOptionResponse>> mapListFromJson(
+  // maps a json object with a list of GuestInvitationResponse-objects as value to a dart map
+  static Map<String, List<GuestInvitationResponse>> mapListFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final map = <String, List<CalendarClientSetupOptionResponse>>{};
+    final map = <String, List<GuestInvitationResponse>>{};
     if (json is Map && json.isNotEmpty) {
       // ignore: parameter_assignments
       json = json.cast<String, dynamic>();
       for (final entry in json.entries) {
-        map[entry.key] = CalendarClientSetupOptionResponse.listFromJson(
+        map[entry.key] = GuestInvitationResponse.listFromJson(
           entry.value,
           growable: growable,
         );

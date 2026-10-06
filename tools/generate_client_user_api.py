@@ -66,6 +66,7 @@ def generate(destination: Path) -> None:
     preserve_partial_profile_update(destination)
     correct_enum_map_decoding(destination)
     propagate_binary_upload_errors(destination)
+    avoid_implicit_text_body_for_empty_operations(destination)
     preserve_calendar_date_fields(destination)
     subprocess.run(["dart", "format", str(destination)], check=True, stdout=subprocess.DEVNULL)
 
@@ -138,6 +139,21 @@ def propagate_binary_upload_errors(destination: Path) -> None:
     if source.count(before) != 1:
         raise RuntimeError("OpenAPI Generator binary upload handling changed")
     client.write_text(source.replace(before, after, 1))
+
+
+def avoid_implicit_text_body_for_empty_operations(destination: Path) -> None:
+    """Keep bodyless generated mutations free of an invented text/plain body.
+
+    OpenAPI Generator 7.17.0 serializes null as an empty string. The Dart HTTP
+    client then inserts text/plain on POST, PUT, PATCH and DELETE, contradicting
+    code-first operations with no request body. Preserve null through transport.
+    """
+    client = destination / "api_client.dart"
+    source = client.read_text()
+    before = "body: msgBody,"
+    if source.count(before) != 4:
+        raise RuntimeError("OpenAPI Generator empty-body transport changed")
+    client.write_text(source.replace(before, "body: body == null ? null : msgBody,"))
 
 
 def preserve_calendar_date_fields(destination: Path) -> None:

@@ -1,11 +1,11 @@
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/boards/domain/entities/board_workspace.dart';
-import 'package:weave/generated/openapi_models.dart' as openapi;
+import 'package:weave/generated/user_api/api.dart' as openapi;
 
 extension BoardsWorkspaceOpenApiMapper on openapi.BoardsWorkspaceResponse {
   BoardWorkspace toDomain() {
     final release = _requiredString(releaseStatus, 'Boards release status');
-    final facadeSource = _requiredString(source, 'Boards workspace source');
+    final facadeSource = _requiredString(source_, 'Boards workspace source');
     if (workspace != true ||
         release != 'active-dogfood-production' ||
         !_isKnownWorkspaceFacadeSource(facadeSource)) {
@@ -15,8 +15,8 @@ extension BoardsWorkspaceOpenApiMapper on openapi.BoardsWorkspaceResponse {
     }
 
     final board = _firstBoard(boards);
-    final boardColumns = board.columns ?? const [];
-    final taskItems = tasks ?? const [];
+    final boardColumns = board.columns;
+    final taskItems = tasks;
     return BoardWorkspace(
       id: _optionalString(board.id) ?? 'backend-board',
       name: _optionalString(board.name) ?? 'Boards workspace',
@@ -40,7 +40,7 @@ extension BoardsWorkspaceOpenApiMapper on openapi.BoardsWorkspaceResponse {
 
 extension BoardColumnOpenApiMapper on openapi.BoardColumn {
   BoardColumnWorkspace toDomain({required List<openapi.TaskItem> tasks}) {
-    final status = _columnStatus(semanticStatus);
+    final status = _columnStatus(semanticStatus?.value);
     return BoardColumnWorkspace(
       id: _optionalString(id) ?? 'backend-column',
       name: _optionalString(name) ?? 'Column',
@@ -57,11 +57,11 @@ extension TaskItemOpenApiMapper on openapi.TaskItem {
       id: _optionalString(id) ?? 'backend-task',
       title: _optionalString(title) ?? 'Untitled task',
       description: _optionalString(description) ?? '',
-      status: _taskStatus(status, columnFallback),
+      status: _taskStatus(status?.value, columnFallback),
       assigneeLabel: _labelList(assigneeRefs, fallback: 'Unassigned'),
-      dueLabel: _optionalString(dueAt) ?? 'No due date',
+      dueLabel: dueAt?.toIso8601String() ?? 'No due date',
       labels: _stringList(labelRefs),
-      priorityLabel: _optionalString(priority) ?? 'normal',
+      priorityLabel: _optionalString(priority?.value) ?? 'normal',
     );
   }
 }
@@ -70,10 +70,10 @@ extension BoardProviderCapabilitiesOpenApiMapper
     on openapi.BoardProviderCapabilities {
   BoardProviderWorkspaceCapabilities toDomain() {
     return BoardProviderWorkspaceCapabilities(
-      provider: _optionalString(provider) ?? 'unknown',
+      provider: _optionalString(provider?.value) ?? 'unknown',
       enabled: enabled == true,
-      supported: _stringList(supported),
-      unsupported: _stringList(unsupported),
+      supported: _stringList(supported.map((item) => item.value).toList()),
+      unsupported: _stringList(unsupported.map((item) => item.value).toList()),
       supportSafeSummary:
           _optionalString(supportSafeSummary) ??
           'Backend Boards workspace capabilities were not described.',

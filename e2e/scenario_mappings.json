@@ -71,7 +71,7 @@
         {
           "path": "infra/weave-workspace/weave-mcp-tool-contract.json",
           "fragments": [
-            "\"dataPlaneAuthority\": \"weave-webdav-facade\"",
+            "\"dataPlaneAuthority\": \"weave-user-api\"",
             "rawProviderUrl"
           ]
         }
@@ -5288,7 +5288,7 @@
     },
     {
       "tag": "@mcp-files-facade",
-      "scenario": "MCP Files read slice projects the existing authorized WebDAV facade",
+      "scenario": "MCP Files read slice projects the generated User Files API",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [

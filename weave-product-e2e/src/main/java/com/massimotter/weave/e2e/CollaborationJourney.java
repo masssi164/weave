@@ -1,6 +1,10 @@
 package com.massimotter.weave.e2e;
 
 import com.massimotter.weave.userapi.model.AuthenticatedUserResponse;
+import com.massimotter.weave.userapi.model.PlatformConfigResponse;
+import com.massimotter.weave.userapi.model.ProductProfileResponse;
+import com.massimotter.weave.userapi.model.WorkspaceHomeRecentActivityResponse;
+import com.massimotter.weave.userapi.model.WorkspaceHomeResponse;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -35,11 +39,15 @@ final class CollaborationJourney {
   private final JsonHttpClient http;
   private RetainedRoom retainedFirstPass;
   private final GeneratedCalendarJourney calendar;
+  private final GeneratedFilesJourney files;
+  private final GeneratedProfileHomeApi profileHome;
 
   CollaborationJourney(ProductFlowEnvironment environment, JsonHttpClient http) {
     this.environment = environment;
     this.http = http;
     this.calendar = new GeneratedCalendarJourney(environment);
+    this.files = new GeneratedFilesJourney(environment);
+    this.profileHome = new GeneratedProfileHomeApi(environment);
   }
 
   PassProof runPass(
@@ -64,7 +72,7 @@ final class CollaborationJourney {
     String authorEventId = null;
     String collaboratorEventId = null;
     String outageEventId = null;
-    boolean fileCreated = false;
+    GeneratedFilesJourney.MemberProof fileProof = null;
     GeneratedCalendarJourney.Proof calendarProof = null;
     boolean restartContinuityVerified = false;
     String nativeRevisionHash = null;
@@ -90,16 +98,12 @@ final class CollaborationJourney {
       requireMatrixDenied(outsiderIdentity, roomId, pass);
       String initialFile = "initial-" + Hashing.sha256(suffix).substring(0, 24);
       String updatedFile = "updated-" + Hashing.sha256(suffix).substring(0, 24);
-      String initialEtag = createFile(authorIdentity, fileName, initialFile);
-      fileCreated = true;
-      requireBody(collaboratorIdentity, "/dav/files/" + encode(fileName), initialFile, "shared file");
-      String updatedFileEtag =
-          updateFile(collaboratorIdentity, fileName, initialEtag, updatedFile);
-      if (initialEtag.equals(updatedFileEtag)) {
-        throw new ProductFlowException("WebDAV revision did not advance after update");
-      }
-      requireBody(authorIdentity, "/dav/files/" + encode(fileName), updatedFile, "updated shared file");
-      requireWebDavDenied(outsiderIdentity, fileName, pass);
+      fileProof = files.createMemberProof(authorIdentity.token(), fileName, initialFile,
+          "collaboration-file-create-" + suffix);
+      fileProof = files.updateMemberProof(fileProof, authorIdentity.token(), updatedFile,
+          "collaboration-file-update-" + suffix);
+      files.verifyMemberProof(fileProof, authorIdentity.token(), collaboratorIdentity.token(),
+          outsiderIdentity.token());
 
       calendarProof = calendar.createAndVerify(
           authorIdentity.token(), collaboratorIdentity.token(), outsiderIdentity.token(), suffix);
@@ -109,7 +113,7 @@ final class CollaborationJourney {
                   + "\u0000"
                   + collaboratorEventId
                   + "\u0000"
-                  + updatedFileEtag
+                  + fileProof.revision()
                   + "\u0000"
                   + calendarProof.revisionEvidence());
 
@@ -127,14 +131,12 @@ final class CollaborationJourney {
                 List.of(
                     Hashing.sha256(authorCiphertext),
                     Hashing.sha256(collaboratorCiphertext)),
-                fileName,
-                updatedFile,
+                fileProof,
                 calendarProof);
         roomId = null;
         authorEventId = null;
         collaboratorEventId = null;
         outageEventId = null;
-        fileCreated = false;
         calendarProof = null;
       } else {
         cleanRoomStrict(
@@ -150,8 +152,6 @@ final class CollaborationJourney {
       if (pass == 2) {
         calendar.delete(calendarProof, authorIdentity.token());
         calendarProof = null;
-        deleteStrict(authorIdentity, "/dav/files/" + encode(fileName), "file");
-        fileCreated = false;
       }
 
       return new PassProof(
@@ -181,11 +181,8 @@ final class CollaborationJourney {
         leaveBestEffort(collaboratorIdentity, roomId, pass);
         leaveBestEffort(authorIdentity, roomId, pass);
       }
-      // Exact isolated namespace teardown cleans any Calendar objects if the journey fails.
-      // Successful paths delete through the generated API with strong current versions.
-      if (fileCreated) {
-        deleteBestEffort(authorIdentity, "/dav/files/" + encode(fileName), "file");
-      }
+      // Exact namespace teardown removes temporary Files objects; successful Calendar
+      // paths delete their events through the generated API with current versions.
     }
   }
 
@@ -207,9 +204,7 @@ final class CollaborationJourney {
       requireCiphertextObserved(collaborator, room.roomId(), ciphertext, "restart", pass);
     }
     requireMatrixDenied(outsider, room.roomId(), pass);
-    requireBody(author, "/dav/files/" + encode(room.fileName()), room.fileBody(), "restarted shared file");
-    requireBody(collaborator, "/dav/files/" + encode(room.fileName()), room.fileBody(), "restarted shared file");
-    requireWebDavDenied(outsider, room.fileName(), pass);
+    files.verifyMemberProof(room.fileProof(), author.token(), collaborator.token(), outsider.token());
     calendar.verify(room.calendarProof(), author.token(), collaborator.token(), outsider.token());
     cleanRoomStrict(
         author,
@@ -220,7 +215,6 @@ final class CollaborationJourney {
         room.outageEventId(),
         pass);
     calendar.delete(room.calendarProof(), author.token());
-    deleteStrict(author, "/dav/files/" + encode(room.fileName()), "retained file");
     retainedFirstPass = null;
     return true;
   }
@@ -430,15 +424,16 @@ final class CollaborationJourney {
     try {
       control("chat-provider-stop-proof", "WEAVE_CHAT_PROVIDER_CONTROL_RESULT state=stopped");
       providerStopped = true;
-      JsonNode platform =
-          http.json(
-              "keep platform configuration reachable during Chat outage",
-              "GET",
-              environment.api("/api/platform/config"),
-              Map.of(),
-              null,
-              Set.of(200));
-      if (platform.isMissingNode() || platform.isNull()) {
+      PlatformConfigResponse platform =
+          new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
+              .platformConfig();
+      if (!Integer.valueOf(2).equals(platform.getSchemaVersion())
+          || !environment.apiOrigin().resolve("/api").equals(platform.getUserApiBaseUrl())
+          || platform.getProtocols() == null
+          || platform.getProtocols().getMatrixClientServerBaseUrl() == null
+          || platform.getProtocols().getMatrixOAuthIssuer() == null
+          || platform.getProtocols().getMatrixOAuthClientId() == null
+          || platform.getProtocols().getMatrixOAuthClientId().isBlank()) {
         throw new ProductFlowException("platform configuration failed during Chat outage");
       }
       AuthenticatedUserResponse member =
@@ -551,139 +546,66 @@ final class CollaborationJourney {
             + encode(transaction));
   }
 
-  private String createFile(Identity author, String fileName, String content) {
-    JsonHttpClient.Response response =
-        http.send(
-            "create shared WebDAV file",
-            "PUT",
-            environment.api("/dav/files/" + encode(fileName)),
-            bearer(author.token(), Map.of("If-None-Match", "*")),
-            "text/plain; charset=utf-8",
-            content.getBytes(StandardCharsets.UTF_8),
-            Set.of(201));
-    return requireEtag(response, "created WebDAV file");
-  }
-
-  private String updateFile(Identity collaborator, String fileName, String etag, String content) {
-    JsonHttpClient.Response response =
-        http.send(
-            "update shared WebDAV file",
-            "PUT",
-            environment.api("/dav/files/" + encode(fileName)),
-            bearer(collaborator.token(), Map.of("If-Match", etag)),
-            "text/plain; charset=utf-8",
-            content.getBytes(StandardCharsets.UTF_8),
-            Set.of(204));
-    return requireEtag(response, "updated WebDAV file");
-  }
-
-  private void requireWebDavDenied(Identity outsider, String fileName, int pass) {
-    http.send(
-        "deny outsider WebDAV read",
-        "GET",
-        environment.api("/dav/files/" + encode(fileName)),
-        bearer(outsider.token(), Map.of()),
-        null,
-        null,
-        Set.of(403, 404));
-    http.send(
-        "deny outsider WebDAV write",
-        "PUT",
-        environment.api("/dav/files/outsider-denied-" + pass + ".txt"),
-        bearer(outsider.token(), Map.of("If-None-Match", "*")),
-        "text/plain; charset=utf-8",
-        "denied".getBytes(StandardCharsets.UTF_8),
-        Set.of(403));
-  }
-
-  private void requireBody(
-      Identity identity, String path, String expected, String operation) {
-    JsonHttpClient.Response response =
-        http.send(
-            "read " + operation,
-            "GET",
-            environment.api(path),
-            bearer(identity.token(), Map.of()),
-            null,
-            null,
-            Set.of(200));
-    if (!expected.equals(response.bodyText())) {
-      throw new ProductFlowException(operation + " did not match exactly");
-    }
-  }
-
   private void proveProfileIsolation(
       int pass, Identity author, Identity collaborator, Identity outsider) {
     Map<String, String> observed = new LinkedHashMap<>();
     for (Identity identity : List.of(author, collaborator, outsider)) {
-      ObjectNode update = http.mapper().createObjectNode();
       String displayName = "Weave " + identity.role() + " " + runHash() + " " + pass;
-      update.put("displayName", displayName);
-      update.put("locale", "collaborator".equals(identity.role()) ? "de" : "en");
-      update.put("timezone", "Europe/Berlin");
-      update.put("profileVisibility", "private");
-      update.putObject("accessibilityPreferences").put("reducedMotion", "true");
-      JsonNode updated =
-          http.json(
-              "update " + identity.role() + " product profile",
-              "PATCH",
-              environment.api("/api/profile"),
-              bearer(identity.token(), Map.of()),
-              update,
-              Set.of(200));
-      if (!displayName.equals(updated.path("displayName").asString())
-          || !"true".equals(
-              updated.path("accessibilityPreferences").path("reducedMotion").asString())) {
+      String locale = "collaborator".equals(identity.role()) ? "de" : "en";
+      ProductProfileResponse updated = profileHome.updateProfile(identity.token(), displayName, locale);
+      if (!displayName.equals(updated.getDisplayName())
+          || updated.getAccessibilityPreferences() == null
+          || !"true".equals(updated.getAccessibilityPreferences().get("reducedMotion"))) {
         throw new ProductFlowException(identity.role() + " profile update did not persist");
       }
-      JsonNode current =
-          http.json(
-              "read " + identity.role() + " product profile",
-              "GET",
-              environment.api("/api/profile"),
-              bearer(identity.token(), Map.of()),
-              null,
-              Set.of(200));
-      observed.put(identity.role(), current.path("userId").asString());
-      if (!displayName.equals(current.path("displayName").asString())) {
+      ProductProfileResponse current = profileHome.readProfile(identity.token());
+      observed.put(identity.role(), current.getUserId());
+      if (!displayName.equals(current.getDisplayName())
+          || !locale.equals(current.getLocale())
+          || !"Europe/Berlin".equals(current.getTimezone())
+          || current.getProfileVisibility()
+              != ProductProfileResponse.ProfileVisibilityEnum.PRIVATE
+          || current.getAccessibilityPreferences() == null
+          || !"true".equals(current.getAccessibilityPreferences().get("reducedMotion"))) {
         throw new ProductFlowException(identity.role() + " profile isolation did not persist");
       }
     }
-    if (observed.values().stream().anyMatch(String::isBlank)
+    if (observed.values().stream().anyMatch(value -> value == null || value.isBlank())
         || Set.copyOf(observed.values()).size() != 3) {
       throw new ProductFlowException("product profile identities are not isolated");
     }
   }
 
   private void proveHomeProjection(Identity author, Identity collaborator, Identity outsider) {
-    for (Identity identity : List.of(author, collaborator)) {
-      JsonNode home =
-          http.json(
-              "read shared Home activity as " + identity.role(),
-              "GET",
-              environment.api("/api/workspace/home"),
-              bearer(identity.token(), Map.of()),
-              null,
-              Set.of(200));
-      if (!home.path("supportSafe").asBoolean(false)
-          || !home.path("recentActivity").isArray()
-          || home.path("recentActivity").isEmpty()) {
-        throw new ProductFlowException("shared Home activity did not converge");
+    WorkspaceHomeResponse authorHome = home(author);
+    String privateActivityRef = null;
+    for (WorkspaceHomeRecentActivityResponse activity : authorHome.getRecentActivity()) {
+      if ("files.user_write.completed".equals(activity.getAction())
+          && WorkspaceHomeRecentActivityResponse.VisibilityEnum.PRIVATE.equals(activity.getVisibility())
+          && Boolean.TRUE.equals(activity.getActorIsCurrentUser())) {
+        privateActivityRef = activity.getActivityRef();
+        break;
       }
     }
-    JsonNode outsiderHome =
-        http.json(
-            "filter outsider Home projection",
-            "GET",
-            environment.api("/api/workspace/home"),
-            bearer(outsider.token(), Map.of()),
-            null,
-            Set.of(200));
-    if (!outsiderHome.path("supportSafe").asBoolean(false)
-        || !outsiderHome.path("recentActivity").isArray()
-        || !outsiderHome.path("recentActivity").isEmpty()) {
-      throw new ProductFlowException("outsider Home activity was not filtered");
+    if (privateActivityRef == null || privateActivityRef.isBlank()) {
+      throw new ProductFlowException("completed User Files activity did not reach owner Home");
     }
+    for (Identity identity : List.of(collaborator, outsider)) {
+      WorkspaceHomeResponse otherHome = home(identity);
+      for (WorkspaceHomeRecentActivityResponse activity : otherHome.getRecentActivity()) {
+        if (privateActivityRef.equals(activity.getActivityRef())) {
+          throw new ProductFlowException("private User Files activity leaked to " + identity.role());
+        }
+      }
+    }
+  }
+
+  private WorkspaceHomeResponse home(Identity identity) {
+    WorkspaceHomeResponse response = profileHome.home(identity.token());
+    if (!Boolean.TRUE.equals(response.getSupportSafe()) || response.getRecentActivity() == null) {
+      throw new ProductFlowException(identity.role() + " Home activity response is invalid");
+    }
+    return response;
   }
 
   private JsonNode replayCapturedCallback() {
@@ -977,21 +899,6 @@ final class CollaborationJourney {
     }
   }
 
-  private void deleteBestEffort(Identity identity, String path, String kind) {
-    try {
-      http.send(
-          "delete isolated " + kind,
-          "DELETE",
-          environment.api(path),
-          bearer(identity.token(), Map.of()),
-          null,
-          null,
-          Set.of(204, 404));
-    } catch (ProductFlowException cleanupFailure) {
-      System.err.println("WEAVE_TEST_APP_CLEANUP_ERROR " + kind.replace(' ', '-'));
-    }
-  }
-
   private void cleanRoomStrict(
       Identity author,
       Identity collaborator,
@@ -1061,17 +968,6 @@ final class CollaborationJourney {
         Set.of(200));
   }
 
-  private void deleteStrict(Identity identity, String path, String kind) {
-    http.send(
-        "delete isolated " + kind,
-        "DELETE",
-        environment.api(path),
-        bearer(identity.token(), Map.of()),
-        null,
-        null,
-        Set.of(204));
-  }
-
   private URI proof(String path) {
     return environment.chatProofOrigin().resolve(path);
   }
@@ -1082,14 +978,6 @@ final class CollaborationJourney {
     } catch (RuntimeException failure) {
       throw new ProductFlowException("collaboration request encoding failed", failure);
     }
-  }
-
-  private static String requireEtag(JsonHttpClient.Response response, String operation) {
-    String etag = response.firstHeader("ETag");
-    if (etag.isBlank() || etag.length() > 256) {
-      throw new ProductFlowException(operation + " omitted its ETag");
-    }
-    return etag;
   }
 
   private String ciphertext(String actor, int pass) {
@@ -1171,8 +1059,7 @@ final class CollaborationJourney {
       String outageEventId,
       List<String> ciphertexts,
       List<String> correlationHashes,
-      String fileName,
-      String fileBody,
+      GeneratedFilesJourney.MemberProof fileProof,
       GeneratedCalendarJourney.Proof calendarProof) {
     RetainedRoom {
       ciphertexts = List.copyOf(ciphertexts);

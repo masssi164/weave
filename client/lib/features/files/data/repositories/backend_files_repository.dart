@@ -223,13 +223,20 @@ class BackendFilesRepository
       );
     }
     final context = await _requireContext();
-    final response = await _invoke(context, (api) async {
-      final response = await api.downloadFilesItemContentWithHttpInfo(entry.id);
-      if (response.statusCode >= 400) {
-        throw user_api.ApiException(response.statusCode, response.body);
-      }
-      return response;
-    }, fallbackMessage: 'Unable to download the file through Weave Files.');
+    final response = await _invoke(
+      context,
+      (api) async {
+        final response = await api.downloadFilesItemContentWithHttpInfo(
+          entry.id,
+        );
+        if (response.statusCode >= 400) {
+          throw user_api.ApiException(response.statusCode, response.body);
+        }
+        return response;
+      },
+      fallbackMessage: 'Unable to download the file through Weave Files.',
+      accept: '*/*',
+    );
     if (response.statusCode != 200) {
       throw const FilesFailure.protocol(
         'Weave Files returned an unexpected download status.',
@@ -601,6 +608,7 @@ class BackendFilesRepository
     Future<T> Function(user_api.FilesUserApi) request, {
     required String fallbackMessage,
     bool confirmIdentity = false,
+    String accept = 'application/json',
   }) async {
     Future<T> send(_BackendFilesContext selected) async {
       // Never replay a buffered upload or a root-scoped write under another
@@ -626,6 +634,7 @@ class BackendFilesRepository
             apiBaseUrl: selected.baseUrl,
             accessToken: selected.accessToken,
             httpClient: _httpClient,
+            accept: accept,
           ),
         ),
       ).timeout(const Duration(seconds: 20));

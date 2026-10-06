@@ -4,6 +4,7 @@ import static com.massimotter.weave.backend.files.application.FilesCommandExcept
 import static com.massimotter.weave.backend.files.application.FilesCommandException.Code.PARENT_MISSING;
 import static com.massimotter.weave.backend.files.application.FilesCommandException.Code.PARENT_NOT_COLLECTION;
 import static com.massimotter.weave.backend.files.application.FilesCommandException.Code.PATH_CONFLICT;
+import static com.massimotter.weave.backend.files.application.FilesCommandException.Code.VERSION_CHANGED;
 import static com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle.ACTIVE;
 
 import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
@@ -45,15 +46,23 @@ public final class CanonicalFilesCommands {
     }
 
     public FileObject write(FilesCommandScope scope, FileWrite write) {
-        return write(scope, write, false);
+        return write(scope, write, false, null, null);
     }
 
     /** Creates only when the destination name is absent at metadata activation. */
     public FileObject writeIfAbsent(FilesCommandScope scope, FileWrite write) {
-        return write(scope, write, true);
+        return write(scope, write, true, null, null);
     }
 
-    private FileObject write(FilesCommandScope scope, FileWrite write, boolean requireAbsent) {
+    public FileObject writeIfIdAndVersion(
+            FilesCommandScope scope, FileId expectedId, FileWrite write, FileVersion expectedVersion) {
+        Objects.requireNonNull(expectedId, "expectedId must not be null");
+        Objects.requireNonNull(expectedVersion, "expectedVersion must not be null");
+        return write(scope, write, false, expectedId, expectedVersion);
+    }
+
+    private FileObject write(FilesCommandScope scope, FileWrite write, boolean requireAbsent,
+            FileId expectedId, FileVersion expectedVersion) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(write, "write must not be null");
         ensureParent(scope, write.path());
@@ -70,6 +79,12 @@ public final class CanonicalFilesCommands {
         }
         if (requireAbsent && existing != null) {
             throw failure(PATH_CONFLICT, "A Files object already exists at the requested path.");
+        }
+        if (expectedId != null && (existing == null
+                || !expectedId.equals(existing.metadata().object().id())
+                || !expectedVersion.equals(existing.metadata().version())
+                || existing.metadata().providerBindingRevision() != scope.providerBindingRevision())) {
+            throw failure(VERSION_CHANGED, "The expected Files object or version changed.");
         }
 
         FileId id = existing == null
@@ -101,8 +116,14 @@ public final class CanonicalFilesCommands {
                 now);
 
         try {
-            return authority.activate(activation).metadata().object();
+            return (expectedId == null
+                    ? authority.activate(activation)
+                    : authority.activateIfIdAndVersion(activation, expectedId, expectedVersion))
+                    .metadata().object();
         } catch (ConcurrentMutationException concurrentMutation) {
+            if (expectedId != null) {
+                throw failure(VERSION_CHANGED, "The expected Files object or version changed.");
+            }
             if (requireAbsent) {
                 throw failure(METADATA_CONFLICT, "The Files destination changed concurrently.");
             }

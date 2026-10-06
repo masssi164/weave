@@ -13,41 +13,41 @@ part of weave_user_api;
 class Protocols {
   /// Returns a new [Protocols] instance.
   Protocols({
-    this.matrixClientServerBaseUrl,
+    required this.matrixClientServerBaseUrl,
+    required this.matrixOAuthClientId,
+    required this.matrixOAuthIssuer,
   });
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? matrixClientServerBaseUrl;
+  String matrixClientServerBaseUrl;
+
+  String matrixOAuthClientId;
+
+  String matrixOAuthIssuer;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is Protocols &&
-          other.matrixClientServerBaseUrl == matrixClientServerBaseUrl;
+          other.matrixClientServerBaseUrl == matrixClientServerBaseUrl &&
+          other.matrixOAuthClientId == matrixOAuthClientId &&
+          other.matrixOAuthIssuer == matrixOAuthIssuer;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (matrixClientServerBaseUrl == null
-          ? 0
-          : matrixClientServerBaseUrl!.hashCode);
+      (matrixClientServerBaseUrl.hashCode) +
+      (matrixOAuthClientId.hashCode) +
+      (matrixOAuthIssuer.hashCode);
 
   @override
   String toString() =>
-      'Protocols[matrixClientServerBaseUrl=$matrixClientServerBaseUrl]';
+      'Protocols[matrixClientServerBaseUrl=$matrixClientServerBaseUrl, matrixOAuthClientId=$matrixOAuthClientId, matrixOAuthIssuer=$matrixOAuthIssuer]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    if (this.matrixClientServerBaseUrl != null) {
-      json[r'matrixClientServerBaseUrl'] = this.matrixClientServerBaseUrl;
-    } else {
-      json[r'matrixClientServerBaseUrl'] = null;
-    }
+    json[r'matrixClientServerBaseUrl'] = this.matrixClientServerBaseUrl;
+    json[r'matrixOAuthClientId'] = this.matrixOAuthClientId;
+    json[r'matrixOAuthIssuer'] = this.matrixOAuthIssuer;
     return json;
   }
 
@@ -73,7 +73,10 @@ class Protocols {
 
       return Protocols(
         matrixClientServerBaseUrl:
-            mapValueOfType<String>(json, r'matrixClientServerBaseUrl'),
+            mapValueOfType<String>(json, r'matrixClientServerBaseUrl')!,
+        matrixOAuthClientId:
+            mapValueOfType<String>(json, r'matrixOAuthClientId')!,
+        matrixOAuthIssuer: mapValueOfType<String>(json, r'matrixOAuthIssuer')!,
       );
     }
     return null;
@@ -129,5 +132,9 @@ class Protocols {
   }
 
   /// The list of required keys that must be present in a JSON.
-  static const requiredKeys = <String>{};
+  static const requiredKeys = <String>{
+    'matrixClientServerBaseUrl',
+    'matrixOAuthClientId',
+    'matrixOAuthIssuer',
+  };
 }

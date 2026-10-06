@@ -53,6 +53,23 @@ extension WorkspaceHomeRecentActivityResponseMapper
         'The backend returned an unsafe Weave Home activity.',
       );
     }
+    final activityAction = _activityAction(
+      _requiredText(action, 'recentActivity.action'),
+    );
+    final activityVisibility = _activityVisibility(
+      _requiredText(visibility?.value, 'recentActivity.visibility'),
+    );
+    final currentActor = _requiredBool(
+      actorIsCurrentUser,
+      'recentActivity.actorIsCurrentUser',
+    );
+    if (activityAction == WorkspaceHomeActivityAction.filesUserWriteCompleted &&
+        (activityVisibility != WorkspaceHomeActivityVisibility.private ||
+            !currentActor)) {
+      throw const AppFailure.unknown(
+        'The backend returned an unauthorized private Files activity.',
+      );
+    }
     return WorkspaceHomeActivity(
       activityRef: _opaqueReference(
         _requiredText(activityRef, 'recentActivity.activityRef'),
@@ -62,22 +79,17 @@ extension WorkspaceHomeRecentActivityResponseMapper
       domain: _activityDomain(
         _requiredText(domain?.value, 'recentActivity.domain'),
       ),
-      action: _activityAction(_requiredText(action, 'recentActivity.action')),
+      action: activityAction,
       occurredAt: _activityTimestamp(
         _required(occurredAt, 'recentActivity.occurredAt'),
       ),
-      visibility: _activityVisibility(
-        _requiredText(visibility?.value, 'recentActivity.visibility'),
-      ),
+      visibility: activityVisibility,
       actorRefHash: _opaqueReference(
         _requiredText(actorRefHash, 'recentActivity.actorRefHash'),
         field: 'actorRefHash',
         pattern: RegExp(r'^sha256:[0-9a-f]{64}$'),
       ),
-      actorIsCurrentUser: _requiredBool(
-        actorIsCurrentUser,
-        'recentActivity.actorIsCurrentUser',
-      ),
+      actorIsCurrentUser: currentActor,
       supportSafe: true,
     );
   }
@@ -215,6 +227,8 @@ WorkspaceHomeActivityAction _activityAction(String value) {
   return switch (value.trim()) {
     'files.webdav_write.completed' =>
       WorkspaceHomeActivityAction.filesWebDavWriteCompleted,
+    'files.user_write.completed' =>
+      WorkspaceHomeActivityAction.filesUserWriteCompleted,
     _ => throw const AppFailure.unknown(
       'The backend returned an unknown Weave Home activity action.',
     ),
@@ -224,6 +238,7 @@ WorkspaceHomeActivityAction _activityAction(String value) {
 WorkspaceHomeActivityVisibility _activityVisibility(String value) {
   return switch (value.trim()) {
     'workspace' => WorkspaceHomeActivityVisibility.workspace,
+    'private' => WorkspaceHomeActivityVisibility.private,
     _ => throw const AppFailure.unknown(
       'The backend returned an unknown Weave Home activity visibility.',
     ),

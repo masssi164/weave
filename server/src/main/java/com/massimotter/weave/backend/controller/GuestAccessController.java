@@ -36,6 +36,8 @@ public class GuestAccessController {
 
     @PostMapping("/api/guest/invitations")
     @Operation(operationId = "invite", summary = "Create a guest invitation when guest access is enabled")
+    @ApiResponse(responseCode = "200", description = "Created guest invitation.",
+            content = @Content(schema = @Schema(implementation = GuestInvitationResponse.class)))
     @ApiResponse(responseCode = "503", description = "Guest access is disabled by default.",
             content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     public GuestInvitationResponse invite(@Valid @RequestBody GuestInvitationRequest request) {

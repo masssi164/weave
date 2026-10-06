@@ -165,6 +165,12 @@ artifacts:
     action: retain-as-flutter-home-generated-consumer-evidence
     corpusCandidates:
       - steering/release-2026-10-product-consolidation.md
+  - path: specs/mcp-generated-user-files.md
+    status: implementation-evidence
+    action: retain-as-mcp-files-generated-user-consumer-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/files/spec.md
 cleanupSequence:
   - Add or update corpus files for any remaining product/domain meaning.
   - Update repo tests/gates to consume corpus contracts or generated projections.

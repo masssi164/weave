@@ -69,12 +69,64 @@ failure. These contain public transport metadata and fixture assertions, not bea
 tokens or private provider data. Tool and dependency versions are in setup/build logs.
 
 Passing this gate proves deterministic code-first generation and the current generated
-consumers on one source candidate. The existing MCP Files transport still uses historical
-DAV; #1474 must replace it with the generated User module and the current member/context
-authorization bridge. Merely running its existing tests does not prove that migration.
+consumers on one source candidate. MCP Files uses the generated JVM User module and the
+current member/context authorization bridge described in `mcp-generated-user-files.md`.
+Generated freshness alone does not prove workload authorization or real file retrieval.
 Real browser/OIDC, User/Admin/MCP, Matrix interoperability,
 Files/Calendar and session recovery journeys remain independently required by #1480.
 The disposable Compose lane provides runtime evidence; provider migration remains #1498.
+
+## Full Compose Files collaboration proof
+
+The current-scope product journey creates, reads, updates and re-reads a member-owned
+File through the generated JVM User Files client. The update uses the current strong
+content ETag, and the separate item revision must advance. A different organization
+member without an explicit File grant and an outside-organization member must not
+read or write it. The first-pass File remains readable through the same product API
+after the isolated Server/PostgreSQL restart. The suite independently compares exact
+bytes and revision changes instead of treating generated models as the behavioral
+oracle. Its only cleanup requirement is teardown of the disposable Compose namespace
+and exact volumes because the User Files API does not yet offer deletion or sharing.
+The native Files adapter may advertise identity-bound conditional content update only
+when its metadata authority atomically compares the same organization, Space, object
+ID, path and strong provider version before activating replacement bytes. A stale or
+replaced object fails without changing the active mapping or serving changed content.
+
+The product acceptance evidence must report the generated User Files northbound
+surface. Historical WebDAV/CalDAV probes may remain in separately named compatibility
+regressions, but the public DAV controllers are disabled by default and the
+current-scope Full Compose product flow must neither require nor advertise them.
+An operator may set `WEAVE_COMPATIBILITY_PUBLIC_DAV_ENABLED=true` only for a
+separately documented compatibility environment; it is not a current-release
+member setup path. The corresponding Spring property is
+`weave.compatibility.public-dav.enabled`, whose default is `false`.
+The User OpenAPI artifact must not include DAV setup credentials, CalDAV
+mobileconfig, or native setup metadata that advertises those routes. The actual
+Files/Calendar User operations and their security, version and binary behavior
+remain in the generated contract. Historical credential issuance, revocation,
+permission and recovery tests remain available as service or opt-in compatibility
+tests; ordinary release tests assert that the retired setup routes cannot issue a
+credential. The active Calendar access-policy operation must expose its typed
+success response in the User artifact so generated consumers can read it. Every
+exported User/Admin operation that can succeed must declare a real 2xx response;
+non-204 success bodies must have a typed schema, including disabled-by-default
+preview operations that can be enabled. Describing a pre-existing Admin migration
+preflight accurately does not make provider adoption, cutover or rollback part of
+#1470 acceptance; #1498 owns those outcomes. Matrix
+remains the explicit protocol exception and has its own
+independent-client qualification gate.
+Member Home may project a completed User Files write from the support-safe audit
+envelope only for its actor while User Files objects have owner-only access. It must
+not expose that object's activity to an ungranted member of the same organization.
+The activity projection requires a completed result from the User HTTP source; an
+attempted, ambiguous or generic intent record is not proof of a completed write.
+The code-first User OpenAPI Home activity visibility field declares both `workspace`
+and `private`; every generated consumer must parse the owner-only value.
+Flutter projects the generated User activity into its Home domain model and renders
+`private` with an accessible, generic visibility label. It rejects a private User
+Files activity that claims another member as its actor.
+The Full Compose journey asserts the author's activity and the absence of that
+activity from the collaborator and outsider Home views.
 
 ## Member diagnostic boundary
 

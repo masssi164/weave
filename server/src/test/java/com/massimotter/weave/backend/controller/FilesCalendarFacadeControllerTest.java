@@ -88,9 +88,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(
         controllers = {
                 FilesController.class,
+                FilesDavSetupController.class,
                 FilesUserItemsController.class,
                 FilesWebDavController.class,
                 CalendarController.class,
+                CalendarDavSetupController.class,
                 CalDavCalendarController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
@@ -115,7 +117,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
         "weave.security.client-id=weave-app",
-        "weave.security.required-audience=weave-app"
+        "weave.security.required-audience=weave-app",
+        "weave.compatibility.public-dav.enabled=true"
 })
 class FilesCalendarFacadeControllerTest {
 

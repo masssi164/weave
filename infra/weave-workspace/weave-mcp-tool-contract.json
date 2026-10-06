@@ -11,7 +11,7 @@
   },
   "authorityBoundary": {
     "productAuthority": "weave-backend",
-    "mcpRole": "workload-only protocol projection; the active Files read slice consumes the existing Weave WebDAV facade",
+    "mcpRole": "workload-only protocol projection; the active Files read slice consumes the generated Weave User API",
     "canonicalApiRemainsAuthoritative": true,
     "runtimeDirectProviderAccessAllowed": false,
     "memberMayConfigureProvidersThroughMcp": false,
@@ -91,9 +91,9 @@
         "files.share_link",
         "documents.request_edit_session"
       ],
-      "dataPlaneAuthority": "weave-webdav-facade",
-      "facadePath": "/dav/files",
-      "openApiRole": "control-discovery-readiness-revoke-generated-models",
+      "dataPlaneAuthority": "weave-user-api",
+      "facadePath": "/api/files/items",
+      "openApiRole": "generated-user-http-client-and-models",
       "writePolicyBlocker": "https://github.com/masssi164/weave/issues/1007",
       "forbiddenOutputs": [
         "providerNativeShareSecret",
@@ -222,9 +222,9 @@
     ],
     "prompts": [],
     "filesDataPlane": {
-      "standard": "WebDAV RFC 5323 bounded basicsearch",
-      "facade": "/dav/files",
-      "canonicalIdProperty": "{urn:weave:files}canonical-id",
+      "standard": "generated Weave User Files OpenAPI",
+      "facade": "/api/files/items",
+      "canonicalIdProperty": "fileId",
       "toolSpecificBackendEndpoint": false
     },
     "pythonFastMcpRemoved": true,

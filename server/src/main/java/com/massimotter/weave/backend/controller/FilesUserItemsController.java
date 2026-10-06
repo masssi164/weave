@@ -39,13 +39,13 @@ import org.springframework.web.bind.annotation.RestController;
 /** Generated User HTTP projection of Weave-owned Files identities. */
 @RestController
 @Validated
-@Tag(name = "Files User", description = "Member Files operations. Provider-visible objects without a Weave resource grant are hidden.")
+@Tag(name = "Files User", description = "Member Files operations and read-only exchanged MCP workload reads. Provider-visible objects without a Weave resource grant are hidden.")
 @SecurityRequirement(name = "bearer-jwt")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Authentication required.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                         schema = @Schema(implementation = ApiErrorResponse.class))),
-        @ApiResponse(responseCode = "403", description = "Member or Space access denied.",
+        @ApiResponse(responseCode = "403", description = "Member, workload or Space access denied.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                         schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(responseCode = "404", description = "Resource absent or not visible.",

@@ -10,11 +10,12 @@
 
 part of weave_user_api;
 
-class CalendarSetupCredentialRequest {
-  /// Returns a new [CalendarSetupCredentialRequest] instance.
-  CalendarSetupCredentialRequest({
-    this.clientType,
-    this.label,
+class CapabilityResponse {
+  /// Returns a new [CapabilityResponse] instance.
+  CapabilityResponse({
+    this.description,
+    this.key,
+    this.requiresAdminConsent,
   });
 
   ///
@@ -23,7 +24,7 @@ class CalendarSetupCredentialRequest {
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  String? clientType;
+  String? description;
 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -31,44 +32,59 @@ class CalendarSetupCredentialRequest {
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  String? label;
+  String? key;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  bool? requiresAdminConsent;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is CalendarSetupCredentialRequest &&
-          other.clientType == clientType &&
-          other.label == label;
+      other is CapabilityResponse &&
+          other.description == description &&
+          other.key == key &&
+          other.requiresAdminConsent == requiresAdminConsent;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (clientType == null ? 0 : clientType!.hashCode) +
-      (label == null ? 0 : label!.hashCode);
+      (description == null ? 0 : description!.hashCode) +
+      (key == null ? 0 : key!.hashCode) +
+      (requiresAdminConsent == null ? 0 : requiresAdminConsent!.hashCode);
 
   @override
   String toString() =>
-      'CalendarSetupCredentialRequest[clientType=$clientType, label=$label]';
+      'CapabilityResponse[description=$description, key=$key, requiresAdminConsent=$requiresAdminConsent]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    if (this.clientType != null) {
-      json[r'clientType'] = this.clientType;
+    if (this.description != null) {
+      json[r'description'] = this.description;
     } else {
-      json[r'clientType'] = null;
+      json[r'description'] = null;
     }
-    if (this.label != null) {
-      json[r'label'] = this.label;
+    if (this.key != null) {
+      json[r'key'] = this.key;
     } else {
-      json[r'label'] = null;
+      json[r'key'] = null;
+    }
+    if (this.requiresAdminConsent != null) {
+      json[r'requiresAdminConsent'] = this.requiresAdminConsent;
+    } else {
+      json[r'requiresAdminConsent'] = null;
     }
     return json;
   }
 
-  /// Returns a new [CalendarSetupCredentialRequest] instance and imports its values from
+  /// Returns a new [CapabilityResponse] instance and imports its values from
   /// [value] if it's a [Map], null otherwise.
   // ignore: prefer_constructors_over_static_methods
-  static CalendarSetupCredentialRequest? fromJson(dynamic value) {
+  static CapabilityResponse? fromJson(dynamic value) {
     if (value is Map) {
       final json = value.cast<String, dynamic>();
 
@@ -78,29 +94,31 @@ class CalendarSetupCredentialRequest {
       assert(() {
         requiredKeys.forEach((key) {
           assert(json.containsKey(key),
-              'Required key "CalendarSetupCredentialRequest[$key]" is missing from JSON.');
+              'Required key "CapabilityResponse[$key]" is missing from JSON.');
           assert(json[key] != null,
-              'Required key "CalendarSetupCredentialRequest[$key]" has a null value in JSON.');
+              'Required key "CapabilityResponse[$key]" has a null value in JSON.');
         });
         return true;
       }());
 
-      return CalendarSetupCredentialRequest(
-        clientType: mapValueOfType<String>(json, r'clientType'),
-        label: mapValueOfType<String>(json, r'label'),
+      return CapabilityResponse(
+        description: mapValueOfType<String>(json, r'description'),
+        key: mapValueOfType<String>(json, r'key'),
+        requiresAdminConsent:
+            mapValueOfType<bool>(json, r'requiresAdminConsent'),
       );
     }
     return null;
   }
 
-  static List<CalendarSetupCredentialRequest> listFromJson(
+  static List<CapabilityResponse> listFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final result = <CalendarSetupCredentialRequest>[];
+    final result = <CapabilityResponse>[];
     if (json is List && json.isNotEmpty) {
       for (final row in json) {
-        final value = CalendarSetupCredentialRequest.fromJson(row);
+        final value = CapabilityResponse.fromJson(row);
         if (value != null) {
           result.add(value);
         }
@@ -109,12 +127,12 @@ class CalendarSetupCredentialRequest {
     return result.toList(growable: growable);
   }
 
-  static Map<String, CalendarSetupCredentialRequest> mapFromJson(dynamic json) {
-    final map = <String, CalendarSetupCredentialRequest>{};
+  static Map<String, CapabilityResponse> mapFromJson(dynamic json) {
+    final map = <String, CapabilityResponse>{};
     if (json is Map && json.isNotEmpty) {
       json = json.cast<String, dynamic>(); // ignore: parameter_assignments
       for (final entry in json.entries) {
-        final value = CalendarSetupCredentialRequest.fromJson(entry.value);
+        final value = CapabilityResponse.fromJson(entry.value);
         if (value != null) {
           map[entry.key] = value;
         }
@@ -123,17 +141,17 @@ class CalendarSetupCredentialRequest {
     return map;
   }
 
-  // maps a json object with a list of CalendarSetupCredentialRequest-objects as value to a dart map
-  static Map<String, List<CalendarSetupCredentialRequest>> mapListFromJson(
+  // maps a json object with a list of CapabilityResponse-objects as value to a dart map
+  static Map<String, List<CapabilityResponse>> mapListFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final map = <String, List<CalendarSetupCredentialRequest>>{};
+    final map = <String, List<CapabilityResponse>>{};
     if (json is Map && json.isNotEmpty) {
       // ignore: parameter_assignments
       json = json.cast<String, dynamic>();
       for (final entry in json.entries) {
-        map[entry.key] = CalendarSetupCredentialRequest.listFromJson(
+        map[entry.key] = CapabilityResponse.listFromJson(
           entry.value,
           growable: growable,
         );

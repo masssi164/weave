@@ -80,8 +80,8 @@ jq -e '
   and .activeRuntimeEvidence.tools == ["files.search"]
   and .activeRuntimeEvidence.resources == ["weave://files/{canonicalFileId}"]
   and .activeRuntimeEvidence.prompts == []
-  and .activeRuntimeEvidence.filesDataPlane.facade == "/dav/files"
-  and .activeRuntimeEvidence.filesDataPlane.canonicalIdProperty == "{urn:weave:files}canonical-id"
+  and .activeRuntimeEvidence.filesDataPlane.facade == "/api/files/items"
+  and .activeRuntimeEvidence.filesDataPlane.canonicalIdProperty == "fileId"
   and .activeRuntimeEvidence.filesDataPlane.toolSpecificBackendEndpoint == false
   and .activeRuntimeEvidence.pythonFastMcpRemoved == true
   and .activeRuntimeEvidence.handwrittenJsonRpcRemoved == true

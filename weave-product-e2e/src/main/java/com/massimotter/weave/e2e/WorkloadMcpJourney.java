@@ -11,6 +11,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -34,7 +35,9 @@ final class WorkloadMcpJourney {
   private static final long MAXIMUM_WORKLOAD_TOKEN_TTL_SECONDS = 60;
   private static final Set<String> MCP_SCOPES = Set.of("mcp.tools", "files.read");
   private static final Pattern FILES_ERROR_CODE =
-      Pattern.compile("Files facade rejected request: ([a-z0-9-]{1,64})");
+      Pattern.compile("Files User API rejected request: HTTP ([0-9]{3})");
+  private static final Pattern FILES_RESOURCE_URI =
+      Pattern.compile("weave://files/[A-Za-z0-9%:_-]+");
 
   private final ProductFlowEnvironment environment;
   private final JsonHttpClient http;
@@ -44,7 +47,7 @@ final class WorkloadMcpJourney {
     this.http = http;
   }
 
-  McpProof invokeFilesSearch(String cellRef, String expectedFileName) {
+  McpProof invokeFilesSearch(String cellRef, GeneratedFilesJourney.Proof proof) {
     String cellKey = requireCellKey(cellRef);
     String clientId = "weaver-cell-" + cellKey;
     RSAKey key = readActiveKey(clientId);
@@ -100,13 +103,13 @@ final class WorkloadMcpJourney {
     callParameters.put("name", "files.search");
     callParameters
         .putObject("arguments")
-        .put("query", expectedFileName)
+        .put("query", proof.name())
         .put("path", "/")
         .put("limit", 10);
     JsonNode result = protocolBody(mcp(workloadToken, sessionId, call, Set.of(200)));
     requireNoError(result, "MCP files.search");
     String serialized = result.toString();
-    if (!serialized.contains(expectedFileName)
+    if (!serialized.contains(proof.name())
         || !serialized.contains("weave://files/")
         || serialized.toLowerCase(java.util.Locale.ROOT).contains("nextcloud")
         || serialized.contains("/remote.php/dav")
@@ -114,7 +117,32 @@ final class WorkloadMcpJourney {
       throw new ProductFlowException(
           "MCP files.search did not return a provider-neutral canonical match");
     }
-    return new McpProof(clientId, "files.search", "weave-webdav", true);
+    Matcher resource = FILES_RESOURCE_URI.matcher(serialized);
+    String resourceUri = "";
+    while (resource.find()) {
+      String candidate = resource.group();
+      String candidateId = URLDecoder.decode(
+          candidate.substring("weave://files/".length()), StandardCharsets.UTF_8);
+      if (proof.fileId().equals(candidateId)) {
+        resourceUri = candidate;
+        break;
+      }
+    }
+    if (resourceUri.isBlank()) {
+      throw new ProductFlowException("MCP files.search omitted the expected stable file reference");
+    }
+    ObjectNode read = request(4, "resources/read");
+    read.putObject("params").put("uri", resourceUri);
+    JsonNode readResult = protocolBody(mcp(workloadToken, sessionId, read, Set.of(200)));
+    requireNoError(readResult, "MCP Files resource read");
+    String expectedContent = new String(proof.content(), StandardCharsets.UTF_8);
+    if (stream(readResult.path("result").path("contents"))
+            .noneMatch(content -> expectedContent.equals(content.path("text").asString()))
+        || readResult.toString().toLowerCase(java.util.Locale.ROOT).contains("nextcloud")
+        || readResult.toString().contains("/remote.php/dav")) {
+      throw new ProductFlowException("MCP Files resource read changed the generated User content");
+    }
+    return new McpProof(clientId, "files.search", "weave-user-api", true);
   }
 
   private String clientCredentials(String clientId, RSAKey key) {
@@ -361,7 +389,7 @@ final class WorkloadMcpJourney {
   static String supportSafeErrorClass(JsonNode response) {
     Matcher filesError = FILES_ERROR_CODE.matcher(response.toString());
     if (filesError.find()) {
-      return filesError.group(1);
+      return "files-user-http-" + filesError.group(1);
     }
     JsonNode code = response.path("error").path("code");
     if (code.canConvertToInt()) {

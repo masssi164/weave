@@ -10,84 +10,97 @@
 
 part of weave_user_api;
 
-class CalendarExternalEndpointsResponse {
-  /// Returns a new [CalendarExternalEndpointsResponse] instance.
-  CalendarExternalEndpointsResponse({
-    this.caldavDiscoveryUrl,
-    this.principalUrl,
-    this.serverUrl,
+class SlackOAuthCallbackResponse {
+  /// Returns a new [SlackOAuthCallbackResponse] instance.
+  SlackOAuthCallbackResponse({
+    this.credentialStored,
+    this.installed,
+    this.message,
+    this.provider,
   });
 
-  /// Weave-owned CalDAV discovery root for DAV clients.
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  String? caldavDiscoveryUrl;
+  bool? credentialStored;
 
-  /// Weave-owned user principal path template for CalDAV clients. Contains no credential.
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  String? principalUrl;
+  bool? installed;
 
-  /// Weave-owned CalDAV projection base path.
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  String? serverUrl;
+  String? message;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? provider;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is CalendarExternalEndpointsResponse &&
-          other.caldavDiscoveryUrl == caldavDiscoveryUrl &&
-          other.principalUrl == principalUrl &&
-          other.serverUrl == serverUrl;
+      other is SlackOAuthCallbackResponse &&
+          other.credentialStored == credentialStored &&
+          other.installed == installed &&
+          other.message == message &&
+          other.provider == provider;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (caldavDiscoveryUrl == null ? 0 : caldavDiscoveryUrl!.hashCode) +
-      (principalUrl == null ? 0 : principalUrl!.hashCode) +
-      (serverUrl == null ? 0 : serverUrl!.hashCode);
+      (credentialStored == null ? 0 : credentialStored!.hashCode) +
+      (installed == null ? 0 : installed!.hashCode) +
+      (message == null ? 0 : message!.hashCode) +
+      (provider == null ? 0 : provider!.hashCode);
 
   @override
   String toString() =>
-      'CalendarExternalEndpointsResponse[caldavDiscoveryUrl=$caldavDiscoveryUrl, principalUrl=$principalUrl, serverUrl=$serverUrl]';
+      'SlackOAuthCallbackResponse[credentialStored=$credentialStored, installed=$installed, message=$message, provider=$provider]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    if (this.caldavDiscoveryUrl != null) {
-      json[r'caldavDiscoveryUrl'] = this.caldavDiscoveryUrl;
+    if (this.credentialStored != null) {
+      json[r'credentialStored'] = this.credentialStored;
     } else {
-      json[r'caldavDiscoveryUrl'] = null;
+      json[r'credentialStored'] = null;
     }
-    if (this.principalUrl != null) {
-      json[r'principalUrl'] = this.principalUrl;
+    if (this.installed != null) {
+      json[r'installed'] = this.installed;
     } else {
-      json[r'principalUrl'] = null;
+      json[r'installed'] = null;
     }
-    if (this.serverUrl != null) {
-      json[r'serverUrl'] = this.serverUrl;
+    if (this.message != null) {
+      json[r'message'] = this.message;
     } else {
-      json[r'serverUrl'] = null;
+      json[r'message'] = null;
+    }
+    if (this.provider != null) {
+      json[r'provider'] = this.provider;
+    } else {
+      json[r'provider'] = null;
     }
     return json;
   }
 
-  /// Returns a new [CalendarExternalEndpointsResponse] instance and imports its values from
+  /// Returns a new [SlackOAuthCallbackResponse] instance and imports its values from
   /// [value] if it's a [Map], null otherwise.
   // ignore: prefer_constructors_over_static_methods
-  static CalendarExternalEndpointsResponse? fromJson(dynamic value) {
+  static SlackOAuthCallbackResponse? fromJson(dynamic value) {
     if (value is Map) {
       final json = value.cast<String, dynamic>();
 
@@ -97,30 +110,31 @@ class CalendarExternalEndpointsResponse {
       assert(() {
         requiredKeys.forEach((key) {
           assert(json.containsKey(key),
-              'Required key "CalendarExternalEndpointsResponse[$key]" is missing from JSON.');
+              'Required key "SlackOAuthCallbackResponse[$key]" is missing from JSON.');
           assert(json[key] != null,
-              'Required key "CalendarExternalEndpointsResponse[$key]" has a null value in JSON.');
+              'Required key "SlackOAuthCallbackResponse[$key]" has a null value in JSON.');
         });
         return true;
       }());
 
-      return CalendarExternalEndpointsResponse(
-        caldavDiscoveryUrl: mapValueOfType<String>(json, r'caldavDiscoveryUrl'),
-        principalUrl: mapValueOfType<String>(json, r'principalUrl'),
-        serverUrl: mapValueOfType<String>(json, r'serverUrl'),
+      return SlackOAuthCallbackResponse(
+        credentialStored: mapValueOfType<bool>(json, r'credentialStored'),
+        installed: mapValueOfType<bool>(json, r'installed'),
+        message: mapValueOfType<String>(json, r'message'),
+        provider: mapValueOfType<String>(json, r'provider'),
       );
     }
     return null;
   }
 
-  static List<CalendarExternalEndpointsResponse> listFromJson(
+  static List<SlackOAuthCallbackResponse> listFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final result = <CalendarExternalEndpointsResponse>[];
+    final result = <SlackOAuthCallbackResponse>[];
     if (json is List && json.isNotEmpty) {
       for (final row in json) {
-        final value = CalendarExternalEndpointsResponse.fromJson(row);
+        final value = SlackOAuthCallbackResponse.fromJson(row);
         if (value != null) {
           result.add(value);
         }
@@ -129,13 +143,12 @@ class CalendarExternalEndpointsResponse {
     return result.toList(growable: growable);
   }
 
-  static Map<String, CalendarExternalEndpointsResponse> mapFromJson(
-      dynamic json) {
-    final map = <String, CalendarExternalEndpointsResponse>{};
+  static Map<String, SlackOAuthCallbackResponse> mapFromJson(dynamic json) {
+    final map = <String, SlackOAuthCallbackResponse>{};
     if (json is Map && json.isNotEmpty) {
       json = json.cast<String, dynamic>(); // ignore: parameter_assignments
       for (final entry in json.entries) {
-        final value = CalendarExternalEndpointsResponse.fromJson(entry.value);
+        final value = SlackOAuthCallbackResponse.fromJson(entry.value);
         if (value != null) {
           map[entry.key] = value;
         }
@@ -144,17 +157,17 @@ class CalendarExternalEndpointsResponse {
     return map;
   }
 
-  // maps a json object with a list of CalendarExternalEndpointsResponse-objects as value to a dart map
-  static Map<String, List<CalendarExternalEndpointsResponse>> mapListFromJson(
+  // maps a json object with a list of SlackOAuthCallbackResponse-objects as value to a dart map
+  static Map<String, List<SlackOAuthCallbackResponse>> mapListFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final map = <String, List<CalendarExternalEndpointsResponse>>{};
+    final map = <String, List<SlackOAuthCallbackResponse>>{};
     if (json is Map && json.isNotEmpty) {
       // ignore: parameter_assignments
       json = json.cast<String, dynamic>();
       for (final entry in json.entries) {
-        map[entry.key] = CalendarExternalEndpointsResponse.listFromJson(
+        map[entry.key] = SlackOAuthCallbackResponse.listFromJson(
           entry.value,
           growable: growable,
         );

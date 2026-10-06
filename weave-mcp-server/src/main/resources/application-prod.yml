@@ -18,4 +18,4 @@ weave:
     authorization-server: ${WEAVE_MCP_AUTHORIZATION_SERVER}
     token-uri: ${WEAVE_MCP_TOKEN_URI}
     backend-resource-uri: ${WEAVE_MCP_BACKEND_RESOURCE_URI}
-    backend-files-uri: ${WEAVE_MCP_BACKEND_FILES_URI}
+    backend-api-uri: ${WEAVE_MCP_BACKEND_API_URI}

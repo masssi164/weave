@@ -4,6 +4,10 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
+import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
+import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
+import com.massimotter.weave.backend.agentruntime.port.McpWorkloadAuthorizationException;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
@@ -40,7 +44,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.UUID;
 import java.time.Instant;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -65,8 +72,38 @@ public class FilesUserApiService {
     private final FilesMutationIntentService intents;
     private final TransactionTemplate transactions;
     private final AuditEventPublisher auditEvents;
+    private final McpWorkloadAuthorizationService mcpWorkloads;
+    private final McpExchangedTokenPolicy mcpTokens;
 
+    @Autowired
     public FilesUserApiService(
+            OrganizationIdentityContextResolver identities,
+            ContextAuthorizationProperties contextProperties,
+            ContextAuthorizationPort contextAuthorization,
+            WorkspaceCapabilityService capabilities,
+            ProviderBindingRepository bindings,
+            FilesProviderResolver providers,
+            FilesUserResourceRepository resources,
+            FilesMutationIntentService intents,
+            TransactionTemplate transactions,
+            AuditEventPublisher auditEvents,
+            ObjectProvider<McpWorkloadAuthorizationService> mcpWorkloads,
+            ObjectProvider<McpExchangedTokenPolicy> mcpTokens) {
+        this.identities = identities;
+        this.contextProperties = contextProperties;
+        this.contextAuthorization = contextAuthorization;
+        this.capabilities = capabilities;
+        this.bindings = bindings;
+        this.providers = providers;
+        this.resources = resources;
+        this.intents = intents;
+        this.transactions = transactions;
+        this.auditEvents = auditEvents;
+        this.mcpWorkloads = mcpWorkloads.getIfAvailable();
+        this.mcpTokens = mcpTokens.getIfAvailable();
+    }
+
+    FilesUserApiService(
             OrganizationIdentityContextResolver identities,
             ContextAuthorizationProperties contextProperties,
             ContextAuthorizationPort contextAuthorization,
@@ -87,6 +124,8 @@ public class FilesUserApiService {
         this.intents = intents;
         this.transactions = transactions;
         this.auditEvents = auditEvents;
+        this.mcpWorkloads = null;
+        this.mcpTokens = null;
     }
 
     public FilesUserListResponse list(Jwt jwt, String parentFileId) {
@@ -110,6 +149,7 @@ public class FilesUserApiService {
                         && resource.ownerPrincipalRef().equals(member.principalRef()))
                 .map(resource -> project(member, binding, provider, resource))
                 .toList();
+        auditWorkloadRead(member, "files.search", parent, "completed", items.size());
         return new FilesUserListResponse(parent, parentActions, items);
     }
 
@@ -117,7 +157,9 @@ public class FilesUserApiService {
         Member member = member(jwt, "inspect-file", ContextPermission.VIEW);
         FilesUserResource resource = requireOwned(member, fileId);
         ProviderBinding binding = activeBinding(member.organizationRef());
-        return project(member, binding, pinnedProvider(binding, member.organizationRef()), resource);
+        FilesUserItemResponse item = project(member, binding, pinnedProvider(binding, member.organizationRef()), resource);
+        auditWorkloadRead(member, "files.resource.metadata", fileId, "completed", 1);
+        return item;
     }
 
     public Download download(Jwt jwt, String fileId) {
@@ -158,6 +200,7 @@ public class FilesUserApiService {
         }
         requireMapped(binding, provider, resource);
         String digest = digest(bytes);
+        auditWorkloadRead(member, "files.resource.read", fileId, "completed", 1);
         return new Download(bytes,
                 content.item().mediaType() == null ? "application/octet-stream" : content.item().mediaType(),
                 "\"" + digest.replace(':', '-') + "\"",
@@ -509,7 +552,8 @@ public class FilesUserApiService {
         }
         mutation = intents.dispatch(mutation);
         try {
-            FileObject updated = provider.writeIfVersion(
+            FileObject updated = provider.writeIfIdAndVersion(
+                    observed.item().id(),
                     new FileWrite(new FilePath(resource.path()), bytes, nextMediaType), observed.version());
             if (!updated.id().equals(observed.item().id()) || !updated.path().equals(observed.item().path())) {
                 throw new IllegalStateException("provider changed Files identity during content update");
@@ -681,8 +725,11 @@ public class FilesUserApiService {
     }
 
     private Member member(Jwt jwt, String operation, ContextPermission permission) {
-        if (jwt == null || "weave-mcp-server".equals(jwt.getClaimAsString("azp"))) {
+        if (jwt == null) {
             throw error(HttpStatus.FORBIDDEN, "files-user-context-required", "A member session is required.");
+        }
+        if ("weave-mcp-server".equals(jwt.getClaimAsString("azp"))) {
+            return workloadMember(jwt, operation, permission);
         }
         capabilities.requireCapability(jwt,
                 permission == ContextPermission.VIEW ? "files.read" : "files.upload", "files", operation);
@@ -699,7 +746,57 @@ public class FilesUserApiService {
         boolean canEdit = permission == ContextPermission.EDIT || canEdit(jwt, identity.organizationId(), principal);
         return new Member(identity.organizationId(), principal, identity.subject(), canEdit,
                 revisionClaim(jwt, "weave_policy_revision", "policy:unversioned"),
-                revisionClaim(jwt, "weave_entitlement_revision", "entitlement:unversioned"));
+                revisionClaim(jwt, "weave_entitlement_revision", "entitlement:unversioned"), null);
+    }
+
+    private Member workloadMember(Jwt jwt, String operation, ContextPermission permission) {
+        if (permission != ContextPermission.VIEW || mcpWorkloads == null || mcpTokens == null) {
+            throw error(HttpStatus.FORBIDDEN, "mcp-workload-files-forbidden",
+                    "The MCP workload has no current Files authorization.");
+        }
+        WeaverWorkloadPrincipal workload;
+        try {
+            workload = mcpWorkloads.authorize(mcpTokens.resolve(jwt));
+        } catch (McpWorkloadAuthorizationException denied) {
+            throw error(denied.authorityUnavailable() ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.FORBIDDEN,
+                    denied.authorityUnavailable() ? "mcp-workload-authority-unavailable"
+                            : "mcp-workload-files-forbidden",
+                    denied.authorityUnavailable() ? "The MCP workload authority is temporarily unavailable."
+                            : "The MCP workload has no current Files authorization.");
+        }
+        if (!workload.scopes().contains("files.read")
+                || !workload.visibleToolClasses().contains("files.read")) {
+            throw error(HttpStatus.FORBIDDEN, "mcp-workload-files-forbidden",
+                    "The MCP workload has no current Files authorization.");
+        }
+        String principal = contextProperties.principalRef(workload.contextPrincipalClaim());
+        if (principal == null || !contextAuthorization.check(new ContextAuthorizationRequest(
+                workload.organizationRef(), SPACE_REF, principal, ContextPermission.VIEW)).allowed()) {
+            throw error(HttpStatus.FORBIDDEN, "mcp-workload-files-forbidden",
+                    "The MCP workload has no current Files authorization.");
+        }
+        return new Member(workload.organizationRef(), principal, workload.memberBinding().subject(), false,
+                "runtime-profile:" + workload.runtimeProfileHash(),
+                "runtime-entitlement:" + workload.entitlementRevision(), workload);
+    }
+
+    private void auditWorkloadRead(Member member, String tool, String reference, String result, int count) {
+        WeaverWorkloadPrincipal workload = member.workload();
+        if (workload == null) {
+            return;
+        }
+        auditEvents.publish(new AuditEvent(member.organizationRef(), SPACE_REF, member.principalRef(),
+                "files:mcp", AuditAction.WEAVER_TOOL_INVOCATION_RECORDED, Instant.now(),
+                "files-mcp-read:" + UUID.randomUUID(), AuditRedactionLevel.SUPPORT_SAFE,
+                Map.of("domain", "files", "tool", tool,
+                        "workloadSubjectSha256", digest((workload.issuer() + "\u0000" + workload.workloadSubject())
+                                .getBytes(StandardCharsets.UTF_8)),
+                        "workloadClientId", workload.workloadClientId(),
+                        "mcpEdgeClientId", workload.mcpEdgeClientId(),
+                        "cellRef", workload.cellRef(), "personRef", workload.personRef(),
+                        "providerBindingKey", "files.default",
+                        "objectRefSha256", digest(reference.getBytes(StandardCharsets.UTF_8)),
+                        "result", result + ":" + count)));
     }
 
     private boolean canEdit(Jwt jwt, String organizationRef, String principal) {
@@ -804,7 +901,8 @@ public class FilesUserApiService {
     }
 
     private record Member(String organizationRef, String principalRef, String subject, boolean canEdit,
-                          String policyRevision, String entitlementRevision) {}
+                          String policyRevision, String entitlementRevision,
+                          WeaverWorkloadPrincipal workload) {}
 
     public record Download(byte[] bytes, String mediaType, String etag, String digest) {}
 }

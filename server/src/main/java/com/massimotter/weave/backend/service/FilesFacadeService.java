@@ -808,7 +808,7 @@ public class FilesFacadeService {
                         "PUT /dav/files/{path}",
                         "DELETE /dav/files/{path}",
                         "MKCOL /dav/files/{path}",
-                        "MCP files.search/files.read via WebDAV-backed Weave Files facade/projection",
+                        "MCP files.search/files.read via generated Weave User Files API with current workload authorization",
                         "OpenAPI /api/files/readiness, native-provider-setup, and client-setup/credentials for discovery/status/revoke control plane",
                         "WebDAV writes use Weave ETag preconditions, support-safe conflict/storage errors, and mutation audit"),
                 List.of(

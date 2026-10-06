@@ -92,6 +92,8 @@ class PlatformControllerTest {
                 .andExpect(jsonPath("$.oidc.issuer").value("https://auth.weave.test/realms/weave"))
                 .andExpect(jsonPath("$.oidc.clientId").value("weave-app"))
                 .andExpect(jsonPath("$.protocols.matrixClientServerBaseUrl").value("https://api.weave.test"))
+                .andExpect(jsonPath("$.protocols.matrixOAuthIssuer").value("https://auth.weave.test/realms/weave"))
+                .andExpect(jsonPath("$.protocols.matrixOAuthClientId").value("weave-matrix-app"))
                 .andExpect(jsonPath("$.protocols.filesWebDavBaseUrl").doesNotExist())
                 .andExpect(jsonPath("$.protocols.calendarCalDavBaseUrl").doesNotExist())
                 .andExpect(jsonPath("$.releasePosture").value("dogfood"))
@@ -115,7 +117,8 @@ class PlatformControllerTest {
                 "userApiBaseUrl", "oidc", "protocols", "releasePosture", "domains", "recoveryActions");
         Set<String> protocolFields = new HashSet<>();
         manifest.path("protocols").fieldNames().forEachRemaining(protocolFields::add);
-        assertThat(protocolFields).containsExactly("matrixClientServerBaseUrl");
+        assertThat(protocolFields).containsExactlyInAnyOrder(
+                "matrixClientServerBaseUrl", "matrixOAuthIssuer", "matrixOAuthClientId");
     }
 
     @Test

@@ -224,6 +224,10 @@
   "@homeRecentActivityWorkspaceVisibility": {
     "description": "Generic visibility label that does not expose a Context identifier"
   },
+  "homeRecentActivityPrivateVisibility": "Private activity",
+  "@homeRecentActivityPrivateVisibility": {
+    "description": "Accessible visibility label for the current member's private Files activity"
+  },
   "homeRecentActivityItemSemantic": "{activity}. {visibility}. {recency}.",
   "@homeRecentActivityItemSemantic": {
     "description": "Screen-reader summary for one generic support-safe Home activity",

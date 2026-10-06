@@ -48,6 +48,7 @@ members with an admin role, must use the member-safe capability APIs instead.
 - `WEAVE_CLIENT_ID`: first-party Weave app client ID required in `azp` and/or `client_id`, defaults to `weave-app`.
 - `WEAVE_PUBLIC_BASE_URL`: public product entrypoint, defaults to `https://weave.test`.
 - `WEAVE_API_BASE_URL`: public backend API base URL, defaults to `https://api.weave.test/api`.
+- `WEAVE_COMPATIBILITY_PUBLIC_DAV_ENABLED`: defaults to `false`. Set to `true` only in an explicitly documented legacy compatibility environment to register the historical `/dav/files/**`, `/caldav/**`, and DAV client-setup controllers. These routes and device-credential setup flows are outside the current #1470 release and absent from the generated User API.
 - `WEAVE_AUTH_BASE_URL`: public Keycloak base URL, defaults to `https://auth.weave.test`.
 - `WEAVE_MATRIX_HOMESERVER_URL`: public Matrix homeserver URL, defaults to `https://matrix.weave.test`.
 - `WEAVE_FILES_PRODUCT_URL`: public files product surface, defaults to `https://weave.test/files`.

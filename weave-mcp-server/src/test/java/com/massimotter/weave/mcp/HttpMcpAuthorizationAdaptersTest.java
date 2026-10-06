@@ -156,7 +156,7 @@ class HttpMcpAuthorizationAdaptersTest {
         EDGE,
         jwkFile.toAbsolutePath(),
         URI.create(API_RESOURCE),
-        URI.create(base + "/dav/files"),
+        URI.create(base + "/api"),
         List.of("files.read"),
         Duration.ofSeconds(2),
         Duration.ofSeconds(60),

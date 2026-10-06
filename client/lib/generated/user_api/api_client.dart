@@ -104,25 +104,25 @@ class ApiClient {
           return await _client.post(
             uri,
             headers: nullableHeaderParams,
-            body: msgBody,
+            body: body == null ? null : msgBody,
           );
         case 'PUT':
           return await _client.put(
             uri,
             headers: nullableHeaderParams,
-            body: msgBody,
+            body: body == null ? null : msgBody,
           );
         case 'DELETE':
           return await _client.delete(
             uri,
             headers: nullableHeaderParams,
-            body: msgBody,
+            body: body == null ? null : msgBody,
           );
         case 'PATCH':
           return await _client.patch(
             uri,
             headers: nullableHeaderParams,
-            body: msgBody,
+            body: body == null ? null : msgBody,
           );
         case 'HEAD':
           return await _client.head(
@@ -256,12 +256,8 @@ class ApiClient {
           return BoardsWorkspaceResponse.fromJson(value);
         case 'CalendarAccessModelResponse':
           return CalendarAccessModelResponse.fromJson(value);
-        case 'CalendarClientSetupOptionResponse':
-          return CalendarClientSetupOptionResponse.fromJson(value);
-        case 'CalendarClientSetupResponse':
-          return CalendarClientSetupResponse.fromJson(value);
-        case 'CalendarCredentialReadinessResponse':
-          return CalendarCredentialReadinessResponse.fromJson(value);
+        case 'CalendarAccessPolicyResponse':
+          return CalendarAccessPolicyResponse.fromJson(value);
         case 'CalendarEventAttendee':
           return CalendarEventAttendee.fromJson(value);
         case 'CalendarEventOverride':
@@ -270,22 +266,10 @@ class ApiClient {
           return CalendarEventRecurrence.fromJson(value);
         case 'CalendarEventWriteRequest':
           return CalendarEventWriteRequest.fromJson(value);
-        case 'CalendarExternalEndpointsResponse':
-          return CalendarExternalEndpointsResponse.fromJson(value);
-        case 'CalendarNativeSyncOptionResponse':
-          return CalendarNativeSyncOptionResponse.fromJson(value);
-        case 'CalendarNativeSyncSetupResponse':
-          return CalendarNativeSyncSetupResponse.fromJson(value);
         case 'CalendarScopeResponse':
           return CalendarScopeResponse.fromJson(value);
         case 'CalendarScopesResponse':
           return CalendarScopesResponse.fromJson(value);
-        case 'CalendarSetupCredentialListResponse':
-          return CalendarSetupCredentialListResponse.fromJson(value);
-        case 'CalendarSetupCredentialRequest':
-          return CalendarSetupCredentialRequest.fromJson(value);
-        case 'CalendarSetupCredentialResponse':
-          return CalendarSetupCredentialResponse.fromJson(value);
         case 'CalendarTimeValue':
           return CalendarTimeValue.fromJson(value);
         case 'CalendarUserAgenda':
@@ -300,6 +284,10 @@ class ApiClient {
           return CalendarUserOccurrence.fromJson(value);
         case 'CalendarUserScope':
           return CalendarUserScope.fromJson(value);
+        case 'CanonicalBridgeEventResponse':
+          return CanonicalBridgeEventResponse.fromJson(value);
+        case 'CapabilityResponse':
+          return CapabilityResponse.fromJson(value);
         case 'ChatHistoryPolicy':
           return ChatHistoryPolicy.fromJson(value);
         case 'ChatProviderMappingRecord':
@@ -314,10 +302,14 @@ class ApiClient {
           return ClientAccessProtocolSurfaceResponse.fromJson(value);
         case 'ConnectorBoundaryResponse':
           return ConnectorBoundaryResponse.fromJson(value);
+        case 'ConnectorBoundarySummaryResponse':
+          return ConnectorBoundarySummaryResponse.fromJson(value);
         case 'ConnectorManifestValidationRequest':
           return ConnectorManifestValidationRequest.fromJson(value);
         case 'ConnectorManifestValidationResponse':
           return ConnectorManifestValidationResponse.fromJson(value);
+        case 'ConsentCapabilityRegistryResponse':
+          return ConsentCapabilityRegistryResponse.fromJson(value);
         case 'DecisionLedgerCreateRequest':
           return DecisionLedgerCreateRequest.fromJson(value);
         case 'DecisionLedgerEvidencePostureResponse':
@@ -350,16 +342,8 @@ class ApiClient {
           return DomainCapability.fromJson(value);
         case 'E2eeStatus':
           return E2eeStatus.fromJson(value);
-        case 'FileNativeProviderOptionResponse':
-          return FileNativeProviderOptionResponse.fromJson(value);
-        case 'FileNativeProviderSetupResponse':
-          return FileNativeProviderSetupResponse.fromJson(value);
-        case 'FileSetupCredentialListResponse':
-          return FileSetupCredentialListResponse.fromJson(value);
-        case 'FileSetupCredentialRequest':
-          return FileSetupCredentialRequest.fromJson(value);
-        case 'FileSetupCredentialResponse':
-          return FileSetupCredentialResponse.fromJson(value);
+        case 'ExternalConnectionResponse':
+          return ExternalConnectionResponse.fromJson(value);
         case 'FilesUserCreateFolderRequest':
           return FilesUserCreateFolderRequest.fromJson(value);
         case 'FilesUserItemResponse':
@@ -370,10 +354,14 @@ class ApiClient {
           return GuestAccessContractResponse.fromJson(value);
         case 'GuestInvitationRequest':
           return GuestInvitationRequest.fromJson(value);
+        case 'GuestInvitationResponse':
+          return GuestInvitationResponse.fromJson(value);
         case 'HealthResponse':
           return HealthResponse.fromJson(value);
         case 'IdentitySessionReconcileResponse':
           return IdentitySessionReconcileResponse.fromJson(value);
+        case 'InteropStatusResponse':
+          return InteropStatusResponse.fromJson(value);
         case 'LinkedSourceProjectResponse':
           return LinkedSourceProjectResponse.fromJson(value);
         case 'MatrixBackendBoundary':
@@ -424,12 +412,22 @@ class ApiClient {
           return RecoveryAction.fromJson(value);
         case 'SlackOAuthCallbackRequest':
           return SlackOAuthCallbackRequest.fromJson(value);
+        case 'SlackOAuthCallbackResponse':
+          return SlackOAuthCallbackResponse.fromJson(value);
         case 'SlackOutboundMessageRequest':
           return SlackOutboundMessageRequest.fromJson(value);
+        case 'SlackOutboundMessageResponse':
+          return SlackOutboundMessageResponse.fromJson(value);
+        case 'SlackStatusResponse':
+          return SlackStatusResponse.fromJson(value);
         case 'SourceRepositoryResponse':
           return SourceRepositoryResponse.fromJson(value);
+        case 'SupportBundlePolicyResponse':
+          return SupportBundlePolicyResponse.fromJson(value);
         case 'TaskItem':
           return TaskItem.fromJson(value);
+        case 'TeamsContractResponse':
+          return TeamsContractResponse.fromJson(value);
         case 'UpdateProductProfileRequest':
           return UpdateProductProfileRequest.fromJson(value);
         case 'WeaveProject':

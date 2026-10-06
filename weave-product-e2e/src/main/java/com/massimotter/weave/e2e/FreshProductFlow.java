@@ -2,6 +2,11 @@ package com.massimotter.weave.e2e;
 
 import com.massimotter.weave.adminapi.model.ProviderSelectionRequest;
 import com.massimotter.weave.adminapi.model.ProviderSelectionResponse;
+import com.massimotter.weave.adminapi.model.MemberInvitationResponse;
+import com.massimotter.weave.adminapi.model.OrganizationMemberResponse;
+import com.massimotter.weave.userapi.model.ChatReadiness;
+import com.massimotter.weave.userapi.model.IdentitySessionReconcileResponse;
+import com.massimotter.weave.userapi.model.ProfileReadinessResponse;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -54,7 +59,7 @@ public final class FreshProductFlow {
       new FreshProductFlow(environment).run();
       System.out.println(
           "WEAVE_TEST_APP_RESULT status=passed activation=browser pkce=S256 "
-              + "workload=private_key_jwt tool=files.search projection=webdav "
+              + "workload=private_key_jwt tool=files.search projection=user-api "
               + "userFiles=generated supportSafe=true");
     } catch (RuntimeException failure) {
       System.err.println(
@@ -74,9 +79,6 @@ public final class FreshProductFlow {
     String ownerEmail = environment.ownerEmail();
     String memberEmail = environment.memberEmail();
     String outsiderEmail = environment.outsiderEmail();
-    String proofFile =
-        "weave-e2e-" + Hashing.sha256(environment.runId()).substring(0, 16) + ".txt";
-    boolean fileCreated = false;
     OidcBrowserJourney.TokenSet memberSession = null;
     OidcBrowserJourney.TokenSet outsiderSession = null;
     OidcBrowserJourney.TokenSet adminSession = null;
@@ -91,8 +93,13 @@ public final class FreshProductFlow {
     List<CollaborationJourney.PassProof> collaborationPasses = new java.util.ArrayList<>();
 
     try (OidcBrowserJourney browser = new OidcBrowserJourney(environment, http)) {
-      JsonNode ownerInvitation = bootstrapOwner(ownerEmail);
-      String organizationId = requiredText(ownerInvitation, "organizationId");
+      MemberInvitationResponse ownerInvitation = bootstrapOwner(ownerEmail);
+      String organizationId = ownerInvitation.getOrganizationId();
+      if (organizationId == null || organizationId.isBlank()
+          || !"owner".equals(ownerInvitation.getRequestedRole())
+          || !ownerEmail.equalsIgnoreCase(ownerInvitation.getEmail())) {
+        throw new ProductFlowException("Owner bootstrap returned an invalid invitation projection");
+      }
       MailpitActivationInbox ownerInbox =
           new MailpitActivationInbox(
               http,
@@ -297,11 +304,11 @@ public final class FreshProductFlow {
       JsonNode provisioned = provisionRuntime(personRef, adminSession.accessToken());
       startedRuntime = startRuntime(personRef, adminSession.accessToken(), provisioned);
 
-      createProofFile(proofFile, memberSession.accessToken());
-      fileCreated = true;
+      GeneratedFilesJourney.Proof mcpTextProof =
+          generatedFiles.createMcpTextFile(memberSession.accessToken(), environment.runId());
       mcpProof =
           new WorkloadMcpJourney(environment, http)
-              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), proofFile);
+              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
 
       restartProof = new PersistenceRestartJourney(environment, http).restart();
       JsonNode persistedRuntime =
@@ -309,7 +316,7 @@ public final class FreshProductFlow {
       requireSameRuntime(startedRuntime, persistedRuntime);
       WorkloadMcpJourney.McpProof postRestartMcpProof =
           new WorkloadMcpJourney(environment, http)
-              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), proofFile);
+              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
       if (!mcpProof.equals(postRestartMcpProof)) {
         throw new ProductFlowException(
             "the same Cell MCP projection did not persist across service restarts");
@@ -327,7 +334,7 @@ public final class FreshProductFlow {
       }
       try {
         new WorkloadMcpJourney(environment, http)
-            .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), proofFile);
+            .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
       } catch (ProductFlowException expectedDenial) {
         revocationDenied = true;
       }
@@ -354,7 +361,7 @@ public final class FreshProductFlow {
       requireSameRuntimeIdentity(startedRuntime, restartedRuntime);
       WorkloadMcpJourney.McpProof postRegrantMcpProof =
           new WorkloadMcpJourney(environment, http)
-              .invokeFilesSearch(requiredText(restartedRuntime, "cellRef"), proofFile);
+              .invokeFilesSearch(requiredText(restartedRuntime, "cellRef"), mcpTextProof);
       regrantRestored = mcpProof.equals(postRegrantMcpProof);
       if (!regrantRestored) {
         throw new ProductFlowException(
@@ -375,9 +382,6 @@ public final class FreshProductFlow {
           samePersonRefAfterRegrant,
           collaborationPasses);
     } finally {
-      if (fileCreated && memberSession != null) {
-        deleteProofFile(proofFile, memberSession.accessToken());
-      }
       // Avoid retaining references longer than the single bounded JVM run.
       ownerPassword = "";
       memberPassword = "";
@@ -392,19 +396,9 @@ public final class FreshProductFlow {
     }
   }
 
-  private JsonNode bootstrapOwner(String email) {
-    ObjectNode request = http.mapper().createObjectNode();
-    request.put("email", email);
-    request.put("displayName", "Weave E2E Owner");
-    return http.json(
-        "create first owner invitation",
-        "POST",
-        environment.api("/api/bootstrap/owner-invitation"),
-        Map.of(
-            "X-Weave-Bootstrap-Token", readBootstrapToken(),
-            "Idempotency-Key", "test-app-owner-" + runHash()),
-        request,
-        Set.of(200, 201));
+  private MemberInvitationResponse bootstrapOwner(String email) {
+    return new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate())
+        .bootstrapOwner(readBootstrapToken(), "test-app-owner-" + runHash(), email);
   }
 
   private void inviteActor(
@@ -413,25 +407,18 @@ public final class FreshProductFlow {
       String displayName,
       String role,
       String accessToken) {
-    ObjectNode request = http.mapper().createObjectNode();
-    request.put("email", email);
-    request.put("displayName", displayName);
-    request.put("role", role);
-    JsonNode invitation =
-        http.json(
-            "invite " + role + " through Weave",
-            "POST",
-            environment.api(
-                "/api/admin/organizations/"
-                    + encodeSegment(organizationId)
-                    + "/invitations"),
-            bearer(
+    MemberInvitationResponse invitation =
+        new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate())
+            .inviteMember(
                 accessToken,
-                Map.of("Idempotency-Key", "test-app-" + role + "-" + runHash())),
-            request,
-            Set.of(201));
-    if (!role.equals(invitation.path("requestedRole").asString())
-        || invitation.has("capabilities")) {
+                organizationId,
+                "test-app-" + role + "-" + runHash(),
+                email,
+                displayName,
+                role);
+    if (!role.equals(invitation.getRequestedRole())
+        || !organizationId.equals(invitation.getOrganizationId())
+        || !email.equalsIgnoreCase(invitation.getEmail())) {
       throw new ProductFlowException(role + " invitation projection is invalid");
     }
   }
@@ -442,20 +429,11 @@ public final class FreshProductFlow {
       String accessToken,
       boolean entitled,
       String operation) {
-    JsonNode page =
-        http.json(
-            "list organization members for Weaver assignment",
-            "GET",
-            environment.api(
-                "/api/admin/organizations/"
-                    + encodeSegment(organizationId)
-                    + "/members?size=100"),
-            bearer(accessToken, Map.of()),
-            null,
-            Set.of(200));
-    JsonNode member = null;
-    for (JsonNode candidate : page.path("items")) {
-      if (email.equalsIgnoreCase(candidate.path("email").asString())) {
+    GeneratedAdminApi adminApi = new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate());
+    var page = adminApi.listMembers(accessToken, organizationId);
+    OrganizationMemberResponse member = null;
+    for (OrganizationMemberResponse candidate : page.getItems()) {
+      if (email.equalsIgnoreCase(candidate.getEmail())) {
         if (member != null) {
           throw new ProductFlowException("member projection is ambiguous");
         }
@@ -465,28 +443,21 @@ public final class FreshProductFlow {
     if (member == null) {
       throw new ProductFlowException("activated member is missing");
     }
-    ObjectNode request = http.mapper().createObjectNode();
-    request.put("entitled", entitled);
-    JsonNode updated =
-        http.json(
-            (entitled ? "assign" : "remove") + " native Weaver organization capability",
-            "PUT",
-            environment.api(
-                "/api/admin/organizations/"
-                    + encodeSegment(organizationId)
-                    + "/members/"
-                    + encodeSegment(requiredText(member, "memberHandle"))
-                    + "/capabilities/weaver"),
-            bearer(
-                accessToken,
-                Map.of(
-                    "If-Match", requiredText(member, "version"),
-                    "Idempotency-Key",
-                        "test-app-weaver-" + operation + "-" + runHash())),
-            request,
-            Set.of(200));
+    if (member.getMemberHandle() == null || member.getMemberHandle().isBlank()
+        || member.getVersion() == null || member.getVersion().isBlank()) {
+      throw new ProductFlowException("member projection omitted stable handle or version");
+    }
+    OrganizationMemberResponse updated =
+        adminApi.updateWeaverEntitlement(
+            accessToken,
+            organizationId,
+            member.getMemberHandle(),
+            member.getVersion(),
+            "test-app-weaver-" + operation + "-" + runHash(),
+            entitled);
     Set<String> expected = entitled ? Set.of("agent-runtime.entitled") : Set.of();
-    if (!strings(updated.path("capabilities")).equals(expected)) {
+    if (updated.getCapabilities() == null
+        || !Set.copyOf(updated.getCapabilities()).equals(expected)) {
       throw new ProductFlowException("native Weaver capability mutation did not converge");
     }
   }
@@ -547,15 +518,10 @@ public final class FreshProductFlow {
 
   private void proveMemberApi(String token) {
     new GeneratedWorkspaceJourney(environment).verifyHome(token);
-    JsonNode readiness =
-        http.json(
-            "read authenticated profile readiness",
-            "GET",
-            environment.api("/api/profile/readiness"),
-            bearer(token, Map.of()),
-            null,
-            Set.of(200));
-    if (!readiness.path("supportSafe").asBoolean(false)) {
+    ProfileReadinessResponse readiness =
+        new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
+            .profileReadiness(token);
+    if (!Boolean.TRUE.equals(readiness.getSupportSafe())) {
       throw new ProductFlowException("profile readiness was not support-safe");
     }
   }
@@ -632,20 +598,15 @@ public final class FreshProductFlow {
   private void awaitChatReadiness(String ownerToken) {
     Instant deadline = Instant.now().plus(environment.convergenceTimeout());
     String observedState = "unavailable";
+    GeneratedUserApi userApi = new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate());
     while (Instant.now().isBefore(deadline)) {
-      JsonNode readiness =
-          http.json(
-              "read Chat provider readiness",
-              "GET",
-              environment.api("/api/chat/readiness"),
-              bearer(ownerToken, Map.of()),
-              null,
-              Set.of(200));
-      observedState = readiness.path("memberState").asString();
-      if ("available".equals(observedState)
-          && "chat".equals(readiness.path("domain").asString())
-          && !readiness.path("failClosed").asBoolean(true)
-          && readiness.path("supportSafe").asBoolean(false)) {
+      ChatReadiness readiness = userApi.chatReadiness(ownerToken);
+      observedState = readiness.getMemberState() == null
+          ? "unavailable" : readiness.getMemberState().getValue();
+      if (readiness.getMemberState() == ChatReadiness.MemberStateEnum.AVAILABLE
+          && "chat".equals(readiness.getDomain())
+          && Boolean.FALSE.equals(readiness.getFailClosed())
+          && Boolean.TRUE.equals(readiness.getSupportSafe())) {
         return;
       }
       sleep();
@@ -660,17 +621,11 @@ public final class FreshProductFlow {
       String expectedRole,
       String email,
       String password) {
-    JsonNode response =
-        http.json(
-            "reconcile authenticated identity session",
-            "POST",
-            environment.api("/api/v1/identity/session/reconcile"),
-            bearer(session.accessToken(), Map.of()),
-            null,
-            Set.of(200));
-    if (!"access_updated".equals(response.path("state").asString())
-        || !response.path("reauthorizationRequired").asBoolean(false)
-        || response.has("sessionRefreshRequired")) {
+    IdentitySessionReconcileResponse response =
+        new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
+            .reconcileIdentitySession(session.accessToken());
+    if (response.getState() != IdentitySessionReconcileResponse.StateEnum.ACCESS_UPDATED
+        || !Boolean.TRUE.equals(response.getReauthorizationRequired())) {
       throw new ProductFlowException(
           "identity session did not apply the pending " + expectedRole + " intent");
     }
@@ -942,38 +897,6 @@ public final class FreshProductFlow {
         "/api/admin/agent-runtimes/" + encodeSegment(personRef) + operation);
   }
 
-  private void createProofFile(String fileName, String token) {
-    JsonHttpClient.Response response =
-        http.send(
-            "create Files WebDAV proof object",
-            "PUT",
-            environment.api("/dav/files/" + encodeSegment(fileName)),
-            bearer(token, Map.of("If-None-Match", "*")),
-            "text/plain; charset=utf-8",
-            ("Weave testApp " + runHash()).getBytes(StandardCharsets.UTF_8),
-            Set.of(201));
-    if (response.firstHeader("ETag").isBlank()) {
-      throw new ProductFlowException("Files WebDAV proof object omitted its ETag");
-    }
-  }
-
-  private void deleteProofFile(String fileName, String token) {
-    try {
-      http.send(
-          "delete Files WebDAV proof object",
-          "DELETE",
-          environment.api("/dav/files/" + encodeSegment(fileName)),
-          bearer(token, Map.of()),
-          null,
-          null,
-          Set.of(204, 404));
-    } catch (ProductFlowException cleanupFailure) {
-      System.err.println(
-          "WEAVE_TEST_APP_CLEANUP_ERROR "
-              + safeMessage(cleanupFailure.getMessage()));
-    }
-  }
-
   private void writeEvidence(
       Instant startedAt,
       String ownerEmail,
@@ -1038,10 +961,10 @@ public final class FreshProductFlow {
     selectedProviders.put("chat", "weave-native");
     selectedProviders.put("files", "weave-native");
     selectedProviders.put("calendar", "weave-native");
-    ObjectNode northboundFacades = collaboration.putObject("northboundFacades");
-    northboundFacades.put("matrix", true);
-    northboundFacades.put("webdav", true);
-    northboundFacades.put("caldav", true);
+    ObjectNode northboundContracts = collaboration.putObject("northboundContracts");
+    northboundContracts.put("matrix", "matrix-client-server");
+    northboundContracts.put("files", "weave-user-api");
+    northboundContracts.put("calendar", "weave-user-api");
     collaboration.put("southboundProviderDependencyObserved", false);
     ObjectNode identityHashes = collaboration.putObject("identityRefHashes");
     identityHashes.put("author", collaborationPasses.get(0).authorIdentityRefHash());

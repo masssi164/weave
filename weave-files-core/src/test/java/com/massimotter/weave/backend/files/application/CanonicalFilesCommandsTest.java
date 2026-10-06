@@ -4,6 +4,7 @@ import static com.massimotter.weave.backend.files.application.FilesCommandExcept
 import static com.massimotter.weave.backend.files.application.FilesCommandException.Code.PARENT_MISSING;
 import static com.massimotter.weave.backend.files.application.FilesCommandException.Code.PARENT_NOT_COLLECTION;
 import static com.massimotter.weave.backend.files.application.FilesCommandException.Code.PATH_CONFLICT;
+import static com.massimotter.weave.backend.files.application.FilesCommandException.Code.VERSION_CHANGED;
 import static com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle.ACTIVE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -169,6 +170,59 @@ class CanonicalFilesCommandsTest {
         assertTrue(blobs.values.size() >= 2);
     }
 
+    @Test
+    void conditionalWriteKeepsIdentityAndRejectsStaleVersionOrReplacement() {
+        FilePath path = new FilePath("/conditional.txt");
+        FileObject original = commands.write(SCOPE, new FileWrite(path, "first".getBytes(), "text/plain"));
+        FileVersion firstVersion = authority.findByPath(SCOPE.organizationRef(), SCOPE.spaceRef(), path)
+                .orElseThrow().metadata().version();
+
+        FileObject updated = commands.writeIfIdAndVersion(SCOPE, original.id(),
+                new FileWrite(path, "second".getBytes(), "text/plain"), firstVersion);
+        StoredFileRecord current = authority.findByPath(SCOPE.organizationRef(), SCOPE.spaceRef(), path)
+                .orElseThrow();
+        assertEquals(original.id(), updated.id());
+        assertNotEquals(firstVersion, current.metadata().version());
+
+        FilesCommandException stale = assertThrows(FilesCommandException.class,
+                () -> commands.writeIfIdAndVersion(SCOPE, original.id(),
+                        new FileWrite(path, "stale".getBytes(), "text/plain"), firstVersion));
+        assertEquals(VERSION_CHANGED, stale.code());
+        assertEquals(current, authority.findByPath(SCOPE.organizationRef(), SCOPE.spaceRef(), path)
+                .orElseThrow());
+
+        FileObject replacement = new FileObject(new FileId("file:replacement"), path, Kind.FILE,
+                current.metadata().object().size(), "text/plain", NOW, false);
+        authority.records.clear();
+        authority.save(new StoredFileRecord(new com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord(
+                SCOPE.organizationRef(), SCOPE.spaceRef(), replacement, current.metadata().version(),
+                current.metadata().contentDigest(), SCOPE.providerBindingRevision(), ACTIVE, NOW),
+                current.blobBinding()));
+        FilesCommandException replaced = assertThrows(FilesCommandException.class,
+                () -> commands.writeIfIdAndVersion(SCOPE, original.id(),
+                        new FileWrite(path, "third".getBytes(), "text/plain"), current.metadata().version()));
+        assertEquals(VERSION_CHANGED, replaced.code());
+        assertEquals(replacement.id(), authority.findByPath(SCOPE.organizationRef(), SCOPE.spaceRef(), path)
+                .orElseThrow().metadata().object().id());
+    }
+
+    @Test
+    void conditionalWriteFailsClosedWhenMetadataChangesAtActivation() {
+        FilePath path = new FilePath("/raced.txt");
+        FileObject original = commands.write(SCOPE, new FileWrite(path, "first".getBytes(), "text/plain"));
+        StoredFileRecord before = authority.findByPath(SCOPE.organizationRef(), SCOPE.spaceRef(), path)
+                .orElseThrow();
+        authority.nextConflict = ConflictMode.THROW_ONLY;
+
+        FilesCommandException raced = assertThrows(FilesCommandException.class,
+                () -> commands.writeIfIdAndVersion(SCOPE, original.id(),
+                        new FileWrite(path, "second".getBytes(), "text/plain"), before.metadata().version()));
+
+        assertEquals(VERSION_CHANGED, raced.code());
+        assertEquals(before, authority.findByPath(SCOPE.organizationRef(), SCOPE.spaceRef(), path)
+                .orElseThrow());
+    }
+
     private enum ConflictMode {
         NONE,
         STORE_REQUESTED_AND_THROW,
@@ -192,6 +246,21 @@ class CanonicalFilesCommandsTest {
             }
             replaceRecord(record);
             return record;
+        }
+
+        @Override
+        public synchronized StoredFileRecord activateIfIdAndVersion(
+                StoredFileRecord replacement, FileId expectedId, FileVersion expectedVersion) {
+            StoredFileRecord current = findByPath(replacement.metadata().organizationRef(),
+                    replacement.metadata().spaceRef(), replacement.metadata().object().path()).orElse(null);
+            if (current == null || !current.metadata().object().id().equals(expectedId)
+                    || !replacement.metadata().object().id().equals(expectedId)
+                    || !current.metadata().version().equals(expectedVersion)
+                    || current.metadata().providerBindingRevision()
+                            != replacement.metadata().providerBindingRevision()) {
+                throw new ConcurrentMutationException(replacement.metadata().object().path());
+            }
+            return save(replacement);
         }
 
         private void replaceRecord(StoredFileRecord record) {

@@ -34,7 +34,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
         "weave.interop.slack.token-ref=secret://slack/bot-token",
         "weave.interop.slack.signing-secret-ref=secret://slack/signing-secret",
-        "weave.interop.slack.client-secret-ref=secret://slack/client-secret"
+        "weave.interop.slack.client-secret-ref=secret://slack/client-secret",
+        "weave.compatibility.public-dav.enabled=true"
 })
 @AutoConfigureMockMvc
 class PlatformProductContractControllerTest {

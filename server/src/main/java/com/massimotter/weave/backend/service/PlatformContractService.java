@@ -55,7 +55,8 @@ public class PlatformContractService {
                 platformProperties.publicBaseUrl(),
                 platformProperties.apiBaseUrl(),
                 new PlatformConfigResponse.Oidc(oidcIssuerUrl(), securityProperties.clientId()),
-                new PlatformConfigResponse.Protocols(advertisedMatrixFacadeUrl()),
+                new PlatformConfigResponse.Protocols(
+                        advertisedMatrixFacadeUrl(), oidcIssuerUrl(), "weave-matrix-app"),
                 releasePosture(),
                 List.of(
                         domain("identity", true, List.of(

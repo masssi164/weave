@@ -4,6 +4,14 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('member transport has one generated User model source', () {
+    expect(
+      File('lib/generated/user_api/model/protocols.dart').existsSync(),
+      isTrue,
+    );
+    expect(File('lib/generated/openapi_models.dart').existsSync(), isFalse);
+  });
+
   test(
     'member app cannot acquire provider registry diagnostics with its User session',
     () async {
@@ -200,11 +208,11 @@ void main() {
       'lib/integrations/weave_api/data/dtos/organization_manifest_response_dto.dart',
     ).readAsString();
 
-    expect(client, contains('openapi.OrganizationManifestResponse.fromJson'));
-    expect(client, contains('openapi.WorkspaceCapabilitiesResponse.fromJson'));
+    expect(client, contains('.organizationManifest()'));
+    expect(client, contains('.capabilities()'));
     expect(client, contains('user_api.WorkspaceApi('));
-    expect(client, contains('client.home()'));
-    expect(client, isNot(contains('openapi.WorkspaceHomeResponse.fromJson')));
+    expect(client, contains('.home()'));
+    expect(client, isNot(contains('Response.fromJson')));
     expect(
       workspaceHome,
       contains("package:weave/generated/user_api/api.dart"),
@@ -216,6 +224,7 @@ void main() {
     ]) {
       expect(source, isNot(contains('class ')));
       expect(source, contains('extension '));
+      expect(source, contains('package:weave/generated/user_api/api.dart'));
     }
   });
 

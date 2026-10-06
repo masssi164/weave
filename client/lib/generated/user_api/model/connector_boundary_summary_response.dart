@@ -10,11 +10,12 @@
 
 part of weave_user_api;
 
-class FileSetupCredentialRequest {
-  /// Returns a new [FileSetupCredentialRequest] instance.
-  FileSetupCredentialRequest({
-    this.clientType,
-    this.label,
+class ConnectorBoundarySummaryResponse {
+  /// Returns a new [ConnectorBoundarySummaryResponse] instance.
+  ConnectorBoundarySummaryResponse({
+    this.publicSdkAvailable,
+    this.rules = const [],
+    this.runtimeBoundary,
   });
 
   ///
@@ -23,7 +24,9 @@ class FileSetupCredentialRequest {
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  String? clientType;
+  bool? publicSdkAvailable;
+
+  List<String> rules;
 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -31,44 +34,47 @@ class FileSetupCredentialRequest {
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  String? label;
+  String? runtimeBoundary;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is FileSetupCredentialRequest &&
-          other.clientType == clientType &&
-          other.label == label;
+      other is ConnectorBoundarySummaryResponse &&
+          other.publicSdkAvailable == publicSdkAvailable &&
+          _deepEquality.equals(other.rules, rules) &&
+          other.runtimeBoundary == runtimeBoundary;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (clientType == null ? 0 : clientType!.hashCode) +
-      (label == null ? 0 : label!.hashCode);
+      (publicSdkAvailable == null ? 0 : publicSdkAvailable!.hashCode) +
+      (rules.hashCode) +
+      (runtimeBoundary == null ? 0 : runtimeBoundary!.hashCode);
 
   @override
   String toString() =>
-      'FileSetupCredentialRequest[clientType=$clientType, label=$label]';
+      'ConnectorBoundarySummaryResponse[publicSdkAvailable=$publicSdkAvailable, rules=$rules, runtimeBoundary=$runtimeBoundary]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    if (this.clientType != null) {
-      json[r'clientType'] = this.clientType;
+    if (this.publicSdkAvailable != null) {
+      json[r'publicSdkAvailable'] = this.publicSdkAvailable;
     } else {
-      json[r'clientType'] = null;
+      json[r'publicSdkAvailable'] = null;
     }
-    if (this.label != null) {
-      json[r'label'] = this.label;
+    json[r'rules'] = this.rules;
+    if (this.runtimeBoundary != null) {
+      json[r'runtimeBoundary'] = this.runtimeBoundary;
     } else {
-      json[r'label'] = null;
+      json[r'runtimeBoundary'] = null;
     }
     return json;
   }
 
-  /// Returns a new [FileSetupCredentialRequest] instance and imports its values from
+  /// Returns a new [ConnectorBoundarySummaryResponse] instance and imports its values from
   /// [value] if it's a [Map], null otherwise.
   // ignore: prefer_constructors_over_static_methods
-  static FileSetupCredentialRequest? fromJson(dynamic value) {
+  static ConnectorBoundarySummaryResponse? fromJson(dynamic value) {
     if (value is Map) {
       final json = value.cast<String, dynamic>();
 
@@ -78,29 +84,34 @@ class FileSetupCredentialRequest {
       assert(() {
         requiredKeys.forEach((key) {
           assert(json.containsKey(key),
-              'Required key "FileSetupCredentialRequest[$key]" is missing from JSON.');
+              'Required key "ConnectorBoundarySummaryResponse[$key]" is missing from JSON.');
           assert(json[key] != null,
-              'Required key "FileSetupCredentialRequest[$key]" has a null value in JSON.');
+              'Required key "ConnectorBoundarySummaryResponse[$key]" has a null value in JSON.');
         });
         return true;
       }());
 
-      return FileSetupCredentialRequest(
-        clientType: mapValueOfType<String>(json, r'clientType'),
-        label: mapValueOfType<String>(json, r'label'),
+      return ConnectorBoundarySummaryResponse(
+        publicSdkAvailable: mapValueOfType<bool>(json, r'publicSdkAvailable'),
+        rules: json[r'rules'] is Iterable
+            ? (json[r'rules'] as Iterable)
+                .cast<String>()
+                .toList(growable: false)
+            : const [],
+        runtimeBoundary: mapValueOfType<String>(json, r'runtimeBoundary'),
       );
     }
     return null;
   }
 
-  static List<FileSetupCredentialRequest> listFromJson(
+  static List<ConnectorBoundarySummaryResponse> listFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final result = <FileSetupCredentialRequest>[];
+    final result = <ConnectorBoundarySummaryResponse>[];
     if (json is List && json.isNotEmpty) {
       for (final row in json) {
-        final value = FileSetupCredentialRequest.fromJson(row);
+        final value = ConnectorBoundarySummaryResponse.fromJson(row);
         if (value != null) {
           result.add(value);
         }
@@ -109,12 +120,13 @@ class FileSetupCredentialRequest {
     return result.toList(growable: growable);
   }
 
-  static Map<String, FileSetupCredentialRequest> mapFromJson(dynamic json) {
-    final map = <String, FileSetupCredentialRequest>{};
+  static Map<String, ConnectorBoundarySummaryResponse> mapFromJson(
+      dynamic json) {
+    final map = <String, ConnectorBoundarySummaryResponse>{};
     if (json is Map && json.isNotEmpty) {
       json = json.cast<String, dynamic>(); // ignore: parameter_assignments
       for (final entry in json.entries) {
-        final value = FileSetupCredentialRequest.fromJson(entry.value);
+        final value = ConnectorBoundarySummaryResponse.fromJson(entry.value);
         if (value != null) {
           map[entry.key] = value;
         }
@@ -123,17 +135,17 @@ class FileSetupCredentialRequest {
     return map;
   }
 
-  // maps a json object with a list of FileSetupCredentialRequest-objects as value to a dart map
-  static Map<String, List<FileSetupCredentialRequest>> mapListFromJson(
+  // maps a json object with a list of ConnectorBoundarySummaryResponse-objects as value to a dart map
+  static Map<String, List<ConnectorBoundarySummaryResponse>> mapListFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final map = <String, List<FileSetupCredentialRequest>>{};
+    final map = <String, List<ConnectorBoundarySummaryResponse>>{};
     if (json is Map && json.isNotEmpty) {
       // ignore: parameter_assignments
       json = json.cast<String, dynamic>();
       for (final entry in json.entries) {
-        map[entry.key] = FileSetupCredentialRequest.listFromJson(
+        map[entry.key] = ConnectorBoundarySummaryResponse.listFromJson(
           entry.value,
           growable: growable,
         );
