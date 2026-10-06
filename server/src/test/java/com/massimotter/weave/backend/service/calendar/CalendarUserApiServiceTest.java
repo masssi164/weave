@@ -153,6 +153,42 @@ class CalendarUserApiServiceTest {
     }
 
     @Test
+    void rejectedCreateDoesNotMaterializeAResource() {
+        doThrow(new IllegalStateException("audit unavailable")).when(audit).publish(any());
+        assertStatus(() -> service.create(member, calendar, content("Planning"), "calendar-create-key-1"),
+                HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(mappings).isEmpty();
+        verify(bindings, never()).saveMapping(any());
+        verify(provider, never()).write(any());
+    }
+
+    @Test
+    void failedProviderCreateDoesNotMaterializeAResourceAndCanRetry() {
+        doThrow(new CalendarAdapterException(
+                CalendarAdapterException.Type.DOWNSTREAM_UNAVAILABLE, "private failure"))
+                .when(provider).write(any());
+        assertStatus(() -> service.create(member, calendar, content("Planning"), "calendar-create-key-1"),
+                HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(mappings).isEmpty();
+        verify(bindings, never()).saveMapping(any());
+
+        reset(provider);
+        when(provider.conformanceProfile()).thenReturn(new ProviderConformanceProfile(
+                "calendar", "test-provider", Set.of(), Map.of(), true, true, true));
+        when(provider.configured()).thenReturn(true);
+        when(provider.write(any())).thenAnswer(call -> {
+            CalendarEvent input = ((CalendarWrite) call.getArgument(0)).event();
+            return new CalendarEvent(input.calendarId(), input.id(), input.scope(), input.title(), input.description(),
+                    input.startValue(), input.endValue(), input.location(), input.attendees(), input.recurrence(),
+                    input.overrides(), new EventVersion("\"private-etag-1\""), Instant.now());
+        });
+        Event recovered = service.create(member, calendar, content("Planning"), "calendar-create-key-1");
+        assertThat(recovered.id()).startsWith("event:");
+        assertThat(mappings).containsKey(recovered.id());
+        verify(bindings, times(1)).saveMapping(any());
+    }
+
+    @Test
     void unsupportedExistingAttendeeIdentityBlocksReplacementBeforeAnyProviderWrite() {
         Event created = service.create(member, calendar, content("Planning"), "calendar-create-key-1");
         CalendarEvent existing = events.values().iterator().next();
