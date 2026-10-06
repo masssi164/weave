@@ -82,6 +82,9 @@ final class CollaborationJourney {
     boolean restartContinuityVerified = false;
     String nativeRevisionHash = null;
     try {
+      if (pass == 1) {
+        requirePublicMatrixDiscovery();
+      }
       MatrixIdentity collaboratorMatrix = matrixIdentity(collaboratorIdentity, pass);
       matrixIdentity(outsiderIdentity, pass);
       matrixIdentity(authorIdentity, pass);
@@ -256,6 +259,30 @@ final class CollaborationJourney {
             .collect(java.util.stream.Collectors.toUnmodifiableSet());
     if (tenants.size() != 1) {
       throw new ProductFlowException("collaboration identities do not share one isolated tenant");
+    }
+  }
+
+  private void requirePublicMatrixDiscovery() {
+    JsonNode wellKnown = http.json(
+        "discover Weave Matrix facade", "GET",
+        environment.apiOrigin().resolve("/.well-known/matrix/client"),
+        Map.of(), null, Set.of(200));
+    if (!environment.apiOrigin().toString().equals(
+        wellKnown.path("m.homeserver").path("base_url").asString())) {
+      throw new ProductFlowException("Matrix discovery does not point to the Weave API authority");
+    }
+    JsonNode versions = http.json(
+        "discover public Matrix versions", "GET",
+        environment.api("/_matrix/client/versions"), Map.of(), null, Set.of(200));
+    if (!versions.path("versions").isArray()
+        || !"v1.18".equals(versions.path("versions").path(0).asString())) {
+      throw new ProductFlowException("public Matrix version discovery is unavailable");
+    }
+    JsonNode login = http.json(
+        "discover Matrix login policy", "GET",
+        environment.api("/_matrix/client/v3/login"), Map.of(), null, Set.of(200));
+    if (!login.path("flows").isArray() || login.path("flows").size() != 0) {
+      throw new ProductFlowException("Matrix discovery advertised an unavailable second login");
     }
   }
 

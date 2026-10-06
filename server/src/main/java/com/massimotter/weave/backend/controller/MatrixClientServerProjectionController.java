@@ -109,6 +109,8 @@ public class MatrixClientServerProjectionController {
         }
         try {
             String path = requestPath(request);
+            if ("GET".equals(method) && isVersions(path)) return matrixOk(matrixProtocolCoreService.versions());
+            if ("GET".equals(method) && isLogin(path)) return matrixOk(loginFlows());
             if (matrixClientStateService.revoked(jwt) && !isLogout(path)) throw new MatrixProtocolException("M_UNKNOWN_TOKEN", "The Matrix access token was revoked.");
             MatrixFacadeClientStateService.MatrixIdentity identity = matrixClientStateService.register(jwt, request.getHeader(MatrixFacadeClientStateService.DEVICE_ID_HEADER));
             if ("POST".equals(method) && path.equals("/_matrix/client/unstable/org.weave.device_continuity/challenge")) {
@@ -127,8 +129,6 @@ public class MatrixClientServerProjectionController {
                     request.getHeader(MatrixFacadeClientStateService.DEVICE_ID_HEADER),
                     request.getHeader(MatrixDeviceProofService.DEVICE_PROOF_HEADER));
             matrixE2eeStateService.requireActive(identity);
-            if ("GET".equals(method) && isVersions(path)) return matrixOk(matrixProtocolCoreService.versions());
-            if ("GET".equals(method) && isLogin(path)) return matrixOk(loginFlows());
             if ("POST".equals(method) && isLogout(path)) { matrixClientStateService.revoke(jwt); return matrixOk(Map.of()); }
             if ("GET".equals(method) && isWhoami(path)) return matrixOk(matrixProtocolCoreService.whoami(jwt.getSubject(), identity.deviceId()));
             if ("GET".equals(method) && isPushRules(path)) return matrixOk(matrixClientStateService.pushRules());
@@ -222,7 +222,7 @@ public class MatrixClientServerProjectionController {
     }
 
     private String supportSafeProviderErrcode(ChatProviderUnavailableException exception) { String prefix = "chat-conversation-mapping-degraded-"; String code = exception.supportSafeCode(); if (!code.startsWith(prefix)) return "M_UNAVAILABLE"; String reason = code.substring(prefix.length()); if (!reason.matches("[a-z0-9-]{2,55}")) return "M_WEAVE_CHAT_DEGRADED_UNKNOWN"; return "M_WEAVE_CHAT_DEGRADED_" + reason.toUpperCase(Locale.ROOT).replace('-', '_'); }
-    private Map<String, Object> loginFlows() { return Map.of("flows", List.of(Map.of("type", "org.matrix.login.jwt")), "weaveOidcGatekeeper", true, "passwordLoginSupported", false); }
+    private Map<String, Object> loginFlows() { return Map.of("flows", List.of(), "weaveOidcGatekeeper", true, "passwordLoginSupported", false); }
 
     private Map<String, Object> sync(Jwt jwt, MatrixFacadeClientStateService.MatrixIdentity identity, String since) {
         matrixProtocolCoreService.validateSyncToken(since);

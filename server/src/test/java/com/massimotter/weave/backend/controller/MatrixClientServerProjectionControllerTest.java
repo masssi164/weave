@@ -148,11 +148,20 @@ class MatrixClientServerProjectionControllerTest {
         mockMvc.perform(get("/.well-known/matrix/client"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$['m.homeserver'].base_url").value("https://api.weave.test"));
+        mockMvc.perform(get("/_matrix/client/versions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.versions[0]").value("v1.18"));
+        mockMvc.perform(get("/_matrix/client/v3/login"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.flows").isEmpty())
+                .andExpect(jsonPath("$.weaveOidcGatekeeper").value(true));
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
     void versionsIsSerializedByTheLinkedRustRumaCore() throws Exception {
-        mockMvc.perform(get("/_matrix/client/versions").with(workspaceJwt()))
+        mockMvc.perform(get("/_matrix/client/versions"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.versions[0]").value("v1.18"))
                 .andExpect(jsonPath("$.matrixCore.protocolSurface").value("matrix-client-server-facade"))
