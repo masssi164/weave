@@ -267,7 +267,9 @@ final class CollaborationJourney {
         "discover Weave Matrix facade", "GET",
         environment.apiOrigin().resolve("/.well-known/matrix/client"),
         Map.of(), null, Set.of(200));
-    if (!environment.apiOrigin().toString().equals(
+    String expectedOrigin = environment.apiOrigin().getScheme() + "://"
+        + environment.apiOrigin().getRawAuthority();
+    if (!expectedOrigin.equals(
         wellKnown.path("m.homeserver").path("base_url").asString())) {
       throw new ProductFlowException("Matrix discovery does not point to the Weave API authority");
     }
