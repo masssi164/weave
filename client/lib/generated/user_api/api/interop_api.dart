@@ -44,11 +44,22 @@ class InteropApi {
   }
 
   /// Get support-safe interop gateway status
-  Future<void> getInteropStatus() async {
+  Future<InteropStatusResponse?> getInteropStatus() async {
     final response = await getInteropStatusWithHttpInfo();
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'InteropStatusResponse',
+      ) as InteropStatusResponse;
+    }
+    return null;
   }
 
   /// Convert a Slack text event into a canonical bridge event in sandbox mode
@@ -107,7 +118,7 @@ class InteropApi {
   /// * [String] xSlackRequestTimestamp:
   ///
   /// * [String] xSlackSignature:
-  Future<void> slackEvent(
+  Future<CanonicalBridgeEventResponse?> slackEvent(
     String body, {
     String? xSlackRequestTimestamp,
     String? xSlackSignature,
@@ -120,6 +131,17 @@ class InteropApi {
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'CanonicalBridgeEventResponse',
+      ) as CanonicalBridgeEventResponse;
+    }
+    return null;
   }
 
   /// Map a Weave text message to the Slack sandbox outbound adapter
@@ -160,7 +182,7 @@ class InteropApi {
   /// Parameters:
   ///
   /// * [SlackOutboundMessageRequest] slackOutboundMessageRequest (required):
-  Future<void> slackMessage(
+  Future<SlackOutboundMessageResponse?> slackMessage(
     SlackOutboundMessageRequest slackOutboundMessageRequest,
   ) async {
     final response = await slackMessageWithHttpInfo(
@@ -169,6 +191,17 @@ class InteropApi {
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'SlackOutboundMessageResponse',
+      ) as SlackOutboundMessageResponse;
+    }
+    return null;
   }
 
   /// Accept a Slack OAuth callback skeleton without token exchange
@@ -209,7 +242,7 @@ class InteropApi {
   /// Parameters:
   ///
   /// * [SlackOAuthCallbackRequest] slackOAuthCallbackRequest (required):
-  Future<void> slackOAuthCallback(
+  Future<SlackOAuthCallbackResponse?> slackOAuthCallback(
     SlackOAuthCallbackRequest slackOAuthCallbackRequest,
   ) async {
     final response = await slackOAuthCallbackWithHttpInfo(
@@ -218,6 +251,17 @@ class InteropApi {
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'SlackOAuthCallbackResponse',
+      ) as SlackOAuthCallbackResponse;
+    }
+    return null;
   }
 
   /// Get Slack one-channel on-ramp readiness
@@ -248,11 +292,22 @@ class InteropApi {
   }
 
   /// Get Slack one-channel on-ramp readiness
-  Future<void> slackStatus() async {
+  Future<SlackStatusResponse?> slackStatus() async {
     final response = await slackStatusWithHttpInfo();
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'SlackStatusResponse',
+      ) as SlackStatusResponse;
+    }
+    return null;
   }
 
   /// Get the Teams gated bridge contract
@@ -283,10 +338,21 @@ class InteropApi {
   }
 
   /// Get the Teams gated bridge contract
-  Future<void> teamsContract() async {
+  Future<TeamsContractResponse?> teamsContract() async {
     final response = await teamsContractWithHttpInfo();
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'TeamsContractResponse',
+      ) as TeamsContractResponse;
+    }
+    return null;
   }
 }

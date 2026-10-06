@@ -12,8 +12,11 @@ every operation and schema in the artifact has generated Java code. Run
 `./gradlew checkOpenApiContractFresh` to compare the server's current code-first
 export with the checked-in User and Admin artifacts.
 
-The product JVM E2E reads the Admin control plane and applies/dry-runs provider
-selections through the generated client with a separate Admin OIDC session. It
-independently asserts the organization and support-safe provider projection,
-while retaining raw requests for deliberate authorization failures, blocked
-Files activation, and malformed-input probes.
+The product JVM E2E uses the generated Admin client for the one-shot owner
+bootstrap (with its scoped bootstrap token), then uses a separate Admin OIDC
+session for invitations, member listing, Weaver entitlement updates, workspace
+diagnostics, the control plane, and provider selections. It independently
+asserts organization identity, member versions and capabilities, and support-safe
+provider projections. Raw requests remain for deliberate authorization failures,
+blocked Files activation, and malformed-input probes. Historical private Agent
+Runtime proof traffic is outside the current Admin OpenAPI artifact.

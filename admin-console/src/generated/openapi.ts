@@ -72,6 +72,29 @@ export type GeneratedCapabilityWhitelistUpdateRequest = {
   "reason"?: string;
 };
 
+export type GeneratedChatHistoryPolicy = {
+  "exportAllowed"?: boolean;
+  "redactOnMembershipRemoval"?: boolean;
+  "retention"?: string;
+  "supportSafeNotes"?: string[];
+  "visibility"?: string;
+};
+
+export type GeneratedChatProviderMappingRecord = {
+  "category"?: string;
+  "configured"?: boolean;
+  "downstreamErrorsReturned"?: boolean;
+  "failClosed"?: boolean;
+  "lossyMappingWarnings"?: string[];
+  "readinessState"?: "available" | "degraded" | "disabled_by_policy" | "unavailable" | "not_configured" | "coming_later";
+  "secretsReturned"?: boolean;
+  "selectedByAdmin"?: boolean;
+  "selectedProviderKey"?: string;
+  "selectionSource"?: string;
+  "supportSafe"?: boolean;
+  "supportSafeDiagnostics"?: Record<string, unknown>;
+};
+
 export type GeneratedChatProviderReplacementDryRunRequest = {
   "attachmentCount"?: number;
   "conversationCount"?: number;
@@ -95,6 +118,22 @@ export type GeneratedChatProviderReplacementDryRunResponse = {
   "status"?: string;
   "supportSafe"?: boolean;
   "targetAdapter"?: string;
+};
+
+export type GeneratedChatReadiness = {
+  "checkedAt"?: string;
+  "contractVersion"?: string;
+  "defaultHistoryPolicy"?: GeneratedChatHistoryPolicy;
+  "domain"?: string;
+  "downstreamDiagnosticsExposedToMember"?: boolean;
+  "failClosed"?: boolean;
+  "memberClientMayConfigureProvider"?: boolean;
+  "memberImpact"?: string;
+  "memberState"?: "available" | "degraded" | "disabled_by_policy" | "unavailable" | "not_configured" | "coming_later";
+  "migrationDryRunRequired"?: boolean;
+  "providerMapping"?: GeneratedChatProviderMappingRecord;
+  "supportSafe"?: boolean;
+  "supportSafeDiagnostics"?: Record<string, unknown>;
 };
 
 export type GeneratedConsequencePreview = {

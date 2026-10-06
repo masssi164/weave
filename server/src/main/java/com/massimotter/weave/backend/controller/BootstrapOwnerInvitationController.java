@@ -2,10 +2,15 @@ package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.bootstrap.BootstrapOwnerCredential;
+import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.identity.BootstrapOwnerInvitationRequest;
 import com.massimotter.weave.backend.model.identity.MemberInvitationResponse;
 import com.massimotter.weave.backend.service.MemberInvitationService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -43,6 +48,14 @@ public class BootstrapOwnerInvitationController {
       operationId = "bootstrapOwnerInvitation",
       summary = "Create or return the first owner invitation in an empty human realm",
       security = @SecurityRequirement(name = "owner-bootstrap-token"))
+  @ApiResponses({
+      @ApiResponse(responseCode = "201", description = "First owner invitation.",
+          content = @Content(schema = @Schema(implementation = MemberInvitationResponse.class))),
+      @ApiResponse(responseCode = "401", description = "Invalid owner-bootstrap credential.",
+          content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+      @ApiResponse(responseCode = "503", description = "Owner bootstrap is unavailable.",
+          content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+  })
   public MemberInvitationResponse create(
       @RequestHeader(CREDENTIAL_HEADER) String suppliedCredential,
       @RequestHeader("Idempotency-Key") @Size(min = 16, max = 128) String idempotencyKey,

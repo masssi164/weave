@@ -15,12 +15,15 @@
 
 import * as runtime from '../runtime';
 import type {
+  ApiErrorResponse,
   MigrationApplyGateRequest,
   MigrationApplyGateResponse,
   MigrationDryRunRequest,
   MigrationDryRunResponse,
 } from '../models/index';
 import {
+    ApiErrorResponseFromJSON,
+    ApiErrorResponseToJSON,
     MigrationApplyGateRequestFromJSON,
     MigrationApplyGateRequestToJSON,
     MigrationApplyGateResponseFromJSON,

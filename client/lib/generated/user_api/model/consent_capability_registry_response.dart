@@ -10,39 +10,39 @@
 
 part of weave_user_api;
 
-class FileSetupCredentialListResponse {
-  /// Returns a new [FileSetupCredentialListResponse] instance.
-  FileSetupCredentialListResponse({
-    this.credentials = const [],
+class ConsentCapabilityRegistryResponse {
+  /// Returns a new [ConsentCapabilityRegistryResponse] instance.
+  ConsentCapabilityRegistryResponse({
+    this.capabilities = const [],
   });
 
-  List<FileSetupCredentialResponse> credentials;
+  List<CapabilityResponse> capabilities;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is FileSetupCredentialListResponse &&
-          _deepEquality.equals(other.credentials, credentials);
+      other is ConsentCapabilityRegistryResponse &&
+          _deepEquality.equals(other.capabilities, capabilities);
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (credentials.hashCode);
+      (capabilities.hashCode);
 
   @override
   String toString() =>
-      'FileSetupCredentialListResponse[credentials=$credentials]';
+      'ConsentCapabilityRegistryResponse[capabilities=$capabilities]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    json[r'credentials'] = this.credentials;
+    json[r'capabilities'] = this.capabilities;
     return json;
   }
 
-  /// Returns a new [FileSetupCredentialListResponse] instance and imports its values from
+  /// Returns a new [ConsentCapabilityRegistryResponse] instance and imports its values from
   /// [value] if it's a [Map], null otherwise.
   // ignore: prefer_constructors_over_static_methods
-  static FileSetupCredentialListResponse? fromJson(dynamic value) {
+  static ConsentCapabilityRegistryResponse? fromJson(dynamic value) {
     if (value is Map) {
       final json = value.cast<String, dynamic>();
 
@@ -52,29 +52,28 @@ class FileSetupCredentialListResponse {
       assert(() {
         requiredKeys.forEach((key) {
           assert(json.containsKey(key),
-              'Required key "FileSetupCredentialListResponse[$key]" is missing from JSON.');
+              'Required key "ConsentCapabilityRegistryResponse[$key]" is missing from JSON.');
           assert(json[key] != null,
-              'Required key "FileSetupCredentialListResponse[$key]" has a null value in JSON.');
+              'Required key "ConsentCapabilityRegistryResponse[$key]" has a null value in JSON.');
         });
         return true;
       }());
 
-      return FileSetupCredentialListResponse(
-        credentials:
-            FileSetupCredentialResponse.listFromJson(json[r'credentials']),
+      return ConsentCapabilityRegistryResponse(
+        capabilities: CapabilityResponse.listFromJson(json[r'capabilities']),
       );
     }
     return null;
   }
 
-  static List<FileSetupCredentialListResponse> listFromJson(
+  static List<ConsentCapabilityRegistryResponse> listFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final result = <FileSetupCredentialListResponse>[];
+    final result = <ConsentCapabilityRegistryResponse>[];
     if (json is List && json.isNotEmpty) {
       for (final row in json) {
-        final value = FileSetupCredentialListResponse.fromJson(row);
+        final value = ConsentCapabilityRegistryResponse.fromJson(row);
         if (value != null) {
           result.add(value);
         }
@@ -83,13 +82,13 @@ class FileSetupCredentialListResponse {
     return result.toList(growable: growable);
   }
 
-  static Map<String, FileSetupCredentialListResponse> mapFromJson(
+  static Map<String, ConsentCapabilityRegistryResponse> mapFromJson(
       dynamic json) {
-    final map = <String, FileSetupCredentialListResponse>{};
+    final map = <String, ConsentCapabilityRegistryResponse>{};
     if (json is Map && json.isNotEmpty) {
       json = json.cast<String, dynamic>(); // ignore: parameter_assignments
       for (final entry in json.entries) {
-        final value = FileSetupCredentialListResponse.fromJson(entry.value);
+        final value = ConsentCapabilityRegistryResponse.fromJson(entry.value);
         if (value != null) {
           map[entry.key] = value;
         }
@@ -98,17 +97,17 @@ class FileSetupCredentialListResponse {
     return map;
   }
 
-  // maps a json object with a list of FileSetupCredentialListResponse-objects as value to a dart map
-  static Map<String, List<FileSetupCredentialListResponse>> mapListFromJson(
+  // maps a json object with a list of ConsentCapabilityRegistryResponse-objects as value to a dart map
+  static Map<String, List<ConsentCapabilityRegistryResponse>> mapListFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final map = <String, List<FileSetupCredentialListResponse>>{};
+    final map = <String, List<ConsentCapabilityRegistryResponse>>{};
     if (json is Map && json.isNotEmpty) {
       // ignore: parameter_assignments
       json = json.cast<String, dynamic>();
       for (final entry in json.entries) {
-        map[entry.key] = FileSetupCredentialListResponse.listFromJson(
+        map[entry.key] = ConsentCapabilityRegistryResponse.listFromJson(
           entry.value,
           growable: growable,
         );
