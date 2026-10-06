@@ -528,6 +528,102 @@
         ],
         "type": "object"
       },
+      "ChatHistoryPolicy": {
+        "properties": {
+          "exportAllowed": {
+            "type": "boolean"
+          },
+          "redactOnMembershipRemoval": {
+            "type": "boolean"
+          },
+          "retention": {
+            "type": "string"
+          },
+          "supportSafeNotes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "visibility": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChatMigrationPreflightReport": {
+        "properties": {
+          "auditEventId": {
+            "type": "string"
+          },
+          "auditEventPublished": {
+            "type": "boolean"
+          },
+          "blockedOperations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "conflictCategories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "destructiveApplyAvailable": {
+            "type": "boolean"
+          },
+          "lossyFieldWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "objectCounts": {
+            "additionalProperties": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "preflightId": {
+            "type": "string"
+          },
+          "readinessState": {
+            "description": "Stable product-level Chat state returned to member clients.",
+            "enum": [
+              "available",
+              "degraded",
+              "disabled_by_policy",
+              "unavailable",
+              "not_configured",
+              "coming_later"
+            ],
+            "type": "string"
+          },
+          "sourceProviderKey": {
+            "type": "string"
+          },
+          "supportSafeWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "targetProviderKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ChatMigrationPreflightRequest": {
         "properties": {
           "conflictHints": {
@@ -560,6 +656,60 @@
           },
           "targetProviderKey": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChatProviderMappingRecord": {
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "downstreamErrorsReturned": {
+            "type": "boolean"
+          },
+          "failClosed": {
+            "type": "boolean"
+          },
+          "lossyMappingWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "readinessState": {
+            "description": "Stable product-level Chat state returned to member clients.",
+            "enum": [
+              "available",
+              "degraded",
+              "disabled_by_policy",
+              "unavailable",
+              "not_configured",
+              "coming_later"
+            ],
+            "type": "string"
+          },
+          "secretsReturned": {
+            "type": "boolean"
+          },
+          "selectedByAdmin": {
+            "type": "boolean"
+          },
+          "selectedProviderKey": {
+            "type": "string"
+          },
+          "selectionSource": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "supportSafeDiagnostics": {
+            "additionalProperties": {},
+            "type": "object"
           }
         },
         "type": "object"
@@ -685,6 +835,61 @@
           "targetAdapter": {
             "description": "Target adapter key. Admin-side only and never a raw URL or credential.",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChatReadiness": {
+        "properties": {
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "contractVersion": {
+            "type": "string"
+          },
+          "defaultHistoryPolicy": {
+            "$ref": "#/components/schemas/ChatHistoryPolicy"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "downstreamDiagnosticsExposedToMember": {
+            "type": "boolean"
+          },
+          "failClosed": {
+            "type": "boolean"
+          },
+          "memberClientMayConfigureProvider": {
+            "type": "boolean"
+          },
+          "memberImpact": {
+            "type": "string"
+          },
+          "memberState": {
+            "description": "Stable product-level Chat state returned to member clients.",
+            "enum": [
+              "available",
+              "degraded",
+              "disabled_by_policy",
+              "unavailable",
+              "not_configured",
+              "coming_later"
+            ],
+            "type": "string"
+          },
+          "migrationDryRunRequired": {
+            "type": "boolean"
+          },
+          "providerMapping": {
+            "$ref": "#/components/schemas/ChatProviderMappingRecord"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "supportSafeDiagnostics": {
+            "additionalProperties": {},
+            "type": "object"
           }
         },
         "type": "object"
@@ -1550,6 +1755,17 @@
         },
         "type": "object"
       },
+      "MemberLifecycleOperationResponse": {
+        "properties": {
+          "memberHandle": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "MemberOffboardingRequest": {
         "properties": {
           "confirmation": {
@@ -1939,6 +2155,59 @@
           "organizationId",
           "retainedAdminPrimaryIdentityKeys",
           "supportSafe"
+        ],
+        "type": "object"
+      },
+      "OrganizationMemberPageResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OrganizationMemberResponse"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "OrganizationMemberResponse": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "memberHandle": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "capabilities",
+          "enabled"
         ],
         "type": "object"
       },
@@ -3475,6 +3744,16 @@
           }
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMigrationPreflightReport"
+                }
+              }
+            },
+            "description": "Support-safe Chat migration preflight report."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -3588,6 +3867,16 @@
         "description": "Returns support-safe Chat provider mapping and readiness diagnostics for admins/operators.",
         "operationId": "getAdminChatReadiness",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatReadiness"
+                }
+              }
+            },
+            "description": "Support-safe Admin Chat readiness."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -4028,6 +4317,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberPageResponse"
+                }
+              }
+            },
+            "description": "Paged organization members visible to the administrator."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -4081,6 +4380,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberResponse"
+                }
+              }
+            },
+            "description": "Current organization member and version."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -4158,6 +4467,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberResponse"
+                }
+              }
+            },
+            "description": "Updated organization member and version."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -4237,6 +4556,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberResponse"
+                }
+              }
+            },
+            "description": "Organization member after Weaver entitlement update."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -4316,6 +4645,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberLifecycleOperationResponse"
+                }
+              }
+            },
+            "description": "Support-safe member offboarding result."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -4385,6 +4724,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberLifecycleOperationResponse"
+                }
+              }
+            },
+            "description": "Support-safe session revocation result."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -5060,7 +5409,27 @@
                 }
               }
             },
-            "description": "Created"
+            "description": "First owner invitation."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid owner-bootstrap credential."
+          },
+          "503": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner bootstrap is unavailable."
           }
         },
         "security": [
@@ -5096,7 +5465,27 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Provider migration apply-gate evaluation."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Admin token lacks organization or administration authority."
           }
         },
         "security": [
@@ -5132,7 +5521,27 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Replay-safe migration inventory dry-run."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Admin token lacks organization or administration authority."
           }
         },
         "security": [

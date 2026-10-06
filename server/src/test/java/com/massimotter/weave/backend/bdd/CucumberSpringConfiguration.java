@@ -22,7 +22,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
                 "weave.context.authorization.memberships[0].context-id=workspace-default",
                 "weave.context.authorization.memberships[0].principal-ref=user:user-123",
                 "weave.context.authorization.memberships[0].role=MEMBER",
-                "weave.context.authorization.memberships[0].source=cucumber-open-standards"
+                "weave.context.authorization.memberships[0].source=cucumber-open-standards",
+                "weave.compatibility.public-dav.enabled=true"
         })
 @AutoConfigureMockMvc
 public class CucumberSpringConfiguration {

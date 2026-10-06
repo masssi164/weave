@@ -16,15 +16,24 @@
 import * as runtime from '../runtime';
 import type {
   ApiErrorResponse,
+  MemberLifecycleOperationResponse,
   MemberOffboardingRequest,
+  OrganizationMemberPageResponse,
+  OrganizationMemberResponse,
   OrganizationMemberUpdateRequest,
   WeaverEntitlementUpdateRequest,
 } from '../models/index';
 import {
     ApiErrorResponseFromJSON,
     ApiErrorResponseToJSON,
+    MemberLifecycleOperationResponseFromJSON,
+    MemberLifecycleOperationResponseToJSON,
     MemberOffboardingRequestFromJSON,
     MemberOffboardingRequestToJSON,
+    OrganizationMemberPageResponseFromJSON,
+    OrganizationMemberPageResponseToJSON,
+    OrganizationMemberResponseFromJSON,
+    OrganizationMemberResponseToJSON,
     OrganizationMemberUpdateRequestFromJSON,
     OrganizationMemberUpdateRequestToJSON,
     WeaverEntitlementUpdateRequestFromJSON,
@@ -88,11 +97,11 @@ export interface OrganizationMembersApiInterface {
      * @throws {RequiredError}
      * @memberof OrganizationMembersApiInterface
      */
-    getOrganizationMemberRaw(requestParameters: GetOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>>;
+    getOrganizationMemberRaw(requestParameters: GetOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<OrganizationMemberResponse>>;
 
     /**
      */
-    getOrganizationMember(requestParameters: GetOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
+    getOrganizationMember(requestParameters: GetOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<OrganizationMemberResponse>;
 
     /**
      *
@@ -103,11 +112,11 @@ export interface OrganizationMembersApiInterface {
      * @throws {RequiredError}
      * @memberof OrganizationMembersApiInterface
      */
-    listOrganizationMembersRaw(requestParameters: ListOrganizationMembersRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>>;
+    listOrganizationMembersRaw(requestParameters: ListOrganizationMembersRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<OrganizationMemberPageResponse>>;
 
     /**
      */
-    listOrganizationMembers(requestParameters: ListOrganizationMembersRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
+    listOrganizationMembers(requestParameters: ListOrganizationMembersRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<OrganizationMemberPageResponse>;
 
     /**
      *
@@ -120,11 +129,11 @@ export interface OrganizationMembersApiInterface {
      * @throws {RequiredError}
      * @memberof OrganizationMembersApiInterface
      */
-    offboardOrganizationMemberRaw(requestParameters: OffboardOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>>;
+    offboardOrganizationMemberRaw(requestParameters: OffboardOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<MemberLifecycleOperationResponse>>;
 
     /**
      */
-    offboardOrganizationMember(requestParameters: OffboardOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
+    offboardOrganizationMember(requestParameters: OffboardOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<MemberLifecycleOperationResponse>;
 
     /**
      *
@@ -136,11 +145,11 @@ export interface OrganizationMembersApiInterface {
      * @throws {RequiredError}
      * @memberof OrganizationMembersApiInterface
      */
-    revokeOrganizationMemberSessionsRaw(requestParameters: RevokeOrganizationMemberSessionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>>;
+    revokeOrganizationMemberSessionsRaw(requestParameters: RevokeOrganizationMemberSessionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<MemberLifecycleOperationResponse>>;
 
     /**
      */
-    revokeOrganizationMemberSessions(requestParameters: RevokeOrganizationMemberSessionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
+    revokeOrganizationMemberSessions(requestParameters: RevokeOrganizationMemberSessionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<MemberLifecycleOperationResponse>;
 
     /**
      *
@@ -153,11 +162,11 @@ export interface OrganizationMembersApiInterface {
      * @throws {RequiredError}
      * @memberof OrganizationMembersApiInterface
      */
-    updateOrganizationMemberAccessRaw(requestParameters: UpdateOrganizationMemberAccessRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>>;
+    updateOrganizationMemberAccessRaw(requestParameters: UpdateOrganizationMemberAccessRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<OrganizationMemberResponse>>;
 
     /**
      */
-    updateOrganizationMemberAccess(requestParameters: UpdateOrganizationMemberAccessRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
+    updateOrganizationMemberAccess(requestParameters: UpdateOrganizationMemberAccessRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<OrganizationMemberResponse>;
 
     /**
      *
@@ -170,11 +179,11 @@ export interface OrganizationMembersApiInterface {
      * @throws {RequiredError}
      * @memberof OrganizationMembersApiInterface
      */
-    updateOrganizationMemberWeaverEntitlementRaw(requestParameters: UpdateOrganizationMemberWeaverEntitlementRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>>;
+    updateOrganizationMemberWeaverEntitlementRaw(requestParameters: UpdateOrganizationMemberWeaverEntitlementRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<OrganizationMemberResponse>>;
 
     /**
      */
-    updateOrganizationMemberWeaverEntitlement(requestParameters: UpdateOrganizationMemberWeaverEntitlementRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
+    updateOrganizationMemberWeaverEntitlement(requestParameters: UpdateOrganizationMemberWeaverEntitlementRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<OrganizationMemberResponse>;
 
 }
 
@@ -185,7 +194,7 @@ export class OrganizationMembersApi extends runtime.BaseAPI implements Organizat
 
     /**
      */
-    async getOrganizationMemberRaw(requestParameters: GetOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+    async getOrganizationMemberRaw(requestParameters: GetOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<OrganizationMemberResponse>> {
         if (requestParameters['organizationId'] == null) {
             throw new runtime.RequiredError(
                 'organizationId',
@@ -224,18 +233,19 @@ export class OrganizationMembersApi extends runtime.BaseAPI implements Organizat
             query: queryParameters,
         }, initOverrides);
 
-        return new runtime.VoidApiResponse(response);
+        return new runtime.JSONApiResponse(response, (jsonValue) => OrganizationMemberResponseFromJSON(jsonValue));
     }
 
     /**
      */
-    async getOrganizationMember(requestParameters: GetOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
-        await this.getOrganizationMemberRaw(requestParameters, initOverrides);
+    async getOrganizationMember(requestParameters: GetOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<OrganizationMemberResponse> {
+        const response = await this.getOrganizationMemberRaw(requestParameters, initOverrides);
+        return await response.value();
     }
 
     /**
      */
-    async listOrganizationMembersRaw(requestParameters: ListOrganizationMembersRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+    async listOrganizationMembersRaw(requestParameters: ListOrganizationMembersRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<OrganizationMemberPageResponse>> {
         if (requestParameters['organizationId'] == null) {
             throw new runtime.RequiredError(
                 'organizationId',
@@ -274,18 +284,19 @@ export class OrganizationMembersApi extends runtime.BaseAPI implements Organizat
             query: queryParameters,
         }, initOverrides);
 
-        return new runtime.VoidApiResponse(response);
+        return new runtime.JSONApiResponse(response, (jsonValue) => OrganizationMemberPageResponseFromJSON(jsonValue));
     }
 
     /**
      */
-    async listOrganizationMembers(requestParameters: ListOrganizationMembersRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
-        await this.listOrganizationMembersRaw(requestParameters, initOverrides);
+    async listOrganizationMembers(requestParameters: ListOrganizationMembersRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<OrganizationMemberPageResponse> {
+        const response = await this.listOrganizationMembersRaw(requestParameters, initOverrides);
+        return await response.value();
     }
 
     /**
      */
-    async offboardOrganizationMemberRaw(requestParameters: OffboardOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+    async offboardOrganizationMemberRaw(requestParameters: OffboardOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<MemberLifecycleOperationResponse>> {
         if (requestParameters['organizationId'] == null) {
             throw new runtime.RequiredError(
                 'organizationId',
@@ -356,18 +367,19 @@ export class OrganizationMembersApi extends runtime.BaseAPI implements Organizat
             body: MemberOffboardingRequestToJSON(requestParameters['memberOffboardingRequest']),
         }, initOverrides);
 
-        return new runtime.VoidApiResponse(response);
+        return new runtime.JSONApiResponse(response, (jsonValue) => MemberLifecycleOperationResponseFromJSON(jsonValue));
     }
 
     /**
      */
-    async offboardOrganizationMember(requestParameters: OffboardOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
-        await this.offboardOrganizationMemberRaw(requestParameters, initOverrides);
+    async offboardOrganizationMember(requestParameters: OffboardOrganizationMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<MemberLifecycleOperationResponse> {
+        const response = await this.offboardOrganizationMemberRaw(requestParameters, initOverrides);
+        return await response.value();
     }
 
     /**
      */
-    async revokeOrganizationMemberSessionsRaw(requestParameters: RevokeOrganizationMemberSessionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+    async revokeOrganizationMemberSessionsRaw(requestParameters: RevokeOrganizationMemberSessionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<MemberLifecycleOperationResponse>> {
         if (requestParameters['organizationId'] == null) {
             throw new runtime.RequiredError(
                 'organizationId',
@@ -428,18 +440,19 @@ export class OrganizationMembersApi extends runtime.BaseAPI implements Organizat
             query: queryParameters,
         }, initOverrides);
 
-        return new runtime.VoidApiResponse(response);
+        return new runtime.JSONApiResponse(response, (jsonValue) => MemberLifecycleOperationResponseFromJSON(jsonValue));
     }
 
     /**
      */
-    async revokeOrganizationMemberSessions(requestParameters: RevokeOrganizationMemberSessionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
-        await this.revokeOrganizationMemberSessionsRaw(requestParameters, initOverrides);
+    async revokeOrganizationMemberSessions(requestParameters: RevokeOrganizationMemberSessionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<MemberLifecycleOperationResponse> {
+        const response = await this.revokeOrganizationMemberSessionsRaw(requestParameters, initOverrides);
+        return await response.value();
     }
 
     /**
      */
-    async updateOrganizationMemberAccessRaw(requestParameters: UpdateOrganizationMemberAccessRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+    async updateOrganizationMemberAccessRaw(requestParameters: UpdateOrganizationMemberAccessRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<OrganizationMemberResponse>> {
         if (requestParameters['organizationId'] == null) {
             throw new runtime.RequiredError(
                 'organizationId',
@@ -510,18 +523,19 @@ export class OrganizationMembersApi extends runtime.BaseAPI implements Organizat
             body: OrganizationMemberUpdateRequestToJSON(requestParameters['organizationMemberUpdateRequest']),
         }, initOverrides);
 
-        return new runtime.VoidApiResponse(response);
+        return new runtime.JSONApiResponse(response, (jsonValue) => OrganizationMemberResponseFromJSON(jsonValue));
     }
 
     /**
      */
-    async updateOrganizationMemberAccess(requestParameters: UpdateOrganizationMemberAccessRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
-        await this.updateOrganizationMemberAccessRaw(requestParameters, initOverrides);
+    async updateOrganizationMemberAccess(requestParameters: UpdateOrganizationMemberAccessRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<OrganizationMemberResponse> {
+        const response = await this.updateOrganizationMemberAccessRaw(requestParameters, initOverrides);
+        return await response.value();
     }
 
     /**
      */
-    async updateOrganizationMemberWeaverEntitlementRaw(requestParameters: UpdateOrganizationMemberWeaverEntitlementRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+    async updateOrganizationMemberWeaverEntitlementRaw(requestParameters: UpdateOrganizationMemberWeaverEntitlementRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<OrganizationMemberResponse>> {
         if (requestParameters['organizationId'] == null) {
             throw new runtime.RequiredError(
                 'organizationId',
@@ -592,13 +606,14 @@ export class OrganizationMembersApi extends runtime.BaseAPI implements Organizat
             body: WeaverEntitlementUpdateRequestToJSON(requestParameters['weaverEntitlementUpdateRequest']),
         }, initOverrides);
 
-        return new runtime.VoidApiResponse(response);
+        return new runtime.JSONApiResponse(response, (jsonValue) => OrganizationMemberResponseFromJSON(jsonValue));
     }
 
     /**
      */
-    async updateOrganizationMemberWeaverEntitlement(requestParameters: UpdateOrganizationMemberWeaverEntitlementRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
-        await this.updateOrganizationMemberWeaverEntitlementRaw(requestParameters, initOverrides);
+    async updateOrganizationMemberWeaverEntitlement(requestParameters: UpdateOrganizationMemberWeaverEntitlementRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<OrganizationMemberResponse> {
+        const response = await this.updateOrganizationMemberWeaverEntitlementRaw(requestParameters, initOverrides);
+        return await response.value();
     }
 
 }

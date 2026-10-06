@@ -10,18 +10,23 @@
 
 part of weave_user_api;
 
-class ConnectorBoundaryResponse {
-  /// Returns a new [ConnectorBoundaryResponse] instance.
-  ConnectorBoundaryResponse({
-    this.deferredUntil = const [],
-    this.internalRuntimeBoundaries = const [],
-    this.publicSdkEnabled,
-    this.status,
+class SupportBundlePolicyResponse {
+  /// Returns a new [SupportBundlePolicyResponse] instance.
+  SupportBundlePolicyResponse({
+    this.providerSecretsRedacted,
+    this.redactedFields = const [],
+    this.redactionMode,
   });
 
-  List<String> deferredUntil;
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  bool? providerSecretsRedacted;
 
-  List<String> internalRuntimeBoundaries;
+  List<String> redactedFields;
 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -29,59 +34,49 @@ class ConnectorBoundaryResponse {
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  bool? publicSdkEnabled;
-
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? status;
+  String? redactionMode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ConnectorBoundaryResponse &&
-          _deepEquality.equals(other.deferredUntil, deferredUntil) &&
-          _deepEquality.equals(
-              other.internalRuntimeBoundaries, internalRuntimeBoundaries) &&
-          other.publicSdkEnabled == publicSdkEnabled &&
-          other.status == status;
+      other is SupportBundlePolicyResponse &&
+          other.providerSecretsRedacted == providerSecretsRedacted &&
+          _deepEquality.equals(other.redactedFields, redactedFields) &&
+          other.redactionMode == redactionMode;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (deferredUntil.hashCode) +
-      (internalRuntimeBoundaries.hashCode) +
-      (publicSdkEnabled == null ? 0 : publicSdkEnabled!.hashCode) +
-      (status == null ? 0 : status!.hashCode);
+      (providerSecretsRedacted == null
+          ? 0
+          : providerSecretsRedacted!.hashCode) +
+      (redactedFields.hashCode) +
+      (redactionMode == null ? 0 : redactionMode!.hashCode);
 
   @override
   String toString() =>
-      'ConnectorBoundaryResponse[deferredUntil=$deferredUntil, internalRuntimeBoundaries=$internalRuntimeBoundaries, publicSdkEnabled=$publicSdkEnabled, status=$status]';
+      'SupportBundlePolicyResponse[providerSecretsRedacted=$providerSecretsRedacted, redactedFields=$redactedFields, redactionMode=$redactionMode]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    json[r'deferredUntil'] = this.deferredUntil;
-    json[r'internalRuntimeBoundaries'] = this.internalRuntimeBoundaries;
-    if (this.publicSdkEnabled != null) {
-      json[r'publicSdkEnabled'] = this.publicSdkEnabled;
+    if (this.providerSecretsRedacted != null) {
+      json[r'providerSecretsRedacted'] = this.providerSecretsRedacted;
     } else {
-      json[r'publicSdkEnabled'] = null;
+      json[r'providerSecretsRedacted'] = null;
     }
-    if (this.status != null) {
-      json[r'status'] = this.status;
+    json[r'redactedFields'] = this.redactedFields;
+    if (this.redactionMode != null) {
+      json[r'redactionMode'] = this.redactionMode;
     } else {
-      json[r'status'] = null;
+      json[r'redactionMode'] = null;
     }
     return json;
   }
 
-  /// Returns a new [ConnectorBoundaryResponse] instance and imports its values from
+  /// Returns a new [SupportBundlePolicyResponse] instance and imports its values from
   /// [value] if it's a [Map], null otherwise.
   // ignore: prefer_constructors_over_static_methods
-  static ConnectorBoundaryResponse? fromJson(dynamic value) {
+  static SupportBundlePolicyResponse? fromJson(dynamic value) {
     if (value is Map) {
       final json = value.cast<String, dynamic>();
 
@@ -91,40 +86,35 @@ class ConnectorBoundaryResponse {
       assert(() {
         requiredKeys.forEach((key) {
           assert(json.containsKey(key),
-              'Required key "ConnectorBoundaryResponse[$key]" is missing from JSON.');
+              'Required key "SupportBundlePolicyResponse[$key]" is missing from JSON.');
           assert(json[key] != null,
-              'Required key "ConnectorBoundaryResponse[$key]" has a null value in JSON.');
+              'Required key "SupportBundlePolicyResponse[$key]" has a null value in JSON.');
         });
         return true;
       }());
 
-      return ConnectorBoundaryResponse(
-        deferredUntil: json[r'deferredUntil'] is Iterable
-            ? (json[r'deferredUntil'] as Iterable)
+      return SupportBundlePolicyResponse(
+        providerSecretsRedacted:
+            mapValueOfType<bool>(json, r'providerSecretsRedacted'),
+        redactedFields: json[r'redactedFields'] is Iterable
+            ? (json[r'redactedFields'] as Iterable)
                 .cast<String>()
                 .toList(growable: false)
             : const [],
-        internalRuntimeBoundaries:
-            json[r'internalRuntimeBoundaries'] is Iterable
-                ? (json[r'internalRuntimeBoundaries'] as Iterable)
-                    .cast<String>()
-                    .toList(growable: false)
-                : const [],
-        publicSdkEnabled: mapValueOfType<bool>(json, r'publicSdkEnabled'),
-        status: mapValueOfType<String>(json, r'status'),
+        redactionMode: mapValueOfType<String>(json, r'redactionMode'),
       );
     }
     return null;
   }
 
-  static List<ConnectorBoundaryResponse> listFromJson(
+  static List<SupportBundlePolicyResponse> listFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final result = <ConnectorBoundaryResponse>[];
+    final result = <SupportBundlePolicyResponse>[];
     if (json is List && json.isNotEmpty) {
       for (final row in json) {
-        final value = ConnectorBoundaryResponse.fromJson(row);
+        final value = SupportBundlePolicyResponse.fromJson(row);
         if (value != null) {
           result.add(value);
         }
@@ -133,12 +123,12 @@ class ConnectorBoundaryResponse {
     return result.toList(growable: growable);
   }
 
-  static Map<String, ConnectorBoundaryResponse> mapFromJson(dynamic json) {
-    final map = <String, ConnectorBoundaryResponse>{};
+  static Map<String, SupportBundlePolicyResponse> mapFromJson(dynamic json) {
+    final map = <String, SupportBundlePolicyResponse>{};
     if (json is Map && json.isNotEmpty) {
       json = json.cast<String, dynamic>(); // ignore: parameter_assignments
       for (final entry in json.entries) {
-        final value = ConnectorBoundaryResponse.fromJson(entry.value);
+        final value = SupportBundlePolicyResponse.fromJson(entry.value);
         if (value != null) {
           map[entry.key] = value;
         }
@@ -147,17 +137,17 @@ class ConnectorBoundaryResponse {
     return map;
   }
 
-  // maps a json object with a list of ConnectorBoundaryResponse-objects as value to a dart map
-  static Map<String, List<ConnectorBoundaryResponse>> mapListFromJson(
+  // maps a json object with a list of SupportBundlePolicyResponse-objects as value to a dart map
+  static Map<String, List<SupportBundlePolicyResponse>> mapListFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final map = <String, List<ConnectorBoundaryResponse>>{};
+    final map = <String, List<SupportBundlePolicyResponse>>{};
     if (json is Map && json.isNotEmpty) {
       // ignore: parameter_assignments
       json = json.cast<String, dynamic>();
       for (final entry in json.entries) {
-        map[entry.key] = ConnectorBoundaryResponse.listFromJson(
+        map[entry.key] = SupportBundlePolicyResponse.listFromJson(
           entry.value,
           growable: growable,
         );
