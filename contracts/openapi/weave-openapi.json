@@ -4416,6 +4416,17 @@
         },
         "type": "object"
       },
+      "MemberLifecycleOperationResponse": {
+        "properties": {
+          "memberHandle": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "MemberOffboardingRequest": {
         "properties": {
           "confirmation": {
@@ -5146,6 +5157,59 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "OrganizationMemberPageResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OrganizationMemberResponse"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "OrganizationMemberResponse": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "memberHandle": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "capabilities",
+          "enabled"
+        ],
         "type": "object"
       },
       "OrganizationMemberUpdateRequest": {
@@ -8014,6 +8078,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberPageResponse"
+                }
+              }
+            },
+            "description": "Paged organization members visible to the administrator."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -8067,6 +8141,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberResponse"
+                }
+              }
+            },
+            "description": "Current organization member and version."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -8144,6 +8228,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberResponse"
+                }
+              }
+            },
+            "description": "Updated organization member and version."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -8223,6 +8317,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberResponse"
+                }
+              }
+            },
+            "description": "Organization member after Weaver entitlement update."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -8302,6 +8406,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberLifecycleOperationResponse"
+                }
+              }
+            },
+            "description": "Support-safe member offboarding result."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -8371,6 +8485,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberLifecycleOperationResponse"
+                }
+              }
+            },
+            "description": "Support-safe session revocation result."
+          },
           "401": {
             "content": {
               "*/*": {

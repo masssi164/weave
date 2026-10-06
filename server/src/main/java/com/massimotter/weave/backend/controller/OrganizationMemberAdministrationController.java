@@ -58,6 +58,10 @@ public class OrganizationMemberAdministrationController {
 
   @GetMapping
   @Operation(operationId = "listOrganizationMembers")
+  @ApiResponse(
+      responseCode = "200",
+      description = "Paged organization members visible to the administrator.",
+      content = @Content(schema = @Schema(implementation = OrganizationMemberPageResponse.class)))
   public OrganizationMemberPageResponse list(
       @PathVariable String organizationId,
       @RequestParam(required = false) String cursor,
@@ -68,6 +72,10 @@ public class OrganizationMemberAdministrationController {
 
   @GetMapping("/{memberHandle}")
   @Operation(operationId = "getOrganizationMember")
+  @ApiResponse(
+      responseCode = "200",
+      description = "Current organization member and version.",
+      content = @Content(schema = @Schema(implementation = OrganizationMemberResponse.class)))
   public OrganizationMemberResponse get(
       @PathVariable String organizationId,
       @PathVariable String memberHandle,
@@ -77,6 +85,10 @@ public class OrganizationMemberAdministrationController {
 
   @PatchMapping("/{memberHandle}")
   @Operation(operationId = "updateOrganizationMemberAccess")
+  @ApiResponse(
+      responseCode = "200",
+      description = "Updated organization member and version.",
+      content = @Content(schema = @Schema(implementation = OrganizationMemberResponse.class)))
   public OrganizationMemberResponse update(
       @PathVariable String organizationId,
       @PathVariable String memberHandle,
@@ -90,6 +102,10 @@ public class OrganizationMemberAdministrationController {
 
   @PutMapping("/{memberHandle}/capabilities/weaver")
   @Operation(operationId = "updateOrganizationMemberWeaverEntitlement")
+  @ApiResponse(
+      responseCode = "200",
+      description = "Organization member after Weaver entitlement update.",
+      content = @Content(schema = @Schema(implementation = OrganizationMemberResponse.class)))
   public OrganizationMemberResponse updateWeaverEntitlement(
       @PathVariable String organizationId,
       @PathVariable String memberHandle,
@@ -103,6 +119,10 @@ public class OrganizationMemberAdministrationController {
 
   @PostMapping("/{memberHandle}/session-revocations")
   @Operation(operationId = "revokeOrganizationMemberSessions")
+  @ApiResponse(
+      responseCode = "200",
+      description = "Support-safe session revocation result.",
+      content = @Content(schema = @Schema(implementation = MemberLifecycleOperationResponse.class)))
   public MemberLifecycleOperationResponse revokeSessions(
       @PathVariable String organizationId,
       @PathVariable String memberHandle,
@@ -115,6 +135,10 @@ public class OrganizationMemberAdministrationController {
 
   @PostMapping("/{memberHandle}/offboarding")
   @Operation(operationId = "offboardOrganizationMember")
+  @ApiResponse(
+      responseCode = "200",
+      description = "Support-safe member offboarding result.",
+      content = @Content(schema = @Schema(implementation = MemberLifecycleOperationResponse.class)))
   public MemberLifecycleOperationResponse offboard(
       @PathVariable String organizationId,
       @PathVariable String memberHandle,

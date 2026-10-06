@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -107,6 +108,66 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/admin/workspace/capability-policy'].get.responses['401']").exists())
                 .andExpect(jsonPath("$.paths['/api/admin/workspace/release-readiness'].get.responses['403']").exists())
                 .andExpect(jsonPath("$.paths['/api/workspace/home']").doesNotExist());
+    }
+
+    @Test
+    void adminMemberOperationsExportTheirActualTypedSuccessResponses() throws Exception {
+        String members = "/api/admin/organizations/{organizationId}/members";
+        String member = members + "/{memberHandle}";
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['" + members + "'].get.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/OrganizationMemberPageResponse"))
+                .andExpect(jsonPath("$.paths['" + member + "'].get.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/OrganizationMemberResponse"))
+                .andExpect(jsonPath("$.paths['" + member + "'].patch.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/OrganizationMemberResponse"))
+                .andExpect(jsonPath("$.paths['" + member + "/capabilities/weaver'].put.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/OrganizationMemberResponse"))
+                .andExpect(jsonPath("$.paths['" + member + "/session-revocations'].post.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/MemberLifecycleOperationResponse"))
+                .andExpect(jsonPath("$.paths['" + member + "/offboarding'].post.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/MemberLifecycleOperationResponse"))
+                .andExpect(jsonPath("$.components.schemas.OrganizationMemberPageResponse.required")
+                        .value(hasItems("items")))
+                .andExpect(jsonPath("$.components.schemas.OrganizationMemberPageResponse.properties.nextCursor.type")
+                        .value(hasItems("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.OrganizationMemberResponse.required")
+                        .value(hasItems("capabilities", "enabled")))
+                .andExpect(jsonPath("$.paths['" + members + "'].get.responses['401']").exists())
+                .andExpect(jsonPath("$.paths['" + members + "'].get.responses['403']").exists());
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.MemberInvitationResponse.properties.capabilities")
+                        .doesNotExist());
+        mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['" + members + "']").doesNotExist());
+    }
+
+    @Test
+    void nonEmptySuccessResponsesAlwaysHaveTransportSchemas() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        Set<String> httpMethods = Set.of("get", "put", "post", "delete", "patch");
+        for (String group : new String[] {"user", "admin"}) {
+            JsonNode document = mapper.readTree(mockMvc.perform(get("/v3/api-docs/" + group))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+            for (var path : document.path("paths").properties()) {
+                for (var method : path.getValue().properties()) {
+                    if (!httpMethods.contains(method.getKey())) {
+                        continue;
+                    }
+                    for (var response : method.getValue().path("responses").properties()) {
+                        if (response.getKey().matches("2\\d\\d") && !"204".equals(response.getKey())) {
+                            assertTrue(response.getValue().has("content")
+                                            && response.getValue().path("content").size() > 0,
+                                    group + " " + method.getKey() + " " + path.getKey()
+                                            + " exported an untyped success response " + response.getKey());
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Test

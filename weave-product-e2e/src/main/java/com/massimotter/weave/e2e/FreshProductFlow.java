@@ -2,6 +2,8 @@ package com.massimotter.weave.e2e;
 
 import com.massimotter.weave.adminapi.model.ProviderSelectionRequest;
 import com.massimotter.weave.adminapi.model.ProviderSelectionResponse;
+import com.massimotter.weave.adminapi.model.MemberInvitationResponse;
+import com.massimotter.weave.adminapi.model.OrganizationMemberResponse;
 import com.massimotter.weave.userapi.model.ChatReadiness;
 import com.massimotter.weave.userapi.model.IdentitySessionReconcileResponse;
 import com.massimotter.weave.userapi.model.ProfileReadinessResponse;
@@ -91,8 +93,13 @@ public final class FreshProductFlow {
     List<CollaborationJourney.PassProof> collaborationPasses = new java.util.ArrayList<>();
 
     try (OidcBrowserJourney browser = new OidcBrowserJourney(environment, http)) {
-      JsonNode ownerInvitation = bootstrapOwner(ownerEmail);
-      String organizationId = requiredText(ownerInvitation, "organizationId");
+      MemberInvitationResponse ownerInvitation = bootstrapOwner(ownerEmail);
+      String organizationId = ownerInvitation.getOrganizationId();
+      if (organizationId == null || organizationId.isBlank()
+          || !"owner".equals(ownerInvitation.getRequestedRole())
+          || !ownerEmail.equalsIgnoreCase(ownerInvitation.getEmail())) {
+        throw new ProductFlowException("Owner bootstrap returned an invalid invitation projection");
+      }
       MailpitActivationInbox ownerInbox =
           new MailpitActivationInbox(
               http,
@@ -389,19 +396,9 @@ public final class FreshProductFlow {
     }
   }
 
-  private JsonNode bootstrapOwner(String email) {
-    ObjectNode request = http.mapper().createObjectNode();
-    request.put("email", email);
-    request.put("displayName", "Weave E2E Owner");
-    return http.json(
-        "create first owner invitation",
-        "POST",
-        environment.api("/api/bootstrap/owner-invitation"),
-        Map.of(
-            "X-Weave-Bootstrap-Token", readBootstrapToken(),
-            "Idempotency-Key", "test-app-owner-" + runHash()),
-        request,
-        Set.of(200, 201));
+  private MemberInvitationResponse bootstrapOwner(String email) {
+    return new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate())
+        .bootstrapOwner(readBootstrapToken(), "test-app-owner-" + runHash(), email);
   }
 
   private void inviteActor(
@@ -410,25 +407,18 @@ public final class FreshProductFlow {
       String displayName,
       String role,
       String accessToken) {
-    ObjectNode request = http.mapper().createObjectNode();
-    request.put("email", email);
-    request.put("displayName", displayName);
-    request.put("role", role);
-    JsonNode invitation =
-        http.json(
-            "invite " + role + " through Weave",
-            "POST",
-            environment.api(
-                "/api/admin/organizations/"
-                    + encodeSegment(organizationId)
-                    + "/invitations"),
-            bearer(
+    MemberInvitationResponse invitation =
+        new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate())
+            .inviteMember(
                 accessToken,
-                Map.of("Idempotency-Key", "test-app-" + role + "-" + runHash())),
-            request,
-            Set.of(201));
-    if (!role.equals(invitation.path("requestedRole").asString())
-        || invitation.has("capabilities")) {
+                organizationId,
+                "test-app-" + role + "-" + runHash(),
+                email,
+                displayName,
+                role);
+    if (!role.equals(invitation.getRequestedRole())
+        || !organizationId.equals(invitation.getOrganizationId())
+        || !email.equalsIgnoreCase(invitation.getEmail())) {
       throw new ProductFlowException(role + " invitation projection is invalid");
     }
   }
@@ -439,20 +429,11 @@ public final class FreshProductFlow {
       String accessToken,
       boolean entitled,
       String operation) {
-    JsonNode page =
-        http.json(
-            "list organization members for Weaver assignment",
-            "GET",
-            environment.api(
-                "/api/admin/organizations/"
-                    + encodeSegment(organizationId)
-                    + "/members?size=100"),
-            bearer(accessToken, Map.of()),
-            null,
-            Set.of(200));
-    JsonNode member = null;
-    for (JsonNode candidate : page.path("items")) {
-      if (email.equalsIgnoreCase(candidate.path("email").asString())) {
+    GeneratedAdminApi adminApi = new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate());
+    var page = adminApi.listMembers(accessToken, organizationId);
+    OrganizationMemberResponse member = null;
+    for (OrganizationMemberResponse candidate : page.getItems()) {
+      if (email.equalsIgnoreCase(candidate.getEmail())) {
         if (member != null) {
           throw new ProductFlowException("member projection is ambiguous");
         }
@@ -462,28 +443,21 @@ public final class FreshProductFlow {
     if (member == null) {
       throw new ProductFlowException("activated member is missing");
     }
-    ObjectNode request = http.mapper().createObjectNode();
-    request.put("entitled", entitled);
-    JsonNode updated =
-        http.json(
-            (entitled ? "assign" : "remove") + " native Weaver organization capability",
-            "PUT",
-            environment.api(
-                "/api/admin/organizations/"
-                    + encodeSegment(organizationId)
-                    + "/members/"
-                    + encodeSegment(requiredText(member, "memberHandle"))
-                    + "/capabilities/weaver"),
-            bearer(
-                accessToken,
-                Map.of(
-                    "If-Match", requiredText(member, "version"),
-                    "Idempotency-Key",
-                        "test-app-weaver-" + operation + "-" + runHash())),
-            request,
-            Set.of(200));
+    if (member.getMemberHandle() == null || member.getMemberHandle().isBlank()
+        || member.getVersion() == null || member.getVersion().isBlank()) {
+      throw new ProductFlowException("member projection omitted stable handle or version");
+    }
+    OrganizationMemberResponse updated =
+        adminApi.updateWeaverEntitlement(
+            accessToken,
+            organizationId,
+            member.getMemberHandle(),
+            member.getVersion(),
+            "test-app-weaver-" + operation + "-" + runHash(),
+            entitled);
     Set<String> expected = entitled ? Set.of("agent-runtime.entitled") : Set.of();
-    if (!strings(updated.path("capabilities")).equals(expected)) {
+    if (updated.getCapabilities() == null
+        || !Set.copyOf(updated.getCapabilities()).equals(expected)) {
       throw new ProductFlowException("native Weaver capability mutation did not converge");
     }
   }
