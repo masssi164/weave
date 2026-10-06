@@ -38,7 +38,7 @@ The Ruma/JNI native library is a required server artifact because the Matrix fac
 
 `rust/matrix-client` owns Matrix SDK / matrix-sdk-crypto and Flutter Rust Bridge integration. The client owns private identity keys, Olm/Megolm state, verification, recovery and encrypted local crypto storage.
 
-The server stores/routes only public or opaque encrypted protocol metadata and ciphertext. It never decrypts room events or stores private client keys.
+For an E2EE-enabled room, the canonical Chat store retains ciphertext and non-secret state only; the server never decrypts room events or stores private client keys. For an authorized non-E2EE business room, canonical server-readable content may support retention, search and compliance under organization policy. Encrypted rooms cannot be downgraded to obtain that content.
 
 ## Idempotency and sync
 
@@ -49,6 +49,8 @@ Canonical Chat and Matrix routing streams use explicit logical high-waters rathe
 ## Security boundary
 
 Access control remains a canonical Weave concern. Ruma/JNI parses, validates and projects Matrix wire data but does not decide tenant scope, membership, authorization, visibility or provider selection.
+
+For this release, the Weave-owned Flutter client uses its normal member OIDC/PKCE session at the Matrix facade after one sign-in. The facade still checks current organization, membership, resource and device scope. A separate Matrix OAuth client/audience, dynamic registration and independent third-party Matrix-client interoperability are deferred; admin and workload credentials remain separate from member authorization.
 
 ## Fresh-start policy
 

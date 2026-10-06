@@ -19,10 +19,10 @@ class MatrixSupportProfileCheckTest(unittest.TestCase):
     def test_current_profile_has_valid_assertion_refs_and_explicit_unsupported_row(self):
         self.assertEqual(checker.check_profile(self.profile, ROOT), [])
 
-    def test_promotion_without_independent_client_and_integrated_evidence_fails(self):
+    def test_promotion_without_weave_client_and_integrated_evidence_fails(self):
         promoted = self.profile.replace(" | Guarded | ", " | Supported | ", 1)
         errors = checker.check_profile(promoted, ROOT)
-        self.assertTrue(any("independent-client assertion" in error for error in errors), errors)
+        self.assertTrue(any("Weave-owned client assertion" in error for error in errors), errors)
         self.assertTrue(any("integrated evidence file" in error for error in errors), errors)
 
     def test_missing_negative_route_row_fails(self):

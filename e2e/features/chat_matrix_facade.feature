@@ -7,8 +7,9 @@ Feature: Chat Matrix facade
   Scenario: Weave sign-in establishes authorized Matrix access
     Given a Weave member has Chat capability
     When the member opens Chat after one Weave sign-in
-    Then the native Matrix client reaches the Weave facade through a separate Matrix OAuth session
-    And no additional member Connect action, credential prompt, or Weave API bearer reuse occurs
+    Then the native Matrix client uses the authorized Weave member OIDC/PKCE session at the Weave facade
+    And no additional member Connect action or credential prompt occurs
+    And wrong-account, revoked and cross-organization requests fail closed
 
   @matrix-spaces-rooms
   Scenario: Weave organization spaces and channels map to Matrix spaces and rooms

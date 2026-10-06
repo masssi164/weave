@@ -28,7 +28,7 @@ It is intentionally not a generic proxy for Matrix, Nextcloud, Keycloak, OpenPro
 
 ## API implementation and release boundary
 
-The approved release is tracked in [#1470](https://github.com/masssi164/weave/issues/1470). The inventory below includes older compatibility code; its presence does not establish current release acceptance. Public northbound DAV, Calls and private runtime execution are outside this release. Provider adoption and migration are tracked separately in [#1498](https://github.com/masssi164/weave/issues/1498). Matrix compatibility is bounded by the [normative support profile](../docs/reference/matrix-client-server-support-profile.md); independent-client interoperability, automatic audience-bound session establishment and client-owned E2EE still require their acceptance evidence.
+The approved release is tracked in [#1470](https://github.com/masssi164/weave/issues/1470). The inventory below includes older compatibility code; its presence does not establish current release acceptance. Public northbound DAV, Calls and private runtime execution are outside this release. Provider adoption and migration are tracked separately in [#1498](https://github.com/masssi164/weave/issues/1498). Matrix compatibility is bounded by the [normative support profile](../docs/reference/matrix-client-server-support-profile.md); one member OIDC/PKCE session at the Weave Matrix facade, current authorization and real Weave-owned client journeys still require integrated acceptance evidence. Independent third-party Matrix clients and their separate OAuth profile are deferred. E2EE remains a per-room policy with client-owned cryptographic state when enabled.
 
 Current implementation inventory:
 

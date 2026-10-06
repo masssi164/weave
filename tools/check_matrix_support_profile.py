@@ -53,7 +53,7 @@ def check_profile(profile: str, root: Path) -> list[str]:
         errors.append("missing versioned weave.matrix-client-server/vN profile")
     section = profile.partition("## Endpoint profile\n")[2].partition("\n## ")[0]
     rows = [line for line in section.splitlines() if line.startswith("| ")]
-    header = "| ID | Surface | Status | Protocol assertion | Independent-client assertion | Integrated evidence or gap |"
+    header = "| ID | Surface | Status | Protocol assertion | Weave-owned client assertion | Integrated evidence or gap |"
     if len(rows) < 3 or rows[0] != header:
         return [*errors, "endpoint table/header is missing"]
 
@@ -63,7 +63,7 @@ def check_profile(profile: str, root: Path) -> list[str]:
         if len(cells) != 6:
             errors.append(f"endpoint row has {len(cells)} cells: {raw}")
             continue
-        row_id, surface, status, protocol, independent, evidence = cells
+        row_id, surface, status, protocol, owned_client, evidence = cells
         if row_id in seen:
             errors.append(f"duplicate endpoint row: {row_id}")
         seen.add(row_id)
@@ -76,10 +76,10 @@ def check_profile(profile: str, root: Path) -> list[str]:
         if status in {"Supported", "Unsupported"} and protocol == "pending":
             errors.append(f"{row_id}: {status} requires a protocol assertion")
         if status == "Supported":
-            if independent == "pending":
-                errors.append(f"{row_id}: Supported requires an independent-client assertion")
+            if owned_client == "pending":
+                errors.append(f"{row_id}: Supported requires a Weave-owned client assertion")
             else:
-                problem = _assertion(independent, root, "weave-product-e2e/")
+                problem = _assertion(owned_client, root, "weave-product-e2e/")
                 if problem:
                     errors.append(f"{row_id}: {problem}")
             proof = EVIDENCE.fullmatch(evidence)
@@ -90,8 +90,8 @@ def check_profile(profile: str, root: Path) -> list[str]:
                 or not (root / proof.group(1)).is_file()
             ):
                 errors.append(f"{row_id}: Supported requires a checked-in integrated evidence file")
-        elif independent != "pending":
-            errors.append(f"{row_id}: unqualified rows must not cite independent-client qualification")
+        elif owned_client != "pending":
+            errors.append(f"{row_id}: unqualified rows must not cite Weave-owned client qualification")
         if status == "Guarded" and (not evidence or evidence.startswith("evidence:")):
             errors.append(f"{row_id}: Guarded requires an explicit qualification gap")
         if status == "Unsupported" and not evidence:
