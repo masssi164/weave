@@ -93,10 +93,21 @@ ID, path and strong provider version before activating replacement bytes. A stal
 replaced object fails without changing the active mapping or serving changed content.
 
 The product acceptance evidence must report the generated User Files northbound
-surface. Public WebDAV/CalDAV probes may remain in separately named compatibility
-regressions, but the current-scope Full Compose product flow must not require them or
-report them as its product northbound contract. Matrix remains the explicit protocol
-exception and has its own independent-client qualification gate.
+surface. Historical WebDAV/CalDAV probes may remain in separately named compatibility
+regressions, but the public DAV controllers are disabled by default and the
+current-scope Full Compose product flow must neither require nor advertise them.
+An operator may set `WEAVE_COMPATIBILITY_PUBLIC_DAV_ENABLED=true` only for a
+separately documented compatibility environment; it is not a current-release
+member setup path. The corresponding Spring property is
+`weave.compatibility.public-dav.enabled`, whose default is `false`.
+The User OpenAPI artifact must not include DAV setup credentials, CalDAV
+mobileconfig, or native setup metadata that advertises those routes. The actual
+Files/Calendar User operations and their security, version and binary behavior
+remain in the generated contract. Historical credential issuance, revocation,
+permission and recovery tests remain available as service or opt-in compatibility
+tests; ordinary release tests assert that the retired setup routes cannot issue a
+credential. Matrix remains the explicit protocol exception and has its own
+independent-client qualification gate.
 Member Home may project a completed User Files write from the support-safe audit
 envelope only for its actor while User Files objects have owner-only access. It must
 not expose that object's activity to an ungranted member of the same organization.

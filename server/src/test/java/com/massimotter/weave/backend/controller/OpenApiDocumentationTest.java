@@ -63,6 +63,21 @@ class OpenApiDocumentationTest {
     }
 
     @Test
+    void publicDavAndCredentialSetupRoutesAreDisabledByDefault() {
+        var activePaths = handlerMapping.getHandlerMethods().keySet().stream()
+                .flatMap(mapping -> mapping.getPatternValues().stream())
+                .toList();
+        assertFalse(activePaths.stream().anyMatch(path -> path.startsWith("/dav/files")
+                || path.startsWith("/caldav")
+                || path.startsWith("/api/files/client-setup")
+                || path.startsWith("/api/files/native-provider-setup")
+                || path.startsWith("/api/calendar/client-setup")
+                || path.startsWith("/api/calendar/native-sync-setup")));
+        assertTrue(activePaths.contains("/api/files/items"));
+        assertTrue(activePaths.contains("/api/calendar/calendars"));
+    }
+
+    @Test
     void calendarProductRoutesHaveExplicitUserOperationsAndTypedTemporalPreconditions() throws Exception {
         mockMvc.perform(get("/v3/api-docs/user"))
                 .andExpect(status().isOk())
@@ -316,26 +331,18 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/files/readiness'].get.operationId").value("getFilesReadiness"))
                 .andExpect(jsonPath("$.paths['/api/files/readiness'].get.responses['200'].content['*/*'].schema['$ref']")
                         .value("#/components/schemas/WorkspaceCapabilityStatusResponse"))
-                .andExpect(jsonPath("$.paths['/api/files/native-provider-setup']").exists())
-                .andExpect(jsonPath("$.paths['/api/files/native-provider-setup'].get.operationId")
-                        .value("getFilesNativeProviderSetup"))
-                .andExpect(jsonPath("$.paths['/api/files/native-provider-setup'].get.responses['200'].content['*/*'].schema['$ref']")
-                        .value("#/components/schemas/FileNativeProviderSetupResponse"))
-                .andExpect(jsonPath("$.paths['/api/files/client-setup/credentials']").exists())
-                .andExpect(jsonPath("$.paths['/api/files/client-setup/credentials/{credentialId}']").exists())
+                .andExpect(jsonPath("$.paths['/api/files/native-provider-setup']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/client-setup/credentials']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/client-setup/credentials/{credentialId}']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/files/{id}/download']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/files/{id}']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/events']").doesNotExist())
-                .andExpect(jsonPath("$.paths['/api/calendar/client-setup']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/native-sync-setup']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/native-sync-setup'].get.operationId")
-                        .value("getCalendarNativeSyncSetup"))
-                .andExpect(jsonPath("$.paths['/api/calendar/native-sync-setup'].get.responses['200'].content['*/*'].schema['$ref']")
-                        .value("#/components/schemas/CalendarNativeSyncSetupResponse"))
+                .andExpect(jsonPath("$.paths['/api/calendar/client-setup']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/calendar/native-sync-setup']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/access-policy']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials/{credentialId}']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/client-setup/apple.mobileconfig']").exists())
+                .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials/{credentialId}']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/calendar/client-setup/apple.mobileconfig']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/events/{id}']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calls']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calls/native-boundary-setup']").doesNotExist())

@@ -254,14 +254,6 @@ class ApiClient {
           return BoardsUpdateTaskStatusRequest.fromJson(value);
         case 'BoardsWorkspaceResponse':
           return BoardsWorkspaceResponse.fromJson(value);
-        case 'CalendarAccessModelResponse':
-          return CalendarAccessModelResponse.fromJson(value);
-        case 'CalendarClientSetupOptionResponse':
-          return CalendarClientSetupOptionResponse.fromJson(value);
-        case 'CalendarClientSetupResponse':
-          return CalendarClientSetupResponse.fromJson(value);
-        case 'CalendarCredentialReadinessResponse':
-          return CalendarCredentialReadinessResponse.fromJson(value);
         case 'CalendarEventAttendee':
           return CalendarEventAttendee.fromJson(value);
         case 'CalendarEventOverride':
@@ -270,22 +262,10 @@ class ApiClient {
           return CalendarEventRecurrence.fromJson(value);
         case 'CalendarEventWriteRequest':
           return CalendarEventWriteRequest.fromJson(value);
-        case 'CalendarExternalEndpointsResponse':
-          return CalendarExternalEndpointsResponse.fromJson(value);
-        case 'CalendarNativeSyncOptionResponse':
-          return CalendarNativeSyncOptionResponse.fromJson(value);
-        case 'CalendarNativeSyncSetupResponse':
-          return CalendarNativeSyncSetupResponse.fromJson(value);
         case 'CalendarScopeResponse':
           return CalendarScopeResponse.fromJson(value);
         case 'CalendarScopesResponse':
           return CalendarScopesResponse.fromJson(value);
-        case 'CalendarSetupCredentialListResponse':
-          return CalendarSetupCredentialListResponse.fromJson(value);
-        case 'CalendarSetupCredentialRequest':
-          return CalendarSetupCredentialRequest.fromJson(value);
-        case 'CalendarSetupCredentialResponse':
-          return CalendarSetupCredentialResponse.fromJson(value);
         case 'CalendarTimeValue':
           return CalendarTimeValue.fromJson(value);
         case 'CalendarUserAgenda':
@@ -350,16 +330,6 @@ class ApiClient {
           return DomainCapability.fromJson(value);
         case 'E2eeStatus':
           return E2eeStatus.fromJson(value);
-        case 'FileNativeProviderOptionResponse':
-          return FileNativeProviderOptionResponse.fromJson(value);
-        case 'FileNativeProviderSetupResponse':
-          return FileNativeProviderSetupResponse.fromJson(value);
-        case 'FileSetupCredentialListResponse':
-          return FileSetupCredentialListResponse.fromJson(value);
-        case 'FileSetupCredentialRequest':
-          return FileSetupCredentialRequest.fromJson(value);
-        case 'FileSetupCredentialResponse':
-          return FileSetupCredentialResponse.fromJson(value);
         case 'FilesUserCreateFolderRequest':
           return FilesUserCreateFolderRequest.fromJson(value);
         case 'FilesUserItemResponse':
