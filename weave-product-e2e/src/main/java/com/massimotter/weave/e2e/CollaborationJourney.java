@@ -275,7 +275,27 @@ final class CollaborationJourney {
         || !deviceId.equals(deviceId(identity.role(), pass))) {
       throw new ProductFlowException(identity.role() + " Matrix identity is invalid");
     }
+    requireDeviceProofDenial(identity, pass);
     return new MatrixIdentity(userId, deviceId);
+  }
+
+  private void requireDeviceProofDenial(Identity identity, int pass) {
+    Map<String, String> headers = new LinkedHashMap<>(
+        bearer(identity.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(identity.role(), pass))));
+    byte[] unboundSecret = new byte[48];
+    deviceProofRandom.nextBytes(unboundSecret);
+    headers.put(MATRIX_DEVICE_PROOF_HEADER,
+        Base64.getUrlEncoder().withoutPadding().encodeToString(unboundSecret));
+    JsonNode denied = http.json(
+        "deny unbound Matrix device proof",
+        "GET",
+        environment.api("/_matrix/client/v3/account/whoami"),
+        Map.copyOf(headers),
+        null,
+        Set.of(401));
+    if (!"M_UNKNOWN_TOKEN".equals(denied.path("errcode").asString())) {
+      throw new ProductFlowException("unbound Matrix device proof was not rejected");
+    }
   }
 
   private String createEncryptedRoom(Identity author, String collaboratorUserId, int pass) {
