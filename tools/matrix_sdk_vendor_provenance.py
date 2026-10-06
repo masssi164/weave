@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that Weave's Matrix crypto vendor tree is a narrow pinned patch."""
+"""Verify that each Weave Matrix SDK vendor tree is a narrow pinned patch."""
 
 from __future__ import annotations
 
@@ -108,12 +108,24 @@ def main() -> int:
             raise ValueError(f"Patch {index} is missing or has the wrong checksum.")
         if not entry.get("invariant") or not entry.get("regressionTests"):
             raise ValueError(f"Patch {index} must name its invariant and regression tests.")
-        issues = entry.get("upstreamIssues")
-        if not isinstance(issues, list) or not issues or any(
-            not issue.startswith("https://github.com/matrix-org/matrix-rust-sdk/issues/")
-            for issue in issues
+        issues = entry.get("upstreamIssues", [])
+        pull_requests = entry.get("upstreamPullRequests", [])
+        if not isinstance(issues, list) or not isinstance(pull_requests, list):
+            raise ValueError(f"Patch {index} has invalid upstream references.")
+        if (
+            not (issues or pull_requests)
+            or any(
+                not issue.startswith("https://github.com/matrix-org/matrix-rust-sdk/issues/")
+                for issue in issues
+            )
+            or any(
+                not pull.startswith("https://github.com/matrix-org/matrix-rust-sdk/pull/")
+                for pull in pull_requests
+            )
         ):
-            raise ValueError(f"Patch {index} must name Matrix Rust SDK upstream issues.")
+            raise ValueError(
+                f"Patch {index} must name Matrix Rust SDK upstream issues or pull requests."
+            )
         entry_paths = entry.get("changedPaths")
         if not isinstance(entry_paths, list) or not entry_paths:
             raise ValueError(f"Patch {index} must name its changed source paths.")
@@ -123,7 +135,7 @@ def main() -> int:
         raise ValueError("Patch paths and packaging differences must cover the full allowlist.")
     if locked_versions(args.lock, crate) != [version]:
         raise ValueError(
-            "Cargo.lock must contain exactly the pinned Matrix SDK crypto version."
+            f"Cargo.lock must contain exactly the pinned {crate} version."
         )
     if manifest.get("releaseUrl") != (
         "https://github.com/matrix-org/matrix-rust-sdk/releases/tag/"

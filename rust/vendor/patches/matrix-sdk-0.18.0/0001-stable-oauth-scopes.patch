@@ -1,0 +1,61 @@
+--- a/src/authentication/oauth/mod.rs
++++ b/src/authentication/oauth/mod.rs
+@@ -804,9 +804,9 @@
+     ) -> (Vec<Scope>, OwnedDeviceId) {
+         /// Scope to grand full access to the client-server API.
+         const SCOPE_MATRIX_CLIENT_SERVER_API_FULL_ACCESS: &str =
+-            "urn:matrix:org.matrix.msc2967.client:api:*";
++            "urn:matrix:client:api:*";
+         /// Prefix of the scope to bind a device ID to an access token.
+-        const SCOPE_MATRIX_DEVICE_ID_PREFIX: &str = "urn:matrix:org.matrix.msc2967.client:device:";
++        const SCOPE_MATRIX_DEVICE_ID_PREFIX: &str = "urn:matrix:client:device:";
+ 
+         // Generate the device ID if it is not provided.
+         let device_id = device_id.unwrap_or_else(DeviceId::new);
+--- a/src/authentication/oauth/tests.rs
++++ b/src/authentication/oauth/tests.rs
+@@ -96,10 +96,24 @@
+                 let actual_scopes: Vec<String> = val.split(' ').map(String::from).collect();
+ 
+                 assert!(actual_scopes.len() >= 2, "Expected at least two scopes");
+-
++                assert_eq!(
++                    actual_scopes
++                        .iter()
++                        .filter(|scope| scope.starts_with("urn:matrix:client:device:"))
++                        .count(),
++                    1,
++                    "Expected exactly one stable Matrix device scope"
++                );
+                 assert!(
+                     actual_scopes
+-                        .contains(&"urn:matrix:org.matrix.msc2967.client:api:*".to_owned()),
++                        .iter()
++                        .all(|scope| !scope.starts_with("urn:matrix:org.matrix.msc2967.client:")),
++                    "Legacy Matrix scope must not be requested"
++                );
++
++                assert!(
++                    actual_scopes
++                        .contains(&"urn:matrix:client:api:*".to_owned()),
+                     "Expected Matrix API scope not found in scopes"
+                 );
+ 
+@@ -107,7 +121,7 @@
+                 // know it.
+                 if let Some(device_id) = device_id {
+                     let device_id_scope =
+-                        format!("urn:matrix:org.matrix.msc2967.client:device:{device_id}");
++                        format!("urn:matrix:client:device:{device_id}");
+                     assert!(
+                         actual_scopes.contains(&device_id_scope),
+                         "Expected device ID scope not found in scopes"
+@@ -116,7 +130,7 @@
+                     assert!(
+                         actual_scopes
+                             .iter()
+-                            .any(|s| s.starts_with("urn:matrix:org.matrix.msc2967.client:device:")),
++                            .any(|s| s.starts_with("urn:matrix:client:device:")),
+                         "Expected device ID scope not found in scopes"
+                     );
+                 }

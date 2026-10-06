@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 2,
+  "crate": "matrix-sdk",
+  "version": "0.18.0",
+  "releaseUrl": "https://github.com/matrix-org/matrix-rust-sdk/releases/tag/matrix-sdk-0.18.0",
+  "upstreamCommit": "1c44fb66214667c6d00acaf72ab592493653708b",
+  "archiveSha256": "7083d580527511ac5d9369e03b9f2b20902e76949f1b3964051f978e4d3756ae",
+  "downloadUrl": "https://crates.io/api/v1/crates/matrix-sdk/0.18.0/download",
+  "allowedDifferences": [
+    ".cargo-ok",
+    "LICENSE",
+    "src/authentication/oauth/mod.rs",
+    "src/authentication/oauth/tests.rs"
+  ],
+  "allowedPackagingDifferences": [
+    ".cargo-ok",
+    "LICENSE"
+  ],
+  "patchSeries": [
+    {
+      "path": "patches/matrix-sdk-0.18.0/0001-stable-oauth-scopes.patch",
+      "sha256": "a63769296b387d8d8cbe0660c9126a13dd071f6120fbe0ce0d46e5e5158a638f",
+      "changedPaths": [
+        "src/authentication/oauth/mod.rs",
+        "src/authentication/oauth/tests.rs"
+      ],
+      "invariant": "Native Matrix OAuth requests only the stable API scope and exactly one stable device scope for each login, without legacy MSC2967 scopes.",
+      "upstreamPullRequests": [
+        "https://github.com/matrix-org/matrix-rust-sdk/pull/7134"
+      ],
+      "regressionTests": [
+        "authentication::oauth::tests::test_login_url"
+      ]
+    }
+  ],
+  "upstreamPullRequests": [
+    "https://github.com/matrix-org/matrix-rust-sdk/pull/7134"
+  ]
+}
