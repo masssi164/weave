@@ -607,6 +607,8 @@ fn wire__crate__frb_api__matrix_oauth_start_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_login_key = <String>::sse_decode(&mut deserializer);
             let api_homeserver_url = <String>::sse_decode(&mut deserializer);
+            let api_expected_issuer = <String>::sse_decode(&mut deserializer);
+            let api_client_id = <String>::sse_decode(&mut deserializer);
             let api_device_id = <String>::sse_decode(&mut deserializer);
             let api_redirect_uri = <String>::sse_decode(&mut deserializer);
             let api_extra_root_certificate_pem = <String>::sse_decode(&mut deserializer);
@@ -618,6 +620,8 @@ fn wire__crate__frb_api__matrix_oauth_start_impl(
                             crate::frb_api::matrix_oauth_start(
                                 api_login_key,
                                 api_homeserver_url,
+                                api_expected_issuer,
+                                api_client_id,
                                 api_device_id,
                                 api_redirect_uri,
                                 api_extra_root_certificate_pem,

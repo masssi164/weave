@@ -8,20 +8,28 @@ class ServerConfiguration {
     required this.oidcIssuerUrl,
     required this.oidcClientRegistration,
     required this.serviceEndpoints,
+    this.matrixOAuthIssuer,
+    this.matrixOAuthClientId,
   });
 
   final OidcProviderType providerType;
   final Uri oidcIssuerUrl;
   final OidcClientRegistration oidcClientRegistration;
   final ServiceEndpoints serviceEndpoints;
+  final Uri? matrixOAuthIssuer;
+  final String? matrixOAuthClientId;
 
   bool get hasCompleteAuthConfiguration => oidcClientRegistration.isComplete;
+  bool get hasMatrixOAuthConfiguration =>
+      matrixOAuthIssuer != null && matrixOAuthClientId != null;
 
   ServerConfiguration copyWith({
     OidcProviderType? providerType,
     Uri? oidcIssuerUrl,
     OidcClientRegistration? oidcClientRegistration,
     ServiceEndpoints? serviceEndpoints,
+    Uri? matrixOAuthIssuer,
+    String? matrixOAuthClientId,
   }) {
     return ServerConfiguration(
       providerType: providerType ?? this.providerType,
@@ -29,6 +37,8 @@ class ServerConfiguration {
       oidcClientRegistration:
           oidcClientRegistration ?? this.oidcClientRegistration,
       serviceEndpoints: serviceEndpoints ?? this.serviceEndpoints,
+      matrixOAuthIssuer: matrixOAuthIssuer ?? this.matrixOAuthIssuer,
+      matrixOAuthClientId: matrixOAuthClientId ?? this.matrixOAuthClientId,
     );
   }
 }

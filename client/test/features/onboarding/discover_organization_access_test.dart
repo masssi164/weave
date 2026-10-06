@@ -160,6 +160,11 @@ void main() {
       saved.serviceEndpoints.matrixHomeserverUrl.toString(),
       'https://matrix.weave.test:44443',
     );
+    expect(
+      saved.matrixOAuthIssuer.toString(),
+      'https://auth.weave.test:44443/realms/weave',
+    );
+    expect(saved.matrixOAuthClientId, 'weave-matrix-app');
     final evidence =
         jsonDecode(evidenceStore.strings[lastHandoffConsumedStorageKey]!)
             as Map<String, dynamic>;

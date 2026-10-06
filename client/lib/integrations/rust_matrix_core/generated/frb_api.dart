@@ -19,12 +19,16 @@ Future<String> projectMatrixJson({
 Future<String> matrixOauthStart({
   required String loginKey,
   required String homeserverUrl,
+  required String expectedIssuer,
+  required String clientId,
   required String deviceId,
   required String redirectUri,
   required String extraRootCertificatePem,
 }) => RustLib.instance.api.crateFrbApiMatrixOauthStart(
   loginKey: loginKey,
   homeserverUrl: homeserverUrl,
+  expectedIssuer: expectedIssuer,
+  clientId: clientId,
   deviceId: deviceId,
   redirectUri: redirectUri,
   extraRootCertificatePem: extraRootCertificatePem,

@@ -13,6 +13,8 @@ class ServerConfigurationDto {
     required this.oidcClientId,
     required this.matrixHomeserverUrl,
     required this.backendApiBaseUrl,
+    this.matrixOAuthIssuer,
+    this.matrixOAuthClientId,
   });
 
   factory ServerConfigurationDto.fromConfiguration(
@@ -28,6 +30,8 @@ class ServerConfigurationDto {
           .toString(),
       backendApiBaseUrl: configuration.serviceEndpoints.backendApiBaseUrl
           .toString(),
+      matrixOAuthIssuer: configuration.matrixOAuthIssuer?.toString(),
+      matrixOAuthClientId: configuration.matrixOAuthClientId,
     );
   }
 
@@ -39,6 +43,8 @@ class ServerConfigurationDto {
       oidcClientId: json['oidcClientId'] as String,
       matrixHomeserverUrl: json['matrixHomeserverUrl'] as String,
       backendApiBaseUrl: json['backendApiBaseUrl'] as String,
+      matrixOAuthIssuer: json['matrixOAuthIssuer'] as String?,
+      matrixOAuthClientId: json['matrixOAuthClientId'] as String?,
     );
   }
 
@@ -48,6 +54,8 @@ class ServerConfigurationDto {
   final String oidcClientId;
   final String matrixHomeserverUrl;
   final String backendApiBaseUrl;
+  final String? matrixOAuthIssuer;
+  final String? matrixOAuthClientId;
 
   ServerConfiguration toConfiguration() {
     return ServerConfiguration(
@@ -63,6 +71,10 @@ class ServerConfigurationDto {
         matrixHomeserverUrl: Uri.parse(matrixHomeserverUrl),
         backendApiBaseUrl: Uri.parse(backendApiBaseUrl),
       ),
+      matrixOAuthIssuer: matrixOAuthIssuer == null
+          ? null
+          : Uri.parse(matrixOAuthIssuer!),
+      matrixOAuthClientId: matrixOAuthClientId,
     );
   }
 
@@ -77,6 +89,9 @@ class ServerConfigurationDto {
       'oidcClientId': oidcClientId,
       'matrixHomeserverUrl': matrixHomeserverUrl,
       'backendApiBaseUrl': backendApiBaseUrl,
+      if (matrixOAuthIssuer != null) 'matrixOAuthIssuer': matrixOAuthIssuer,
+      if (matrixOAuthClientId != null)
+        'matrixOAuthClientId': matrixOAuthClientId,
     };
   }
 

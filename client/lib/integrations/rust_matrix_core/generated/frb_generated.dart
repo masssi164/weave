@@ -143,6 +143,8 @@ abstract class RustLibApi extends BaseApi {
   Future<String> crateFrbApiMatrixOauthStart({
     required String loginKey,
     required String homeserverUrl,
+    required String expectedIssuer,
+    required String clientId,
     required String deviceId,
     required String redirectUri,
     required String extraRootCertificatePem,
@@ -668,6 +670,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<String> crateFrbApiMatrixOauthStart({
     required String loginKey,
     required String homeserverUrl,
+    required String expectedIssuer,
+    required String clientId,
     required String deviceId,
     required String redirectUri,
     required String extraRootCertificatePem,
@@ -678,6 +682,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(loginKey, serializer);
           sse_encode_String(homeserverUrl, serializer);
+          sse_encode_String(expectedIssuer, serializer);
+          sse_encode_String(clientId, serializer);
           sse_encode_String(deviceId, serializer);
           sse_encode_String(redirectUri, serializer);
           sse_encode_String(extraRootCertificatePem, serializer);
@@ -696,6 +702,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         argValues: [
           loginKey,
           homeserverUrl,
+          expectedIssuer,
+          clientId,
           deviceId,
           redirectUri,
           extraRootCertificatePem,
@@ -711,6 +719,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         argNames: [
           "loginKey",
           "homeserverUrl",
+          "expectedIssuer",
+          "clientId",
           "deviceId",
           "redirectUri",
           "extraRootCertificatePem",

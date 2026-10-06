@@ -193,12 +193,17 @@ void main() {
 
       expect(session.userId, '@person-1:api.weave.test');
       expect(bridge.oauthStarts, hasLength(1));
+      expect(
+        bridge.oauthStarts.single['expectedIssuer'],
+        'https://auth.home.internal/realms/weave',
+      );
+      expect(bridge.oauthStarts.single['clientId'], 'weave-matrix-app');
       expect(browser.opened, hasLength(1));
       expect(access.calls, 3);
     },
   );
 
-  for (final change in ['grant', 'account', 'organization']) {
+  for (final change in ['grant', 'account', 'organization', 'matrixClient']) {
     test(
       'delayed OAuth rejects a changed $change before importing or syncing',
       () async {
@@ -209,6 +214,10 @@ void main() {
             authRepository.state = AuthState.authenticated(
               buildTestAuthSession(idToken: _idToken(subject: 'person-2')),
             );
+          } else if (change == 'matrixClient') {
+            configurationRepository.configuration = configurationRepository
+                .configuration!
+                .copyWith(matrixOAuthClientId: 'another-matrix-client');
           } else {
             access.organizationId = 'org-two';
           }
@@ -931,6 +940,29 @@ void main() {
         throwsA(isA<ChatFailure>()),
       );
     }
+    expect(bridge.oauthStarts, isEmpty);
+    expect(browser.opened, isEmpty);
+  });
+
+  test('missing Matrix registration keeps Chat unavailable', () async {
+    final configured = configurationRepository.configuration!;
+    configurationRepository.configuration = ServerConfiguration(
+      providerType: configured.providerType,
+      oidcIssuerUrl: configured.oidcIssuerUrl,
+      oidcClientRegistration: configured.oidcClientRegistration,
+      serviceEndpoints: configured.serviceEndpoints,
+    );
+
+    await expectLater(
+      buildCoordinator(randomSeed: 1).open(),
+      throwsA(
+        isA<ChatFailure>().having(
+          (failure) => failure.type,
+          'type',
+          ChatFailureType.configuration,
+        ),
+      ),
+    );
     expect(bridge.oauthStarts, isEmpty);
     expect(browser.opened, isEmpty);
   });

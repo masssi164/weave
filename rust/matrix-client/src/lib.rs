@@ -16,6 +16,8 @@ pub mod frb_api {
     pub async fn matrix_oauth_start(
         login_key: String,
         homeserver_url: String,
+        expected_issuer: String,
+        client_id: String,
         device_id: String,
         redirect_uri: String,
         extra_root_certificate_pem: String,
@@ -23,6 +25,8 @@ pub mod frb_api {
         crate::flutter_crypto::oauth_start(
             login_key,
             homeserver_url,
+            expected_issuer,
+            client_id,
             device_id,
             redirect_uri,
             extra_root_certificate_pem,
