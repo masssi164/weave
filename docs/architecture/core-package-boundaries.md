@@ -99,10 +99,11 @@ Chat has no MCP projection. Weaver/OpenClaw uses Matrix for conversational traff
 ## MCP boundary
 
 `weave-mcp-server` is a curated semantic tool surface for Files and Calendar. It
-must use the same generated JVM User HTTP client and transport models as product E2E
-to reach Weave Server, with distinct workload identity and current member and
-resource authorization. It owns no DataSource, JPA repository, Flyway migration,
-provider adapter, BlobStore or canonical business authority.
+must use the same generated JVM User HTTP client and transport models as member
+product E2E flows to reach Weave Server, with distinct workload identity and
+current member and resource authorization. Administrative E2E setup uses the
+separate generated Admin client. It owns no DataSource, JPA repository, Flyway
+migration, provider adapter, BlobStore or canonical business authority.
 
 ## Enforcement
 

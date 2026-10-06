@@ -5,8 +5,9 @@ MCP-over-DAV, OpenAPI-control-only, and private ARC/Runner delivery assertions
 are superseded for the current release by the pinned
 `steering/release-2026-10-product-consolidation.md` profile and #1470. Server
 code generates separate User and Admin OpenAPI artifacts; Files and Calendar use
-the generated User API, MCP and product E2E share the generated JVM User client,
-and Chat uses the bounded Weave Matrix Client-Server facade. Provider adoption
+the generated User API, MCP and member E2E flows share the generated JVM User
+client, administrative E2E actions use the separate generated Admin client, and
+Chat uses the bounded Weave Matrix Client-Server facade. Provider adoption
 and migration belong to #1498. The module dependency and security notes below
 remain useful historical evidence only where they agree with current source and
 the pinned corpus. Do not use the older transport or private-execution examples
