@@ -5,7 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('member transport has one generated User model source', () {
-    expect(File('lib/generated/user_api/model/protocols.dart').existsSync(), isTrue);
+    expect(
+      File('lib/generated/user_api/model/protocols.dart').existsSync(),
+      isTrue,
+    );
     expect(File('lib/generated/openapi_models.dart').existsSync(), isFalse);
   });
 
