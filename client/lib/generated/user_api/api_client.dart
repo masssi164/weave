@@ -300,14 +300,8 @@ class ApiClient {
           return ClientAccessDiscoveryResponse.fromJson(value);
         case 'ClientAccessProtocolSurfaceResponse':
           return ClientAccessProtocolSurfaceResponse.fromJson(value);
-        case 'ConnectorBoundaryResponse':
-          return ConnectorBoundaryResponse.fromJson(value);
         case 'ConnectorBoundarySummaryResponse':
           return ConnectorBoundarySummaryResponse.fromJson(value);
-        case 'ConnectorManifestValidationRequest':
-          return ConnectorManifestValidationRequest.fromJson(value);
-        case 'ConnectorManifestValidationResponse':
-          return ConnectorManifestValidationResponse.fromJson(value);
         case 'ConsentCapabilityRegistryResponse':
           return ConsentCapabilityRegistryResponse.fromJson(value);
         case 'DecisionLedgerCreateRequest':

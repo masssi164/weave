@@ -262,6 +262,8 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/providers/status']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/admin/providers/status']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/connectors/boundary']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/connectors/manifest/validate']").doesNotExist())
                 .andReturn();
         MvcResult admin = mockMvc.perform(get("/v3/api-docs/admin"))
                 .andExpect(status().isOk())
@@ -274,6 +276,8 @@ class OpenApiDocumentationTest {
                         hasItems("CONFIGURED", "NOT_CONFIGURED", "UNAVAILABLE")))
                 .andExpect(jsonPath("$.paths['/api/providers/status']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation']").exists())
+                .andExpect(jsonPath("$.paths['/api/connectors/boundary']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/connectors/manifest/validate']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.operationId")
                         .value("listOrganizationInvitations"))
                 .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.responses['200'].content['*/*'].schema.type")

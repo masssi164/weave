@@ -96,6 +96,10 @@ The product acceptance evidence must report the generated User Files northbound
 surface. Historical WebDAV/CalDAV probes may remain in separately named compatibility
 regressions, but the public DAV controllers are disabled by default and the
 current-scope Full Compose product flow must neither require nor advertise them.
+The internal connector runtime boundary and manifest validator are not User or
+Admin product operations. Keep their existing runtime authorization and internal
+combined documentation, but exclude `/api/connectors/**` from the generated User
+artifact and its clients until a public connector SDK contract is approved.
 An operator may set `WEAVE_COMPATIBILITY_PUBLIC_DAV_ENABLED=true` only for a
 separately documented compatibility environment; it is not a current-release
 member setup path. The corresponding Spring property is
