@@ -2485,25 +2485,25 @@ class DiagnosticStatus {
 
 class DomainCapability {
   const DomainCapability({
-    this.capabilities,
-    this.domain,
-    this.state,
+    required this.capabilities,
+    required this.domain,
+    required this.state,
     this.supportReference,
   });
 
   factory DomainCapability.fromJson(Map<String, dynamic> json) =>
       DomainCapability(
-        capabilities: (json["capabilities"] as List<dynamic>?)
-            ?.map((e) => e as String)
+        capabilities: (json["capabilities"] as List<dynamic>)
+            .map((e) => e as String)
             .toList(),
-        domain: json["domain"] as String?,
-        state: json["state"] as String?,
+        domain: json["domain"] as String,
+        state: json["state"] as String,
         supportReference: json["supportReference"] as String?,
       );
 
-  final List<String>? capabilities;
-  final String? domain;
-  final String? state;
+  final List<String> capabilities;
+  final String domain;
+  final String state;
   final String? supportReference;
 
   Map<String, dynamic> toJson() => {
@@ -3622,15 +3622,15 @@ class OfficeProviderCandidateResponse {
 }
 
 class Oidc {
-  const Oidc({this.clientId, this.issuer});
+  const Oidc({required this.clientId, required this.issuer});
 
   factory Oidc.fromJson(Map<String, dynamic> json) => Oidc(
-    clientId: json["clientId"] as String?,
-    issuer: json["issuer"] as String?,
+    clientId: json["clientId"] as String,
+    issuer: json["issuer"] as String,
   );
 
-  final String? clientId;
-  final String? issuer;
+  final String clientId;
+  final String issuer;
 
   Map<String, dynamic> toJson() => {
     "clientId": _openApiJsonValue(clientId),
@@ -3727,44 +3727,42 @@ class OrganizationManifestResponse {
 
 class PlatformConfigResponse {
   const PlatformConfigResponse({
-    this.domains,
-    this.oidc,
-    this.organizationOrigin,
-    this.protocols,
+    required this.domains,
+    required this.oidc,
+    required this.organizationOrigin,
+    required this.protocols,
     this.recoveryActions,
-    this.releasePosture,
-    this.schemaVersion,
-    this.userApiBaseUrl,
+    required this.releasePosture,
+    required this.schemaVersion,
+    required this.userApiBaseUrl,
   });
 
   factory PlatformConfigResponse.fromJson(Map<String, dynamic> json) =>
       PlatformConfigResponse(
-        domains: (json["domains"] as List<dynamic>?)
-            ?.map((e) => DomainCapability.fromJson(e as Map<String, dynamic>))
+        domains: (json["domains"] as List<dynamic>)
+            .map((e) => DomainCapability.fromJson(e as Map<String, dynamic>))
             .toList(),
-        oidc: json["oidc"] == null
-            ? null
-            : Oidc.fromJson(json["oidc"] as Map<String, dynamic>),
-        organizationOrigin: json["organizationOrigin"] as String?,
-        protocols: json["protocols"] == null
-            ? null
-            : Protocols.fromJson(json["protocols"] as Map<String, dynamic>),
+        oidc: Oidc.fromJson(json["oidc"] as Map<String, dynamic>),
+        organizationOrigin: json["organizationOrigin"] as String,
+        protocols: Protocols.fromJson(
+          json["protocols"] as Map<String, dynamic>,
+        ),
         recoveryActions: (json["recoveryActions"] as List<dynamic>?)
             ?.map((e) => RecoveryAction.fromJson(e as Map<String, dynamic>))
             .toList(),
-        releasePosture: json["releasePosture"] as String?,
-        schemaVersion: (json["schemaVersion"] as num?)?.toInt(),
-        userApiBaseUrl: json["userApiBaseUrl"] as String?,
+        releasePosture: json["releasePosture"] as String,
+        schemaVersion: (json["schemaVersion"] as num).toInt(),
+        userApiBaseUrl: json["userApiBaseUrl"] as String,
       );
 
-  final List<DomainCapability>? domains;
-  final Oidc? oidc;
-  final String? organizationOrigin;
-  final Protocols? protocols;
+  final List<DomainCapability> domains;
+  final Oidc oidc;
+  final String organizationOrigin;
+  final Protocols protocols;
   final List<RecoveryAction>? recoveryActions;
-  final String? releasePosture;
-  final int? schemaVersion;
-  final String? userApiBaseUrl;
+  final String releasePosture;
+  final int schemaVersion;
+  final String userApiBaseUrl;
 
   Map<String, dynamic> toJson() => {
     "domains": _openApiJsonValue(domains),
@@ -3951,16 +3949,26 @@ class ProfileReadinessResponse {
 }
 
 class Protocols {
-  const Protocols({this.matrixClientServerBaseUrl});
+  const Protocols({
+    required this.matrixClientServerBaseUrl,
+    required this.matrixOAuthClientId,
+    required this.matrixOAuthIssuer,
+  });
 
   factory Protocols.fromJson(Map<String, dynamic> json) => Protocols(
-    matrixClientServerBaseUrl: json["matrixClientServerBaseUrl"] as String?,
+    matrixClientServerBaseUrl: json["matrixClientServerBaseUrl"] as String,
+    matrixOAuthClientId: json["matrixOAuthClientId"] as String,
+    matrixOAuthIssuer: json["matrixOAuthIssuer"] as String,
   );
 
-  final String? matrixClientServerBaseUrl;
+  final String matrixClientServerBaseUrl;
+  final String matrixOAuthClientId;
+  final String matrixOAuthIssuer;
 
   Map<String, dynamic> toJson() => {
     "matrixClientServerBaseUrl": _openApiJsonValue(matrixClientServerBaseUrl),
+    "matrixOAuthClientId": _openApiJsonValue(matrixOAuthClientId),
+    "matrixOAuthIssuer": _openApiJsonValue(matrixOAuthIssuer),
   };
 }
 

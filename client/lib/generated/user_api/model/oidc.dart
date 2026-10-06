@@ -13,25 +13,13 @@ part of weave_user_api;
 class Oidc {
   /// Returns a new [Oidc] instance.
   Oidc({
-    this.clientId,
-    this.issuer,
+    required this.clientId,
+    required this.issuer,
   });
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? clientId;
+  String clientId;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? issuer;
+  String issuer;
 
   @override
   bool operator ==(Object other) =>
@@ -41,24 +29,15 @@ class Oidc {
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (clientId == null ? 0 : clientId!.hashCode) +
-      (issuer == null ? 0 : issuer!.hashCode);
+      (clientId.hashCode) + (issuer.hashCode);
 
   @override
   String toString() => 'Oidc[clientId=$clientId, issuer=$issuer]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    if (this.clientId != null) {
-      json[r'clientId'] = this.clientId;
-    } else {
-      json[r'clientId'] = null;
-    }
-    if (this.issuer != null) {
-      json[r'issuer'] = this.issuer;
-    } else {
-      json[r'issuer'] = null;
-    }
+    json[r'clientId'] = this.clientId;
+    json[r'issuer'] = this.issuer;
     return json;
   }
 
@@ -83,8 +62,8 @@ class Oidc {
       }());
 
       return Oidc(
-        clientId: mapValueOfType<String>(json, r'clientId'),
-        issuer: mapValueOfType<String>(json, r'issuer'),
+        clientId: mapValueOfType<String>(json, r'clientId')!,
+        issuer: mapValueOfType<String>(json, r'issuer')!,
       );
     }
     return null;
@@ -140,5 +119,8 @@ class Oidc {
   }
 
   /// The list of required keys that must be present in a JSON.
-  static const requiredKeys = <String>{};
+  static const requiredKeys = <String>{
+    'clientId',
+    'issuer',
+  };
 }

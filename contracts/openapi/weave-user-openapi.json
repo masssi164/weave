@@ -2230,6 +2230,11 @@
             "type": "string"
           }
         },
+        "required": [
+          "capabilities",
+          "domain",
+          "state"
+        ],
         "type": "object"
       },
       "E2eeStatus": {
@@ -3095,9 +3100,14 @@
             "type": "string"
           },
           "issuer": {
+            "format": "uri",
             "type": "string"
           }
         },
+        "required": [
+          "clientId",
+          "issuer"
+        ],
         "type": "object"
       },
       "OrganizationManifestResponse": {
@@ -3201,6 +3211,7 @@
             "$ref": "#/components/schemas/Oidc"
           },
           "organizationOrigin": {
+            "format": "uri",
             "type": "string"
           },
           "protocols": {
@@ -3220,9 +3231,19 @@
             "type": "integer"
           },
           "userApiBaseUrl": {
+            "format": "uri",
             "type": "string"
           }
         },
+        "required": [
+          "domains",
+          "oidc",
+          "organizationOrigin",
+          "protocols",
+          "releasePosture",
+          "schemaVersion",
+          "userApiBaseUrl"
+        ],
         "type": "object"
       },
       "PlatformStatusResponse": {
@@ -3357,9 +3378,22 @@
       "Protocols": {
         "properties": {
           "matrixClientServerBaseUrl": {
+            "format": "uri",
+            "type": "string"
+          },
+          "matrixOAuthClientId": {
+            "type": "string"
+          },
+          "matrixOAuthIssuer": {
+            "format": "uri",
             "type": "string"
           }
         },
+        "required": [
+          "matrixClientServerBaseUrl",
+          "matrixOAuthClientId",
+          "matrixOAuthIssuer"
+        ],
         "type": "object"
       },
       "ProviderRef": {

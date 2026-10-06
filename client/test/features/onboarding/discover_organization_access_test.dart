@@ -376,7 +376,75 @@ void main() {
     expect(config.userApiBaseUrl.toString(), 'https://api.weave.local/api');
     expect(
       config.matrixClientServerBaseUrl.toString(),
-      'https://matrix.weave.local',
+      'https://api.weave.local',
+    );
+    expect(
+      config.matrixOAuthIssuer.toString(),
+      'https://auth.weave.local/realms/weave',
+    );
+    expect(config.matrixOAuthClientId, 'weave-matrix-app');
+  });
+
+  test('rejects a manifest without a Matrix OAuth issuer', () async {
+    final manifest = _manifest(
+      organizationOrigin: 'https://weave.example',
+      userApiBaseUrl: 'https://api.weave.example/api',
+      issuer: 'https://auth.weave.example/realms/weave',
+      matrixClientServerBaseUrl: 'https://api.weave.example',
+    );
+    (manifest['protocols'] as Map<String, Object>).remove('matrixOAuthIssuer');
+    final client = MockClient(
+      (_) async => http.Response(jsonEncode(manifest), 200),
+    );
+
+    await expectLater(
+      AppStartDiscoveryClient(httpClient: client).fetch(
+        OrganizationAccess(
+          organizationOrigin: Uri.parse('https://weave.example/'),
+          platformConfigUrl: Uri.parse(
+            'https://weave.example/api/platform/config',
+          ),
+        ),
+      ),
+      throwsA(
+        isA<AppFailure>().having(
+          (failure) => failure.message,
+          'message',
+          contains('protocols.matrixOAuthIssuer is required'),
+        ),
+      ),
+    );
+  });
+
+  test('rejects a Matrix OAuth client ID shared with the User API', () async {
+    final manifest = _manifest(
+      organizationOrigin: 'https://weave.example',
+      userApiBaseUrl: 'https://api.weave.example/api',
+      issuer: 'https://auth.weave.example/realms/weave',
+      matrixClientServerBaseUrl: 'https://api.weave.example',
+    );
+    (manifest['protocols'] as Map<String, Object>)['matrixOAuthClientId'] =
+        'weave-app';
+    final client = MockClient(
+      (_) async => http.Response(jsonEncode(manifest), 200),
+    );
+
+    await expectLater(
+      AppStartDiscoveryClient(httpClient: client).fetch(
+        OrganizationAccess(
+          organizationOrigin: Uri.parse('https://weave.example/'),
+          platformConfigUrl: Uri.parse(
+            'https://weave.example/api/platform/config',
+          ),
+        ),
+      ),
+      throwsA(
+        isA<AppFailure>().having(
+          (failure) => failure.message,
+          'message',
+          contains('Matrix OAuth must use a separate client ID'),
+        ),
+      ),
     );
   });
 
@@ -516,6 +584,8 @@ Map<String, Object> _manifest({
   'oidc': <String, Object>{'issuer': issuer, 'clientId': 'weave-app'},
   'protocols': <String, Object>{
     'matrixClientServerBaseUrl': matrixClientServerBaseUrl,
+    'matrixOAuthIssuer': issuer,
+    'matrixOAuthClientId': 'weave-matrix-app',
   },
   'releasePosture': 'dogfood',
   'domains': <Map<String, Object>>[

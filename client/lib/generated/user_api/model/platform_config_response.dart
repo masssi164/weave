@@ -14,66 +14,30 @@ class PlatformConfigResponse {
   /// Returns a new [PlatformConfigResponse] instance.
   PlatformConfigResponse({
     this.domains = const [],
-    this.oidc,
-    this.organizationOrigin,
-    this.protocols,
+    required this.oidc,
+    required this.organizationOrigin,
+    required this.protocols,
     this.recoveryActions = const [],
-    this.releasePosture,
-    this.schemaVersion,
-    this.userApiBaseUrl,
+    required this.releasePosture,
+    required this.schemaVersion,
+    required this.userApiBaseUrl,
   });
 
   List<DomainCapability> domains;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  Oidc? oidc;
+  Oidc oidc;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? organizationOrigin;
+  String organizationOrigin;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  Protocols? protocols;
+  Protocols protocols;
 
   List<RecoveryAction> recoveryActions;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? releasePosture;
+  String releasePosture;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  int? schemaVersion;
+  int schemaVersion;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? userApiBaseUrl;
+  String userApiBaseUrl;
 
   @override
   bool operator ==(Object other) =>
@@ -92,13 +56,13 @@ class PlatformConfigResponse {
   int get hashCode =>
       // ignore: unnecessary_parenthesis
       (domains.hashCode) +
-      (oidc == null ? 0 : oidc!.hashCode) +
-      (organizationOrigin == null ? 0 : organizationOrigin!.hashCode) +
-      (protocols == null ? 0 : protocols!.hashCode) +
+      (oidc.hashCode) +
+      (organizationOrigin.hashCode) +
+      (protocols.hashCode) +
       (recoveryActions.hashCode) +
-      (releasePosture == null ? 0 : releasePosture!.hashCode) +
-      (schemaVersion == null ? 0 : schemaVersion!.hashCode) +
-      (userApiBaseUrl == null ? 0 : userApiBaseUrl!.hashCode);
+      (releasePosture.hashCode) +
+      (schemaVersion.hashCode) +
+      (userApiBaseUrl.hashCode);
 
   @override
   String toString() =>
@@ -107,37 +71,13 @@ class PlatformConfigResponse {
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'domains'] = this.domains;
-    if (this.oidc != null) {
-      json[r'oidc'] = this.oidc;
-    } else {
-      json[r'oidc'] = null;
-    }
-    if (this.organizationOrigin != null) {
-      json[r'organizationOrigin'] = this.organizationOrigin;
-    } else {
-      json[r'organizationOrigin'] = null;
-    }
-    if (this.protocols != null) {
-      json[r'protocols'] = this.protocols;
-    } else {
-      json[r'protocols'] = null;
-    }
+    json[r'oidc'] = this.oidc;
+    json[r'organizationOrigin'] = this.organizationOrigin;
+    json[r'protocols'] = this.protocols;
     json[r'recoveryActions'] = this.recoveryActions;
-    if (this.releasePosture != null) {
-      json[r'releasePosture'] = this.releasePosture;
-    } else {
-      json[r'releasePosture'] = null;
-    }
-    if (this.schemaVersion != null) {
-      json[r'schemaVersion'] = this.schemaVersion;
-    } else {
-      json[r'schemaVersion'] = null;
-    }
-    if (this.userApiBaseUrl != null) {
-      json[r'userApiBaseUrl'] = this.userApiBaseUrl;
-    } else {
-      json[r'userApiBaseUrl'] = null;
-    }
+    json[r'releasePosture'] = this.releasePosture;
+    json[r'schemaVersion'] = this.schemaVersion;
+    json[r'userApiBaseUrl'] = this.userApiBaseUrl;
     return json;
   }
 
@@ -163,13 +103,14 @@ class PlatformConfigResponse {
 
       return PlatformConfigResponse(
         domains: DomainCapability.listFromJson(json[r'domains']),
-        oidc: Oidc.fromJson(json[r'oidc']),
-        organizationOrigin: mapValueOfType<String>(json, r'organizationOrigin'),
-        protocols: Protocols.fromJson(json[r'protocols']),
+        oidc: Oidc.fromJson(json[r'oidc'])!,
+        organizationOrigin:
+            mapValueOfType<String>(json, r'organizationOrigin')!,
+        protocols: Protocols.fromJson(json[r'protocols'])!,
         recoveryActions: RecoveryAction.listFromJson(json[r'recoveryActions']),
-        releasePosture: mapValueOfType<String>(json, r'releasePosture'),
-        schemaVersion: mapValueOfType<int>(json, r'schemaVersion'),
-        userApiBaseUrl: mapValueOfType<String>(json, r'userApiBaseUrl'),
+        releasePosture: mapValueOfType<String>(json, r'releasePosture')!,
+        schemaVersion: mapValueOfType<int>(json, r'schemaVersion')!,
+        userApiBaseUrl: mapValueOfType<String>(json, r'userApiBaseUrl')!,
       );
     }
     return null;
@@ -225,5 +166,13 @@ class PlatformConfigResponse {
   }
 
   /// The list of required keys that must be present in a JSON.
-  static const requiredKeys = <String>{};
+  static const requiredKeys = <String>{
+    'domains',
+    'oidc',
+    'organizationOrigin',
+    'protocols',
+    'releasePosture',
+    'schemaVersion',
+    'userApiBaseUrl',
+  };
 }

@@ -99,6 +99,20 @@ class OpenApi31TypeProjectionTest(unittest.TestCase):
 
         assert_no_nullable(document)
 
+    def test_user_manifest_requires_separate_matrix_oauth_discovery_fields(self) -> None:
+        schemas = json.loads(client.OPENAPI.read_text())["components"]["schemas"]
+        manifest = schemas["PlatformConfigResponse"]
+        self.assertTrue(
+            {"oidc", "protocols", "userApiBaseUrl"}.issubset(manifest["required"])
+        )
+        self.assertEqual(
+            {"matrixClientServerBaseUrl", "matrixOAuthIssuer", "matrixOAuthClientId"},
+            set(schemas["Protocols"]["required"]),
+        )
+        self.assertEqual(
+            "uri", schemas["Protocols"]["properties"]["matrixOAuthIssuer"]["format"]
+        )
+
 
 class FreshnessFailureContractTest(unittest.TestCase):
     """Exercise the real generator CLI without changing repository outputs."""
