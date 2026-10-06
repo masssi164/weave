@@ -127,6 +127,19 @@ public interface MatrixE2eePersistence {
      */
     boolean bindDeviceProof(String tenantId, String userId, String deviceId, String proofHash);
 
+    Optional<String> deviceProofHash(String tenantId, String userId, String deviceId);
+
+    boolean issueDeviceRecoveryChallenge(
+            String tenantId, String userId, String deviceId, String challengeId,
+            String challengeText, String proofHash, java.time.Instant expiresAt);
+
+    Optional<DeviceRecoveryChallenge> deviceRecoveryChallenge(
+            String tenantId, String userId, String deviceId, String challengeId);
+
+    boolean completeDeviceRecoveryChallenge(
+            String tenantId, String userId, String deviceId, String challengeId,
+            String proofHash, String expectedPublicKey);
+
     String createBackupVersion(
             String tenantId,
             String userId,
@@ -182,6 +195,8 @@ public interface MatrixE2eePersistence {
             Map<String, Object> deviceKeys,
             long changedRevision,
             boolean revoked) {}
+
+    record DeviceRecoveryChallenge(String id, String text, String proofHash, java.time.Instant expiresAt) {}
 
     record ClaimedKey(String keyId, Object value, boolean fallback) {}
 

@@ -111,6 +111,18 @@ public class MatrixClientServerProjectionController {
             String path = requestPath(request);
             if (matrixClientStateService.revoked(jwt) && !isLogout(path)) throw new MatrixProtocolException("M_UNKNOWN_TOKEN", "The Matrix access token was revoked.");
             MatrixFacadeClientStateService.MatrixIdentity identity = matrixClientStateService.register(jwt, request.getHeader(MatrixFacadeClientStateService.DEVICE_ID_HEADER));
+            if ("POST".equals(method) && path.equals("/_matrix/client/unstable/org.weave.device_continuity/challenge")) {
+                matrixE2eeStateService.requireActive(identity);
+                return matrixOk(matrixDeviceProofService.issueRecovery(identity,
+                        request.getHeader(MatrixFacadeClientStateService.DEVICE_ID_HEADER),
+                        request.getHeader(MatrixDeviceProofService.DEVICE_PROOF_HEADER)));
+            }
+            if ("POST".equals(method) && path.equals("/_matrix/client/unstable/org.weave.device_continuity/complete")) {
+                matrixE2eeStateService.requireActive(identity);
+                return matrixOk(matrixDeviceProofService.completeRecovery(identity,
+                        request.getHeader(MatrixFacadeClientStateService.DEVICE_ID_HEADER),
+                        request.getHeader(MatrixDeviceProofService.DEVICE_PROOF_HEADER), requestBodyMap(request)));
+            }
             matrixDeviceProofService.require(identity,
                     request.getHeader(MatrixFacadeClientStateService.DEVICE_ID_HEADER),
                     request.getHeader(MatrixDeviceProofService.DEVICE_PROOF_HEADER));
@@ -270,7 +282,7 @@ public class MatrixClientServerProjectionController {
     private ResponseEntity<Map<String, Object>> matrixOk(Map<String, Object> body) { return ResponseEntity.ok().header("X-Weave-Projection", "matrix-client-server").header("X-Weave-Matrix-Core", "rust-ruma-jni").body(body); }
     private ResponseEntity<List<Map<String, Object>>> matrixOkList(List<Map<String, Object>> body) { return ResponseEntity.ok().header("X-Weave-Projection", "matrix-client-server").header("X-Weave-Matrix-Core", "rust-ruma-jni").body(body); }
     private String matrixErrcode(ApiErrorException exception) { return switch (exception.status()) { case UNAUTHORIZED -> "M_MISSING_TOKEN"; case FORBIDDEN -> "M_FORBIDDEN"; case NOT_FOUND -> "M_NOT_FOUND"; case BAD_REQUEST -> "M_BAD_JSON"; default -> "M_WEAVE_CHAT_FACADE_ERROR"; }; }
-    private HttpStatus matrixStatus(String errcode) { return switch (errcode) { case "M_MISSING_TOKEN", "M_UNKNOWN_TOKEN" -> HttpStatus.UNAUTHORIZED; case "M_FORBIDDEN" -> HttpStatus.FORBIDDEN; case "M_NOT_FOUND" -> HttpStatus.NOT_FOUND; case "M_LIMIT_EXCEEDED" -> HttpStatus.TOO_MANY_REQUESTS; case "M_BAD_JSON", "M_INVALID_PARAM", "M_UNSUPPORTED" -> HttpStatus.BAD_REQUEST; default -> HttpStatus.SERVICE_UNAVAILABLE; }; }
+    private HttpStatus matrixStatus(String errcode) { return switch (errcode) { case "M_MISSING_TOKEN", "M_UNKNOWN_TOKEN", "M_WEAVE_DEVICE_RECOVERY_REQUIRED" -> HttpStatus.UNAUTHORIZED; case "M_FORBIDDEN" -> HttpStatus.FORBIDDEN; case "M_NOT_FOUND" -> HttpStatus.NOT_FOUND; case "M_LIMIT_EXCEEDED" -> HttpStatus.TOO_MANY_REQUESTS; case "M_BAD_JSON", "M_INVALID_PARAM", "M_UNSUPPORTED" -> HttpStatus.BAD_REQUEST; default -> HttpStatus.SERVICE_UNAVAILABLE; }; }
     private ResponseEntity<Map<String, Object>> matrixError(HttpStatus status, String errcode, String error) { Map<String, Object> body; try { body = matrixProtocolCoreService.error(errcode, error); } catch (MatrixProtocolException exception) { body = Map.of("errcode", "M_WEAVE_MATRIX_CORE_ERROR", "error", "The Rust/Ruma Matrix protocol core rejected the error projection.", "supportSafe", true); } return ResponseEntity.status(status).header("X-Weave-Projection", "matrix-client-server").header("X-Weave-Matrix-Core", "rust-ruma-jni").body(body); }
     private ResponseEntity<Map<String, Object>> matrixThrottled(long retryAfterMilliseconds) { long bounded = Math.max(1_000, Math.min(retryAfterMilliseconds, 3_600_000)); Map<String, Object> body = new java.util.LinkedHashMap<>(matrixProtocolCoreService.error("M_LIMIT_EXCEEDED", "Weave Chat is temporarily throttled.")); body.put("retry_after_ms", bounded); return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).header("Retry-After", Long.toString(Math.max(1, (bounded + 999) / 1000))).header("X-Weave-Projection", "matrix-client-server").header("X-Weave-Matrix-Core", "rust-ruma-jni").body(Map.copyOf(body)); }
 }

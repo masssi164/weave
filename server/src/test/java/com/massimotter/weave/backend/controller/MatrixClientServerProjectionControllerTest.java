@@ -33,6 +33,11 @@ import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.testing.InMemoryMatrixFacadeClientStateStore;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyPairGenerator;
+import java.security.Signature;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -103,6 +108,12 @@ class MatrixClientServerProjectionControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private InMemoryMatrixE2eeRelationalStore e2eeStore;
+
+    @Autowired
+    private OrganizationIdentityContextResolver identityContextResolver;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -192,6 +203,85 @@ class MatrixClientServerProjectionControllerTest {
                         .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
                         .with(workspaceJwt("device-proof-second-login")))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void legacyKeyedDeviceNeedsExistingPrivateKeySignatureBeforeProofBinding() throws Exception {
+        String device = "WEAVELEGACYDEVICEPROOF";
+        String user = "@user_example.com:api.weave.test";
+        String proof = deviceProof(device);
+        String tenant = identityContextResolver.configuredOrganizationId();
+        var keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        String publicKey = Base64.getEncoder().withoutPadding().encodeToString(
+                Arrays.copyOfRange(keyPair.getPublic().getEncoded(),
+                        keyPair.getPublic().getEncoded().length - 32,
+                        keyPair.getPublic().getEncoded().length));
+        e2eeStore.upsertDevice(tenant, user, device,
+                Map.of("keys", Map.of("ed25519:" + device, publicKey)),
+                e2eeStore.nextRevision(tenant));
+
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("legacy-device-member")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errcode").value("M_WEAVE_DEVICE_RECOVERY_REQUIRED"));
+
+        mockMvc.perform(post("/_matrix/client/unstable/org.weave.device_continuity/challenge")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
+
+        String challengeResponse = mockMvc.perform(post("/_matrix/client/unstable/org.weave.device_continuity/challenge")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("legacy-device-member")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var challengeJson = objectMapper.readTree(challengeResponse);
+        String challengeId = challengeJson.get("challenge_id").asText();
+        String challenge = challengeJson.get("challenge").asText();
+        Signature signer = Signature.getInstance("Ed25519");
+        signer.initSign(keyPair.getPrivate());
+        signer.update(challenge.getBytes(StandardCharsets.UTF_8));
+        String signature = Base64.getEncoder().withoutPadding().encodeToString(signer.sign());
+
+        String completePath = "/_matrix/client/unstable/org.weave.device_continuity/complete";
+        mockMvc.perform(post(completePath)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("wrong-proof"))
+                        .with(workspaceJwt("legacy-device-member"))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of("challenge_id", challengeId, "signature", signature))))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post(completePath)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("legacy-device-member"))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of("challenge_id", challengeId,
+                                "signature", Base64.getEncoder().withoutPadding().encodeToString(new byte[64])))))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post(completePath)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("legacy-device-member"))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of("challenge_id", challengeId, "signature", signature))))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("legacy-device-member")))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(completePath)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("legacy-device-member"))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of("challenge_id", challengeId, "signature", signature))))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

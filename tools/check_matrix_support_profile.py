@@ -24,6 +24,7 @@ REQUIRED_ROWS = {
     "send-to-device",
     "room-key-backup",
     "device-revoke",
+    "device-continuity",
     "unknown-client-route",
 }
 STATUSES = {"Supported", "Guarded", "Unsupported"}

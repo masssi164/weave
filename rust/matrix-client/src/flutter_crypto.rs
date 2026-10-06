@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use matrix_sdk::{
     authentication::{
         matrix::MatrixSession,
@@ -44,6 +45,7 @@ use matrix_sdk_store_encryption::StoreCipher;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -975,9 +977,10 @@ async fn member_session_activate_inner(
     proof_header.set_sensitive(true);
     headers.insert("x-weave-matrix-device-proof", proof_header);
     let http_client = build_http_client(headers, &extra_root_certificate_pem)?;
+    let member_access_token = access_token.clone();
     let client = Client::builder()
         .homeserver_url(homeserver.as_str())
-        .http_client(http_client)
+        .http_client(http_client.clone())
         .sqlite_store(Path::new(&store_path), Some(store_passphrase.as_str()))
         .with_encryption_settings(EncryptionSettings {
             auto_enable_cross_signing: true,
@@ -1001,20 +1004,39 @@ async fn member_session_activate_inner(
         })
         .await
         .map_err(|_| "M_WEAVE_MATRIX_MEMBER_SESSION".to_string())?;
+    // Verify the member bearer and device possession before publishing the
+    // native client. Callers may open without an initial sync, and only a
+    // verified activation may retire an older OAuth grant on disk.
+    let whoami = match client.whoami().await {
+        Ok(identity) => identity,
+        Err(error)
+            if matrix_error_kind_code(error.client_api_error_kind(), "")
+                == "M_WEAVE_DEVICE_RECOVERY_REQUIRED" =>
+        {
+            recover_legacy_member_device(
+                &client,
+                &http_client,
+                &homeserver,
+                &member_access_token,
+                &device_proof,
+            )
+            .await?;
+            client
+                .whoami()
+                .await
+                .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?
+        }
+        Err(_) => return Err("M_WEAVE_MATRIX_MEMBER_SESSION".to_string()),
+    };
+    if whoami.user_id != user_id
+        || whoami.device_id.as_deref().map(|value| value.as_str()) != Some(device_id.as_str())
+    {
+        return Err("M_WEAVE_MATRIX_SESSION_MISMATCH".to_string());
+    }
     client
         .encryption()
         .wait_for_e2ee_initialization_tasks()
         .await;
-    // Verify the member bearer and device possession before publishing the
-    // native client. Callers may open without an initial sync, and only a
-    // verified activation may retire an older OAuth grant on disk.
-    let whoami = client
-        .whoami()
-        .await
-        .map_err(|_| "M_WEAVE_MATRIX_MEMBER_SESSION".to_string())?;
-    if whoami.user_id != user_id || whoami.device_id.as_deref() != Some(device_id.as_str()) {
-        return Err("M_WEAVE_MATRIX_SESSION_MISMATCH".to_string());
-    }
     clients()
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
@@ -1040,6 +1062,76 @@ async fn member_session_activate_inner(
             },
         );
     Ok(json!({ "initialized": true, "userId": user_id, "deviceId": device_id }))
+}
+
+async fn recover_legacy_member_device(
+    client: &Client,
+    http_client: &reqwest::Client,
+    homeserver: &Url,
+    member_access_token: &str,
+    device_proof: &str,
+) -> Result<(), String> {
+    let secret = URL_SAFE_NO_PAD
+        .decode(device_proof)
+        .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let proof_hash = Sha256::digest(&secret)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let challenge_url = homeserver
+        .join("/_matrix/client/unstable/org.weave.device_continuity/challenge")
+        .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let response = http_client
+        .post(challenge_url)
+        .bearer_auth(member_access_token)
+        .send()
+        .await
+        .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    if !response.status().is_success() {
+        return Err("M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string());
+    }
+    let response: Value = serde_json::from_str(
+        &response
+            .text()
+            .await
+            .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?,
+    )
+    .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let challenge_id = response["challenge_id"]
+        .as_str()
+        .filter(|value| {
+            value.len() == 36
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
+        })
+        .ok_or_else(|| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let challenge = response["challenge"]
+        .as_str()
+        .filter(|value| {
+            value.starts_with("weave.matrix-device-continuity.v1\n")
+                && value.ends_with(&format!("\n{proof_hash}"))
+        })
+        .ok_or_else(|| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let signature = client
+        .encryption()
+        .sign_device_continuity_challenge(challenge)
+        .await
+        .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let complete_url = homeserver
+        .join("/_matrix/client/unstable/org.weave.device_continuity/complete")
+        .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let response = http_client
+        .post(complete_url)
+        .bearer_auth(member_access_token)
+        .json(&json!({ "challenge_id": challenge_id, "signature": signature }))
+        .send()
+        .await
+        .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    if !response.status().is_success() {
+        return Err("M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string());
+    }
+    Ok(())
 }
 
 impl PersistedOAuthSession {
@@ -2543,7 +2635,69 @@ fn json_result(result: Result<Value, String>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::engine::general_purpose::STANDARD_NO_PAD;
+    use ed25519_dalek::{Signature, VerifyingKey};
     use matrix_sdk::encryption::secret_storage::SecretStorageError;
+
+    #[test]
+    fn installed_crypto_device_signs_continuity_challenge_with_its_own_key() {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime")
+            .block_on(async {
+                let directory = tempfile::tempdir().expect("temporary crypto store");
+                let client = Client::builder()
+                    .homeserver_url("https://api.weave.test")
+                    .sqlite_store(
+                        directory.path(),
+                        Some("device-continuity-test-passphrase-12345"),
+                    )
+                    .build()
+                    .await
+                    .expect("native Matrix client");
+                client
+                    .restore_session(MatrixSession {
+                        meta: SessionMeta {
+                            user_id: OwnedUserId::try_from("@member:api.weave.test")
+                                .expect("Matrix user ID"),
+                            device_id: OwnedDeviceId::from("WEAVEDEVICECONTINUITY"),
+                        },
+                        tokens: SessionTokens {
+                            access_token: "test-member-token".to_owned(),
+                            refresh_token: None,
+                        },
+                    })
+                    .await
+                    .expect("restored encrypted session");
+                let challenge = "weave.matrix-device-continuity.v1\nnonce\nproof-hash";
+                let encoded_signature = client
+                    .encryption()
+                    .sign_device_continuity_challenge(challenge)
+                    .await
+                    .expect("device signature");
+                let encoded_public_key =
+                    client.encryption().ed25519_key().await.expect("device key");
+                let signature = Signature::from_slice(
+                    &STANDARD_NO_PAD
+                        .decode(encoded_signature)
+                        .expect("signature base64"),
+                )
+                .expect("Ed25519 signature");
+                let public_key: [u8; 32] = STANDARD_NO_PAD
+                    .decode(encoded_public_key)
+                    .expect("public key base64")
+                    .try_into()
+                    .expect("Ed25519 public key");
+                let verifier = VerifyingKey::from_bytes(&public_key).expect("verifying key");
+                verifier
+                    .verify_strict(challenge.as_bytes(), &signature)
+                    .expect("installed device controls its public key");
+                assert!(verifier
+                    .verify_strict(b"different challenge", &signature)
+                    .is_err());
+            });
+    }
 
     #[test]
     fn matrix_oauth_callback_rejects_wrong_redirect_or_reported_issuer() {
