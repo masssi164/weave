@@ -21,9 +21,7 @@ public record PlatformConfigResponse(
     }
 
     public record Protocols(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, format = "uri") String matrixClientServerBaseUrl,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, format = "uri") String matrixOAuthIssuer,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String matrixOAuthClientId) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, format = "uri") String matrixClientServerBaseUrl) {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

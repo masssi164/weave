@@ -8,8 +8,6 @@
   },
   "protocols": {
     "matrixClientServerBaseUrl": "https://api.weave.local",
-    "matrixOAuthIssuer": "https://auth.weave.local/realms/weave",
-    "matrixOAuthClientId": "weave-matrix-app",
     "filesWebDavBaseUrl": "https://weave.local/dav/files"
   },
   "releasePosture": "development",

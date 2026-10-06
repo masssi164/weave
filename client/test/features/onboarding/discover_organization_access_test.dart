@@ -160,11 +160,6 @@ void main() {
       saved.serviceEndpoints.matrixHomeserverUrl.toString(),
       'https://matrix.weave.test:44443',
     );
-    expect(
-      saved.matrixOAuthIssuer.toString(),
-      'https://auth.weave.test:44443/realms/weave',
-    );
-    expect(saved.matrixOAuthClientId, 'weave-matrix-app');
     final evidence =
         jsonDecode(evidenceStore.strings[lastHandoffConsumedStorageKey]!)
             as Map<String, dynamic>;
@@ -383,21 +378,18 @@ void main() {
       config.matrixClientServerBaseUrl.toString(),
       'https://api.weave.local',
     );
-    expect(
-      config.matrixOAuthIssuer.toString(),
-      'https://auth.weave.local/realms/weave',
-    );
-    expect(config.matrixOAuthClientId, 'weave-matrix-app');
   });
 
-  test('rejects a manifest without a Matrix OAuth issuer', () async {
+  test('rejects a manifest without the Weave Matrix facade URL', () async {
     final manifest = _manifest(
       organizationOrigin: 'https://weave.example',
       userApiBaseUrl: 'https://api.weave.example/api',
       issuer: 'https://auth.weave.example/realms/weave',
       matrixClientServerBaseUrl: 'https://api.weave.example',
     );
-    (manifest['protocols'] as Map<String, Object>).remove('matrixOAuthIssuer');
+    (manifest['protocols'] as Map<String, Object>).remove(
+      'matrixClientServerBaseUrl',
+    );
     final client = MockClient(
       (_) async => http.Response(jsonEncode(manifest), 200),
     );
@@ -415,13 +407,13 @@ void main() {
         isA<AppFailure>().having(
           (failure) => failure.message,
           'message',
-          contains('protocols.matrixOAuthIssuer is required'),
+          contains('protocols.matrixClientServerBaseUrl is required'),
         ),
       ),
     );
   });
 
-  test('rejects a Matrix OAuth client ID shared with the User API', () async {
+  test('rejects obsolete separate Matrix OAuth metadata', () async {
     final manifest = _manifest(
       organizationOrigin: 'https://weave.example',
       userApiBaseUrl: 'https://api.weave.example/api',
@@ -429,7 +421,7 @@ void main() {
       matrixClientServerBaseUrl: 'https://api.weave.example',
     );
     (manifest['protocols'] as Map<String, Object>)['matrixOAuthClientId'] =
-        'weave-app';
+        'weave-matrix-app';
     final client = MockClient(
       (_) async => http.Response(jsonEncode(manifest), 200),
     );
@@ -447,7 +439,7 @@ void main() {
         isA<AppFailure>().having(
           (failure) => failure.message,
           'message',
-          contains('Matrix OAuth must use a separate client ID'),
+          contains('unsupported fields'),
         ),
       ),
     );
@@ -589,8 +581,6 @@ Map<String, Object> _manifest({
   'oidc': <String, Object>{'issuer': issuer, 'clientId': 'weave-app'},
   'protocols': <String, Object>{
     'matrixClientServerBaseUrl': matrixClientServerBaseUrl,
-    'matrixOAuthIssuer': issuer,
-    'matrixOAuthClientId': 'weave-matrix-app',
   },
   'releasePosture': 'dogfood',
   'domains': <Map<String, Object>>[
