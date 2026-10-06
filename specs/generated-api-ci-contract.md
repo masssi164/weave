@@ -110,7 +110,13 @@ Files/Calendar User operations and their security, version and binary behavior
 remain in the generated contract. Historical credential issuance, revocation,
 permission and recovery tests remain available as service or opt-in compatibility
 tests; ordinary release tests assert that the retired setup routes cannot issue a
-credential. The active Calendar access-policy operation must expose its typed
+credential.
+
+Admin provider status and readiness diagnostics must identify the
+active generated User Files and Calendar API paths. They must not advertise the
+disabled-by-default northbound DAV projections as the active facade.
+
+The active Calendar access-policy operation must expose its typed
 success response in the User artifact so generated consumers can read it. Every
 exported User/Admin operation that can succeed must declare a real 2xx response;
 non-204 success bodies must have a typed schema, including disabled-by-default
