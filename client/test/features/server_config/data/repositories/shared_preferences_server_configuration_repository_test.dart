@@ -43,6 +43,50 @@ void main() {
       );
     });
 
+    test('preserves the separately registered Matrix OAuth client', () async {
+      final store = InMemoryPreferencesStore();
+      final container = ProviderContainer.test(
+        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+      );
+      addTearDown(container.dispose);
+      final repository = container.read(serverConfigurationRepositoryProvider);
+
+      await repository.saveConfiguration(
+        buildTestConfiguration().copyWith(
+          matrixOAuthIssuer: Uri.parse(
+            'https://auth.home.internal/realms/weave',
+          ),
+          matrixOAuthClientId: 'weave-matrix-app',
+        ),
+      );
+
+      final loaded = await repository.loadConfiguration();
+      expect(loaded?.hasMatrixOAuthConfiguration, isTrue);
+      expect(
+        loaded?.matrixOAuthIssuer.toString(),
+        'https://auth.home.internal/realms/weave',
+      );
+      expect(loaded?.matrixOAuthClientId, 'weave-matrix-app');
+    });
+
+    test('rejects an incomplete or shared Matrix OAuth registration', () async {
+      final store = InMemoryPreferencesStore();
+      final container = ProviderContainer.test(
+        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+      );
+      addTearDown(container.dispose);
+      final repository = container.read(serverConfigurationRepositoryProvider);
+
+      for (final clientId in <String?>[null, 'weave-app']) {
+        await expectLater(
+          repository.saveConfiguration(
+            buildTestConfiguration(matrixOAuthClientId: clientId),
+          ),
+          throwsA(isA<AppFailure>()),
+        );
+      }
+    });
+
     test('clears the stored configuration', () async {
       final store = InMemoryPreferencesStore(buildStoredConfiguration());
       final container = ProviderContainer.test(

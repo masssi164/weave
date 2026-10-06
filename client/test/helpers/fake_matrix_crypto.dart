@@ -87,12 +87,16 @@ class FakeRustMatrixCoreBridge extends RustMatrixCoreBridge {
   Future<RustMatrixOAuthAuthorization> startOAuth({
     required String loginKey,
     required String homeserverUrl,
+    required String expectedIssuer,
+    required String clientId,
     required String deviceId,
     required String redirectUri,
   }) async {
     oauthStarts.add(<String, String>{
       'loginKey': loginKey,
       'homeserverUrl': homeserverUrl,
+      'expectedIssuer': expectedIssuer,
+      'clientId': clientId,
       'deviceId': deviceId,
       'redirectUri': redirectUri,
     });

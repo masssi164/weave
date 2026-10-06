@@ -2,8 +2,7 @@ use matrix_sdk::{
     authentication::{
         oauth::{
             error::{BasicErrorResponseType, RequestTokenError},
-            registration::{ApplicationType, ClientMetadata, Localized, OAuthGrantType},
-            ClientRegistrationData, OAuthError, OAuthSession, UserSession,
+            ClientId, OAuthError, OAuthSession, UserSession,
         },
         SessionTokens,
     },
@@ -416,6 +415,8 @@ fn client_lifecycle_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, S
 pub async fn oauth_start(
     login_key: String,
     homeserver_url: String,
+    expected_issuer: String,
+    client_id: String,
     device_id: String,
     redirect_uri: String,
     extra_root_certificate_pem: String,
@@ -424,6 +425,8 @@ pub async fn oauth_start(
         oauth_start_inner(
             login_key,
             homeserver_url,
+            expected_issuer,
+            client_id,
             device_id,
             redirect_uri,
             extra_root_certificate_pem,
@@ -435,6 +438,8 @@ pub async fn oauth_start(
 async fn oauth_start_inner(
     login_key: String,
     homeserver_url: String,
+    expected_issuer: String,
+    client_id: String,
     device_id: String,
     redirect_uri: String,
     extra_root_certificate_pem: String,
@@ -445,6 +450,20 @@ async fn oauth_start_inner(
         Url::parse(&homeserver_url).map_err(|_| "M_WEAVE_MATRIX_HOMESERVER".to_string())?;
     if !matches!(homeserver.scheme(), "https" | "http") || homeserver.host_str().is_none() {
         return Err("M_WEAVE_MATRIX_HOMESERVER".to_string());
+    }
+    let expected_issuer =
+        Url::parse(&expected_issuer).map_err(|_| "M_WEAVE_MATRIX_OAUTH_ISSUER".to_string())?;
+    if expected_issuer.scheme() != "https"
+        || expected_issuer.host_str().is_none()
+        || !expected_issuer.username().is_empty()
+        || expected_issuer.password().is_some()
+        || expected_issuer.query().is_some()
+        || expected_issuer.fragment().is_some()
+    {
+        return Err("M_WEAVE_MATRIX_OAUTH_ISSUER".to_string());
+    }
+    if client_id.trim().is_empty() || client_id != client_id.trim() {
+        return Err("M_WEAVE_MATRIX_OAUTH_CLIENT".to_string());
     }
     let redirect = Url::parse(&redirect_uri).map_err(|_| "M_WEAVE_MATRIX_REDIRECT".to_string())?;
     if redirect.as_str() != "com.massimotter.weave.matrix:/oauthredirect" {
@@ -459,27 +478,15 @@ async fn oauth_start_inner(
         .await
         .map_err(|_| "M_WEAVE_MATRIX_DISCOVERY".to_string())?;
 
-    let mut metadata = ClientMetadata::new(
-        ApplicationType::Native,
-        vec![OAuthGrantType::AuthorizationCode {
-            redirect_uris: vec![redirect.clone()],
-        }],
-        Localized::new(
-            Url::parse("https://github.com/masssi164/weave")
-                .map_err(|_| "M_WEAVE_MATRIX_CONFIGURATION".to_string())?,
-            None,
-        ),
-    );
-    metadata.client_name = Some(Localized::new("Weave".to_string(), None));
-    let registration = ClientRegistrationData::new(
-        Raw::new(&metadata).map_err(|_| "M_WEAVE_MATRIX_CONFIGURATION".to_string())?,
-    );
+    client
+        .oauth()
+        .restore_registered_client(ClientId::new(client_id));
     let authorization = client
         .oauth()
         .login(
             redirect.clone(),
             Some(OwnedDeviceId::from(device_id.as_str())),
-            Some(registration),
+            None,
             None,
         )
         .build()
@@ -491,6 +498,9 @@ async fn oauth_start_inner(
         .await
         .map_err(|_| "M_WEAVE_MATRIX_DISCOVERY".to_string())?
         .issuer;
+    if issuer != expected_issuer {
+        return Err("M_WEAVE_MATRIX_OAUTH_ISSUER_MISMATCH".to_string());
+    }
     pending_oauth_logins()
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?

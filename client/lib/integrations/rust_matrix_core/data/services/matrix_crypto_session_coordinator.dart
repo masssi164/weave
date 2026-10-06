@@ -310,6 +310,14 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
         'Sign in before opening Weave Chat.',
       );
     }
+    final matrixOAuthIssuer = configuration.matrixOAuthIssuer;
+    final matrixOAuthClientId = configuration.matrixOAuthClientId;
+    if (matrixOAuthIssuer == null || matrixOAuthClientId == null) {
+      await _dropActiveClient();
+      throw const ChatFailure.configuration(
+        'Matrix OAuth registration is unavailable for this organization.',
+      );
+    }
     final String subject;
     try {
       subject = _validatedSubject(authSession, authConfiguration);
@@ -341,7 +349,9 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
           currentConfiguration.serviceEndpoints.backendApiBaseUrl !=
               configuration.serviceEndpoints.backendApiBaseUrl ||
           currentConfiguration.serviceEndpoints.matrixHomeserverUrl !=
-              configuration.serviceEndpoints.matrixHomeserverUrl) {
+              configuration.serviceEndpoints.matrixHomeserverUrl ||
+          currentConfiguration.matrixOAuthIssuer != matrixOAuthIssuer ||
+          currentConfiguration.matrixOAuthClientId != matrixOAuthClientId) {
         throw const ChatFailure.sessionRequired(
           'M_WEAVE_MATRIX_SESSION_CHANGED',
         );
@@ -508,6 +518,8 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
         );
         opened = await _authorizeMatrixAccount(
           homeserver: homeserver,
+          expectedIssuer: matrixOAuthIssuer,
+          clientId: matrixOAuthClientId,
           bindingKey: bindingKey,
           deviceId: deviceId,
           subject: subject,
@@ -528,6 +540,8 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
       }
       opened = await _authorizeMatrixAccount(
         homeserver: homeserver,
+        expectedIssuer: matrixOAuthIssuer,
+        clientId: matrixOAuthClientId,
         bindingKey: bindingKey,
         deviceId: deviceId,
         subject: subject,
@@ -547,6 +561,8 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
 
   Future<MatrixCryptoSession> _authorizeMatrixAccount({
     required Uri homeserver,
+    required Uri expectedIssuer,
+    required String clientId,
     required String bindingKey,
     required String deviceId,
     required String subject,
@@ -559,6 +575,8 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
       final authorization = await _rustMatrixCoreBridge.startOAuth(
         loginKey: loginKey,
         homeserverUrl: homeserver.toString(),
+        expectedIssuer: expectedIssuer.toString(),
+        clientId: clientId,
         deviceId: deviceId,
         redirectUri: matrixOAuthRedirectUri,
       );

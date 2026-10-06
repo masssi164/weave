@@ -54,6 +54,8 @@ class DiscoverOrganizationAccess {
             matrixHomeserverUrl: appStart.matrixClientServerBaseUrl,
             backendApiBaseUrl: appStart.userApiBaseUrl,
           ),
+          matrixOAuthIssuer: appStart.matrixOAuthIssuer,
+          matrixOAuthClientId: appStart.matrixOAuthClientId,
         ),
       );
       await _recordAccessEvidence(access, result: 'saved_configuration');

@@ -52,14 +52,16 @@ class SharedPreferencesServerConfigurationRepository
       final matrixUrl = _deriver.parseMatrixHomeserverUrl(
         configuration.serviceEndpoints.matrixHomeserverUrl.toString(),
       );
-      return configuration.copyWith(
-        oidcIssuerUrl: issuerUrl,
-        oidcClientRegistration: configuration.oidcClientRegistration.copyWith(
-          clientId: clientId,
-        ),
-        serviceEndpoints: configuration.serviceEndpoints.copyWith(
-          matrixHomeserverUrl: matrixUrl,
-          backendApiBaseUrl: backendApiUrl,
+      return _validateMatrixOAuth(
+        configuration.copyWith(
+          oidcIssuerUrl: issuerUrl,
+          oidcClientRegistration: configuration.oidcClientRegistration.copyWith(
+            clientId: clientId,
+          ),
+          serviceEndpoints: configuration.serviceEndpoints.copyWith(
+            matrixHomeserverUrl: matrixUrl,
+            backendApiBaseUrl: backendApiUrl,
+          ),
         ),
       );
     } on AppFailure {
@@ -83,7 +85,9 @@ class SharedPreferencesServerConfigurationRepository
           ),
         ),
       );
-      final dto = ServerConfigurationDto.fromConfiguration(normalized);
+      final dto = ServerConfigurationDto.fromConfiguration(
+        _validateMatrixOAuth(normalized),
+      );
       await _store.setString(serverConfigurationStorageKey, dto.encode());
     } on AppFailure {
       rethrow;
@@ -115,5 +119,34 @@ class SharedPreferencesServerConfigurationRepository
       );
     }
     return trimmed;
+  }
+
+  ServerConfiguration _validateMatrixOAuth(ServerConfiguration configuration) {
+    final issuer = configuration.matrixOAuthIssuer;
+    final clientId = configuration.matrixOAuthClientId;
+    if ((issuer == null) != (clientId == null)) {
+      throw const AppFailure.validation(
+        'The Matrix OAuth issuer and client ID must be configured together.',
+      );
+    }
+    if (issuer == null) return configuration;
+    if (issuer.scheme != 'https' ||
+        issuer.host.isEmpty ||
+        issuer.userInfo.isNotEmpty ||
+        issuer.hasQuery ||
+        issuer.hasFragment) {
+      throw const AppFailure.validation(
+        'The Matrix OAuth issuer must be a credential-free HTTPS URL.',
+      );
+    }
+    final normalizedClientId = clientId!.trim();
+    if (normalizedClientId.isEmpty ||
+        normalizedClientId ==
+            configuration.oidcClientRegistration.clientId.trim()) {
+      throw const AppFailure.validation(
+        'Matrix OAuth requires a separate registered client ID.',
+      );
+    }
+    return configuration.copyWith(matrixOAuthClientId: normalizedClientId);
   }
 }

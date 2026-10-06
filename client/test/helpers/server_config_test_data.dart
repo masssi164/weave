@@ -11,6 +11,8 @@ ServerConfiguration buildTestConfiguration({
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
   String matrixHomeserverUrl = 'https://matrix.home.internal',
+  String matrixOAuthIssuer = 'https://auth.home.internal/realms/weave',
+  String? matrixOAuthClientId = 'weave-matrix-app',
   String backendApiBaseUrl = 'https://api.home.internal/api',
 }) {
   return ServerConfiguration(
@@ -21,6 +23,8 @@ ServerConfiguration buildTestConfiguration({
       matrixHomeserverUrl: Uri.parse(matrixHomeserverUrl),
       backendApiBaseUrl: Uri.parse(backendApiBaseUrl),
     ),
+    matrixOAuthIssuer: Uri.parse(matrixOAuthIssuer),
+    matrixOAuthClientId: matrixOAuthClientId,
   );
 }
 
