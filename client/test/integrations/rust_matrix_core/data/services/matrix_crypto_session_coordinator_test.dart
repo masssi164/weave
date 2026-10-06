@@ -122,6 +122,7 @@ class _FakeMatrixSessionAccess implements MatrixSessionAccessPort {
     return MatrixSessionAccess(
       organizationId: organizationId,
       subject: expectedSubject,
+      matrixClientServerBaseUrl: Uri.parse('https://api.weave.test'),
     );
   }
 }

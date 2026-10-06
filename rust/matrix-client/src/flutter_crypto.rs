@@ -934,7 +934,14 @@ async fn member_session_activate_inner(
     }
     let homeserver =
         Url::parse(&homeserver_url).map_err(|_| "M_WEAVE_MATRIX_HOMESERVER".to_string())?;
-    if !matches!(homeserver.scheme(), "https" | "http") || homeserver.host_str().is_none() {
+    if homeserver.scheme() != "https"
+        || homeserver.host_str().is_none()
+        || !homeserver.username().is_empty()
+        || homeserver.password().is_some()
+        || !matches!(homeserver.path(), "" | "/")
+        || homeserver.query().is_some()
+        || homeserver.fragment().is_some()
+    {
         return Err("M_WEAVE_MATRIX_HOMESERVER".to_string());
     }
     let user_id = OwnedUserId::try_from(user_id.as_str())
@@ -2638,6 +2645,35 @@ mod tests {
     use base64::engine::general_purpose::STANDARD_NO_PAD;
     use ed25519_dalek::{Signature, VerifyingKey};
     use matrix_sdk::encryption::secret_storage::SecretStorageError;
+
+    #[test]
+    fn member_bearer_is_rejected_for_insecure_or_non_origin_matrix_urls() {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime")
+            .block_on(async {
+                for homeserver in [
+                    "http://api.weave.test",
+                    "https://api.weave.test/other",
+                    "https://user:password@api.weave.test",
+                ] {
+                    let result = member_session_activate_inner(
+                        "profile0001".to_owned(),
+                        homeserver.to_owned(),
+                        "@person:api.weave.test".to_owned(),
+                        "DEVICE0001".to_owned(),
+                        "member-token".to_owned(),
+                        "a".repeat(43),
+                        "/tmp/weave-matrix-rejected-url".to_owned(),
+                        "p".repeat(32),
+                        String::new(),
+                    )
+                    .await;
+                    assert_eq!(result, Err("M_WEAVE_MATRIX_HOMESERVER".to_owned()));
+                }
+            });
+    }
 
     #[test]
     fn installed_crypto_device_signs_continuity_challenge_with_its_own_key() {

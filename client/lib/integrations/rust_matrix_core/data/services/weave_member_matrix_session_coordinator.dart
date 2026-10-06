@@ -94,13 +94,26 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
       );
     }
     final subject = _verifiedSubject(session, authConfiguration);
+    final homeserver = configuration.serviceEndpoints.matrixHomeserverUrl;
+    if (!_isSecureMatrixOrigin(homeserver)) {
+      await _dropActive();
+      throw const ChatFailure.configuration(
+        'M_WEAVE_MATRIX_ENDPOINT_UNCONFIRMED',
+      );
+    }
     final access = await _authorize(
       configuration.serviceEndpoints.backendApiBaseUrl,
       session.accessToken,
       subject,
       authConfiguration.issuer,
     );
-    final homeserver = configuration.serviceEndpoints.matrixHomeserverUrl;
+    if (!_matchesAdvertisedMatrixOrigin(
+      homeserver,
+      access.matrixClientServerBaseUrl,
+    )) {
+      await _dropActive();
+      throw const ChatFailure.configuration('M_WEAVE_MATRIX_ENDPOINT_MISMATCH');
+    }
     final deviceId = await _matrixDeviceIdentityRepository.loadOrCreate();
     final userId = _matrixUserId(subject, homeserver);
     final bindingKey =
@@ -144,6 +157,14 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
       if (currentAccess.organizationId != access.organizationId) {
         throw const ChatFailure.sessionRequired(
           'M_WEAVE_MATRIX_SESSION_CHANGED',
+        );
+      }
+      if (!_matchesAdvertisedMatrixOrigin(
+        homeserver,
+        currentAccess.matrixClientServerBaseUrl,
+      )) {
+        throw const ChatFailure.configuration(
+          'M_WEAVE_MATRIX_ENDPOINT_MISMATCH',
         );
       }
     }
@@ -371,6 +392,19 @@ String _homeserverIdentity(Uri homeserver) =>
     homeserver.path.isEmpty || homeserver.path == '/'
     ? homeserver.origin
     : homeserver.toString();
+
+bool _isSecureMatrixOrigin(Uri endpoint) =>
+    endpoint.scheme == 'https' &&
+    endpoint.host.isNotEmpty &&
+    endpoint.userInfo.isEmpty &&
+    (endpoint.path.isEmpty || endpoint.path == '/') &&
+    !endpoint.hasQuery &&
+    !endpoint.hasFragment;
+
+bool _matchesAdvertisedMatrixOrigin(Uri configured, Uri advertised) =>
+    _isSecureMatrixOrigin(configured) &&
+    _isSecureMatrixOrigin(advertised) &&
+    configured.origin == advertised.origin;
 
 String _matrixUserId(String subject, Uri homeserver) {
   final source = subject.split(':').last.replaceFirst(RegExp(r'^@+'), '');

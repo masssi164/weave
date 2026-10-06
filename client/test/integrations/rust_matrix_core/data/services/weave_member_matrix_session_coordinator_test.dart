@@ -53,6 +53,8 @@ class _AuthRepository implements AuthSessionRepository {
 class _Access implements MatrixSessionAccessPort {
   String organizationId = 'org-one';
   bool allowed = true;
+  Uri advertisedMatrixUrl = Uri.parse('https://api.weave.test');
+  int calls = 0;
 
   @override
   Future<MatrixSessionAccess> authorize({
@@ -61,12 +63,14 @@ class _Access implements MatrixSessionAccessPort {
     required String expectedSubject,
     required Uri expectedIssuer,
   }) async {
+    calls++;
     if (!allowed) {
       throw const ChatFailure.sessionRequired('M_WEAVE_MATRIX_ACCESS_DENIED');
     }
     return MatrixSessionAccess(
       organizationId: organizationId,
       subject: expectedSubject,
+      matrixClientServerBaseUrl: advertisedMatrixUrl,
     );
   }
 }
@@ -145,6 +149,53 @@ void main() {
     },
   );
 
+  test('rejects an insecure Matrix URL before member admission', () async {
+    configuration.configuration = buildTestConfiguration(
+      matrixHomeserverUrl: 'http://api.weave.test',
+    );
+
+    await expectLater(
+      coordinator().open(synchronize: false),
+      throwsA(
+        isA<ChatFailure>()
+            .having(
+              (failure) => failure.type,
+              'failure category',
+              ChatFailureType.configuration,
+            )
+            .having(
+              (failure) => failure.message,
+              'support-safe diagnostic code',
+              'M_WEAVE_MATRIX_ENDPOINT_UNCONFIRMED',
+            ),
+      ),
+    );
+    expect(access.calls, 0);
+    expect(bridge.memberActivations, isEmpty);
+  });
+
+  test('rejects a Matrix URL that differs from the current manifest', () async {
+    access.advertisedMatrixUrl = Uri.parse('https://other.weave.test');
+
+    await expectLater(
+      coordinator().open(synchronize: false),
+      throwsA(
+        isA<ChatFailure>()
+            .having(
+              (failure) => failure.type,
+              'failure category',
+              ChatFailureType.configuration,
+            )
+            .having(
+              (failure) => failure.message,
+              'support-safe diagnostic code',
+              'M_WEAVE_MATRIX_ENDPOINT_MISMATCH',
+            ),
+      ),
+    );
+    expect(bridge.memberActivations, isEmpty);
+  });
+
   test(
     'rotating the member bearer keeps the device and encrypted store',
     () async {
@@ -201,6 +252,31 @@ void main() {
       expect(bridge.memberActivations, hasLength(1));
     },
   );
+
+  test('a changed manifest endpoint drops live Matrix access', () async {
+    final current = coordinator();
+    final first = await current.open(synchronize: false);
+    access.advertisedMatrixUrl = Uri.parse('https://other.weave.test');
+
+    await expectLater(
+      current.open(synchronize: false),
+      throwsA(
+        isA<ChatFailure>()
+            .having(
+              (failure) => failure.type,
+              'failure category',
+              ChatFailureType.configuration,
+            )
+            .having(
+              (failure) => failure.message,
+              'support-safe diagnostic code',
+              'M_WEAVE_MATRIX_ENDPOINT_MISMATCH',
+            ),
+      ),
+    );
+    expect(bridge.disposedProfiles, contains(first.profileKey));
+    expect(bridge.memberActivations, hasLength(1));
+  });
 
   test(
     'a changed organization cannot reuse the previous crypto store',
