@@ -2,6 +2,10 @@
 
 This path is retained so older links remain understandable. It is not current architecture authority.
 
-Use [Weave data-sovereignty core](data-sovereignty-core.md), [Core package boundaries](core-package-boundaries.md), and [Canonical transfer kernel](canonical-transfer-kernel.md).
-
-OpenAPI is derived control/discovery/status convenience, not Files, Calendar, Chat, portability, or MCP data-plane authority. Historical content remains in Git history.
+For the current release, use the pinned corpus
+`steering/release-2026-10-product-consolidation.md`, [epic #1470](https://github.com/masssi164/weave/issues/1470),
+and [Weave data-sovereignty core](data-sovereignty-core.md). Server code generates
+separate User and Admin OpenAPI artifacts. Files and Calendar member operations,
+Flutter, Admin UI, MCP, and product E2E consume the appropriate generated HTTP
+contract. Matrix Client-Server remains the Chat protocol exception. Historical
+content remains in Git history.
