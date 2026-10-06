@@ -96,6 +96,10 @@ The product acceptance evidence must report the generated User Files northbound
 surface. Historical WebDAV/CalDAV probes may remain in separately named compatibility
 regressions, but the public DAV controllers are disabled by default and the
 current-scope Full Compose product flow must neither require nor advertise them.
+The internal connector runtime boundary and manifest validator are not User or
+Admin product operations. Keep their existing runtime authorization and internal
+combined documentation, but exclude `/api/connectors/**` from the generated User
+artifact and its clients until a public connector SDK contract is approved.
 An operator may set `WEAVE_COMPATIBILITY_PUBLIC_DAV_ENABLED=true` only for a
 separately documented compatibility environment; it is not a current-release
 member setup path. The corresponding Spring property is
@@ -110,9 +114,12 @@ credential. The active Calendar access-policy operation must expose its typed
 success response in the User artifact so generated consumers can read it. Every
 exported User/Admin operation that can succeed must declare a real 2xx response;
 non-204 success bodies must have a typed schema, including disabled-by-default
-preview operations that can be enabled. Describing a pre-existing Admin migration
-preflight accurately does not make provider adoption, cutover or rollback part of
-#1470 acceptance; #1498 owns those outcomes. Matrix
+preview operations that can be enabled. Secured Guest operations declare User-token
+401/403 errors; the existing Admin migration preflight declares Admin-token 401/403
+errors; and the owner-bootstrap route declares its distinct bootstrap-credential
+401 and unavailable 503 responses. Documenting an existing migration preflight
+does not make provider adoption, cutover or rollback part of #1470 acceptance;
+#1498 owns those outcomes. Matrix
 remains the explicit protocol exception and has its own
 independent-client qualification gate.
 Member Home may project a completed User Files write from the support-safe audit

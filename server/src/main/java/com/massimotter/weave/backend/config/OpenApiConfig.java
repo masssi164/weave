@@ -34,7 +34,7 @@ public class OpenApiConfig {
                 .group("user")
                 .pathsToMatch("/api/**")
                 .pathsToExclude("/api/admin/**", "/api/bootstrap/**", "/api/migration/**",
-                        "/api/v1/agent-runtime/**")
+                        "/api/v1/agent-runtime/**", "/api/connectors/**")
                 .build();
     }
 

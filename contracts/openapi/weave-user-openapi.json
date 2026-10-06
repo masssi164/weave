@@ -1342,29 +1342,6 @@
         },
         "type": "object"
       },
-      "ConnectorBoundaryResponse": {
-        "properties": {
-          "deferredUntil": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "internalRuntimeBoundaries": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "publicSdkEnabled": {
-            "type": "boolean"
-          },
-          "status": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ConnectorBoundarySummaryResponse": {
         "properties": {
           "publicSdkAvailable": {
@@ -1378,98 +1355,6 @@
           },
           "runtimeBoundary": {
             "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ConnectorManifestValidationRequest": {
-        "properties": {
-          "capabilities": {
-            "items": {
-              "maxLength": 128,
-              "minLength": 0,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "commands": {
-            "items": {
-              "maxLength": 128,
-              "minLength": 0,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "cursorRefs": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
-          },
-          "id": {
-            "maxLength": 128,
-            "minLength": 0,
-            "type": "string"
-          },
-          "provider": {
-            "maxLength": 128,
-            "minLength": 0,
-            "type": "string"
-          },
-          "providerWritesEnabled": {
-            "type": "boolean"
-          },
-          "redactionPolicy": {
-            "maxLength": 128,
-            "minLength": 0,
-            "type": "string"
-          },
-          "releaseStatus": {
-            "maxLength": 64,
-            "minLength": 0,
-            "type": "string"
-          },
-          "secretRefs": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
-          },
-          "webhookRefs": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
-          }
-        },
-        "required": [
-          "id",
-          "provider"
-        ],
-        "type": "object"
-      },
-      "ConnectorManifestValidationResponse": {
-        "properties": {
-          "errors": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "publicSdkAccepted": {
-            "type": "boolean"
-          },
-          "secretValuesAccepted": {
-            "type": "boolean"
-          },
-          "valid": {
-            "type": "boolean"
-          },
-          "warnings": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
           }
         },
         "type": "object"
@@ -5466,68 +5351,6 @@
         ]
       }
     },
-    "/api/connectors/boundary": {
-      "get": {
-        "operationId": "boundary",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConnectorBoundaryResponse"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Get internal connector runtime boundary",
-        "tags": [
-          "Connectors"
-        ]
-      }
-    },
-    "/api/connectors/manifest/validate": {
-      "post": {
-        "operationId": "validate",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConnectorManifestValidationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConnectorManifestValidationResponse"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Validate an internal connector manifest without accepting secret values",
-        "tags": [
-          "Connectors"
-        ]
-      }
-    },
     "/api/files/items": {
       "get": {
         "operationId": "listFilesItems",
@@ -6519,7 +6342,27 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Guest identity and access policy contract."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid User bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "User token lacks workspace or organization authority."
           }
         },
         "security": [
@@ -6556,6 +6399,26 @@
               }
             },
             "description": "Created guest invitation."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid User bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "User token lacks workspace or organization authority."
           },
           "503": {
             "content": {
@@ -7715,10 +7578,6 @@
     {
       "description": "Canonical Weave Chat facade with provider-neutral conversations/messages, Context/Space authorization, capability checks, audit, and support-safe provider replacement seams.",
       "name": "Chat domain"
-    },
-    {
-      "description": "Internal connector runtime boundary; public SDK remains deferred.",
-      "name": "Connectors"
     },
     {
       "description": "Calendar product operations under current member and Space authorization.",

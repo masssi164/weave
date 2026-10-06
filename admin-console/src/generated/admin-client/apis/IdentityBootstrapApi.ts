@@ -15,10 +15,13 @@
 
 import * as runtime from '../runtime';
 import type {
+  ApiErrorResponse,
   BootstrapOwnerInvitationRequest,
   MemberInvitationResponse,
 } from '../models/index';
 import {
+    ApiErrorResponseFromJSON,
+    ApiErrorResponseToJSON,
     BootstrapOwnerInvitationRequestFromJSON,
     BootstrapOwnerInvitationRequestToJSON,
     MemberInvitationResponseFromJSON,

@@ -9500,7 +9500,27 @@
                 }
               }
             },
-            "description": "Created"
+            "description": "First owner invitation."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid owner-bootstrap credential."
+          },
+          "503": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner bootstrap is unavailable."
           }
         },
         "security": [
@@ -11720,7 +11740,27 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Guest identity and access policy contract."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid User bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "User token lacks workspace or organization authority."
           }
         },
         "security": [
@@ -11757,6 +11797,26 @@
               }
             },
             "description": "Created guest invitation."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid User bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "User token lacks workspace or organization authority."
           },
           "503": {
             "content": {
@@ -12243,7 +12303,27 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Provider migration apply-gate evaluation."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Admin token lacks organization or administration authority."
           }
         },
         "security": [
@@ -12279,7 +12359,27 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Replay-safe migration inventory dry-run."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Admin token lacks organization or administration authority."
           }
         },
         "security": [

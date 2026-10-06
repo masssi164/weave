@@ -234,6 +234,36 @@ class OpenApiDocumentationTest {
     }
 
     @Test
+    void securedPreviewAndBootstrapRoutesDocumentTheirActualErrorBoundaries() throws Exception {
+        mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/guest/access-contract'].get.responses['401'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/guest/access-contract'].get.responses['403'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/guest/invitations'].post.responses['401'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/guest/invitations'].post.responses['403'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"));
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/migration/dry-runs'].post.responses['401'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/migration/dry-runs'].post.responses['403'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/migration/apply-gates'].post.responses['401'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/migration/apply-gates'].post.responses['403'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['201'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/MemberInvitationResponse"))
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['401'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['503'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"));
+    }
+
+    @Test
     void separatesUserAndAdminOperations() throws Exception {
         MvcResult user = mockMvc.perform(get("/v3/api-docs/user"))
                 .andExpect(status().isOk())
@@ -262,6 +292,8 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/providers/status']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/admin/providers/status']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/connectors/boundary']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/connectors/manifest/validate']").doesNotExist())
                 .andReturn();
         MvcResult admin = mockMvc.perform(get("/v3/api-docs/admin"))
                 .andExpect(status().isOk())
@@ -274,6 +306,8 @@ class OpenApiDocumentationTest {
                         hasItems("CONFIGURED", "NOT_CONFIGURED", "UNAVAILABLE")))
                 .andExpect(jsonPath("$.paths['/api/providers/status']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation']").exists())
+                .andExpect(jsonPath("$.paths['/api/connectors/boundary']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/connectors/manifest/validate']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.operationId")
                         .value("listOrganizationInvitations"))
                 .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.responses['200'].content['*/*'].schema.type")
