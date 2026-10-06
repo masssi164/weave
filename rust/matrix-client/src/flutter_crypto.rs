@@ -1005,6 +1005,16 @@ async fn member_session_activate_inner(
         .encryption()
         .wait_for_e2ee_initialization_tasks()
         .await;
+    // Verify the member bearer and device possession before publishing the
+    // native client. Callers may open without an initial sync, and only a
+    // verified activation may retire an older OAuth grant on disk.
+    let whoami = client
+        .whoami()
+        .await
+        .map_err(|_| "M_WEAVE_MATRIX_MEMBER_SESSION".to_string())?;
+    if whoami.user_id != user_id || whoami.device_id.as_deref() != Some(device_id.as_str()) {
+        return Err("M_WEAVE_MATRIX_SESSION_MISMATCH".to_string());
+    }
     clients()
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
