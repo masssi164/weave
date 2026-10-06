@@ -58,7 +58,7 @@ The public local contract is HTTPS on these hostnames:
 - `https://weave.test` as the Weave product gateway
 - `https://weave.test/files` and `https://weave.test/calendar` as Weave product routes
 - `https://api.weave.test/api` as the canonical backend API
-- `https://api.weave.test/_matrix/client` as the Weave-owned Matrix Client-Server facade path; the separate Matrix OAuth audience and independent-client journey are still qualification gates
+- `https://api.weave.test/_matrix/client` as the Weave-owned Matrix Client-Server facade path; Weave-owned Flutter reuses the authorized member OIDC/PKCE session, while a separate Matrix OAuth audience and independent-client journey are deferred
 - `https://auth.weave.test`
 - `https://matrix.weave.test` as the current southbound Synapse/MAS technical route, not the member-facing Chat contract
 - `https://files.weave.test` as raw Nextcloud technical/admin/protocol fallback
