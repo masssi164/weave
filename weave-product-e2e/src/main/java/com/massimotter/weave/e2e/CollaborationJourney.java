@@ -430,10 +430,7 @@ final class CollaborationJourney {
       if (!Integer.valueOf(2).equals(platform.getSchemaVersion())
           || !environment.apiOrigin().resolve("/api").equals(platform.getUserApiBaseUrl())
           || platform.getProtocols() == null
-          || platform.getProtocols().getMatrixClientServerBaseUrl() == null
-          || platform.getProtocols().getMatrixOAuthIssuer() == null
-          || platform.getProtocols().getMatrixOAuthClientId() == null
-          || platform.getProtocols().getMatrixOAuthClientId().isBlank()) {
+          || platform.getProtocols().getMatrixClientServerBaseUrl() == null) {
         throw new ProductFlowException("platform configuration failed during Chat outage");
       }
       AuthenticatedUserResponse member =
