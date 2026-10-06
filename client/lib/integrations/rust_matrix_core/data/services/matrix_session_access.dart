@@ -23,7 +23,8 @@ abstract interface class MatrixSessionAccessPort {
 }
 
 /// Checks current member access before opening or reusing a Matrix session.
-/// The Weave bearer is sent only to generated User API operations.
+/// Admission uses generated User API operations before the same member bearer
+/// is handed to the Rust SDK for the Weave Matrix facade.
 class GeneratedMatrixSessionAccess implements MatrixSessionAccessPort {
   const GeneratedMatrixSessionAccess({required http.Client httpClient})
     : _httpClient = httpClient;

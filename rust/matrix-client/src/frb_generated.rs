@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0-beta.4";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1515637892;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 2142549490;
 
 // Section: executor
 
@@ -355,6 +355,63 @@ fn wire__crate__frb_api__matrix_mark_read_impl(
                                 api_profile_key,
                                 api_room_id,
                                 api_event_id,
+                            )
+                            .await,
+                        )?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__frb_api__matrix_member_session_activate_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "matrix_member_session_activate",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_profile_key = <String>::sse_decode(&mut deserializer);
+            let api_homeserver_url = <String>::sse_decode(&mut deserializer);
+            let api_user_id = <String>::sse_decode(&mut deserializer);
+            let api_device_id = <String>::sse_decode(&mut deserializer);
+            let api_access_token = <String>::sse_decode(&mut deserializer);
+            let api_device_proof = <String>::sse_decode(&mut deserializer);
+            let api_store_path = <String>::sse_decode(&mut deserializer);
+            let api_store_passphrase = <String>::sse_decode(&mut deserializer);
+            let api_extra_root_certificate_pem = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::frb_api::matrix_member_session_activate(
+                                api_profile_key,
+                                api_homeserver_url,
+                                api_user_id,
+                                api_device_id,
+                                api_access_token,
+                                api_device_proof,
+                                api_store_path,
+                                api_store_passphrase,
+                                api_extra_root_certificate_pem,
                             )
                             .await,
                         )?;
@@ -1087,25 +1144,31 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         8 => wire__crate__frb_api__matrix_mark_read_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__frb_api__matrix_oauth_abort_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__frb_api__matrix_oauth_activate_impl(port, ptr, rust_vec_len, data_len),
-        11 => {
+        9 => wire__crate__frb_api__matrix_member_session_activate_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        10 => wire__crate__frb_api__matrix_oauth_abort_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__frb_api__matrix_oauth_activate_impl(port, ptr, rust_vec_len, data_len),
+        12 => {
             wire__crate__frb_api__matrix_oauth_end_session_impl(port, ptr, rust_vec_len, data_len)
         }
-        12 => wire__crate__frb_api__matrix_oauth_finish_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__frb_api__matrix_oauth_restore_impl(port, ptr, rust_vec_len, data_len),
-        14 => wire__crate__frb_api__matrix_oauth_start_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__frb_api__matrix_recover_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__frb_api__matrix_room_messages_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__frb_api__matrix_rooms_impl(port, ptr, rust_vec_len, data_len),
-        18 => wire__crate__frb_api__matrix_security_state_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__frb_api__matrix_send_text_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__frb_api__matrix_start_sas_impl(port, ptr, rust_vec_len, data_len),
-        21 => {
+        13 => wire__crate__frb_api__matrix_oauth_finish_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__frb_api__matrix_oauth_restore_impl(port, ptr, rust_vec_len, data_len),
+        15 => wire__crate__frb_api__matrix_oauth_start_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__frb_api__matrix_recover_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__frb_api__matrix_room_messages_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__frb_api__matrix_rooms_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__frb_api__matrix_security_state_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__frb_api__matrix_send_text_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__frb_api__matrix_start_sas_impl(port, ptr, rust_vec_len, data_len),
+        22 => {
             wire__crate__frb_api__matrix_start_verification_impl(port, ptr, rust_vec_len, data_len)
         }
-        22 => wire__crate__frb_api__project_matrix_json_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__frb_api__sync_matrix_client_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__frb_api__project_matrix_json_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__frb_api__sync_matrix_client_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

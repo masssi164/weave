@@ -1,6 +1,8 @@
 package com.massimotter.weave.backend.matrix;
 
 import java.util.ArrayList;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -16,6 +18,7 @@ public final class InMemoryMatrixE2eeRelationalStore implements MatrixE2eePersis
 
     private final Map<String, AtomicLong> revisions = new ConcurrentHashMap<>();
     private final Map<DeviceKey, DeviceState> devices = new ConcurrentHashMap<>();
+    private final Map<DeviceKey, String> deviceProofs = new ConcurrentHashMap<>();
     private final Map<DeviceKey, Map<String, Object>> oneTimeKeys = new ConcurrentHashMap<>();
     private final Map<DeviceKey, Map<String, FallbackState>> fallbackKeys = new ConcurrentHashMap<>();
     private final Map<UserKey, CrossSigningRecord> signing = new ConcurrentHashMap<>();
@@ -207,6 +210,18 @@ public final class InMemoryMatrixE2eeRelationalStore implements MatrixE2eePersis
     }
 
     @Override public boolean bindOidcSession(String tenantId, String userId, String sessionHash, String deviceId) { String existing = oidcBindings.putIfAbsent(new OidcKey(tenantId, userId, sessionHash), deviceId); return existing == null || existing.equals(deviceId); }
+
+    @Override
+    public boolean bindDeviceProof(String tenantId, String userId, String deviceId, String proofHash) {
+        DeviceKey key = new DeviceKey(tenantId, userId, deviceId);
+        DeviceState device = devices.get(key);
+        if (device != null && device.revoked) return false;
+        String existing = deviceProofs.get(key);
+        if (existing == null && device != null && !device.deviceKeys.isEmpty()) return false;
+        if (existing == null) existing = deviceProofs.putIfAbsent(key, proofHash);
+        return existing == null || MessageDigest.isEqual(
+                existing.getBytes(StandardCharsets.US_ASCII), proofHash.getBytes(StandardCharsets.US_ASCII));
+    }
 
     @Override
     public String createBackupVersion(String tenantId, String userId, String algorithm, Map<String, Object> authData) {

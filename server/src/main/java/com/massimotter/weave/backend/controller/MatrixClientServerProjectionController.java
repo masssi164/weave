@@ -18,6 +18,7 @@ import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
 import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
+import com.massimotter.weave.backend.matrix.MatrixDeviceProofService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolException;
 import io.swagger.v3.oas.annotations.Hidden;
@@ -74,6 +75,7 @@ public class MatrixClientServerProjectionController {
     private final MatrixProtocolCoreService matrixProtocolCoreService;
     private final MatrixFacadeClientStateService matrixClientStateService;
     private final MatrixE2eeStateService matrixE2eeStateService;
+    private final MatrixDeviceProofService matrixDeviceProofService;
     private final String facadeBaseUrl;
 
     public MatrixClientServerProjectionController(
@@ -81,11 +83,13 @@ public class MatrixClientServerProjectionController {
             MatrixProtocolCoreService matrixProtocolCoreService,
             MatrixFacadeClientStateService matrixClientStateService,
             MatrixE2eeStateService matrixE2eeStateService,
+            MatrixDeviceProofService matrixDeviceProofService,
             @Value("${weave.matrix.facade.base-url:https://api.weave.test}") String facadeBaseUrl) {
         this.chatDomainFacadeService = chatDomainFacadeService;
         this.matrixProtocolCoreService = matrixProtocolCoreService;
         this.matrixClientStateService = matrixClientStateService;
         this.matrixE2eeStateService = matrixE2eeStateService;
+        this.matrixDeviceProofService = matrixDeviceProofService;
         this.facadeBaseUrl = facadeBaseUrl.replaceAll("/+$", "");
     }
 
@@ -107,6 +111,9 @@ public class MatrixClientServerProjectionController {
             String path = requestPath(request);
             if (matrixClientStateService.revoked(jwt) && !isLogout(path)) throw new MatrixProtocolException("M_UNKNOWN_TOKEN", "The Matrix access token was revoked.");
             MatrixFacadeClientStateService.MatrixIdentity identity = matrixClientStateService.register(jwt, request.getHeader(MatrixFacadeClientStateService.DEVICE_ID_HEADER));
+            matrixDeviceProofService.require(identity,
+                    request.getHeader(MatrixFacadeClientStateService.DEVICE_ID_HEADER),
+                    request.getHeader(MatrixDeviceProofService.DEVICE_PROOF_HEADER));
             matrixE2eeStateService.requireActive(identity);
             if ("GET".equals(method) && isVersions(path)) return matrixOk(matrixProtocolCoreService.versions());
             if ("GET".equals(method) && isLogin(path)) return matrixOk(loginFlows());

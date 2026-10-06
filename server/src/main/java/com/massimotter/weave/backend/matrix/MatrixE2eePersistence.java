@@ -121,6 +121,12 @@ public interface MatrixE2eePersistence {
 
     boolean bindOidcSession(String tenantId, String userId, String sessionHash, String deviceId);
 
+    /**
+     * Atomically binds or verifies an explicit device's possession secret hash.
+     * A previously keyed device without a proof binding is never adopted here.
+     */
+    boolean bindDeviceProof(String tenantId, String userId, String deviceId, String proofHash);
+
     String createBackupVersion(
             String tenantId,
             String userId,

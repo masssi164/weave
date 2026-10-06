@@ -83,6 +83,28 @@ Future<String> matrixOauthEndSession({
   storePath: storePath,
 );
 
+Future<String> matrixMemberSessionActivate({
+  required String profileKey,
+  required String homeserverUrl,
+  required String userId,
+  required String deviceId,
+  required String accessToken,
+  required String deviceProof,
+  required String storePath,
+  required String storePassphrase,
+  required String extraRootCertificatePem,
+}) => RustLib.instance.api.crateFrbApiMatrixMemberSessionActivate(
+  profileKey: profileKey,
+  homeserverUrl: homeserverUrl,
+  userId: userId,
+  deviceId: deviceId,
+  accessToken: accessToken,
+  deviceProof: deviceProof,
+  storePath: storePath,
+  storePassphrase: storePassphrase,
+  extraRootCertificatePem: extraRootCertificatePem,
+);
+
 Future<String> syncMatrixClient({required String profileKey}) =>
     RustLib.instance.api.crateFrbApiSyncMatrixClient(profileKey: profileKey);
 

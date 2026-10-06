@@ -2,6 +2,8 @@ package com.massimotter.weave.backend.matrix;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -318,6 +320,27 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
         if (!existing.isEmpty()) return existing.getFirst().equals(deviceId);
         jdbc.update("insert into weave_matrix_oidc_device_bindings(tenant_id,user_id,oidc_session_hash,device_id) values (?,?,?,?)", tenantId, userId, sessionHash, deviceId);
         return true;
+    }
+
+    @Override
+    @Transactional
+    public boolean bindDeviceProof(String tenantId, String userId, String deviceId, String proofHash) {
+        jdbc.update("""
+                insert into weave_matrix_device_proofs(tenant_id,user_id,device_id,proof_hash)
+                select ?,?,?,?
+                where not exists (
+                    select 1 from weave_matrix_devices
+                    where tenant_id=? and user_id=? and device_id=?
+                      and (revoked=true or device_keys_json is not null)
+                )
+                on conflict (tenant_id,user_id,device_id) do nothing
+                """, tenantId, userId, deviceId, proofHash, tenantId, userId, deviceId);
+        List<String> bound = jdbc.query("select proof_hash from weave_matrix_device_proofs where tenant_id=? and user_id=? and device_id=?",
+                (rs, ignored) -> rs.getString(1), tenantId, userId, deviceId);
+        return device(tenantId, userId, deviceId).map(record -> !record.revoked()).orElse(true)
+                && bound.size() == 1 && MessageDigest.isEqual(
+                bound.getFirst().getBytes(StandardCharsets.US_ASCII),
+                proofHash.getBytes(StandardCharsets.US_ASCII));
     }
 
     @Override

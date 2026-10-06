@@ -77,6 +77,31 @@ pub mod frb_api {
         crate::flutter_crypto::oauth_end_session(profile_key, store_path).await
     }
     #[cfg(feature = "flutter")]
+    pub async fn matrix_member_session_activate(
+        profile_key: String,
+        homeserver_url: String,
+        user_id: String,
+        device_id: String,
+        access_token: String,
+        device_proof: String,
+        store_path: String,
+        store_passphrase: String,
+        extra_root_certificate_pem: String,
+    ) -> String {
+        crate::flutter_crypto::member_session_activate(
+            profile_key,
+            homeserver_url,
+            user_id,
+            device_id,
+            access_token,
+            device_proof,
+            store_path,
+            store_passphrase,
+            extra_root_certificate_pem,
+        )
+        .await
+    }
+    #[cfg(feature = "flutter")]
     pub async fn sync_matrix_client(profile_key: String) -> String {
         crate::flutter_crypto::sync(profile_key).await
     }

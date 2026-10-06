@@ -27,6 +27,7 @@ import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateStore;
 import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
+import com.massimotter.weave.backend.matrix.MatrixDeviceProofService;
 import com.massimotter.weave.backend.matrix.InMemoryMatrixE2eeRelationalStore;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
@@ -85,6 +86,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         OrganizationIdentityContextResolver.class,
         InMemoryMatrixFacadeClientStateStore.class,
         InMemoryMatrixE2eeRelationalStore.class,
+        MatrixDeviceProofService.class,
         MatrixE2eeStateService.class
 })
 @TestPropertySource(properties = {
@@ -156,6 +158,7 @@ class MatrixClientServerProjectionControllerTest {
     void whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject() throws Exception {
         mockMvc.perform(get("/_matrix/client/v3/account/whoami")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVE0123456789abcdef0123456789abcdef0123")
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("WEAVE0123456789abcdef0123456789abcdef0123"))
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.user_id").value("@user_example.com:api.weave.test"))
@@ -164,9 +167,38 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void explicitDeviceNeedsPossessionProofAcrossMemberSessions() throws Exception {
+        String device = "WEAVEDEVICEPOSSESSIONPROOF";
+        String proof = deviceProof(device);
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("device-proof-first-login")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .with(workspaceJwt("device-proof-second-login")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("another-device"))
+                        .with(workspaceJwt("device-proof-second-login")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("device-proof-second-login")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void malformedOidcIdentityRemainsAStableMatrixAuthorizationFailure() throws Exception {
         var endpoint = get("/_matrix/client/v3/account/whoami")
-                .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEINVALIDIDENTITY");
+                .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEINVALIDIDENTITY")
+                .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("WEAVEDEVICEINVALIDIDENTITY"));
 
         mockMvc.perform(endpoint.with(workspaceJwtWithoutIssuer()))
                 .andExpect(status().isForbidden())
@@ -175,6 +207,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/account/whoami")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEINVALIDSUBJECT")
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("WEAVEDEVICEINVALIDSUBJECT"))
                         .with(workspaceJwtWithSubject("invalid subject")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errcode").value("M_FORBIDDEN"))
@@ -187,11 +220,13 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/account/whoami")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEBOUNDONE")
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("WEAVEDEVICEBOUNDONE"))
                         .with(workspaceJwt(token)))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/_matrix/client/v3/account/whoami")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEBOUNDOTHER")
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("WEAVEDEVICEBOUNDOTHER"))
                         .with(workspaceJwt(token)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
@@ -449,6 +484,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/query")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(trustedDevice))
                         .with(workspaceJwt("trusted-session"))
                         .contentType("application/json")
                         .content("""
@@ -461,6 +497,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/claim")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(trustedDevice))
                         .with(workspaceJwt("trusted-session"))
                         .contentType("application/json")
                         .content("""
@@ -473,6 +510,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(put("/_matrix/client/v3/sendToDevice/m.room_key_request/txn-device-1")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(trustedDevice))
                         .with(workspaceJwt("trusted-session"))
                         .contentType("application/json")
                         .content("""
@@ -482,6 +520,7 @@ class MatrixClientServerProjectionControllerTest {
 
         String firstSync = mockMvc.perform(get("/_matrix/client/v3/sync")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(secondDevice))
                         .with(workspaceJwt("second-session")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.to_device.events[0].type").value("m.room_key_request"))
@@ -494,12 +533,14 @@ class MatrixClientServerProjectionControllerTest {
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .queryParam("since", nextBatch)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(secondDevice))
                         .with(workspaceJwt("second-session")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.to_device.events").isEmpty());
 
         mockMvc.perform(delete("/_matrix/client/v3/devices/{deviceId}", secondDevice)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(trustedDevice))
                         .with(workspaceJwt("trusted-session"))
                         .contentType("application/json")
                         .content("{}"))
@@ -508,6 +549,7 @@ class MatrixClientServerProjectionControllerTest {
         // MATRIX_E2EE_LOST_DEVICE_REVOKED
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(secondDevice))
                         .with(workspaceJwt("second-session")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
@@ -521,6 +563,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/upload")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt(sessionId))
                         .contentType("application/json")
                         .content("""
@@ -546,6 +589,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/signatures/upload")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt(sessionId))
                         .contentType("application/json")
                         .content("""
@@ -581,6 +625,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/query")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt(sessionId))
                         .contentType("application/json")
                         .content("""
@@ -610,6 +655,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/upload")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(targetDevice))
                         .with(workspaceJwt("fallback-target-session"))
                         .contentType("application/json")
                         .content("""
@@ -635,6 +681,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(targetDevice))
                         .with(workspaceJwt("fallback-target-session")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.device_unused_fallback_key_types[0]")
@@ -643,6 +690,7 @@ class MatrixClientServerProjectionControllerTest {
         for (int attempt = 0; attempt < 2; attempt++) {
             mockMvc.perform(post("/_matrix/client/v3/keys/claim")
                             .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, claimantDevice)
+                            .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(claimantDevice))
                             .with(workspaceJwt("fallback-claimant-session"))
                             .contentType("application/json")
                             .content("""
@@ -656,6 +704,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(targetDevice))
                         .with(workspaceJwt("fallback-target-session")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.device_unused_fallback_key_types").isEmpty());
@@ -666,6 +715,7 @@ class MatrixClientServerProjectionControllerTest {
         String deviceId = "WEAVEBACKUPDEVICE";
         String created = mockMvc.perform(post("/_matrix/client/v3/room_keys/version")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt("backup-session"))
                         .contentType("application/json")
                         .content("""
@@ -684,6 +734,7 @@ class MatrixClientServerProjectionControllerTest {
                         "!channel-general:api.weave.test", "session-1")
                         .queryParam("version", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt("backup-session"))
                         .contentType("application/json")
                         .content("""
@@ -701,6 +752,7 @@ class MatrixClientServerProjectionControllerTest {
                         "!channel-general:api.weave.test", "session-1")
                         .queryParam("version", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt("backup-session")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.session_data.ciphertext").value("opaque-backup"))
@@ -709,6 +761,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/room_keys/version/{version}", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt("backup-session")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(1))
@@ -716,10 +769,12 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(delete("/_matrix/client/v3/room_keys/version/{version}", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt("backup-session")))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/_matrix/client/v3/room_keys/version/{version}", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt("backup-session")))
                 .andExpect(status().isNotFound());
     }
@@ -1058,6 +1113,7 @@ class MatrixClientServerProjectionControllerTest {
                   """.formatted(oneTimeKey).trim();
         mockMvc.perform(post("/_matrix/client/v3/keys/upload")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt(deviceId + "-session"))
                         .contentType("application/json")
                         .content("""
@@ -1114,5 +1170,15 @@ class MatrixClientServerProjectionControllerTest {
                             }
                         }))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
+    }
+
+    private static String deviceProof(String deviceId) {
+        try {
+            byte[] bytes = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(("weave-test-device-proof:" + deviceId).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        } catch (java.security.NoSuchAlgorithmException unavailable) {
+            throw new IllegalStateException(unavailable);
+        }
     }
 }

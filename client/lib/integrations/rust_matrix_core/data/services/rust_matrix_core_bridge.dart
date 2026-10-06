@@ -444,6 +444,42 @@ class RustMatrixCoreBridge {
 
   static Future<void>? _initialization;
 
+  Future<RustMatrixOAuthIdentity> activateMemberSession({
+    required String profileKey,
+    required String homeserverUrl,
+    required String userId,
+    required String deviceId,
+    required String accessToken,
+    required String deviceProof,
+    required String storePath,
+    required String storePassphrase,
+  }) async {
+    final result = await _native(
+      () => matrixMemberSessionActivate(
+        profileKey: profileKey,
+        homeserverUrl: homeserverUrl,
+        userId: userId,
+        deviceId: deviceId,
+        accessToken: accessToken,
+        deviceProof: deviceProof,
+        storePath: storePath,
+        storePassphrase: storePassphrase,
+        extraRootCertificatePem: _loadExtraRootCertificatePem(),
+      ),
+    );
+    final actualUserId = _string(result['userId']);
+    final actualDeviceId = _string(result['deviceId']);
+    if (actualUserId != userId || actualDeviceId != deviceId) {
+      throw const RustMatrixCoreBridgeException(
+        'M_WEAVE_MATRIX_SESSION_MISMATCH',
+      );
+    }
+    return RustMatrixOAuthIdentity(
+      userId: actualUserId,
+      deviceId: actualDeviceId,
+    );
+  }
+
   Future<RustMatrixOAuthAuthorization> startOAuth({
     required String loginKey,
     required String homeserverUrl,
