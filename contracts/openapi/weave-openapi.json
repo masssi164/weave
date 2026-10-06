@@ -694,119 +694,31 @@
         },
         "type": "object"
       },
-      "CalendarClientSetupOptionResponse": {
-        "description": "A platform-specific external calendar setup option.",
-        "properties": {
-          "actionUrl": {
-            "description": "Optional action URL for supported external clients. Contains no credential.",
-            "type": "string"
-          },
-          "available": {
-            "description": "Whether this setup method is currently safe for feature-gated use.",
-            "example": false,
-            "type": "boolean"
-          },
-          "method": {
-            "description": "Setup mechanism.",
-            "example": "mobileconfig",
-            "type": "string"
-          },
-          "notes": {
-            "description": "Human-readable setup notes for the authenticated user.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "platform": {
-            "description": "Stable platform identifier.",
-            "example": "apple",
-            "type": "string"
-          },
-          "unavailableReason": {
-            "description": "Support-safe reason when the option is not available yet.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "CalendarClientSetupResponse": {
-        "description": "Secret-free calendar client setup metadata for native and desktop calendar apps.",
+      "CalendarAccessPolicyResponse": {
         "properties": {
           "accessModel": {
-            "$ref": "#/components/schemas/CalendarAccessModelResponse",
-            "description": "Explicit product/private/external-client access model."
+            "$ref": "#/components/schemas/CalendarAccessModelResponse"
           },
-          "credentialPolicy": {
-            "description": "Explicit credential policy for external clients.",
-            "type": "string"
-          },
-          "credentialReadiness": {
-            "$ref": "#/components/schemas/CalendarCredentialReadinessResponse",
-            "description": "Safety readiness for profile generation and tokenized subscription paths."
-          },
-          "endpoints": {
-            "$ref": "#/components/schemas/CalendarExternalEndpointsResponse",
-            "description": "CalDAV/WebDAV discovery URLs that may be shown to the user without credentials."
-          },
-          "options": {
-            "description": "Platform-specific setup options. Options never contain passwords or bearer tokens.",
-            "items": {
-              "$ref": "#/components/schemas/CalendarClientSetupOptionResponse"
-            },
-            "type": "array"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/CalendarScopeResponse",
-            "description": "Calendar ownership scope exposed by the Weave calendar facade."
-          },
-          "username": {
-            "description": "Authenticated user's external calendar account identifier.",
-            "example": "maria",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "CalendarCredentialReadinessResponse": {
-        "description": "Safety readiness for downloadable profiles, external credentials, and read-only feeds.",
-        "properties": {
-          "appleProfilePasswordIncluded": {
-            "description": "Whether generated Apple profiles include a password or token.",
-            "example": false,
-            "type": "boolean"
-          },
-          "appleProfileSigned": {
-            "description": "Whether a signed Apple .mobileconfig download is available.",
-            "example": false,
-            "type": "boolean"
-          },
-          "backendActorCredentialsExposed": {
-            "description": "Whether backend actor credentials can appear in client-facing setup artifacts. Must remain false.",
-            "example": false,
-            "type": "boolean"
-          },
-          "blockers": {
-            "description": "Support-safe blockers before setup artifacts may become downloadable.",
+          "allowedScopes": {
             "items": {
               "type": "string"
             },
             "type": "array"
           },
-          "readOnlySubscriptionTokensAvailable": {
-            "description": "Whether read-only ICS/webcal feed tokens are available.",
-            "example": false,
+          "backendActorMayReadPrivateUserCalendars": {
             "type": "boolean"
           },
-          "revocableCredentialsAvailable": {
-            "description": "Whether Weave can issue/revoke per-client CalDAV credentials.",
-            "example": true,
-            "type": "boolean"
+          "deniedScopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
-          "status": {
-            "description": "Stable machine-readable readiness status.",
-            "example": "revocable_credentials_ready",
-            "type": "string"
+          "requiredBeforePrivateCalendars": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -1065,143 +977,6 @@
         ],
         "type": "object"
       },
-      "CalendarExternalEndpointsResponse": {
-        "description": "Secret-free Weave CalDAV projection paths for external calendar clients.",
-        "properties": {
-          "caldavDiscoveryUrl": {
-            "description": "Weave-owned CalDAV discovery root for DAV clients.",
-            "example": "/caldav",
-            "type": "string"
-          },
-          "principalUrl": {
-            "description": "Weave-owned user principal path template for CalDAV clients. Contains no credential.",
-            "example": "/caldav/principals/users/maria/",
-            "type": "string"
-          },
-          "serverUrl": {
-            "description": "Weave-owned CalDAV projection base path.",
-            "example": "/caldav",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "CalendarNativeSyncOptionResponse": {
-        "description": "One native OS calendar setup/sync option backed by the Weave calendar facade.",
-        "properties": {
-          "available": {
-            "description": "Whether this native sync option is ready for end-user setup.",
-            "example": false,
-            "type": "boolean"
-          },
-          "bridge": {
-            "description": "Flutter/native bridge role for setup, status, and revoke only.",
-            "example": "pigeon-or-platform-channel",
-            "type": "string"
-          },
-          "notes": {
-            "description": "Support-safe notes for member/admin setup surfaces.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "osBoundary": {
-            "description": "Native OS boundary to implement.",
-            "example": "CalDAVConfigurationProfile",
-            "type": "string"
-          },
-          "platform": {
-            "description": "Target platform family.",
-            "example": "ios",
-            "type": "string"
-          },
-          "requiredContracts": {
-            "description": "Native implementation contracts required before availability can be true.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "setupAction": {
-            "description": "Support-safe setup action or route. Does not expose raw provider URLs.",
-            "example": "open-weave-calendar-native-setup",
-            "type": "string"
-          },
-          "setupState": {
-            "description": "Support-safe setup state.",
-            "example": "setup_contract_ready",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "CalendarNativeSyncSetupResponse": {
-        "description": "Support-safe native Calendar setup/sync contract for OS calendar accounts.",
-        "properties": {
-          "appleProfilePath": {
-            "description": "Weave-owned Apple profile download path. The profile itself remains unavailable until signing and scoped credentials exist.",
-            "example": "/api/calendar/client-setup/apple.mobileconfig",
-            "type": "string"
-          },
-          "blockedUntil": {
-            "description": "Support-safe blockers before native calendar availability can be true.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "credentialLifecyclePath": {
-            "description": "Weave-owned setup credential lifecycle path.",
-            "example": "/api/calendar/client-setup/credentials",
-            "type": "string"
-          },
-          "credentialsExposed": {
-            "description": "False: this contract never returns provider credentials or bearer tokens.",
-            "example": false,
-            "type": "boolean"
-          },
-          "eventSyncPathTemplate": {
-            "description": "Weave-owned event sync facade path template.",
-            "example": "/caldav/{scopePath}/{eventUid}.ics",
-            "type": "string"
-          },
-          "facadeBasePath": {
-            "description": "Weave-owned calendar facade base path for CalDAV sync.",
-            "example": "/caldav",
-            "type": "string"
-          },
-          "options": {
-            "description": "OS-specific sync setup options.",
-            "items": {
-              "$ref": "#/components/schemas/CalendarNativeSyncOptionResponse"
-            },
-            "type": "array"
-          },
-          "proofHooks": {
-            "description": "Executable proof hooks that can be exercised before full native sync availability.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "providerConfigurationExposed": {
-            "description": "False: member/native setup must not receive raw calendar-provider configuration.",
-            "example": false,
-            "type": "boolean"
-          },
-          "readiness": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse",
-            "description": "Calendar capability readiness as seen by the authenticated member."
-          },
-          "supportSafe": {
-            "description": "True when this setup contract excludes raw provider endpoints, credentials, and diagnostics.",
-            "example": true,
-            "type": "boolean"
-          }
-        },
-        "type": "object"
-      },
       "CalendarScopeResponse": {
         "description": "Calendar ownership scope exposed by the Weave calendar facade.",
         "properties": {
@@ -1269,87 +1044,6 @@
               "$ref": "#/components/schemas/CalendarScopeResponse"
             },
             "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "CalendarSetupCredentialListResponse": {
-        "properties": {
-          "credentials": {
-            "items": {
-              "$ref": "#/components/schemas/CalendarSetupCredentialResponse"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "CalendarSetupCredentialRequest": {
-        "properties": {
-          "clientType": {
-            "maxLength": 32,
-            "minLength": 0,
-            "type": "string"
-          },
-          "label": {
-            "maxLength": 128,
-            "minLength": 0,
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "CalendarSetupCredentialResponse": {
-        "description": "Weave-issued, revocable CalDAV client credential. Secret material is returned only at creation.",
-        "properties": {
-          "clientType": {
-            "type": "string"
-          },
-          "credentialId": {
-            "type": "string"
-          },
-          "expiresAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "issuedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "label": {
-            "type": "string"
-          },
-          "principalRef": {
-            "type": "string"
-          },
-          "profilePasswordEligible": {
-            "type": "boolean"
-          },
-          "revocationActions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "revokedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "secret": {
-            "description": "One-time CalDAV secret. Present only in the create response.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "secretMaterialReturned": {
-            "type": "boolean"
-          },
-          "state": {
-            "type": "string"
-          },
-          "username": {
-            "type": "string"
           }
         },
         "type": "object"
@@ -1570,6 +1264,39 @@
         ],
         "type": "object"
       },
+      "CanonicalBridgeEventResponse": {
+        "properties": {
+          "actorRef": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "dryRunOnly": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "roomRef": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "workspaceRef": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CanonicalDomainRegistryEntryResponse": {
         "properties": {
           "adapterManifestRequirements": {
@@ -1745,6 +1472,20 @@
         },
         "type": "object"
       },
+      "CapabilityResponse": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "requiresAdminConsent": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "CapabilityState": {
         "properties": {
           "capability": {
@@ -1847,6 +1588,79 @@
             "type": "array"
           },
           "visibility": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChatMigrationPreflightReport": {
+        "properties": {
+          "auditEventId": {
+            "type": "string"
+          },
+          "auditEventPublished": {
+            "type": "boolean"
+          },
+          "blockedOperations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "conflictCategories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "destructiveApplyAvailable": {
+            "type": "boolean"
+          },
+          "lossyFieldWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "objectCounts": {
+            "additionalProperties": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "preflightId": {
+            "type": "string"
+          },
+          "readinessState": {
+            "description": "Stable product-level Chat state returned to member clients.",
+            "enum": [
+              "available",
+              "degraded",
+              "disabled_by_policy",
+              "unavailable",
+              "not_configured",
+              "coming_later"
+            ],
+            "type": "string"
+          },
+          "sourceProviderKey": {
+            "type": "string"
+          },
+          "supportSafeWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "targetProviderKey": {
             "type": "string"
           }
         },
@@ -2247,6 +2061,23 @@
         },
         "type": "object"
       },
+      "ConnectorBoundarySummaryResponse": {
+        "properties": {
+          "publicSdkAvailable": {
+            "type": "boolean"
+          },
+          "rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "runtimeBoundary": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ConnectorManifestValidationRequest": {
         "properties": {
           "capabilities": {
@@ -2333,6 +2164,17 @@
           "warnings": {
             "items": {
               "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ConsentCapabilityRegistryResponse": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/CapabilityResponse"
             },
             "type": "array"
           }
@@ -3446,203 +3288,33 @@
         },
         "type": "object"
       },
-      "FileNativeProviderOptionResponse": {
-        "description": "One native OS file-provider setup option backed by the Weave files facade.",
+      "ExternalConnectionResponse": {
         "properties": {
-          "available": {
-            "description": "Whether this native provider option is ready for end-user setup.",
-            "example": false,
-            "type": "boolean"
-          },
-          "bridge": {
-            "description": "Flutter/native bridge role for setup, status, and revoke only.",
-            "example": "pigeon-or-platform-channel",
-            "type": "string"
-          },
-          "notes": {
-            "description": "Support-safe notes for member/admin setup surfaces.",
+          "actions": {
             "items": {
               "type": "string"
             },
             "type": "array"
           },
-          "osBoundary": {
-            "description": "Native OS boundary to implement.",
-            "example": "FileProviderExtension",
-            "type": "string"
-          },
-          "platform": {
-            "description": "Target platform family.",
-            "example": "ios",
-            "type": "string"
-          },
-          "requiredContracts": {
-            "description": "Native implementation contracts required before availability can be true.",
+          "capabilities": {
             "items": {
               "type": "string"
             },
             "type": "array"
           },
-          "setupAction": {
-            "description": "Support-safe setup action or route. Does not expose raw provider URLs.",
-            "example": "open-weave-files-native-setup",
+          "credentialState": {
             "type": "string"
           },
-          "setupState": {
-            "description": "Support-safe setup state.",
-            "example": "extension_contract_ready",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "FileNativeProviderSetupResponse": {
-        "description": "Support-safe native Files provider setup contract for OS extensions/providers.",
-        "properties": {
-          "blockedUntil": {
-            "description": "Support-safe blockers before native provider availability can be true.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "credentialLifecyclePath": {
-            "description": "Weave-owned credential lifecycle path for native and generic WebDAV clients.",
-            "example": "/api/files/client-setup/credentials",
+          "mappingState": {
             "type": "string"
           },
-          "credentialsExposed": {
-            "description": "False: this contract never returns provider credentials or bearer tokens.",
-            "example": false,
-            "type": "boolean"
-          },
-          "downloadPathTemplate": {
-            "description": "Weave-owned WebDAV download path template for native providers.",
-            "example": "/dav/files/{path}",
+          "provider": {
             "type": "string"
-          },
-          "facadeBasePath": {
-            "description": "Weave-owned WebDAV facade base path for native providers.",
-            "example": "/dav/files",
-            "type": "string"
-          },
-          "listPathTemplate": {
-            "description": "Weave-owned WebDAV list path template for native providers.",
-            "example": "/dav/files/{path}",
-            "type": "string"
-          },
-          "options": {
-            "description": "OS-specific provider setup options.",
-            "items": {
-              "$ref": "#/components/schemas/FileNativeProviderOptionResponse"
-            },
-            "type": "array"
-          },
-          "proofHooks": {
-            "description": "Executable proof hooks that can be exercised before full OS extension availability.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "providerConfigurationExposed": {
-            "description": "False: member/native setup must not receive raw storage-provider configuration.",
-            "example": false,
-            "type": "boolean"
           },
           "readiness": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse",
-            "description": "Files capability readiness as seen by the authenticated member."
-          },
-          "supportSafe": {
-            "description": "True when this setup contract excludes raw provider endpoints, credentials, and diagnostics.",
-            "example": true,
-            "type": "boolean"
-          },
-          "uploadPath": {
-            "description": "Weave-owned WebDAV upload path for native providers.",
-            "example": "/dav/files/{path}",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "FileSetupCredentialListResponse": {
-        "properties": {
-          "credentials": {
-            "items": {
-              "$ref": "#/components/schemas/FileSetupCredentialResponse"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "FileSetupCredentialRequest": {
-        "properties": {
-          "clientType": {
-            "maxLength": 32,
-            "minLength": 0,
             "type": "string"
           },
-          "label": {
-            "maxLength": 128,
-            "minLength": 0,
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "FileSetupCredentialResponse": {
-        "description": "Weave-issued, revocable WebDAV client credential. Secret material is returned only at creation.",
-        "properties": {
-          "clientType": {
-            "type": "string"
-          },
-          "credentialId": {
-            "type": "string"
-          },
-          "expiresAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "issuedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "label": {
-            "type": "string"
-          },
-          "principalRef": {
-            "type": "string"
-          },
-          "revocationActions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "revokedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "secret": {
-            "description": "One-time WebDAV secret. Present only in the create response.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "secretMaterialReturned": {
-            "type": "boolean"
-          },
-          "state": {
-            "type": "string"
-          },
-          "username": {
-            "type": "string"
-          },
-          "webDavBasePath": {
+          "status": {
             "type": "string"
           }
         },
@@ -3909,6 +3581,32 @@
         ],
         "type": "object"
       },
+      "GuestInvitationResponse": {
+        "properties": {
+          "explicitPolicyRequired": {
+            "type": "boolean"
+          },
+          "grantedCapabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "guestId": {
+            "type": "string"
+          },
+          "identityType": {
+            "type": "string"
+          },
+          "internalUserMerged": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "HealthResponse": {
         "properties": {
           "actions": {
@@ -3954,6 +3652,51 @@
           "reauthorizationRequired",
           "state"
         ],
+        "type": "object"
+      },
+      "InteropStatusResponse": {
+        "description": "Disabled-by-default interop gateway status and support-safe contract.",
+        "properties": {
+          "auditEventTypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalConnectionResponse"
+            },
+            "type": "array"
+          },
+          "connectorBoundary": {
+            "$ref": "#/components/schemas/ConnectorBoundarySummaryResponse"
+          },
+          "consentRegistry": {
+            "$ref": "#/components/schemas/ConsentCapabilityRegistryResponse"
+          },
+          "degradedStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "rateLimitStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "readiness": {
+            "type": "string"
+          },
+          "supportBundle": {
+            "$ref": "#/components/schemas/SupportBundlePolicyResponse"
+          }
+        },
         "type": "object"
       },
       "InventorySummary": {
@@ -6588,6 +6331,23 @@
         },
         "type": "object"
       },
+      "SlackOAuthCallbackResponse": {
+        "properties": {
+          "credentialStored": {
+            "type": "boolean"
+          },
+          "installed": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SlackOutboundMessageRequest": {
         "properties": {
           "eventId": {
@@ -6610,6 +6370,77 @@
           "eventId",
           "text"
         ],
+        "type": "object"
+      },
+      "SlackOutboundMessageResponse": {
+        "properties": {
+          "channelRef": {
+            "type": "string"
+          },
+          "deliveryStatus": {
+            "type": "string"
+          },
+          "dryRunOnly": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "productionCallAttempted": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "workspaceRef": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SlackStatusResponse": {
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "channelMappingConfigured": {
+            "type": "boolean"
+          },
+          "degradedStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "oauthConfigured": {
+            "type": "boolean"
+          },
+          "productionCallsAllowed": {
+            "type": "boolean"
+          },
+          "readiness": {
+            "type": "string"
+          },
+          "signingConfigured": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tokenReferenceConfigured": {
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "SourceInventory": {
@@ -6745,6 +6576,23 @@
               "type": "string"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "SupportBundlePolicyResponse": {
+        "properties": {
+          "providerSecretsRedacted": {
+            "type": "boolean"
+          },
+          "redactedFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "redactionMode": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -6900,6 +6748,32 @@
           },
           "updatedAt": {
             "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TeamsContractResponse": {
+        "properties": {
+          "degradedStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "gatedBehindSlackHardening": {
+            "type": "boolean"
+          },
+          "requiredBeforeImplementation": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "status": {
             "type": "string"
           }
         },
@@ -7525,6 +7399,16 @@
           }
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMigrationPreflightReport"
+                }
+              }
+            },
+            "description": "Support-safe Chat migration preflight report."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -7638,6 +7522,16 @@
         "description": "Returns support-safe Chat provider mapping and readiness diagnostics for admins/operators.",
         "operationId": "getAdminChatReadiness",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatReadiness"
+                }
+              }
+            },
+            "description": "Support-safe Admin Chat readiness."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -9606,7 +9500,27 @@
                 }
               }
             },
-            "description": "Created"
+            "description": "First owner invitation."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid owner-bootstrap credential."
+          },
+          "503": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner bootstrap is unavailable."
           }
         },
         "security": [
@@ -9624,6 +9538,16 @@
       "get": {
         "operationId": "accessPolicy",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarAccessPolicyResponse"
+                }
+              }
+            },
+            "description": "Effective private Calendar access policy."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -10363,359 +10287,6 @@
         ]
       }
     },
-    "/api/calendar/client-setup": {
-      "get": {
-        "operationId": "clientSetup",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/CalendarClientSetupResponse"
-                }
-              }
-            },
-            "description": "Secret-free native calendar client setup metadata."
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope or the required effective Calendar capability."
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Calendar storage adapter is not configured or unavailable."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Describe native calendar client setup options",
-        "tags": [
-          "Calendar"
-        ]
-      }
-    },
-    "/api/calendar/client-setup/apple.mobileconfig": {
-      "get": {
-        "operationId": "appleMobileConfigProfile",
-        "responses": {
-          "200": {
-            "content": {
-              "application/x-apple-aspen-config": {}
-            },
-            "description": "Signed secret-free Apple Calendar .mobileconfig profile."
-          },
-          "401": {
-            "content": {
-              "application/x-apple-aspen-config": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "application/x-apple-aspen-config": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope or the required effective Calendar capability."
-          },
-          "503": {
-            "content": {
-              "application/x-apple-aspen-config": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Calendar storage adapter is not configured or unavailable."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Download a signed Apple Calendar setup profile",
-        "tags": [
-          "Calendar"
-        ]
-      }
-    },
-    "/api/calendar/client-setup/credentials": {
-      "get": {
-        "operationId": "setupCredentials",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/CalendarSetupCredentialListResponse"
-                }
-              }
-            },
-            "description": "Calendar setup credentials without secret material."
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope or the required effective Calendar capability."
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Calendar storage adapter is not configured or unavailable."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "List revocable calendar setup credential references",
-        "tags": [
-          "Calendar"
-        ]
-      },
-      "post": {
-        "operationId": "createSetupCredential",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CalendarSetupCredentialRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/CalendarSetupCredentialResponse"
-                }
-              }
-            },
-            "description": "New calendar credential with one-time secret material."
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope or the required effective Calendar capability."
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Calendar storage adapter is not configured or unavailable."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Create a revocable calendar setup credential and return its secret once",
-        "tags": [
-          "Calendar"
-        ]
-      }
-    },
-    "/api/calendar/client-setup/credentials/{credentialId}": {
-      "delete": {
-        "operationId": "revokeSetupCredential",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "credentialId",
-            "required": true,
-            "schema": {
-              "maxLength": 128,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/CalendarSetupCredentialResponse"
-                }
-              }
-            },
-            "description": "Revoked calendar credential without secret material."
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope or the required effective Calendar capability."
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Calendar storage adapter is not configured or unavailable."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Revoke a calendar setup credential reference",
-        "tags": [
-          "Calendar"
-        ]
-      }
-    },
-    "/api/calendar/native-sync-setup": {
-      "get": {
-        "description": "Returns support-safe iOS Calendar profile and Android Account/SyncAdapter setup metadata backed only by Weave-owned calendar facade endpoints.",
-        "operationId": "getCalendarNativeSyncSetup",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/CalendarNativeSyncSetupResponse"
-                }
-              }
-            },
-            "description": "Native Calendar setup/sync metadata."
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope or the required effective Calendar capability."
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Calendar storage adapter is not configured or unavailable."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Describe native Calendar setup and sync boundary",
-        "tags": [
-          "Calendar"
-        ]
-      }
-    },
     "/api/calendar/scopes": {
       "get": {
         "operationId": "scopes",
@@ -11175,164 +10746,6 @@
         "summary": "Validate an internal connector manifest without accepting secret values",
         "tags": [
           "Connectors"
-        ]
-      }
-    },
-    "/api/files/client-setup/credentials": {
-      "get": {
-        "operationId": "getFilesSetupCredentials",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileSetupCredentialListResponse"
-                }
-              }
-            },
-            "description": "Files setup credentials without secret material."
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "List revocable Files WebDAV setup credential references",
-        "tags": [
-          "Files"
-        ]
-      },
-      "post": {
-        "operationId": "createFilesSetupCredential",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FileSetupCredentialRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileSetupCredentialResponse"
-                }
-              }
-            },
-            "description": "New Files credential with one-time secret material."
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Create a revocable Files WebDAV setup credential and return its secret once",
-        "tags": [
-          "Files"
-        ]
-      }
-    },
-    "/api/files/client-setup/credentials/{credentialId}": {
-      "delete": {
-        "operationId": "revokeFilesSetupCredential",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "credentialId",
-            "required": true,
-            "schema": {
-              "maxLength": 128,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileSetupCredentialResponse"
-                }
-              }
-            },
-            "description": "Revoked Files credential without secret material."
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Revoke a Files WebDAV setup credential reference",
-        "tags": [
-          "Files"
         ]
       }
     },
@@ -12268,53 +11681,6 @@
         ]
       }
     },
-    "/api/files/native-provider-setup": {
-      "get": {
-        "description": "Returns support-safe iOS File Provider and Android DocumentsProvider setup metadata backed only by Weave-owned file facade endpoints.",
-        "operationId": "getFilesNativeProviderSetup",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileNativeProviderSetupResponse"
-                }
-              }
-            },
-            "description": "Native Files provider setup metadata."
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Describe native Files provider setup",
-        "tags": [
-          "Files"
-        ]
-      }
-    },
     "/api/files/readiness": {
       "get": {
         "description": "Returns the member-safe, provider-neutral Files capability readiness derived from the canonical workspace capability snapshot.",
@@ -12374,7 +11740,27 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Guest identity and access policy contract."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid User bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "User token lacks workspace or organization authority."
           }
         },
         "security": [
@@ -12402,6 +11788,36 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestInvitationResponse"
+                }
+              }
+            },
+            "description": "Created guest invitation."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid User bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "User token lacks workspace or organization authority."
+          },
           "503": {
             "content": {
               "*/*": {
@@ -12496,6 +11912,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanonicalBridgeEventResponse"
+                }
+              }
+            },
+            "description": "Canonical sandbox bridge event."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -12552,6 +11978,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackOutboundMessageResponse"
+                }
+              }
+            },
+            "description": "Sandbox outbound bridge result."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -12608,6 +12044,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackOAuthCallbackResponse"
+                }
+              }
+            },
+            "description": "Disabled token-exchange callback result."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -12654,6 +12100,16 @@
       "get": {
         "operationId": "slackStatus",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackStatusResponse"
+                }
+              }
+            },
+            "description": "Slack bridge readiness."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -12690,6 +12146,16 @@
       "get": {
         "operationId": "getInteropStatus",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/InteropStatusResponse"
+                }
+              }
+            },
+            "description": "Support-safe interop gateway status."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -12726,6 +12192,16 @@
       "get": {
         "operationId": "teamsContract",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamsContractResponse"
+                }
+              }
+            },
+            "description": "Gated Teams bridge contract."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -12827,7 +12303,27 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Provider migration apply-gate evaluation."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Admin token lacks organization or administration authority."
           }
         },
         "security": [
@@ -12863,7 +12359,27 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Replay-safe migration inventory dry-run."
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Admin token lacks organization or administration authority."
           }
         },
         "security": [
@@ -13604,7 +13120,7 @@
       "name": "Identity"
     },
     {
-      "description": "Authenticated Files setup and readiness. Generated User data-plane operations are under /api/files/items; the WebDAV facade remains a separate compatibility surface.",
+      "description": "Provider-neutral Files readiness. Generated User data operations are under /api/files/items.",
       "name": "Files"
     },
     {

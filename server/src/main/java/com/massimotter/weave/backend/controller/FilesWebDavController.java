@@ -26,6 +26,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,6 +39,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 
 @RestController
 @Hidden
+@ConditionalOnProperty(name = "weave.compatibility.public-dav.enabled", havingValue = "true")
 public class FilesWebDavController {
 
     private static final String DAV_ROOT = "/dav/files";

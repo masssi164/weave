@@ -16,19 +16,25 @@
 import * as runtime from '../runtime';
 import type {
   ApiErrorResponse,
+  ChatMigrationPreflightReport,
   ChatMigrationPreflightRequest,
   ChatProviderReplacementDryRunRequest,
   ChatProviderReplacementDryRunResponse,
+  ChatReadiness,
 } from '../models/index';
 import {
     ApiErrorResponseFromJSON,
     ApiErrorResponseToJSON,
+    ChatMigrationPreflightReportFromJSON,
+    ChatMigrationPreflightReportToJSON,
     ChatMigrationPreflightRequestFromJSON,
     ChatMigrationPreflightRequestToJSON,
     ChatProviderReplacementDryRunRequestFromJSON,
     ChatProviderReplacementDryRunRequestToJSON,
     ChatProviderReplacementDryRunResponseFromJSON,
     ChatProviderReplacementDryRunResponseToJSON,
+    ChatReadinessFromJSON,
+    ChatReadinessToJSON,
 } from '../models/index';
 
 export interface CreateChatMigrationPreflightRequest {
@@ -54,13 +60,13 @@ export interface ChatDomainApiInterface {
      * @throws {RequiredError}
      * @memberof ChatDomainApiInterface
      */
-    createChatMigrationPreflightRaw(requestParameters: CreateChatMigrationPreflightRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>>;
+    createChatMigrationPreflightRaw(requestParameters: CreateChatMigrationPreflightRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ChatMigrationPreflightReport>>;
 
     /**
      * Creates a support-safe, audited dry-run report for Chat provider replacement. Destructive apply is intentionally unavailable in this contract.
      * Dry-run a future Chat provider replacement
      */
-    createChatMigrationPreflight(requestParameters: CreateChatMigrationPreflightRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
+    createChatMigrationPreflight(requestParameters: CreateChatMigrationPreflightRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ChatMigrationPreflightReport>;
 
     /**
      *
@@ -84,13 +90,13 @@ export interface ChatDomainApiInterface {
      * @throws {RequiredError}
      * @memberof ChatDomainApiInterface
      */
-    getAdminChatReadinessRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>>;
+    getAdminChatReadinessRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ChatReadiness>>;
 
     /**
      * Returns support-safe Chat provider mapping and readiness diagnostics for admins/operators.
      * Get admin Chat readiness
      */
-    getAdminChatReadiness(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
+    getAdminChatReadiness(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ChatReadiness>;
 
 }
 
@@ -103,7 +109,7 @@ export class ChatDomainApi extends runtime.BaseAPI implements ChatDomainApiInter
      * Creates a support-safe, audited dry-run report for Chat provider replacement. Destructive apply is intentionally unavailable in this contract.
      * Dry-run a future Chat provider replacement
      */
-    async createChatMigrationPreflightRaw(requestParameters: CreateChatMigrationPreflightRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+    async createChatMigrationPreflightRaw(requestParameters: CreateChatMigrationPreflightRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ChatMigrationPreflightReport>> {
         const queryParameters: any = {};
 
         const headerParameters: runtime.HTTPHeaders = {};
@@ -129,15 +135,16 @@ export class ChatDomainApi extends runtime.BaseAPI implements ChatDomainApiInter
             body: ChatMigrationPreflightRequestToJSON(requestParameters['chatMigrationPreflightRequest']),
         }, initOverrides);
 
-        return new runtime.VoidApiResponse(response);
+        return new runtime.JSONApiResponse(response, (jsonValue) => ChatMigrationPreflightReportFromJSON(jsonValue));
     }
 
     /**
      * Creates a support-safe, audited dry-run report for Chat provider replacement. Destructive apply is intentionally unavailable in this contract.
      * Dry-run a future Chat provider replacement
      */
-    async createChatMigrationPreflight(requestParameters: CreateChatMigrationPreflightRequest = {}, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
-        await this.createChatMigrationPreflightRaw(requestParameters, initOverrides);
+    async createChatMigrationPreflight(requestParameters: CreateChatMigrationPreflightRequest = {}, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ChatMigrationPreflightReport> {
+        const response = await this.createChatMigrationPreflightRaw(requestParameters, initOverrides);
+        return await response.value();
     }
 
     /**
@@ -191,7 +198,7 @@ export class ChatDomainApi extends runtime.BaseAPI implements ChatDomainApiInter
      * Returns support-safe Chat provider mapping and readiness diagnostics for admins/operators.
      * Get admin Chat readiness
      */
-    async getAdminChatReadinessRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+    async getAdminChatReadinessRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ChatReadiness>> {
         const queryParameters: any = {};
 
         const headerParameters: runtime.HTTPHeaders = {};
@@ -214,15 +221,16 @@ export class ChatDomainApi extends runtime.BaseAPI implements ChatDomainApiInter
             query: queryParameters,
         }, initOverrides);
 
-        return new runtime.VoidApiResponse(response);
+        return new runtime.JSONApiResponse(response, (jsonValue) => ChatReadinessFromJSON(jsonValue));
     }
 
     /**
      * Returns support-safe Chat provider mapping and readiness diagnostics for admins/operators.
      * Get admin Chat readiness
      */
-    async getAdminChatReadiness(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
-        await this.getAdminChatReadinessRaw(initOverrides);
+    async getAdminChatReadiness(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ChatReadiness> {
+        const response = await this.getAdminChatReadinessRaw(initOverrides);
+        return await response.value();
     }
 
 }

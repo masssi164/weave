@@ -93,10 +93,41 @@ ID, path and strong provider version before activating replacement bytes. A stal
 replaced object fails without changing the active mapping or serving changed content.
 
 The product acceptance evidence must report the generated User Files northbound
-surface. Public WebDAV/CalDAV probes may remain in separately named compatibility
-regressions, but the current-scope Full Compose product flow must not require them or
-report them as its product northbound contract. Matrix remains the explicit protocol
-exception and has its own independent-client qualification gate.
+surface. Historical WebDAV/CalDAV probes may remain in separately named compatibility
+regressions, but the public DAV controllers are disabled by default and the
+current-scope Full Compose product flow must neither require nor advertise them.
+The internal connector runtime boundary and manifest validator are not User or
+Admin product operations. Keep their existing runtime authorization and internal
+combined documentation, but exclude `/api/connectors/**` from the generated User
+artifact and its clients until a public connector SDK contract is approved.
+An operator may set `WEAVE_COMPATIBILITY_PUBLIC_DAV_ENABLED=true` only for a
+separately documented compatibility environment; it is not a current-release
+member setup path. The corresponding Spring property is
+`weave.compatibility.public-dav.enabled`, whose default is `false`.
+The User OpenAPI artifact must not include DAV setup credentials, CalDAV
+mobileconfig, or native setup metadata that advertises those routes. The actual
+Files/Calendar User operations and their security, version and binary behavior
+remain in the generated contract. Historical credential issuance, revocation,
+permission and recovery tests remain available as service or opt-in compatibility
+tests; ordinary release tests assert that the retired setup routes cannot issue a
+credential.
+
+Admin provider status and readiness diagnostics must identify the
+active generated User Files and Calendar API paths. They must not advertise the
+disabled-by-default northbound DAV projections as the active facade.
+
+The active Calendar access-policy operation must expose its typed
+success response in the User artifact so generated consumers can read it. Every
+exported User/Admin operation that can succeed must declare a real 2xx response;
+non-204 success bodies must have a typed schema, including disabled-by-default
+preview operations that can be enabled. Secured Guest operations declare User-token
+401/403 errors; the existing Admin migration preflight declares Admin-token 401/403
+errors; and the owner-bootstrap route declares its distinct bootstrap-credential
+401 and unavailable 503 responses. Documenting an existing migration preflight
+does not make provider adoption, cutover or rollback part of #1470 acceptance;
+#1498 owns those outcomes. Matrix
+remains the explicit protocol exception and has its own
+independent-client qualification gate.
 Member Home may project a completed User Files write from the support-safe audit
 envelope only for its actor while User Files objects have owner-only access. It must
 not expose that object's activity to an ungranted member of the same organization.
