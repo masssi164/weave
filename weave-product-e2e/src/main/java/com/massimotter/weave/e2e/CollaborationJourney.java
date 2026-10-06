@@ -17,9 +17,11 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +33,7 @@ final class CollaborationJourney {
   private static final Set<PosixFilePermission> OWNER_FILE_PERMISSIONS =
       PosixFilePermissions.fromString("rw-------");
   private static final String MATRIX_DEVICE_HEADER = "X-Weave-Matrix-Device-Id";
+  private static final String MATRIX_DEVICE_PROOF_HEADER = "X-Weave-Matrix-Device-Proof";
   private static final String MEGOLM = "m.megolm.v1.aes-sha2";
   private static final Duration PROCESS_TIMEOUT = Duration.ofMinutes(5);
   private static final Duration PROCESS_CLEANUP_TIMEOUT = Duration.ofSeconds(10);
@@ -41,6 +44,8 @@ final class CollaborationJourney {
   private final GeneratedCalendarJourney calendar;
   private final GeneratedFilesJourney files;
   private final GeneratedProfileHomeApi profileHome;
+  private final SecureRandom deviceProofRandom = new SecureRandom();
+  private final Map<String, String> deviceProofs = new LinkedHashMap<>();
 
   CollaborationJourney(ProductFlowEnvironment environment, JsonHttpClient http) {
     this.environment = environment;
@@ -1001,10 +1006,18 @@ final class CollaborationJourney {
     return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
   }
 
-  private static Map<String, String> bearer(String token, Map<String, String> additional) {
+  private Map<String, String> bearer(String token, Map<String, String> additional) {
     Map<String, String> headers = new LinkedHashMap<>();
     headers.put("Authorization", "Bearer " + token);
     headers.putAll(additional);
+    String deviceId = additional.get(MATRIX_DEVICE_HEADER);
+    if (deviceId != null) {
+      headers.put(MATRIX_DEVICE_PROOF_HEADER, deviceProofs.computeIfAbsent(deviceId, ignored -> {
+        byte[] secret = new byte[48];
+        deviceProofRandom.nextBytes(secret);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
+      }));
+    }
     return Map.copyOf(headers);
   }
 
