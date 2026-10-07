@@ -155,7 +155,8 @@ jobs:
           retention-days: 7
 
   gradle_ci:
-    name: Gradle CI
+    # A label-only run must not publish a skipped result under the protected check name.
+    name: ${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && 'Label-only aggregate (skipped)' || 'Gradle CI' }}
     if: always() && (github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled'))
     needs:
       - core_architecture
