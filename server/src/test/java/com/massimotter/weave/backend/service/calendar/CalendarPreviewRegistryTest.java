@@ -34,9 +34,18 @@ class CalendarPreviewRegistryTest {
                 7, new EventId("private-provider-id"), "\"etag-2\"").handle()).isNotEqualTo(issued.handle());
         assertThat(registry.resolve(issued.handle())).isPresent();
         assertThat(registry.resolve(issued.handle() + "x")).isEmpty();
+        now.set(issued.expiresAt().minusSeconds(1));
+        CalendarPreviewRegistry.Issued rotated = registry.issue("tenant", "member", "calendar:scope",
+                CalendarScope.workspace(), 7, new EventId("private-provider-id"), "\"etag-1\"");
+        assertThat(rotated.handle()).isNotEqualTo(issued.handle());
+        assertThat(rotated.expiresAt()).isEqualTo(now.get().plus(CalendarPreviewRegistry.LIFETIME));
+        assertThat(registry.resolve(issued.handle())).isPresent();
         now.set(issued.expiresAt());
         assertThat(registry.resolve(issued.handle())).isEmpty();
+        assertThat(registry.resolve(rotated.handle())).isPresent();
         assertThat(registry.issue("tenant", "member", "calendar:scope", CalendarScope.workspace(),
-                7, new EventId("private-provider-id"), "\"etag-1\"").handle()).isNotEqualTo(issued.handle());
+                7, new EventId("private-provider-id"), "\"etag-1\"")).isEqualTo(rotated);
+        now.set(rotated.expiresAt());
+        assertThat(registry.resolve(rotated.handle())).isEmpty();
     }
 }

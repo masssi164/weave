@@ -30,9 +30,11 @@ final class CalendarPreviewRegistry {
             long bindingRevision, EventId providerId, String providerVersion) {
         Instant now = clock.instant();
         leases.entrySet().removeIf(entry -> !entry.getValue().expiresAt().isAfter(now));
+        Instant minimumReusableExpiry = now.plus(LIFETIME.dividedBy(2));
         for (Map.Entry<String, Lease> entry : leases.entrySet()) {
             Lease lease = entry.getValue();
-            if (lease.matches(organization, principal, calendarId, scope, bindingRevision, providerId, providerVersion)) {
+            if (lease.expiresAt().isAfter(minimumReusableExpiry)
+                    && lease.matches(organization, principal, calendarId, scope, bindingRevision, providerId, providerVersion)) {
                 return new Issued(entry.getKey(), lease.expiresAt());
             }
         }

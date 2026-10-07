@@ -39,8 +39,10 @@ implementation evidence for pinned corpus `71a2093d91ad300bc733ede66080bddc90f97
   checks, active-binding revision and provider-version checks. It has no stable Event
   ID or meeting-thread reference and is not an authorization grant. Repeated
   browsing of the same actor, scope, binding and provider version reuses
-  its live preview handle so ordinary refreshes cannot exhaust the bounded lease
-  registry. Explicit
+  its live preview handle while at least half its lease remains. Near expiry,
+  browsing issues a fresh handle while the previous handle remains valid until
+  its original expiry. This prevents ordinary refreshes from exhausting the
+  bounded lease registry or presenting an almost-expired preview. Explicit
   materialization through a generated User operation rechecks the provider and creates
   or reuses one stable mapping before an existing event can be edited or deleted.
   Expiry, tampering, stale binding/version, member denial and audit failure must not
