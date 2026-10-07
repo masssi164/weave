@@ -132,6 +132,36 @@ class JpaProviderBindingRepositoryPostgresTest {
     }
 
     @Test
+    void chatAuthorityIsOrganizationScopedDurableAndCannotTransitionWithoutReconciliation() {
+        DriverManagerDataSource dataSource = migratedDataSource();
+        var repository = ProviderBindingJpaTestFactory.create(dataSource);
+        Instant now = Instant.parse("2026-10-07T10:00:00Z");
+
+        var first = repository.activate("org:chat-a", "chat", 0, "weave-native", "profile:weave-native", now);
+        var second = repository.activate("org:chat-b", "chat", 0, "matrix-synapse", "profile:matrix-synapse", now);
+        assertThat(repository.current("org:chat-a", "chat")).contains(first);
+        assertThat(repository.current("org:chat-b", "chat")).contains(second);
+        assertThat(repository.current("org:foreign", "chat")).isEmpty();
+
+        assertThatThrownBy(() -> repository.activate("org:chat-a", "chat", first.revision(),
+                "matrix-synapse", "profile:matrix-synapse", now.plusSeconds(1)))
+                .isInstanceOf(JpaProviderBindingRepository.ChatBindingTransitionBlockedException.class);
+        assertThatThrownBy(() -> repository.activate("org:chat-a", "chat", first.revision(),
+                "weave-native", "profile:weave-native", now.plusSeconds(2)))
+                .isInstanceOf(JpaProviderBindingRepository.ChatBindingTransitionBlockedException.class);
+
+        DriverManagerDataSource restartedDataSource = new DriverManagerDataSource();
+        restartedDataSource.setDriverClassName(POSTGRES.getDriverClassName());
+        restartedDataSource.setUrl(dataSource.getUrl());
+        restartedDataSource.setUsername(POSTGRES.getUsername());
+        restartedDataSource.setPassword(POSTGRES.getPassword());
+        var restarted = ProviderBindingJpaTestFactory.create(restartedDataSource);
+        assertThat(restarted.current("org:chat-a", "chat")).contains(first);
+        assertThat(restarted.current("org:chat-b", "chat")).contains(second);
+        assertThat(restarted.revision("org:chat-a", "chat", 2)).isEmpty();
+    }
+
+    @Test
     void stagedMappingsStayOffTheLiveRouteAndConcurrentStaleActivationFailsClosed() throws Exception {
         DriverManagerDataSource dataSource = migratedDataSource();
         var repository = ProviderBindingJpaTestFactory.create(dataSource);

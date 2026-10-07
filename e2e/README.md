@@ -24,8 +24,10 @@ separate, bounded northbound protocol defined by
 boundary handles Matrix wire behavior while ChatProviderPort selects a provider
 southbound. Flutter native Matrix SDK and Weaver/OpenClaw integration retain
 supported Matrix sessions. One Weave login must prepare all authorized member
-capabilities without another member Connect or token workflow. Independent
-Matrix-client interoperability remains required. Member capability states remain
+capabilities without another member Connect or token workflow. Weave-owned
+Flutter and Weaver/OpenClaw Matrix journeys remain required; independent
+third-party Matrix-client interoperability is deferred by the current profile.
+Member capability states remain
 provider-neutral. MCP has no provider or IAM administrator credential; its workload identity never
 replaces current member or resource authorization. Private Runners are deferred.
 
@@ -43,8 +45,8 @@ and ADR-004/006/007 are historical link targets; they are not current acceptance
 or runtime evidence.
 
 The current contract mapping is an offline specification check. Release-grade
-evidence is still missing until integrated runs prove native and independent
-Matrix clients, generated User/Admin/MCP consumers, provider-backed Files and
+evidence is still missing until integrated runs prove Weave-owned native Flutter
+and Weaver/OpenClaw Matrix clients, generated User/Admin/MCP consumers, provider-backed Files and
 Calendar, member authorization, restart and recovery behavior, and support-safe
 artifacts with independently asserted expected results. #1498 tracks the
 provider-switch and rollback journey separately.
