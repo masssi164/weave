@@ -63,7 +63,7 @@ Server controllers, transport models and validation generate the separate User a
 
 ```bash
 ./gradlew generateOpenApiContract
-./gradlew generateClientUserApi generateAdminOpenApiTypes generateAdminApiClient generateAdminPublicUserApiClient
+./gradlew generateClientUserApi generateAdminApiClient generateAdminPublicUserApiClient
 ./gradlew generatedApiCi
 ```
 
