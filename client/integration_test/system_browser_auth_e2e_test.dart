@@ -45,6 +45,7 @@ void main() {
   const twoDeviceRecoveryEnabled = bool.fromEnvironment(
     'WEAVE_TWO_DEVICE_MATRIX_RECOVERY_E2E',
   );
+  const disposableStack = bool.fromEnvironment('WEAVE_DEVICE_DISPOSABLE_STACK');
   final config = TestConfig.fromEnvironment();
 
   testWidgets(
@@ -324,7 +325,8 @@ void main() {
     skip:
         !matrixEnabled ||
         !disposableMessageEnabled ||
-        !twoDeviceRecoveryEnabled,
+        !twoDeviceRecoveryEnabled ||
+        !disposableStack,
     timeout: const Timeout(Duration(minutes: 18)),
   );
 }
