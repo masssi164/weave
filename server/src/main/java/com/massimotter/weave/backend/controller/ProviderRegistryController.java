@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -21,9 +22,9 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "bearer-jwt")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(responseCode = "403", description = "Missing workspace scope, wrong deployment organization, or denied Admin readiness capability.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
 })
 public class ProviderRegistryController {
 
@@ -37,7 +38,7 @@ public class ProviderRegistryController {
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(operationId = "status", summary = "Read support-safe admin/provider category capability and readiness status")
     @ApiResponse(responseCode = "200", description = "Deployment provider configuration and the configured organization's actual Files binding status.",
-            content = @Content(schema = @Schema(implementation = ProviderRegistryResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ProviderRegistryResponse.class)))
     public ProviderRegistryResponse status(@AuthenticationPrincipal Jwt jwt) {
         return providerRegistry.status(jwt);
     }

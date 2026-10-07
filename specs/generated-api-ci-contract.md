@@ -18,6 +18,16 @@ No Home-core, dogfood, production service or deployment credential is involved.
    `openApiContractExport` test context and export separate User/Admin artifacts.
    Compare the deterministic exports with the checked-in documents. Explicit operation
    IDs, partitioning, ordered examples, errors, headers and schema semantics remain checked.
+   The Profile User operations declare `application/json` for their actual success
+   and `ApiErrorResponse` failures, including validation, authentication and
+   authorization errors. Profile PATCH also declares its actual JSON-envelope
+   `415` for unsupported request media types; a wildcard response media type or
+   omitted failure status is not an accurate projection of its HTTP behavior.
+   Across User and Admin controllers, a response annotated with a JSON transport
+   DTO or `ApiErrorResponse` declares `application/json` in server code. The
+   generated artifacts must not turn these object envelopes into `*/*` merely
+   because the controller annotation omitted the media type. Binary and empty
+   responses retain their distinct explicit contracts.
    Files HTTP probes assert support-safe `ApiErrorResponse` failures before service/provider
    access: invalid folder DTOs and missing required upload query parameters return 400;
    an unsupported upload media type returns 415. A raced absent-name folder precondition
@@ -34,6 +44,11 @@ No Home-core, dogfood, production service or deployment credential is involved.
 4. Require this real job in the existing protected `Gradle CI` aggregate alongside all
    current foundation jobs. A skipped, failed or cancelled required job must not pass
    the aggregate. No branch-protection check is removed or replaced with unconditional success.
+   Label-only PR events may rerun the release-notes check without rerunning the full
+   foundation chain, but their skipped aggregate must use a different check name.
+   The protected `Gradle CI` context is emitted only by a full exact-head run that
+   requires every foundation job. A label change must never turn a skipped aggregate
+   into a passing required context.
 
 The seven hosted foundation jobs are scheduled in a dependency chain on the same
 candidate: architecture, canonical data, PostgreSQL persistence, server

@@ -17,6 +17,8 @@ import com.massimotter.weave.backend.persistence.jpa.audit.AuditEventJpaReposito
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.provider.ProviderSelection;
+import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
+import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.service.migration.InMemoryMigrationRunEvidenceRepository;
 import java.io.InputStream;
 import java.time.Clock;
@@ -24,6 +26,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
@@ -33,8 +36,61 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 class AdminControlPlaneServiceTest {
+
+    @Test
+    void selectionMetadataCannotContradictAnActiveChatOrCalendarBinding() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        ProviderBindingRepository bindings = mock(ProviderBindingRepository.class);
+        Instant now = Instant.parse("2026-10-07T09:00:00Z");
+        when(bindings.current("weave-dogfood", "chat")).thenReturn(Optional.of(
+                new ProviderBinding("weave-dogfood", "chat", 3, "weave-native",
+                        "profile:weave-native", ProviderBinding.State.ACTIVE, now)));
+        when(bindings.current("weave-dogfood", "calendar")).thenReturn(Optional.of(
+                new ProviderBinding("weave-dogfood", "calendar", 2, "weave-native",
+                        "configuration:calendar:deployment", ProviderBinding.State.ACTIVE, now)));
+        AdminControlPlaneService service = new AdminControlPlaneService(
+                new ProviderRegistry(List.of(), workspaceCapabilityService(), selections),
+                workspaceCapabilityService(), selections,
+                new InMemoryOrganizationBootstrapRepository(), audit,
+                Clock.fixed(now, ZoneOffset.UTC), mock(ProductProfileOverrideRepository.class),
+                new InMemoryMigrationRunEvidenceRepository(),
+                OrganizationIdentityContextResolver.defaults(), bindings);
+
+        for (var candidate : List.of(Map.entry("chat", "matrix-synapse"),
+                Map.entry("calendar", "nextcloud-caldav"))) {
+            for (boolean dryRun : List.of(true, false)) {
+                var request = new com.massimotter.weave.backend.model.admin.ProviderSelectionRequest(
+                        candidate.getKey(), candidate.getValue(), "recommended_self_hosted_default",
+                        "secretref://weave/provider/" + candidate.getValue(), dryRun, List.of(),
+                        "inspect category metadata");
+                assertThatThrownBy(() -> service.selectProvider(request, jwt("admin")))
+                        .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                            assertThat(exception.status().value()).isEqualTo(409);
+                            assertThat(exception.code()).isEqualTo("provider-selection-conflicts-active-binding");
+                        });
+            }
+            assertThat(selections.findByCategory(candidate.getKey())).isEmpty();
+            verify(bindings, org.mockito.Mockito.times(2))
+                    .current("weave-dogfood", candidate.getKey());
+        }
+        assertThat(audit.events()).isEmpty();
+
+        var matching = service.selectProvider(
+                new com.massimotter.weave.backend.model.admin.ProviderSelectionRequest(
+                        "chat", "weave-native", "recommended_self_hosted_default",
+                        "secretref://weave/provider/weave-native", false, List.of(),
+                        "record existing authority metadata"), jwt("admin"));
+        assertThat(matching.applied()).isTrue();
+        assertThat(selections.findByCategory("chat")).isPresent();
+        verify(bindings, org.mockito.Mockito.times(3)).current("weave-dogfood", "chat");
+        verifyNoMoreInteractions(bindings);
+    }
 
     @Test
     void providerAndPolicyMutationsRequireEffectiveOwnerOrAdminPolicyServerSide() {

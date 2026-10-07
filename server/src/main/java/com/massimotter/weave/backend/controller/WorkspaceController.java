@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,13 +47,13 @@ public class WorkspaceController {
             @ApiResponse(
                     responseCode = "200",
                     description = "Support-safe organization manifest for the authenticated member client.",
-                    content = @Content(schema = @Schema(implementation = OrganizationManifestResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = OrganizationManifestResponse.class))),
             @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "503", description = "Organization auth URL is invalid or support-unsafe.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public OrganizationManifestResponse organizationManifest(@AuthenticationPrincipal Jwt jwt) {
         return organizationManifestService.manifestFor(jwt);
@@ -68,11 +69,11 @@ public class WorkspaceController {
             @ApiResponse(
                     responseCode = "200",
                     description = "Workspace capability snapshot.",
-                    content = @Content(schema = @Schema(implementation = WorkspaceCapabilitiesResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkspaceCapabilitiesResponse.class))),
             @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public WorkspaceCapabilitiesResponse capabilities(@AuthenticationPrincipal Jwt jwt) {
         return workspaceCapabilityService.snapshot(jwt);
@@ -88,11 +89,11 @@ public class WorkspaceController {
             @ApiResponse(
                     responseCode = "200",
                     description = "Weave Home daily-work snapshot.",
-                    content = @Content(schema = @Schema(implementation = WorkspaceHomeResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkspaceHomeResponse.class))),
             @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public WorkspaceHomeResponse home(@AuthenticationPrincipal Jwt jwt) {
         return workspaceHomeService.snapshot(jwt);
