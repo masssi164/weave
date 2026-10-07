@@ -97,10 +97,12 @@ Public CalDAV and provider migration acceptance remain deferred.
 
 - `:server:test`: 1,158 tests, zero failures/errors. Four authoritative normalized
   Calendar persistence cases are deliberately skipped here and run on PostgreSQL.
-- `:server:postgresJpaTest --tests '*NativeCalendarProviderAdapterTest'`: all eight
+- `:server:postgresJpaTest --tests '*NativeCalendarProviderAdapterTest'`: all nine
   Calendar tests pass with zero skips, using entity-first PostgreSQL tables and the
   production `NativeCalendarRelationalStore`. The existing Cucumber engine also runs
-  twelve unchanged Boards scenarios. Evidence includes all four temporal kinds,
+  twelve unchanged Boards scenarios. Evidence includes provider-backed transient
+  preview, no browse mapping, idempotent materialization and stable readback after
+  adapter/service restart, as well as all four temporal kinds,
   attendees, typed UNTIL/RDATE/EXDATE, moved and cancelled instances, fresh adapter
   read/query, exact versions, stale delete, deletion and database interval constraints.
 - HTTP/controller/service tests cover shared human organization admission, unknown
@@ -115,7 +117,7 @@ Public CalDAV and provider migration acceptance remain deferred.
   and result exhaustion fails instead of silently truncating.
 - `specCorpusConformance` passes against pinned corpus `71a2093d91ad`;
   `docsStructureCheck`, `checkOpenApiContractFresh` and `checkClientUserApiFresh`
-  pass. The full Flutter unit/widget suite passes 592 tests with one existing skip;
+  pass. The full Flutter unit/widget suite passes with one existing skip;
   JVM User/Admin client checks and MCP/product-E2E module tests pass. These are
   build and local test results, not a substitute for a real deployed product journey.
 
