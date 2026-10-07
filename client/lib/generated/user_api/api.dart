@@ -43,6 +43,7 @@ part 'api/interop_api.dart';
 part 'api/office_facade_api.dart';
 part 'api/platform_api.dart';
 part 'api/profile_api.dart';
+part 'api/spaces_user_api.dart';
 part 'api/workspace_api.dart';
 
 part 'model/api_error_response.dart';
@@ -139,6 +140,8 @@ part 'model/slack_outbound_message_request.dart';
 part 'model/slack_outbound_message_response.dart';
 part 'model/slack_status_response.dart';
 part 'model/source_repository_response.dart';
+part 'model/space_user_list_response.dart';
+part 'model/space_user_response.dart';
 part 'model/support_bundle_policy_response.dart';
 part 'model/task_item.dart';
 part 'model/teams_contract_response.dart';

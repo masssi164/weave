@@ -109,6 +109,7 @@ tasks.register('postgresJpaTest', Test) {
         includeTestsMatching '*FilesMutationIntentServicePostgresTest'
         includeTestsMatching '*FilesUserApiNativeIntegrationTest'
         includeTestsMatching '*JpaFilesAuthorityRepositoryPostgresTest'
+        includeTestsMatching '*JpaSpaceAccessAdapterPostgresTest'
         includeTestsMatching '*JpaTransferRunRepositoryPostgresTest'
         includeTestsMatching '*WeaveNativeFilesAdapterTest'
         includeTestsMatching '*NativeCalendarProviderAdapterTest'

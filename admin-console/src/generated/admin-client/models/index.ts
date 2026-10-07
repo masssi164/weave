@@ -75,6 +75,8 @@ export * from './ReadModelComparison';
 export * from './ReleaseClaimControlResponse';
 export * from './SecretRefResponse';
 export * from './SourceInventory';
+export * from './SpaceProvisionRequest';
+export * from './SpaceProvisionResponse';
 export * from './SuiteDomainReadinessResponse';
 export * from './SupportSafeEvidenceBundle';
 export * from './SwitchPlan';

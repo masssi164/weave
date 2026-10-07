@@ -14,7 +14,11 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.List;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /** Canonical Space aggregate root. */
 @Entity
@@ -57,6 +61,10 @@ class SpaceJpaEntity {
         }
         lifecycleState = targetState;
         updatedAt = utc(now);
+    }
+
+    boolean active() {
+        return "ACTIVE".equals(lifecycleState);
     }
 
     static OffsetDateTime utc(Instant value) {
@@ -152,6 +160,23 @@ class SpaceMembershipJpaEntity {
                 .truncatedTo(ChronoUnit.MICROS)
                 .atOffset(ZoneOffset.UTC);
     }
+
+    void revoke(Instant now) {
+        lifecycleState = "REVOKED";
+        updatedAt = SpaceJpaEntity.utc(now);
+    }
+
+    boolean active() {
+        return "ACTIVE".equals(lifecycleState);
+    }
+
+    String permissionSet() {
+        return permissionSet;
+    }
+
+    String accountRef() {
+        return id.personRef();
+    }
 }
 
 @Embeddable
@@ -181,6 +206,10 @@ class SpaceMembershipId implements Serializable {
         this.personRef = Objects.requireNonNull(personRef, "personRef");
     }
 
+    String personRef() {
+        return personRef;
+    }
+
     @Override
     public boolean equals(Object candidate) {
         return this == candidate
@@ -198,9 +227,29 @@ class SpaceMembershipId implements Serializable {
 
 interface SpaceMembershipJpaRepository
         extends JpaRepository<SpaceMembershipJpaEntity, SpaceMembershipId> {
+    List<SpaceMembershipJpaEntity> findByIdOrganizationRefAndIdSpaceRef(
+            String organizationRef, String spaceRef);
     Optional<SpaceMembershipJpaEntity>
             findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(
                     String organizationRef,
                     String spaceRef,
                     String personRef);
+
+    @Query("""
+            select s.id.spaceRef from SpaceJpaEntity s, SpaceMembershipJpaEntity m
+            where s.id.organizationRef = :organizationRef
+              and m.id.organizationRef = :organizationRef
+              and s.id.spaceRef = m.id.spaceRef
+              and m.id.personRef = :personRef
+              and s.lifecycleState = 'ACTIVE'
+              and m.lifecycleState = 'ACTIVE'
+              and m.permissionSet in ('VIEW', 'VIEW,EDIT', 'VIEW,EDIT,ADMIN')
+              and s.id.spaceRef > :afterSpaceRef
+            order by s.id.spaceRef
+            """)
+    List<String> visibleSpaceRefs(
+            @Param("organizationRef") String organizationRef,
+            @Param("personRef") String personRef,
+            @Param("afterSpaceRef") String afterSpaceRef,
+            Pageable page);
 }

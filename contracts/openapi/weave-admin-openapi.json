@@ -3355,6 +3355,50 @@
         },
         "type": "object"
       },
+      "SpaceProvisionRequest": {
+        "properties": {
+          "memberAccountRefs": {
+            "description": "Member account references granted VIEW. The acting administrator receives ADMIN.",
+            "items": {
+              "pattern": "acct_[0-9a-f]{32}",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          },
+          "spaceRef": {
+            "description": "Chosen stable Weave Space reference in the current organization.",
+            "maxLength": 255,
+            "minLength": 0,
+            "pattern": "[A-Za-z0-9][A-Za-z0-9:_-]{0,254}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "spaceRef"
+        ],
+        "type": "object"
+      },
+      "SpaceProvisionResponse": {
+        "properties": {
+          "result": {
+            "enum": [
+              "CREATED",
+              "UNCHANGED"
+            ],
+            "type": "string"
+          },
+          "spaceRef": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result",
+          "spaceRef"
+        ],
+        "type": "object"
+      },
       "SuiteDomainReadinessResponse": {
         "description": "Support-safe suite domain readiness row for Admin Console go-live decisions.",
         "properties": {
@@ -5284,6 +5328,82 @@
         ]
       }
     },
+    "/api/admin/spaces": {
+      "post": {
+        "operationId": "provisionSpace",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpaceProvisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceProvisionResponse"
+                }
+              }
+            },
+            "description": "Created or confirmed identical durable setup."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid Space setup request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner/admin policy or organization denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Existing Space differs from setup intent."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Explicitly provision current-organization Space membership",
+        "tags": [
+          "Spaces Admin"
+        ]
+      }
+    },
     "/api/admin/workspace/capability-policy": {
       "get": {
         "description": "Returns an admin/operator support-safe snapshot of IDM role/group intake, profile mapping, deny-by-default posture, and Weaver-disabled-by-default policy state.",
@@ -5585,6 +5705,10 @@
     {
       "description": "Admin-only configuration readiness and policy diagnostics.",
       "name": "Admin Workspace"
+    },
+    {
+      "description": "Explicit durable Space setup for the current organization.",
+      "name": "Spaces Admin"
     },
     {
       "description": "Keycloak-backed member lifecycle through opaque Weave references.",

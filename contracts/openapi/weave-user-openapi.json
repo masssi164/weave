@@ -3318,6 +3318,36 @@
         },
         "type": "object"
       },
+      "SpaceUserListResponse": {
+        "properties": {
+          "nextAfterSpaceRef": {
+            "description": "Pass this last seen Space reference as afterSpaceRef to request the next page.",
+            "type": "string"
+          },
+          "spaces": {
+            "items": {
+              "$ref": "#/components/schemas/SpaceUserResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "spaces"
+        ],
+        "type": "object"
+      },
+      "SpaceUserResponse": {
+        "properties": {
+          "spaceRef": {
+            "description": "Stable Weave Space reference.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "spaceRef"
+        ],
+        "type": "object"
+      },
       "SupportBundlePolicyResponse": {
         "properties": {
           "providerSecretsRedacted": {
@@ -7599,6 +7629,158 @@
         ]
       }
     },
+    "/api/spaces": {
+      "get": {
+        "operationId": "listSpaces",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "afterSpaceRef",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceUserListResponse"
+                }
+              }
+            },
+            "description": "Visible Spaces in stable order."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid page request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Current member admission denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Space absent or not visible."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "List current member Spaces",
+        "tags": [
+          "Spaces User"
+        ]
+      }
+    },
+    "/api/spaces/{spaceRef}": {
+      "get": {
+        "operationId": "getSpace",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceUserResponse"
+                }
+              }
+            },
+            "description": "Visible Space."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Current member admission denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Space absent or not visible."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read one current member Space",
+        "tags": [
+          "Spaces User"
+        ]
+      }
+    },
     "/api/v1/identity/session/reconcile": {
       "post": {
         "description": "Idempotently applies one verified pending invitation intent to the current native organization member. An access_updated result requires exactly one new OIDC Authorization Code flow with PKCE before product-domain bootstrap.",
@@ -7873,6 +8055,10 @@
     {
       "description": "Workspace readiness and capability endpoints.",
       "name": "Workspace"
+    },
+    {
+      "description": "Current member access to durable Weave Spaces.",
+      "name": "Spaces User"
     },
     {
       "description": "Canonical Weave Chat facade with provider-neutral conversations/messages, Context/Space authorization, capability checks, audit, and support-safe provider replacement seams.",
