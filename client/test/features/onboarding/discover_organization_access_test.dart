@@ -471,6 +471,79 @@ void main() {
   });
 
   test(
+    'rejects malformed nested manifest values before model projection',
+    () async {
+      final base = _manifest(
+        organizationOrigin: 'https://weave.example',
+        userApiBaseUrl: 'https://api.weave.example/api',
+        issuer: 'https://auth.weave.example/realms/weave',
+        matrixClientServerBaseUrl: 'https://api.weave.example',
+      );
+      final malformed = <Map<String, Object?>>[
+        {
+          ...base,
+          'domains': [
+            {
+              'domain': 'files',
+              'state': 'available',
+              'capabilities': <String>[],
+              'providerUrl': 'https://files.example',
+            },
+          ],
+        },
+        {
+          ...base,
+          'domains': [
+            {'domain': 'files', 'state': 'available', 'capabilities': 'read'},
+          ],
+        },
+        {...base, 'recoveryActions': null},
+      ];
+
+      for (final manifest in malformed) {
+        final client = MockClient(
+          (_) async => http.Response(jsonEncode(manifest), 200),
+        );
+        await expectLater(
+          AppStartDiscoveryClient(httpClient: client).fetch(
+            OrganizationAccess(
+              organizationOrigin: Uri.parse('https://weave.example/'),
+              platformConfigUrl: Uri.parse(
+                'https://weave.example/api/platform/config',
+              ),
+            ),
+          ),
+          throwsA(isA<AppFailure>()),
+        );
+      }
+    },
+  );
+
+  test('rejects a non-success response with a manifest body', () async {
+    final manifest = _manifest(
+      organizationOrigin: 'https://weave.example',
+      userApiBaseUrl: 'https://api.weave.example/api',
+      issuer: 'https://auth.weave.example/realms/weave',
+      matrixClientServerBaseUrl: 'https://api.weave.example',
+    );
+    final client = MockClient(
+      (_) async => http.Response(jsonEncode(manifest), 302),
+    );
+
+    await expectLater(
+      AppStartDiscoveryClient(httpClient: client).fetch(
+        OrganizationAccess(
+          organizationOrigin: Uri.parse('https://weave.example/'),
+          platformConfigUrl: Uri.parse(
+            'https://weave.example/api/platform/config',
+          ),
+        ),
+      ),
+      throwsA(isA<AppFailure>()),
+    );
+  });
+
+  test(
     'rejects a former schema version without replacing saved state',
     () async {
       final repository = _RecordingServerConfigurationRepository();

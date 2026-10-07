@@ -46,7 +46,7 @@ class PlatformApi {
   /// Get public platform configuration
   Future<PlatformConfigResponse?> config() async {
     final response = await configWithHttpInfo();
-    if (response.statusCode >= HttpStatus.badRequest) {
+    if (response.statusCode >= HttpStatus.multipleChoices) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.

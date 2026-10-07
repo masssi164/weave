@@ -211,28 +211,48 @@ class AppStartDiscoveryClient {
     Uri uri,
     OrganizationAccess access,
   ) async {
-    final http.Response response;
+    final user_api.PlatformConfigResponse? transport;
     try {
       final client = user_api.ApiClient(
         basePath: uri.replace(path: '', query: null, fragment: null).toString(),
       )..client = _httpClient;
       _headers(access).forEach(client.addDefaultHeader);
-      response = await user_api.PlatformApi(client).configWithHttpInfo();
-    } catch (error) {
+      transport = await user_api.PlatformApi(client).config();
+    } on user_api.ApiException catch (error) {
+      if (error.innerException case user_api.OrgManifestShapeException shape) {
+        throw AppFailure.validation(
+          'WEAVE-APP-START-DISCOVERY-INVALID: ${shape.message}.',
+          cause: error,
+        );
+      }
+      if (error.message == 'Exception during deserialization.') {
+        throw AppFailure.validation(
+          'WEAVE-APP-START-DISCOVERY-INVALID: The workspace start configuration is not a valid OrgManifest.',
+          cause: error,
+        );
+      }
+      if (error.innerException == null) {
+        throw AppFailure.bootstrap(
+          'WEAVE-APP-START-DISCOVERY-FAILED: The workspace start configuration could not be loaded.',
+          cause: error.code,
+        );
+      }
       throw AppFailure.bootstrap(
-        '${_transportErrorCode(error)}: The workspace start configuration could not be reached.',
+        '${_transportErrorCode(error.innerException!)}: The workspace start configuration could not be reached.',
+        cause: error,
+      );
+    } catch (error) {
+      throw AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: The workspace start configuration is not a valid OrgManifest.',
         cause: error,
       );
     }
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw AppFailure.bootstrap(
-        'WEAVE-APP-START-DISCOVERY-FAILED: The workspace start configuration could not be loaded.',
-        cause: response.statusCode,
+    if (transport == null) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: The workspace start configuration must be a JSON object.',
       );
     }
-
-    final payload = _decodeJsonObject(response.body);
-    return _configurationFromJson(payload, access);
+    return _configurationFromTransport(transport, access);
   }
 
   Map<String, String> _headers(OrganizationAccess access) {
@@ -301,38 +321,11 @@ class AppStartDiscoveryClient {
     return 'WEAVE-APP-START-NETWORK-FAILED';
   }
 
-  Map<String, dynamic> _decodeJsonObject(String body) {
-    try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
-    } catch (error) {
-      throw AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: The workspace start configuration is not valid JSON.',
-        cause: error,
-      );
-    }
-    throw const AppFailure.validation(
-      'WEAVE-APP-START-DISCOVERY-INVALID: The workspace start configuration must be a JSON object.',
-    );
-  }
-
-  AppStartConfiguration _configurationFromJson(
-    Map<String, dynamic> json,
+  AppStartConfiguration _configurationFromTransport(
+    user_api.PlatformConfigResponse transport,
     OrganizationAccess access,
   ) {
-    _requireExactKeys(json, const {
-      'schemaVersion',
-      'organizationOrigin',
-      'userApiBaseUrl',
-      'oidc',
-      'protocols',
-      'releasePosture',
-      'domains',
-      'recoveryActions',
-    });
-    if (json['schemaVersion'] != 2) {
+    if (transport.schemaVersion != 2) {
       throw const AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: schemaVersion must be 2.',
       );
@@ -343,16 +336,13 @@ class AppStartDiscoveryClient {
       'release_candidate',
       'stable',
     };
-    if (!releasePostures.contains(json['releasePosture'])) {
+    if (!releasePostures.contains(transport.releasePosture)) {
       throw const AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: releasePosture is not supported.',
       );
     }
-    if (json.containsKey('recoveryActions')) {
-      _validateRecoveryActions(json['recoveryActions']);
-    }
     final organizationOrigin = _uri(
-      json['organizationOrigin'],
+      transport.organizationOrigin,
       fieldName: 'organizationOrigin',
     );
     if (_apiOrigin(organizationOrigin) !=
@@ -361,14 +351,10 @@ class AppStartDiscoveryClient {
         'WEAVE-APP-START-DISCOVERY-INVALID: organizationOrigin must match the handoff origin.',
       );
     }
-    final oidc = _object(json['oidc'], fieldName: 'oidc');
-    _requireExactKeys(oidc, const {'issuer', 'clientId'});
-    final protocols = _object(json['protocols'], fieldName: 'protocols');
-    _requireExactKeys(protocols, const {'matrixClientServerBaseUrl'});
-    _uri(oidc['issuer'], fieldName: 'oidc.issuer');
-    _clientId(oidc['clientId']);
+    _uri(transport.oidc.issuer, fieldName: 'oidc.issuer');
+    _clientId(transport.oidc.clientId);
     final userApiBaseUrl = _uri(
-      json['userApiBaseUrl'],
+      transport.userApiBaseUrl,
       fieldName: 'userApiBaseUrl',
     );
     final userApiSegments = userApiBaseUrl.pathSegments
@@ -380,7 +366,7 @@ class AppStartDiscoveryClient {
       );
     }
     final matrixClientServerBaseUrl = _uri(
-      protocols['matrixClientServerBaseUrl'],
+      transport.protocols.matrixClientServerBaseUrl,
       fieldName: 'protocols.matrixClientServerBaseUrl',
     );
     final matrixPath = matrixClientServerBaseUrl.path;
@@ -389,12 +375,8 @@ class AppStartDiscoveryClient {
         'WEAVE-APP-START-DISCOVERY-INVALID: protocols.matrixClientServerBaseUrl must be a homeserver origin.',
       );
     }
-    _validateDomains(json['domains']);
-
-    // Exact field validation above rejects unknown public protocol surfaces;
-    // the generated transport model then supplies the values consumed by the
-    // client configuration. Its decoder alone tolerates unknown JSON fields.
-    final transport = user_api.PlatformConfigResponse.fromJson(json)!;
+    _validateDomains(transport.domains);
+    _validateRecoveryActions(transport.recoveryActions);
     final transportOidc = transport.oidc;
     final transportProtocols = transport.protocols;
 
@@ -412,30 +394,7 @@ class AppStartDiscoveryClient {
     );
   }
 
-  Map<String, dynamic> _object(Object? value, {required String fieldName}) {
-    if (value is Map<String, dynamic>) {
-      return value;
-    }
-    throw AppFailure.validation(
-      'WEAVE-APP-START-DISCOVERY-INVALID: $fieldName must be an object.',
-    );
-  }
-
-  void _requireExactKeys(Map<String, dynamic> value, Set<String> allowed) {
-    final unexpected = value.keys.where((key) => !allowed.contains(key));
-    if (unexpected.isNotEmpty) {
-      throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: The organization manifest contains unsupported fields.',
-      );
-    }
-  }
-
-  void _validateDomains(Object? value) {
-    if (value is! List) {
-      throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: domains must be an array.',
-      );
-    }
+  void _validateDomains(List<user_api.DomainCapability> value) {
     if (value.isEmpty) {
       throw const AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: domains must not be empty.',
@@ -462,15 +421,8 @@ class AppStartDiscoveryClient {
       'unsupported',
     };
     final observed = <String>{};
-    for (final item in value) {
-      final domain = _object(item, fieldName: 'domains[]');
-      _requireExactKeys(domain, const {
-        'domain',
-        'state',
-        'capabilities',
-        'supportReference',
-      });
-      if (domain['domain'] case final String name
+    for (final domain in value) {
+      if (domain.domain case final String name
           when allowedDomains.contains(name)) {
         if (!observed.add(name)) {
           throw const AppFailure.validation(
@@ -482,18 +434,13 @@ class AppStartDiscoveryClient {
           'WEAVE-APP-START-DISCOVERY-INVALID: domains contains an unsupported domain.',
         );
       }
-      final state = domain['state'];
-      final capabilities = domain['capabilities'];
-      if (state is! String ||
-          !allowedStates.contains(state) ||
-          capabilities is! List ||
-          capabilities.any(
-            (capability) => capability is! String || capability.trim().isEmpty,
-          ) ||
+      final state = domain.state;
+      final capabilities = domain.capabilities;
+      if (!allowedStates.contains(state) ||
+          capabilities.any((capability) => capability.trim().isEmpty) ||
           capabilities.toSet().length != capabilities.length ||
-          (domain['supportReference'] != null &&
-              (domain['supportReference'] is! String ||
-                  (domain['supportReference'] as String).isEmpty))) {
+          (domain.supportReference != null &&
+              domain.supportReference!.isEmpty)) {
         throw const AppFailure.validation(
           'WEAVE-APP-START-DISCOVERY-INVALID: domains entries are incomplete.',
         );
@@ -501,22 +448,14 @@ class AppStartDiscoveryClient {
     }
   }
 
-  void _validateRecoveryActions(Object? value) {
-    if (value is! List) {
-      throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: recoveryActions must be an array.',
-      );
-    }
-    for (final item in value) {
-      final action = _object(item, fieldName: 'recoveryActions[]');
-      _requireExactKeys(action, const {'code', 'label', 'supportReference'});
-      if (action['code'] is! String ||
-          (action['code'] as String).isEmpty ||
-          action['label'] is! String ||
-          (action['label'] as String).isEmpty ||
-          (action['supportReference'] != null &&
-              (action['supportReference'] is! String ||
-                  (action['supportReference'] as String).isEmpty))) {
+  void _validateRecoveryActions(List<user_api.RecoveryAction> value) {
+    for (final action in value) {
+      if (action.code == null ||
+          action.code!.isEmpty ||
+          action.label == null ||
+          action.label!.isEmpty ||
+          (action.supportReference != null &&
+              action.supportReference!.isEmpty)) {
         throw const AppFailure.validation(
           'WEAVE-APP-START-DISCOVERY-INVALID: recoveryActions entries are incomplete.',
         );

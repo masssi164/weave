@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
 import shutil
 import subprocess
@@ -68,6 +69,7 @@ def generate(destination: Path) -> None:
     propagate_binary_upload_errors(destination)
     avoid_implicit_text_body_for_empty_operations(destination)
     preserve_calendar_date_fields(destination)
+    enforce_closed_org_manifest(destination)
     subprocess.run(["dart", "format", str(destination)], check=True, stdout=subprocess.DEVNULL)
 
 
@@ -195,6 +197,128 @@ DateTime? mapDateOnly(dynamic map, String key) {
     if source.count(before) != 1:
         raise RuntimeError("OpenAPI Generator Calendar DATE decoding changed")
     model.write_text(source.replace(before, "date: mapDateOnly(json, r'date')", 1))
+
+
+def enforce_closed_org_manifest(destination: Path) -> None:
+    """Make the generated OrgManifest decoder fail closed in release builds.
+
+    The native Dart generator silently drops unknown properties and checks
+    required properties only with asserts. This narrow transform derives the
+    allowed and required wire keys from the server-owned OpenAPI schemas.
+    Nested values are still decoded by the generated transport models.
+    """
+    schemas = json.loads(CONTRACT.read_text())["components"]["schemas"]
+    names = ("PlatformConfigResponse", "Oidc", "Protocols", "DomainCapability", "RecoveryAction")
+    expected = {
+        "PlatformConfigResponse": {"schemaVersion", "organizationOrigin", "userApiBaseUrl", "oidc", "protocols", "releasePosture", "domains", "recoveryActions"},
+        "Oidc": {"issuer", "clientId"},
+        "Protocols": {"matrixClientServerBaseUrl"},
+        "DomainCapability": {"domain", "state", "capabilities", "supportReference"},
+        "RecoveryAction": {"code", "label", "supportReference"},
+    }
+    for name in names:
+        if set(schemas[name]["properties"]) != expected[name]:
+            raise RuntimeError(f"OrgManifest OpenAPI shape changed for {name}")
+
+    operation = destination / "api/platform_api.dart"
+    operation_source = operation.read_text()
+    first_operation, next_operation = operation_source.split("  /// Get platform module status", 1)
+    status_check = "if (response.statusCode >= HttpStatus.badRequest) {"
+    if first_operation.count(status_check) != 1:
+        raise RuntimeError("OpenAPI Generator platform config status handling changed")
+    first_operation = first_operation.replace(
+        status_check, "if (response.statusCode >= HttpStatus.multipleChoices) {", 1
+    )
+    operation.write_text(first_operation + "  /// Get platform module status" + next_operation)
+
+    def dart_keys(keys: set[str]) -> str:
+        return "<String>{" + ", ".join(repr(key) for key in sorted(keys)) + "}"
+
+    definitions = []
+    for name in names:
+        required = set(schemas[name].get("required", ()))
+        definitions.append(
+            f"    '{name}': _OrgManifestShape({dart_keys(set(schemas[name]['properties']))}, {dart_keys(required)}),"
+        )
+
+    model = destination / "model/platform_config_response.dart"
+    source = model.read_text()
+    before = "      final json = value.cast<String, dynamic>();"
+    after = before + "\n      _validateOrgManifestShape(value);"
+    if source.count(before) != 1:
+        raise RuntimeError("OpenAPI Generator manifest decoder changed")
+    source = source.replace(before, after, 1)
+    source += """
+
+// The manifest is a closed public bootstrap document. Validate its wire shape
+// before the generated transport decoder can discard an unknown property.
+class OrgManifestShapeException implements Exception {
+  const OrgManifestShapeException(this.message);
+  final String message;
+}
+
+class _OrgManifestShape {
+  const _OrgManifestShape(this.allowed, this.required);
+  final Set<String> allowed;
+  final Set<String> required;
+}
+
+const _orgManifestShapes = <String, _OrgManifestShape>{
+""" + "\n".join(definitions) + """
+};
+
+Map<String, dynamic> _orgManifestObject(dynamic value, String name) {
+  if (value is! Map<String, dynamic>) {
+    throw OrgManifestShapeException('$name must be an object');
+  }
+  final shape = _orgManifestShapes[name]!;
+  if (value.keys.any((key) => !shape.allowed.contains(key))) {
+    throw const OrgManifestShapeException('The organization manifest contains unsupported fields');
+  }
+  for (final key in shape.required) {
+    if (!value.containsKey(key) || value[key] == null) {
+      final prefix = name == 'PlatformConfigResponse' ? '' : '${name[0].toLowerCase()}${name.substring(1)}.';
+      throw OrgManifestShapeException('$prefix$key is required');
+    }
+  }
+  return value;
+}
+
+void _validateOrgManifestShape(dynamic value) {
+  final manifest = _orgManifestObject(value, 'PlatformConfigResponse');
+  _orgManifestObject(manifest['oidc'], 'Oidc');
+  _orgManifestObject(manifest['protocols'], 'Protocols');
+  final domains = manifest['domains'];
+  if (domains is! List || domains.isEmpty) {
+    throw const OrgManifestShapeException('domains must be a nonempty array');
+  }
+  for (final domain in domains) {
+    final entry = _orgManifestObject(domain, 'DomainCapability');
+    if (entry['capabilities'] is! List ||
+        (entry['capabilities'] as List).any((capability) => capability is! String) ||
+        (entry.containsKey('supportReference') &&
+            entry['supportReference'] is! String)) {
+      throw const OrgManifestShapeException('domains entries are incomplete');
+    }
+  }
+  if (manifest.containsKey('recoveryActions')) {
+    final actions = manifest['recoveryActions'];
+    if (actions is! List) {
+      throw const OrgManifestShapeException('recoveryActions must be an array');
+    }
+    for (final action in actions) {
+      final entry = _orgManifestObject(action, 'RecoveryAction');
+      if (entry['code'] is! String ||
+          entry['label'] is! String ||
+          (entry.containsKey('supportReference') &&
+              entry['supportReference'] is! String)) {
+        throw const OrgManifestShapeException('recoveryActions entries are incomplete');
+      }
+    }
+  }
+}
+"""
+    model.write_text(source)
 
 
 def same_sources(left: Path, right: Path) -> bool:

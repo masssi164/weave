@@ -87,6 +87,7 @@ class PlatformConfigResponse {
   static PlatformConfigResponse? fromJson(dynamic value) {
     if (value is Map) {
       final json = value.cast<String, dynamic>();
+      _validateOrgManifestShape(value);
 
       // Ensure that the map contains the required keys.
       // Note 1: the values aren't checked for validity beyond being non-null.
@@ -175,4 +176,103 @@ class PlatformConfigResponse {
     'schemaVersion',
     'userApiBaseUrl',
   };
+}
+
+// The manifest is a closed public bootstrap document. Validate its wire shape
+// before the generated transport decoder can discard an unknown property.
+class OrgManifestShapeException implements Exception {
+  const OrgManifestShapeException(this.message);
+  final String message;
+}
+
+class _OrgManifestShape {
+  const _OrgManifestShape(this.allowed, this.required);
+  final Set<String> allowed;
+  final Set<String> required;
+}
+
+const _orgManifestShapes = <String, _OrgManifestShape>{
+  'PlatformConfigResponse': _OrgManifestShape(<String>{
+    'domains',
+    'oidc',
+    'organizationOrigin',
+    'protocols',
+    'recoveryActions',
+    'releasePosture',
+    'schemaVersion',
+    'userApiBaseUrl'
+  }, <String>{
+    'domains',
+    'oidc',
+    'organizationOrigin',
+    'protocols',
+    'releasePosture',
+    'schemaVersion',
+    'userApiBaseUrl'
+  }),
+  'Oidc': _OrgManifestShape(
+      <String>{'clientId', 'issuer'}, <String>{'clientId', 'issuer'}),
+  'Protocols': _OrgManifestShape(<String>{'matrixClientServerBaseUrl'},
+      <String>{'matrixClientServerBaseUrl'}),
+  'DomainCapability': _OrgManifestShape(
+      <String>{'capabilities', 'domain', 'state', 'supportReference'},
+      <String>{'capabilities', 'domain', 'state'}),
+  'RecoveryAction': _OrgManifestShape(
+      <String>{'code', 'label', 'supportReference'}, <String>{}),
+};
+
+Map<String, dynamic> _orgManifestObject(dynamic value, String name) {
+  if (value is! Map<String, dynamic>) {
+    throw OrgManifestShapeException('$name must be an object');
+  }
+  final shape = _orgManifestShapes[name]!;
+  if (value.keys.any((key) => !shape.allowed.contains(key))) {
+    throw const OrgManifestShapeException(
+        'The organization manifest contains unsupported fields');
+  }
+  for (final key in shape.required) {
+    if (!value.containsKey(key) || value[key] == null) {
+      final prefix = name == 'PlatformConfigResponse'
+          ? ''
+          : '${name[0].toLowerCase()}${name.substring(1)}.';
+      throw OrgManifestShapeException('$prefix$key is required');
+    }
+  }
+  return value;
+}
+
+void _validateOrgManifestShape(dynamic value) {
+  final manifest = _orgManifestObject(value, 'PlatformConfigResponse');
+  _orgManifestObject(manifest['oidc'], 'Oidc');
+  _orgManifestObject(manifest['protocols'], 'Protocols');
+  final domains = manifest['domains'];
+  if (domains is! List || domains.isEmpty) {
+    throw const OrgManifestShapeException('domains must be a nonempty array');
+  }
+  for (final domain in domains) {
+    final entry = _orgManifestObject(domain, 'DomainCapability');
+    if (entry['capabilities'] is! List ||
+        (entry['capabilities'] as List)
+            .any((capability) => capability is! String) ||
+        (entry.containsKey('supportReference') &&
+            entry['supportReference'] is! String)) {
+      throw const OrgManifestShapeException('domains entries are incomplete');
+    }
+  }
+  if (manifest.containsKey('recoveryActions')) {
+    final actions = manifest['recoveryActions'];
+    if (actions is! List) {
+      throw const OrgManifestShapeException('recoveryActions must be an array');
+    }
+    for (final action in actions) {
+      final entry = _orgManifestObject(action, 'RecoveryAction');
+      if (entry['code'] is! String ||
+          entry['label'] is! String ||
+          (entry.containsKey('supportReference') &&
+              entry['supportReference'] is! String)) {
+        throw const OrgManifestShapeException(
+            'recoveryActions entries are incomplete');
+      }
+    }
+  }
 }
