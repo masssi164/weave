@@ -6,8 +6,11 @@ Status: implementation conformance for the pinned Weave Specification Corpus
 `steering/product-constitution.md`. This packet does not independently define
 product scope.
 
-The active Admin Console invokes only operations and transport models from the
-server-generated Admin OpenAPI artifact. Organization setup, invitations,
+The active Admin Console invokes authorized Admin operations and transport
+models from the server-generated Admin OpenAPI artifact. Its credential-free
+pre-login platform configuration lookup uses the separately generated User
+client and `PlatformConfigResponse` model, without turning an Admin session
+into a User session. Organization setup, invitations,
 effective policy, provider category/readiness and support-safe audit remain
 available through that client and a separately authorized Admin session.
 
@@ -22,6 +25,7 @@ out-of-scope UI panel working.
 
 Regression checks assert that the Admin UI source has no handwritten normal
 Weave HTTP path builder or Agent Runtime control and that its supported current
-operations still compile and pass with the generated Admin client. Existing
+operations still compile and pass with the generated Admin and public User
+clients. Existing
 negative HTTP/security probes and future optional deferred-feature tests may
 continue outside the current #1470 Admin acceptance claim.

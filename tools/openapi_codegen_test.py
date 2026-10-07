@@ -90,12 +90,19 @@ class OpenApi31TypeProjectionTest(unittest.TestCase):
         app_source = (admin.ROOT / "admin-console/src/App.tsx").read_text()
         admin_paths = json.loads(admin.OPENAPI.read_text())["paths"]
         self.assertIn("new GeneratedAdminControlPlaneApi", api_source)
+        self.assertIn("new GeneratedPlatformApi", api_source)
+        self.assertNotIn("fetchImpl(", api_source)
         self.assertNotIn("this.fetchImpl(", api_source)
         self.assertNotIn("/admin/agent-runtimes", api_source)
         self.assertNotIn("getAgentRuntime", app_source)
         self.assertNotIn("changeAgentRuntime", app_source)
         self.assertNotIn("agent-runtime-control-heading", app_source)
         self.assertFalse(any("/agent-runtimes/" in path for path in admin_paths))
+        self.assertIn("/api/platform/config", json.loads(client.CONTRACT.read_text())["paths"])
+        self.assertIn(
+            "async config(",
+            (admin.ROOT / "admin-console/src/generated/user-client/apis/PlatformApi.ts").read_text(),
+        )
 
 
 class AdminFreshnessFailureContractTest(unittest.TestCase):

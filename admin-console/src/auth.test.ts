@@ -127,7 +127,18 @@ describe("production runtime configuration", () => {
     const fetchImpl = vi.fn(async () =>
       new Response(
         JSON.stringify({
-          oidc: { issuer: "https://auth.runtime.invalid/realms/weave" },
+          domains: [],
+          oidc: {
+            clientId: "weave-app",
+            issuer: "https://auth.runtime.invalid/realms/weave",
+          },
+          organizationOrigin: "https://admin.runtime.invalid",
+          protocols: {
+            matrixClientServerBaseUrl: "https://admin.runtime.invalid",
+          },
+          releasePosture: "guarded",
+          schemaVersion: 2,
+          userApiBaseUrl: "https://admin.runtime.invalid/api",
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
@@ -140,7 +151,10 @@ describe("production runtime configuration", () => {
 
     expect(fetchImpl).toHaveBeenCalledWith(
       "https://admin.runtime.invalid/api/platform/config",
-      { headers: { Accept: "application/json" } },
+      expect.objectContaining({
+        method: "GET",
+        headers: { Accept: "application/json" },
+      }),
     );
     expect(resolved).toEqual({
       apiBaseUrl: "https://admin.runtime.invalid/api",

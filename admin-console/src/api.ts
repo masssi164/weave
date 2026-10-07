@@ -16,6 +16,10 @@ import {
   type ProviderSelectionResponse as GeneratedProviderSelectionResponse,
   ResponseError as GeneratedResponseError,
 } from "./generated/admin-client";
+import {
+  Configuration as GeneratedUserConfiguration,
+  PlatformApi as GeneratedPlatformApi,
+} from "./generated/user-client";
 
 export type CapabilityState =
   | "ready"
@@ -424,10 +428,6 @@ export const adminConsoleConfig: AdminConsoleConfig = {
     runtimeEnv.VITE_WEAVE_ADMIN_OIDC_CLIENT_ID ?? "weave-admin-console",
 };
 
-interface PlatformBootstrapConfig {
-  oidc?: { issuer?: string };
-}
-
 /**
  * A packaged console discovers only public coordinates from the same Server
  * process that served its immutable assets. The Vite host-development fallback
@@ -447,11 +447,14 @@ export async function resolveAdminConsoleConfig(
   }
 
   try {
-    const response = await fetchImpl(`${apiBaseUrl}/platform/config`, {
-      headers: { Accept: "application/json" },
-    });
-    if (!response.ok) return { ...adminConsoleConfig, apiBaseUrl };
-    const platform = (await response.json()) as PlatformBootstrapConfig;
+    const publicApi = new GeneratedPlatformApi(
+      new GeneratedUserConfiguration({
+        basePath: apiBaseUrl.slice(0, -4),
+        fetchApi: fetchImpl,
+        headers: { Accept: "application/json" },
+      }),
+    );
+    const platform = await publicApi.config();
     const issuer = platform.oidc?.issuer?.trim();
     if (!issuer) return { ...adminConsoleConfig, apiBaseUrl };
     return {
