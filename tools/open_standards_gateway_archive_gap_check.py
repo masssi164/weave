@@ -106,7 +106,7 @@ def require_current_evidence_boundaries() -> None:
         text = path.read_text(encoding="utf-8")
         if '"/api/calls' in text or "com.weave.call." in text:
             fail(f"legacy Calls contract remains in {path.relative_to(ROOT)}")
-    require("tools/spring_ai_mcp_facade_acceptance_check.py", "SPRING_AI_MCP_STATEFUL_TRANSPORT", "MCP_WORKLOAD_EDGE_BOUND_CELL_ONLY", "MCP_FILES_READ_SLICE_ACTIVE", "MCP_CALENDAR_CATALOG_GUARDED", "MCP_CHAT_CATALOG_GUARDED", "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED", "MCP_LEGACY_RUNTIME_REMOVED")
+    require("tools/spring_ai_mcp_facade_acceptance_check.py", "SPRING_AI_MCP_STATEFUL_TRANSPORT", "MCP_WORKLOAD_EDGE_BOUND_CELL_ONLY", "MCP_FILES_READ_SLICE_ACTIVE", "MCP_CALENDAR_READ_SLICE_ACTIVE", "MCP_CHAT_CATALOG_GUARDED", "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED", "MCP_LEGACY_RUNTIME_REMOVED")
 
 
 def main() -> int:

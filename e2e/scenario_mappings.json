@@ -5298,13 +5298,30 @@
     },
     {
       "tag": "@mcp-calendar-facade",
-      "scenario": "MCP Calendar catalog stays empty until the Calendar action contract is complete",
+      "scenario": "MCP Calendar agenda projects bounded generated User Calendar reads",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_CALENDAR_CATALOG_GUARDED"
+        "MCP_CALENDAR_READ_SLICE_ACTIVE"
       ],
-      "evidenceMode": "offline-spec"
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/CalendarUserApiClient.java",
+          "fragments": [
+            "new CalendarUserApi(client)",
+            "calendars.listUserCalendars(",
+            "calendars.queryCalendarAgenda("
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/calendar/CalendarUserApiServiceTest.java",
+          "fragments": [
+            "currentCalendarWorkloadReadsThroughMemberSpaceAndAuditsWithoutMaterializing",
+            "revokedWorkloadSpaceFailsBeforeCalendarProviderQuery"
+          ]
+        }
+      ]
     },
     {
       "tag": "@mcp-chat-facade",
