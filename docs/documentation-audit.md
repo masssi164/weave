@@ -30,7 +30,7 @@ Git history remains the archive of removed prose.
 - `docs/testing/core-test-strategy.md`;
 - `docs/documentation-audit.md`.
 
-## Active supporting
+## Former active-supporting list
 
 These remain useful only when consistent with the canonical docs:
 
@@ -54,14 +54,14 @@ This change replaces these paths with redirects:
 
 They contained OpenAPI authority, provider-first/native-provider terminology, code-first schema authority, broader enterprise scope, or duplicate explanations.
 
-## Future/deferred
+## Former future/deferred list
 
-Flutter/native OS, physical-device accessibility/distribution, Calls/MatrixRTC, People/CardDAV, named providers, Home-core integration, commercial readiness, public release/TestFlight, and advanced Agent Runtime/Weaver memory do not block current Server/Data/MCP work.
+The #1416 snapshot grouped Flutter/native OS and physical-device accessibility with Calls/MatrixRTC, People/CardDAV, Home-core integration, and other later work. That grouping is superseded: native Flutter, Matrix, accessibility, and single-sign-in validation are current #1475/#1480 requirements; Calls and public DAV remain later work.
 
 ## Historical workflows
 
-Candidate Cut, Fresh Start, dogfood promotion, sprint evidence, manual validation manifests, release claim matrices, marketing screenshots, and physical iPhone workflows are historical for the current core. #1307 owns their workflow/task disposition and removal.
+Candidate Cut, Fresh Start, old sprint ceremony, and marketing workflows were historical in this snapshot. Current protected CI, exact-candidate Full Compose E2E, and physical-device validation are described by [Current workflow ownership](development/current-workflow-ownership.md); #1480 owns their acceptance, and #1481 owns verified mainline delivery.
 
-## Remaining work
+## Former remaining-work list
 
 Audit remaining release notes/evidence, sprint/dogfood plans, client/platform acceptance, Agent Runtime governance, provider lab/commercial readiness, old operator handbooks, MkDocs navigation, and generated assets. A file is not authority merely because it has not yet moved.
