@@ -94,6 +94,15 @@ implementation evidence for the corpus revision in `specs/weave-specs.lock.json`
 
 Use HTTP authorization/contract negatives, service mapping/binding/precondition
 checks, temporal/recurrence round trips and actual provider persistence tests.
+The isolated PostgreSQL Calendar integration lane must also seed an event directly
+through the selected native `CalendarProviderPort`, then exercise the Calendar
+HTTP controller with an admitted member: browsing returns a transient preview
+without a persisted mapping; explicit materialization creates one stable ID;
+repeated materialization returns that ID; provider readback and a reconstructed
+service retain the same event and mapping. Another member actor or revoked Space
+permission cannot redeem the preview. This is bounded Server integration
+evidence, not a substitute for the disposable full-product Flutter/Keycloak
+journey or a claim about provider migration.
 Include stale identical updates and concurrent delete ordering, unknown CalDAV
 properties, wrong scope/organization and zero provider writes on rejection.
 Run existing Calendar integrity/security tests and code-first metadata tests.
@@ -118,6 +127,13 @@ Public CalDAV and provider migration acceptance remain deferred.
   adapter/service restart, as well as all four temporal kinds,
   attendees, typed UNTIL/RDATE/EXDATE, moved and cancelled instances, fresh adapter
   read/query, exact versions, stale delete, deletion and database interval constraints.
+- The PostgreSQL Calendar lane now also selects `NativeCalendarPreviewHttpPostgresTest`.
+  Its one HTTP-controller test and the nine provider-adapter tests pass together
+  without skips. The new test seeds a provider-only event through the native port,
+  proves zero mappings after HTTP browse and denial, then one idempotent mapping,
+  direct provider readback and stable HTTP read after adapter/service reconstruction.
+  It uses a fixture JWT resolver and mocked capability/Space policy ports, so it
+  does not prove the live OIDC/security-filter or native Flutter journey.
 - HTTP/controller/service tests cover shared human organization admission, unknown
   scope and denied Space without provider writes, stable retry identity and changed
   replay conflict, required/stale write versions, audit failure, unsupported existing
