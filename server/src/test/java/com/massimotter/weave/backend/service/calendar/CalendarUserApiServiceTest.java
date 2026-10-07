@@ -15,6 +15,7 @@ import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.domain.*;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.service.*;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.time.Instant;
 import java.util.*;
@@ -63,6 +64,25 @@ class CalendarUserApiServiceTest {
                 rights, capabilities, bindings, List.of(provider), audit);
         calendar = service.calendars(member).calendars().getFirst().id();
         clearInvocations(provider, bindings, audit);
+    }
+
+    @Test
+    void durableSpaceRevocationHidesCalendarsAndBlocksProviderQueryDespiteStaticGrant() {
+        SpaceAccessPort spaces = mock(SpaceAccessPort.class);
+        when(spaces.allows(eq("tenant-default"), eq("workspace-default"), anyString(),
+                eq(SpaceAccessPort.Permission.VIEW))).thenReturn(true, false);
+        var context = new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
+        service = new CalendarUserApiService(HumanJwtTestSupport.organizationAdmission(),
+                OrganizationIdentityContextResolver.configured(context), context, rights, spaces,
+                capabilities, bindings, List.of(provider), audit);
+        clearInvocations(rights);
+
+        assertThat(service.calendars(member).calendars()).hasSize(1);
+        assertThat(service.calendars(member).calendars()).isEmpty();
+        assertStatus(() -> service.agenda(member, calendar, Instant.parse("2026-01-01T00:00:00Z"),
+                Instant.parse("2026-01-02T00:00:00Z"), "UTC"), HttpStatus.FORBIDDEN);
+        verify(provider, never()).query(any(), any(), any(), any());
+        verify(rights, never()).check(any());
     }
 
     @Test
