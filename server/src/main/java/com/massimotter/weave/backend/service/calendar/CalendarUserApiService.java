@@ -150,6 +150,46 @@ public class CalendarUserApiService {
         return project(member, bound, scope, eventRef, event);
     }
 
+    /** Current direct Space candidates from confirmed mappings, never from provider browsing. */
+    public List<String> materializedEventRefsInSpace(
+            Jwt jwt, String spaceRef, String afterEventRef, int limit) {
+        if (spaceRef == null || spaceRef.isBlank() || afterEventRef == null
+                || (!afterEventRef.isEmpty() && !afterEventRef.matches("event:[0-9a-f]{64}"))
+                || limit < 1 || limit > 101) {
+            throw invalid();
+        }
+        Member member = member(jwt, false);
+        Optional<CalendarScope> maybeScope = scopes(member.organization()).stream()
+                .filter(candidate -> space(candidate).equals(spaceRef)).findFirst();
+        if (maybeScope.isEmpty() || !allowed(member, maybeScope.get(), ContextPermission.VIEW)) {
+            return List.of();
+        }
+        Bound bound = bound(member);
+        String prefix = calendarRef(member, maybeScope.get()) + ".";
+        var mappings = bindings.mappedByProviderRefPrefix(member.organization(), DOMAIN,
+                bound.binding().revision(), prefix, afterEventRef, limit);
+        current(member, bound);
+        return mappings.stream().map(mapping -> {
+            if (!member.organization().equals(mapping.organizationRef())
+                    || !DOMAIN.equals(mapping.domain())
+                    || mapping.bindingRevision() != bound.binding().revision()
+                    || !mapping.providerObjectRef().startsWith(prefix)
+                    || !mapping.canonicalObjectId().matches("event:[0-9a-f]{64}")) {
+                throw unavailable();
+            }
+            return mapping.canonicalObjectId();
+        }).toList();
+    }
+
+    /** Rechecks the current provider and member rights for one durable Space relation target. */
+    public Event readMaterializedEventInSpace(Jwt jwt, String spaceRef, String eventRef) {
+        Member member = member(jwt, false);
+        CalendarScope scope = scopes(member.organization()).stream()
+                .filter(candidate -> space(candidate).equals(spaceRef))
+                .findFirst().orElseThrow(this::missing);
+        return read(jwt, calendarRef(member, scope), eventRef);
+    }
+
     public Event create(Jwt jwt, String calendarRef, WriteRequest request, String idempotencyKey) {
         Member member = member(jwt, true);
         CalendarScope scope = scope(member, calendarRef, ContextPermission.EDIT);

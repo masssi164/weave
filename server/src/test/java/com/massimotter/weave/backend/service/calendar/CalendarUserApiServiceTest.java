@@ -116,6 +116,23 @@ class CalendarUserApiServiceTest {
     }
 
     @Test
+    void spaceEventCandidatesComeOnlyFromConfirmedMappingsAndCurrentScopeRights() {
+        Event created = service.create(member, calendar, content("Planning"), "calendar-create-key-relations");
+        when(bindings.mappedByProviderRefPrefix(eq("tenant-default"), eq("calendar"), eq(1L),
+                anyString(), eq(""), eq(10))).thenAnswer(call -> mappings.values().stream()
+                        .filter(mapping -> mapping.providerObjectRef().startsWith(call.getArgument(3)))
+                        .toList());
+        clearInvocations(provider);
+        assertThat(service.materializedEventRefsInSpace(member, "workspace-default", "", 10))
+                .containsExactly(created.id());
+        verify(provider, never()).query(any(), any(), any(), any());
+        verify(provider, never()).read(any(), any(), any());
+        assertThat(service.materializedEventRefsInSpace(member, "team-missing", "", 10)).isEmpty();
+        when(rights.check(any())).thenReturn(ContextAuthorizationDecision.deny("revoked"));
+        assertThat(service.materializedEventRefsInSpace(member, "workspace-default", "", 10)).isEmpty();
+    }
+
+    @Test
     void replayAuditsEachWriteAttemptWithItsOwnDurableIdempotencyKey() {
         WriteRequest input = content("Planning");
         Event created = service.create(member, calendar, input, "calendar-create-key-1");
