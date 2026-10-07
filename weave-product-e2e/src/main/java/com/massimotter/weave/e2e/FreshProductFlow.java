@@ -90,6 +90,7 @@ public final class FreshProductFlow {
     boolean regrantRestored = false;
     boolean sameHumanSubjectAfterRegrant = false;
     boolean samePersonRefAfterRegrant = false;
+    boolean spaceRevocationRestored = false;
     List<CollaborationJourney.PassProof> collaborationPasses = new java.util.ArrayList<>();
 
     try (OidcBrowserJourney browser = new OidcBrowserJourney(environment, http)) {
@@ -143,6 +144,8 @@ public final class FreshProductFlow {
       validateAdminToken(browser.jwtPayload(adminSession.accessToken()));
       assertSeparatedApiSessions(ownerSession.accessToken(), adminSession.accessToken());
       assertGeneratedAdminControlPlane(adminSession.accessToken(), organizationId);
+      GeneratedSpacesJourney spaces = new GeneratedSpacesJourney(environment);
+      spaces.provisionDefault(adminSession.accessToken(), ownerSession.accessToken());
       configureRequiredProviders(adminSession.accessToken());
       awaitChatReadiness(ownerSession.accessToken());
 
@@ -189,6 +192,9 @@ public final class FreshProductFlow {
               browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
       JsonNode memberClaims = browser.jwtPayload(memberSession.accessToken());
       validateHumanWorkspaceToken(memberClaims, "weave-app");
+      spaces.verifyAbsent(memberSession.accessToken());
+      spaces.grantEditor(adminSession.accessToken(), memberSession.accessToken(),
+          accountId(environment.issuer().toString(), memberSession.subject()));
       String memberUsername = memberEmail.substring(0, memberEmail.indexOf('@'));
       if (!memberUsername.equals(memberClaims.path("preferred_username").asString())) {
         throw new ProductFlowException(
@@ -234,11 +240,14 @@ public final class FreshProductFlow {
               browser, outsiderSession, "guest", outsiderEmail, outsiderPassword);
       outsiderSession = awaitAuthority(browser, outsiderSession, "/guests", "guest");
       validateHumanWorkspaceToken(browser.jwtPayload(outsiderSession.accessToken()), "weave-app");
+      spaces.verifyAbsent(outsiderSession.accessToken());
 
       GeneratedFilesJourney generatedFiles = new GeneratedFilesJourney(environment);
       GeneratedFilesJourney.Proof generatedFilesProof =
           generatedFiles.createAndVerify(
               memberSession.accessToken(), outsiderSession.accessToken(), environment.runId());
+      spaces.verifyOwnerOnlyFileRelation(memberSession.accessToken(), ownerSession.accessToken(),
+          generatedFilesProof.fileId());
 
       CollaborationJourney collaboration = new CollaborationJourney(environment, http);
       collaborationPasses.add(
@@ -368,6 +377,10 @@ public final class FreshProductFlow {
             "the regranted Cell did not restore the same MCP projection");
       }
 
+      spaces.verifyRevocationAndVersionedRegrant(adminSession.accessToken(),
+          memberSession.accessToken(), personRef, generatedFilesProof.fileId());
+      spaceRevocationRestored = true;
+
       writeEvidence(
           startedAt,
           ownerEmail,
@@ -380,6 +393,7 @@ public final class FreshProductFlow {
           regrantRestored,
           sameHumanSubjectAfterRegrant,
           samePersonRefAfterRegrant,
+          spaceRevocationRestored,
           collaborationPasses);
     } finally {
       // Avoid retaining references longer than the single bounded JVM run.
@@ -909,6 +923,7 @@ public final class FreshProductFlow {
       boolean regrantRestored,
       boolean sameHumanSubjectAfterRegrant,
       boolean samePersonRefAfterRegrant,
+      boolean spaceRevocationRestored,
       List<CollaborationJourney.PassProof> collaborationPasses) {
     ObjectNode evidence = http.mapper().createObjectNode();
     evidence.put("schemaVersion", "weave.test-app-product-flow/v2");
@@ -944,6 +959,7 @@ public final class FreshProductFlow {
     evidence.put("regrantRestored", regrantRestored);
     evidence.put("sameHumanSubjectAfterRegrant", sameHumanSubjectAfterRegrant);
     evidence.put("samePersonRefAfterRegrant", samePersonRefAfterRegrant);
+    evidence.put("spaceRevocationRestored", spaceRevocationRestored);
     if (collaborationPasses.size() != 2
         || collaborationPasses.get(0).pass() != 1
         || collaborationPasses.get(1).pass() != 2

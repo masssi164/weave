@@ -109,9 +109,12 @@ tasks.register('postgresJpaTest', Test) {
         includeTestsMatching '*FilesMutationIntentServicePostgresTest'
         includeTestsMatching '*FilesUserApiNativeIntegrationTest'
         includeTestsMatching '*JpaFilesAuthorityRepositoryPostgresTest'
+        includeTestsMatching '*JpaFilesUserResourceRepositoryPostgresTest'
+        includeTestsMatching '*JpaSpaceAccessAdapterPostgresTest'
         includeTestsMatching '*JpaTransferRunRepositoryPostgresTest'
         includeTestsMatching '*WeaveNativeFilesAdapterTest'
         includeTestsMatching '*NativeCalendarProviderAdapterTest'
+        includeTestsMatching '*NativeCalendarPreviewHttpPostgresTest'
     }
     useJUnitPlatform {
         // Repository persistence belongs to Jupiter; Cucumber scenarios run in the

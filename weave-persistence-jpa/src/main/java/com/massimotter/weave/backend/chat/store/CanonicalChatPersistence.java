@@ -1417,6 +1417,66 @@ interface ChatConversationJpaRepository
       @Param("identityIssuer") String identityIssuer,
       @Param("actorRef") String actorRef);
 
+  @Query(
+      """
+      select conversation.id.part2 from ChatConversationJpaEntity conversation
+      where conversation.id.part1 = :tenantId
+        and conversation.contextId = :contextId
+        and conversation.id.part2 > :afterConversationId
+        and conversation.lifecycleState = 'committed'
+        and exists (
+            select membership.id.part1 from ChatMembershipJpaEntity membership
+            where membership.id.part1 = conversation.id.part1
+              and membership.id.part2 = conversation.id.part2
+              and membership.id.part3 = :identityIssuer
+              and membership.id.part4 = :actorRef
+              and membership.state = 'joined'
+        )
+        and not exists (
+            select mapping.id.part1 from ChatProviderMappingJpaEntity mapping
+            where mapping.id.part1 = conversation.id.part1
+              and mapping.id.part3 = 'conversation'
+              and mapping.id.part4 = conversation.id.part2
+              and mapping.state = 'degraded'
+        )
+      order by conversation.id.part2
+      """)
+  List<String> findJoinedRefs(
+      @Param("tenantId") String tenantId,
+      @Param("contextId") String contextId,
+      @Param("identityIssuer") String identityIssuer,
+      @Param("actorRef") String actorRef,
+      @Param("afterConversationId") String afterConversationId,
+      Pageable page);
+
+  @Query(
+      """
+      select conversation.contextId from ChatConversationJpaEntity conversation
+      where conversation.id.part1 = :tenantId
+        and conversation.id.part2 = :conversationId
+        and conversation.lifecycleState = 'committed'
+        and exists (
+            select membership.id.part1 from ChatMembershipJpaEntity membership
+            where membership.id.part1 = conversation.id.part1
+              and membership.id.part2 = conversation.id.part2
+              and membership.id.part3 = :identityIssuer
+              and membership.id.part4 = :actorRef
+              and membership.state in ('joined', 'invited')
+        )
+        and not exists (
+            select mapping.id.part1 from ChatProviderMappingJpaEntity mapping
+            where mapping.id.part1 = conversation.id.part1
+              and mapping.id.part3 = 'conversation'
+              and mapping.id.part4 = conversation.id.part2
+              and mapping.state = 'degraded'
+        )
+      """)
+  Optional<String> findMemberContext(
+      @Param("tenantId") String tenantId,
+      @Param("conversationId") String conversationId,
+      @Param("identityIssuer") String identityIssuer,
+      @Param("actorRef") String actorRef);
+
   Optional<ChatConversationJpaEntity> findByIdAndLifecycleState(
       ChatPairId id, String lifecycleState);
 

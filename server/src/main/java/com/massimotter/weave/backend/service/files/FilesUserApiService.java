@@ -36,6 +36,8 @@ import com.massimotter.weave.backend.providerbinding.domain.ProviderObjectMappin
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.identity.IdentityReferences;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -65,6 +67,7 @@ public class FilesUserApiService {
     private final OrganizationIdentityContextResolver identities;
     private final ContextAuthorizationProperties contextProperties;
     private final ContextAuthorizationPort contextAuthorization;
+    private final SpaceAccessPort spaces;
     private final WorkspaceCapabilityService capabilities;
     private final ProviderBindingRepository bindings;
     private final FilesProviderResolver providers;
@@ -88,10 +91,12 @@ public class FilesUserApiService {
             TransactionTemplate transactions,
             AuditEventPublisher auditEvents,
             ObjectProvider<McpWorkloadAuthorizationService> mcpWorkloads,
-            ObjectProvider<McpExchangedTokenPolicy> mcpTokens) {
+            ObjectProvider<McpExchangedTokenPolicy> mcpTokens,
+            SpaceAccessPort spaces) {
         this.identities = identities;
         this.contextProperties = contextProperties;
         this.contextAuthorization = contextAuthorization;
+        this.spaces = spaces;
         this.capabilities = capabilities;
         this.bindings = bindings;
         this.providers = providers;
@@ -101,6 +106,24 @@ public class FilesUserApiService {
         this.auditEvents = auditEvents;
         this.mcpWorkloads = mcpWorkloads.getIfAvailable();
         this.mcpTokens = mcpTokens.getIfAvailable();
+    }
+
+    /** Isolated workload tests use the legacy policy port; Spring injects durable Spaces. */
+    FilesUserApiService(
+            OrganizationIdentityContextResolver identities,
+            ContextAuthorizationProperties contextProperties,
+            ContextAuthorizationPort contextAuthorization,
+            WorkspaceCapabilityService capabilities,
+            ProviderBindingRepository bindings,
+            FilesProviderResolver providers,
+            FilesUserResourceRepository resources,
+            FilesMutationIntentService intents,
+            TransactionTemplate transactions,
+            AuditEventPublisher auditEvents,
+            ObjectProvider<McpWorkloadAuthorizationService> mcpWorkloads,
+            ObjectProvider<McpExchangedTokenPolicy> mcpTokens) {
+        this(identities, contextProperties, contextAuthorization, capabilities, bindings, providers,
+                resources, intents, transactions, auditEvents, mcpWorkloads, mcpTokens, null);
     }
 
     FilesUserApiService(
@@ -117,6 +140,7 @@ public class FilesUserApiService {
         this.identities = identities;
         this.contextProperties = contextProperties;
         this.contextAuthorization = contextAuthorization;
+        this.spaces = null;
         this.capabilities = capabilities;
         this.bindings = bindings;
         this.providers = providers;
@@ -738,12 +762,11 @@ public class FilesUserApiService {
         if (principal == null) {
             throw error(HttpStatus.UNAUTHORIZED, "unauthorized", "A member identity is required.");
         }
-        var decision = contextAuthorization.check(new ContextAuthorizationRequest(
-                identity.organizationId(), SPACE_REF, principal, permission));
-        if (!decision.allowed()) {
+        if (!spaceAllowed(identity.organizationId(), principal, identity.accountId(), permission)) {
             throw error(HttpStatus.FORBIDDEN, "files-forbidden", "Files access is not allowed for this Space.");
         }
-        boolean canEdit = permission == ContextPermission.EDIT || canEdit(jwt, identity.organizationId(), principal);
+        boolean canEdit = permission == ContextPermission.EDIT
+                || canEdit(jwt, identity.organizationId(), principal, identity.accountId());
         return new Member(identity.organizationId(), principal, identity.subject(), canEdit,
                 revisionClaim(jwt, "weave_policy_revision", "policy:unversioned"),
                 revisionClaim(jwt, "weave_entitlement_revision", "entitlement:unversioned"), null);
@@ -770,8 +793,16 @@ public class FilesUserApiService {
                     "The MCP workload has no current Files authorization.");
         }
         String principal = contextProperties.principalRef(workload.contextPrincipalClaim());
-        if (principal == null || !contextAuthorization.check(new ContextAuthorizationRequest(
-                workload.organizationRef(), SPACE_REF, principal, ContextPermission.VIEW)).allowed()) {
+        String accountRef;
+        try {
+            accountRef = IdentityReferences.accountId(
+                    workload.memberBinding().issuer(), workload.memberBinding().subject());
+        } catch (IllegalArgumentException malformed) {
+            throw error(HttpStatus.FORBIDDEN, "mcp-workload-files-forbidden",
+                    "The MCP workload has no current Files authorization.");
+        }
+        if (principal == null || !spaceAllowed(workload.organizationRef(), principal,
+                accountRef, ContextPermission.VIEW)) {
             throw error(HttpStatus.FORBIDDEN, "mcp-workload-files-forbidden",
                     "The MCP workload has no current Files authorization.");
         }
@@ -799,14 +830,27 @@ public class FilesUserApiService {
                         "result", result + ":" + count)));
     }
 
-    private boolean canEdit(Jwt jwt, String organizationRef, String principal) {
+    private boolean canEdit(Jwt jwt, String organizationRef, String principal, String accountRef) {
         try {
             capabilities.requireCapability(jwt, "files.upload", "files", "files-available-actions");
-            return contextAuthorization.check(new ContextAuthorizationRequest(
-                    organizationRef, SPACE_REF, principal, ContextPermission.EDIT)).allowed();
+            return spaceAllowed(organizationRef, principal, accountRef, ContextPermission.EDIT);
         } catch (ApiErrorException denied) {
             return false;
         }
+    }
+
+    private boolean spaceAllowed(String organizationRef, String principal, String accountRef,
+            ContextPermission permission) {
+        if (spaces != null) {
+            return spaces.allows(organizationRef, SPACE_REF, accountRef,
+                    switch (permission) {
+                        case VIEW -> SpaceAccessPort.Permission.VIEW;
+                        case EDIT -> SpaceAccessPort.Permission.EDIT;
+                        case ADMIN -> SpaceAccessPort.Permission.ADMIN;
+                    });
+        }
+        return contextAuthorization.check(new ContextAuthorizationRequest(
+                organizationRef, SPACE_REF, principal, permission)).allowed();
     }
 
     private String revisionClaim(Jwt jwt, String name, String fallback) {

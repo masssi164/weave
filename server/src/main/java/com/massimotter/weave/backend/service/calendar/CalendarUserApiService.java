@@ -13,12 +13,14 @@ import com.massimotter.weave.backend.providerbinding.port.ProviderBindingReposit
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.*;
 import java.util.*;
 import java.util.function.Supplier;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ public class CalendarUserApiService {
     private final OrganizationIdentityContextResolver identities;
     private final ContextAuthorizationProperties context;
     private final ContextAuthorizationPort authorization;
+    private final SpaceAccessPort spaces;
     private final WorkspaceCapabilityService capabilities;
     private final ProviderBindingRepository bindings;
     private final Map<String, CalendarProviderPort> providers;
@@ -39,10 +42,13 @@ public class CalendarUserApiService {
     private final CalendarOccurrenceEngine occurrences = new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine());
     private final CalendarPreviewRegistry previews = new CalendarPreviewRegistry();
 
+    @Autowired
     public CalendarUserApiService(DeploymentOrganizationAdmission admission, OrganizationIdentityContextResolver identities,
-            ContextAuthorizationProperties context, ContextAuthorizationPort authorization, WorkspaceCapabilityService capabilities,
-            ProviderBindingRepository bindings, List<CalendarProviderPort> providers, AuditEventPublisher audit) {
+            ContextAuthorizationProperties context, ContextAuthorizationPort authorization, SpaceAccessPort spaces,
+            WorkspaceCapabilityService capabilities, ProviderBindingRepository bindings,
+            List<CalendarProviderPort> providers, AuditEventPublisher audit) {
         this.admission = admission; this.identities = identities; this.context = context; this.authorization = authorization;
+        this.spaces = spaces;
         this.capabilities = capabilities; this.bindings = bindings; this.audit = audit;
         Map<String, CalendarProviderPort> keyed = new HashMap<>();
         for (CalendarProviderPort provider : providers) {
@@ -51,6 +57,13 @@ public class CalendarUserApiService {
             }
         }
         this.providers = Map.copyOf(keyed);
+    }
+
+    /** Existing isolated tests use the legacy policy port; Spring always injects durable Spaces. */
+    public CalendarUserApiService(DeploymentOrganizationAdmission admission, OrganizationIdentityContextResolver identities,
+            ContextAuthorizationProperties context, ContextAuthorizationPort authorization, WorkspaceCapabilityService capabilities,
+            ProviderBindingRepository bindings, List<CalendarProviderPort> providers, AuditEventPublisher audit) {
+        this(admission, identities, context, authorization, null, capabilities, bindings, providers, audit);
     }
 
     public Calendars calendars(Jwt jwt) {
@@ -150,6 +163,46 @@ public class CalendarUserApiService {
         return project(member, bound, scope, eventRef, event);
     }
 
+    /** Current direct Space candidates from confirmed mappings, never from provider browsing. */
+    public List<String> materializedEventRefsInSpace(
+            Jwt jwt, String spaceRef, String afterEventRef, int limit) {
+        if (spaceRef == null || spaceRef.isBlank() || afterEventRef == null
+                || (!afterEventRef.isEmpty() && !afterEventRef.matches("event:[0-9a-f]{64}"))
+                || limit < 1 || limit > 101) {
+            throw invalid();
+        }
+        Member member = member(jwt, false);
+        Optional<CalendarScope> maybeScope = scopes(member.organization()).stream()
+                .filter(candidate -> space(candidate).equals(spaceRef)).findFirst();
+        if (maybeScope.isEmpty() || !allowed(member, maybeScope.get(), ContextPermission.VIEW)) {
+            return List.of();
+        }
+        Bound bound = bound(member);
+        String prefix = calendarRef(member, maybeScope.get()) + ".";
+        var mappings = bindings.mappedByProviderRefPrefix(member.organization(), DOMAIN,
+                bound.binding().revision(), prefix, afterEventRef, limit);
+        current(member, bound);
+        return mappings.stream().map(mapping -> {
+            if (!member.organization().equals(mapping.organizationRef())
+                    || !DOMAIN.equals(mapping.domain())
+                    || mapping.bindingRevision() != bound.binding().revision()
+                    || !mapping.providerObjectRef().startsWith(prefix)
+                    || !mapping.canonicalObjectId().matches("event:[0-9a-f]{64}")) {
+                throw unavailable();
+            }
+            return mapping.canonicalObjectId();
+        }).toList();
+    }
+
+    /** Rechecks the current provider and member rights for one durable Space relation target. */
+    public Event readMaterializedEventInSpace(Jwt jwt, String spaceRef, String eventRef) {
+        Member member = member(jwt, false);
+        CalendarScope scope = scopes(member.organization()).stream()
+                .filter(candidate -> space(candidate).equals(spaceRef))
+                .findFirst().orElseThrow(this::missing);
+        return read(jwt, calendarRef(member, scope), eventRef);
+    }
+
     public Event create(Jwt jwt, String calendarRef, WriteRequest request, String idempotencyKey) {
         Member member = member(jwt, true);
         CalendarScope scope = scope(member, calendarRef, ContextPermission.EDIT);
@@ -223,7 +276,8 @@ public class CalendarUserApiService {
             try { capabilities.requireCapability(jwt, "calendar.manage_events", "calendar", "allowed-actions"); mayEdit = true; }
             catch (ApiErrorException denied) { mayEdit = false; }
         }
-        return new Member(identities.resolve(jwt).organizationId(), principal, mayEdit);
+        var identity = identities.resolve(jwt);
+        return new Member(identity.organizationId(), principal, identity.accountId(), mayEdit);
     }
 
     private List<CalendarScope> scopes(String organization) {
@@ -253,6 +307,14 @@ public class CalendarUserApiService {
     }
 
     private boolean allowed(Member member, CalendarScope scope, ContextPermission permission) {
+        if (spaces != null) {
+            return spaces.allows(member.organization(), space(scope), member.accountRef(),
+                    switch (permission) {
+                        case VIEW -> SpaceAccessPort.Permission.VIEW;
+                        case EDIT -> SpaceAccessPort.Permission.EDIT;
+                        case ADMIN -> SpaceAccessPort.Permission.ADMIN;
+                    });
+        }
         return authorization.check(new ContextAuthorizationRequest(member.organization(), space(scope), member.principal(), permission)).allowed();
     }
 
@@ -407,6 +469,6 @@ public class CalendarUserApiService {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
         catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
     }
-    private record Member(String organization, String principal, boolean mayEdit) {}
+    private record Member(String organization, String principal, String accountRef, boolean mayEdit) {}
     private record Bound(ProviderBinding binding, CalendarProviderPort provider) {}
 }

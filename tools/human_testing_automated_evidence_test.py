@@ -111,6 +111,7 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
             "regrantRestored": True,
             "sameHumanSubjectAfterRegrant": True,
             "samePersonRefAfterRegrant": True,
+            "spaceRevocationRestored": True,
             "credentialsIncluded": False,
             "actionLinksIncluded": False,
             "collaboration": {
