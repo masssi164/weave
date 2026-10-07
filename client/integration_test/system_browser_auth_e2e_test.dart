@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
+import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -20,6 +21,9 @@ void main() {
 
   const enabled = bool.fromEnvironment('WEAVE_SYSTEM_BROWSER_AUTH_E2E');
   const matrixEnabled = bool.fromEnvironment('WEAVE_MEMBER_MATRIX_E2E');
+  const disposableMessageEnabled = bool.fromEnvironment(
+    'WEAVE_DISPOSABLE_MATRIX_MESSAGE_E2E',
+  );
   final config = TestConfig.fromEnvironment();
 
   testWidgets(
@@ -81,6 +85,66 @@ void main() {
     },
     skip: !matrixEnabled,
     timeout: const Timeout(Duration(minutes: 9)),
+  );
+
+  testWidgets(
+    'one Weave login sends and reads an encrypted Matrix event on a disposable stack',
+    (tester) async {
+      final container = await _openWeaveSession(tester, config);
+      final coordinator = container.read(
+        matrixCryptoSessionCoordinatorProvider,
+      );
+      final chat = container.read(chatRepositoryProvider);
+      final marker =
+          'Weave native Matrix E2E ${DateTime.now().toUtc().microsecondsSinceEpoch}';
+      try {
+        final first = await coordinator.open(allowInteractiveSignIn: false);
+        final room = await chat.createConversation(title: marker);
+        expect(room.id, startsWith('!'));
+        await chat.sendMessage(roomId: room.id, message: marker);
+
+        Future<void> requireDecryptedReadback() async {
+          for (var attempt = 0; attempt < 20; attempt++) {
+            final timeline = await chat.loadRoomTimeline(room.id);
+            final matching = timeline.messages
+                .where((message) => message.text == marker)
+                .toList(growable: false);
+            if (matching.length == 1) {
+              expect(matching.single.isMine, isTrue);
+              expect(matching.single.id, startsWith(r'$'));
+              return;
+            }
+            await Future<void>.delayed(const Duration(seconds: 1));
+          }
+          fail('Native Matrix encrypted message readback did not arrive.');
+        }
+
+        await requireDecryptedReadback();
+        await coordinator.disposePreservingCryptoState();
+        final refreshed = await container
+            .read(authSessionRepositoryProvider)
+            .refreshSession(
+              AuthConfiguration(
+                issuer: config.issuerUrl,
+                clientId: config.clientId,
+              ),
+            );
+        expect(refreshed.isAuthenticated, isTrue);
+        final restored = await coordinator.open(allowInteractiveSignIn: false);
+        expect(restored.userId, first.userId);
+        expect(restored.deviceId, first.deviceId);
+        await requireDecryptedReadback();
+        debugPrint(
+          'NATIVE_MATRIX_MESSAGE_RESULT status=passed login=single '
+          'nativeSdk=true encryptedSendRead=true tokenRefresh=true '
+          'deviceRetained=true supportSafe=true',
+        );
+      } finally {
+        await coordinator.disposePreservingCryptoState();
+      }
+    },
+    skip: !matrixEnabled || !disposableMessageEnabled,
+    timeout: const Timeout(Duration(minutes: 12)),
   );
 }
 
