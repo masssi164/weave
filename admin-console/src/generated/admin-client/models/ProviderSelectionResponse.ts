@@ -14,13 +14,13 @@
 
 import { mapValues } from '../runtime';
 /**
- * Support-safe selected provider mapping owned by the Admin Console/backend control plane.
+ * Support-safe category-selection metadata; this response is not active organization binding or cutover evidence.
  * @export
  * @interface ProviderSelectionResponse
  */
 export interface ProviderSelectionResponse {
     /**
-     *
+     * Category metadata was recorded; this does not mean the active organization binding changed.
      * @type {boolean}
      * @memberof ProviderSelectionResponse
      */
