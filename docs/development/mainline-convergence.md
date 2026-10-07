@@ -1,6 +1,6 @@
 # Mainline convergence
 
-Status: active one-time source-line convergence for issue #1299 and pull request #1413.
+Status: historical one-time source-line convergence for issue #1299 and pull request #1413. The current #1470 delivery and pinned `steering/devops-conformance.md` supersede its main-promotion assumptions.
 
 ## Purpose
 
@@ -28,7 +28,7 @@ Textual equivalent: the convergence commit has the current `dev` head as its fir
 
 ## Main promotion gate
 
-The protected compatibility context is still named `Verify dev → dogfood evidence before main`, but its executable rule is already different: a normal promotion candidate must contain the current protected `dev` head and be tree-identical to it.
+The protected compatibility context remains named `Verify dev → dogfood evidence before main`. The current rule also requires protected `dogfood` ancestry and an identical tree, exact dogfood E2E/deployment success, and a separately reported human result for the deployed commit. See `specs/main-promotion-evidence-contract.md`.
 
 After #1413 merges, branch protection can rename that context to an explicit current name such as `Verify exact dev tree before main` or retire the two-branch promotion model entirely.
 

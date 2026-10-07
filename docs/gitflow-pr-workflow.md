@@ -20,6 +20,29 @@ Weave uses clear DevOps lanes instead of heavy classic GitFlow: `dev` for integr
 - Local development and temporary previews still use developer machines or disposable worktrees.
 - `dogfood` is the persistent LAN test/human-validation stack. Promotion PRs from `dev` to `dogfood` run full or feature-relevant E2E/live validation; merges to `dogfood` deploy or update the persistent stack.
 - `main` promotion follows dogfood validation and required human signoff.
+- The protected main gate verifies the current `dev` and `dogfood` ancestry and
+  exact tree, the dogfood-head push run's successful Full Compose E2E and
+  deployment jobs, and a separate owner-reported human result for that same
+  deployed commit. The main PR must contain this one comment after deployment:
+
+  ```text
+  Weave human test v1
+  dogfood: <full 40-character dogfood commit SHA>
+  sign-in: passed
+  chat: passed
+  files: passed
+  calendar: passed
+  accessibility: passed
+  revoke-regrant: passed
+  identity-continuity: passed
+  ```
+
+  The human tester changes a surface to `failed` or `not-available` when that
+  is the result; either blocks the current #1470 main promotion. Optional
+  `notes:` must remain support-safe. After the owner reports a result, rerun
+  the unchanged PR's Main Promotion Gate; a comment cannot change a completed
+  check retroactively. This attestation records human observation and never
+  substitutes for the automated product E2E.
 - `rc/<version>` branches are optional later release-hardening lanes, not the ordinary human dogfood path; release tags are generated from `main` after promotion.
 - Production releases use final SemVer tags such as `vX.Y.Z` plus explicit production approval.
 - A merge to `main` makes Weave release-capable; it is not an automatic production deploy.

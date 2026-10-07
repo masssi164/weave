@@ -148,6 +148,13 @@ artifacts:
       - steering/devops-conformance.md
       - releases/rc-gates/release-candidate-gate.md
     notes: Replaced by weave-specs commit 78f6c58fef0ebb53684c5c861c2453b8c4c577c9; Forgejo delivery/runtime evidence is not active.
+  - path: specs/main-promotion-evidence-contract.md
+    status: implementation-evidence
+    action: keep-as-repo-owned-protected-promotion-conformance
+    corpusCandidates:
+      - steering/devops-conformance.md
+      - acceptance/features/delivery-lane-validation.feature
+    notes: Exact protected refs, deployed dogfood check results, and owner-reported human outcomes are checked in the Weave delivery workflow.
   - path: specs/calendar-generated-consumer-evidence.md
     status: implementation-evidence
     action: retain-as-generated-calendar-consumer-and-runtime-evidence
