@@ -102,6 +102,7 @@ tasks.register('postgresJpaTest', Test) {
         includeTestsMatching '*JpaDeviceCredentialRepositoryTest'
         includeTestsMatching '*AdminControlPlaneServiceTest'
         includeTestsMatching '*JpaProductProfileOverrideRepositoryTest'
+        includeTestsMatching '*JpaProviderBindingRepositoryPostgresTest'
         includeTestsMatching '*JpaOrganizationBootstrapRepositoryTest'
         includeTestsMatching '*JpaMigrationRunEvidenceRepositoryTest'
         includeTestsMatching '*JpaOperationIntentRepositoryPostgresTest'
@@ -112,5 +113,9 @@ tasks.register('postgresJpaTest', Test) {
         includeTestsMatching '*WeaveNativeFilesAdapterTest'
         includeTestsMatching '*NativeCalendarProviderAdapterTest'
     }
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // Repository persistence belongs to Jupiter; Cucumber scenarios run in the
+        // product acceptance lane and bypass Gradle's class-name filter here.
+        includeEngines 'junit-jupiter'
+    }
 }
