@@ -203,7 +203,7 @@ export interface AdminControlPlaneApiInterface {
 
     /**
      *
-     * @summary Apply or dry-run an Admin Console selected provider mapping
+     * @summary Record or dry-run category metadata without changing the active organization provider binding
      * @param {ProviderSelectionRequest} providerSelectionRequest
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -212,7 +212,7 @@ export interface AdminControlPlaneApiInterface {
     selectProviderRaw(requestParameters: SelectProviderRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ProviderSelectionResponse>>;
 
     /**
-     * Apply or dry-run an Admin Console selected provider mapping
+     * Record or dry-run category metadata without changing the active organization provider binding
      */
     selectProvider(requestParameters: SelectProviderRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ProviderSelectionResponse>;
 
@@ -548,7 +548,7 @@ export class AdminControlPlaneApi extends runtime.BaseAPI implements AdminContro
     }
 
     /**
-     * Apply or dry-run an Admin Console selected provider mapping
+     * Record or dry-run category metadata without changing the active organization provider binding
      */
     async selectProviderRaw(requestParameters: SelectProviderRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ProviderSelectionResponse>> {
         if (requestParameters['providerSelectionRequest'] == null) {
@@ -587,7 +587,7 @@ export class AdminControlPlaneApi extends runtime.BaseAPI implements AdminContro
     }
 
     /**
-     * Apply or dry-run an Admin Console selected provider mapping
+     * Record or dry-run category metadata without changing the active organization provider binding
      */
     async selectProvider(requestParameters: SelectProviderRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ProviderSelectionResponse> {
         const response = await this.selectProviderRaw(requestParameters, initOverrides);

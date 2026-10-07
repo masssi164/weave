@@ -27,6 +27,8 @@ import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepositor
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.provider.ProviderSelection;
 import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
+import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
+import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
@@ -37,6 +39,7 @@ import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -116,6 +119,9 @@ class AdminControlPlaneControllerTest {
 
     @MockitoBean
     private MigrationRunEvidenceRepository migrationRunEvidenceRepository;
+
+    @MockitoBean
+    private ProviderBindingRepository providerBindingRepository;
 
     @Autowired
     private ProviderSelectionRepository providerSelectionRepository;
@@ -687,6 +693,23 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
                 .andExpect(jsonPath("$.details.requiredCapability").value("admin.provider.configure"))
                 .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
+    }
+
+    @Test
+    void adminSelectionCannotContradictCurrentOrganizationChatBinding() throws Exception {
+        when(providerBindingRepository.current("weave-dogfood", "chat")).thenReturn(Optional.of(
+                new ProviderBinding("weave-dogfood", "chat", 3, "weave-native",
+                        "profile:weave-native", ProviderBinding.State.ACTIVE, Instant.parse("2026-10-07T09:00:00Z"))));
+        mockMvc.perform(post("/api/admin/providers/selections")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"category":"chat","providerKey":"matrix-synapse","choiceModel":"recommended_self_hosted_default","secretRef":"secretref://weave/provider/matrix-synapse","dryRun":false,"reason":"test conflicting category metadata"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("provider-selection-conflicts-active-binding"))
+                .andExpect(jsonPath("$.details.category").value("chat"));
+        assertEquals("synapse-homeserver", providerSelectionRepository.findByCategory("chat").orElseThrow().providerKey());
     }
 
     private WorkspaceCapabilityStatusResponse capability(

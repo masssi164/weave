@@ -38,6 +38,7 @@ import com.massimotter.weave.backend.provider.ProviderSelection;
 import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
+import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.domainfacade.CanonicalDomainDefinition;
 import com.massimotter.weave.backend.service.migration.MigrationRunEvidence;
 import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
@@ -58,6 +59,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -102,6 +104,7 @@ public class AdminControlPlaneService {
     private final OrganizationBootstrapRepository organizationBootstrapRepository;
     private final AuditEventPublisher auditEventPublisher;
     private final MigrationRunEvidenceRepository migrationRunEvidenceRepository;
+    private final ProviderBindingRepository providerBindings;
     private final OrganizationIdentityContextResolver identityContexts;
     private final Clock clock;
 
@@ -114,7 +117,8 @@ public class AdminControlPlaneService {
             AuditEventPublisher auditEventPublisher,
             ProductProfileOverrideRepository productProfileOverrideRepository,
             MigrationRunEvidenceRepository migrationRunEvidenceRepository,
-            OrganizationIdentityContextResolver identityContexts) {
+            OrganizationIdentityContextResolver identityContexts,
+            ObjectProvider<ProviderBindingRepository> providerBindings) {
         this(
                 providerRegistry,
                 workspaceCapabilityService,
@@ -124,7 +128,8 @@ public class AdminControlPlaneService {
                 Clock.systemUTC(),
                 productProfileOverrideRepository,
                 migrationRunEvidenceRepository,
-                identityContexts);
+                identityContexts,
+                providerBindings.getObject());
     }
 
     AdminControlPlaneService(
@@ -158,6 +163,23 @@ public class AdminControlPlaneService {
             ProductProfileOverrideRepository productProfileOverrideRepository,
             MigrationRunEvidenceRepository migrationRunEvidenceRepository,
             OrganizationIdentityContextResolver identityContexts) {
+        this(providerRegistry, workspaceCapabilityService, providerSelectionRepository,
+                organizationBootstrapRepository, auditEventPublisher, clock,
+                productProfileOverrideRepository, migrationRunEvidenceRepository,
+                identityContexts, null);
+    }
+
+    AdminControlPlaneService(
+            ProviderRegistry providerRegistry,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ProviderSelectionRepository providerSelectionRepository,
+            OrganizationBootstrapRepository organizationBootstrapRepository,
+            AuditEventPublisher auditEventPublisher,
+            Clock clock,
+            ProductProfileOverrideRepository productProfileOverrideRepository,
+            MigrationRunEvidenceRepository migrationRunEvidenceRepository,
+            OrganizationIdentityContextResolver identityContexts,
+            ProviderBindingRepository providerBindings) {
         this.providerRegistry = java.util.Objects.requireNonNull(providerRegistry, "providerRegistry");
         this.workspaceCapabilityService = java.util.Objects.requireNonNull(
                 workspaceCapabilityService, "workspaceCapabilityService");
@@ -171,6 +193,7 @@ public class AdminControlPlaneService {
                 auditEventPublisher, "auditEventPublisher");
         this.migrationRunEvidenceRepository = java.util.Objects.requireNonNull(
                 migrationRunEvidenceRepository, "migrationRunEvidenceRepository");
+        this.providerBindings = providerBindings;
         this.identityContexts = java.util.Objects.requireNonNull(
                 identityContexts, "identityContexts");
         this.clock = java.util.Objects.requireNonNull(clock, "clock");
@@ -225,6 +248,7 @@ public class AdminControlPlaneService {
     public ProviderSelectionResponse selectProvider(ProviderSelectionRequest request, Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin.provider.configure", "admin-control-plane", "select-provider");
         ProviderSelection selection = validateProviderSelection(request, jwt);
+        rejectSelectionConflictingWithActiveBinding(selection, jwt);
         boolean dryRun = request.dryRun();
         if ("files".equals(selection.category()) && !dryRun) {
             throw new ApiErrorException(
@@ -261,6 +285,21 @@ public class AdminControlPlaneService {
                 "files".equals(selection.category())
                         ? "blocked-unverified"
                         : dryRun ? "dry_run_valid" : "admin_selected_pending_readiness");
+    }
+
+    private void rejectSelectionConflictingWithActiveBinding(ProviderSelection selection, Jwt jwt) {
+        if (providerBindings == null || !Set.of("files", "chat", "calendar").contains(selection.category())) {
+            return;
+        }
+        providerBindings.current(organizationId(jwt), selection.category()).ifPresent(binding -> {
+            if (!binding.adapterKey().equals(selection.providerKey())) {
+                throw new ApiErrorException(
+                        HttpStatus.CONFLICT,
+                        "provider-selection-conflicts-active-binding",
+                        "Category selection cannot replace the active organization provider binding.",
+                        Map.of("category", selection.category(), "supportSafe", true));
+            }
+        });
     }
 
     public ProviderReplacementDryRunResponse dryRunProviderReplacement(ProviderReplacementDryRunRequest request, Jwt jwt) {
