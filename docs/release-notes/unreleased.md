@@ -10,6 +10,8 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Added
 
+- Adds a bounded, read-only `calendar.agenda` MCP tool over the generated User Calendar client,
+  with per-tool downscoped workload exchange and current member/Space authorization.
 - Adds the Fresh Weave JVM architecture with framework-free application/files cores, explicit
   JPA/provider/security adapter modules, separate Server and MCP processes, a provider-neutral
   `files.search`/`weave://files/{id}` MCP slice over the existing WebDAV projection, and

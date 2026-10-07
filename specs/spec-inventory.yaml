@@ -183,6 +183,13 @@ artifacts:
     corpusCandidates:
       - steering/release-2026-10-product-consolidation.md
       - domains/files/spec.md
+  - path: specs/mcp-generated-user-calendar.md
+    status: implementation-evidence
+    action: retain-as-mcp-calendar-generated-user-consumer-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/calendar/spec.md
+      - acceptance/features/workload-identity-token-exchange.feature
 cleanupSequence:
   - Add or update corpus files for any remaining product/domain meaning.
   - Update repo tests/gates to consume corpus contracts or generated projections.

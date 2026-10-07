@@ -713,13 +713,14 @@ class BackendFilesRepository
   String? _errorMessage(String? body) {
     if (body == null || body.isEmpty) return null;
     try {
-      final payload = jsonDecode(body);
-      if (payload is Map<String, dynamic>) {
-        final impact = payload['memberImpact'];
-        if (impact is String && impact.trim().isNotEmpty) return impact;
-        final message = payload['message'];
-        if (message is String && message.trim().isNotEmpty) return message;
-      }
+      // ignore: deprecated_member_use
+      final error =
+          user_api.ApiClient().deserialize(body, 'ApiErrorResponse')
+              as user_api.ApiErrorResponse?;
+      final impact = error?.memberImpact;
+      if (impact != null && impact.trim().isNotEmpty) return impact;
+      final message = error?.message;
+      if (message != null && message.trim().isNotEmpty) return message;
     } catch (_) {
       // Generated transport errors are not guaranteed to have a JSON body.
     }

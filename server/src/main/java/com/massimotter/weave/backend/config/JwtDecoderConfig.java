@@ -90,6 +90,27 @@ public class JwtDecoderConfig {
         return configuredRfc9068Decoder(resourceServerProperties, validator);
     }
 
+    @Bean("calendarMcpWorkloadJwtDecoder")
+    @ConditionalOnProperty(name = "weave.agent-runtime.workload-identity.enabled", havingValue = "true")
+    JwtDecoder calendarMcpWorkloadJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties) {
+        String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
+        if (!StringUtils.hasText(issuerUri)) {
+            return configuredRfc9068Decoder(
+                    resourceServerProperties,
+                    jwt -> OAuth2TokenValidatorResult.success());
+        }
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+                new JwtTimestampValidator(),
+                new JwtIssuerValidator(issuerUri),
+                rfc9068AccessTokenTypeValidator(),
+                exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
+                requiredAuthorizedPartyValidator("weave-mcp-server"),
+                exactScopesValidator(Set.of("calendar.read")));
+        return configuredRfc9068Decoder(resourceServerProperties, validator);
+    }
+
     @Bean("agentRuntimeAdminJwtDecoder")
     @ConditionalOnExpression(
             "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"

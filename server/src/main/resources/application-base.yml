@@ -88,7 +88,7 @@ weave:
       # authoritative. The group identifier is fixed in the Keycloak adapter.
       enabled: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_ENABLED:false}
       observation-ttl: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_OBSERVATION_TTL:5m}
-      allowed-capabilities: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CAPABILITIES:calendar.read}
+      allowed-capabilities: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CAPABILITIES:files.read,calendar.read}
     workload-identity:
       enabled: ${WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED:false}
       keycloak-admin-base-url: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_ADMIN_BASE_URL:}
@@ -103,7 +103,7 @@ weave:
       timeout: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_TIMEOUT:10s}
       workload-role: weaver-runtime
       default-client-scopes: ${WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES:weaver-runtime-workload}
-      optional-client-scopes: ${WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES:agent-runtime.profile.read,mcp.tools,files.read}
+      optional-client-scopes: ${WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES:agent-runtime.profile.read,mcp.tools,files.read,calendar.read}
       access-token-lifespan-seconds: ${WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS:59}
   chat:
     # Canonical Chat has one durable JPA authority. Weave-native commits directly

@@ -165,6 +165,31 @@ class JwtDecoderConfigTest {
     }
 
     @Test
+    void calendarWorkloadDecoderAcceptsOnlyAnExactSignedCalendarReadToken() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
+            OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+            properties.getJwt().setIssuerUri(ISSUER_URI);
+            properties.getJwt().setJwkSetUri(jwksServer.jwkSetUri());
+            JwtDecoder decoder = new JwtDecoderConfig().calendarMcpWorkloadJwtDecoder(
+                    properties, new WeaveSecurityProperties("https://api.weave.test/api", "weave-app"));
+
+            assertThat(decoder.decode(signedToken(signingKey, ISSUER_URI,
+                    List.of("https://api.weave.test/api"), "weave-mcp-server",
+                    new JOSEObjectType("at+jwt"), "cell-subject", "calendar.read"))
+                    .getClaimAsString("scope")).isEqualTo("calendar.read");
+            for (String scope : List.of("files.read", "files.read calendar.read", "calendar.write")) {
+                assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(signingKey,
+                        ISSUER_URI, List.of("https://api.weave.test/api"), "weave-mcp-server",
+                        new JOSEObjectType("at+jwt"), "cell-subject", scope)));
+            }
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(signingKey,
+                    ISSUER_URI, List.of("https://api.weave.test/api"), "weave-app",
+                    new JOSEObjectType("at+jwt"), "member", "calendar.read")));
+        }
+    }
+
+    @Test
     void rfc9068DecoderAcceptsAtJwtAndRejectsGenericJwtBeforeClaimsAreTrusted() throws Exception {
         RSAKey signingKey = rsaSigningKey();
         try (JwksServer jwksServer = JwksServer.start(signingKey)) {
@@ -320,13 +345,25 @@ class JwtDecoderConfigTest {
             String authorizedParty,
             JOSEObjectType type,
             String subject) throws Exception {
+        return signedToken(signingKey, issuerUri, audiences, authorizedParty, type, subject,
+                "weave:workspace");
+    }
+
+    private static String signedToken(
+            RSAKey signingKey,
+            String issuerUri,
+            List<String> audiences,
+            String authorizedParty,
+            JOSEObjectType type,
+            String subject,
+            String scope) throws Exception {
         Instant now = Instant.now();
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .issuer(issuerUri)
                 .subject(subject)
                 .audience(audiences)
                 .claim("azp", authorizedParty)
-                .claim("scope", "weave:workspace")
+                .claim("scope", scope)
                 .issueTime(Date.from(now))
                 .notBeforeTime(Date.from(now.minusSeconds(30)))
                 .expirationTime(Date.from(now.plusSeconds(300)))
