@@ -23,6 +23,7 @@ permissions:
   actions: read
   contents: read
   issues: read
+  pull-requests: read
 
 jobs:
   verify-current-dev-tree:
@@ -113,6 +114,7 @@ jobs:
           python3 tools/verify_main_promotion_evidence.py \
             --repository "$REPOSITORY" \
             --owner "$OWNER" \
+            --candidate-sha "${{ steps.candidate.outputs.sha }}" \
             --dogfood-sha "$(git rev-parse origin/dogfood)" \
             --pr-number "$PR_NUMBER"
 

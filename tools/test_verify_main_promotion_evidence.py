@@ -5,6 +5,7 @@ import unittest
 
 from tools.verify_main_promotion_evidence import (
     deployed_run,
+    matches_promotion_pr,
     owner_human_pass,
     parse_human_comment,
     required_jobs_passed,
@@ -29,6 +30,20 @@ HUMAN = "\n".join(
 
 
 class MainPromotionEvidenceTest(unittest.TestCase):
+    def test_human_evidence_belongs_to_exact_open_main_promotion(self) -> None:
+        repository = "masssi164/weave"
+        pr = {
+            "state": "open",
+            "base": {"ref": "main", "repo": {"full_name": repository}},
+            "head": {"sha": SHA, "repo": {"full_name": repository}},
+        }
+        self.assertTrue(matches_promotion_pr(pr, repository, SHA))
+        self.assertFalse(matches_promotion_pr(pr, repository, OTHER))
+        self.assertFalse(matches_promotion_pr({**pr, "state": "closed"}, repository, SHA))
+        self.assertFalse(matches_promotion_pr({**pr, "base": {**pr["base"], "ref": "dev"}}, repository, SHA))
+        self.assertFalse(matches_promotion_pr({**pr, "head": {**pr["head"],
+            "repo": {"full_name": "other/weave"}}}, repository, SHA))
+
     def test_human_result_needs_exact_commit_and_every_pass(self) -> None:
         self.assertTrue(parse_human_comment(HUMAN, SHA))
         self.assertFalse(parse_human_comment(HUMAN, OTHER))

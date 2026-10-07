@@ -66,6 +66,17 @@ def required_jobs_passed(jobs: list[dict]) -> bool:
     }
 
 
+def matches_promotion_pr(pr: dict, repository: str, candidate_sha: str) -> bool:
+    """Bind human evidence to the exact same-repository main PR."""
+    return (
+        pr.get("base", {}).get("ref") == "main"
+        and pr.get("base", {}).get("repo", {}).get("full_name") == repository
+        and pr.get("head", {}).get("sha") == candidate_sha
+        and pr.get("head", {}).get("repo", {}).get("full_name") == repository
+        and pr.get("state") == "open"
+    )
+
+
 def owner_human_pass(comments: list[dict], owner: str, sha: str, deployed_at: str) -> bool:
     completed = datetime.fromisoformat(deployed_at.replace("Z", "+00:00"))
     owner_results = [
@@ -106,6 +117,8 @@ def paged(path: str, token: str, key: str | None = None) -> list[dict]:
         items.extend(batch)
         if len(batch) < 100:
             break
+        if page == 10:
+            raise ValueError("GitHub evidence list exceeds the bounded verification window")
     return items
 
 
@@ -113,14 +126,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", required=True)
     parser.add_argument("--owner", required=True)
+    parser.add_argument("--candidate-sha", required=True)
     parser.add_argument("--dogfood-sha", required=True)
     parser.add_argument("--pr-number", type=int, required=True)
     args = parser.parse_args()
     token = os.environ.get("GITHUB_TOKEN", "")
-    if not token or not SHA.fullmatch(args.dogfood_sha) or args.pr_number < 1:
-        parser.error("A GitHub token, exact dogfood SHA and promotion PR number are required")
+    if not token or not SHA.fullmatch(args.candidate_sha) or not SHA.fullmatch(args.dogfood_sha) or args.pr_number < 1:
+        parser.error("A GitHub token, exact candidate/dogfood SHAs and promotion PR number are required")
 
     repo = args.repository
+    pr = api(f"/repos/{repo}/pulls/{args.pr_number}", token)
+    if not matches_promotion_pr(pr, repo, args.candidate_sha):
+        print("Human result does not belong to the exact open main promotion PR", file=sys.stderr)
+        return 1
     query = urlencode({"branch": "dogfood", "head_sha": args.dogfood_sha, "event": "push"})
     response = api(f"/repos/{repo}/actions/workflows/live-stack-e2e.yml/runs?{query}&per_page=100", token)
     run = deployed_run(response.get("workflow_runs", []), args.dogfood_sha)

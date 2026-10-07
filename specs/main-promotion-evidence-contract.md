@@ -23,6 +23,10 @@ continues to require current `main` ancestry and immediate forward-port. The
 hotfix lane can be selected only by a same-repository `hotfix/*` PR; a fork
 branch cannot select the exception by name alone.
 
+The human result must be attached to the same-repository promotion PR whose
+head is the exact candidate and whose base is `main`; a workflow dispatch
+cannot point at a different issue or older PR as evidence.
+
 The human test result is separate from automated E2E. The only human tester
 records a support-safe pass/fail/not-available result for the exact deployed
 dogfood commit and the requested member surfaces. The promotion PR links that
