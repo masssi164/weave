@@ -78,7 +78,8 @@ class SpringAiMcpTransportTest {
         .andExpect(
             jsonPath("$.authorization_servers[0]", is("https://auth.weave.test/realms/weave")))
         .andExpect(jsonPath("$.scopes_supported[0]", is("mcp.tools")))
-        .andExpect(jsonPath("$.scopes_supported[1]", is("files.read")));
+        .andExpect(jsonPath("$.scopes_supported[1]", is("files.read")))
+        .andExpect(jsonPath("$.scopes_supported[2]", is("calendar.read")));
   }
 
   @Test
@@ -124,7 +125,7 @@ class SpringAiMcpTransportTest {
             header()
                 .string(
                     HttpHeaders.WWW_AUTHENTICATE,
-                    containsString("scope=\"mcp.tools files.read\"")));
+                    containsString("scope=\"mcp.tools files.read calendar.read\"")));
     verify(exchange, never()).exchange(any(), anyString(), any());
   }
 
