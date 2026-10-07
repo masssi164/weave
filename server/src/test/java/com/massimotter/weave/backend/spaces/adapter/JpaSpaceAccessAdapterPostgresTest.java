@@ -112,4 +112,64 @@ class JpaSpaceAccessAdapterPostgresTest {
                 .isInstanceOf(SpaceProvisioningPort.Conflict.class);
         assertThat(access.allows("org:setup", "workspace-default", alice, Permission.VIEW)).isFalse();
     }
+
+    @Test
+    void versionedMemberAdministrationPreservesCurrentRightsAndLastAdministrator() {
+        DriverManagerDataSource source = new DriverManagerDataSource();
+        source.setDriverClassName(POSTGRES.getDriverClassName());
+        source.setUrl(POSTGRES.getJdbcUrl());
+        source.setUsername(POSTGRES.getUsername());
+        source.setPassword(POSTGRES.getPassword());
+        Flyway.configure().dataSource(source).locations("classpath:db/migration").load().migrate();
+        JpaTestDatabase.validateSchema(source);
+        SpaceJpaRepository spaces = JpaTestDatabase.repository(source, SpaceJpaRepository.class);
+        SpaceMembershipJpaRepository members = JpaTestDatabase.repository(source, SpaceMembershipJpaRepository.class);
+        String owner = "acct_11111111111111111111111111111111";
+        String alice = "acct_22222222222222222222222222222222";
+        String outsider = "acct_33333333333333333333333333333333";
+        JpaTestDatabase.transactional(source,
+                new JpaSpaceProvisioningAdapter(spaces, members, Clock.fixed(NOW, ZoneOffset.UTC)))
+                .provision("org:setup", "workspace-default", owner, Set.of());
+        var admin = JpaTestDatabase.transactional(source,
+                new JpaSpaceMembershipAdminAdapter(spaces, members,
+                        Clock.fixed(NOW.plusSeconds(1), ZoneOffset.UTC)));
+        var access = JpaTestDatabase.transactional(source, new JpaSpaceAccessAdapter(spaces, members));
+        var first = admin.grant("org:setup", "workspace-default", owner, alice,
+                Set.of(Permission.VIEW), null, true);
+        assertThat(first.strongEtag()).isNotBlank();
+        assertThat(admin.get("org:setup", "workspace-default", owner, alice).strongEtag())
+                .isEqualTo(first.strongEtag());
+        assertThat(admin.list("org:setup", "workspace-default", owner, "", 10)
+                .stream().map(member -> member.accountRef()))
+                .containsExactly(owner, alice);
+        assertThat(access.allows("org:setup", "workspace-default", alice, Permission.VIEW)).isTrue();
+        assertThat(access.allows("org:setup", "workspace-default", alice, Permission.EDIT)).isFalse();
+        assertThatThrownBy(() -> admin.grant("org:setup", "workspace-default", outsider, alice,
+                Set.of(Permission.VIEW, Permission.EDIT), first.strongEtag(), false))
+                .isInstanceOf(com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.Denied.class);
+        var second = admin.grant("org:setup", "workspace-default", owner, alice,
+                Set.of(Permission.VIEW, Permission.EDIT), first.strongEtag(), false);
+        assertThat(second.strongEtag()).isNotEqualTo(first.strongEtag());
+        assertThatThrownBy(() -> admin.revoke("org:setup", "workspace-default", owner,
+                alice, first.strongEtag()))
+                .isInstanceOf(com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.Stale.class);
+        assertThat(access.allows("org:setup", "workspace-default", alice, Permission.EDIT)).isTrue();
+        assertThatThrownBy(() -> admin.revoke("org:setup", "workspace-default", owner,
+                owner, "\"sm-0\""))
+                .isInstanceOf(com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.LastAdministrator.class);
+        admin.revoke("org:setup", "workspace-default", owner, alice, second.strongEtag());
+        assertThat(access.allows("org:setup", "workspace-default", alice, Permission.VIEW)).isFalse();
+        assertThat(admin.list("org:setup", "workspace-default", owner, "", 10)
+                .stream().map(member -> member.accountRef())).containsExactly(owner);
+        assertThatThrownBy(() -> admin.get("org:setup", "workspace-default", owner, alice))
+                .isInstanceOf(com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.Absent.class);
+        assertThatThrownBy(() -> admin.grant("org:setup", "workspace-default", owner,
+                alice, Set.of(Permission.VIEW), second.strongEtag(), false))
+                .isInstanceOf(com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.Absent.class);
+        var restored = admin.grant("org:setup", "workspace-default", owner, alice,
+                Set.of(Permission.VIEW), null, true);
+        assertThat(restored.strongEtag()).isNotEqualTo(first.strongEtag());
+        assertThat(access.allows("org:setup", "workspace-default", alice, Permission.VIEW)).isTrue();
+        assertThat(access.allows("org:other", "workspace-default", alice, Permission.VIEW)).isFalse();
+    }
 }

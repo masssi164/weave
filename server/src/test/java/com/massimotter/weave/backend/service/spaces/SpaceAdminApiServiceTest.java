@@ -10,6 +10,9 @@ import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.model.spaces.SpaceProvisionRequest;
+import com.massimotter.weave.backend.model.spaces.SpaceMemberChangeRequest;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort.Permission;
+import com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
@@ -25,11 +28,12 @@ class SpaceAdminApiServiceTest {
     private final DeploymentOrganizationAdmission admission = mock(DeploymentOrganizationAdmission.class);
     private final WorkspaceCapabilityService capabilities = mock(WorkspaceCapabilityService.class);
     private final SpaceProvisioningPort spaces = mock(SpaceProvisioningPort.class);
+    private final SpaceMembershipAdministrationPort memberships = mock(SpaceMembershipAdministrationPort.class);
     private final AuditEventPublisher audit = mock(AuditEventPublisher.class);
     private final SpaceAdminApiService service = new SpaceAdminApiService(admission,
             OrganizationIdentityContextResolver.configured(
                     new ContextAuthorizationProperties(null, null, null, null, null, null, null, null)),
-            capabilities, spaces, audit);
+            capabilities, spaces, memberships, audit);
     private static final String ISSUER = "https://auth.weave.test/realms/weave";
     private static final String OWNER_ACCOUNT = IdentityReferences.accountId(ISSUER, "owner");
     private static final String MEMBER_ACCOUNT = IdentityReferences.accountId(ISSUER, "member");
@@ -86,6 +90,60 @@ class SpaceAdminApiServiceTest {
                     assertThat(error.code()).isEqualTo("space-provision-conflict");
                 });
         verifyNoInteractions(audit);
+    }
+
+    @Test
+    void versionedMembershipChangeRequiresCurrentAdminAndNeverAuditsAStaleMutation() {
+        Jwt owner = token("owner", "owner");
+        when(admission.allows(owner)).thenReturn(true);
+        var request = new SpaceMemberChangeRequest(List.of(
+                SpaceMemberChangeRequest.PermissionValue.VIEW));
+        assertThatThrownBy(() -> service.grant(owner, "workspace-default", MEMBER_ACCOUNT,
+                request, null, null)).isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status()).isEqualTo(HttpStatus.PRECONDITION_REQUIRED));
+        when(memberships.grant("tenant-default", "workspace-default", OWNER_ACCOUNT,
+                MEMBER_ACCOUNT, Set.of(Permission.VIEW), null, true))
+                .thenReturn(new SpaceMembershipAdministrationPort.MemberState(
+                        MEMBER_ACCOUNT, Set.of(Permission.VIEW), "\"sm-0\""));
+        var created = service.grant(owner, "workspace-default", MEMBER_ACCOUNT,
+                request, null, "*");
+        assertThat(created.strongEtag()).isEqualTo("\"sm-0\"");
+        when(memberships.grant("tenant-default", "workspace-default", OWNER_ACCOUNT,
+                MEMBER_ACCOUNT, Set.of(Permission.VIEW), "\"sm-0\"", false))
+                .thenThrow(new SpaceMembershipAdministrationPort.Stale());
+        assertThatThrownBy(() -> service.grant(owner, "workspace-default", MEMBER_ACCOUNT,
+                request, "\"sm-0\"", null))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status()).isEqualTo(HttpStatus.PRECONDITION_FAILED));
+        verify(audit, times(1)).publish(any());
+        verify(capabilities, times(3)).requireCapability(owner,
+                "admin.policy.edit", "spaces", "grant");
+    }
+
+    @Test
+    void memberReadbackIsBoundedToTheCurrentOrganizationAndUsesAStableCursor() {
+        Jwt owner = token("owner", "owner");
+        when(admission.allows(owner)).thenReturn(true);
+        var ownerState = new SpaceMembershipAdministrationPort.MemberState(
+                OWNER_ACCOUNT, Set.of(Permission.VIEW, Permission.EDIT, Permission.ADMIN), "\"sm-0\"");
+        var memberState = new SpaceMembershipAdministrationPort.MemberState(
+                MEMBER_ACCOUNT, Set.of(Permission.VIEW), "\"sm-1\"");
+        when(memberships.list("tenant-default", "workspace-default", OWNER_ACCOUNT, "", 2))
+                .thenReturn(List.of(ownerState, memberState));
+        var first = service.listMembers(owner, "workspace-default", null, 1);
+        assertThat(first.members()).hasSize(1);
+        assertThat(first.nextCursor()).isEqualTo(OWNER_ACCOUNT);
+        assertThat(first.members().getFirst().permissions()).containsExactly(
+                SpaceMemberChangeRequest.PermissionValue.VIEW,
+                SpaceMemberChangeRequest.PermissionValue.EDIT,
+                SpaceMemberChangeRequest.PermissionValue.ADMIN);
+        when(memberships.get("tenant-default", "workspace-default", OWNER_ACCOUNT, MEMBER_ACCOUNT))
+                .thenReturn(memberState);
+        assertThat(service.getMember(owner, "workspace-default", MEMBER_ACCOUNT).strongEtag())
+                .isEqualTo("\"sm-1\"");
+        assertThatThrownBy(() -> service.listMembers(owner, "workspace-default", null, 101))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status()).isEqualTo(HttpStatus.BAD_REQUEST));
     }
 
     private Jwt token(String subject, String role) {

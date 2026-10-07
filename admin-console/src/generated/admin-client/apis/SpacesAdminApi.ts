@@ -16,20 +16,54 @@
 import * as runtime from '../runtime';
 import type {
   ApiErrorResponse,
+  SpaceMemberChangeRequest,
+  SpaceMemberListResponse,
+  SpaceMemberResponse,
   SpaceProvisionRequest,
   SpaceProvisionResponse,
 } from '../models/index';
 import {
     ApiErrorResponseFromJSON,
     ApiErrorResponseToJSON,
+    SpaceMemberChangeRequestFromJSON,
+    SpaceMemberChangeRequestToJSON,
+    SpaceMemberListResponseFromJSON,
+    SpaceMemberListResponseToJSON,
+    SpaceMemberResponseFromJSON,
+    SpaceMemberResponseToJSON,
     SpaceProvisionRequestFromJSON,
     SpaceProvisionRequestToJSON,
     SpaceProvisionResponseFromJSON,
     SpaceProvisionResponseToJSON,
 } from '../models/index';
 
+export interface DeleteSpaceMemberRequest {
+    spaceRef: string;
+    accountRef: string;
+    ifMatch?: string;
+}
+
+export interface GetSpaceMemberRequest {
+    spaceRef: string;
+    accountRef: string;
+}
+
+export interface ListSpaceMembersRequest {
+    spaceRef: string;
+    afterAccountRef?: string;
+    limit?: number;
+}
+
 export interface ProvisionSpaceRequest {
     spaceProvisionRequest: SpaceProvisionRequest;
+}
+
+export interface PutSpaceMemberRequest {
+    spaceRef: string;
+    accountRef: string;
+    spaceMemberChangeRequest: SpaceMemberChangeRequest;
+    ifMatch?: string;
+    ifNoneMatch?: string;
 }
 
 /**
@@ -39,6 +73,56 @@ export interface ProvisionSpaceRequest {
  * @interface SpacesAdminApiInterface
  */
 export interface SpacesAdminApiInterface {
+    /**
+     *
+     * @summary Revoke current Space membership
+     * @param {string} spaceRef
+     * @param {string} accountRef
+     * @param {string} [ifMatch]
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SpacesAdminApiInterface
+     */
+    deleteSpaceMemberRaw(requestParameters: DeleteSpaceMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>>;
+
+    /**
+     * Revoke current Space membership
+     */
+    deleteSpaceMember(requestParameters: DeleteSpaceMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
+
+    /**
+     *
+     * @summary Read current Space member grant and version
+     * @param {string} spaceRef
+     * @param {string} accountRef
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SpacesAdminApiInterface
+     */
+    getSpaceMemberRaw(requestParameters: GetSpaceMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<SpaceMemberResponse>>;
+
+    /**
+     * Read current Space member grant and version
+     */
+    getSpaceMember(requestParameters: GetSpaceMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SpaceMemberResponse>;
+
+    /**
+     *
+     * @summary Page current Space member grants
+     * @param {string} spaceRef
+     * @param {string} [afterAccountRef]
+     * @param {number} [limit]
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SpacesAdminApiInterface
+     */
+    listSpaceMembersRaw(requestParameters: ListSpaceMembersRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<SpaceMemberListResponse>>;
+
+    /**
+     * Page current Space member grants
+     */
+    listSpaceMembers(requestParameters: ListSpaceMembersRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SpaceMemberListResponse>;
+
     /**
      *
      * @summary Explicitly provision current-organization Space membership
@@ -54,12 +138,193 @@ export interface SpacesAdminApiInterface {
      */
     provisionSpace(requestParameters: ProvisionSpaceRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SpaceProvisionResponse>;
 
+    /**
+     *
+     * @summary Grant or replace current Space membership
+     * @param {string} spaceRef
+     * @param {string} accountRef
+     * @param {SpaceMemberChangeRequest} spaceMemberChangeRequest
+     * @param {string} [ifMatch]
+     * @param {string} [ifNoneMatch]
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SpacesAdminApiInterface
+     */
+    putSpaceMemberRaw(requestParameters: PutSpaceMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<SpaceMemberResponse>>;
+
+    /**
+     * Grant or replace current Space membership
+     */
+    putSpaceMember(requestParameters: PutSpaceMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SpaceMemberResponse>;
+
 }
 
 /**
  *
  */
 export class SpacesAdminApi extends runtime.BaseAPI implements SpacesAdminApiInterface {
+
+    /**
+     * Revoke current Space membership
+     */
+    async deleteSpaceMemberRaw(requestParameters: DeleteSpaceMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+        if (requestParameters['spaceRef'] == null) {
+            throw new runtime.RequiredError(
+                'spaceRef',
+                'Required parameter "spaceRef" was null or undefined when calling deleteSpaceMember().'
+            );
+        }
+
+        if (requestParameters['accountRef'] == null) {
+            throw new runtime.RequiredError(
+                'accountRef',
+                'Required parameter "accountRef" was null or undefined when calling deleteSpaceMember().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (requestParameters['ifMatch'] != null) {
+            headerParameters['If-Match'] = String(requestParameters['ifMatch']);
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("bearer-jwt", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/admin/spaces/{spaceRef}/members/{accountRef}`;
+        urlPath = urlPath.replace(`{${"spaceRef"}}`, encodeURIComponent(String(requestParameters['spaceRef'])));
+        urlPath = urlPath.replace(`{${"accountRef"}}`, encodeURIComponent(String(requestParameters['accountRef'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'DELETE',
+            headers: headerParameters,
+            query: queryParameters,
+        }, initOverrides);
+
+        return new runtime.VoidApiResponse(response);
+    }
+
+    /**
+     * Revoke current Space membership
+     */
+    async deleteSpaceMember(requestParameters: DeleteSpaceMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
+        await this.deleteSpaceMemberRaw(requestParameters, initOverrides);
+    }
+
+    /**
+     * Read current Space member grant and version
+     */
+    async getSpaceMemberRaw(requestParameters: GetSpaceMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<SpaceMemberResponse>> {
+        if (requestParameters['spaceRef'] == null) {
+            throw new runtime.RequiredError(
+                'spaceRef',
+                'Required parameter "spaceRef" was null or undefined when calling getSpaceMember().'
+            );
+        }
+
+        if (requestParameters['accountRef'] == null) {
+            throw new runtime.RequiredError(
+                'accountRef',
+                'Required parameter "accountRef" was null or undefined when calling getSpaceMember().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("bearer-jwt", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/admin/spaces/{spaceRef}/members/{accountRef}`;
+        urlPath = urlPath.replace(`{${"spaceRef"}}`, encodeURIComponent(String(requestParameters['spaceRef'])));
+        urlPath = urlPath.replace(`{${"accountRef"}}`, encodeURIComponent(String(requestParameters['accountRef'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => SpaceMemberResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Read current Space member grant and version
+     */
+    async getSpaceMember(requestParameters: GetSpaceMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SpaceMemberResponse> {
+        const response = await this.getSpaceMemberRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Page current Space member grants
+     */
+    async listSpaceMembersRaw(requestParameters: ListSpaceMembersRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<SpaceMemberListResponse>> {
+        if (requestParameters['spaceRef'] == null) {
+            throw new runtime.RequiredError(
+                'spaceRef',
+                'Required parameter "spaceRef" was null or undefined when calling listSpaceMembers().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        if (requestParameters['afterAccountRef'] != null) {
+            queryParameters['afterAccountRef'] = requestParameters['afterAccountRef'];
+        }
+
+        if (requestParameters['limit'] != null) {
+            queryParameters['limit'] = requestParameters['limit'];
+        }
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("bearer-jwt", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/admin/spaces/{spaceRef}/members`;
+        urlPath = urlPath.replace(`{${"spaceRef"}}`, encodeURIComponent(String(requestParameters['spaceRef'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => SpaceMemberListResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Page current Space member grants
+     */
+    async listSpaceMembers(requestParameters: ListSpaceMembersRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SpaceMemberListResponse> {
+        const response = await this.listSpaceMembersRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
 
     /**
      * Explicitly provision current-organization Space membership
@@ -105,6 +370,77 @@ export class SpacesAdminApi extends runtime.BaseAPI implements SpacesAdminApiInt
      */
     async provisionSpace(requestParameters: ProvisionSpaceRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SpaceProvisionResponse> {
         const response = await this.provisionSpaceRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Grant or replace current Space membership
+     */
+    async putSpaceMemberRaw(requestParameters: PutSpaceMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<SpaceMemberResponse>> {
+        if (requestParameters['spaceRef'] == null) {
+            throw new runtime.RequiredError(
+                'spaceRef',
+                'Required parameter "spaceRef" was null or undefined when calling putSpaceMember().'
+            );
+        }
+
+        if (requestParameters['accountRef'] == null) {
+            throw new runtime.RequiredError(
+                'accountRef',
+                'Required parameter "accountRef" was null or undefined when calling putSpaceMember().'
+            );
+        }
+
+        if (requestParameters['spaceMemberChangeRequest'] == null) {
+            throw new runtime.RequiredError(
+                'spaceMemberChangeRequest',
+                'Required parameter "spaceMemberChangeRequest" was null or undefined when calling putSpaceMember().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+        if (requestParameters['ifMatch'] != null) {
+            headerParameters['If-Match'] = String(requestParameters['ifMatch']);
+        }
+
+        if (requestParameters['ifNoneMatch'] != null) {
+            headerParameters['If-None-Match'] = String(requestParameters['ifNoneMatch']);
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("bearer-jwt", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/admin/spaces/{spaceRef}/members/{accountRef}`;
+        urlPath = urlPath.replace(`{${"spaceRef"}}`, encodeURIComponent(String(requestParameters['spaceRef'])));
+        urlPath = urlPath.replace(`{${"accountRef"}}`, encodeURIComponent(String(requestParameters['accountRef'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'PUT',
+            headers: headerParameters,
+            query: queryParameters,
+            body: SpaceMemberChangeRequestToJSON(requestParameters['spaceMemberChangeRequest']),
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => SpaceMemberResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Grant or replace current Space membership
+     */
+    async putSpaceMember(requestParameters: PutSpaceMemberRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SpaceMemberResponse> {
+        const response = await this.putSpaceMemberRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

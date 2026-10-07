@@ -6568,6 +6568,69 @@
         },
         "type": "object"
       },
+      "SpaceMemberChangeRequest": {
+        "properties": {
+          "permissions": {
+            "description": "Hierarchical current grant: VIEW, VIEW+EDIT, or VIEW+EDIT+ADMIN.",
+            "items": {
+              "enum": [
+                "VIEW",
+                "EDIT",
+                "ADMIN"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "permissions"
+        ],
+        "type": "object"
+      },
+      "SpaceMemberListResponse": {
+        "properties": {
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/SpaceMemberResponse"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Last returned account reference when another page exists.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "members"
+        ],
+        "type": "object"
+      },
+      "SpaceMemberResponse": {
+        "properties": {
+          "accountRef": {
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "enum": [
+                "VIEW",
+                "EDIT",
+                "ADMIN"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accountRef",
+          "permissions"
+        ],
+        "type": "object"
+      },
       "SpaceProvisionRequest": {
         "properties": {
           "memberAccountRefs": {
@@ -9196,6 +9259,419 @@
           }
         ],
         "summary": "Explicitly provision current-organization Space membership",
+        "tags": [
+          "Spaces Admin"
+        ]
+      }
+    },
+    "/api/admin/spaces/{spaceRef}/members": {
+      "get": {
+        "operationId": "listSpaceMembers",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "afterAccountRef",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberListResponse"
+                }
+              }
+            },
+            "description": "Current member grants in account-reference order."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberListResponse"
+                }
+              }
+            },
+            "description": "Invalid page request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner/admin policy or organization denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Existing Space differs from setup intent."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Page current Space member grants",
+        "tags": [
+          "Spaces Admin"
+        ]
+      }
+    },
+    "/api/admin/spaces/{spaceRef}/members/{accountRef}": {
+      "delete": {
+        "operationId": "deleteSpaceMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "accountRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Current grant revoked."
+          },
+          "400": {
+            "description": "Invalid member precondition."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner/admin policy or organization denied."
+          },
+          "404": {
+            "description": "Member unavailable."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Existing Space differs from setup intent."
+          },
+          "412": {
+            "description": "Member precondition is stale."
+          },
+          "428": {
+            "description": "Member precondition required."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Revoke current Space membership",
+        "tags": [
+          "Spaces Admin"
+        ]
+      },
+      "get": {
+        "operationId": "getSpaceMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "accountRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Current member grant.",
+            "headers": {
+              "ETag": {
+                "description": "Strong current member version.",
+                "style": "simple"
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner/admin policy or organization denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Current member unavailable."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Existing Space differs from setup intent."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read current Space member grant and version",
+        "tags": [
+          "Spaces Admin"
+        ]
+      },
+      "put": {
+        "operationId": "putSpaceMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "accountRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpaceMemberChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Versioned current member grant.",
+            "headers": {
+              "ETag": {
+                "description": "Strong current member version required for replacement or revocation.",
+                "style": "simple"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Invalid grant or precondition."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner/admin policy or organization denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Member unavailable for replacement."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Existing Space differs from setup intent."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Member precondition is stale."
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Member precondition required."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Grant or replace current Space membership",
         "tags": [
           "Spaces Admin"
         ]

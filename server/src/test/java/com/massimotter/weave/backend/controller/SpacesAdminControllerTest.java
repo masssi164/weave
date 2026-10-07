@@ -4,11 +4,17 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.massimotter.weave.backend.config.*;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.spaces.SpaceProvisionResponse;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort.Permission;
+import com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort;
+import java.util.Set;
 import com.massimotter.weave.backend.service.spaces.SpaceAdminApiService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.util.Map;
@@ -61,6 +67,34 @@ class SpacesAdminControllerTest {
                 .andExpect(jsonPath("$.spaceRef").value("workspace-default"))
                 .andExpect(jsonPath("$.result").value("CREATED"));
         verify(spaces).provision(any(), any());
+    }
+
+    @Test
+    void memberMutationUsesStrongVersionHeadersAndAdminSecurity() throws Exception {
+        String path = "/api/admin/spaces/workspace-default/members/acct_22222222222222222222222222222222";
+        mvc.perform(put(path).contentType(MediaType.APPLICATION_JSON)
+                        .header("If-None-Match", "*").content("{\"permissions\":[\"VIEW\"]}"))
+                .andExpect(status().isUnauthorized());
+        when(spaces.grant(any(), eq("workspace-default"),
+                eq("acct_22222222222222222222222222222222"), any(), isNull(), eq("*")))
+                .thenReturn(new SpaceMembershipAdministrationPort.MemberState(
+                        "acct_22222222222222222222222222222222", Set.of(Permission.VIEW), "\"sm-0\""));
+        mvc.perform(put(path).with(owner()).contentType(MediaType.APPLICATION_JSON)
+                        .header("If-None-Match", "*").content("{\"permissions\":[\"VIEW\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("ETag", "\"sm-0\""))
+                .andExpect(jsonPath("$.permissions[0]").value("VIEW"));
+        mvc.perform(delete(path).with(owner()).header("If-Match", "\"sm-0\""))
+                .andExpect(status().isNoContent());
+        verify(spaces).revoke(any(), eq("workspace-default"),
+                eq("acct_22222222222222222222222222222222"), eq("\"sm-0\""));
+        when(spaces.getMember(any(), eq("workspace-default"),
+                eq("acct_22222222222222222222222222222222")))
+                .thenReturn(new SpaceMembershipAdministrationPort.MemberState(
+                        "acct_22222222222222222222222222222222", Set.of(Permission.VIEW), "\"sm-1\""));
+        mvc.perform(get(path).with(owner()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("ETag", "\"sm-1\""));
     }
 
     private org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor owner() {

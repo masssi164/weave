@@ -6,6 +6,7 @@ import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import jakarta.persistence.LockModeType;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.Instant;
@@ -17,6 +18,7 @@ import java.util.Optional;
 import java.util.List;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -108,6 +110,9 @@ class SpaceId implements Serializable {
 }
 
 interface SpaceJpaRepository extends JpaRepository<SpaceJpaEntity, SpaceId> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select space from SpaceJpaEntity space where space.id = :id")
+    Optional<SpaceJpaEntity> lockById(@Param("id") SpaceId id);
 }
 
 /** Membership is independently versioned to avoid replacing the Space aggregate graph. */
@@ -156,6 +161,7 @@ class SpaceMembershipJpaEntity {
     void replacePermissions(String permissionSet, Instant now) {
         this.permissionSet =
                 Objects.requireNonNull(permissionSet, "permissionSet");
+        lifecycleState = "ACTIVE";
         updatedAt = Objects.requireNonNull(now, "now")
                 .truncatedTo(ChronoUnit.MICROS)
                 .atOffset(ZoneOffset.UTC);
@@ -176,6 +182,10 @@ class SpaceMembershipJpaEntity {
 
     String accountRef() {
         return id.personRef();
+    }
+
+    long version() {
+        return version;
     }
 }
 
@@ -227,6 +237,20 @@ class SpaceMembershipId implements Serializable {
 
 interface SpaceMembershipJpaRepository
         extends JpaRepository<SpaceMembershipJpaEntity, SpaceMembershipId> {
+    @Query("""
+            select m from SpaceMembershipJpaEntity m
+            where m.id.organizationRef = :organizationRef
+              and m.id.spaceRef = :spaceRef
+              and m.id.personRef > :afterAccountRef
+              and m.lifecycleState = 'ACTIVE'
+            order by m.id.personRef
+            """)
+    List<SpaceMembershipJpaEntity> currentMembers(
+            @Param("organizationRef") String organizationRef,
+            @Param("spaceRef") String spaceRef,
+            @Param("afterAccountRef") String afterAccountRef,
+            Pageable page);
+
     List<SpaceMembershipJpaEntity> findByIdOrganizationRefAndIdSpaceRef(
             String organizationRef, String spaceRef);
     Optional<SpaceMembershipJpaEntity>

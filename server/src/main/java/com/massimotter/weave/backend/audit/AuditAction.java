@@ -32,6 +32,8 @@ public enum AuditAction {
     MEMBER_OFFBOARDED("identity.member.offboarded"),
     ADMIN_POLICY_UPDATED("admin.policy.updated"),
     SPACE_PROVISIONED("space.provisioned"),
+    SPACE_MEMBERSHIP_UPDATED("space.membership.updated"),
+    SPACE_MEMBERSHIP_REVOKED("space.membership.revoked"),
     PROVIDER_READINESS_TESTED("provider.readiness.tested"),
     PROVIDER_REPLACEMENT_DRY_RUN("provider.replacement.dry_run"),
     CHAT_MIGRATION_PREFLIGHTED("chat.migration.preflighted"),
