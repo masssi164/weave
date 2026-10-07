@@ -95,11 +95,15 @@ final class CollaborationJourney {
       }
       roomId = createEncryptedRoom(authorIdentity, collaboratorMatrix.userId(), pass);
       joinRoom(collaboratorIdentity, roomId, pass);
+      String collaboratorSyncCursor = matrixSyncCursor(collaboratorIdentity, roomId, pass);
 
       String authorCiphertext = ciphertext("author", pass);
       String collaboratorCiphertext = ciphertext("collaborator", pass);
       authorEventId = sendEncrypted(authorIdentity, roomId, authorCiphertext, "author", pass);
       requireCiphertextObserved(collaboratorIdentity, roomId, authorCiphertext, "author", pass);
+      requireSyncObserved(
+          collaboratorIdentity, roomId, authorEventId, authorCiphertext,
+          collaboratorSyncCursor, pass);
       collaboratorEventId =
           sendEncrypted(collaboratorIdentity, roomId, collaboratorCiphertext, "collaborator", pass);
       requireCiphertextObserved(authorIdentity, roomId, collaboratorCiphertext, "collaborator", pass);
@@ -438,6 +442,74 @@ final class CollaborationJourney {
       sleep();
     }
     throw new ProductFlowException("encrypted " + actor + " event did not converge");
+  }
+
+  private String matrixSyncCursor(Identity member, String roomId, int pass) {
+    JsonNode response = http.json(
+        "establish member Matrix sync cursor", "GET",
+        environment.api("/_matrix/client/v3/sync?timeout=0"),
+        bearer(member.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(member.role(), pass))),
+        null, Set.of(200));
+    String cursor = response.path("next_batch").asString();
+    JsonNode encryption = response.path("rooms").path("join").path(roomId)
+        .path("state").path("events");
+    if (!cursor.startsWith("weave.s1.") || !encryption.isArray()) {
+      throw new ProductFlowException("member Matrix sync did not establish a Weave room cursor");
+    }
+    boolean encrypted = false;
+    for (JsonNode event : encryption) {
+      if ("m.room.encryption".equals(event.path("type").asString())
+          && MEGOLM.equals(event.path("content").path("algorithm").asString())) {
+        encrypted = true;
+      }
+    }
+    if (!encrypted) {
+      throw new ProductFlowException("member Matrix sync omitted the room encryption policy");
+    }
+    return cursor;
+  }
+
+  private void requireSyncObserved(
+      Identity member, String roomId, String eventId, String ciphertext,
+      String since, int pass) {
+    Instant deadline = Instant.now().plus(environment.convergenceTimeout());
+    while (Instant.now().isBefore(deadline)) {
+      JsonNode response = http.json(
+          "observe member Matrix incremental sync", "GET",
+          environment.api("/_matrix/client/v3/sync?since=" + encode(since) + "&timeout=0"),
+          bearer(member.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(member.role(), pass))),
+          null, Set.of(200));
+      String nextBatch = response.path("next_batch").asString();
+      if (!nextBatch.startsWith("weave.s1.")) {
+        throw new ProductFlowException("member Matrix sync returned an invalid Weave cursor");
+      }
+      if (syncContainsEncryptedEvent(response, roomId, eventId, ciphertext)) {
+        if (since.equals(nextBatch)) {
+          throw new ProductFlowException("member Matrix sync did not advance after an event");
+        }
+        return;
+      }
+      sleep();
+    }
+    throw new ProductFlowException("encrypted event did not converge through member Matrix sync");
+  }
+
+  static boolean syncContainsEncryptedEvent(
+      JsonNode response, String roomId, String eventId, String ciphertext) {
+    JsonNode events = response.path("rooms").path("join").path(roomId)
+        .path("timeline").path("events");
+    if (!events.isArray()) {
+      return false;
+    }
+    for (JsonNode event : events) {
+      if (eventId.equals(event.path("event_id").asString())
+          && "m.room.encrypted".equals(event.path("type").asString())
+          && ciphertext.equals(event.path("content").path("ciphertext").asString())
+          && !event.path("content").has("body")) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private void requireMatrixDenied(Identity outsider, String roomId, int pass) {
