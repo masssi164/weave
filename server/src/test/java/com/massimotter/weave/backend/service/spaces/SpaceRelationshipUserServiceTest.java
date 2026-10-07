@@ -6,6 +6,9 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
+import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
+import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesUserResource;
@@ -34,11 +37,13 @@ class SpaceRelationshipUserServiceTest {
     private final FilesUserResourceRepository records = mock(FilesUserResourceRepository.class);
     private final FilesUserApiService files = mock(FilesUserApiService.class);
     private final CalendarUserApiService calendar = mock(CalendarUserApiService.class);
+    private final ChatDomainFacadeService chat = mock(ChatDomainFacadeService.class);
+    private final MatrixProtocolCoreService matrix = mock(MatrixProtocolCoreService.class);
     private final ContextAuthorizationProperties context =
             new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
     private final SpaceRelationshipUserService service = new SpaceRelationshipUserService(
             OrganizationIdentityContextResolver.configured(context), admission,
-            context, spaces, records, files, calendar);
+            context, spaces, records, files, calendar, chat, matrix);
     private final Jwt member = Jwt.withTokenValue("member").header("alg", "none")
             .issuer(ISSUER).subject("member")
             .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
@@ -48,6 +53,8 @@ class SpaceRelationshipUserServiceTest {
     void admitMember() {
         when(admission.allows(member)).thenReturn(true);
         when(calendar.materializedEventRefsInSpace(eq(member), anyString(), anyString(), eq(100)))
+                .thenReturn(List.of());
+        when(chat.joinedConversationRefsInSpace(eq(member), anyString(), anyString(), eq(100)))
                 .thenReturn(List.of());
         when(files.inspect(eq(member), anyString())).thenAnswer(call ->
                 new com.massimotter.weave.backend.model.files.FilesUserItemResponse(
@@ -155,6 +162,42 @@ class SpaceRelationshipUserServiceTest {
         assertThat(result.relationships()).extracting(value -> value.targetKind())
                 .containsExactly("FILE");
         assertThat(result.relationships().getFirst().targetRef()).isEqualTo("file:stable");
+    }
+
+    @Test
+    void joinedCanonicalRoomProjectsStableMatrixReferenceAfterCurrentReadback() {
+        String conversationId = "canonical-room-1";
+        when(spaces.allows("tenant-default", "workspace-default", ACCOUNT, Permission.VIEW))
+                .thenReturn(true);
+        when(chat.joinedConversationRefsInSpace(member, "workspace-default", "", 100))
+                .thenReturn(List.of(conversationId));
+        var checked = mock(com.massimotter.weave.backend.chat.domain.ChatConversation.class);
+        when(checked.conversationId()).thenReturn(conversationId);
+        when(chat.conversationInSpace(member, "workspace-default", conversationId))
+                .thenReturn(checked);
+        when(matrix.roomId(conversationId)).thenReturn("!weave-room-1:weave.test");
+
+        var result = service.list(member, "workspace-default", null, 25);
+        assertThat(result.relationships()).singleElement().satisfies(relation -> {
+            assertThat(relation.relationRef()).isEqualTo("relation:room:" + conversationId);
+            assertThat(relation.targetKind()).isEqualTo("ROOM");
+            assertThat(relation.targetRef()).isEqualTo("!weave-room-1:weave.test");
+        });
+        verify(matrix).roomId(conversationId);
+    }
+
+    @Test
+    void revokedChatMembershipDoesNotPublishRoomOrRoomId() {
+        when(spaces.allows("tenant-default", "workspace-default", ACCOUNT, Permission.VIEW))
+                .thenReturn(true);
+        when(chat.joinedConversationRefsInSpace(member, "workspace-default", "", 100))
+                .thenReturn(List.of("room-revoked"));
+        when(chat.conversationInSpace(member, "workspace-default", "room-revoked"))
+                .thenThrow(new ChatAccessDeniedException());
+
+        var result = service.list(member, "workspace-default", null, 25);
+        assertThat(result.relationships()).isEmpty();
+        verifyNoInteractions(matrix);
     }
 
     private static FilesUserResource resource(String fileId) {

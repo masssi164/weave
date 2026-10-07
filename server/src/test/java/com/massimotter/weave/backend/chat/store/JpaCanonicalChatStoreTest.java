@@ -290,6 +290,32 @@ class JpaCanonicalChatStoreTest {
     }
 
     @Test
+    void joinedRoomReferencePageIsBoundedByContextAndCurrentMembership() {
+        JpaCanonicalChatStore store = store(dataSource());
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("space-room-author");
+        ChatRequestContext outsider = context("space-room-outsider");
+        ChatRequestContext otherSpace = new ChatRequestContext(
+                author.tenantId(), "other-space", author.identityIssuer(), author.actorRef());
+        for (int index = 0; index < 3; index++) {
+            adapter.createConversation(author, new ChatTransactionId("space-room-" + index),
+                    "Space room " + index, "channel", List.of(), ChatEncryptionState.unencrypted());
+        }
+        adapter.createConversation(otherSpace, new ChatTransactionId("other-space-room"),
+                "Other Space room", "channel", List.of(), ChatEncryptionState.unencrypted());
+
+        List<String> first = store.joinedConversationRefs(author, "", 2);
+        List<String> second = store.joinedConversationRefs(author, first.getLast(), 2);
+        assertThat(first).hasSize(2).isSorted();
+        assertThat(second).hasSize(1);
+        assertThat(second.getFirst()).isGreaterThan(first.getLast());
+        assertThat(store.joinedConversationRefs(outsider, "", 100)).isEmpty();
+        assertThat(store.joinedConversationRefs(otherSpace, "", 100)).hasSize(1);
+        assertThatThrownBy(() -> store.joinedConversationRefs(author, "", 101))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void queryInputsRemainBoundValuesForQuotesCommentsWildcardsAndUnicode() {
         JpaCanonicalChatStore store = store(dataSource());
         ChatRequestContext author = context("bound-value-author");

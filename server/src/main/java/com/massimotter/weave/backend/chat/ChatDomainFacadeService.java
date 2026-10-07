@@ -5,6 +5,7 @@ import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
+import com.massimotter.weave.backend.chat.domain.ChatConversation;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
@@ -158,6 +159,21 @@ public class ChatDomainFacadeService {
         }
         ChatConversations conversations = chatProviderPort.joinedConversations(requestContext(jwt));
         return new ChatConversations(readiness, conversations.conversations());
+    }
+
+    /** Current member's canonical room references for a durable Space relationship page. */
+    public List<String> joinedConversationRefsInSpace(
+            Jwt jwt, String spaceRef, String afterConversationId, int limit) {
+        ChatRequestContext context = requireSpaceRead(jwt, spaceRef);
+        requireReady(jwt);
+        return chatProviderPort.joinedConversationRefs(context, afterConversationId, limit);
+    }
+
+    /** Rechecks the current Chat access path before a room relationship is published. */
+    public ChatConversation conversationInSpace(Jwt jwt, String spaceRef, String conversationId) {
+        ChatRequestContext context = requireSpaceRead(jwt, spaceRef);
+        requireReady(jwt);
+        return chatProviderPort.conversation(context, new ConversationId(conversationId));
     }
 
     public ChatMessages messages(String conversationId, Jwt jwt) {
@@ -687,6 +703,20 @@ public class ChatDomainFacadeService {
         if (!decision.allowed()) {
             throw new ChatAccessDeniedException();
         }
+    }
+
+    private ChatRequestContext requireSpaceRead(Jwt jwt, String spaceRef) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.read", "chat", "read-space-rooms");
+        ChatRequestContext member = requestContext(jwt);
+        ChatRequestContext space = new ChatRequestContext(member.tenantId(), spaceRef,
+                member.identityIssuer(), member.actorRef(), member.authorizationPrincipalRef());
+        var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
+                space.tenantId(), space.contextId(), space.authorizationPrincipalRef(),
+                ContextPermission.VIEW));
+        if (!decision.allowed()) {
+            throw new ChatAccessDeniedException();
+        }
+        return space;
     }
 
     private void requireInviteEligibility(

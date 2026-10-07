@@ -38,6 +38,9 @@ public interface ChatProviderPort {
 
     ChatConversations joinedConversations(ChatRequestContext context);
 
+    /** Stable, bounded canonical identifiers for rooms joined by the current actor in one Space. */
+    java.util.List<String> joinedConversationRefs(ChatRequestContext context, String afterConversationId, int limit);
+
     default ChatConversations joinedConversations(ChatActorRef actorRef) {
         return joinedConversations(ChatRequestContext.isolatedTest(actorRef));
     }

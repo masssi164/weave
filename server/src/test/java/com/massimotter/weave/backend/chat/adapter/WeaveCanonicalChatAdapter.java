@@ -149,6 +149,23 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
     }
 
     @Override
+    public List<String> joinedConversationRefs(ChatRequestContext context, String afterConversationId, int limit) {
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException("conversation page size is invalid");
+        }
+        String after = afterConversationId == null ? "" : afterConversationId;
+        return conversations.values().stream()
+                .filter(conversation -> conversation.contextId().equals(context.contextId()))
+                .filter(conversation -> "joined".equals(
+                        conversation.membershipStates().get(context.actorRef().value())))
+                .map(conversation -> conversation.conversationId())
+                .filter(id -> id.compareTo(after) > 0)
+                .sorted()
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
     public ChatCursor currentCursor(ChatRequestContext context) {
         return new ChatCursor("chat-revision-" + revision.get());
     }

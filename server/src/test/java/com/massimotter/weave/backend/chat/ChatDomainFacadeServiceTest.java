@@ -5,6 +5,7 @@ import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -137,6 +138,39 @@ class ChatDomainFacadeServiceTest {
                 .containsEntry("currentRealProviderPath", "in-memory-test")
                 .containsEntry("currentRealProviderAliases", List.of("in-memory-test"));
         assertThat(conversations.toString()).doesNotContain("rawProvider", "Authorization");
+    }
+
+    @Test
+    void spaceRoomProjectionUsesExplicitCurrentContextAuthorization() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
+        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+                capability(), capability(), capability(), capability(), capability(), capability());
+        when(capabilities.snapshot()).thenReturn(snapshot);
+        when(capabilities.snapshot(any())).thenReturn(snapshot);
+        ChatProviderPort provider = Mockito.mock(ChatProviderPort.class);
+        when(provider.configured()).thenReturn(true);
+        when(provider.providerSelectionKeys()).thenReturn(Set.of("synapse-homeserver"));
+        when(provider.readiness()).thenReturn(ProviderReadiness.ready("chat-provider-ready"));
+        when(provider.joinedConversationRefs(any(ChatRequestContext.class), eq(""), eq(10)))
+                .thenReturn(List.of("canonical-room"));
+        ContextAuthorizationPort spaceOnly = request -> request.contextId().equals("chosen-space")
+                ? ContextAuthorizationDecision.allow("current Space grant")
+                : ContextAuthorizationDecision.deny("no current Space grant");
+        ChatDomainFacadeService service = new ChatDomainFacadeService(
+                new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections),
+                selections, capabilities, new InMemoryAuditEventPublisher(), provider,
+                spaceOnly, contextProperties(), FIXED);
+
+        assertThat(service.joinedConversationRefsInSpace(memberJwt(), "chosen-space", "", 10))
+                .containsExactly("canonical-room");
+        ArgumentCaptor<ChatRequestContext> context = ArgumentCaptor.forClass(ChatRequestContext.class);
+        verify(provider).joinedConversationRefs(context.capture(), eq(""), eq(10));
+        assertThat(context.getValue().contextId()).isEqualTo("chosen-space");
+        assertThat(context.getValue().actorRef().value()).isEqualTo("user:member-123");
+        assertThatThrownBy(() -> service.joinedConversationRefsInSpace(memberJwt(),
+                "different-space", "", 10)).isInstanceOf(ChatAccessDeniedException.class);
     }
 
     @Test

@@ -128,6 +128,20 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
     }
 
     @Override
+    public List<String> joinedConversationRefs(ChatRequestContext context, String afterConversationId, int limit) {
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException("conversation page size is invalid");
+        }
+        String after = afterConversationId == null ? "" : afterConversationId;
+        if (!after.isEmpty()) {
+            new ConversationId(after);
+        }
+        return jpa.conversations().findJoinedRefs(
+                context.tenantId(), context.contextId(), context.identityIssuer(),
+                context.actorRef().value(), after, PageRequest.of(0, limit));
+    }
+
+    @Override
     public ChatCursor currentCursor(ChatRequestContext context) {
         long value = jpa.changes().currentCursor(
                 context.tenantId(),
