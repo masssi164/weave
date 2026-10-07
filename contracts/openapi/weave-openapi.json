@@ -7405,7 +7405,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "items": {
                     "$ref": "#/components/schemas/AdminAuditEventResponse"
@@ -7418,7 +7418,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7428,7 +7428,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7464,7 +7464,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChatMigrationPreflightReport"
                 }
@@ -7474,7 +7474,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7484,7 +7484,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7494,7 +7494,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7530,7 +7530,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChatProviderReplacementDryRunResponse"
                 }
@@ -7540,7 +7540,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7550,7 +7550,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7560,7 +7560,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7587,7 +7587,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChatReadiness"
                 }
@@ -7597,7 +7597,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7607,7 +7607,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7617,7 +7617,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7643,7 +7643,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminControlPlaneResponse"
                 }
@@ -7653,7 +7653,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7663,7 +7663,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7699,7 +7699,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrganizationBootstrapResponse"
                 }
@@ -7709,7 +7709,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7719,7 +7719,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7755,7 +7755,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "items": {
                     "$ref": "#/components/schemas/MemberInvitationResponse"
@@ -7768,7 +7768,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7778,7 +7778,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7829,17 +7829,17 @@
         "responses": {
           "201": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MemberInvitationResponse"
                 }
               }
             },
-            "description": "Created"
+            "description": "Created organization invitation."
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7849,7 +7849,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7903,7 +7903,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7913,7 +7913,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7964,7 +7964,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MemberInvitationResponse"
                 }
@@ -7974,7 +7974,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -7984,7 +7984,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8037,7 +8037,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrganizationMemberPageResponse"
                 }
@@ -8047,7 +8047,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8057,7 +8057,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8100,7 +8100,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrganizationMemberResponse"
                 }
@@ -8110,7 +8110,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8120,7 +8120,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8187,7 +8187,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrganizationMemberResponse"
                 }
@@ -8197,7 +8197,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8207,7 +8207,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8276,7 +8276,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrganizationMemberResponse"
                 }
@@ -8286,7 +8286,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8296,7 +8296,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8365,7 +8365,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MemberLifecycleOperationResponse"
                 }
@@ -8375,7 +8375,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8385,7 +8385,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8444,7 +8444,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MemberLifecycleOperationResponse"
                 }
@@ -8454,7 +8454,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8464,7 +8464,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8489,7 +8489,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlatformIdentityReadinessResponse"
                 }
@@ -8499,7 +8499,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8509,7 +8509,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8535,7 +8535,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CapabilityWhitelistResponse"
                 }
@@ -8545,7 +8545,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8555,7 +8555,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8589,7 +8589,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CapabilityWhitelistResponse"
                 }
@@ -8599,7 +8599,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8609,7 +8609,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8635,7 +8635,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EffectivePolicyResponse"
                 }
@@ -8645,7 +8645,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8655,7 +8655,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8691,7 +8691,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EffectivePolicySimulationResponse"
                 }
@@ -8701,7 +8701,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8711,7 +8711,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8737,7 +8737,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProviderCapabilityHealthResponse"
                 }
@@ -8747,7 +8747,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8757,7 +8757,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8793,7 +8793,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProviderReadinessTestResponse"
                 }
@@ -8803,7 +8803,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8813,7 +8813,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8849,7 +8849,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProviderReplacementDryRunResponse"
                 }
@@ -8859,7 +8859,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8869,7 +8869,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8905,7 +8905,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProviderSelectionResponse"
                 }
@@ -8915,7 +8915,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8925,7 +8925,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8951,7 +8951,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProviderRegistryResponse"
                 }
@@ -8961,7 +8961,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8971,7 +8971,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -8998,7 +8998,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkspaceCapabilityPolicyResponse"
                 }
@@ -9008,7 +9008,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9018,7 +9018,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9045,7 +9045,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkspaceReleaseReadinessResponse"
                 }
@@ -9055,7 +9055,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9065,7 +9065,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9103,7 +9103,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaskItem"
                 }
@@ -9113,7 +9113,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9123,7 +9123,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9133,7 +9133,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9181,7 +9181,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaskItem"
                 }
@@ -9191,7 +9191,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9201,7 +9201,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9211,7 +9211,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9259,7 +9259,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaskItem"
                 }
@@ -9269,7 +9269,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9279,7 +9279,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9289,7 +9289,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9337,7 +9337,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaskItem"
                 }
@@ -9347,7 +9347,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9357,7 +9357,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9367,7 +9367,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9393,7 +9393,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BoardsWorkspaceResponse"
                 }
@@ -9403,7 +9403,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9413,7 +9413,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9423,7 +9423,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9471,7 +9471,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaskItem"
                 }
@@ -9481,7 +9481,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9491,7 +9491,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9501,7 +9501,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9557,7 +9557,7 @@
         "responses": {
           "201": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MemberInvitationResponse"
                 }
@@ -9567,7 +9567,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9577,7 +9577,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9603,7 +9603,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CalendarAccessPolicyResponse"
                 }
@@ -9613,7 +9613,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9623,7 +9623,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -9633,7 +9633,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10572,7 +10572,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CalendarScopesResponse"
                 }
@@ -10582,7 +10582,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10592,7 +10592,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10602,7 +10602,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10640,7 +10640,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DecisionLedgerRecordsResponse"
                 }
@@ -10650,7 +10650,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10660,7 +10660,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10670,7 +10670,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10716,7 +10716,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DecisionLedgerRecordResponse"
                 }
@@ -10726,7 +10726,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10736,7 +10736,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10746,7 +10746,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10784,7 +10784,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MeetingCapsulesResponse"
                 }
@@ -10794,7 +10794,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10804,7 +10804,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10814,7 +10814,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10860,7 +10860,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MeetingCapsuleResponse"
                 }
@@ -10870,7 +10870,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10880,7 +10880,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10890,7 +10890,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10916,7 +10916,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChatReadiness"
                 }
@@ -10926,7 +10926,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10936,7 +10936,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -10946,7 +10946,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -11967,7 +11967,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
                 }
@@ -11977,7 +11977,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -11987,7 +11987,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12013,7 +12013,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GuestAccessContractResponse"
                 }
@@ -12023,7 +12023,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12033,7 +12033,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12069,7 +12069,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GuestInvitationResponse"
                 }
@@ -12079,7 +12079,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12089,7 +12089,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12099,7 +12099,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12125,13 +12125,13 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
                 }
               }
             },
-            "description": "OK"
+            "description": "The backend process is running."
           }
         },
         "tags": [
@@ -12145,13 +12145,23 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
                 }
               }
             },
-            "description": "OK"
+            "description": "Required dependencies are ready."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "A required dependency is degraded or blocked."
           }
         },
         "tags": [
@@ -12193,7 +12203,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CanonicalBridgeEventResponse"
                 }
@@ -12203,7 +12213,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12213,7 +12223,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12223,7 +12233,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12259,7 +12269,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SlackOutboundMessageResponse"
                 }
@@ -12269,7 +12279,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12279,7 +12289,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12289,7 +12299,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12325,7 +12335,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SlackOAuthCallbackResponse"
                 }
@@ -12335,7 +12345,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12345,7 +12355,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12355,7 +12365,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12381,7 +12391,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SlackStatusResponse"
                 }
@@ -12391,7 +12401,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12401,7 +12411,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12427,7 +12437,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InteropStatusResponse"
                 }
@@ -12437,7 +12447,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12447,7 +12457,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12473,7 +12483,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TeamsContractResponse"
                 }
@@ -12483,7 +12493,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12493,7 +12503,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12520,7 +12530,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuthenticatedUserResponse"
                 }
@@ -12530,7 +12540,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12540,7 +12550,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12576,7 +12586,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MigrationApplyGateResponse"
                 }
@@ -12586,7 +12596,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12596,7 +12606,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12632,7 +12642,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MigrationDryRunResponse"
                 }
@@ -12642,7 +12652,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12652,7 +12662,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12678,7 +12688,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OfficeCapabilitiesResponse"
                 }
@@ -12688,7 +12698,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12698,7 +12708,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12734,7 +12744,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OfficeLaunchResponse"
                 }
@@ -12744,7 +12754,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12754,7 +12764,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12764,7 +12774,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12791,7 +12801,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrganizationManifestResponse"
                 }
@@ -12801,7 +12811,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12811,7 +12821,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12821,7 +12831,7 @@
           },
           "503": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -12847,13 +12857,13 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlatformConfigResponse"
                 }
               }
             },
-            "description": "OK"
+            "description": "Public platform configuration."
           }
         },
         "summary": "Get public platform configuration",
@@ -12868,13 +12878,13 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlatformStatusResponse"
                 }
               }
             },
-            "description": "OK"
+            "description": "Public platform module status."
           }
         },
         "summary": "Get platform module status",
@@ -13223,7 +13233,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkspaceCapabilitiesResponse"
                 }
@@ -13233,7 +13243,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -13243,7 +13253,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -13270,7 +13280,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkspaceHomeResponse"
                 }
@@ -13280,7 +13290,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -13290,7 +13300,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -13340,7 +13350,7 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DevopsSummaryResponse"
                 }
@@ -13350,7 +13360,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -13360,7 +13370,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }

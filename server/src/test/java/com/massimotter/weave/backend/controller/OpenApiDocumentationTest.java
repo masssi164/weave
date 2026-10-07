@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -136,6 +137,30 @@ class OpenApiDocumentationTest {
     }
 
     @Test
+    void userAndAdminResponsesNeverUseWildcardMediaForDocumentedBodies() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        int checked = 0;
+        for (String audience : List.of("user", "admin")) {
+            JsonNode document = mapper.readTree(mockMvc.perform(get("/v3/api-docs/" + audience))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+            for (var path : document.path("paths").properties()) {
+                for (var method : path.getValue().properties()) {
+                    if (!Set.of("get", "post", "put", "patch", "delete", "head").contains(method.getKey())) {
+                        continue;
+                    }
+                    for (var response : method.getValue().path("responses").properties()) {
+                        JsonNode content = response.getValue().path("content");
+                        assertFalse(content.has("*/*"), audience + " " + method.getKey() + " " + path.getKey()
+                                + " " + response.getKey() + " must declare its actual media type");
+                        checked++;
+                    }
+                }
+            }
+        }
+        assertTrue(checked > 100, "The media audit must cover the generated product operation set");
+    }
+
+    @Test
     void workspaceDiagnosticsAreAdminOnlyAndHomeCountsAreExplicitlyUnknown() throws Exception {
         mockMvc.perform(get("/v3/api-docs/user"))
                 .andExpect(status().isOk())
@@ -162,17 +187,17 @@ class OpenApiDocumentationTest {
         String member = members + "/{memberHandle}";
         mockMvc.perform(get("/v3/api-docs/admin"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['" + members + "'].get.responses['200'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['" + members + "'].get.responses['200'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/OrganizationMemberPageResponse"))
-                .andExpect(jsonPath("$.paths['" + member + "'].get.responses['200'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['" + member + "'].get.responses['200'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/OrganizationMemberResponse"))
-                .andExpect(jsonPath("$.paths['" + member + "'].patch.responses['200'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['" + member + "'].patch.responses['200'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/OrganizationMemberResponse"))
-                .andExpect(jsonPath("$.paths['" + member + "/capabilities/weaver'].put.responses['200'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['" + member + "/capabilities/weaver'].put.responses['200'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/OrganizationMemberResponse"))
-                .andExpect(jsonPath("$.paths['" + member + "/session-revocations'].post.responses['200'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['" + member + "/session-revocations'].post.responses['200'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/MemberLifecycleOperationResponse"))
-                .andExpect(jsonPath("$.paths['" + member + "/offboarding'].post.responses['200'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['" + member + "/offboarding'].post.responses['200'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/MemberLifecycleOperationResponse"))
                 .andExpect(jsonPath("$.components.schemas.OrganizationMemberPageResponse.required")
                         .value(hasItems("items")))
@@ -268,29 +293,29 @@ class OpenApiDocumentationTest {
     void securedPreviewAndBootstrapRoutesDocumentTheirActualErrorBoundaries() throws Exception {
         mockMvc.perform(get("/v3/api-docs/user"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['/api/guest/access-contract'].get.responses['401'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/guest/access-contract'].get.responses['401'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiErrorResponse"))
-                .andExpect(jsonPath("$.paths['/api/guest/access-contract'].get.responses['403'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/guest/access-contract'].get.responses['403'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiErrorResponse"))
-                .andExpect(jsonPath("$.paths['/api/guest/invitations'].post.responses['401'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/guest/invitations'].post.responses['401'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiErrorResponse"))
-                .andExpect(jsonPath("$.paths['/api/guest/invitations'].post.responses['403'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/guest/invitations'].post.responses['403'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiErrorResponse"));
         mockMvc.perform(get("/v3/api-docs/admin"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['/api/migration/dry-runs'].post.responses['401'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/migration/dry-runs'].post.responses['401'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiErrorResponse"))
-                .andExpect(jsonPath("$.paths['/api/migration/dry-runs'].post.responses['403'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/migration/dry-runs'].post.responses['403'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiErrorResponse"))
-                .andExpect(jsonPath("$.paths['/api/migration/apply-gates'].post.responses['401'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/migration/apply-gates'].post.responses['401'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiErrorResponse"))
-                .andExpect(jsonPath("$.paths['/api/migration/apply-gates'].post.responses['403'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/migration/apply-gates'].post.responses['403'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiErrorResponse"))
-                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['201'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['201'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/MemberInvitationResponse"))
-                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['401'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['401'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiErrorResponse"))
-                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['503'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['503'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiErrorResponse"));
     }
 
@@ -341,11 +366,11 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/connectors/manifest/validate']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.operationId")
                         .value("listOrganizationInvitations"))
-                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.responses['200'].content['*/*'].schema.type")
+                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.responses['200'].content['application/json'].schema.type")
                         .value("array"))
-                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.responses['200'].content['*/*'].schema.items['$ref']")
+                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.responses['200'].content['application/json'].schema.items['$ref']")
                         .value("#/components/schemas/MemberInvitationResponse"))
-                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations/{invitationHandle}/resend'].post.responses['200'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations/{invitationHandle}/resend'].post.responses['200'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/MemberInvitationResponse"))
                 .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.security[0]['bearer-jwt']")
                         .exists())
@@ -400,7 +425,7 @@ class OpenApiDocumentationTest {
                         .value("updateFilesItemContent"))
                 .andExpect(jsonPath("$.paths['/api/files/readiness']").exists())
                 .andExpect(jsonPath("$.paths['/api/files/readiness'].get.operationId").value("getFilesReadiness"))
-                .andExpect(jsonPath("$.paths['/api/files/readiness'].get.responses['200'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/files/readiness'].get.responses['200'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/WorkspaceCapabilityStatusResponse"))
                 .andExpect(jsonPath("$.paths['/api/files/native-provider-setup']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/files/client-setup/credentials']").doesNotExist())
@@ -411,7 +436,7 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/calendar/client-setup']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/native-sync-setup']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/access-policy']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/access-policy'].get.responses['200'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/calendar/access-policy'].get.responses['200'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/CalendarAccessPolicyResponse"))
                 .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials/{credentialId}']").doesNotExist())
@@ -422,7 +447,7 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/calls/{id}']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calls/{id}/join']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/workspace/capabilities']").exists())
-                .andExpect(jsonPath("$.paths['/api/workspace/home'].get.responses['200'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/workspace/home'].get.responses['200'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/WorkspaceHomeResponse"))
                 .andExpect(jsonPath("$.paths['/api/workspace/release-readiness']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/admin/providers/status']").exists())
