@@ -61,6 +61,8 @@ The removed v1 member runtime profile, `MemberMcp*` catalog, member-token exchan
 binding, fake Scout surface, Python/FastMCP gateway, and handwritten JSON-RPC controller have no
 compatibility readers.
 
-The authoritative contracts are the pinned `weave-specs` Agent Runtime Control domain and
-ADR 0012. The executable projection is
+The current release contract is the pinned `weave-specs`
+`steering/release-2026-10-product-consolidation.md`. The detailed Agent Runtime Control domain
+and ADR 0012 describe the historical/later Cell profile; reuse of their existing workload
+mechanisms does not make full ARC lifecycle a #1470 release gate. The executable projection is
 `infra/weave-workspace/weave-mcp-tool-contract.json`.

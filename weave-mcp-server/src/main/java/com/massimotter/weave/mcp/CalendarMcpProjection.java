@@ -19,7 +19,10 @@ public final class CalendarMcpProjection {
       title = "Read Weave Calendar agenda",
       description =
           "Read a bounded agenda for one currently authorized Weave Calendar without materializing previews.",
-      generateOutputSchema = true,
+      // The generated User model has OpenAPI nullable/additional-properties metadata that
+      // Spring AI's independent output-schema generator misreads. The User API and the
+      // bounded Calendar client validate the result before MCP serialization.
+      generateOutputSchema = false,
       annotations =
           @McpTool.McpAnnotations(
               title = "Read Calendar agenda",
