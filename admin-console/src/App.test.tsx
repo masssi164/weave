@@ -532,7 +532,7 @@ describe("Admin Console MVP", () => {
     );
   }, 15_000);
 
-  it("applies selected providers only after fresh dry-run evidence and consequence confirmation", async () => {
+  it("does not activate a provider from selection metadata even when a fixture claims fresh evidence", async () => {
     const api = mockApi();
     const user = userEvent.setup();
     render(<App api={api} />);
@@ -550,7 +550,6 @@ describe("Admin Console MVP", () => {
         "synapse-homeserver",
         "recommended_self_hosted_default",
         true,
-        undefined,
       ),
     );
 
@@ -563,28 +562,14 @@ describe("Admin Console MVP", () => {
       screen.getByRole("button", { name: /apply selected provider/i }),
     ).toBeDisabled();
 
-    await user.click(
+    expect(
       screen.getByRole("checkbox", {
         name: /i confirm i reviewed member impact, rollback evidence, and provider-switch consequences/i,
       }),
-    );
-
-    await user.click(
-      screen.getByRole("button", { name: /apply selected provider/i }),
-    );
-
-    await waitFor(() =>
-      expect(api.selectProvider).toHaveBeenCalledWith(
-        "chat",
-        "synapse-homeserver",
-        "recommended_self_hosted_default",
-        false,
-        "chat-synapse-homeserver-backend-dry-run",
-      ),
-    );
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      /provider selection applied/i,
-    );
+    ).toBeDisabled();
+    expect(screen.getByText(/verified #1498 operation/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /apply selected provider/i })).toBeDisabled();
+    expect(api.selectProvider).toHaveBeenCalledTimes(1);
   });
 
   it("blocks provider apply when dry-run evidence becomes stale after selection changes", async () => {
@@ -652,7 +637,7 @@ describe("Admin Console MVP", () => {
     );
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      /did not include trusted backend evidence/i,
+      /active binding is unchanged/i,
     );
     expect(
       screen.getByText(/missing trusted backend dry-run evidence/i),
@@ -847,11 +832,10 @@ describe("Admin Console MVP", () => {
         "synapse-homeserver",
         "recommended_self_hosted_default",
         true,
-        undefined,
       ),
     );
     expect(await screen.findByRole("status")).toHaveTextContent(
-      /dry-run validated/i,
+      /active binding is unchanged/i,
     );
   });
 

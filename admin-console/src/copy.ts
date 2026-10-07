@@ -129,7 +129,7 @@ export const adminConsoleMessages = {
       'Keycloak is fixed as the central identity authority. Configure LDAP, Active Directory, or external OIDC/SAML connections in the operator-managed Keycloak setup; runtime IDM switching is not supported.',
     providerSelectionHeading: 'Provider selection and readiness',
     providerSelectionDescription:
-      'Admin Console-selected mappings are the source of truth. Secrets stay as SecretRef handles; readiness tests run only through backend admin APIs.',
+      'This selection records deployment metadata only; it does not activate or replace an organization provider binding. Verified activation belongs to #1498. Secrets stay as SecretRef handles, and readiness tests run through backend admin APIs.',
     providerCategoryLabel: 'Provider category',
     providerCategoryHelper:
       'Category-first canonical Weave contracts stay separate from adapter choices.',
@@ -307,7 +307,7 @@ export const adminConsoleMessages = {
       'Keycloak ist als zentrale Identitätsinstanz festgelegt. LDAP, Active Directory oder externe OIDC-/SAML-Verbindungen werden im operatorverwalteten Keycloak-Setup konfiguriert; ein IDM-Wechsel zur Laufzeit wird nicht unterstützt.',
     providerSelectionHeading: 'Provider-Auswahl und Bereitschaft',
     providerSelectionDescription:
-      'In der Admin-Konsole gewählte Zuordnungen sind Source of Truth. Secrets bleiben SecretRef-Handles; Bereitschaftstests laufen nur über Backend-Admin-APIs.',
+      'Diese Auswahl erfasst nur Deployment-Metadaten; sie aktiviert oder ersetzt keine Provider-Bindung einer Organisation. Die verifizierte Aktivierung gehört zu #1498. Secrets bleiben SecretRef-Handles; Bereitschaftstests laufen über Backend-Admin-APIs.',
     providerCategoryLabel: 'Provider-Kategorie',
     providerCategoryHelper:
       'Kategorie-erste kanonische Weave-Verträge bleiben von Adapterentscheidungen getrennt.',
