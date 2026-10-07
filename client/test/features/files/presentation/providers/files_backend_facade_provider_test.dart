@@ -821,10 +821,15 @@ void main() {
       final forbidden = repository(
         MockClient(
           (_) async => http.Response(
-            jsonEncode({
-              'memberImpact': 'Ask an administrator.',
-              'message': 'raw-secret',
-            }),
+            jsonEncode(
+              user_api.ApiErrorResponse(
+                code: 'files-forbidden',
+                memberImpact: 'Ask an administrator.',
+                message: 'raw-secret',
+                requestId: 'test-request',
+                supportRef: 'test-support',
+              ).toJson(),
+            ),
             403,
           ),
         ),
