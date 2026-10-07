@@ -36,8 +36,9 @@ Retain temporarily as an additional native-composition regression lane while #13
 
 Provides isolated real-runtime regression, including generated User Files calls and
 browser/OIDC member access. Its historical DAV/native collaboration portions do not prove
-all revised #1480 journeys. Single-sign-in Flutter, generated Calendar and independent
-Matrix-client interoperability still require their own runtime evidence. Provider migration
+all revised #1480 journeys. Single-sign-in Flutter, generated Calendar and Weave-owned
+Flutter/Weaver Matrix clients still require their own runtime evidence. Independent
+third-party Matrix-client interoperability is deferred by the current support profile. Provider migration
 and cutover proof belongs to #1498.
 
 ## Manual release or client
