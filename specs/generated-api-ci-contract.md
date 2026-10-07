@@ -88,7 +88,7 @@ consumers on one source candidate. MCP Files and Calendar use the generated JVM 
 current member/context authorization bridge described in `mcp-generated-user-files.md` and
 `mcp-generated-user-calendar.md`. Generated freshness alone does not prove workload
 authorization or real provider content retrieval.
-Real browser/OIDC, User/Admin/MCP, Matrix interoperability,
+Real browser/OIDC, User/Admin/MCP, Weave-owned Matrix Client-Server behavior,
 Files/Calendar and session recovery journeys remain independently required by #1480.
 The disposable Compose lane provides runtime evidence; provider migration remains #1498.
 
@@ -152,8 +152,9 @@ errors; and the owner-bootstrap route declares its distinct bootstrap-credential
 401 and unavailable 503 responses. Documenting an existing migration preflight
 does not make provider adoption, cutover or rollback part of #1470 acceptance;
 #1498 owns those outcomes. Matrix
-remains the explicit protocol exception and has its own
-independent-client qualification gate.
+remains the explicit protocol exception and has its own Weave-owned client
+compatibility gate. Independent third-party Matrix-client interoperability is
+deferred by #1475.
 Member Home may project a completed User Files write from the support-safe audit
 envelope only for its actor while User Files objects have owner-only access. It must
 not expose that object's activity to an ungranted member of the same organization.
