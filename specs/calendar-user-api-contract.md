@@ -4,7 +4,7 @@ Status: backend Calendar slice and generated transient-preview consumer are unde
 integration for #1476/#1479. Real product runtime integration remains a separate
 acceptance requirement.
 Classification: cross-repo contract; Server owns implementation. This file is
-implementation evidence for pinned corpus `71a2093d91ad300bc733ede66080bddc90f97e60`,
+implementation evidence for the corpus revision in `specs/weave-specs.lock.json`,
 `steering/release-2026-10-product-consolidation.md`, `domains/calendar/spec.md` and
 `docs/reference/calendar-support-profile.md`. It does not redefine product truth.
 
@@ -128,7 +128,8 @@ Public CalDAV and provider migration acceptance remain deferred.
 - Calendar recurrence regressions prove all four temporal kinds include intervals
   that start before and overlap an agenda window, UTC supports all four frequencies,
   and result exhaustion fails instead of silently truncating.
-- `specCorpusConformance` passes against pinned corpus `71a2093d91ad`;
+- The original Calendar slice passed `specCorpusConformance` against corpus `71a2093d91ad`;
+  the current revision is pinned in `specs/weave-specs.lock.json` and checked by CI.
   `docsStructureCheck`, `checkOpenApiContractFresh` and `checkClientUserApiFresh`
   pass. The full Flutter unit/widget suite passes with one existing skip;
   JVM User/Admin client checks and MCP/product-E2E module tests pass. These are

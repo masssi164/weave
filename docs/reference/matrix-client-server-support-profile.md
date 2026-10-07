@@ -46,7 +46,7 @@ The member endpoint must be the credential-free HTTPS Weave Matrix URL advertise
 
 The server name in an authenticated Matrix user ID returned by `/account/whoami` must equal the authority of the advertised Weave Matrix endpoint. An enrolled client must not silently accept a provider URL or a different server name.
 
-The selected `ChatProviderPort` is southbound. Changing its one active organization/module binding must not change the member Matrix URL or stable Matrix references. A staged candidate must not receive member traffic. This invariant is a release gate, not a claim that the current process-wide adapter selection satisfies it.
+The selected `ChatProviderPort` is southbound. Changing its one active organization/module binding must not change the member Matrix URL or stable Matrix references. A staged candidate must not receive member traffic. The current single-organization deployment must have a durable matching `(organization, chat)` binding before its configured adapter can admit Chat traffic. Startup refuses a conflicting binding, and replacement remains blocked until #1498 verifies provider reconciliation. This binding guard does not qualify any Guarded Matrix route or prove provider replacement.
 
 ## Qualification gate
 

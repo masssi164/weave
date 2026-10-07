@@ -75,6 +75,11 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
                     expectedRevision,
                     actual);
         }
+        // A new Chat projection cannot receive member traffic until #1498 proves its
+        // canonical history and authorization have been reconciled with the new target.
+        if (current != null && "chat".equals(domain)) {
+            throw new ChatBindingTransitionBlockedException();
+        }
         // Credential rotation and replacement need verified identity carry-forward before
         // the active revision changes. Until then, keep mapped Files and Calendar identities
         // on their current authority rather than making public IDs disappear.
@@ -172,6 +177,12 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
     public static final class CalendarBindingIdentityTransitionBlockedException extends RuntimeException {
         public CalendarBindingIdentityTransitionBlockedException() {
             super("Calendar binding transition requires verified Event identity carry-forward");
+        }
+    }
+
+    public static final class ChatBindingTransitionBlockedException extends RuntimeException {
+        public ChatBindingTransitionBlockedException() {
+            super("Chat binding transition requires verified provider reconciliation");
         }
     }
 }
