@@ -73,13 +73,14 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
                     expectedRevision,
                     actual);
         }
-        // Ordinary credential rotation and provider replacement both need a verified identity
-        // carry-forward before the active revision changes. Until that operation exists, retaining
-        // the current authority is safer than making public FileIds disappear or reminting them.
-        if (current != null && "files".equals(domain)
+        // Credential rotation and replacement need verified identity carry-forward before
+        // the active revision changes. Until then, keep mapped Files and Calendar identities
+        // on their current authority rather than making public IDs disappear.
+        if (current != null && ("files".equals(domain) || "calendar".equals(domain))
                 && mappings.existsByIdOrganizationRefAndIdDomainAndIdBindingRevision(
                         organizationRef, domain, current.revision())) {
-            throw new FilesBindingIdentityTransitionBlockedException();
+            if ("files".equals(domain)) throw new FilesBindingIdentityTransitionBlockedException();
+            throw new CalendarBindingIdentityTransitionBlockedException();
         }
         if (current != null) {
             current.retire();
@@ -150,6 +151,12 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
     public static final class FilesBindingIdentityTransitionBlockedException extends RuntimeException {
         public FilesBindingIdentityTransitionBlockedException() {
             super("Files binding transition requires verified mapping and resource identity carry-forward");
+        }
+    }
+
+    public static final class CalendarBindingIdentityTransitionBlockedException extends RuntimeException {
+        public CalendarBindingIdentityTransitionBlockedException() {
+            super("Calendar binding transition requires verified Event identity carry-forward");
         }
     }
 }
