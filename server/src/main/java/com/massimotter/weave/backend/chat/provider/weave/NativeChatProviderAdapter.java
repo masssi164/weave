@@ -113,8 +113,8 @@ public final class NativeChatProviderAdapter implements ChatProviderPort {
     }
 
     @Override
-    public java.util.Optional<String> joinedConversationContext(ChatRequestContext context, ConversationId conversationId) {
-        return store.joinedConversationContext(context, conversationId);
+    public java.util.Optional<String> memberConversationContext(ChatRequestContext context, ConversationId conversationId) {
+        return store.memberConversationContext(context, conversationId);
     }
 
     @Override

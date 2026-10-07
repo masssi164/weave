@@ -1461,7 +1461,7 @@ interface ChatConversationJpaRepository
               and membership.id.part2 = conversation.id.part2
               and membership.id.part3 = :identityIssuer
               and membership.id.part4 = :actorRef
-              and membership.state = 'joined'
+              and membership.state in ('joined', 'invited')
         )
         and not exists (
             select mapping.id.part1 from ChatProviderMappingJpaEntity mapping
@@ -1471,7 +1471,7 @@ interface ChatConversationJpaRepository
               and mapping.state = 'degraded'
         )
       """)
-  Optional<String> findJoinedContext(
+  Optional<String> findMemberContext(
       @Param("tenantId") String tenantId,
       @Param("conversationId") String conversationId,
       @Param("identityIssuer") String identityIssuer,

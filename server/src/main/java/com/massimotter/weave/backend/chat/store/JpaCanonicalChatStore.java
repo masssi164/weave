@@ -142,8 +142,8 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
     }
 
     @Override
-    public Optional<String> joinedConversationContext(ChatRequestContext context, ConversationId conversationId) {
-        return jpa.conversations().findJoinedContext(context.tenantId(), conversationId.value(),
+    public Optional<String> memberConversationContext(ChatRequestContext context, ConversationId conversationId) {
+        return jpa.conversations().findMemberContext(context.tenantId(), conversationId.value(),
                 context.identityIssuer(), context.actorRef().value());
     }
 

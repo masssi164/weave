@@ -16,6 +16,7 @@ import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
 import com.massimotter.weave.backend.chat.domain.ChatMessage;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
+import com.massimotter.weave.backend.chat.domain.ChatProviderUnavailableException;
 import com.massimotter.weave.backend.chat.domain.ChatMessages;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
@@ -54,6 +55,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -173,10 +175,16 @@ public class ChatDomainFacadeService {
     }
 
     public ChatConversations conversations(Jwt jwt) {
-        requireRead(jwt, "list-conversations");
+        workspaceCapabilityService.requireCapability(jwt, "chat.read", "chat", "list-conversations");
+        if (durableSpaceAccess == null) {
+            requireContextPermission(jwt, ContextPermission.VIEW);
+        }
         ChatReadiness readiness = memberReadiness(jwt);
         if (readiness.memberState() != ChatMemberState.READY) {
             return new ChatConversations(readiness, List.of());
+        }
+        if (durableSpaceAccess != null) {
+            return new ChatConversations(readiness, joinedAcrossCurrentSpaces(jwt));
         }
         ChatConversations conversations = chatProviderPort.joinedConversations(requestContext(jwt));
         return new ChatConversations(readiness, conversations.conversations());
@@ -198,13 +206,14 @@ public class ChatDomainFacadeService {
     }
 
     public ChatMessages messages(String conversationId, Jwt jwt) {
-        requireRead(jwt, "read-messages");
+        workspaceCapabilityService.requireCapability(jwt, "chat.read", "chat", "read-messages");
         ChatReadiness readiness = memberReadiness(jwt);
         if (readiness.memberState() != ChatMemberState.READY) {
             return new ChatMessages(readiness, safeIdentifier(conversationId, "conversation-unavailable"), List.of());
         }
+        ChatRequestContext context = requireConversationContext(jwt, conversationId, ContextPermission.VIEW);
         ChatMessages messages = chatProviderPort.timeline(
-                requestContext(jwt),
+                context,
                 new ConversationId(safeIdentifier(conversationId, "conversation-empty")),
                 null,
                 100);
@@ -214,21 +223,44 @@ public class ChatDomainFacadeService {
     public com.massimotter.weave.backend.chat.domain.ChatConversation conversation(
             String conversationId,
             Jwt jwt) {
-        requireRead(jwt, "read-conversation");
+        workspaceCapabilityService.requireCapability(jwt, "chat.read", "chat", "read-conversation");
         ChatReadiness readiness = memberReadiness(jwt);
         if (readiness.memberState() != ChatMemberState.READY) {
             throw new IllegalStateException("Chat is not ready.");
         }
         return chatProviderPort.conversation(
-                requestContext(jwt),
+                requireConversationContext(jwt, conversationId, ContextPermission.VIEW),
                 new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")));
     }
 
     public String syncCursor(Jwt jwt) {
-        requireRead(jwt, "read-sync-cursor");
+        workspaceCapabilityService.requireCapability(jwt, "chat.read", "chat", "read-sync-cursor");
+        if (durableSpaceAccess == null) {
+            requireContextPermission(jwt, ContextPermission.VIEW);
+        }
         ChatReadiness readiness = memberReadiness(jwt);
         if (readiness.memberState() != ChatMemberState.READY) {
             return "chat-unavailable";
+        }
+        if (durableSpaceAccess != null) {
+            long maximum = 0;
+            ChatRequestContext member = requestContext(jwt);
+            for (String spaceRef : visibleSpaceRefs(member)) {
+                ChatRequestContext space = inSpace(member, spaceRef);
+                if (!currentSpacePermission(space, ContextPermission.VIEW)) {
+                    continue;
+                }
+                String value = chatProviderPort.currentCursor(space).value();
+                if (value == null || !value.matches("chat-revision-[0-9]+")) {
+                    throw new ChatProviderUnavailableException("chat-sync-cursor-invalid");
+                }
+                try {
+                    maximum = Math.max(maximum, Long.parseLong(value.substring("chat-revision-".length())));
+                } catch (NumberFormatException invalid) {
+                    throw new ChatProviderUnavailableException("chat-sync-cursor-invalid");
+                }
+            }
+            return "chat-revision-" + maximum;
         }
         return chatProviderPort.currentCursor(requestContext(jwt)).value();
     }
@@ -238,19 +270,20 @@ public class ChatDomainFacadeService {
             String transactionId,
             String body,
             Jwt jwt) {
-        requireWrite(jwt, "send-message");
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "send-message");
         ChatReadiness readiness = memberReadiness(jwt);
         if (readiness.memberState() != ChatMemberState.READY) {
             throw new IllegalStateException("Chat is not ready for message delivery.");
         }
+        ChatRequestContext context = requireConversationContext(jwt, conversationId, ContextPermission.EDIT);
         ChatMessage message = chatProviderPort.send(
-                requestContext(jwt),
+                context,
                 new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")),
                 new ChatTransactionId(opaqueTransactionId(transactionId)),
                 body);
         auditEventPublisher.publish(new AuditEvent(
                 organizationId(jwt),
-                requestContext(jwt).contextId(),
+                context.contextId(),
                 actorRef(jwt),
                 "matrix-client-server-facade",
                 AuditAction.CHAT_MESSAGE_SENT,
@@ -267,13 +300,13 @@ public class ChatDomainFacadeService {
     }
 
     public ChatTimeline timeline(String conversationId, Jwt jwt, int limit) {
-        requireRead(jwt, "read-timeline");
+        workspaceCapabilityService.requireCapability(jwt, "chat.read", "chat", "read-timeline");
         ChatReadiness readiness = memberReadiness(jwt);
         if (readiness.memberState() != ChatMemberState.READY) {
             return new ChatTimeline(safeIdentifier(conversationId, "conversation-unavailable"), List.of());
         }
         return chatProviderPort.timelineEvents(
-                requestContext(jwt),
+                requireConversationContext(jwt, conversationId, ContextPermission.VIEW),
                 new ConversationId(safeIdentifier(conversationId, "conversation-empty")),
                 null,
                 limit);
@@ -284,17 +317,18 @@ public class ChatDomainFacadeService {
             String transactionId,
             ChatEventContent content,
             Jwt jwt) {
-        requireWrite(jwt, "send-event");
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "send-event");
         ChatReadiness readiness = memberReadiness(jwt);
         if (readiness.memberState() != ChatMemberState.READY) {
             throw new IllegalStateException("Chat is not ready for event delivery.");
         }
+        ChatRequestContext context = requireConversationContext(jwt, conversationId, ContextPermission.EDIT);
         ChatTimelineEvent event = chatProviderPort.sendEvent(
-                requestContext(jwt),
+                context,
                 new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")),
                 new ChatTransactionId(opaqueTransactionId(transactionId)),
                 content);
-        auditTimelineMutation(jwt, event, transactionId);
+        auditTimelineMutation(jwt, context, event, transactionId);
         return event;
     }
 
@@ -303,14 +337,15 @@ public class ChatDomainFacadeService {
             String eventId,
             String transactionId,
             Jwt jwt) {
-        requireWrite(jwt, "redact-event");
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "redact-event");
         requireReady(jwt);
+        ChatRequestContext context = requireConversationContext(jwt, conversationId, ContextPermission.EDIT);
         ChatRedactionReceipt receipt = chatProviderPort.redactEvent(
-                requestContext(jwt),
+                context,
                 new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")),
                 new ChatTransactionId(opaqueTransactionId(transactionId)),
                 safeIdentifier(eventId, "event-required"));
-        auditRedactionMutation(jwt, receipt, transactionId);
+        auditRedactionMutation(jwt, context, receipt, transactionId);
         return receipt;
     }
 
@@ -352,20 +387,20 @@ public class ChatDomainFacadeService {
     public com.massimotter.weave.backend.chat.domain.ChatConversation joinConversation(
             String conversationId,
             Jwt jwt) {
-        requireWrite(jwt, "join-conversation");
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "join-conversation");
         requireReady(jwt);
         return chatProviderPort.joinConversation(
-                requestContext(jwt),
+                requireConversationContext(jwt, conversationId, ContextPermission.EDIT),
                 new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")));
     }
 
     public com.massimotter.weave.backend.chat.domain.ChatConversation leaveConversation(
             String conversationId,
             Jwt jwt) {
-        requireWrite(jwt, "leave-conversation");
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "leave-conversation");
         requireReady(jwt);
         return chatProviderPort.leaveConversation(
-                requestContext(jwt),
+                requireConversationContext(jwt, conversationId, ContextPermission.EDIT),
                 new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")));
     }
 
@@ -373,13 +408,13 @@ public class ChatDomainFacadeService {
             String conversationId,
             String algorithm,
             Jwt jwt) {
-        requireWrite(jwt, "enable-encryption");
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "enable-encryption");
         requireReady(jwt);
+        ChatRequestContext context = requireConversationContext(jwt, conversationId, ContextPermission.EDIT);
         var conversation = chatProviderPort.enableEncryption(
-                requestContext(jwt),
+                context,
                 new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")),
                 algorithm);
-        ChatRequestContext context = requestContext(jwt);
         auditEventPublisher.publish(new AuditEvent(
                 organizationId(jwt),
                 context.contextId(),
@@ -399,10 +434,10 @@ public class ChatDomainFacadeService {
     }
 
     public ChatReadReceipt markRead(String conversationId, String eventId, Jwt jwt) {
-        requireRead(jwt, "mark-read");
+        workspaceCapabilityService.requireCapability(jwt, "chat.read", "chat", "mark-read");
         requireReady(jwt);
         return chatProviderPort.markRead(
-                requestContext(jwt),
+                requireConversationContext(jwt, conversationId, ContextPermission.VIEW),
                 new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")),
                 safeIdentifier(eventId, "event-required"));
     }
@@ -412,10 +447,10 @@ public class ChatDomainFacadeService {
             boolean typing,
             int timeoutMilliseconds,
             Jwt jwt) {
-        requireWrite(jwt, "set-typing");
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "set-typing");
         requireReady(jwt);
         return chatProviderPort.setTyping(
-                requestContext(jwt),
+                requireConversationContext(jwt, conversationId, ContextPermission.EDIT),
                 new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")),
                 typing,
                 timeoutMilliseconds);
@@ -423,11 +458,12 @@ public class ChatDomainFacadeService {
 
     private void auditTimelineMutation(
             Jwt jwt,
+            ChatRequestContext context,
             ChatTimelineEvent event,
             String transactionId) {
         auditEventPublisher.publish(new AuditEvent(
                 organizationId(jwt),
-                requestContext(jwt).contextId(),
+                context.contextId(),
                 actorRef(jwt),
                 "matrix-client-server-facade",
                 AuditAction.CHAT_MESSAGE_SENT,
@@ -446,14 +482,15 @@ public class ChatDomainFacadeService {
 
     private void auditRedactionMutation(
             Jwt jwt,
+            ChatRequestContext context,
             ChatRedactionReceipt receipt,
             String transactionId) {
-        String idempotencyKey = "chat-redaction:" + sha256(requestContext(jwt).tenantId() + "\u0000"
-                + requestContext(jwt).identityIssuer() + "\u0000" + actorRef(jwt) + "\u0000"
+        String idempotencyKey = "chat-redaction:" + sha256(context.tenantId() + "\u0000"
+                + context.identityIssuer() + "\u0000" + actorRef(jwt) + "\u0000"
                 + receipt.conversationId() + "\u0000" + receipt.targetEventId() + "\u0000" + transactionId);
         auditEventPublisher.publish(new AuditEvent(
                 organizationId(jwt),
-                requestContext(jwt).contextId(),
+                context.contextId(),
                 actorRef(jwt),
                 "matrix-client-server-facade",
                 AuditAction.CHAT_EVENT_REDACTED,
@@ -731,6 +768,99 @@ public class ChatDomainFacadeService {
         var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
                 context.tenantId(), context.contextId(), context.authorizationPrincipalRef(), permission));
         return decision.allowed();
+    }
+
+    private List<String> visibleSpaceRefs(ChatRequestContext member) {
+        var visible = new ArrayList<String>();
+        String after = "";
+        while (true) {
+            List<String> page = durableSpaceAccess.visibleSpaces(member, after, 100);
+            if (page == null || page.size() > 100) {
+                throw new ChatProviderUnavailableException("chat-space-list-unavailable");
+            }
+            for (String spaceRef : page) {
+                if (spaceRef == null || spaceRef.compareTo(after) <= 0) {
+                    throw new ChatProviderUnavailableException("chat-space-list-invalid");
+                }
+                visible.add(spaceRef);
+                after = spaceRef;
+            }
+            if (visible.size() > 1000) {
+                throw new ChatProviderUnavailableException("chat-space-list-limit");
+            }
+            if (page.size() < 100) {
+                return List.copyOf(visible);
+            }
+        }
+    }
+
+    private List<ChatConversation> joinedAcrossCurrentSpaces(Jwt jwt) {
+        ChatRequestContext member = requestContext(jwt);
+        var visible = new ArrayList<ChatConversation>();
+        for (String spaceRef : visibleSpaceRefs(member)) {
+            ChatRequestContext space = inSpace(member, spaceRef);
+            if (!currentSpacePermission(space, ContextPermission.VIEW)) {
+                continue;
+            }
+            String after = "";
+            while (true) {
+                List<String> page = chatProviderPort.joinedConversationRefs(space, after, 100);
+                if (page == null || page.size() > 100) {
+                    throw new ChatProviderUnavailableException("chat-room-list-unavailable");
+                }
+                for (String roomRef : page) {
+                    if (roomRef == null || roomRef.compareTo(after) <= 0) {
+                        throw new ChatProviderUnavailableException("chat-room-list-invalid");
+                    }
+                    after = roomRef;
+                    if (!currentSpacePermission(space, ContextPermission.VIEW)) {
+                        break;
+                    }
+                    try {
+                        ChatConversation checked = chatProviderPort.conversation(
+                                space, new ConversationId(roomRef));
+                        if (checked == null || !roomRef.equals(checked.conversationId())) {
+                            throw new ChatProviderUnavailableException("chat-room-readback-invalid");
+                        }
+                        visible.add(checked);
+                    } catch (ChatAccessDeniedException revoked) {
+                        // Membership changed after candidate selection; never publish stale state.
+                    }
+                }
+                if (visible.size() > 1000) {
+                    throw new ChatProviderUnavailableException("chat-room-list-limit");
+                }
+                if (page.size() < 100 || !currentSpacePermission(space, ContextPermission.VIEW)) {
+                    break;
+                }
+            }
+        }
+        return List.copyOf(visible);
+    }
+
+    private static ChatRequestContext inSpace(ChatRequestContext member, String spaceRef) {
+        return new ChatRequestContext(member.tenantId(), spaceRef, member.identityIssuer(),
+                member.actorRef(), member.authorizationPrincipalRef());
+    }
+
+    private ChatRequestContext requireConversationContext(
+            Jwt jwt, String conversationId, ContextPermission permission) {
+        ChatRequestContext presented = requestContext(jwt);
+        if (durableSpaceAccess == null) {
+            if (!currentSpacePermission(presented, permission)) {
+                throw new ChatAccessDeniedException();
+            }
+            return presented;
+        }
+        ConversationId canonical = new ConversationId(
+                safeIdentifier(conversationId, "conversation-unavailable"));
+        String spaceRef = chatProviderPort.memberConversationContext(presented, canonical)
+                .orElseThrow(ChatAccessDeniedException::new);
+        ChatRequestContext resolved = inSpace(presented, spaceRef);
+        if (!currentSpacePermission(resolved, permission)) {
+            throw new ChatAccessDeniedException();
+        }
+        return resolved;
     }
 
     private ChatRequestContext requireSpaceRead(Jwt jwt, String spaceRef) {

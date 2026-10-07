@@ -211,6 +211,96 @@ class ChatDomainFacadeServiceTest {
     }
 
     @Test
+    void matrixRoomReadbackResolvesJoinedSpaceFromCanonicalStoreNotTokenContext() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
+        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+                capability(), capability(), capability(), capability(), capability(), capability());
+        when(capabilities.snapshot()).thenReturn(snapshot);
+        when(capabilities.snapshot(any())).thenReturn(snapshot);
+        ChatProviderPort provider = Mockito.mock(ChatProviderPort.class);
+        when(provider.configured()).thenReturn(true);
+        when(provider.providerSelectionKeys()).thenReturn(Set.of("synapse-homeserver"));
+        when(provider.readiness()).thenReturn(ProviderReadiness.ready("chat-provider-ready"));
+        when(provider.memberConversationContext(any(ChatRequestContext.class), any()))
+                .thenReturn(java.util.Optional.of("chosen-space"));
+        var room = Mockito.mock(com.massimotter.weave.backend.chat.domain.ChatConversation.class);
+        when(room.conversationId()).thenReturn("canonical-room");
+        when(provider.conversation(any(ChatRequestContext.class), any())).thenReturn(room);
+        SpaceAccessPort spaces = Mockito.mock(SpaceAccessPort.class);
+        String account = IdentityReferences.accountId("https://auth.example/realms/weave", "member-123");
+        when(spaces.allows("weave-dogfood", "chosen-space", account,
+                SpaceAccessPort.Permission.VIEW)).thenReturn(true, false);
+        ChatDomainFacadeService service = new ChatDomainFacadeService(
+                new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections),
+                selections, capabilities, new InMemoryAuditEventPublisher(), provider,
+                allowAllContexts(), contextProperties(),
+                OrganizationIdentityContextResolver.configured(contextProperties()), FIXED,
+                new DurableChatSpaceAccess(spaces));
+
+        assertThat(service.conversation("canonical-room", memberJwt()).conversationId())
+                .isEqualTo("canonical-room");
+        ArgumentCaptor<ChatRequestContext> context = ArgumentCaptor.forClass(ChatRequestContext.class);
+        verify(provider).conversation(context.capture(), any());
+        assertThat(context.getValue().contextId()).isEqualTo("chosen-space");
+        assertThatThrownBy(() -> service.conversation("canonical-room", memberJwt()))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        verify(provider, times(1)).conversation(any(ChatRequestContext.class), any());
+    }
+
+    @Test
+    void matrixSyncProjectsOnlyRoomsInCurrentlyVisibleDurableSpaces() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
+        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+                capability(), capability(), capability(), capability(), capability(), capability());
+        when(capabilities.snapshot()).thenReturn(snapshot);
+        when(capabilities.snapshot(any())).thenReturn(snapshot);
+        ChatProviderPort provider = Mockito.mock(ChatProviderPort.class);
+        when(provider.configured()).thenReturn(true);
+        when(provider.providerSelectionKeys()).thenReturn(Set.of("synapse-homeserver"));
+        when(provider.readiness()).thenReturn(ProviderReadiness.ready("chat-provider-ready"));
+        when(provider.joinedConversationRefs(any(ChatRequestContext.class), eq(""), eq(100)))
+                .thenAnswer(call -> List.of("room-" + ((ChatRequestContext) call.getArgument(0)).contextId()));
+        when(provider.conversation(any(ChatRequestContext.class), any()))
+                .thenAnswer(call -> {
+                    var room = Mockito.mock(com.massimotter.weave.backend.chat.domain.ChatConversation.class);
+                    when(room.conversationId()).thenReturn(((com.massimotter.weave.backend.chat.domain.ConversationId)
+                            call.getArgument(1)).value());
+                    return room;
+                });
+        when(provider.currentCursor(any(ChatRequestContext.class)))
+                .thenAnswer(call -> new ChatCursor("chat-revision-"
+                        + ("beta".equals(((ChatRequestContext) call.getArgument(0)).contextId()) ? 7 : 2)));
+        SpaceAccessPort spaces = Mockito.mock(SpaceAccessPort.class);
+        String account = IdentityReferences.accountId("https://auth.example/realms/weave", "member-123");
+        when(spaces.visibleSpaceRefs("weave-dogfood", account, "", 100))
+                .thenReturn(List.of("alpha", "beta"));
+        when(spaces.allows("weave-dogfood", "alpha", account, SpaceAccessPort.Permission.VIEW))
+                .thenReturn(true);
+        when(spaces.allows("weave-dogfood", "beta", account, SpaceAccessPort.Permission.VIEW))
+                .thenReturn(true);
+        ChatDomainFacadeService service = new ChatDomainFacadeService(
+                new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections),
+                selections, capabilities, new InMemoryAuditEventPublisher(), provider,
+                allowAllContexts(), contextProperties(),
+                OrganizationIdentityContextResolver.configured(contextProperties()), FIXED,
+                new DurableChatSpaceAccess(spaces));
+
+        assertThat(service.conversations(memberJwt()).conversations())
+                .extracting(value -> value.conversationId()).containsExactly("room-alpha", "room-beta");
+        assertThat(service.syncCursor(memberJwt())).isEqualTo("chat-revision-7");
+
+        when(spaces.allows("weave-dogfood", "beta", account, SpaceAccessPort.Permission.VIEW))
+                .thenReturn(false);
+        assertThat(service.conversations(memberJwt()).conversations())
+                .extracting(value -> value.conversationId()).containsExactly("room-alpha");
+        assertThat(service.syncCursor(memberJwt())).isEqualTo("chat-revision-2");
+    }
+
+    @Test
     void canonicalContextUsesTheKeycloakIssuerAndPrimaryTenantClaim() {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
