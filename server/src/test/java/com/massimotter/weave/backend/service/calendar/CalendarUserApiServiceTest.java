@@ -15,6 +15,7 @@ import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.domain.*;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.service.*;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.time.Instant;
 import java.util.*;
@@ -66,6 +67,25 @@ class CalendarUserApiServiceTest {
     }
 
     @Test
+    void durableSpaceRevocationHidesCalendarsAndBlocksProviderQueryDespiteStaticGrant() {
+        SpaceAccessPort spaces = mock(SpaceAccessPort.class);
+        when(spaces.allows(eq("tenant-default"), eq("workspace-default"), anyString(),
+                eq(SpaceAccessPort.Permission.VIEW))).thenReturn(true, false);
+        var context = new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
+        service = new CalendarUserApiService(HumanJwtTestSupport.organizationAdmission(),
+                OrganizationIdentityContextResolver.configured(context), context, rights, spaces,
+                capabilities, bindings, List.of(provider), audit);
+        clearInvocations(rights);
+
+        assertThat(service.calendars(member).calendars()).hasSize(1);
+        assertThat(service.calendars(member).calendars()).isEmpty();
+        assertStatus(() -> service.agenda(member, calendar, Instant.parse("2026-01-01T00:00:00Z"),
+                Instant.parse("2026-01-02T00:00:00Z"), "UTC"), HttpStatus.FORBIDDEN);
+        verify(provider, never()).query(any(), any(), any(), any());
+        verify(rights, never()).check(any());
+    }
+
+    @Test
     void httpGeneratedUtcSerializationRoundTripsAndNonzeroFractionsCannotWrite() throws Exception {
         var errors = new com.massimotter.weave.backend.config.ApiErrorResponseWriter(tools.jackson.databind.json.JsonMapper.builder().build());
         var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
@@ -113,6 +133,23 @@ class CalendarUserApiServiceTest {
         service.delete(member, calendar, created.id(), updated.version());
         verify(provider).delete(any(), eq(CalendarScope.workspace()), any(), eq(new EventVersion("\"private-etag-2\"")));
         assertThat(mappings.values()).allSatisfy(mapping -> assertThat(mapping.providerObjectRef()).doesNotContain("\0"));
+    }
+
+    @Test
+    void spaceEventCandidatesComeOnlyFromConfirmedMappingsAndCurrentScopeRights() {
+        Event created = service.create(member, calendar, content("Planning"), "calendar-create-key-relations");
+        when(bindings.mappedByProviderRefPrefix(eq("tenant-default"), eq("calendar"), eq(1L),
+                anyString(), eq(""), eq(10))).thenAnswer(call -> mappings.values().stream()
+                        .filter(mapping -> mapping.providerObjectRef().startsWith(call.getArgument(3)))
+                        .toList());
+        clearInvocations(provider);
+        assertThat(service.materializedEventRefsInSpace(member, "workspace-default", "", 10))
+                .containsExactly(created.id());
+        verify(provider, never()).query(any(), any(), any(), any());
+        verify(provider, never()).read(any(), any(), any());
+        assertThat(service.materializedEventRefsInSpace(member, "team-missing", "", 10)).isEmpty();
+        when(rights.check(any())).thenReturn(ContextAuthorizationDecision.deny("revoked"));
+        assertThat(service.materializedEventRefsInSpace(member, "workspace-default", "", 10)).isEmpty();
     }
 
     @Test
