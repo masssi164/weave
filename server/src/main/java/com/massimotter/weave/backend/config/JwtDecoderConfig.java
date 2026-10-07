@@ -37,7 +37,9 @@ public class JwtDecoderConfig {
         if (!StringUtils.hasText(issuerUri)) {
             return configuredDecoder(resourceServerProperties, jwt -> OAuth2TokenValidatorResult.success());
         }
-        OAuth2TokenValidator<Jwt> validator = JwtValidators.createDefaultWithIssuer(issuerUri);
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(issuerUri),
+                requiredHumanSubjectValidator());
         if (weaveSecurityProperties.hasRequiredAudience()) {
             validator = new DelegatingOAuth2TokenValidator<>(
                     validator,
@@ -61,6 +63,7 @@ public class JwtDecoderConfig {
         }
         OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(issuerUri),
+                requiredHumanSubjectValidator(),
                 exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
                 requiredAuthorizedPartyValidator("weave-admin-console"));
         return configuredDecoder(resourceServerProperties, validator);
@@ -123,6 +126,7 @@ public class JwtDecoderConfig {
         }
         OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(issuerUri),
+                requiredHumanSubjectValidator(),
                 exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
                 requiredAuthorizedPartyValidator(AgentRuntimeAdminSecurityConfiguration.CLIENT_ID));
         return configuredDecoder(resourceServerProperties, validator);
@@ -187,6 +191,13 @@ public class JwtDecoderConfig {
             return OAuth2TokenValidatorResult.failure(
                     error("invalid_token", "The workload resource accepts only RFC 9068 at+jwt access tokens."));
         };
+    }
+
+    static OAuth2TokenValidator<Jwt> requiredHumanSubjectValidator() {
+        return jwt -> StringUtils.hasText(jwt.getSubject())
+                ? OAuth2TokenValidatorResult.success()
+                : OAuth2TokenValidatorResult.failure(
+                        error("invalid_token", "The human access token is missing a subject."));
     }
 
     static OAuth2TokenValidator<Jwt> requiredAudienceValidator(String requiredAudience) {
