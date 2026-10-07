@@ -31,6 +31,10 @@ implementation evidence for pinned corpus `71a2093d91ad300bc733ede66080bddc90f97
   (false when absent), `.organization-ref`, `.adapter-key`, and `.configuration-ref`.
   It admits only the configured canonical organization and creates a missing initial
   binding; conflicting existing authority is rejected without replacing it.
+  Once an active Calendar revision has materialized Event mappings, ordinary
+  activation of a successor revision, including credential rotation, fails closed.
+  #1498 must provide and verify identity carry-forward before enabling such a
+  transition. The current binding and mappings remain intact after rejection.
 - Reuse provider payload storage and the existing private provider object mapping
   repository. Identity mappings contain no event payload. Agenda browsing of an
   unmapped provider event returns a transient event preview and occurrence projections,
@@ -93,6 +97,10 @@ checks, temporal/recurrence round trips and actual provider persistence tests.
 Include stale identical updates and concurrent delete ordering, unknown CalDAV
 properties, wrong scope/organization and zero provider writes on rejection.
 Run existing Calendar integrity/security tests and code-first metadata tests.
+The focused PostgreSQL repository lane selects Jupiter persistence contracts,
+including active Calendar binding and mapping invariants. Cucumber product
+scenarios remain in the broader server acceptance lane rather than bypassing a
+repository-class filter.
 Root integration owns artifact/client generation, Flutter's preview-to-edit flow,
 deployment bootstrap and real Flutter/MCP/provider journeys. Local mocks or
 compilation do not close the stories.
