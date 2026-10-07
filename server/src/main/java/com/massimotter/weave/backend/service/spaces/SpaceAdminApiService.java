@@ -5,6 +5,7 @@ import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.exception.SpaceMemberRevokedException;
 import com.massimotter.weave.backend.model.spaces.SpaceProvisionRequest;
 import com.massimotter.weave.backend.model.spaces.SpaceProvisionResponse;
 import com.massimotter.weave.backend.model.spaces.SpaceMemberChangeRequest;
@@ -90,6 +91,8 @@ public class SpaceAdminApiService {
                     identity.accountId(), accountRef);
         } catch (SpaceMembershipAdministrationPort.Absent absent) {
             throw error(HttpStatus.NOT_FOUND, "space-membership-absent", "The member is unavailable.");
+        } catch (SpaceMembershipAdministrationPort.Revoked revoked) {
+            throw new SpaceMemberRevokedException(revoked.strongEtag());
         } catch (SpaceMembershipAdministrationPort.Denied denied) {
             throw error(HttpStatus.FORBIDDEN, "space-admin-denied", "Space administration is denied.");
         }

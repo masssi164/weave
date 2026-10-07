@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.massimotter.weave.backend.config.*;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.spaces.SpaceProvisionResponse;
+import com.massimotter.weave.backend.exception.SpaceMemberRevokedException;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort.Permission;
 import com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort;
 import java.util.Set;
@@ -95,6 +96,14 @@ class SpacesAdminControllerTest {
         mvc.perform(get(path).with(owner()))
                 .andExpect(status().isOk())
                 .andExpect(header().string("ETag", "\"sm-1\""));
+        when(spaces.getMember(any(), eq("workspace-default"),
+                eq("acct_22222222222222222222222222222222")))
+                .thenThrow(new SpaceMemberRevokedException("\"sm-2\""));
+        mvc.perform(get(path).with(owner()))
+                .andExpect(status().isGone())
+                .andExpect(header().string("ETag", "\"sm-2\""))
+                .andExpect(jsonPath("$.code").value("space-membership-revoked"))
+                .andExpect(jsonPath("$.details.module").value("spaces"));
     }
 
     private org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor owner() {

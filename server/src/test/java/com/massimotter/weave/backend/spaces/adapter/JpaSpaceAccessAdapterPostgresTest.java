@@ -129,47 +129,57 @@ class JpaSpaceAccessAdapterPostgresTest {
         String outsider = "acct_33333333333333333333333333333333";
         JpaTestDatabase.transactional(source,
                 new JpaSpaceProvisioningAdapter(spaces, members, Clock.fixed(NOW, ZoneOffset.UTC)))
-                .provision("org:setup", "workspace-default", owner, Set.of());
+                .provision("org:membership", "workspace-default", owner, Set.of());
         var admin = JpaTestDatabase.transactional(source,
                 new JpaSpaceMembershipAdminAdapter(spaces, members,
                         Clock.fixed(NOW.plusSeconds(1), ZoneOffset.UTC)));
         var access = JpaTestDatabase.transactional(source, new JpaSpaceAccessAdapter(spaces, members));
-        var first = admin.grant("org:setup", "workspace-default", owner, alice,
+        var first = admin.grant("org:membership", "workspace-default", owner, alice,
                 Set.of(Permission.VIEW), null, true);
         assertThat(first.strongEtag()).isNotBlank();
-        assertThat(admin.get("org:setup", "workspace-default", owner, alice).strongEtag())
+        assertThat(admin.get("org:membership", "workspace-default", owner, alice).strongEtag())
                 .isEqualTo(first.strongEtag());
-        assertThat(admin.list("org:setup", "workspace-default", owner, "", 10)
+        assertThat(admin.list("org:membership", "workspace-default", owner, "", 10)
                 .stream().map(member -> member.accountRef()))
                 .containsExactly(owner, alice);
-        assertThat(access.allows("org:setup", "workspace-default", alice, Permission.VIEW)).isTrue();
-        assertThat(access.allows("org:setup", "workspace-default", alice, Permission.EDIT)).isFalse();
-        assertThatThrownBy(() -> admin.grant("org:setup", "workspace-default", outsider, alice,
+        assertThat(access.allows("org:membership", "workspace-default", alice, Permission.VIEW)).isTrue();
+        assertThat(access.allows("org:membership", "workspace-default", alice, Permission.EDIT)).isFalse();
+        assertThatThrownBy(() -> admin.grant("org:membership", "workspace-default", outsider, alice,
                 Set.of(Permission.VIEW, Permission.EDIT), first.strongEtag(), false))
                 .isInstanceOf(com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.Denied.class);
-        var second = admin.grant("org:setup", "workspace-default", owner, alice,
+        var second = admin.grant("org:membership", "workspace-default", owner, alice,
                 Set.of(Permission.VIEW, Permission.EDIT), first.strongEtag(), false);
         assertThat(second.strongEtag()).isNotEqualTo(first.strongEtag());
-        assertThatThrownBy(() -> admin.revoke("org:setup", "workspace-default", owner,
+        assertThatThrownBy(() -> admin.revoke("org:membership", "workspace-default", owner,
                 alice, first.strongEtag()))
                 .isInstanceOf(com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.Stale.class);
-        assertThat(access.allows("org:setup", "workspace-default", alice, Permission.EDIT)).isTrue();
-        assertThatThrownBy(() -> admin.revoke("org:setup", "workspace-default", owner,
+        assertThat(access.allows("org:membership", "workspace-default", alice, Permission.EDIT)).isTrue();
+        assertThatThrownBy(() -> admin.revoke("org:membership", "workspace-default", owner,
                 owner, "\"sm-0\""))
                 .isInstanceOf(com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.LastAdministrator.class);
-        admin.revoke("org:setup", "workspace-default", owner, alice, second.strongEtag());
-        assertThat(access.allows("org:setup", "workspace-default", alice, Permission.VIEW)).isFalse();
-        assertThat(admin.list("org:setup", "workspace-default", owner, "", 10)
+        admin.revoke("org:membership", "workspace-default", owner, alice, second.strongEtag());
+        assertThat(access.allows("org:membership", "workspace-default", alice, Permission.VIEW)).isFalse();
+        assertThat(admin.list("org:membership", "workspace-default", owner, "", 10)
                 .stream().map(member -> member.accountRef())).containsExactly(owner);
-        assertThatThrownBy(() -> admin.get("org:setup", "workspace-default", owner, alice))
-                .isInstanceOf(com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.Absent.class);
-        assertThatThrownBy(() -> admin.grant("org:setup", "workspace-default", owner,
+        var tombstone = org.assertj.core.api.Assertions.catchThrowableOfType(
+                () -> admin.get("org:membership", "workspace-default", owner, alice),
+                com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.Revoked.class);
+        assertThat(tombstone.strongEtag()).isNotEqualTo(second.strongEtag());
+        assertThatThrownBy(() -> admin.grant("org:membership", "workspace-default", owner,
                 alice, Set.of(Permission.VIEW), second.strongEtag(), false))
-                .isInstanceOf(com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.Absent.class);
-        var restored = admin.grant("org:setup", "workspace-default", owner, alice,
-                Set.of(Permission.VIEW), null, true);
+                .isInstanceOf(com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.Stale.class);
+        assertThatThrownBy(() -> admin.grant("org:membership", "workspace-default", owner,
+                alice, Set.of(Permission.VIEW), null, true))
+                .isInstanceOf(com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.Stale.class);
+        var restored = admin.grant("org:membership", "workspace-default", owner, alice,
+                Set.of(Permission.VIEW), tombstone.strongEtag(), false);
         assertThat(restored.strongEtag()).isNotEqualTo(first.strongEtag());
-        assertThat(access.allows("org:setup", "workspace-default", alice, Permission.VIEW)).isTrue();
+        assertThat(access.allows("org:membership", "workspace-default", alice, Permission.VIEW)).isTrue();
         assertThat(access.allows("org:other", "workspace-default", alice, Permission.VIEW)).isFalse();
+        admin.revoke("org:membership", "workspace-default", owner, alice, restored.strongEtag());
+        assertThatThrownBy(() -> admin.grant("org:membership", "workspace-default", owner,
+                alice, Set.of(Permission.VIEW), tombstone.strongEtag(), false))
+                .isInstanceOf(com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort.Stale.class);
+        assertThat(access.allows("org:membership", "workspace-default", alice, Permission.VIEW)).isFalse();
     }
 }

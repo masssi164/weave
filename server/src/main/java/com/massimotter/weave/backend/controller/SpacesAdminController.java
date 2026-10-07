@@ -90,7 +90,11 @@ public class SpacesAdminController {
                     headers = @Header(name = "ETag", description = "Strong current member version."),
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = SpaceMemberResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Current member unavailable.")
+            @ApiResponse(responseCode = "404", description = "Current member unavailable."),
+            @ApiResponse(responseCode = "410", description = "Revoked grant; ETag identifies the tombstone for explicit regrant.",
+                    headers = @Header(name = "ETag", description = "Strong revoked member version."),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<SpaceMemberResponse> getMember(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String spaceRef, @PathVariable String accountRef) {

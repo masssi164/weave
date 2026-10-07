@@ -9515,6 +9515,22 @@
               }
             },
             "description": "Existing Space differs from setup intent."
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Revoked grant; ETag identifies the tombstone for explicit regrant.",
+            "headers": {
+              "ETag": {
+                "description": "Strong revoked member version.",
+                "style": "simple"
+              }
+            }
           }
         },
         "security": [

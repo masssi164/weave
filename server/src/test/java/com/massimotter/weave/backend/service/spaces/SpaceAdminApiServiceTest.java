@@ -8,6 +8,7 @@ import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.exception.SpaceMemberRevokedException;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.model.spaces.SpaceProvisionRequest;
 import com.massimotter.weave.backend.model.spaces.SpaceMemberChangeRequest;
@@ -141,6 +142,11 @@ class SpaceAdminApiServiceTest {
                 .thenReturn(memberState);
         assertThat(service.getMember(owner, "workspace-default", MEMBER_ACCOUNT).strongEtag())
                 .isEqualTo("\"sm-1\"");
+        when(memberships.get("tenant-default", "workspace-default", OWNER_ACCOUNT, MEMBER_ACCOUNT))
+                .thenThrow(new SpaceMembershipAdministrationPort.Revoked("\"sm-2\""));
+        assertThatThrownBy(() -> service.getMember(owner, "workspace-default", MEMBER_ACCOUNT))
+                .isInstanceOfSatisfying(SpaceMemberRevokedException.class,
+                        revoked -> assertThat(revoked.strongEtag()).isEqualTo("\"sm-2\""));
         assertThatThrownBy(() -> service.listMembers(owner, "workspace-default", null, 101))
                 .isInstanceOfSatisfying(ApiErrorException.class,
                         error -> assertThat(error.status()).isEqualTo(HttpStatus.BAD_REQUEST));

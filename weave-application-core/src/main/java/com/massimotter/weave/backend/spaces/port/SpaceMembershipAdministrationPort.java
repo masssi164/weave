@@ -40,4 +40,17 @@ public interface SpaceMembershipAdministrationPort {
     class LastAdministrator extends RuntimeException {
         private static final long serialVersionUID = 1L;
     }
+
+    class Revoked extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        private final String strongEtag;
+
+        public Revoked(String strongEtag) {
+            this.strongEtag = strongEtag;
+        }
+
+        public String strongEtag() {
+            return strongEtag;
+        }
+    }
 }

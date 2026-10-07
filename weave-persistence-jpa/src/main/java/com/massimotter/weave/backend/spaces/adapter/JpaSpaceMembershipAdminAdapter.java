@@ -38,10 +38,13 @@ public class JpaSpaceMembershipAdminAdapter implements SpaceMembershipAdministra
     public MemberState get(String organizationRef, String spaceRef, String actorAccountRef,
             String targetAccountRef) {
         requireAdmin(organizationRef, spaceRef, actorAccountRef);
-        return state(members.findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(
+        var member = members.findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(
                 organizationRef, spaceRef, targetAccountRef)
-                .filter(SpaceMembershipJpaEntity::active)
-                .orElseThrow(Absent::new));
+                .orElseThrow(Absent::new);
+        if (!member.active()) {
+            throw new Revoked(etag(member));
+        }
+        return state(member);
     }
 
     @Override
@@ -66,10 +69,10 @@ public class JpaSpaceMembershipAdminAdapter implements SpaceMembershipAdministra
         var existing = members.findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(
                 organizationRef, spaceRef, targetAccountRef);
         if (requireAbsent) {
-            if (existing.isPresent() && existing.get().active()) {
+            if (existing.isPresent()) {
                 throw new Stale();
             }
-        } else if (existing.isEmpty() || !existing.get().active()) {
+        } else if (existing.isEmpty()) {
             throw new Absent();
         } else if (!etag(existing.get()).equals(ifMatch)) {
             throw new Stale();
