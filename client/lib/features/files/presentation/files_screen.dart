@@ -29,6 +29,13 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   String? _requestedInitialPath;
 
   @override
+  void initState() {
+    super.initState();
+    // A newly opened screen must read current member content, not retained data.
+    ref.invalidate(filesProvider);
+  }
+
+  @override
   void didUpdateWidget(covariant FilesScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialPath != widget.initialPath) {
@@ -39,6 +46,15 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    ref.listen(workspaceCapabilitySnapshotProvider, (previous, next) {
+      final wasReady = previous?.asData?.value.files.isReady == true;
+      final isReady = next.asData?.value.files.isReady == true;
+      if (wasReady && !isReady) {
+        // Drop member content before a later grant can start a new Files read.
+        ref.invalidate(filesProvider);
+        _requestedInitialPath = null;
+      }
+    });
     final capabilitySnapshot = ref.watch(workspaceCapabilitySnapshotProvider);
     final filesReady = capabilitySnapshot.asData?.value.files.isReady == true;
     // A blocked member must not start a Files session or issue a directory read.

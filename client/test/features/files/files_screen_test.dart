@@ -297,6 +297,25 @@ void main() {
 
         expect(find.text('Private plan.txt'), findsNothing);
         expect(find.text('Files are unavailable'), findsOneWidget);
+
+        repository.listings['/'] = const DirectoryListing(
+          path: '/',
+          entries: [
+            FileEntry(
+              id: 'file:20fd870a-6c0e-4c06-9181-b0c1cdb855b7',
+              name: 'Current plan.txt',
+              path: '/Current plan.txt',
+              isDirectory: false,
+            ),
+          ],
+        );
+        container.read(capabilityState.notifier).show(_readyFilesSnapshot);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Private plan.txt'), findsNothing);
+        expect(find.text('Current plan.txt'), findsOneWidget);
+        expect(repository.restoreConnectionCalls, 2);
+        expect(repository.requestedPaths, ['/', '/']);
       },
     );
 
