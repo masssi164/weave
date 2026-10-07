@@ -1,19 +1,17 @@
 {
   "schema": "weave-mcp-workload-contract-v2",
   "status": "guarded-workload-boundary-active",
-  "canonicalDomainsScope": "deferred-broad-arc-catalog",
-  "globalControlsScope": "deferred-broad-arc-catalog",
   "placement": {
     "contractArea": "infra/weave-workspace",
     "runtimeModule": "weave-mcp-server",
     "runtimeInfrastructureModule": "infra/weave-workspace/compose.yaml#mcp",
-    "implementation": "Spring AI 2.0 stateful Streamable HTTP admitted only after RFC 9068 workload validation, server-owned cell binding, token exchange, and backend context revalidation",
+    "implementation": "Spring AI 2.0 Streamable HTTP with current server-owned workload/member binding, constrained token exchange, and backend authorization",
     "retiredRuntime": "infra/weave-mcp Python and FastMCP gateway",
     "architecturePrinciple": "MCP is a workload-only Weaver boundary; humans never access MCP"
   },
   "authorityBoundary": {
     "productAuthority": "weave-backend",
-    "mcpRole": "workload-only protocol projection; the curated Files and Calendar slices consume the generated Weave User API",
+    "mcpRole": "curated workload-only Files and Calendar projection through the generated Weave User API",
     "canonicalApiRemainsAuthoritative": true,
     "runtimeDirectProviderAccessAllowed": false,
     "memberMayConfigureProvidersThroughMcp": false,
@@ -22,8 +20,6 @@
   },
   "globalControls": {
     "defaultExposeTools": false,
-    "protocolCatalogIsCanonicalCapabilityCeiling": true,
-    "runtimeProfileGrantRequiredForInvocation": true,
     "staticCatalogDoesNotAuthorizeInvocation": true,
     "denyUnknownTools": true,
     "supportSafeOutputsOnly": true,
@@ -34,180 +30,14 @@
     "credentialBearingUrlsReturned": false,
     "auditRequiredForEveryToolCall": true,
     "serverApprovalOracleAllowed": false,
-    "runtimeProfileVersion": "v2",
-    "workloadClientConvention": "weaver-cell-{cellId}",
     "serverOwnedBindingRequired": true,
+    "currentMemberAuthorizationRequired": true,
+    "currentToolGrantRequired": true,
+    "incomingBearerRelayAllowed": false,
+    "exchangedScopeMayExceedAdmittedWorkloadScope": false,
     "humanTokensForbidden": true,
-    "genericServiceAccountsForbidden": true,
-    "v1ReadersAllowed": false,
-    "approvalDecisionEvidenceVersion": "v2",
-    "actionEvidenceVersion": "v2",
-    "evidenceReferenceAloneAuthorizes": false,
-    "approvalDecisionEvidenceRequiredForWriteDeleteExternalSendProviderSwitch": true
+    "genericServiceAccountsForbidden": true
   },
-  "canonicalDomains": [
-    {
-      "key": "calendar",
-      "label": "Calendar",
-      "toolFamilies": [
-        "calendar.crud",
-        "calendar.availability",
-        "calendar.invite_rsvp",
-        "calendar.recurrence",
-        "calendar.provider_source_mapping"
-      ],
-      "allowedProofTools": [
-        "calendar.search_events",
-        "calendar.read_event"
-      ],
-      "writeToolsRequireApproval": [
-        "calendar.create_event",
-        "calendar.update_event",
-        "calendar.delete_event",
-        "calendar.invite_attendee"
-      ],
-      "forbiddenOutputs": [
-        "privateCalendarTokens",
-        "providerNativeCredentials",
-        "rawCalDavPayloads"
-      ]
-    },
-    {
-      "key": "files_documents",
-      "label": "Files and documents",
-      "toolFamilies": [
-        "files.crud",
-        "files.search",
-        "files.metadata",
-        "files.version_content",
-        "files.permissions",
-        "documents.actions"
-      ],
-      "allowedProofTools": [
-        "files.search",
-        "files.read_metadata"
-      ],
-      "writeToolsRequireApproval": [
-        "files.upload",
-        "files.delete",
-        "files.share_link",
-        "documents.request_edit_session"
-      ],
-      "dataPlaneAuthority": "weave-user-api",
-      "facadePath": "/api/files/items",
-      "openApiRole": "generated-user-http-client-and-models",
-      "writePolicyBlocker": "https://github.com/masssi164/weave/issues/1007",
-      "forbiddenOutputs": [
-        "providerNativeShareSecret",
-        "rawStorageCredentials",
-        "credentialBearingDownloadUrl",
-        "rawProviderUrl",
-        "rawWebDavProviderPayload"
-      ]
-    },
-    {
-      "key": "chat_comms",
-      "label": "Chat and communications",
-      "toolFamilies": [
-        "channels.rooms",
-        "messages",
-        "membership",
-        "send_read_search"
-      ],
-      "allowedProofTools": [
-        "chat.search_messages",
-        "chat.read_channel_summary"
-      ],
-      "writeToolsRequireApproval": [
-        "chat.send_message",
-        "chat.invite_member",
-        "chat.create_channel"
-      ],
-      "forbiddenOutputs": [
-        "rawRoomIds",
-        "rawEventIds",
-        "mxcUris",
-        "homeserverTokens",
-        "rawMatrixBodies"
-      ]
-    },
-    {
-      "key": "people_identity_org",
-      "label": "People, identity, and organization",
-      "toolFamilies": [
-        "users",
-        "groups",
-        "roles",
-        "org_units",
-        "effective_rights",
-        "readiness"
-      ],
-      "allowedProofTools": [
-        "people.search",
-        "identity.read_effective_rights"
-      ],
-      "writeToolsRequireApproval": [
-        "identity.assign_role",
-        "identity.deprovision_user",
-        "identity.update_group"
-      ],
-      "forbiddenOutputs": [
-        "rawClaimsDump",
-        "idmTokens",
-        "credentialExport"
-      ]
-    },
-    {
-      "key": "admin_setup_providers",
-      "label": "Admin setup and providers",
-      "toolFamilies": [
-        "provider_registry",
-        "category_mapping",
-        "readiness_checks",
-        "dry_run",
-        "capability_mapping",
-        "secret_ref_refs"
-      ],
-      "allowedProofTools": [
-        "admin.providers.list_categories",
-        "admin.providers.readiness_summary"
-      ],
-      "writeToolsRequireApproval": [
-        "admin.providers.select_provider",
-        "admin.providers.run_replacement_dry_run",
-        "admin.providers.apply_mapping"
-      ],
-      "forbiddenOutputs": [
-        "SecretRefValues",
-        "providerAdminTokens",
-        "rawDownstreamErrors"
-      ]
-    },
-    {
-      "key": "audit_policy",
-      "label": "Audit and policy",
-      "toolFamilies": [
-        "audit_events",
-        "redaction_views",
-        "policy_simulation",
-        "permission_scopes"
-      ],
-      "allowedProofTools": [
-        "audit.search_support_safe",
-        "policy.simulate_effective_rights"
-      ],
-      "writeToolsRequireApproval": [
-        "policy.update_profile",
-        "policy.grant_capability",
-        "policy.revoke_capability"
-      ],
-      "forbiddenOutputs": [
-        "unredactedAuditPayload",
-        "memberPrivateMemory",
-        "rawProviderDiagnostics"
-      ]
-    }
-  ],
   "activeRuntimeEvidence": {
     "transport": "stateful-streamable-http-workload-active",
     "endpoint": "/mcp",
@@ -215,7 +45,7 @@
     "accessTokenType": "at+jwt",
     "protectedResourceMetadata": "/.well-known/oauth-protected-resource/mcp",
     "clientCredentialsExtension": "io.modelcontextprotocol/oauth-client-credentials",
-    "backendContext": "standard-token-exchange-v2-and-current-arc-binding",
+    "backendContext": "downscoped-token-exchange-and-current-member-binding",
     "writeApprovalOwner": "existing-openclaw-approval",
     "weaveApprovalDecisionEvidenceRequired": false,
     "tools": [
@@ -245,6 +75,6 @@
     "pythonFastMcpRemoved": true,
     "handwrittenJsonRpcRemoved": true,
     "enabled": true,
-    "security": "bound-cell-only-rfc9068-exact-audience-and-current-arc-context"
+    "security": "rfc9068-exact-audience-scope-and-current-member-resource-authorization"
   }
 }

@@ -26,11 +26,9 @@ assert_contains() {
 jq -e '
   .schema == "weave-mcp-workload-contract-v2"
   and .status == "guarded-workload-boundary-active"
-  and .canonicalDomainsScope == "deferred-broad-arc-catalog"
-  and .globalControlsScope == "deferred-broad-arc-catalog"
   and .placement.contractArea == "infra/weave-workspace"
   and .placement.runtimeModule == "weave-mcp-server"
-  and (.placement.implementation | test("server-owned cell binding"))
+  and (.placement.implementation | test("server-owned workload/member binding"))
   and (.placement.retiredRuntime | test("Python and FastMCP"))
   and (.placement.architecturePrinciple | test("workload-only Weaver boundary"))
   and .authorityBoundary.productAuthority == "weave-backend"
@@ -40,16 +38,14 @@ jq -e '
   and .authorityBoundary.humanAccessAllowed == false
   and .authorityBoundary.unboundServiceAccountAccessAllowed == false
   and .globalControls.defaultExposeTools == false
-  and .globalControls.protocolCatalogIsCanonicalCapabilityCeiling == true
-  and .globalControls.runtimeProfileGrantRequiredForInvocation == true
-  and .globalControls.runtimeProfileVersion == "v2"
-  and .globalControls.workloadClientConvention == "weaver-cell-{cellId}"
+  and .globalControls.staticCatalogDoesNotAuthorizeInvocation == true
   and .globalControls.serverOwnedBindingRequired == true
+  and .globalControls.currentMemberAuthorizationRequired == true
+  and .globalControls.currentToolGrantRequired == true
+  and .globalControls.incomingBearerRelayAllowed == false
+  and .globalControls.exchangedScopeMayExceedAdmittedWorkloadScope == false
   and .globalControls.humanTokensForbidden == true
   and .globalControls.genericServiceAccountsForbidden == true
-  and .globalControls.v1ReadersAllowed == false
-  and .globalControls.approvalDecisionEvidenceVersion == "v2"
-  and .globalControls.actionEvidenceVersion == "v2"
   and .globalControls.denyUnknownTools == true
   and .globalControls.supportSafeOutputsOnly == true
   and .globalControls.secretRefOnly == true
@@ -58,26 +54,15 @@ jq -e '
   and .globalControls.rawProviderPayloadsReturned == false
   and .globalControls.credentialBearingUrlsReturned == false
   and .globalControls.auditRequiredForEveryToolCall == true
-  and .globalControls.approvalDecisionEvidenceRequiredForWriteDeleteExternalSendProviderSwitch == true
-  and (.canonicalDomains | length) == 6
-  and ([.canonicalDomains[].key] | index("calendar"))
-  and ([.canonicalDomains[].key] | index("files_documents"))
-  and ([.canonicalDomains[].key] | index("boards_tasks") | not)
-  and ([.canonicalDomains[].key] | index("chat_comms"))
-  and ([.canonicalDomains[].key] | index("people_identity_org"))
-  and ([.canonicalDomains[].key] | index("admin_setup_providers"))
-  and ([.canonicalDomains[].key] | index("audit_policy"))
-  and ([.canonicalDomains[] | select(.key == "admin_setup_providers") | .forbiddenOutputs[]] | index("SecretRefValues"))
-  and ([.canonicalDomains[] | select(.key == "chat_comms") | .forbiddenOutputs[]] | index("mxcUris"))
-  and ([.canonicalDomains[].writeToolsRequireApproval | length] | all(. > 0))
+  and (has("canonicalDomains") | not)
   and (has("sprint16ProofSlice") | not)
   and .activeRuntimeEvidence.transport == "stateful-streamable-http-workload-active"
   and .activeRuntimeEvidence.enabled == true
   and .activeRuntimeEvidence.accessTokenType == "at+jwt"
   and .activeRuntimeEvidence.protectedResourceMetadata == "/.well-known/oauth-protected-resource/mcp"
   and .activeRuntimeEvidence.clientCredentialsExtension == "io.modelcontextprotocol/oauth-client-credentials"
-  and .activeRuntimeEvidence.backendContext == "standard-token-exchange-v2-and-current-arc-binding"
-  and .activeRuntimeEvidence.security == "bound-cell-only-rfc9068-exact-audience-and-current-arc-context"
+  and .activeRuntimeEvidence.backendContext == "downscoped-token-exchange-and-current-member-binding"
+  and .activeRuntimeEvidence.security == "rfc9068-exact-audience-scope-and-current-member-resource-authorization"
   and .activeRuntimeEvidence.oidcGatekeeper == "spring-security-oauth2-resource-server"
   and .activeRuntimeEvidence.tools == ["files.search", "calendar.agenda", "calendar.create", "calendar.update", "calendar.delete"]
   and .activeRuntimeEvidence.writeApprovalOwner == "existing-openclaw-approval"
@@ -96,8 +81,8 @@ jq -e '
 ' "${CONTRACT}" >/dev/null || fail "Weave MCP tool contract is missing required support-safe/fail-closed controls"
 
 assert_contains "${DOC}" "Status: **Guarded / curated Files and Calendar slices active**"
-assert_contains "${DOC}" "The current implementation uses an isolated, bound confidential Keycloak workload client,"
-assert_contains "${DOC}" 'Full ARC Cell provisioning, lifecycle, and restore orchestration are deferred from #1470.'
+assert_contains "${DOC}" "The current implementation reuses an existing cell-bound workload client"
+assert_contains "${DOC}" "lifecycle are not #1470 release gates."
 assert_contains "${DOC}" "Human access tokens"
 assert_contains "${DOC}" '`files.search`'
 assert_contains "${DOC}" '`calendar.agenda`'
