@@ -35,10 +35,14 @@ class _ConfigurationRepository implements ServerConfigurationRepository {
 class _AuthRepository implements AuthSessionRepository {
   _AuthRepository(this.state);
   AuthState state;
+  bool failRestore = false;
 
   @override
-  Future<AuthState> restoreSession(AuthConfiguration configuration) async =>
-      state;
+  Future<AuthState> restoreSession(AuthConfiguration configuration) async {
+    if (failRestore) throw StateError('Member session restore failed');
+    return state;
+  }
+
   @override
   Future<AuthState> refreshSession(AuthConfiguration configuration) async =>
       state;
@@ -306,6 +310,42 @@ void main() {
     );
     expect(bridge.disposedProfiles, contains(first.profileKey));
     expect(bridge.memberActivations, hasLength(1));
+  });
+
+  test('failed member session restore drops the prior native bearer', () async {
+    final current = coordinator();
+    final first = await current.open(synchronize: false);
+    final passphraseKey =
+        '$matrixCryptoStorePassphraseKeyPrefix${first.profileKey}';
+    final passphrase = store.rawValue(passphraseKey);
+    auth.failRestore = true;
+
+    await expectLater(
+      current.open(synchronize: false),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(bridge.disposedProfiles, contains(first.profileKey));
+    expect(store.rawValue(passphraseKey), passphrase);
+  });
+
+  test('invalid member subject drops the prior native bearer', () async {
+    final current = coordinator();
+    final first = await current.open(synchronize: false);
+    final passphraseKey =
+        '$matrixCryptoStorePassphraseKeyPrefix${first.profileKey}';
+    final passphrase = store.rawValue(passphraseKey);
+    auth.state = AuthState.authenticated(
+      buildTestAuthSession(idToken: 'invalid-id-token'),
+    );
+
+    await expectLater(
+      current.open(synchronize: false),
+      throwsA(isA<ChatFailure>()),
+    );
+
+    expect(bridge.disposedProfiles, contains(first.profileKey));
+    expect(store.rawValue(passphraseKey), passphrase);
   });
 
   test(

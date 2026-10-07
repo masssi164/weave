@@ -73,6 +73,18 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
   }
 
   Future<MatrixCryptoSession> _open({required bool synchronize}) async {
+    try {
+      return await _openAdmitted(synchronize: synchronize);
+    } on Object {
+      // An auth restore, subject check, or local-store failure can happen
+      // before the admission-specific branches below. Never leave the prior
+      // native client holding a member bearer after any failed reopen.
+      await _dropActive();
+      rethrow;
+    }
+  }
+
+  Future<MatrixCryptoSession> _openAdmitted({required bool synchronize}) async {
     final configuration = await _serverConfigurationRepository
         .loadConfiguration();
     if (configuration == null || !configuration.hasCompleteAuthConfiguration) {
