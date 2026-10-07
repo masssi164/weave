@@ -11,7 +11,7 @@
 
 **Accessible collaboration, under your control.**
 
-Weave is a provider-neutral collaboration workspace for organizations that need modern daily work tools without handing their data, identity, or accessibility standards to a closed suite. The Flutter app presents setup, sign-in, chat, files, readiness, and workspace settings through Weave-owned product contracts rather than raw provider screens.
+Weave is a provider-neutral collaboration workspace for organizations that need modern daily work tools without handing their data, identity, or accessibility standards to a closed suite. The #1470 client contract is one OIDC sign-in, Files and Calendar through the generated Weave User API, and native Matrix chat through the bounded Weave Matrix Client-Server facade. Selected providers remain behind server-owned adapters. The integrated single-sign-in and native Matrix journeys are still acceptance work, not a shipped claim.
 
 Weave is not a raw bundle of provider UIs and it is not claiming to be a finished Slack or Microsoft Teams clone. It is an active product-maturity build with honest feature gates: release surfaces are only shown as shipped when they have executable evidence, and unsafe provider paths fail closed.
 
@@ -25,7 +25,7 @@ Weave is not a raw bundle of provider UIs and it is not claiming to be a finishe
 
 - **Accessible workspace shell:** setup, sign-in, navigation, settings, recovery states, semantic labels, keyboard/screen-reader-friendly flows, and non-color-only status.
 - **Sovereign collaboration:** chat, files, and calendar foundations presented through Weave-owned UX instead of raw provider screens.
-- **Backend-owned provider boundary:** Flutter talks to `weave-backend` product APIs. It does not call GitLab, OpenProject, ONLYOFFICE, Collabora, Nextcloud admin APIs, or other provider runtimes directly.
+- **Backend-owned provider boundary:** Flutter uses generated User API operations and transport models for Weave HTTP capabilities. It does not call provider runtimes directly. Chat keeps the native Rust/Matrix SDK against Weave's Matrix facade.
 - **Honest readiness:** provider status, capability snapshots, degraded states, and fail-closed errors are visible without leaking backend actor tokens, provider URLs, raw errors, or secrets.
 - **Operator-grade validation:** offline checks stay cheap for normal PRs; live-stack E2E runs only when the full stack and runner budget are explicitly available.
 
@@ -35,8 +35,8 @@ The current app lets contributors evaluate these product surfaces directly:
 
 - guided workspace setup and service endpoint review;
 - OIDC sign-in and persisted server configuration;
-- custom Matrix chat shell with explicit recovery/retry states;
-- backend-facade files browsing and actions;
+- custom native Matrix chat shell with explicit recovery/retry states;
+- generated User API Files browsing and actions, and a provider-backed Calendar surface;
 - settings/profile/session controls;
 - workspace, Matrix E2EE, and provider-stack readiness views that stay support-safe.
 
@@ -44,7 +44,7 @@ The current app lets contributors evaluate these product surfaces directly:
 
 These areas are active product scope, but the app must keep them fail-closed until the backend facade, permission, audit, accessibility, and evidence gates are ready:
 
-- **Shared calendars:** workspace, team, and channel scheduling through backend facades. Private personal calendar ingestion is not a product goal.
+- **Shared calendars:** the current supported agenda and event operations use the generated User API and an active provider. Wider workspace, team, and channel scheduling remains gated where backend, permission, and UI evidence is incomplete. Private personal calendar ingestion is not a product goal.
 - **Boards/tasks:** provider-neutral Weave UX and backend contracts with explicit user writes, authorization, audit, support-safe errors, and non-drag task work.
 - **Meetings/video calls:** LiveKit is the provider contract; join/start remain fail-closed until backend token, media, metadata, and encryption evidence gates are configured and validated.
 - **Matrix E2EE:** active architecture path, not a completed claim. Weave must validate encrypted rooms, device verification, key backup/recovery, multi-device behavior, metadata boundaries, and accessibility before claiming production readiness.
@@ -79,17 +79,17 @@ Weave is developed as one monorepo with dedicated product-stack directories:
 
 - `../client`: Flutter app, app shell, accessibility, chat/files/settings UX, provider-readiness presentation, and app tests.
 - `../server`: Spring Boot product API/BFF, JWT validation, profile/files/calendar/provider facades, readiness, support-safe errors, audit seams, and backend contracts.
-- `../infra`: Docker/OpenTofu stack, Caddy routing, Keycloak, Matrix/Synapse/MAS, Nextcloud, optional provider runtimes, backups, smoke checks, and live E2E environment.
+- `../infra`: Docker/OpenTofu stack, Caddy routing, Keycloak, optional southbound Matrix and Nextcloud providers, backups, smoke checks, and the isolated E2E environment.
 - `../e2e`: product-language Gherkin, scenario mapping, and sanitized evidence contracts.
 - `../release`: stack manifests and release metadata.
 
 Responsibility split:
 
 - Keycloak owns identity.
-- Matrix owns chat protocol and Matrix-native auth/E2EE foundations.
-- Nextcloud owns files/calendar storage foundations.
-- Weave backend owns product APIs, readiness, server-side facades, secret boundaries, error envelopes, audit/consent seams, and provider gating.
-- Weave Flutter owns the daily product experience and must stay on backend-owned product contracts.
+- Weave Server owns the bounded Matrix Client-Server northbound facade, canonical Chat state, current authorization and routing through `ChatProviderPort`; Rust/Ruma/JNI owns the narrow Matrix wire boundary. A selected Matrix provider is southbound, not the client contract.
+- The selected Files and Calendar providers own their specified payloads; Nextcloud is a default adapter option rather than a product dependency.
+- Weave Server owns generated User/Admin APIs, readiness, provider facades, secret boundaries, errors, audit and provider gating.
+- Weave Flutter owns the daily product experience. The #1470 admission contract requires its authorized member OIDC/PKCE session to admit the Weave-owned Matrix SDK path without a second user-facing login; #1475/#1480 track the real integration proof.
 - Caddy and infrastructure own routing, TLS, deployment, smoke checks, backups, restore smoke, and support diagnostics.
 
 For details, see:
@@ -169,7 +169,7 @@ Useful targets:
 - `make offline-contract-test`: automatic no-network contract gate.
 - `make integration-test`: PR-safe client mapping, release-spine, and open-standard contract checks.
 - `make physical-device-auth-e2e`: interactive activation, AppAuth system-browser sign-in, workspace restore, and refresh on a connected physical device; only endpoint and client-ID build arguments are accepted.
-- `../gradlew testApp`: disposable full product flow with invitation, browser activation, Authorization Code + PKCE, WebDAV, MCP `files.search`, revocation, and cleanup.
+- `../gradlew testApp`: disposable full product flow with invitation, browser activation, Authorization Code + PKCE, generated User API Files/Calendar, Weave Matrix facade, MCP `files.search`, revocation, restart and cleanup. This command is not a physical Flutter-device journey.
 - `make marketing-screenshots`: regenerate README/roadmap SVG assets.
 
 The GitHub Actions product-flow path runs `testApp` on a dedicated self-hosted

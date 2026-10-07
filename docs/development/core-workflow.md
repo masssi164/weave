@@ -24,7 +24,8 @@ A merge must neither publish a release nor mutate a live deployment without auth
 - #1471: scope, specifications and existing-work disposition;
 - #1472/#1473: server code-first API and generated consumers;
 - #1474: supported identity and Weaver/MCP integration;
-- #1475: Matrix facade, native clients and independent interoperability;
+- #1475: Matrix facade and native Weave-owned Flutter/Weaver clients; independent
+  third-party Matrix-client interoperability is deferred by the release profile;
 - #1476: provider-neutral domain references, bindings and authorization;
 - #1479: usable Files/Calendar product surfaces;
 - #1480: exact-candidate generation and real product acceptance;

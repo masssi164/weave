@@ -38,14 +38,14 @@ A sprint-finish request authorizes normal repository delivery actions needed to 
 
 When assigned a sprint or milestone, the delivery lead must run this loop without handing decomposition back to the requester:
 
-1. **Truth recovery**: identify governing spec corpus files first, then fetch current `origin/main`, inspect GitHub milestone/issues/PRs/checks, read linked repo specs/tasks/docs as conformance artifacts, and identify the governing sprint lifecycle.
+1. **Truth recovery**: identify governing spec corpus files first, then fetch the current integration and stable lanes (`origin/dev` and `origin/main`), inspect GitHub milestone/issues/PRs/checks, read linked repo specs/tasks/docs as conformance artifacts, and identify the governing delivery lifecycle.
 2. **Acceptance derivation**: turn each issue/spec/task into testable acceptance criteria and evidence gates. If an issue lacks acceptance, infer it from linked specs/docs and update the issue or sprint plan instead of asking the user for restatement.
 3. **Issue DAG**: build or repair the dependency graph; mark independent work parallel and ordered work sequential.
 4. **Delegation**: brief scoped reviewers or implementers with strict repo-safe inputs: task id, allowed files/globs, relevant docs, derived acceptance, required gates, output contract, and stop conditions.
 5. **File ownership**: never let parallel specialists edit the same files without explicit sequencing or separate worktrees/branches.
-6. **PR train**: create short-lived branches from current `origin/main`, open issue-scoped PRs, fill the PR template, and apply exactly one `release-notes-*` label.
+6. **PR train**: create short-lived feature branches from current `origin/dev` (use `origin/main` only for an urgent stable-line hotfix), open issue-scoped PRs, fill the PR template, and apply exactly one `release-notes-*` label.
 7. **Quality gates**: run local gates, inspect GitHub CI, use fallback human/agent review when Copilot review is unavailable, and fix failures before continuing.
-8. **Merge progression**: merge PRs in dependency order when gates pass and the sprint-finish authorization covers normal merges; after each merge, fetch/fast-forward `main` before the next dependent branch.
+8. **Merge progression**: merge feature PRs into `dev` in dependency order when gates pass and the delivery authorization covers normal merges; fetch the updated lane before the next dependent branch. Promote the accepted candidate through `dogfood` and then `main` using the protected workflow.
 9. **Closure report**: create/update `docs/sprint-<n>-closure-report.md` with governing specs, issue DAG final state, merged PRs in order, gates/CI evidence, release/RC impact, unresolved decisions, and next safe action.
 10. **GitHub closure gate**: verify via GitHub that the target milestone has zero open issues, all sprint issues are closed, the closure report exists on `origin/main`, and the final `main` CI after the last merge is green.
 
