@@ -19,6 +19,12 @@ import 'package:weave/features/chat/data/repositories/matrix_device_identity_rep
 import 'package:weave/features/chat/data/repositories/native_matrix_chat_repository.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
+import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
+import 'package:weave/features/calendar/presentation/calendar_screen.dart';
+import 'package:weave/features/chat/presentation/chat_screen.dart';
+import 'package:weave/features/files/domain/entities/files_connection_state.dart';
+import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -39,6 +45,9 @@ void main() {
 
   const enabled = bool.fromEnvironment('WEAVE_SYSTEM_BROWSER_AUTH_E2E');
   const matrixEnabled = bool.fromEnvironment('WEAVE_MEMBER_MATRIX_E2E');
+  const productEnabled = bool.fromEnvironment(
+    'WEAVE_SINGLE_SIGN_IN_PRODUCT_E2E',
+  );
   const disposableMessageEnabled = bool.fromEnvironment(
     'WEAVE_DISPOSABLE_MATRIX_MESSAGE_E2E',
   );
@@ -69,6 +78,115 @@ void main() {
     },
     skip: !enabled,
     timeout: const Timeout(Duration(minutes: 7)),
+  );
+
+  testWidgets(
+    'one fresh sign-in makes Files Calendar and native Matrix usable',
+    (tester) async {
+      final container = await _openWeaveSession(
+        tester,
+        config,
+        requireFreshSignIn: true,
+      );
+      final files = container.read(filesRepositoryProvider);
+      final calendar = container.read(calendarRepositoryProvider);
+      final coordinator = container.read(
+        matrixCryptoSessionCoordinatorProvider,
+      );
+      try {
+        expect(
+          (await files.restoreConnection()).status,
+          FilesConnectionStatus.connected,
+        );
+        expect((await files.listDirectory('/')).path, '/');
+
+        final scopes = await calendar.loadScopes();
+        expect(scopes.scopes, isNotEmpty);
+        final agenda = await calendar.loadEvents(scope: scopes.scopes.first);
+        expect(agenda.scope.id, scopes.scopes.first.id);
+
+        final matrix = await coordinator.open(allowInteractiveSignIn: false);
+        expect(matrix.userId, startsWith('@'));
+        expect(matrix.deviceId, isNotEmpty);
+
+        await tester.tap(
+          find.descendant(
+            of: find.byType(NavigationBar),
+            matching: find.byIcon(Icons.folder_outlined),
+          ),
+        );
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.byType(FilesScreen), findsOneWidget);
+        await tester.tap(
+          find.descendant(
+            of: find.byType(NavigationBar),
+            matching: find.byIcon(Icons.calendar_month_outlined),
+          ),
+        );
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.byType(CalendarScreen), findsOneWidget);
+        await tester.tap(
+          find.descendant(
+            of: find.byType(NavigationBar),
+            matching: find.byIcon(Icons.chat_bubble_outline),
+          ),
+        );
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.byType(ChatScreen), findsOneWidget);
+
+        final refreshed = await container
+            .read(authSessionRepositoryProvider)
+            .refreshSession(
+              AuthConfiguration(
+                issuer: config.issuerUrl,
+                clientId: config.clientId,
+              ),
+            );
+        expect(refreshed.isAuthenticated, isTrue);
+        await coordinator.disposePreservingCryptoState();
+        final reopened = await coordinator.open(allowInteractiveSignIn: false);
+        expect(reopened.userId, matrix.userId);
+        expect(reopened.deviceId, matrix.deviceId);
+        expect((await files.listDirectory('/')).path, '/');
+        expect((await calendar.loadScopes()).scopes, isNotEmpty);
+
+        await coordinator.disposePreservingCryptoState();
+        await tester.pumpWidget(const SizedBox.shrink());
+        final restoredContainer = await _openWeaveSession(
+          tester,
+          config,
+          requireRestoredSession: true,
+        );
+        final restoredFiles = restoredContainer.read(filesRepositoryProvider);
+        final restoredCalendar = restoredContainer.read(
+          calendarRepositoryProvider,
+        );
+        final restoredCoordinator = restoredContainer.read(
+          matrixCryptoSessionCoordinatorProvider,
+        );
+        try {
+          expect((await restoredFiles.listDirectory('/')).path, '/');
+          expect((await restoredCalendar.loadScopes()).scopes, isNotEmpty);
+          final restoredMatrix = await restoredCoordinator.open(
+            allowInteractiveSignIn: false,
+          );
+          expect(restoredMatrix.userId, matrix.userId);
+          expect(restoredMatrix.deviceId, matrix.deviceId);
+        } finally {
+          await restoredCoordinator.disposePreservingCryptoState();
+        }
+
+        debugPrint(
+          'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed login=single '
+          'files=generated calendar=generated matrix=native '
+          'refresh=true sessionReopen=true appRestart=true supportSafe=true',
+        );
+      } finally {
+        await coordinator.disposePreservingCryptoState();
+      }
+    },
+    skip: !productEnabled,
+    timeout: const Timeout(Duration(minutes: 12)),
   );
 
   testWidgets(
@@ -440,8 +558,10 @@ class _FreshBrowserOidcClient implements OidcClient {
 
 Future<ProviderContainer> _openWeaveSession(
   WidgetTester tester,
-  TestConfig config,
-) async {
+  TestConfig config, {
+  bool requireFreshSignIn = false,
+  bool requireRestoredSession = false,
+}) async {
   final serverConfiguration = ServerConfiguration(
     providerType: OidcProviderType.oidc,
     oidcIssuerUrl: config.issuerUrl,
@@ -467,6 +587,22 @@ Future<ProviderContainer> _openWeaveSession(
     ValueKey('weave.auth.sign-in'),
     ValueKey('weave.workspace.home'),
   ], timeout: const Duration(minutes: 1));
+  if (requireFreshSignIn) {
+    expect(
+      find.byKey(const ValueKey('weave.auth.sign-in')),
+      findsOneWidget,
+      reason:
+          'Install the test app with fresh local state before this journey.',
+    );
+  }
+  if (requireRestoredSession) {
+    expect(
+      find.byKey(const ValueKey('weave.workspace.home')),
+      findsOneWidget,
+      reason:
+          'The member session must restore without another browser sign-in.',
+    );
+  }
   if (find.byKey(const ValueKey('weave.auth.sign-in')).evaluate().isNotEmpty) {
     await tester.tap(find.byKey(const ValueKey('weave.auth.sign-in')));
     await tester.pump();
