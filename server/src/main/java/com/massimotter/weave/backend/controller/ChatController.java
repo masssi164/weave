@@ -23,6 +23,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -39,11 +40,11 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "bearer-jwt")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(responseCode = "403", description = "Bearer token is missing workspace scope, Context/Space access, or required chat capability.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(responseCode = "503", description = "Chat domain facade is disabled, degraded, or not ready.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
 })
 public class ChatController {
 
@@ -58,7 +59,7 @@ public class ChatController {
     @GetMapping("/api/chat/readiness")
     @Operation(operationId = "getChatReadiness", summary = "Read member-safe Weave Chat readiness")
     @ApiResponse(responseCode = "200", description = "Member-safe Chat readiness.",
-            content = @Content(schema = @Schema(implementation = ChatReadiness.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatReadiness.class)))
     public ChatReadiness readiness(@AuthenticationPrincipal Jwt jwt) {
         return chatDomainFacadeService.memberReadiness(jwt);
     }
@@ -66,7 +67,7 @@ public class ChatController {
     @GetMapping("/api/chat/conversations/{conversationId}/decisions")
     @Operation(operationId = "decisions", summary = "Read channel Decision Ledger records")
     @ApiResponse(responseCode = "200", description = "Source-linked Decision Ledger records.",
-            content = @Content(schema = @Schema(implementation = DecisionLedgerRecordsResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = DecisionLedgerRecordsResponse.class)))
     public DecisionLedgerRecordsResponse decisions(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String conversationId) {
@@ -76,7 +77,7 @@ public class ChatController {
     @PostMapping("/api/chat/conversations/{conversationId}/decisions")
     @Operation(operationId = "createDecision", summary = "Create a channel Decision Ledger record")
     @ApiResponse(responseCode = "200", description = "Created source-linked Decision Ledger record.",
-            content = @Content(schema = @Schema(implementation = DecisionLedgerRecordResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = DecisionLedgerRecordResponse.class)))
     public DecisionLedgerRecordResponse createDecision(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String conversationId,
@@ -87,7 +88,7 @@ public class ChatController {
     @GetMapping("/api/chat/conversations/{conversationId}/meeting-capsules")
     @Operation(operationId = "meetingCapsules", summary = "Read channel Meeting Capsules")
     @ApiResponse(responseCode = "200", description = "Durable channel Meeting Capsules with fail-closed media controls.",
-            content = @Content(schema = @Schema(implementation = MeetingCapsulesResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MeetingCapsulesResponse.class)))
     public MeetingCapsulesResponse meetingCapsules(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String conversationId) {
@@ -97,7 +98,7 @@ public class ChatController {
     @PostMapping("/api/chat/conversations/{conversationId}/meeting-capsules")
     @Operation(operationId = "createMeetingCapsule", summary = "Create a channel Meeting Capsule")
     @ApiResponse(responseCode = "200", description = "Created Meeting Capsule.",
-            content = @Content(schema = @Schema(implementation = MeetingCapsuleResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MeetingCapsuleResponse.class)))
     public MeetingCapsuleResponse createMeetingCapsule(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String conversationId,
@@ -109,7 +110,7 @@ public class ChatController {
     @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
     @Operation(operationId = "getAdminChatReadiness", summary = "Get admin Chat readiness", description = "Returns support-safe Chat provider mapping and readiness diagnostics for admins/operators.")
     @ApiResponse(responseCode = "200", description = "Support-safe Admin Chat readiness.",
-            content = @Content(schema = @Schema(implementation = ChatReadiness.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatReadiness.class)))
     public ChatReadiness adminReadiness(@AuthenticationPrincipal Jwt jwt) {
         return chatDomainFacadeService.adminReadiness(jwt);
     }
@@ -118,7 +119,7 @@ public class ChatController {
     @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
     @Operation(operationId = "createChatMigrationPreflight", summary = "Dry-run a future Chat provider replacement", description = "Creates a support-safe, audited dry-run report for Chat provider replacement. Destructive apply is intentionally unavailable in this contract.")
     @ApiResponse(responseCode = "200", description = "Support-safe Chat migration preflight report.",
-            content = @Content(schema = @Schema(implementation = ChatMigrationPreflightReport.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMigrationPreflightReport.class)))
     public ChatMigrationPreflightReport migrationPreflight(
             @RequestBody(required = false) ChatMigrationPreflightRequest request,
             @AuthenticationPrincipal Jwt jwt) {
@@ -128,7 +129,7 @@ public class ChatController {
     @PostMapping("/api/admin/chat/provider-replacements/dry-run")
     @Operation(operationId = "dryRunChatProviderReplacement", summary = "Dry-run a Chat provider replacement with support-safe migration evidence")
     @ApiResponse(responseCode = "200", description = "Support-safe provider replacement dry-run report.",
-            content = @Content(schema = @Schema(implementation = ChatProviderReplacementDryRunResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatProviderReplacementDryRunResponse.class)))
     public ChatProviderReplacementDryRunResponse dryRunProviderReplacement(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody ChatProviderReplacementDryRunRequest request) {

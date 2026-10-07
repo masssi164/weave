@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,9 +32,9 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "bearer-jwt")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
 })
 public class InteropController {
 
@@ -48,7 +49,7 @@ public class InteropController {
     @GetMapping("/api/interop/status")
     @Operation(operationId = "getInteropStatus", summary = "Get support-safe interop gateway status")
     @ApiResponse(responseCode = "200", description = "Support-safe interop gateway status.",
-            content = @Content(schema = @Schema(implementation = InteropStatusResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = InteropStatusResponse.class)))
     public InteropStatusResponse status() {
         return interopGatewayService.status();
     }
@@ -56,7 +57,7 @@ public class InteropController {
     @GetMapping("/api/interop/slack/status")
     @Operation(operationId = "slackStatus", summary = "Get Slack one-channel on-ramp readiness")
     @ApiResponse(responseCode = "200", description = "Slack bridge readiness.",
-            content = @Content(schema = @Schema(implementation = SlackStatusResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = SlackStatusResponse.class)))
     public SlackStatusResponse slackStatus() {
         return interopGatewayService.slackStatus();
     }
@@ -64,9 +65,9 @@ public class InteropController {
     @PostMapping("/api/interop/slack/oauth/callback")
     @Operation(operationId = "slackOAuthCallback", summary = "Accept a Slack OAuth callback skeleton without token exchange")
     @ApiResponse(responseCode = "200", description = "Disabled token-exchange callback result.",
-            content = @Content(schema = @Schema(implementation = SlackOAuthCallbackResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = SlackOAuthCallbackResponse.class)))
     @ApiResponse(responseCode = "503", description = "Slack bridge is disabled or secret brokering is not configured.",
-            content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
     public SlackOAuthCallbackResponse slackOAuthCallback(@Valid @RequestBody SlackOAuthCallbackRequest request) {
         return interopGatewayService.oauthCallback(request);
     }
@@ -74,9 +75,9 @@ public class InteropController {
     @PostMapping("/api/interop/slack/events")
     @Operation(operationId = "slackEvent", summary = "Convert a Slack text event into a canonical bridge event in sandbox mode")
     @ApiResponse(responseCode = "200", description = "Canonical sandbox bridge event.",
-            content = @Content(schema = @Schema(implementation = CanonicalBridgeEventResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = CanonicalBridgeEventResponse.class)))
     @ApiResponse(responseCode = "503", description = "Slack bridge is disabled, unmapped, or not configured.",
-            content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
     public CanonicalBridgeEventResponse slackEvent(
             @RequestBody String rawBody,
             @RequestHeader(name = "X-Slack-Request-Timestamp", required = false) String requestTimestamp,
@@ -89,9 +90,9 @@ public class InteropController {
     @PostMapping("/api/interop/slack/messages")
     @Operation(operationId = "slackMessage", summary = "Map a Weave text message to the Slack sandbox outbound adapter")
     @ApiResponse(responseCode = "200", description = "Sandbox outbound bridge result.",
-            content = @Content(schema = @Schema(implementation = SlackOutboundMessageResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = SlackOutboundMessageResponse.class)))
     @ApiResponse(responseCode = "503", description = "Slack bridge is disabled, unmapped, or not configured.",
-            content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
     public SlackOutboundMessageResponse slackMessage(@Valid @RequestBody SlackOutboundMessageRequest request) {
         return interopGatewayService.sendSlackMessage(request);
     }
@@ -99,7 +100,7 @@ public class InteropController {
     @GetMapping("/api/interop/teams/contract")
     @Operation(operationId = "teamsContract", summary = "Get the Teams gated bridge contract")
     @ApiResponse(responseCode = "200", description = "Gated Teams bridge contract.",
-            content = @Content(schema = @Schema(implementation = TeamsContractResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = TeamsContractResponse.class)))
     public TeamsContractResponse teamsContract() {
         return interopGatewayService.teamsContract();
     }

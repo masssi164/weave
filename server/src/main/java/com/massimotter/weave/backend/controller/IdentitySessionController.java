@@ -42,23 +42,23 @@ public class IdentitySessionController {
         @ApiResponse(
                 responseCode = "200",
                 description = "Closed, support-safe reconciliation result.",
-                content = @Content(schema = @Schema(implementation = IdentitySessionReconcileResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = IdentitySessionReconcileResponse.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "Missing or invalid bearer token.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(
                 responseCode = "403",
                 description = "The verified identity is outside the configured organization or membership.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(
                 responseCode = "409",
                 description = "The pending provisioning intent is ambiguous.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(
                 responseCode = "502",
                 description = "The configured identity provider could not be reconciled.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<IdentitySessionReconcileResponse> reconcile(
             @AuthenticationPrincipal Jwt jwt) {
