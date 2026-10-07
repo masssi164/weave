@@ -13,8 +13,8 @@ import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import com.massimotter.weave.backend.service.OrganizationManifestService;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
@@ -106,6 +106,9 @@ class WorkspaceControllerTest {
 
     @MockitoBean
     private ContextAuthorizationPort contextAuthorizationPort;
+
+    @MockitoBean
+    private SpaceAccessPort spaceAccessPort;
 
     @Test
     void returnsOrganizationManifestForMemberClientWithoutAdminConsoleLeakage() throws Exception {
@@ -298,12 +301,8 @@ class WorkspaceControllerTest {
                         "home-controller-private-write",
                         AuditRedactionLevel.SUPPORT_SAFE,
                         Map.of("productPath", "/private/secret.pdf"))));
-        when(contextAuthorizationPort.check(any())).thenAnswer(invocation -> {
-            var request = (com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest) invocation.getArgument(0);
-            return "workspace-shared".equals(request.contextId())
-                    ? ContextAuthorizationDecision.allow("shared workspace")
-                    : ContextAuthorizationDecision.deny("not a member");
-        });
+        when(spaceAccessPort.allows(any(), any(), any(), any())).thenAnswer(invocation ->
+                "workspace-shared".equals(invocation.getArgument(1)));
 
         mockMvc.perform(get("/api/workspace/home").with(jwt()
                         .jwt(token -> token
