@@ -68,13 +68,18 @@ def required_jobs_passed(jobs: list[dict]) -> bool:
 
 def owner_human_pass(comments: list[dict], owner: str, sha: str, deployed_at: str) -> bool:
     completed = datetime.fromisoformat(deployed_at.replace("Z", "+00:00"))
-    return any(
-        comment.get("user", {}).get("login", "").casefold() == owner.casefold()
-        and comment.get("author_association") == "OWNER"
-        and datetime.fromisoformat(comment["created_at"].replace("Z", "+00:00")) >= completed
-        and parse_human_comment(comment.get("body", ""), sha)
+    owner_results = [
+        comment
         for comment in comments
-    )
+        if comment.get("user", {}).get("login", "").casefold() == owner.casefold()
+        and comment.get("author_association") == "OWNER"
+        and comment.get("body", "").strip().startswith(COMMENT_HEADER)
+        and datetime.fromisoformat(comment["created_at"].replace("Z", "+00:00")) >= completed
+    ]
+    if not owner_results:
+        return False
+    latest = max(owner_results, key=lambda comment: (comment["created_at"], comment.get("id", 0)))
+    return parse_human_comment(latest.get("body", ""), sha)
 
 
 def api(path: str, token: str) -> object:

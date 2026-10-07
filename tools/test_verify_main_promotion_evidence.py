@@ -48,6 +48,13 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         self.assertFalse(owner_human_pass([comment], "another-owner", SHA, "2026-10-07T11:00:00Z"))
         self.assertFalse(owner_human_pass([{**comment, "author_association": "COLLABORATOR"}],
                                           "masssi164", SHA, "2026-10-07T11:00:00Z"))
+        failed_later = {**comment, "id": 2, "created_at": "2026-10-07T12:01:00Z",
+                        "body": HUMAN.replace("chat: passed", "chat: failed")}
+        self.assertFalse(owner_human_pass([comment, failed_later], "masssi164", SHA,
+                                          "2026-10-07T11:00:00Z"))
+        wrong_sha_later = {**failed_later, "body": HUMAN.replace(SHA, OTHER)}
+        self.assertFalse(owner_human_pass([comment, wrong_sha_later], "masssi164", SHA,
+                                          "2026-10-07T11:00:00Z"))
 
     def test_latest_exact_push_and_both_jobs_must_pass(self) -> None:
         run = {

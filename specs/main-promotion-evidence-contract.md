@@ -37,9 +37,11 @@ failed, or incomplete. Production publication remains a separate decision.
   source revision as proof of the exact candidate.
 - Human evidence is an owner-authored issue comment on the promotion PR with
   one exact dogfood SHA and explicit result fields. The gate validates author,
-  SHA, field completeness and pass values. A new result triggers a fresh gate
-  run on the unchanged PR head; the comment alone does not turn a stale check
-  green.
+  SHA, field completeness and pass values. The latest owner result on the
+  promotion PR after deployment is authoritative; a later failed or incomplete
+  result cannot be hidden by an earlier pass. A new result triggers a fresh
+  gate run on the unchanged PR head; the comment alone does not turn a stale
+  check green.
 - Unit fixtures cover missing/foreign/stale human comments, failed E2E or
   deployment, wrong commit and a valid exact-commit promotion. Static workflow
   lint and protected checks validate the workflow before integration.
