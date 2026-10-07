@@ -74,6 +74,7 @@ public class ChatDomainFacadeService {
     private final AuditEventPublisher auditEventPublisher;
     private final ChatProviderPort chatProviderPort;
     private final ContextAuthorizationPort contextAuthorizationPort;
+    private final DurableChatSpaceAccess durableSpaceAccess;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final OrganizationIdentityContextResolver identityContextResolver;
     private final Clock clock;
@@ -87,7 +88,8 @@ public class ChatDomainFacadeService {
             ChatProviderPort chatProviderPort,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
-            OrganizationIdentityContextResolver identityContextResolver) {
+            OrganizationIdentityContextResolver identityContextResolver,
+            DurableChatSpaceAccess durableSpaceAccess) {
         this(
                 providerRegistry,
                 providerSelectionRepository,
@@ -97,7 +99,8 @@ public class ChatDomainFacadeService {
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 identityContextResolver,
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                durableSpaceAccess);
     }
 
     ChatDomainFacadeService(
@@ -118,7 +121,8 @@ public class ChatDomainFacadeService {
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 OrganizationIdentityContextResolver.configured(contextAuthorizationProperties),
-                clock);
+                clock,
+                null);
     }
 
     ChatDomainFacadeService(
@@ -131,12 +135,29 @@ public class ChatDomainFacadeService {
             ContextAuthorizationProperties contextAuthorizationProperties,
             OrganizationIdentityContextResolver identityContextResolver,
             Clock clock) {
+        this(providerRegistry, providerSelectionRepository, workspaceCapabilityService,
+                auditEventPublisher, chatProviderPort, contextAuthorizationPort,
+                contextAuthorizationProperties, identityContextResolver, clock, null);
+    }
+
+    ChatDomainFacadeService(
+            ProviderRegistry providerRegistry,
+            ProviderSelectionRepository providerSelectionRepository,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            AuditEventPublisher auditEventPublisher,
+            ChatProviderPort chatProviderPort,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContextResolver,
+            Clock clock,
+            DurableChatSpaceAccess durableSpaceAccess) {
         this.providerRegistry = providerRegistry;
         this.providerSelectionRepository = providerSelectionRepository;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.auditEventPublisher = auditEventPublisher;
         this.chatProviderPort = chatProviderPort;
         this.contextAuthorizationPort = contextAuthorizationPort;
+        this.durableSpaceAccess = durableSpaceAccess;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
         this.identityContextResolver = identityContextResolver;
         this.clock = clock;
@@ -698,11 +719,18 @@ public class ChatDomainFacadeService {
 
     private void requireContextPermission(Jwt jwt, ContextPermission permission) {
         ChatRequestContext context = requestContext(jwt);
-        var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
-                context.tenantId(), context.contextId(), context.authorizationPrincipalRef(), permission));
-        if (!decision.allowed()) {
+        if (!currentSpacePermission(context, permission)) {
             throw new ChatAccessDeniedException();
         }
+    }
+
+    private boolean currentSpacePermission(ChatRequestContext context, ContextPermission permission) {
+        if (durableSpaceAccess != null) {
+            return durableSpaceAccess.allows(context, permission);
+        }
+        var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
+                context.tenantId(), context.contextId(), context.authorizationPrincipalRef(), permission));
+        return decision.allowed();
     }
 
     private ChatRequestContext requireSpaceRead(Jwt jwt, String spaceRef) {
@@ -710,10 +738,7 @@ public class ChatDomainFacadeService {
         ChatRequestContext member = requestContext(jwt);
         ChatRequestContext space = new ChatRequestContext(member.tenantId(), spaceRef,
                 member.identityIssuer(), member.actorRef(), member.authorizationPrincipalRef());
-        var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
-                space.tenantId(), space.contextId(), space.authorizationPrincipalRef(),
-                ContextPermission.VIEW));
-        if (!decision.allowed()) {
+        if (!currentSpacePermission(space, ContextPermission.VIEW)) {
             throw new ChatAccessDeniedException();
         }
         return space;
@@ -728,12 +753,10 @@ public class ChatDomainFacadeService {
             if (!context.tenantId().equals(identity.tenantId())) {
                 throw new ChatAccessDeniedException();
             }
-            var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
-                    context.tenantId(),
-                    context.contextId(),
-                    identity.authorizationPrincipalRef(),
-                    ContextPermission.VIEW));
-            if (!decision.allowed()) {
+            ChatRequestContext invitee = new ChatRequestContext(context.tenantId(),
+                    context.contextId(), identity.identityIssuer(), identity.actorRef(),
+                    identity.authorizationPrincipalRef());
+            if (!currentSpacePermission(invitee, ContextPermission.VIEW)) {
                 throw new ChatAccessDeniedException();
             }
         }

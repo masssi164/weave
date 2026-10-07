@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import com.massimotter.weave.backend.audit.AuditAction;
@@ -21,6 +22,7 @@ import com.massimotter.weave.backend.chat.port.ChatProviderPort;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
@@ -35,6 +37,8 @@ import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.provider.StaticProviderPort;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -171,6 +175,39 @@ class ChatDomainFacadeServiceTest {
         assertThat(context.getValue().actorRef().value()).isEqualTo("user:member-123");
         assertThatThrownBy(() -> service.joinedConversationRefsInSpace(memberJwt(),
                 "different-space", "", 10)).isInstanceOf(ChatAccessDeniedException.class);
+    }
+
+    @Test
+    void productionChatSpaceAdmissionFollowsDurableGrantAndRevocation() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
+        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+                capability(), capability(), capability(), capability(), capability(), capability());
+        when(capabilities.snapshot()).thenReturn(snapshot);
+        when(capabilities.snapshot(any())).thenReturn(snapshot);
+        ChatProviderPort provider = Mockito.mock(ChatProviderPort.class);
+        when(provider.configured()).thenReturn(true);
+        when(provider.providerSelectionKeys()).thenReturn(Set.of("synapse-homeserver"));
+        when(provider.readiness()).thenReturn(ProviderReadiness.ready("chat-provider-ready"));
+        when(provider.joinedConversationRefs(any(ChatRequestContext.class), eq(""), eq(10)))
+                .thenReturn(List.of("canonical-room"));
+        SpaceAccessPort spaces = Mockito.mock(SpaceAccessPort.class);
+        String account = IdentityReferences.accountId("https://auth.example/realms/weave", "member-123");
+        when(spaces.allows("weave-dogfood", "chosen-space", account,
+                SpaceAccessPort.Permission.VIEW)).thenReturn(true, false);
+        ChatDomainFacadeService service = new ChatDomainFacadeService(
+                new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections),
+                selections, capabilities, new InMemoryAuditEventPublisher(), provider,
+                allowAllContexts(), contextProperties(),
+                OrganizationIdentityContextResolver.configured(contextProperties()), FIXED,
+                new DurableChatSpaceAccess(spaces));
+
+        assertThat(service.joinedConversationRefsInSpace(memberJwt(), "chosen-space", "", 10))
+                .containsExactly("canonical-room");
+        assertThatThrownBy(() -> service.joinedConversationRefsInSpace(memberJwt(),
+                "chosen-space", "", 10)).isInstanceOf(ChatAccessDeniedException.class);
+        verify(provider, times(1)).joinedConversationRefs(any(ChatRequestContext.class), eq(""), eq(10));
     }
 
     @Test
