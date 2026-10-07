@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
@@ -129,11 +128,14 @@ class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
   }
 
   String? _errorCode(String? body) {
+    if (body == null || body.isEmpty) return null;
     try {
-      final decoded = jsonDecode(body ?? '');
-      return decoded is Map<String, dynamic>
-          ? decoded['code'] as String?
-          : null;
+      // The generated transport model owns the Weave error shape.
+      // ignore: deprecated_member_use
+      final error =
+          user_api.ApiClient().deserialize(body, 'ApiErrorResponse')
+              as user_api.ApiErrorResponse?;
+      return error?.code;
     } catch (_) {
       return null;
     }
