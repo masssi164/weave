@@ -27,12 +27,25 @@ class FilesScreen extends ConsumerStatefulWidget {
 
 class _FilesScreenState extends ConsumerState<FilesScreen> {
   String? _requestedInitialPath;
+  bool _didInvalidateInitialFiles = false;
 
   @override
-  void initState() {
-    super.initState();
-    // A newly opened screen must read current member content, not retained data.
-    ref.invalidate(filesProvider);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didInvalidateInitialFiles) {
+      return;
+    }
+    _didInvalidateInitialFiles = true;
+    // A newly opened authorized screen must not reuse retained member content.
+    if (ref
+            .read(workspaceCapabilitySnapshotProvider)
+            .asData
+            ?.value
+            .files
+            .isReady ==
+        true) {
+      ref.invalidate(filesProvider);
+    }
   }
 
   @override
@@ -50,7 +63,11 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       final wasReady = previous?.asData?.value.files.isReady == true;
       final isReady = next.asData?.value.files.isReady == true;
       if (wasReady && !isReady) {
-        // Drop member content before a later grant can start a new Files read.
+        // The blocked view never watches Files, so it cannot show old content.
+        _requestedInitialPath = null;
+      }
+      if (!wasReady && isReady) {
+        // Grant restoration must fetch current content before it is shown.
         ref.invalidate(filesProvider);
         _requestedInitialPath = null;
       }
