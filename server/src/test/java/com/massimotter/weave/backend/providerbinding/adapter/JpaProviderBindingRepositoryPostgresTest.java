@@ -31,6 +31,29 @@ class JpaProviderBindingRepositoryPostgresTest {
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
     @Test
+    void materializedCalendarMappingsPageOnlyTheSelectedScopeAndRevision() {
+        DriverManagerDataSource dataSource = migratedDataSource();
+        var repository = ProviderBindingJpaTestFactory.create(dataSource);
+        Instant now = Instant.parse("2026-10-07T12:00:00Z");
+        repository.saveMapping(new ProviderObjectMapping("org:relations", "calendar", 1,
+                "event:aaa", "calendar:workspace.aaa", "calendar-user-api", now, now));
+        repository.saveMapping(new ProviderObjectMapping("org:relations", "calendar", 1,
+                "event:bbb", "calendar:workspace.bbb", "calendar-user-api", now, now));
+        repository.saveMapping(new ProviderObjectMapping("org:relations", "calendar", 1,
+                "event:ccc", "calendar:team.ccc", "calendar-user-api", now, now));
+        repository.saveMapping(new ProviderObjectMapping("org:other", "calendar", 1,
+                "event:ddd", "calendar:workspace.ddd", "calendar-user-api", now, now));
+        repository.saveMapping(new ProviderObjectMapping("org:relations", "calendar", 2,
+                "event:eee", "calendar:workspace.eee", "calendar-user-api", now, now));
+        assertThat(repository.mappedByProviderRefPrefix("org:relations", "calendar", 1,
+                "calendar:workspace.", "", 1).stream().map(ProviderObjectMapping::canonicalObjectId))
+                .containsExactly("event:aaa");
+        assertThat(repository.mappedByProviderRefPrefix("org:relations", "calendar", 1,
+                "calendar:workspace.", "event:aaa", 2).stream().map(ProviderObjectMapping::canonicalObjectId))
+                .containsExactly("event:bbb");
+    }
+
+    @Test
     void nanosecondClockObservationPersistsAtDatabasePrecisionWithoutLosingTimeGuards() {
         var repository = ProviderBindingJpaTestFactory.create(migratedDataSource());
         Instant first = Instant.parse("2026-10-05T11:00:00.123456789Z");
@@ -129,6 +152,36 @@ class JpaProviderBindingRepositoryPostgresTest {
         assertThat(restarted.revision("org:calendar", "calendar", 2)).isEmpty();
         assertThat(restarted.mappingByCanonicalId("org:calendar", "calendar", 1, "event:stable-1"))
                 .contains(mapping);
+    }
+
+    @Test
+    void chatAuthorityIsOrganizationScopedDurableAndCannotTransitionWithoutReconciliation() {
+        DriverManagerDataSource dataSource = migratedDataSource();
+        var repository = ProviderBindingJpaTestFactory.create(dataSource);
+        Instant now = Instant.parse("2026-10-07T10:00:00Z");
+
+        var first = repository.activate("org:chat-a", "chat", 0, "weave-native", "profile:weave-native", now);
+        var second = repository.activate("org:chat-b", "chat", 0, "matrix-synapse", "profile:matrix-synapse", now);
+        assertThat(repository.current("org:chat-a", "chat")).contains(first);
+        assertThat(repository.current("org:chat-b", "chat")).contains(second);
+        assertThat(repository.current("org:foreign", "chat")).isEmpty();
+
+        assertThatThrownBy(() -> repository.activate("org:chat-a", "chat", first.revision(),
+                "matrix-synapse", "profile:matrix-synapse", now.plusSeconds(1)))
+                .isInstanceOf(JpaProviderBindingRepository.ChatBindingTransitionBlockedException.class);
+        assertThatThrownBy(() -> repository.activate("org:chat-a", "chat", first.revision(),
+                "weave-native", "profile:weave-native", now.plusSeconds(2)))
+                .isInstanceOf(JpaProviderBindingRepository.ChatBindingTransitionBlockedException.class);
+
+        DriverManagerDataSource restartedDataSource = new DriverManagerDataSource();
+        restartedDataSource.setDriverClassName(POSTGRES.getDriverClassName());
+        restartedDataSource.setUrl(dataSource.getUrl());
+        restartedDataSource.setUsername(POSTGRES.getUsername());
+        restartedDataSource.setPassword(POSTGRES.getPassword());
+        var restarted = ProviderBindingJpaTestFactory.create(restartedDataSource);
+        assertThat(restarted.current("org:chat-a", "chat")).contains(first);
+        assertThat(restarted.current("org:chat-b", "chat")).contains(second);
+        assertThat(restarted.revision("org:chat-a", "chat", 2)).isEmpty();
     }
 
     @Test

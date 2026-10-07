@@ -103,6 +103,20 @@ class NormalizeOpenApiContractsTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "paths overlap"):
                 normalize(root)
 
+    def test_rejects_response_header_without_a_transport_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "build/openapi").mkdir(parents=True)
+            user = self.document("/api/files", "listFiles")
+            user["paths"]["/api/files"]["get"]["responses"]["200"]["headers"] = {
+                "ETag": {"description": "Strong version"}
+            }
+            self.write_raw(root, "weave-openapi", user)
+            self.write_raw(root, "weave-user-openapi", user)
+            self.write_raw(root, "weave-admin-openapi", self.document("/api/admin/files", "adminFiles"))
+            with self.assertRaisesRegex(ValueError, "Response header without schema/content"):
+                normalize(root)
+
     @staticmethod
     def document(path: str, operation_id: str) -> dict:
         return {"openapi": "3.1.0", "paths": {

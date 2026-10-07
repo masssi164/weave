@@ -5,6 +5,8 @@ import com.massimotter.weave.backend.providerbinding.domain.ProviderObjectMappin
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.List;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,6 +75,11 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
                     expectedRevision,
                     actual);
         }
+        // A new Chat projection cannot receive member traffic until #1498 proves its
+        // canonical history and authorization have been reconciled with the new target.
+        if (current != null && "chat".equals(domain)) {
+            throw new ChatBindingTransitionBlockedException();
+        }
         // Credential rotation and replacement need verified identity carry-forward before
         // the active revision changes. Until then, keep mapped Files and Calendar identities
         // on their current authority rather than making public IDs disappear.
@@ -137,6 +144,19 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
                 .map(ProviderObjectMappingJpaEntity::toDomain);
     }
 
+    @Override
+    public List<ProviderObjectMapping> mappedByProviderRefPrefix(
+            String organizationRef, String domain, long bindingRevision,
+            String providerRefPrefix, String afterCanonicalId, int limit) {
+        if (limit < 1 || limit > 101 || providerRefPrefix == null || providerRefPrefix.isBlank()
+                || afterCanonicalId == null) {
+            throw new IllegalArgumentException("Mapped resource page is invalid");
+        }
+        return mappings.mappedByProviderRefPrefix(organizationRef, domain, bindingRevision,
+                providerRefPrefix, afterCanonicalId, PageRequest.of(0, limit))
+                .stream().map(ProviderObjectMappingJpaEntity::toDomain).toList();
+    }
+
     public static final class StaleProviderBindingException extends RuntimeException {
         public StaleProviderBindingException(
                 String organizationRef,
@@ -157,6 +177,12 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
     public static final class CalendarBindingIdentityTransitionBlockedException extends RuntimeException {
         public CalendarBindingIdentityTransitionBlockedException() {
             super("Calendar binding transition requires verified Event identity carry-forward");
+        }
+    }
+
+    public static final class ChatBindingTransitionBlockedException extends RuntimeException {
+        public ChatBindingTransitionBlockedException() {
+            super("Chat binding transition requires verified provider reconciliation");
         }
     }
 }

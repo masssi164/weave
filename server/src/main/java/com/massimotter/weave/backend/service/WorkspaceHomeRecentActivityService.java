@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.model.WorkspaceHomeRecentActivityResponse;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -17,6 +18,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -31,18 +33,30 @@ public class WorkspaceHomeRecentActivityService {
 
     private final AuditEventPublisher auditEvents;
     private final ContextAuthorizationPort contextAuthorization;
+    private final SpaceAccessPort spaces;
     private final ContextAuthorizationProperties contextProperties;
     private final OrganizationIdentityContextResolver identityContexts;
 
+    @Autowired
     public WorkspaceHomeRecentActivityService(
             AuditEventPublisher auditEvents,
             ContextAuthorizationPort contextAuthorization,
             ContextAuthorizationProperties contextProperties,
-            OrganizationIdentityContextResolver identityContexts) {
+            OrganizationIdentityContextResolver identityContexts,
+            SpaceAccessPort spaces) {
         this.auditEvents = auditEvents;
         this.contextAuthorization = contextAuthorization;
+        this.spaces = spaces;
         this.contextProperties = contextProperties;
         this.identityContexts = java.util.Objects.requireNonNull(identityContexts, "identityContexts");
+    }
+
+    /** Isolated legacy projection tests use the policy port; Spring injects durable Spaces. */
+    public WorkspaceHomeRecentActivityService(AuditEventPublisher auditEvents,
+            ContextAuthorizationPort contextAuthorization,
+            ContextAuthorizationProperties contextProperties,
+            OrganizationIdentityContextResolver identityContexts) {
+        this(auditEvents, contextAuthorization, contextProperties, identityContexts, null);
     }
 
     public List<WorkspaceHomeRecentActivityResponse> recentActivity(Jwt jwt) {
@@ -82,6 +96,10 @@ public class WorkspaceHomeRecentActivityService {
 
     private boolean mayView(AuditEvent event, CallerContext caller) {
         try {
+            if (spaces != null) {
+                return spaces.allows(caller.tenantId, event.contextId(), caller.accountRef,
+                        SpaceAccessPort.Permission.VIEW);
+            }
             return contextAuthorization.check(new ContextAuthorizationRequest(
                     caller.tenantId,
                     event.contextId(),
@@ -114,9 +132,10 @@ public class WorkspaceHomeRecentActivityService {
                     claim(jwt, contextProperties.principalClaim()),
                     jwt.getSubject());
             String principalRef = contextProperties.principalRef(principalClaim);
+            var identity = identityContexts.resolve(jwt);
             return principalRef == null
                     ? null
-                    : new CallerContext(identityContexts.resolve(jwt).organizationId(), principalRef);
+                    : new CallerContext(identity.organizationId(), principalRef, identity.accountId());
         } catch (RuntimeException exception) {
             return null;
         }
@@ -153,7 +172,7 @@ public class WorkspaceHomeRecentActivityService {
         }
     }
 
-    private record CallerContext(String tenantId, String principalRef) {
+    private record CallerContext(String tenantId, String principalRef, String accountRef) {
     }
 
     private record CanonicalActivity(String domain, String action, String visibility) {
