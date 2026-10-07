@@ -136,6 +136,40 @@ class HttpMcpAuthorizationAdaptersTest {
             failure -> assertThat(failure.kind()).isEqualTo(McpAdmissionException.Kind.FORBIDDEN));
   }
 
+  @Test
+  void exchangesOnlyTheCalendarScopeHeldByTheCell() throws Exception {
+    AtomicReference<Map<String, String>> form = new AtomicReference<>();
+    server.createContext(
+        "/token",
+        exchange -> {
+          form.set(
+              form(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+          byte[] response =
+              mapper.writeValueAsBytes(
+                  Map.of(
+                      "access_token", "calendar.backend.token",
+                      "issued_token_type", "urn:ietf:params:oauth:token-type:access_token",
+                      "token_type", "Bearer",
+                      "scope", "calendar.read",
+                      "expires_in", 30));
+          exchange.getResponseHeaders().set("Content-Type", "application/json");
+          exchange.sendResponseHeaders(200, response.length);
+          exchange.getResponseBody().write(response);
+          exchange.close();
+        });
+    server.start();
+
+    var cell = new McpCellWorkloadPrincipal(
+        ISSUER, SUBJECT, CLIENT, Set.of("mcp.tools", "calendar.read"), now,
+        now.plusSeconds(45), "calendar-cell-jti");
+    ExchangedAccessToken result = tokenExchange(
+        properties("/token", List.of("files.read", "calendar.read")))
+        .exchange(cell, "incoming.calendar.cell.token", Set.of("calendar.read"));
+
+    assertThat(form.get()).containsEntry("scope", "calendar.read");
+    assertThat(result.scopes()).containsExactly("calendar.read");
+  }
+
   private SpringSecurityMcpBackendTokenExchange tokenExchange(
       McpWorkloadProperties properties) {
     McpAuthorizationConfiguration configuration = new McpAuthorizationConfiguration();
@@ -146,18 +180,24 @@ class HttpMcpAuthorizationAdaptersTest {
   }
 
   private McpWorkloadProperties properties(String tokenPath) {
+    return properties(tokenPath, List.of("files.read"));
+  }
+
+  private McpWorkloadProperties properties(String tokenPath, List<String> domains) {
     String base = "http://127.0.0.1:" + server.getAddress().getPort();
+    List<String> requiredScopes = new java.util.ArrayList<>(domains);
+    requiredScopes.add("mcp.tools");
     return new McpWorkloadProperties(
         URI.create(MCP_RESOURCE),
         URI.create("https://api.weave.test/.well-known/oauth-protected-resource/mcp"),
         URI.create(ISSUER),
-        List.of("mcp.tools", "files.read"),
+        requiredScopes,
         URI.create(base + tokenPath),
         EDGE,
         jwkFile.toAbsolutePath(),
         URI.create(API_RESOURCE),
         URI.create(base + "/api"),
-        List.of("files.read"),
+        domains,
         Duration.ofSeconds(2),
         Duration.ofSeconds(60),
         8192);

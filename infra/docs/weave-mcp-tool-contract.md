@@ -18,6 +18,11 @@ production-ready Weaver or autonomous-action claim.
   `io.modelcontextprotocol/oauth-client-credentials`. It presents a short-lived RFC 9068
   `at+jwt` access token with the exact MCP audience, the `weaver-runtime` role, `mcp.tools`, and
   only the domain scopes granted by its current RuntimeProfile.
+- The MCP edge configuration names the bounded domain-scope ceiling. Admission requires
+  `mcp.tools` and at least one configured domain scope, rejects unknown or repeated scopes, and
+  exchanges only the admitted cell token's domain-scope subset. The exchange never adds a scope
+  merely because the edge configuration permits it. The present deployment ceiling remains
+  `files.read`; adding another domain scope requires its own backend authorization and tool gate.
 - The edge publishes OAuth Protected Resource Metadata at
   `/.well-known/oauth-protected-resource/mcp`. Missing bearer tokens receive a discoverable
   challenge; initialization without the client-credentials extension fails closed.
