@@ -22,38 +22,6 @@ function mockApi(
       ...sampleControlPlane.whitelistPolicy,
       allowedCapabilities: ["files.read"],
     }),
-    getAgentRuntime: vi.fn().mockResolvedValue({
-      personRef: "acct_0123456789abcdef0123456789abcdef",
-      cellRef: "cell_01",
-      runtimeProvider: "weaver-openclaw",
-      entitlementState: "entitled",
-      entitlementRevision: "entitlement-rev-7",
-      desiredState: "ready",
-      observedState: "ready",
-      runtimeProfileRef:
-        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      workspaceRevision: "workspace-rev-3",
-      conflicts: 0,
-      capabilityState: "ready",
-      auditRef: "audit://agent-runtime-control/test",
-    }),
-    changeAgentRuntime: vi.fn().mockImplementation(
-      async (_personRef, action) => ({
-        personRef: "acct_0123456789abcdef0123456789abcdef",
-        cellRef: "cell_01",
-        runtimeProvider: "weaver-openclaw",
-        entitlementState: action === "revoke" ? "revoked" : "entitled",
-        entitlementRevision: "entitlement-rev-7",
-        desiredState: action === "delete-runtime-state" ? "deleted" : "ready",
-        observedState: action === "delete-runtime-state" ? "deleted" : "ready",
-        runtimeProfileRef:
-          "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        workspaceRevision: "workspace-rev-3",
-        conflicts: 0,
-        capabilityState: "ready",
-        auditRef: "audit://agent-runtime-control/test",
-      }),
-    ),
     selectProvider: vi.fn(
       async (category, providerKey, choiceModel, dryRun) => ({
         category,
@@ -309,8 +277,8 @@ describe("Admin Console MVP", () => {
       screen.getByRole("heading", { name: /member capability preview/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /agent runtime control/i, level: 2 }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: /agent runtime control/i, level: 2 }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
         name: /provider replacement dry-run results/i,
@@ -478,36 +446,20 @@ describe("Admin Console MVP", () => {
     ).toBeInTheDocument();
   });
 
-  // V01_AGENT_RUNTIME_CONTROL_POLICY: admins operate the real support-safe lifecycle API.
-  it("loads an Agent Runtime Control projection without exposing runtime internals", async () => {
+  it("keeps deferred Agent Runtime controls out of the current Admin Console", async () => {
     const api = mockApi();
-    const user = userEvent.setup();
     render(<App api={api} />);
 
     expect(
-      await screen.findByRole("heading", {
+      screen.queryByRole("heading", {
         name: /agent runtime control/i,
         level: 2,
       }),
-    ).toBeInTheDocument();
-    const personField = screen.getByRole("textbox", {
-      name: /opaque person reference/i,
-    });
-    await user.type(personField, "acct_0123456789abcdef0123456789abcdef");
-    await user.click(screen.getByRole("button", { name: /load runtime/i }));
-
-    await waitFor(() => expect(api.getAgentRuntime).toHaveBeenCalled());
-    expect(screen.getByText("cell_01")).toBeInTheDocument();
-    expect(
-      screen.getAllByText(/audit:\/\/agent-runtime-control\/test/i).length,
-    ).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: /mcp workload boundary/i })).toBeInTheDocument();
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /load runtime/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /delete runtime state only/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /mcp workload boundary/i })).toBeInTheDocument();
     expect(screen.getByText(/empty catalog/i)).toBeInTheDocument();
-    expect(
-      screen.getByRole("region", { name: /agent runtime control/i }),
-    ).not.toHaveTextContent(
-      /client_secret\s*[:=]|access_token\s*[:=]|refresh_token\s*[:=]|Bearer\s+[A-Za-z0-9_-]{20}|openclaw\.json/i,
-    );
   });
 
   it("saves whitelist policy through the backend API and announces the result", async () => {
@@ -761,59 +713,6 @@ describe("Admin Console MVP", () => {
     ).toBeDisabled();
     expect(api.selectProvider).toHaveBeenCalledTimes(2);
   });
-
-  it("fences Agent Runtime Control mutations and confirms runtime-state deletion", async () => {
-    const api = mockApi();
-    const user = userEvent.setup();
-    render(<App api={api} />);
-
-    await user.type(
-      await screen.findByRole("textbox", { name: /opaque person reference/i }),
-      "acct_0123456789abcdef0123456789abcdef",
-    );
-    await user.click(screen.getByRole("button", { name: /load runtime/i }));
-    await user.type(
-      screen.getByRole("textbox", { name: /lifecycle reason/i }),
-      "Member offboarding",
-    );
-    await user.click(screen.getByRole("button", { name: /^revoke$/i }));
-
-    await waitFor(() =>
-      expect(api.changeAgentRuntime).toHaveBeenCalledWith(
-        "acct_0123456789abcdef0123456789abcdef",
-        "revoke",
-        expect.stringMatching(/^admin-console-/),
-        {
-          reason: "Member offboarding",
-          entitlementRevision: "entitlement-rev-7",
-        },
-      ),
-    );
-    const deleteButton = screen.getByRole("button", {
-      name: /delete runtime state only/i,
-    });
-    expect(deleteButton).toBeDisabled();
-    await user.click(
-      screen.getByRole("checkbox", {
-        name: /i confirm delete_runtime_state_only/i,
-      }),
-    );
-    await user.click(deleteButton);
-    await waitFor(() =>
-      expect(api.changeAgentRuntime).toHaveBeenCalledWith(
-        "acct_0123456789abcdef0123456789abcdef",
-        "delete-runtime-state",
-        expect.stringMatching(/^admin-console-/),
-        {
-          reason: "Member offboarding",
-          entitlementRevision: "entitlement-rev-7",
-        },
-      ),
-    );
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      /delete-runtime-state accepted/i,
-    );
-  }, 15_000);
 
   it("dry-runs selected providers through the backend API before applying", async () => {
     const api = mockApi();

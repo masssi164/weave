@@ -85,6 +85,28 @@ class OpenApi31TypeProjectionTest(unittest.TestCase):
         self.assertNotIn("matrixOAuthIssuer", generated)
         self.assertNotIn("matrixOAuthClientId", generated)
 
+    def test_current_admin_console_has_no_parallel_arc_http_transport(self) -> None:
+        api_source = (admin.ROOT / "admin-console/src/api.ts").read_text()
+        app_source = (admin.ROOT / "admin-console/src/App.tsx").read_text()
+        admin_paths = json.loads(admin.OPENAPI.read_text())["paths"]
+        self.assertIn("new GeneratedAdminControlPlaneApi", api_source)
+        self.assertIn("new GeneratedPlatformApi", api_source)
+        self.assertNotIn("fetchImpl(", api_source)
+        self.assertNotIn("this.fetchImpl(", api_source)
+        self.assertNotIn("interface ServerControlPlaneResponse", api_source)
+        self.assertNotIn("interface ServerProviderCategory", api_source)
+        self.assertIn("GeneratedProviderCategoryResponse", api_source)
+        self.assertNotIn("/admin/agent-runtimes", api_source)
+        self.assertNotIn("getAgentRuntime", app_source)
+        self.assertNotIn("changeAgentRuntime", app_source)
+        self.assertNotIn("agent-runtime-control-heading", app_source)
+        self.assertFalse(any("/agent-runtimes/" in path for path in admin_paths))
+        self.assertIn("/api/platform/config", json.loads(client.CONTRACT.read_text())["paths"])
+        self.assertIn(
+            "async config(",
+            (admin.ROOT / "admin-console/src/generated/user-client/apis/PlatformApi.ts").read_text(),
+        )
+
 
 class AdminFreshnessFailureContractTest(unittest.TestCase):
     """Exercise the Admin generator CLI without changing repository outputs."""

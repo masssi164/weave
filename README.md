@@ -63,11 +63,11 @@ Server controllers, transport models and validation generate the separate User a
 
 ```bash
 ./gradlew generateOpenApiContract
-./gradlew generateClientUserApi generateAdminOpenApiTypes generateAdminApiClient
+./gradlew generateClientUserApi generateAdminOpenApiTypes generateAdminApiClient generateAdminPublicUserApiClient
 ./gradlew generatedApiCi
 ```
 
-Do not edit generated artifacts manually. Flutter consumes the User API, the Admin UI consumes the Admin API, MCP Files tools use the generated JVM User client, and product E2E uses generated User and separately credentialed Admin clients.
+Do not edit generated artifacts manually. Flutter consumes the User API; the Admin UI uses the generated Admin client for authorized operations and a separate generated User client for public pre-login configuration. MCP Files tools use the generated JVM User client, and product E2E uses generated User and separately credentialed Admin clients.
 Remaining consumer and integrated acceptance work is tracked in the linked consolidation stories.
 
 ## Core architecture
@@ -98,8 +98,8 @@ The current release boundary is a server-owned code-first User/Admin API with ge
 ## Documentation
 
 - **Start contributing:** [Developer handbook](docs/developer-handbook.md), [Gitflow workflow](docs/gitflow-pr-workflow.md), and [contribution guide](CONTRIBUTING.md).
-- **Read implementation notes:** [Data-sovereignty core](docs/architecture/data-sovereignty-core.md), [package boundaries](docs/architecture/core-package-boundaries.md), and [transfer kernel](docs/architecture/canonical-transfer-kernel.md). Apply the current release profile when older plans conflict.
-- **Check the evidence:** [Workflow disposition](docs/development/workflow-disposition.md), [documentation audit](docs/documentation-audit.md), and [CI runs](https://github.com/masssi164/weave/actions).
+- **Read implementation notes:** [Data-sovereignty core](docs/architecture/data-sovereignty-core.md) and [package boundaries](docs/architecture/core-package-boundaries.md). The [transfer-kernel inventory](docs/architecture/canonical-transfer-kernel.md) records historical design; apply the pinned release profile to current work.
+- **Check the evidence:** [Current workflow ownership](docs/development/current-workflow-ownership.md) and [CI runs](https://github.com/masssi164/weave/actions); use the historical [workflow disposition](docs/development/workflow-disposition.md) and [documentation audit](docs/documentation-audit.md) when tracing older decisions.
 
 ## Release notes
 
