@@ -5,6 +5,7 @@ import com.massimotter.weave.adminapi.model.SpaceMemberChangeRequest;
 import com.massimotter.weave.adminapi.model.SpaceMemberResponse;
 import com.massimotter.weave.adminapi.model.SpaceProvisionRequest;
 import com.massimotter.weave.adminapi.model.SpaceProvisionResponse;
+import com.massimotter.weave.userapi.api.FilesUserApi;
 import com.massimotter.weave.userapi.api.SpacesUserApi;
 import com.massimotter.weave.userapi.model.SpaceRelationshipResponse;
 import java.net.http.HttpClient;
@@ -17,6 +18,7 @@ final class GeneratedSpacesJourney {
   private static final String DEFAULT_SPACE = "workspace-default";
   private final SpacesAdminApi admin;
   private final SpacesUserApi user;
+  private final FilesUserApi files;
 
   GeneratedSpacesJourney(ProductFlowEnvironment environment) {
     String base = environment.apiOrigin().getScheme() + "://"
@@ -37,6 +39,7 @@ final class GeneratedSpacesJourney {
         .setReadTimeout(Duration.ofSeconds(30));
     userClient.updateBaseUri(base);
     user = new SpacesUserApi(userClient);
+    files = new FilesUserApi(userClient);
   }
 
   void provisionDefault(String adminToken, String ownerToken) {
@@ -98,6 +101,79 @@ final class GeneratedSpacesJourney {
       throw new ProductFlowException("Generated Space relation read failed with HTTP "
           + failure.getCode());
     }
+  }
+
+  void verifyRevocationAndVersionedRegrant(String adminToken, String memberToken,
+      String memberAccountRef, String fileId) {
+    try {
+      String currentEtag = etag(admin.getSpaceMemberWithHttpInfo(
+          DEFAULT_SPACE, memberAccountRef, bearer(adminToken)).getHeaders());
+      admin.deleteSpaceMember(DEFAULT_SPACE, memberAccountRef, currentEtag, bearer(adminToken));
+      assertVisible(memberToken, false);
+      try {
+        user.listSpaceRelationships(DEFAULT_SPACE, null, 10, bearer(memberToken));
+        throw new ProductFlowException("Revoked member retained Space relation access");
+      } catch (com.massimotter.weave.userapi.invoker.ApiException denied) {
+        if (denied.getCode() != 404) {
+          throw new ProductFlowException("Revoked Space relation returned HTTP " + denied.getCode());
+        }
+      }
+      try {
+        files.getFilesItem(fileId, bearer(memberToken));
+        throw new ProductFlowException("Revoked member retained Files access");
+      } catch (com.massimotter.weave.userapi.invoker.ApiException denied) {
+        if (denied.getCode() != 403) {
+          throw new ProductFlowException("Revoked Files access returned HTTP " + denied.getCode());
+        }
+      }
+      String tombstoneEtag;
+      try {
+        admin.getSpaceMember(DEFAULT_SPACE, memberAccountRef, bearer(adminToken));
+        throw new ProductFlowException("Revoked Space membership was still active");
+      } catch (com.massimotter.weave.adminapi.invoker.ApiException revoked) {
+        if (revoked.getCode() != 410 || revoked.getResponseHeaders() == null) {
+          throw new ProductFlowException("Revoked Space member was not versioned");
+        }
+        tombstoneEtag = revoked.getResponseHeaders().firstValue("ETag")
+            .orElseThrow(() -> new ProductFlowException("Revoked Space member omitted ETag"));
+      }
+      var editor = new SpaceMemberChangeRequest()
+          .permissionLevel(SpaceMemberChangeRequest.PermissionLevelEnum.EDIT);
+      try {
+        admin.putSpaceMember(DEFAULT_SPACE, memberAccountRef, editor,
+            currentEtag, null, bearer(adminToken));
+        throw new ProductFlowException("Stale Space grant replay was accepted");
+      } catch (com.massimotter.weave.adminapi.invoker.ApiException stale) {
+        if (stale.getCode() != 412) {
+          throw new ProductFlowException("Stale Space grant returned HTTP " + stale.getCode());
+        }
+      }
+      SpaceMemberResponse regranted = admin.putSpaceMember(DEFAULT_SPACE, memberAccountRef,
+          editor, tombstoneEtag, null, bearer(adminToken));
+      if (regranted == null || !regranted.getPermissions()
+          .contains(SpaceMemberResponse.PermissionsEnum.EDIT)) {
+        throw new ProductFlowException("Versioned Space regrant did not restore editor rights");
+      }
+      assertVisible(memberToken, true);
+      if (!containsFile(memberToken, fileId)) {
+        throw new ProductFlowException("Stable File relation was lost after Space regrant");
+      }
+      files.getFilesItem(fileId, bearer(memberToken));
+    } catch (com.massimotter.weave.adminapi.invoker.ApiException failure) {
+      throw new ProductFlowException("Generated Admin Space revocation failed with HTTP "
+          + failure.getCode());
+    } catch (com.massimotter.weave.userapi.invoker.ApiException failure) {
+      throw new ProductFlowException("Generated User Space revocation failed with HTTP "
+          + failure.getCode());
+    }
+  }
+
+  private static String etag(Map<String, List<String>> headers) {
+    return headers.entrySet().stream()
+        .filter(entry -> "etag".equalsIgnoreCase(entry.getKey()))
+        .flatMap(entry -> entry.getValue().stream())
+        .findFirst()
+        .orElseThrow(() -> new ProductFlowException("Current Space member omitted ETag"));
   }
 
   private boolean containsFile(String token, String fileId)
