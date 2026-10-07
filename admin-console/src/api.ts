@@ -142,32 +142,6 @@ export interface McpServerBinding {
   nextActions: string[];
 }
 
-export interface AgentRuntimeProjection {
-  personRef: string;
-  cellRef?: string;
-  runtimeProvider?: string;
-  entitlementState: "entitled" | "not_entitled" | "revoked";
-  entitlementRevision?: string;
-  desiredState: string;
-  observedState: string;
-  runtimeProfileRef?: string;
-  workspaceRevision?: string;
-  lastWakeAt?: string;
-  lastSyncAt?: string;
-  conflicts: number;
-  capabilityState: CapabilityState;
-  auditRef: string;
-}
-
-export type AgentRuntimeLifecycleAction =
-  | "provision"
-  | "start"
-  | "stop"
-  | "suspend"
-  | "reconcile"
-  | "revoke"
-  | "delete-runtime-state";
-
 export interface AuditEvent {
   id: string;
   action: string;
@@ -723,52 +697,6 @@ export class AdminControlPlaneApi {
     return normalizeWhitelist(response as ServerWhitelistPolicy);
   }
 
-  async getAgentRuntime(personRef: string): Promise<AgentRuntimeProjection> {
-    return this.request<AgentRuntimeProjection>(
-      `/admin/agent-runtimes/${encodeURIComponent(personRef)}`,
-    );
-  }
-
-  async changeAgentRuntime(
-    personRef: string,
-    action: AgentRuntimeLifecycleAction,
-    idempotencyKey: string,
-    options: { reason?: string; entitlementRevision?: string } = {},
-  ): Promise<AgentRuntimeProjection> {
-    const base = `/admin/agent-runtimes/${encodeURIComponent(personRef)}`;
-    const headers = { "Idempotency-Key": idempotencyKey };
-    if (action === "revoke" && !options.entitlementRevision) {
-      throw new Error("A current entitlement revision is required for revocation.");
-    }
-    if (action === "delete-runtime-state") {
-      return this.request<AgentRuntimeProjection>(`${base}/runtime-state`, {
-        method: "DELETE",
-        headers,
-        body: JSON.stringify({
-          reason: options.reason ?? "Deleted through Organization/Admin Console",
-          confirmation: "DELETE_RUNTIME_STATE_ONLY",
-        }),
-      });
-    }
-
-    const body =
-      action === "stop"
-        ? { mode: "graceful" }
-        : action === "suspend"
-          ? { reason: options.reason ?? "Suspended through Organization/Admin Console" }
-          : action === "revoke"
-            ? {
-                reason: options.reason ?? "Revoked through Organization/Admin Console",
-                entitlementRevision: options.entitlementRevision,
-              }
-            : undefined;
-    return this.request<AgentRuntimeProjection>(`${base}/${action}`, {
-      method: "POST",
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-  }
-
   async selectProvider(
     category: string,
     providerKey: string,
@@ -928,29 +856,7 @@ export class AdminControlPlaneApi {
     );
   }
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    if (path !== "/admin" && !path.startsWith("/admin/")) {
-      throw new Error("Admin Console requests must stay under the Weave /api/admin boundary");
-    }
-    const token = this.tokenProvider();
-    const headers = new Headers(init.headers);
-    headers.set("Accept", "application/json");
-    if (init.body) headers.set("Content-Type", "application/json");
-    if (token) headers.set("Authorization", `Bearer ${token}`);
 
-    const response = await this.fetchImpl(`${this.config.apiBaseUrl}${path}`, {
-      ...init,
-      headers,
-    });
-    if (!response.ok) {
-      throw new AdminApiError(
-        `Admin API request failed with HTTP ${response.status}`,
-        response.status,
-      );
-    }
-    if (response.status === 204) return undefined as T;
-    return response.json() as Promise<T>;
-  }
 }
 
 function invitationIdempotencyKey(

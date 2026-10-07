@@ -85,6 +85,18 @@ class OpenApi31TypeProjectionTest(unittest.TestCase):
         self.assertNotIn("matrixOAuthIssuer", generated)
         self.assertNotIn("matrixOAuthClientId", generated)
 
+    def test_current_admin_console_has_no_parallel_arc_http_transport(self) -> None:
+        api_source = (admin.ROOT / "admin-console/src/api.ts").read_text()
+        app_source = (admin.ROOT / "admin-console/src/App.tsx").read_text()
+        admin_paths = json.loads(admin.OPENAPI.read_text())["paths"]
+        self.assertIn("new GeneratedAdminControlPlaneApi", api_source)
+        self.assertNotIn("this.fetchImpl(", api_source)
+        self.assertNotIn("/admin/agent-runtimes", api_source)
+        self.assertNotIn("getAgentRuntime", app_source)
+        self.assertNotIn("changeAgentRuntime", app_source)
+        self.assertNotIn("agent-runtime-control-heading", app_source)
+        self.assertFalse(any("/agent-runtimes/" in path for path in admin_paths))
+
 
 class AdminFreshnessFailureContractTest(unittest.TestCase):
     """Exercise the Admin generator CLI without changing repository outputs."""

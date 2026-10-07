@@ -108,7 +108,7 @@ export const adminConsoleMessages = {
     readinessDashboardLabel: 'Domain readiness dashboard',
     betaReadinessHeading: 'Beta setup and control readiness preview',
     betaReadinessDescription:
-      'This Admin Console preview ties Keycloak platform security, provider adapters, Agent Runtime Control, and evidence posture into one screen-reader-friendly checklist before members are invited. It is support-safe: admins see action labels and evidence refs, not raw provider payloads or secrets.',
+      'This Admin Console preview ties identity security, provider adapters, and evidence posture into one screen-reader-friendly checklist before members are invited. It is support-safe: admins see action labels and evidence refs, not raw provider payloads or secrets.',
     betaReadinessChecklistLabel: 'Beta setup and control readiness checklist',
     goLiveHeading: 'Organization go-live readiness',
     goLiveStateLabel: 'State',
@@ -286,7 +286,7 @@ export const adminConsoleMessages = {
     readinessDashboardLabel: 'Domain-Bereitschafts-Dashboard',
     betaReadinessHeading: 'Beta-Einrichtungs- und Steuerungsbereitschaft',
     betaReadinessDescription:
-      'Diese Admin-Konsolenvorschau verbindet IDM/RBAC, Provider-Adapter, Agent Runtime Control und Evidenzlage in einer screenreader-freundlichen Checkliste, bevor Mitglieder eingeladen werden. Sie ist support-sicher: Admins sehen Aktionslabels und Evidenz-Refs, keine rohen Provider-Payloads oder Secrets.',
+      'Diese Admin-Konsolenvorschau verbindet IDM/RBAC, Provider-Adapter und Evidenzlage in einer screenreader-freundlichen Checkliste, bevor Mitglieder eingeladen werden. Sie ist support-sicher: Admins sehen Aktionslabels und Evidenz-Refs, keine rohen Provider-Payloads oder Secrets.',
     betaReadinessChecklistLabel: 'Beta-Einrichtungs- und Steuerungscheckliste',
     goLiveHeading: 'Organisations-Go-Live-Bereitschaft',
     goLiveStateLabel: 'Zustand',

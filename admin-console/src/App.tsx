@@ -29,8 +29,6 @@ import {
 import {
   AdminControlPlaneApi,
   adminConsoleConfig,
-  AgentRuntimeLifecycleAction,
-  AgentRuntimeProjection,
   CapabilityState,
   ControlPlaneResponse,
   OrganizationInvitation,
@@ -249,14 +247,6 @@ export default function App({
   const [statusMessage, setStatusMessage] = useState<string>(
     adminCopy(locale).loadingStatus,
   );
-  const [agentRuntimePersonRef, setAgentRuntimePersonRef] = useState("");
-  const [agentRuntimeReason, setAgentRuntimeReason] = useState("");
-  const [agentRuntime, setAgentRuntime] =
-    useState<AgentRuntimeProjection | null>(null);
-  const [agentRuntimeBusy, setAgentRuntimeBusy] = useState(false);
-  const [agentRuntimeError, setAgentRuntimeError] = useState<string | null>(null);
-  const [runtimeStateDeleteConfirmed, setRuntimeStateDeleteConfirmed] =
-    useState(false);
   const [invitations, setInvitations] = useState<OrganizationInvitation[]>([]);
   const [invitationEmail, setInvitationEmail] = useState("");
   const [invitationDisplayName, setInvitationDisplayName] = useState("");
@@ -384,60 +374,6 @@ export default function App({
     setStatusMessage(
       `Whitelist policy saved with ${allowedCapabilities.length} requested capabilities.`,
     );
-  }
-
-  async function loadAgentRuntime() {
-    if (!agentRuntimePersonRef) return;
-    setAgentRuntimeBusy(true);
-    setAgentRuntimeError(null);
-    try {
-      const response = await api.getAgentRuntime(agentRuntimePersonRef);
-      setAgentRuntime(response);
-      setStatusMessage(`Agent runtime loaded; audit ref ${response.auditRef}.`);
-    } catch (cause: unknown) {
-      setAgentRuntime(null);
-      setAgentRuntimeError(
-        cause instanceof Error ? cause.message : "Agent runtime is unavailable.",
-      );
-    } finally {
-      setAgentRuntimeBusy(false);
-    }
-  }
-
-  async function changeAgentRuntime(action: AgentRuntimeLifecycleAction) {
-    if (!canConfigure || !agentRuntimePersonRef) return;
-    if (action === "revoke" && !agentRuntime?.entitlementRevision) {
-      setAgentRuntimeError(
-        "Load the current runtime before revocation so its entitlement revision can be fenced.",
-      );
-      return;
-    }
-    if (action === "delete-runtime-state" && !runtimeStateDeleteConfirmed) return;
-    setAgentRuntimeBusy(true);
-    setAgentRuntimeError(null);
-    try {
-      const idempotencyKey = `admin-console-${Date.now()}-${action}`;
-      const response = await api.changeAgentRuntime(
-        agentRuntimePersonRef,
-        action,
-        idempotencyKey,
-        {
-          reason: agentRuntimeReason || undefined,
-          entitlementRevision: agentRuntime?.entitlementRevision,
-        },
-      );
-      setAgentRuntime(response);
-      setRuntimeStateDeleteConfirmed(false);
-      setStatusMessage(
-        `Agent runtime ${action} accepted; desired ${response.desiredState}, observed ${response.observedState}, audit ref ${response.auditRef}.`,
-      );
-    } catch (cause: unknown) {
-      setAgentRuntimeError(
-        cause instanceof Error ? cause.message : "Agent runtime transition failed.",
-      );
-    } finally {
-      setAgentRuntimeBusy(false);
-    }
   }
 
   async function selectProvider(dryRun: boolean) {
@@ -1582,178 +1518,6 @@ export default function App({
                             {copy.testReadinessButton}
                           </Button>
                         </Stack>
-                      </>
-                    ) : null}
-                  </Stack>
-                </CardContent>
-              </Card>
-
-              <Card
-                component="section"
-                aria-labelledby="agent-runtime-control-heading"
-              >
-                <CardContent>
-                  <Typography
-                    id="agent-runtime-control-heading"
-                    variant="h2"
-                    sx={{ fontSize: "1.35rem", mb: 1 }}
-                  >
-                    Agent Runtime Control
-                  </Typography>
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    Operate one Keycloak-entitled cell through the real lifecycle
-                    API. RuntimeProfile v2 is signed desired state, not an
-                    authorization grant. Runtime-internal state is external and
-                    encrypted; deleting it never deletes canonical Files content.
-                  </Alert>
-                  <Stack spacing={2}>
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                      <TextField
-                        label="Opaque person reference"
-                        value={agentRuntimePersonRef}
-                        onChange={(event) => {
-                          setAgentRuntimePersonRef(event.target.value.trim());
-                          setAgentRuntime(null);
-                          setAgentRuntimeError(null);
-                          setRuntimeStateDeleteConfirmed(false);
-                        }}
-                        placeholder="acct_0123456789abcdef0123456789abcdef"
-                        slotProps={{
-                          htmlInput: {
-                            pattern: "acct_[a-f0-9]{32}",
-                            "aria-describedby": "agent-runtime-person-helper",
-                          },
-                        }}
-                        fullWidth
-                      />
-                      <Button
-                        variant="outlined"
-                        disabled={!agentRuntimePersonRef || agentRuntimeBusy}
-                        onClick={() => void loadAgentRuntime()}
-                      >
-                        Load runtime
-                      </Button>
-                    </Stack>
-                    <FormHelperText id="agent-runtime-person-helper">
-                      Use the opaque Weave personRef. Email and provider-native
-                      user IDs are not runtime identity keys.
-                    </FormHelperText>
-                    {agentRuntimeError ? (
-                      <Alert severity="error">{agentRuntimeError}</Alert>
-                    ) : null}
-                    {agentRuntime ? (
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Stack spacing={1}>
-                            <Stack
-                              direction={{ xs: "column", sm: "row" }}
-                              spacing={1}
-                            >
-                              <Chip
-                                color={stateColor[agentRuntime.capabilityState]}
-                                label={`Capability: ${readableState(agentRuntime.capabilityState)}`}
-                              />
-                              <Chip
-                                label={`Entitlement: ${readableState(agentRuntime.entitlementState)}`}
-                              />
-                              <Chip
-                                label={`Desired: ${readableState(agentRuntime.desiredState)}`}
-                              />
-                              <Chip
-                                label={`Observed: ${readableState(agentRuntime.observedState)}`}
-                              />
-                            </Stack>
-                            <Typography>
-                              Cell: <code>{agentRuntime.cellRef ?? "not provisioned"}</code>;
-                              provider: {agentRuntime.runtimeProvider ?? "not selected"};
-                              workspace revision: {agentRuntime.workspaceRevision ?? "none"}.
-                            </Typography>
-                            <Typography>
-                              RuntimeProfile: <code>{agentRuntime.runtimeProfileRef ?? "none"}</code>;
-                              conflicts: {agentRuntime.conflicts}; audit ref:{" "}
-                              <code>{agentRuntime.auditRef}</code>.
-                            </Typography>
-                          </Stack>
-                        </CardContent>
-                      </Card>
-                    ) : null}
-                    {canConfigure ? (
-                      <>
-                        <TextField
-                          label="Lifecycle reason"
-                          value={agentRuntimeReason}
-                          onChange={(event) =>
-                            setAgentRuntimeReason(event.target.value)
-                          }
-                          helperText="Required context for suspend, revoke, and runtime-state deletion; kept support-safe in audit."
-                          slotProps={{ htmlInput: { maxLength: 500 } }}
-                          fullWidth
-                        />
-                        <Stack
-                          direction={{ xs: "column", sm: "row" }}
-                          spacing={1}
-                          sx={{ flexWrap: "wrap" }}
-                          useFlexGap
-                        >
-                          {(
-                            [
-                              "provision",
-                              "start",
-                              "stop",
-                              "suspend",
-                              "reconcile",
-                              "revoke",
-                            ] as AgentRuntimeLifecycleAction[]
-                          ).map((action) => (
-                            <Button
-                              key={action}
-                              variant={action === "revoke" ? "outlined" : "contained"}
-                              color={action === "revoke" ? "error" : "primary"}
-                              disabled={
-                                agentRuntimeBusy ||
-                                !agentRuntimePersonRef ||
-                                ((action === "suspend" || action === "revoke") &&
-                                  !agentRuntimeReason.trim())
-                              }
-                              onClick={() => void changeAgentRuntime(action)}
-                            >
-                              {action}
-                            </Button>
-                          ))}
-                        </Stack>
-                        <Divider />
-                        <Alert severity="warning">
-                          Runtime-state deletion revokes the per-cell workload
-                          identity and removes encrypted runtime-internal state.
-                          Canonical WebDAV/Files content is intentionally outside
-                          this deletion boundary.
-                        </Alert>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={runtimeStateDeleteConfirmed}
-                              onChange={(event) =>
-                                setRuntimeStateDeleteConfirmed(event.target.checked)
-                              }
-                            />
-                          }
-                          label="I confirm DELETE_RUNTIME_STATE_ONLY"
-                        />
-                        <Button
-                          variant="outlined"
-                          color="error"
-                          disabled={
-                            agentRuntimeBusy ||
-                            !agentRuntimePersonRef ||
-                            !agentRuntimeReason.trim() ||
-                            !runtimeStateDeleteConfirmed
-                          }
-                          onClick={() =>
-                            void changeAgentRuntime("delete-runtime-state")
-                          }
-                        >
-                          Delete runtime state only
-                        </Button>
                       </>
                     ) : null}
                   </Stack>
