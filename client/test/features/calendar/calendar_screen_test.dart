@@ -26,9 +26,12 @@ class _FakeCalendarRepository implements CalendarRepository {
   final List<String> deletedIds = <String>[];
   final List<String?> updatedEtags = <String?>[];
   final List<CalendarEventDraft> updatedDrafts = [];
+  int scopeLoads = 0;
+  int eventLoads = 0;
 
   @override
   Future<CalendarScopeList> loadScopes() async {
+    scopeLoads++;
     return const CalendarScopeList(
       scopes: [
         CalendarScope(
@@ -52,6 +55,7 @@ class _FakeCalendarRepository implements CalendarRepository {
     DateTime? from,
     DateTime? to,
   }) async {
+    eventLoads++;
     return CalendarEventList(
       scope: scope ?? CalendarScope.workspace,
       events: List<CalendarEvent>.of(events),
@@ -161,8 +165,77 @@ WorkspaceCapabilitySnapshot _calendarUnavailableSnapshot() {
   );
 }
 
+class _CalendarCapabilityController
+    extends Notifier<AsyncValue<WorkspaceCapabilitySnapshot>> {
+  @override
+  AsyncValue<WorkspaceCapabilitySnapshot> build() =>
+      AsyncData(_calendarUnavailableSnapshot());
+
+  void show(WorkspaceCapabilitySnapshot snapshot) {
+    state = AsyncData(snapshot);
+  }
+}
+
 void main() {
   group('CalendarScreen', () {
+    testWidgets(
+      'waits for access, loads agenda automatically, and hides revoked events',
+      (tester) async {
+        final capabilityState =
+            NotifierProvider<
+              _CalendarCapabilityController,
+              AsyncValue<WorkspaceCapabilitySnapshot>
+            >(_CalendarCapabilityController.new);
+        final repository = _FakeCalendarRepository(
+          events: [
+            CalendarEvent(
+              id: 'private-event',
+              title: 'Private review',
+              startTime: DateTime(2026, 6, 27, 10),
+              endTime: DateTime(2026, 6, 27, 11),
+            ),
+          ],
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            const CalendarScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWith(
+                (ref) => ref.watch(capabilityState),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+              calendarEvaluationTimeZoneProvider.overrideWith(
+                (ref) async => 'Europe/Berlin',
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Calendar is unavailable'), findsOneWidget);
+        expect(repository.scopeLoads, 0);
+        expect(repository.eventLoads, 0);
+
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(CalendarScreen)),
+        );
+        container.read(capabilityState.notifier).show(_readySnapshot);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Private review'), findsOneWidget);
+        expect(repository.scopeLoads, greaterThan(0));
+        expect(repository.eventLoads, greaterThan(0));
+
+        container
+            .read(capabilityState.notifier)
+            .show(_calendarUnavailableSnapshot());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Private review'), findsNothing);
+        expect(find.text('Calendar is unavailable'), findsOneWidget);
+      },
+    );
+
     testWidgets(
       'renders accessible Calendar without external credentials or setup',
       (tester) async {
@@ -248,6 +321,8 @@ void main() {
           find.widgetWithIcon(IconButton, Icons.add),
         );
         expect(createButton.onPressed, isNull);
+        expect(repository.scopeLoads, 0);
+        expect(repository.eventLoads, 0);
         expect(repository.createdDrafts, isEmpty);
       },
     );

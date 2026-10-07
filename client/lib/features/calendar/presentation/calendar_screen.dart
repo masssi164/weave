@@ -31,10 +31,16 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final capabilitySnapshot = ref.watch(workspaceCapabilitySnapshotProvider);
-    final scopes =
-        ref.watch(calendarScopesProvider).asData?.value.scopes ??
-        const <CalendarScope>[];
-    final selection = ref.watch(selectedCalendarScopeProvider);
+    final calendarReady =
+        capabilitySnapshot.asData?.value.calendar.isReady == true;
+    // Do not discover member calendars until the server has confirmed access.
+    final scopes = calendarReady
+        ? ref.watch(calendarScopesProvider).asData?.value.scopes ??
+              const <CalendarScope>[]
+        : const <CalendarScope>[];
+    final selection = calendarReady
+        ? ref.watch(selectedCalendarScopeProvider)
+        : CalendarScope.workspace;
     final active = scopes.where(
       (scope) =>
           scope.id == selection.id ||
