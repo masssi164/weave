@@ -37,7 +37,10 @@ implementation evidence for pinned corpus `71a2093d91ad300bc733ede66080bddc90f97
   never a durable Event mapping, Resource, or relationship. The preview has a bounded
   opaque handle, provider-backed readback, current organization/actor/Calendar scope
   checks, active-binding revision and provider-version checks. It has no stable Event
-  ID or meeting-thread reference and is not an authorization grant. Explicit
+  ID or meeting-thread reference and is not an authorization grant. Repeated
+  browsing of the same actor, scope, binding and provider version reuses
+  its live preview handle so ordinary refreshes cannot exhaust the bounded lease
+  registry. Explicit
   materialization through a generated User operation rechecks the provider and creates
   or reuses one stable mapping before an existing event can be edited or deleted.
   Expiry, tampering, stale binding/version, member denial and audit failure must not

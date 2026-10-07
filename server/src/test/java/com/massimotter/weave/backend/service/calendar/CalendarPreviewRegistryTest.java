@@ -24,9 +24,19 @@ class CalendarPreviewRegistryTest {
         CalendarPreviewRegistry.Issued issued = registry.issue("tenant", "member", "calendar:scope",
                 CalendarScope.workspace(), 7, new EventId("private-provider-id"), "\"etag-1\"");
         assertThat(issued.handle()).matches("pv_[A-Za-z0-9_-]{32}").doesNotContain("private-provider-id");
+        for (int refresh = 0; refresh < 100; refresh++) {
+            assertThat(registry.issue("tenant", "member", "calendar:scope", CalendarScope.workspace(),
+                    7, new EventId("private-provider-id"), "\"etag-1\"")).isEqualTo(issued);
+        }
+        assertThat(registry.issue("tenant", "other-member", "calendar:scope", CalendarScope.workspace(),
+                7, new EventId("private-provider-id"), "\"etag-1\"").handle()).isNotEqualTo(issued.handle());
+        assertThat(registry.issue("tenant", "member", "calendar:scope", CalendarScope.workspace(),
+                7, new EventId("private-provider-id"), "\"etag-2\"").handle()).isNotEqualTo(issued.handle());
         assertThat(registry.resolve(issued.handle())).isPresent();
         assertThat(registry.resolve(issued.handle() + "x")).isEmpty();
         now.set(issued.expiresAt());
         assertThat(registry.resolve(issued.handle())).isEmpty();
+        assertThat(registry.issue("tenant", "member", "calendar:scope", CalendarScope.workspace(),
+                7, new EventId("private-provider-id"), "\"etag-1\"").handle()).isNotEqualTo(issued.handle());
     }
 }

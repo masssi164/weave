@@ -30,6 +30,12 @@ final class CalendarPreviewRegistry {
             long bindingRevision, EventId providerId, String providerVersion) {
         Instant now = clock.instant();
         leases.entrySet().removeIf(entry -> !entry.getValue().expiresAt().isAfter(now));
+        for (Map.Entry<String, Lease> entry : leases.entrySet()) {
+            Lease lease = entry.getValue();
+            if (lease.matches(organization, principal, calendarId, scope, bindingRevision, providerId, providerVersion)) {
+                return new Issued(entry.getKey(), lease.expiresAt());
+            }
+        }
         if (leases.size() >= MAX_LEASES) throw new IllegalStateException("Calendar preview capacity exhausted");
         byte[] bytes = new byte[24];
         String handle;
@@ -57,5 +63,13 @@ final class CalendarPreviewRegistry {
     record Issued(String handle, Instant expiresAt) {}
 
     record Lease(String organization, String principal, String calendarId, CalendarScope scope,
-            long bindingRevision, EventId providerId, String providerVersion, Instant expiresAt) {}
+            long bindingRevision, EventId providerId, String providerVersion, Instant expiresAt) {
+        boolean matches(String organization, String principal, String calendarId, CalendarScope scope,
+                long bindingRevision, EventId providerId, String providerVersion) {
+            return this.organization.equals(organization) && this.principal.equals(principal)
+                    && this.calendarId.equals(calendarId) && this.scope.equals(scope)
+                    && this.bindingRevision == bindingRevision && this.providerId.equals(providerId)
+                    && this.providerVersion.equals(providerVersion);
+        }
+    }
 }
