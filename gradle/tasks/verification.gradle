@@ -47,8 +47,22 @@ tasks.register('checkAdminApiClientFresh', Exec) {
     commandLine 'python3', rootProject.file('tools/generate_admin_api_client.py'),
             '--jar', configurations.adminOpenApiGenerator.singleFile.absolutePath, '--check'
 }
+tasks.register('generateAdminPublicUserApiClient', Exec) {
+    group = 'build'
+    description = 'Generate the Admin Console public bootstrap client from the separate User OpenAPI artifact.'
+    commandLine 'python3', rootProject.file('tools/generate_admin_api_client.py'),
+            '--jar', configurations.adminOpenApiGenerator.singleFile.absolutePath,
+            '--audience', 'user'
+}
+tasks.register('checkAdminPublicUserApiClientFresh', Exec) {
+    group = 'verification'
+    description = 'Check the Admin Console public bootstrap client against the separate User OpenAPI artifact.'
+    commandLine 'python3', rootProject.file('tools/generate_admin_api_client.py'),
+            '--jar', configurations.adminOpenApiGenerator.singleFile.absolutePath,
+            '--audience', 'user', '--check'
+}
 tasks.named('adminCi') {
-    dependsOn 'checkAdminApiClientFresh', 'checkAdminOpenApiTypesFresh'
+    dependsOn 'checkAdminApiClientFresh', 'checkAdminPublicUserApiClientFresh', 'checkAdminOpenApiTypesFresh'
 }
 registerRootCommandTask('generateClientUserApi', ['python3', 'tools/generate_client_user_api.py'], 'Generate the pinned Dart User HTTP SDK from the server-owned User OpenAPI artifact.')
 registerRootCommandTask('checkClientUserApiFresh', ['python3', 'tools/generate_client_user_api.py', '--check'], 'Fail when the checked-in Dart User HTTP SDK differs from the server-owned User OpenAPI artifact.')

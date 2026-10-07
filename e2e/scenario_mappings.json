@@ -1054,7 +1054,7 @@
         {
           "path": "admin-console/README.md",
           "fragments": [
-            "Talks only to Weave backend admin APIs",
+            "Uses generated Admin operations for authorized",
             "The Weave member client remains provider-agnostic"
           ]
         },
@@ -3817,10 +3817,10 @@
           ]
         },
         {
-          "path": "admin-console/src/App.test.tsx",
+          "path": "server/src/test/java/com/massimotter/weave/backend/agentruntime/application/AgentRuntimeControlServiceTest.java",
           "fragments": [
-            "loads an Agent Runtime Control projection without exposing runtime internals",
-            "Agent Runtime Control"
+            "entitlementAuthority.denied = true",
+            "RuntimeEntitlementState.REVOKED"
           ]
         }
       ]
@@ -3892,10 +3892,10 @@
           ]
         },
         {
-          "path": "admin-console/src/App.test.tsx",
+          "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
           "fragments": [
-            "loads an Agent Runtime Control projection without exposing runtime internals",
-            "empty catalog"
+            "discoversTheCuratedFilesToolAndCanonicalResourceTemplate",
+            "files.search"
           ]
         }
       ]
