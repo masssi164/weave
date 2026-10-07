@@ -200,6 +200,25 @@ class SpaceRelationshipUserServiceTest {
         verifyNoInteractions(matrix);
     }
 
+    @Test
+    void roomCursorResumesWithoutReopeningEarlierResourceCategories() {
+        when(spaces.allows("tenant-default", "workspace-default", ACCOUNT, Permission.VIEW))
+                .thenReturn(true);
+        when(chat.joinedConversationRefsInSpace(member, "workspace-default", "room-a", 100))
+                .thenReturn(List.of("room-b"));
+        var checked = mock(com.massimotter.weave.backend.chat.domain.ChatConversation.class);
+        when(checked.conversationId()).thenReturn("room-b");
+        when(chat.conversationInSpace(member, "workspace-default", "room-b"))
+                .thenReturn(checked);
+        when(matrix.roomId("room-b")).thenReturn("!room-b:weave.test");
+
+        var result = service.list(member, "workspace-default", "relation:room:room-a", 25);
+        assertThat(result.relationships()).singleElement()
+                .satisfies(relation -> assertThat(relation.targetRef())
+                        .isEqualTo("!room-b:weave.test"));
+        verifyNoInteractions(calendar, records, files);
+    }
+
     private static FilesUserResource resource(String fileId) {
         return new FilesUserResource("tenant-default", fileId, 1, "workspace-default",
                 "file:root", "/stable.txt", Kind.FILE, "user:member",
