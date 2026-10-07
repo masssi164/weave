@@ -119,7 +119,7 @@ Use the lane-based DevOps flow: protected `dev` for integration and normal featu
 - `release-notes-bugfix`
 - `release-notes-skip`
 
-Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` runs on every pull-request update and fails PRs with zero or multiple release-notes labels; label-only changes run that lightweight check without re-running the full Gradle CI job. See [Weave operating model](weave-operating-model.md) for the delivery contract and [Lane-based PR and release workflow](gitflow-pr-workflow.md) for label semantics and merge rules.
+Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` runs on every pull-request update and fails PRs with zero or multiple release-notes labels; label-only changes run that lightweight check without re-running the full foundation chain. The protected `Gradle CI` context comes only from a full exact-head run; the skipped label-only aggregate has a distinct name. See [Weave operating model](weave-operating-model.md) for the delivery contract and [Lane-based PR and release workflow](gitflow-pr-workflow.md) for label semantics and merge rules.
 
 ## Spec-driven sprint contract
 
