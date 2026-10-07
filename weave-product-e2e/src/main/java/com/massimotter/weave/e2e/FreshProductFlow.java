@@ -59,7 +59,7 @@ public final class FreshProductFlow {
       new FreshProductFlow(environment).run();
       System.out.println(
           "WEAVE_TEST_APP_RESULT status=passed activation=browser pkce=S256 "
-              + "workload=private_key_jwt tool=files.search projection=user-api "
+              + "workload=private_key_jwt tools=files.search,calendar.agenda projection=user-api "
               + "userFiles=generated supportSafe=true");
     } catch (RuntimeException failure) {
       System.err.println(
@@ -313,11 +313,16 @@ public final class FreshProductFlow {
       JsonNode provisioned = provisionRuntime(personRef, adminSession.accessToken());
       startedRuntime = startRuntime(personRef, adminSession.accessToken(), provisioned);
 
+      GeneratedCalendarJourney generatedCalendar = new GeneratedCalendarJourney(environment);
+      GeneratedCalendarJourney.Proof mcpCalendarProof = generatedCalendar.createAndVerify(
+          ownerSession.accessToken(), memberSession.accessToken(),
+          outsiderSession.accessToken(), environment.runId() + "-mcp");
       GeneratedFilesJourney.Proof mcpTextProof =
           generatedFiles.createMcpTextFile(memberSession.accessToken(), environment.runId());
-      mcpProof =
-          new WorkloadMcpJourney(environment, http)
-              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
+      WorkloadMcpJourney mcpJourney = new WorkloadMcpJourney(environment, http);
+      String cellRef = requiredText(startedRuntime, "cellRef");
+      mcpProof = mcpJourney.invokeFilesSearch(cellRef, mcpTextProof);
+      mcpJourney.invokeCalendarAgenda(cellRef, mcpCalendarProof);
 
       restartProof = new PersistenceRestartJourney(environment, http).restart();
       JsonNode persistedRuntime =
@@ -326,6 +331,8 @@ public final class FreshProductFlow {
       WorkloadMcpJourney.McpProof postRestartMcpProof =
           new WorkloadMcpJourney(environment, http)
               .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
+      new WorkloadMcpJourney(environment, http)
+          .invokeCalendarAgenda(cellRef, mcpCalendarProof);
       if (!mcpProof.equals(postRestartMcpProof)) {
         throw new ProductFlowException(
             "the same Cell MCP projection did not persist across service restarts");
@@ -350,6 +357,16 @@ public final class FreshProductFlow {
       if (!revocationDenied) {
         throw new ProductFlowException("revoked cell remained able to invoke MCP");
       }
+      boolean calendarRevocationDenied = false;
+      try {
+        new WorkloadMcpJourney(environment, http)
+            .invokeCalendarAgenda(cellRef, mcpCalendarProof);
+      } catch (ProductFlowException expectedDenial) {
+        calendarRevocationDenied = true;
+      }
+      if (!calendarRevocationDenied) {
+        throw new ProductFlowException("revoked cell remained able to read Calendar over MCP");
+      }
 
       setWeaverEntitlement(
           organizationId, memberEmail, adminSession.accessToken(), true, "regrant");
@@ -371,6 +388,8 @@ public final class FreshProductFlow {
       WorkloadMcpJourney.McpProof postRegrantMcpProof =
           new WorkloadMcpJourney(environment, http)
               .invokeFilesSearch(requiredText(restartedRuntime, "cellRef"), mcpTextProof);
+      new WorkloadMcpJourney(environment, http)
+          .invokeCalendarAgenda(cellRef, mcpCalendarProof);
       regrantRestored = mcpProof.equals(postRegrantMcpProof);
       if (!regrantRestored) {
         throw new ProductFlowException(
@@ -380,6 +399,7 @@ public final class FreshProductFlow {
       spaces.verifyRevocationAndVersionedRegrant(adminSession.accessToken(),
           memberSession.accessToken(), personRef, generatedFilesProof.fileId());
       spaceRevocationRestored = true;
+      generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
 
       writeEvidence(
           startedAt,
@@ -390,6 +410,7 @@ public final class FreshProductFlow {
           mcpProof,
           restartProof,
           revocationDenied,
+          calendarRevocationDenied,
           regrantRestored,
           sameHumanSubjectAfterRegrant,
           samePersonRefAfterRegrant,
@@ -920,6 +941,7 @@ public final class FreshProductFlow {
       WorkloadMcpJourney.McpProof mcpProof,
       PersistenceRestartJourney.RestartProof restartProof,
       boolean revocationDenied,
+      boolean calendarRevocationDenied,
       boolean regrantRestored,
       boolean sameHumanSubjectAfterRegrant,
       boolean samePersonRefAfterRegrant,
@@ -943,6 +965,8 @@ public final class FreshProductFlow {
     evidence.put("humanOAuth", "authorization_code_pkce_s256");
     evidence.put("workloadOAuth", "client_credentials_private_key_jwt");
     evidence.put("mcpTool", mcpProof.toolName());
+    evidence.put("calendarMcpAgenda", true);
+    evidence.put("calendarMcpRevocationDenied", calendarRevocationDenied);
     evidence.put("serverProjection", mcpProof.serverProjection());
     evidence.put("canonicalResourceSeen", mcpProof.canonicalResourceSeen());
     evidence.put("postgresRestartObserved", restartProof.postgresRestartObserved());

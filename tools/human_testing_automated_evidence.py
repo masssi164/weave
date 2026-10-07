@@ -415,6 +415,8 @@ def build_live(
         "sameJpaCellAfterRestart",
         "sameMcpCellAfterRestart",
         "revocationDenied",
+        "calendarMcpAgenda",
+        "calendarMcpRevocationDenied",
         "regrantRestored",
         "sameHumanSubjectAfterRegrant",
         "samePersonRefAfterRegrant",

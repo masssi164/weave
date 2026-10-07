@@ -33,7 +33,8 @@ import java.util.regex.Pattern;
 /** Per-cell private_key_jwt, client credentials, and MCP Streamable HTTP proof. */
 final class WorkloadMcpJourney {
   private static final long MAXIMUM_WORKLOAD_TOKEN_TTL_SECONDS = 60;
-  private static final Set<String> MCP_SCOPES = Set.of("mcp.tools", "files.read");
+  private static final Set<String> FILES_SCOPES = Set.of("mcp.tools", "files.read");
+  private static final Set<String> CALENDAR_SCOPES = Set.of("mcp.tools", "calendar.read");
   private static final Pattern FILES_ERROR_CODE =
       Pattern.compile("Files User API rejected request: HTTP ([0-9]{3})");
   private static final Pattern FILES_RESOURCE_URI =
@@ -51,52 +52,11 @@ final class WorkloadMcpJourney {
     String cellKey = requireCellKey(cellRef);
     String clientId = "weaver-cell-" + cellKey;
     RSAKey key = readActiveKey(clientId);
-    String workloadToken = clientCredentials(clientId, key);
-    validateWorkloadToken(workloadToken, clientId);
+    String workloadToken = clientCredentials(clientId, key, FILES_SCOPES);
+    validateWorkloadToken(workloadToken, clientId, FILES_SCOPES);
 
-    ObjectNode initialize = request(1, "initialize");
-    ObjectNode parameters = initialize.putObject("params");
-    parameters.put("protocolVersion", "2025-11-25");
-    parameters
-        .putObject("capabilities")
-        .putObject("extensions")
-        .putObject("io.modelcontextprotocol/oauth-client-credentials");
-    parameters.putObject("clientInfo").put("name", "weave-test-app").put("version", "1.0");
-
-    JsonHttpClient.Response initialized =
-        mcp(workloadToken, "", initialize, Set.of(200));
-    String sessionId = initialized.firstHeader("Mcp-Session-Id");
-    if (sessionId.isBlank()) {
-      throw new ProductFlowException("MCP initialize omitted the session identifier");
-    }
-    JsonNode initializeResult = protocolBody(initialized);
-    requireNoError(initializeResult, "MCP initialize");
-    if (!initializeResult
-        .path("result")
-        .path("capabilities")
-        .path("extensions")
-        .path("io.modelcontextprotocol/oauth-client-credentials")
-        .isObject()) {
-      throw new ProductFlowException("MCP did not negotiate client credentials");
-    }
-
-    ObjectNode initializedNotification = request(null, "notifications/initialized");
-    initializedNotification.set("params", http.mapper().createObjectNode());
-    mcp(workloadToken, sessionId, initializedNotification, Set.of(200, 202, 204));
-
-    ObjectNode list = request(2, "tools/list");
-    list.set("params", http.mapper().createObjectNode());
-    JsonNode tools = protocolBody(mcp(workloadToken, sessionId, list, Set.of(200)));
-    requireNoError(tools, "MCP tools discovery");
-    boolean found =
-        stream(tools.path("result").path("tools"))
-            .anyMatch(
-                tool ->
-                    "files.search".equals(tool.path("name").asString())
-                        && tool.path("inputSchema").isObject());
-    if (!found) {
-      throw new ProductFlowException("MCP discovery omitted the files.search schema");
-    }
+    String sessionId = initializeSession(workloadToken);
+    requireTool(workloadToken, sessionId, "files.search");
 
     ObjectNode call = request(3, "tools/call");
     ObjectNode callParameters = call.putObject("params");
@@ -145,7 +105,89 @@ final class WorkloadMcpJourney {
     return new McpProof(clientId, "files.search", "weave-user-api", true);
   }
 
-  private String clientCredentials(String clientId, RSAKey key) {
+  void invokeCalendarAgenda(String cellRef, GeneratedCalendarJourney.Proof proof) {
+    String clientId = "weaver-cell-" + requireCellKey(cellRef);
+    String token = clientCredentials(clientId, readActiveKey(clientId), CALENDAR_SCOPES);
+    validateWorkloadToken(token, clientId, CALENDAR_SCOPES);
+    String sessionId = initializeSession(token);
+    requireTool(token, sessionId, "calendar.agenda");
+
+    ObjectNode call = request(3, "tools/call");
+    call.putObject("params")
+        .put("name", "calendar.agenda")
+        .putObject("arguments")
+        .put("calendarId", proof.calendarId())
+        .put("from", "2026-10-23T00:00:00Z")
+        .put("to", "2026-10-29T00:00:00Z")
+        .put("evaluationTimeZone", "Europe/Berlin");
+    JsonNode result = protocolBody(mcp(token, sessionId, call, Set.of(200)));
+    requireNoError(result, "MCP calendar.agenda");
+    String serialized = result.path("result").toString();
+    for (GeneratedCalendarJourney.EventProof expected : proof.events()) {
+      if (!serialized.contains(expected.event().getId())
+          || !serialized.contains(expected.event().getContent().getTitle())) {
+        throw new ProductFlowException("MCP Calendar omitted an authorized persisted event");
+      }
+    }
+    if (!serialized.contains(proof.calendarId())
+        || serialized.contains("providerId")
+        || serialized.toLowerCase(java.util.Locale.ROOT).contains("nextcloud")) {
+      throw new ProductFlowException("MCP Calendar changed the provider-neutral agenda projection");
+    }
+  }
+
+  private String initializeSession(String workloadToken) {
+
+    ObjectNode initialize = request(1, "initialize");
+    ObjectNode parameters = initialize.putObject("params");
+    parameters.put("protocolVersion", "2025-11-25");
+    parameters
+        .putObject("capabilities")
+        .putObject("extensions")
+        .putObject("io.modelcontextprotocol/oauth-client-credentials");
+    parameters.putObject("clientInfo").put("name", "weave-test-app").put("version", "1.0");
+
+    JsonHttpClient.Response initialized =
+        mcp(workloadToken, "", initialize, Set.of(200));
+    String sessionId = initialized.firstHeader("Mcp-Session-Id");
+    if (sessionId.isBlank()) {
+      throw new ProductFlowException("MCP initialize omitted the session identifier");
+    }
+    JsonNode initializeResult = protocolBody(initialized);
+    requireNoError(initializeResult, "MCP initialize");
+    if (!initializeResult
+        .path("result")
+        .path("capabilities")
+        .path("extensions")
+        .path("io.modelcontextprotocol/oauth-client-credentials")
+        .isObject()) {
+      throw new ProductFlowException("MCP did not negotiate client credentials");
+    }
+
+    ObjectNode initializedNotification = request(null, "notifications/initialized");
+    initializedNotification.set("params", http.mapper().createObjectNode());
+    mcp(workloadToken, sessionId, initializedNotification, Set.of(200, 202, 204));
+
+    return sessionId;
+  }
+
+  private void requireTool(String workloadToken, String sessionId, String toolName) {
+    ObjectNode list = request(2, "tools/list");
+    list.set("params", http.mapper().createObjectNode());
+    JsonNode tools = protocolBody(mcp(workloadToken, sessionId, list, Set.of(200)));
+    requireNoError(tools, "MCP tools discovery");
+    boolean found =
+        stream(tools.path("result").path("tools"))
+            .anyMatch(
+                tool ->
+                    toolName.equals(tool.path("name").asString())
+                        && tool.path("inputSchema").isObject());
+    if (!found) {
+      throw new ProductFlowException("MCP discovery omitted the " + toolName + " schema");
+    }
+  }
+
+  private String clientCredentials(String clientId, RSAKey key, Set<String> scopes) {
     URI tokenUri = environment.oidc("/protocol/openid-connect/token");
     Instant now = Instant.now();
     JWTClaimsSet claims =
@@ -179,7 +221,7 @@ final class WorkloadMcpJourney {
                 "client_assertion_type",
                     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
                 "client_assertion", assertion.serialize(),
-                "scope", "mcp.tools files.read"),
+                "scope", String.join(" ", scopes.stream().sorted().toList())),
             Set.of(200));
     String accessToken = token.path("access_token").asString("").trim();
     if (accessToken.isEmpty()
@@ -191,7 +233,7 @@ final class WorkloadMcpJourney {
     return accessToken;
   }
 
-  private void validateWorkloadToken(String token, String clientId) {
+  private void validateWorkloadToken(String token, String clientId, Set<String> expectedScopes) {
     JsonNode header = jwtPart(token, 0);
     if (!hasRfc9068TokenType(header)) {
       throw new ProductFlowException("MCP workload token type is not RFC 9068 at+jwt");
@@ -213,7 +255,7 @@ final class WorkloadMcpJourney {
     }
     Set<String> scopes =
         Set.of(claims.path("scope").asString("").trim().split("\\s+"));
-    if (!scopes.equals(MCP_SCOPES)) {
+    if (!scopes.equals(expectedScopes)) {
       throw new ProductFlowException("MCP workload token scope set is not exact");
     }
     Set<String> roles = strings(claims.path("realm_access").path("roles"));
