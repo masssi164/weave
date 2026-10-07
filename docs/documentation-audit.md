@@ -1,8 +1,15 @@
 # Documentation audit
 
-Status: active index for issue #1416.
+Status: historical #1416 audit snapshot. Issue #1416 is superseded by #1471/#1470;
+the labels and priorities below record that earlier inventory and are not current
+product or release authority. For current work, read the pinned corpus through
+[Specification source of truth](specification-source-of-truth.md), then
+[Core development workflow](development/core-workflow.md),
+[Developer handbook](developer-handbook.md), and the current #1470 child stories.
+Provider migration belongs to #1498. Native Flutter/Matrix and physical-device
+validation are active #1475/#1480 evidence, not historical release extras.
 
-## Classification
+## Historical classification
 
 - **active canonical**: binding current truth;
 - **active supporting**: accurate detail subordinate to canonical docs;
@@ -12,7 +19,7 @@ Status: active index for issue #1416.
 
 Git history remains the archive of removed prose.
 
-## Active canonical
+## Former active-canonical list
 
 - `README.md`;
 - `docs/architecture/data-sovereignty-core.md`;

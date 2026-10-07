@@ -1,6 +1,10 @@
 # Core test strategy
 
-Status: active test ownership for the Files, Calendar, Chat, provider-portability, and Files/Calendar MCP core.
+Status: historical foundation test inventory for #1012/#1024/#1299. Current #1470
+release acceptance is specified by the pinned corpus and #1480, including generated
+consumer freshness and real user/admin/MCP/Matrix journeys. Provider adoption and
+migration tests belong to #1498. The commands below remain useful regression checks;
+their success alone does not close either epic.
 
 ## Principle
 

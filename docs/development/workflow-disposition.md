@@ -1,6 +1,12 @@
 # Workflow disposition
 
-Status: current implementation inventory for #1470/#1480; historical #1307 foundation jobs remain where useful.
+Status: historical #1307 workflow inventory. Current required checks and protected
+lane rules are defined by [Gitflow PR workflow](../gitflow-pr-workflow.md),
+[Core development workflow](core-workflow.md), and the actual workflow files.
+The old classifications below do not waive #1480's generated-client, Flutter,
+Matrix, user/admin/MCP, and integrated E2E evidence. Physical-device preparation
+is an active #1475/#1480 validation path, not a retired client concern; provider
+migration and rollback are #1498 evidence.
 
 Every GitHub Actions workflow has one current disposition. This document describes whether a workflow proves the data-sovereignty core, supports a temporary transition, is manual release/client work, or must be retired. The classification does not make a historical workflow architecture authority.
 
