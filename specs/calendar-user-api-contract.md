@@ -97,6 +97,10 @@ checks, temporal/recurrence round trips and actual provider persistence tests.
 Include stale identical updates and concurrent delete ordering, unknown CalDAV
 properties, wrong scope/organization and zero provider writes on rejection.
 Run existing Calendar integrity/security tests and code-first metadata tests.
+The focused PostgreSQL repository lane selects Jupiter persistence contracts,
+including active Calendar binding and mapping invariants. Cucumber product
+scenarios remain in the broader server acceptance lane rather than bypassing a
+repository-class filter.
 Root integration owns artifact/client generation, Flutter's preview-to-edit flow,
 deployment bootstrap and real Flutter/MCP/provider journeys. Local mocks or
 compilation do not close the stories.
