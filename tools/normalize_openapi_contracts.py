@@ -36,6 +36,13 @@ def operation_ids(document: dict, label: str) -> set[str]:
             if operation_id in seen:
                 raise ValueError(f"Duplicate operationId in {label}: {operation_id}")
             seen.add(operation_id)
+            for status, response in operation.get("responses", {}).items():
+                for name, header in response.get("headers", {}).items():
+                    if "$ref" not in header and "schema" not in header and "content" not in header:
+                        raise ValueError(
+                            f"Response header without schema/content in {label}: "
+                            f"{method.upper()} {path} {status} {name}"
+                        )
     if not seen:
         raise ValueError(f"No operations in {label} OpenAPI document")
     return seen

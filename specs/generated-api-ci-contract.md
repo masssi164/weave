@@ -102,6 +102,16 @@ after the isolated Server/PostgreSQL restart. The suite independently compares e
 bytes and revision changes instead of treating generated models as the behavioral
 oracle. Its only cleanup requirement is teardown of the disposable Compose namespace
 and exact volumes because the User Files API does not yet offer deletion or sharing.
+The same disposable journey provisions a durable Space through the generated Admin
+client, grants the member through the versioned Admin operation and verifies the
+generated User Space list, read and direct materialized File relation. It revokes
+that grant, checks that Space relations and Files fail closed for the still-valid
+member token, rejects replay of the stale grant version, then regrants with the
+revoked member's tombstone ETag. The original stable File relation and Files read
+must return after regrant. The relation's Files owner lookup uses the same configured
+Context principal claim as the Files User API, while immutable issuer and subject
+continue to identify the member account. Support-safe product evidence records the
+revocation and regrant result without exposing account IDs, tokens or File content.
 The native Files adapter may advertise identity-bound conditional content update only
 when its metadata authority atomically compares the same organization, Space, object
 ID, path and strong provider version before activating replacement bytes. A stale or

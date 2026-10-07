@@ -14,5 +14,10 @@ public interface FilesUserResourceRepository {
 
     List<FilesUserResource> activeChildren(String organizationRef, String parentFileId);
 
+    /** Bounded materialized identities for the owning Space, never a provider browse result. */
+    List<FilesUserResource> activeInSpace(
+            String organizationRef, String spaceRef, String ownerPrincipalRef,
+            String afterFileId, int limit);
+
     FilesUserResource save(FilesUserResource resource);
 }
