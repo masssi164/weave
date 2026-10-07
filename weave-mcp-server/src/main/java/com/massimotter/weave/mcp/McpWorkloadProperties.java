@@ -46,11 +46,13 @@ public record McpWorkloadProperties(
           "backendApiUri must target the Weave User API base");
     }
     exchangeScopes = exactScopes(exchangeScopes, "exchangeScopes");
-    if (!requiredScopes.containsAll(exchangeScopes)
+    LinkedHashSet<String> expectedScopes = new LinkedHashSet<>(exchangeScopes);
+    expectedScopes.add("mcp.tools");
+    if (!new LinkedHashSet<>(requiredScopes).equals(expectedScopes)
         || exchangeScopes.contains("mcp.tools")
         || exchangeScopes.contains("agent-runtime.profile.read")) {
       throw new IllegalArgumentException(
-          "exchangeScopes must be a domain-only subset of requiredScopes");
+          "requiredScopes must contain mcp.tools and exactly the configured domain scope ceiling");
     }
     requestTimeout = requestTimeout == null ? Duration.ofSeconds(10) : requestTimeout;
     maximumTokenTtl = maximumTokenTtl == null ? Duration.ofSeconds(60) : maximumTokenTtl;
