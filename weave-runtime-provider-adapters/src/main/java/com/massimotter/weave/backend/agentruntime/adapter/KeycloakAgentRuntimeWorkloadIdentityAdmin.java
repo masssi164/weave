@@ -1655,7 +1655,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             }
             optionalClientScopes =
                     optionalClientScopes == null ? List.of() : List.copyOf(optionalClientScopes);
-            if (!Set.of("agent-runtime.profile.read", "mcp.tools", "files.read")
+            if (!Set.of("agent-runtime.profile.read", "mcp.tools", "files.read", "calendar.read")
                     .equals(new HashSet<>(optionalClientScopes))) {
                 throw new IllegalArgumentException(
                         "optionalClientScopes must contain only the approved workload scopes");
