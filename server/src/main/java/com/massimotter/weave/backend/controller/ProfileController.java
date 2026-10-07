@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,9 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "bearer-jwt")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                        schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                        schema = @Schema(implementation = ApiErrorResponse.class)))
 })
 public class ProfileController {
 
@@ -44,7 +47,8 @@ public class ProfileController {
             summary = "Get the authenticated product profile",
             description = "Returns the product-owned profile facade for the authenticated caller.")
     @ApiResponse(responseCode = "200", description = "Product profile snapshot.",
-            content = @Content(schema = @Schema(implementation = ProductProfileResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = ProductProfileResponse.class)))
     public ProductProfileResponse profile(@AuthenticationPrincipal Jwt jwt) {
         return productProfileService.profile(jwt);
     }
@@ -56,9 +60,14 @@ public class ProfileController {
             description = "Partially updates mutable product profile fields and returns the updated profile snapshot.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated product profile snapshot.",
-                    content = @Content(schema = @Schema(implementation = ProductProfileResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ProductProfileResponse.class))),
             @ApiResponse(responseCode = "400", description = "Profile update validation failed.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "415", description = "Profile update requires application/json.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ProductProfileResponse updateProfile(
             @AuthenticationPrincipal Jwt jwt,
@@ -72,7 +81,8 @@ public class ProfileController {
             summary = "Get product profile module sync status",
             description = "Returns frontend-safe Matrix and Nextcloud profile synchronization state for the authenticated caller.")
     @ApiResponse(responseCode = "200", description = "Profile sync status.",
-            content = @Content(schema = @Schema(implementation = ModuleSyncStatusResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = ModuleSyncStatusResponse.class)))
     public ModuleSyncStatusResponse syncStatus(@AuthenticationPrincipal Jwt jwt) {
         return productProfileService.syncStatus(jwt);
     }
@@ -83,7 +93,8 @@ public class ProfileController {
             summary = "Get product profile facade readiness",
             description = "Returns support-safe readiness for the backend-owned profile facade without exposing provider credentials or upstream URLs.")
     @ApiResponse(responseCode = "200", description = "Profile facade readiness.",
-            content = @Content(schema = @Schema(implementation = ProfileReadinessResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = ProfileReadinessResponse.class)))
     public ProfileReadinessResponse readiness(@AuthenticationPrincipal Jwt jwt) {
         return productProfileService.readiness(jwt);
     }

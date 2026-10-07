@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,9 +24,9 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "bearer-jwt")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
 })
 public class DevopsController {
 
@@ -38,7 +39,7 @@ public class DevopsController {
     @GetMapping("/api/workspaces/{workspaceId}/channels/{channelId}/devops/summary")
     @Operation(operationId = "summary", summary = "Read provider-neutral DevOps summary")
     @ApiResponse(responseCode = "200", description = "Read-only support-safe DevOps summary.",
-            content = @Content(schema = @Schema(implementation = DevopsSummaryResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = DevopsSummaryResponse.class)))
     public DevopsSummaryResponse summary(
             @PathVariable @Size(max = 128) @Pattern(regexp = "[A-Za-z0-9._:-]+") String workspaceId,
             @PathVariable @Size(max = 128) @Pattern(regexp = "[A-Za-z0-9._:-]+") String channelId) {

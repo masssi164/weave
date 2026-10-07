@@ -18,6 +18,16 @@ No Home-core, dogfood, production service or deployment credential is involved.
    `openApiContractExport` test context and export separate User/Admin artifacts.
    Compare the deterministic exports with the checked-in documents. Explicit operation
    IDs, partitioning, ordered examples, errors, headers and schema semantics remain checked.
+   The Profile User operations declare `application/json` for their actual success
+   and `ApiErrorResponse` failures, including validation, authentication and
+   authorization errors. Profile PATCH also declares its actual JSON-envelope
+   `415` for unsupported request media types; a wildcard response media type or
+   omitted failure status is not an accurate projection of its HTTP behavior.
+   Across User and Admin controllers, a response annotated with a JSON transport
+   DTO or `ApiErrorResponse` declares `application/json` in server code. The
+   generated artifacts must not turn these object envelopes into `*/*` merely
+   because the controller annotation omitted the media type. Binary and empty
+   responses retain their distinct explicit contracts.
    Files HTTP probes assert support-safe `ApiErrorResponse` failures before service/provider
    access: invalid folder DTOs and missing required upload query parameters return 400;
    an unsupported upload media type returns 415. A raced absent-name folder precondition
