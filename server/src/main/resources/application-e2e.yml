@@ -81,7 +81,7 @@ weave:
       file: /app/agent-runtime-policy.json
     entitlement:
       enabled: true
-      allowed-capabilities: files.read
+      allowed-capabilities: files.read,calendar.read
     workload-identity:
       enabled: true
       keycloak-admin-base-url: http://keycloak:8080
@@ -93,5 +93,5 @@ weave:
       admin-credential-ref: credentialref://weave/keycloak/weave-agent-runtime-admin
       secret-root: /run/secrets/agent-runtime/workloads
       default-client-scopes: weaver-runtime-workload
-      optional-client-scopes: agent-runtime.profile.read,mcp.tools,files.read
+      optional-client-scopes: agent-runtime.profile.read,mcp.tools,files.read,calendar.read
       access-token-lifespan-seconds: 59

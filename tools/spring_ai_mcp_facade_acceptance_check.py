@@ -12,7 +12,7 @@ MARKERS = (
     "SPRING_AI_MCP_STATEFUL_TRANSPORT",
     "MCP_WORKLOAD_EDGE_BOUND_CELL_ONLY",
     "MCP_FILES_READ_SLICE_ACTIVE",
-    "MCP_CALENDAR_CATALOG_GUARDED",
+    "MCP_CALENDAR_READ_SLICE_ACTIVE",
     "MCP_CHAT_CATALOG_GUARDED",
     "MCP_PROVIDER_NEUTRAL_OUTPUT",
     "MCP_STANDARD_SERVER_PROJECTION_ACTIVE",
@@ -136,6 +136,23 @@ def main() -> int:
         "files.listFilesItems(",
         "files.getFilesItem(",
         "files.downloadFilesItemContent(",
+    )
+    require(
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/CalendarMcpProjection.java",
+        'name = "calendar.agenda"',
+        "readOnlyHint = true",
+        "calendars.agenda(",
+    )
+    require(
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/CalendarUserApiClient.java",
+        "new CalendarUserApi(client)",
+        "calendars.listUserCalendars(",
+        "calendars.queryCalendarAgenda(",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/config/CalendarMcpSecurityConfiguration.java",
+        '@Qualifier("calendarMcpWorkloadJwtDecoder")',
+        "SCOPE_calendar.read",
     )
     require(
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpTransportConfiguration.java",

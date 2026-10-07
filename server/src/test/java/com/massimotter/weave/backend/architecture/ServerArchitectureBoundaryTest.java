@@ -54,6 +54,8 @@ class ServerArchitectureBoundaryTest {
             "rawproviderpayload",
             "raw provider payload");
     private static final List<String> NATIVE_OR_MCP_CONTRACT_EXEMPT_LITERALS = List.of(
+            // Internal Spring filter type, not a member-facing bearer-token field.
+            "bearertokenauthenticationfilter",
             "rawproviderpayloadincluded",
             "rawproviderpayload\", \"redacted\"",
             "rawproviderpayload\",",
@@ -189,6 +191,19 @@ class ServerArchitectureBoundaryTest {
         assertThat(violations)
                 .as("Member native setup and MCP contracts must stay Weave-owned and support-safe.")
                 .isEmpty();
+    }
+
+    @Test
+    void securityFilterTypeDoesNotHideAnExposedBearerTokenField() {
+        JavaSource frameworkFilter = new JavaSource(
+                Path.of("CalendarMcpSecurityConfiguration.java"), "", List.of(),
+                "BearerTokenAuthenticationFilter.class");
+        JavaSource exposedField = new JavaSource(
+                Path.of("CalendarMcpResponse.java"), "", List.of(),
+                "record CalendarMcpResponse(String bearerToken) {}");
+
+        assertThat(forbiddenNativeOrMcpLiterals(frameworkFilter)).isEmpty();
+        assertThat(forbiddenNativeOrMcpLiterals(exposedField)).contains("bearertoken");
     }
 
     @Test
