@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 import com.massimotter.weave.backend.audit.AuditAction;
@@ -48,6 +49,32 @@ import org.springframework.security.oauth2.jwt.Jwt;
 class ChatDomainFacadeServiceTest {
 
     private static final Clock FIXED = Clock.fixed(Instant.parse("2026-05-25T08:00:00Z"), ZoneOffset.UTC);
+
+    @Test
+    void aHealthyLegacySelectionCannotAdmitChatWithoutTheOrganizationBinding() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
+        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+                capability(), capability(), capability(), capability(), capability(), capability());
+        when(capabilities.snapshot()).thenReturn(snapshot);
+        when(capabilities.snapshot(any())).thenReturn(snapshot);
+        ChatProviderPort provider = Mockito.mock(ChatProviderPort.class);
+        when(provider.configured()).thenReturn(true);
+        when(provider.providerSelectionKeys()).thenReturn(Set.of("synapse-homeserver"));
+        when(provider.readiness()).thenReturn(ProviderReadiness.ready("chat-provider-ready"));
+        ChatProviderBindingGate bindingGate = Mockito.mock(ChatProviderBindingGate.class);
+        ChatDomainFacadeService service = new ChatDomainFacadeService(
+                new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections),
+                selections, capabilities, new InMemoryAuditEventPublisher(), provider,
+                allowAllContexts(), contextProperties(),
+                com.massimotter.weave.backend.service.OrganizationIdentityContextResolver.configured(contextProperties()),
+                FIXED, bindingGate);
+
+        assertThat(service.memberReadiness(memberJwt()).memberState()).isEqualTo(ChatMemberState.MISCONFIGURED);
+        assertThat(service.syncCursor(memberJwt())).isEqualTo("chat-unavailable");
+        verify(provider, never()).currentCursor(any(ChatRequestContext.class));
+    }
 
     @Test
     void memberReadinessFailsClosedWithoutAdminSelectedChatMapping() {
