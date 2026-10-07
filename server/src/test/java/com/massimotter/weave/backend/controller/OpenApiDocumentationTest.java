@@ -217,6 +217,25 @@ class OpenApiDocumentationTest {
     }
 
     @Test
+    void adminProviderSelectionExportsTheBindingConflictAndMetadataSemantics() throws Exception {
+        String selection = "/api/admin/providers/selections";
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['" + selection + "'].post.operationId").value("selectProvider"))
+                .andExpect(jsonPath("$.paths['" + selection + "'].post.summary")
+                        .value("Record or dry-run category metadata without changing the active organization provider binding"))
+                .andExpect(jsonPath("$.paths['" + selection + "'].post.responses['200'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ProviderSelectionResponse"))
+                .andExpect(jsonPath("$.paths['" + selection + "'].post.responses['409'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.components.schemas.ProviderSelectionResponse.properties.applied.description")
+                        .value("Category metadata was recorded; this does not mean the active organization binding changed."));
+        mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['" + selection + "']").doesNotExist());
+    }
+
+    @Test
     void nonEmptySuccessResponsesAlwaysHaveTransportSchemas() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         Set<String> httpMethods = Set.of("get", "put", "post", "delete", "patch");

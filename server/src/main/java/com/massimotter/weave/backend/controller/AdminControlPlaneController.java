@@ -126,9 +126,13 @@ public class AdminControlPlaneController {
 
     @PostMapping("/api/admin/providers/selections")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
-    @Operation(operationId = "selectProvider", summary = "Apply or dry-run an Admin Console selected provider mapping")
-    @ApiResponse(responseCode = "200", description = "Support-safe selected provider mapping.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ProviderSelectionResponse.class)))
+    @Operation(operationId = "selectProvider", summary = "Record or dry-run category metadata without changing the active organization provider binding")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Support-safe category metadata result; not a provider cutover.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ProviderSelectionResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Selection conflicts with the active binding or attempts unverified Files activation.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
     public ProviderSelectionResponse selectProvider(
             @Valid @RequestBody ProviderSelectionRequest request,
             @AuthenticationPrincipal Jwt jwt) {

@@ -344,11 +344,15 @@ export default function App({
       : applyGateLabels.map(([, label]) => label)),
     ...(hasFreshProviderSelectionDryRun ? [] : [evidenceFailureLabel]),
     ...(consequenceConfirmed ? [] : ["Explicit consequence confirmation"]),
+    "Provider activation requires the verified #1498 operation",
   ];
+  // Selection metadata does not authorize organization binding cutover.
+  const providerActivationSupported = false;
   const selectedApplyAllowed =
     selectedApplyBackendAllowed &&
     hasFreshProviderSelectionDryRun &&
-    consequenceConfirmed;
+    consequenceConfirmed &&
+    providerActivationSupported;
   function resetApplyEvidence() {
     setProviderSelectionDryRun(null);
     setConsequenceConfirmed(false);
@@ -443,7 +447,6 @@ export default function App({
       providerDraft,
       choiceModelDraft,
       dryRun,
-      dryRun ? undefined : providerSelectionDryRun?.evidenceRef,
     );
     if (dryRun) {
       setProviderSelectionDryRun({
@@ -460,16 +463,14 @@ export default function App({
       });
       setConsequenceConfirmed(false);
       setStatusMessage(
-        result.evidenceRef
-          ? `Dry-run validated for ${selectedCategoryDetails.key}: ${providerDraft}. Review consequences and confirm before apply.`
-          : `Dry-run response for ${selectedCategoryDetails.key}: ${providerDraft} did not include trusted backend evidence; apply remains blocked.`,
+        `Provider-selection metadata checked for ${selectedCategoryDetails.key}: ${providerDraft}. The active binding is unchanged; verified activation belongs to #1498.`,
       );
       return;
     }
     const refreshed = await api.getControlPlane();
     setControlPlane(refreshed);
     setStatusMessage(
-      `Provider selection applied for ${selectedCategoryDetails.key}: ${providerDraft}. Backend control plane refreshed as source of truth.`,
+      `Provider-selection metadata recorded for ${selectedCategoryDetails.key}: ${providerDraft}. The active organization binding is unchanged.`,
     );
     resetApplyEvidence();
   }
@@ -1531,7 +1532,7 @@ export default function App({
                             control={
                               <Checkbox
                                 checked={consequenceConfirmed}
-                                disabled={!hasFreshProviderSelectionDryRun}
+                                disabled={!providerActivationSupported || !hasFreshProviderSelectionDryRun}
                                 onChange={(event) =>
                                   setConsequenceConfirmed(event.target.checked)
                                 }

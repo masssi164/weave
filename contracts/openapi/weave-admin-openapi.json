@@ -3016,9 +3016,10 @@
         "type": "object"
       },
       "ProviderSelectionResponse": {
-        "description": "Support-safe selected provider mapping owned by the Admin Console/backend control plane.",
+        "description": "Support-safe category-selection metadata; this response is not active organization binding or cutover evidence.",
         "properties": {
           "applied": {
+            "description": "Category metadata was recorded; this does not mean the active organization binding changed.",
             "type": "boolean"
           },
           "bootstrapSuggestionOnly": {
@@ -5193,7 +5194,7 @@
                 }
               }
             },
-            "description": "Support-safe selected provider mapping."
+            "description": "Support-safe category metadata result; not a provider cutover."
           },
           "401": {
             "content": {
@@ -5214,6 +5215,16 @@
               }
             },
             "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies the operation."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Selection conflicts with the active binding or attempts unverified Files activation."
           }
         },
         "security": [
@@ -5221,7 +5232,7 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Apply or dry-run an Admin Console selected provider mapping",
+        "summary": "Record or dry-run category metadata without changing the active organization provider binding",
         "tags": [
           "Admin control plane"
         ]
