@@ -45,6 +45,12 @@ class JpaFilesUserResourceRepositoryPostgresTest {
         assertThat(repository.save(second)).isEqualTo(second);
         assertThat(repository.find("org:files", "file:first")).contains(tombstone);
         assertThat(repository.findActivePath("org:files", 1, "/same.txt")).contains(second);
+        assertThat(repository.activeInSpace("org:files", "workspace-default",
+                "user:alice", "", 25)).containsExactly(second);
+        assertThat(repository.activeInSpace("org:files", "workspace-default",
+                "user:bob", "", 25)).isEmpty();
+        assertThat(repository.activeInSpace("org:files", "workspace-default",
+                "user:alice", "file:second", 25)).isEmpty();
     }
 
     private FilesUserResource resource(String fileId, FilesUserResource.State state, Instant modifiedAt) {

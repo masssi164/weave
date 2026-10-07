@@ -3318,6 +3318,55 @@
         },
         "type": "object"
       },
+      "SpaceRelationshipListResponse": {
+        "properties": {
+          "nextAfterRelationRef": {
+            "description": "Opaque cursor for the next bounded direct-relationship page.",
+            "type": "string"
+          },
+          "relationships": {
+            "items": {
+              "$ref": "#/components/schemas/SpaceRelationshipResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "relationships"
+        ],
+        "type": "object"
+      },
+      "SpaceRelationshipResponse": {
+        "properties": {
+          "relationKind": {
+            "enum": [
+              "CONTAINS"
+            ],
+            "type": "string"
+          },
+          "relationRef": {
+            "type": "string"
+          },
+          "targetKind": {
+            "enum": [
+              "FILE",
+              "EVENT",
+              "ROOM"
+            ],
+            "type": "string"
+          },
+          "targetRef": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "relationKind",
+          "relationRef",
+          "targetKind",
+          "targetRef"
+        ],
+        "type": "object"
+      },
       "SpaceUserListResponse": {
         "properties": {
           "nextAfterSpaceRef": {
@@ -7776,6 +7825,110 @@
           }
         ],
         "summary": "Read one current member Space",
+        "tags": [
+          "Spaces User"
+        ]
+      }
+    },
+    "/api/spaces/{spaceRef}/relationships": {
+      "get": {
+        "operationId": "listSpaceRelationships",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "afterRelationRef",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceRelationshipListResponse"
+                }
+              }
+            },
+            "description": "Current direct relationships in stable order."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid relation page request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Current member admission denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Space absent or not visible."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Current resource rights cannot be verified."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "List direct materialized resource references visible to the current member",
         "tags": [
           "Spaces User"
         ]

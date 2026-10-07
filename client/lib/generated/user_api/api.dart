@@ -140,6 +140,8 @@ part 'model/slack_outbound_message_request.dart';
 part 'model/slack_outbound_message_response.dart';
 part 'model/slack_status_response.dart';
 part 'model/source_repository_response.dart';
+part 'model/space_relationship_list_response.dart';
+part 'model/space_relationship_response.dart';
 part 'model/space_user_list_response.dart';
 part 'model/space_user_response.dart';
 part 'model/support_bundle_policy_response.dart';
