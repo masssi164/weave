@@ -3,6 +3,46 @@ import { AdminControlPlaneApi, sampleControlPlane } from "./api";
 
 // V01_ADMIN_CONSOLE_MVP: Admin Console may call only Weave backend admin APIs, not optional provider APIs.
 describe("AdminControlPlaneApi provider boundary", () => {
+  it("uses the generated Admin selection model without inventing cutover evidence", async () => {
+    let requestBody: Record<string, unknown> | undefined;
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          category: "chat",
+          providerKey: "weave-native",
+          choiceModel: "recommended_self_hosted_default",
+          dryRun: true,
+          supportSafe: true,
+          applied: false,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    const api = new AdminControlPlaneApi(
+      {
+        apiBaseUrl: "https://api.example.invalid/api",
+        oidcIssuerUrl: "https://auth.example.invalid",
+        oidcClientId: "weave-admin-console",
+      },
+      fetchImpl as typeof fetch,
+    );
+
+    const result = await api.selectProvider("chat", "weave-native", undefined, true);
+
+    expect(requestBody).toEqual({
+      category: "chat",
+      providerKey: "weave-native",
+      choiceModel: "recommended_self_hosted_default",
+      dryRun: true,
+      secretRef: "secretref://weave/provider/weave-native",
+      reason: "Dry-run of provider-selection metadata through Organization/Admin Console",
+    });
+    expect(result.evidenceRef).toBeUndefined();
+    expect(result.dryRun).toBe(true);
+    expect(result.supportSafe).toBe(true);
+  });
+
   it("does not render an invalid generated audit timestamp", async () => {
     const fetchImpl = vi.fn(async () =>
       new Response(

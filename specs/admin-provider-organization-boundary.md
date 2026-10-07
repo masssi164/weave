@@ -76,6 +76,13 @@ organization. This fix preserves existing data and does not implement provider m
   overview, selection and readiness routes to the configured deployment.
 - Category-only legacy selections remain configuration evidence for this single
   deployment. They are not proof of an active organization runtime binding.
+- The Admin Console sends provider-selection requests through the generated Admin
+  operation and its generated request model. This metadata endpoint accepts no
+  cutover evidence or consequence-confirmation fields. Its dry-run response is not
+  a verified adoption or replacement proof; the UI must keep activation blocked,
+  including when a test fixture or stale local state presents a purported evidence
+  reference. #1498 owns those operations. Recording a category selection cannot
+  be presented as an active binding change.
 - Actual Files binding status is projected from
   `ProviderBindingRepository.current(canonicalOrganization, "files")`; adapter
   readiness is checked through the existing Files resolver. No private configuration
