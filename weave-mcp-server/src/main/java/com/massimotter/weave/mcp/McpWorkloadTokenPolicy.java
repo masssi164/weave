@@ -49,7 +49,8 @@ final class McpWorkloadTokenPolicy {
       throw forbidden();
     }
     Set<String> scopes = exactScopes(jwt.getClaimAsString("scope"));
-    if (!scopes.equals(Set.copyOf(properties.requiredScopes()))) {
+    Set<String> allowed = Set.copyOf(properties.requiredScopes());
+    if (!scopes.contains("mcp.tools") || scopes.size() < 2 || !allowed.containsAll(scopes)) {
       throw new McpAdmissionException(McpAdmissionException.Kind.INSUFFICIENT_SCOPE);
     }
     requireAllowedRealmRoles(jwt.getClaimAsMap("realm_access"));

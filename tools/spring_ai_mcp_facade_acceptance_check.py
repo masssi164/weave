@@ -121,7 +121,8 @@ def main() -> int:
         "CLIENT_CREDENTIALS_EXTENSION",
         "exchange.exchange(",
         "EXCHANGED_TOKEN_ATTRIBUTE",
-        "Set.copyOf(properties.exchangeScopes())",
+        "workload.scopes().stream()",
+        ".filter(properties.exchangeScopes()::contains)",
     )
     require(
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/FilesMcpProjection.java",

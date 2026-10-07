@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -58,7 +59,10 @@ final class McpRequestAdmissionFilter extends OncePerRequestFilter {
     try {
       McpCellWorkloadPrincipal workload = tokenPolicy.resolve(jwtAuthentication.getToken());
       HttpServletRequest effectiveRequest = validateExtensionNegotiation(request);
-      Set<String> scopes = Set.copyOf(properties.exchangeScopes());
+      Set<String> scopes =
+          workload.scopes().stream()
+              .filter(properties.exchangeScopes()::contains)
+              .collect(Collectors.toUnmodifiableSet());
       ExchangedAccessToken exchanged =
           exchange.exchange(workload, jwtAuthentication.getToken().getTokenValue(), scopes);
       effectiveRequest.setAttribute(EXCHANGED_TOKEN_ATTRIBUTE, exchanged);

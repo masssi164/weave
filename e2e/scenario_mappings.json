@@ -5408,7 +5408,8 @@
             "tokenPolicy.resolve(",
             "exchange.exchange(",
             "EXCHANGED_TOKEN_ATTRIBUTE",
-            "Set.copyOf(properties.exchangeScopes())"
+            "workload.scopes().stream()",
+            ".filter(properties.exchangeScopes()::contains)"
           ]
         }
       ]
