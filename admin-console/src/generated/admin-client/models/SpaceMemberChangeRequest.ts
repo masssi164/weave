@@ -21,29 +21,29 @@ import { mapValues } from '../runtime';
 export interface SpaceMemberChangeRequest {
     /**
      * Hierarchical current grant: VIEW, VIEW+EDIT, or VIEW+EDIT+ADMIN.
-     * @type {Array<string>}
+     * @type {string}
      * @memberof SpaceMemberChangeRequest
      */
-    permissions: Array<SpaceMemberChangeRequestPermissionsEnum>;
+    permissionLevel: SpaceMemberChangeRequestPermissionLevelEnum;
 }
 
 
 /**
  * @export
  */
-export const SpaceMemberChangeRequestPermissionsEnum = {
+export const SpaceMemberChangeRequestPermissionLevelEnum = {
     VIEW: 'VIEW',
     EDIT: 'EDIT',
     ADMIN: 'ADMIN'
 } as const;
-export type SpaceMemberChangeRequestPermissionsEnum = typeof SpaceMemberChangeRequestPermissionsEnum[keyof typeof SpaceMemberChangeRequestPermissionsEnum];
+export type SpaceMemberChangeRequestPermissionLevelEnum = typeof SpaceMemberChangeRequestPermissionLevelEnum[keyof typeof SpaceMemberChangeRequestPermissionLevelEnum];
 
 
 /**
  * Check if a given object implements the SpaceMemberChangeRequest interface.
  */
 export function instanceOfSpaceMemberChangeRequest(value: object): value is SpaceMemberChangeRequest {
-    if (!('permissions' in value) || value['permissions'] === undefined) return false;
+    if (!('permissionLevel' in value) || value['permissionLevel'] === undefined) return false;
     return true;
 }
 
@@ -57,7 +57,7 @@ export function SpaceMemberChangeRequestFromJSONTyped(json: any, ignoreDiscrimin
     }
     return {
 
-        'permissions': json['permissions'],
+        'permissionLevel': json['permissionLevel'],
     };
 }
 
@@ -72,6 +72,6 @@ export function SpaceMemberChangeRequestToJSONTyped(value?: SpaceMemberChangeReq
 
     return {
 
-        'permissions': value['permissions'],
+        'permissionLevel': value['permissionLevel'],
     };
 }

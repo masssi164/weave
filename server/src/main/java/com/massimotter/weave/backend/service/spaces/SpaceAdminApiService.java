@@ -124,9 +124,8 @@ public class SpaceAdminApiService {
             String ifNoneMatch) {
         var identity = requireAdministrator(jwt, "grant");
         validateRefs(spaceRef, accountRef);
-        if (request == null || request.permissions().isEmpty()
-                || request.permissions().stream().anyMatch(java.util.Objects::isNull)) {
-            throw error(HttpStatus.BAD_REQUEST, "space-membership-invalid", "Permissions are required.");
+        if (request == null || request.permissionLevel() == null) {
+            throw error(HttpStatus.BAD_REQUEST, "space-membership-invalid", "A permission level is required.");
         }
         boolean firstGrant = "*".equals(ifNoneMatch);
         if (ifMatch == null && !firstGrant) {
@@ -138,8 +137,11 @@ public class SpaceAdminApiService {
             throw error(HttpStatus.BAD_REQUEST, "space-membership-precondition-invalid",
                     "The member precondition is invalid.");
         }
-        Set<SpaceAccessPort.Permission> permissions = EnumSet.noneOf(SpaceAccessPort.Permission.class);
-        request.permissions().forEach(value -> permissions.add(SpaceAccessPort.Permission.valueOf(value.name())));
+        Set<SpaceAccessPort.Permission> permissions = switch (request.permissionLevel()) {
+            case VIEW -> EnumSet.of(SpaceAccessPort.Permission.VIEW);
+            case EDIT -> EnumSet.of(SpaceAccessPort.Permission.VIEW, SpaceAccessPort.Permission.EDIT);
+            case ADMIN -> EnumSet.allOf(SpaceAccessPort.Permission.class);
+        };
         SpaceMembershipAdministrationPort.MemberState result;
         try {
             result = memberships.grant(identity.organizationId(), spaceRef,

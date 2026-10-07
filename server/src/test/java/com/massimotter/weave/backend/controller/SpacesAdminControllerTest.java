@@ -73,14 +73,14 @@ class SpacesAdminControllerTest {
     void memberMutationUsesStrongVersionHeadersAndAdminSecurity() throws Exception {
         String path = "/api/admin/spaces/workspace-default/members/acct_22222222222222222222222222222222";
         mvc.perform(put(path).contentType(MediaType.APPLICATION_JSON)
-                        .header("If-None-Match", "*").content("{\"permissions\":[\"VIEW\"]}"))
+                        .header("If-None-Match", "*").content("{\"permissionLevel\":\"VIEW\"}"))
                 .andExpect(status().isUnauthorized());
         when(spaces.grant(any(), eq("workspace-default"),
                 eq("acct_22222222222222222222222222222222"), any(), isNull(), eq("*")))
                 .thenReturn(new SpaceMembershipAdministrationPort.MemberState(
                         "acct_22222222222222222222222222222222", Set.of(Permission.VIEW), "\"sm-0\""));
         mvc.perform(put(path).with(owner()).contentType(MediaType.APPLICATION_JSON)
-                        .header("If-None-Match", "*").content("{\"permissions\":[\"VIEW\"]}"))
+                        .header("If-None-Match", "*").content("{\"permissionLevel\":\"VIEW\"}"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("ETag", "\"sm-0\""))
                 .andExpect(jsonPath("$.permissions[0]").value("VIEW"));

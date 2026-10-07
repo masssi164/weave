@@ -96,8 +96,8 @@ class SpaceAdminApiServiceTest {
     void versionedMembershipChangeRequiresCurrentAdminAndNeverAuditsAStaleMutation() {
         Jwt owner = token("owner", "owner");
         when(admission.allows(owner)).thenReturn(true);
-        var request = new SpaceMemberChangeRequest(List.of(
-                SpaceMemberChangeRequest.PermissionValue.VIEW));
+        var request = new SpaceMemberChangeRequest(
+                SpaceMemberChangeRequest.PermissionLevel.VIEW);
         assertThatThrownBy(() -> service.grant(owner, "workspace-default", MEMBER_ACCOUNT,
                 request, null, null)).isInstanceOfSatisfying(ApiErrorException.class,
                         error -> assertThat(error.status()).isEqualTo(HttpStatus.PRECONDITION_REQUIRED));

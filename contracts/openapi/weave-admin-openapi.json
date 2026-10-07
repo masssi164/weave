@@ -3357,23 +3357,18 @@
       },
       "SpaceMemberChangeRequest": {
         "properties": {
-          "permissions": {
+          "permissionLevel": {
             "description": "Hierarchical current grant: VIEW, VIEW+EDIT, or VIEW+EDIT+ADMIN.",
-            "items": {
-              "enum": [
-                "VIEW",
-                "EDIT",
-                "ADMIN"
-              ],
-              "type": "string"
-            },
-            "maxItems": 3,
-            "minItems": 0,
-            "type": "array"
+            "enum": [
+              "VIEW",
+              "EDIT",
+              "ADMIN"
+            ],
+            "type": "string"
           }
         },
         "required": [
-          "permissions"
+          "permissionLevel"
         ],
         "type": "object"
       },
