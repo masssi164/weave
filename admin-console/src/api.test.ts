@@ -515,6 +515,8 @@ describe("AdminControlPlaneApi provider boundary", () => {
               {
                 category: "chat-channels",
                 readiness: "ready",
+                providerRealityLevel: "live_read",
+                policyState: "allowed",
                 selectedProviderKey: "synapse-homeserver",
                 dryRunEvidenceExpiresAt: "not-a-date",
               },
@@ -543,6 +545,9 @@ describe("AdminControlPlaneApi provider boundary", () => {
     expect(controlPlane.providerCategories[0]?.evidenceFreshness).toBe(
       "missing",
     );
+    expect(controlPlane.providerCategories[0]?.realityLevel).toBe("live_read");
+    expect(controlPlane.providerCategories[0]?.policyState).toBe("allowed");
+    expect(controlPlane.providerCategories[0]?.applyGates.applySupported).toBe(false);
     expect(controlPlane.providerCategories).toHaveLength(1);
     expect(controlPlane.providerCategories[0]?.supportSafe).toBe(false);
   });
