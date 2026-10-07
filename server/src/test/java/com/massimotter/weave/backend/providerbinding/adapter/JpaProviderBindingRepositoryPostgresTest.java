@@ -102,6 +102,36 @@ class JpaProviderBindingRepositoryPostgresTest {
     }
 
     @Test
+    void mappedCalendarBindingCannotRotateOrReplaceWithoutVerifiedIdentityCarryForward() {
+        DriverManagerDataSource dataSource = migratedDataSource();
+        var repository = ProviderBindingJpaTestFactory.create(dataSource);
+        Instant now = Instant.parse("2026-10-07T09:00:00Z");
+
+        var nativeCalendar = repository.activate("org:calendar", "calendar", 0,
+                "weave-native", "configuration:calendar:deployment", now);
+        var mapping = repository.saveMapping(new ProviderObjectMapping(
+                "org:calendar", "calendar", nativeCalendar.revision(), "event:stable-1",
+                "calendar:workspace.external-event", "calendar-user-api", now, now));
+        assertThatThrownBy(() -> repository.activate("org:calendar", "calendar", nativeCalendar.revision(),
+                "weave-native", "configuration:calendar:rotated", now.plusSeconds(1)))
+                .isInstanceOf(JpaProviderBindingRepository.CalendarBindingIdentityTransitionBlockedException.class);
+        assertThatThrownBy(() -> repository.activate("org:calendar", "calendar", nativeCalendar.revision(),
+                "nextcloud-caldav", "configuration:calendar:replacement", now.plusSeconds(1)))
+                .isInstanceOf(JpaProviderBindingRepository.CalendarBindingIdentityTransitionBlockedException.class);
+
+        DriverManagerDataSource restartedDataSource = new DriverManagerDataSource();
+        restartedDataSource.setDriverClassName(POSTGRES.getDriverClassName());
+        restartedDataSource.setUrl(dataSource.getUrl());
+        restartedDataSource.setUsername(POSTGRES.getUsername());
+        restartedDataSource.setPassword(POSTGRES.getPassword());
+        var restarted = ProviderBindingJpaTestFactory.create(restartedDataSource);
+        assertThat(restarted.current("org:calendar", "calendar")).contains(nativeCalendar);
+        assertThat(restarted.revision("org:calendar", "calendar", 2)).isEmpty();
+        assertThat(restarted.mappingByCanonicalId("org:calendar", "calendar", 1, "event:stable-1"))
+                .contains(mapping);
+    }
+
+    @Test
     void stagedMappingsStayOffTheLiveRouteAndConcurrentStaleActivationFailsClosed() throws Exception {
         DriverManagerDataSource dataSource = migratedDataSource();
         var repository = ProviderBindingJpaTestFactory.create(dataSource);
