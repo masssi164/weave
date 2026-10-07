@@ -59,6 +59,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
@@ -72,6 +73,7 @@ public class ChatDomainFacadeService {
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final AuditEventPublisher auditEventPublisher;
     private final ChatProviderPort chatProviderPort;
+    private final ChatProviderBindingGate chatProviderBindingGate;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final OrganizationIdentityContextResolver identityContextResolver;
@@ -86,7 +88,8 @@ public class ChatDomainFacadeService {
             ChatProviderPort chatProviderPort,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
-            OrganizationIdentityContextResolver identityContextResolver) {
+            OrganizationIdentityContextResolver identityContextResolver,
+            ObjectProvider<ChatProviderBindingGate> chatProviderBindingGate) {
         this(
                 providerRegistry,
                 providerSelectionRepository,
@@ -96,7 +99,8 @@ public class ChatDomainFacadeService {
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 identityContextResolver,
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                chatProviderBindingGate.getObject());
     }
 
     ChatDomainFacadeService(
@@ -117,7 +121,8 @@ public class ChatDomainFacadeService {
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 OrganizationIdentityContextResolver.configured(contextAuthorizationProperties),
-                clock);
+                clock,
+                null);
     }
 
     ChatDomainFacadeService(
@@ -130,11 +135,28 @@ public class ChatDomainFacadeService {
             ContextAuthorizationProperties contextAuthorizationProperties,
             OrganizationIdentityContextResolver identityContextResolver,
             Clock clock) {
+        this(providerRegistry, providerSelectionRepository, workspaceCapabilityService, auditEventPublisher,
+                chatProviderPort, contextAuthorizationPort, contextAuthorizationProperties,
+                identityContextResolver, clock, null);
+    }
+
+    ChatDomainFacadeService(
+            ProviderRegistry providerRegistry,
+            ProviderSelectionRepository providerSelectionRepository,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            AuditEventPublisher auditEventPublisher,
+            ChatProviderPort chatProviderPort,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContextResolver,
+            Clock clock,
+            ChatProviderBindingGate chatProviderBindingGate) {
         this.providerRegistry = providerRegistry;
         this.providerSelectionRepository = providerSelectionRepository;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.auditEventPublisher = auditEventPublisher;
         this.chatProviderPort = chatProviderPort;
+        this.chatProviderBindingGate = chatProviderBindingGate;
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
         this.identityContextResolver = identityContextResolver;
@@ -530,6 +552,10 @@ public class ChatDomainFacadeService {
             state = code.contains("unavailable") || code.contains("interrupted")
                     ? ChatMemberState.UNAVAILABLE
                     : ChatMemberState.DEGRADED;
+        }
+        if (state == ChatMemberState.READY && chatProviderBindingGate != null
+                && !chatProviderBindingGate.admits(organizationId(jwt))) {
+            state = ChatMemberState.MISCONFIGURED;
         }
         String impact = memberImpact(state, chatCapability.memberImpact());
         ChatProviderMappingRecord mapping = includeAdminDiagnostics
