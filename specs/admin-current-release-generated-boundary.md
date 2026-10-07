@@ -13,6 +13,10 @@ client and `PlatformConfigResponse` model, without turning an Admin session
 into a User session. Organization setup, invitations,
 effective policy, provider category/readiness and support-safe audit remain
 available through that client and a separately authorized Admin session.
+Admin UI normalization may create view models, but its input types must be
+generated transport models. Fields absent from the server-owned schema cannot
+be assumed to carry readiness, migration or cutover evidence; map them to
+conservative, blocked or missing UI states.
 
 Private Runner and broad ARC Cell orchestration are deferred from #1470. The
 historical Agent Runtime panel must not remain an active Admin UI path backed

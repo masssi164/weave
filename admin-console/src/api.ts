@@ -12,6 +12,15 @@ import {
   AdminControlPlaneApi as GeneratedAdminControlPlaneApi,
   Configuration as GeneratedConfiguration,
   OrganizationInvitationsApi as GeneratedOrganizationInvitationsApi,
+  type AdminControlPlaneResponse as GeneratedControlPlaneResponse,
+  type CapabilityWhitelistResponse as GeneratedWhitelistResponse,
+  type GoLiveReadinessResponse as GeneratedGoLiveReadinessResponse,
+  type McpServerBindingResponse as GeneratedMcpServerBindingResponse,
+  type PlatformIdentityReadinessResponse as GeneratedIdentityReadinessResponse,
+  type ProviderCategoryStatusResponse as GeneratedProviderCategoryResponse,
+  type ProviderReplacementDryRunResponse as GeneratedReplacementDryRunResponse,
+  type ReleaseClaimControlResponse as GeneratedReleaseClaimControlResponse,
+  type SuiteDomainReadinessResponse as GeneratedSuiteDomainReadinessResponse,
   type ProviderSelectionRequest as GeneratedProviderSelectionRequest,
   type ProviderSelectionResponse as GeneratedProviderSelectionResponse,
   ResponseError as GeneratedResponseError,
@@ -341,46 +350,6 @@ export interface ProviderReplacementDryRunReport {
   }>;
 }
 
-interface ServerProviderReplacementDryRunReport {
-  dryRunId?: string;
-  status?: string;
-  category?: string;
-  currentAdapter?: string;
-  targetAdapter?: string;
-  readinessState?: string;
-  migrationDryRunRequired?: boolean;
-  memberImpactStates?: string[];
-  supportSafe?: boolean;
-  providerDiagnosticsRedacted?: boolean;
-  cutoverGates?: string[];
-  auditRefs?: string[];
-  consequencePreview?: Partial<ProviderReplacementDryRunReport["consequencePreview"]>;
-  lossyMappingReport?: Partial<
-    ProviderReplacementDryRunReport["lossyMappingReport"]
-  >;
-  lifecycleExpectations?: Partial<
-    ProviderReplacementDryRunReport["lifecycleExpectations"]
-  >;
-  portableExportImportContract?: Partial<
-    ProviderReplacementDryRunReport["portableExportImportContract"]
-  >;
-  switchPlan?: Partial<
-    Omit<ProviderReplacementDryRunReport["switchPlan"], "memberFacingStateDuringSwitch">
-  > & { memberFacingStateDuringSwitch?: string };
-  noUnaccountedDataLossReport?: Partial<
-    ProviderReplacementDryRunReport["noUnaccountedDataLossReport"]
-  >;
-  boundedProof?: Partial<ProviderReplacementDryRunReport["boundedProof"]>;
-  crossDomainImpact?: Array<{
-    domainKey?: string;
-    canonicalObjectRef?: string;
-    mappingClass?: string;
-    consequenceSummary?: string;
-    evidenceRefs?: string[];
-    applyBlockers?: string[];
-  }>;
-}
-
 export interface ControlPlaneResponse {
   organization: {
     id: string;
@@ -476,160 +445,6 @@ export class AdminApiError extends Error {
   }
 }
 
-interface ServerControlPlaneResponse {
-  organizationId?: string;
-  organizationName?: string;
-  providerConfigSource?: string;
-  bootstrapDefaultsAreSuggestionsOnly?: boolean;
-  generatedAt?: string;
-  categories?: ServerProviderCategory[];
-  selectedProviderMappings?: Array<{
-    category?: string;
-    providerKey?: string;
-    secretRef?: string;
-  }>;
-  whitelist?: ServerWhitelistPolicy;
-  platformIdentityReadiness?: ServerPlatformIdentityReadiness;
-  suiteDomainReadiness?: ServerSuiteDomainReadiness[];
-  goLiveReadiness?: ServerGoLiveReadiness;
-  secretRefs?: Array<{ ref?: string; providerKey?: string }>;
-  mcpServerBindings?: ServerMcpServerBinding[];
-}
-
-interface ServerMcpServerBinding {
-  serverKey?: string;
-  displayName?: string;
-  transport?: string;
-  endpointRef?: string;
-  authRef?: string;
-  allowedTools?: string[];
-  allowedCapabilities?: string[];
-  approvalRequiredForWrites?: boolean;
-  enabled?: boolean;
-  readinessState?: string;
-  supportSafe?: boolean;
-  rawEndpointExposed?: boolean;
-  rawServerConfigExposed?: boolean;
-  secretValuesExposed?: boolean;
-  auditRefs?: string[];
-  nextActions?: string[];
-}
-
-interface ServerSuiteDomainReadiness {
-  domain?: string;
-  label?: string;
-  adminReadiness?: string;
-  memberState?: string;
-  selectedAdapterPosture?: string;
-  sourceOfTruthMode?: string;
-  providerCategoryKeys?: string[];
-  canonicalObjectKinds?: string[];
-  capabilityStates?: string[];
-  supportSafeErrors?: string[];
-  portabilityNotes?: string[];
-  auditRefs?: string[];
-  nextAction?: string;
-  backendOwnedFacade?: boolean;
-  providerMappingOwnedByServer?: boolean;
-  rawProviderConfigExposedToMembers?: boolean;
-}
-
-interface ServerGoLiveReadiness {
-  state?: string;
-  memberPreviewState?: string;
-  blockers?: string[];
-  adminActions?: string[];
-  auditRefs?: string[];
-  supportSafe?: boolean;
-  normalMembersMayAccessSetupControls?: boolean;
-  rawProviderDiagnosticsExposed?: boolean;
-  releaseClaimControl?: ServerReleaseClaimControl;
-}
-
-interface ServerReleaseClaimControl {
-  claimState?: string;
-  candidateTag?: string;
-  pinnedSpecCorpusRef?: string;
-  releaseNotesSource?: string;
-  supportBundleRef?: string;
-  accessibilityEvidenceRef?: string;
-  unresolvedVetoes?: string[];
-  gates?: Array<{
-    key?: string;
-    label?: string;
-    state?: string;
-    evidenceFreshness?: string;
-    evidenceRefs?: string[];
-    nextAction?: string;
-    blocksReleaseClaim?: boolean;
-  }>;
-}
-
-interface ServerPlatformIdentityReadiness {
-  contractVersion?: string;
-  platformAuthority?: string;
-  overallState?: string;
-  supportSafe?: boolean;
-  diagnosticsRedacted?: boolean;
-  backendOwnedFacade?: boolean;
-  memberClientMayConfigurePlatformSecurity?: boolean;
-  requiredForMemberFlows?: boolean;
-  stableStates?: string[];
-  cards?: Array<{
-    key?: string;
-    label?: string;
-    state?: string;
-    summary?: string;
-    memberImpact?: string;
-    remediation?: string;
-    nextActions?: string[];
-    evidenceRefs?: string[];
-    diagnostics?: Record<string, unknown>;
-  }>;
-  nextActions?: string[];
-}
-
-interface ServerProviderCategory {
-  category?: string;
-  label?: string;
-  readiness?: string;
-  memberImpact?: string;
-  requiredNextAction?: string;
-  secretRefStatus?: ProviderCategory["secretRefStatus"];
-  policyState?: ProviderCategory["policyState"];
-  migrationState?: ProviderCategory["migrationState"];
-  evidenceRefs?: string[];
-  applyGates?: Partial<ProviderSwitchApplyGates>;
-  providerCandidates?: string[];
-  selectedProviderKey?: string;
-  choiceModel?: string;
-  selectedByAdmin?: boolean;
-  bootstrapSuggestionOnly?: boolean;
-  diagnostics?: Record<string, unknown>;
-  realityLevel?: string;
-  evidenceFreshness?: string;
-  safeNextAction?: string;
-  restartSurvivalEvidenceRef?: string;
-  dryRunEvidenceRef?: string;
-  dryRunEvidenceIssuedAt?: string;
-  dryRunEvidenceExpiresAt?: string;
-}
-
-interface ServerWhitelistPolicy {
-  denyByDefault?: boolean;
-  profileCapabilities?: Record<string, string[]>;
-  effectiveCapabilities?: string[];
-}
-
-interface ServerAuditEvent {
-  idempotencyKey?: string;
-  action?: string;
-  actorRef?: string;
-  occurredAt?: string;
-  sourceRef?: string;
-  payload?: Record<string, unknown>;
-}
-
 export class AdminControlPlaneApi {
   private readonly generatedControlPlane: GeneratedAdminControlPlaneApi;
   private readonly generatedInvitations: GeneratedOrganizationInvitationsApi;
@@ -672,13 +487,7 @@ export class AdminControlPlaneApi {
     );
     const auditEvents = await this.listAuditEvents().catch(() => []);
     return normalizeControlPlane(
-      {
-        ...controlPlane,
-        generatedAt:
-          controlPlane.generatedAt && !Number.isNaN(controlPlane.generatedAt.getTime())
-            ? controlPlane.generatedAt.toISOString()
-            : undefined,
-      } as ServerControlPlaneResponse,
+      controlPlane,
       auditEvents,
       this.config.oidcIssuerUrl,
     );
@@ -697,7 +506,7 @@ export class AdminControlPlaneApi {
         },
       }),
     );
-    return normalizeWhitelist(response as ServerWhitelistPolicy);
+    return normalizeWhitelist(response);
   }
 
   async selectProvider(
@@ -770,7 +579,7 @@ export class AdminControlPlaneApi {
       this.generatedControlPlane.getPlatformIdentityReadiness(),
     );
     return normalizePlatformIdentityReadiness(
-      response as ServerPlatformIdentityReadiness,
+      response,
     );
   }
 
@@ -874,7 +683,7 @@ function invitationIdempotencyKey(
 }
 
 function normalizeControlPlane(
-  controlPlane: ServerControlPlaneResponse,
+  controlPlane: GeneratedControlPlaneResponse,
   auditEvents: AuditEvent[],
   oidcIssuerUrl: string,
 ): ControlPlaneResponse {
@@ -883,7 +692,7 @@ function normalizeControlPlane(
   return {
     organization: {
       id: controlPlane.organizationId ?? "weave-dogfood",
-      displayName: controlPlane.organizationName ?? "Weave Dogfood",
+      displayName: controlPlane.displayName ?? "Weave Dogfood",
       manifestUrl: "/api/organization/manifest",
       authIssuerUrl: oidcIssuerUrl,
     },
@@ -897,7 +706,7 @@ function normalizeControlPlane(
         category,
         selections,
         secretRefs,
-        controlPlane.generatedAt,
+        controlPlane.generatedAt?.toISOString(),
       ),
     ),
     platformIdentityReadiness: normalizePlatformIdentityReadiness(
@@ -914,7 +723,7 @@ function normalizeControlPlane(
 }
 
 function normalizeMcpServerBindings(
-  bindings?: ServerMcpServerBinding[],
+  bindings?: GeneratedMcpServerBindingResponse[],
 ): McpServerBinding[] {
   const normalized = (bindings ?? []).map((binding) => ({
     serverKey: binding.serverKey ?? "weave-domain-tools",
@@ -943,7 +752,7 @@ function normalizeMcpServerBindings(
 }
 
 function normalizeSuiteDomainReadiness(
-  readiness?: ServerSuiteDomainReadiness[],
+  readiness?: GeneratedSuiteDomainReadinessResponse[],
 ): SuiteDomainReadiness[] {
   const domains = (readiness ?? []).map((domain) => ({
     domain: domain.domain ?? "suite-domain",
@@ -977,7 +786,7 @@ function normalizeSuiteDomainReadiness(
 }
 
 function normalizeGoLiveReadiness(
-  readiness?: ServerGoLiveReadiness,
+  readiness?: GeneratedGoLiveReadinessResponse,
 ): GoLiveReadiness {
   return {
     state: normalizeState(readiness?.state ?? "admin-action-required"),
@@ -1001,7 +810,7 @@ function normalizeGoLiveReadiness(
 }
 
 function normalizeReleaseClaimControl(
-  claim?: ServerReleaseClaimControl,
+  claim?: GeneratedReleaseClaimControlResponse,
 ): ReleaseClaimControl {
   const gates = (claim?.gates ?? []).map((gate, index) => ({
     key: gate.key ?? `rc-evidence-gate-${index + 1}`,
@@ -1034,7 +843,7 @@ function normalizeReleaseClaimControl(
 }
 
 function normalizePlatformIdentityReadiness(
-  readiness?: ServerPlatformIdentityReadiness,
+  readiness?: GeneratedIdentityReadinessResponse,
 ): PlatformIdentityReadiness {
   const cards = (readiness?.cards ?? []).map((card) => ({
     key: card.key ?? "identity-readiness-card",
@@ -1098,7 +907,7 @@ function normalizePlatformIdentityReadiness(
 }
 
 function normalizeCategory(
-  category: ServerProviderCategory,
+  category: GeneratedProviderCategoryResponse,
   selections: Array<{ category?: string; providerKey?: string }>,
   secretRefs: Array<{ ref?: string; providerKey?: string }>,
   generatedAt?: string,
@@ -1120,13 +929,21 @@ function normalizeCategory(
       normalizeMemberCapabilityState(category.memberImpact) ??
       memberStableStateFromCapability(state),
     requiredNextAction:
-      category.requiredNextAction ??
+      category.realityLevelRemediation ??
       "Review backend readiness evidence before exposing this domain.",
-    secretRefStatus: category.secretRefStatus ?? "sample_only",
-    policyState: category.policyState ?? "review_required",
-    migrationState: category.migrationState ?? "dry_run_required",
-    evidenceRefs: category.evidenceRefs ?? [],
-    applyGates: normalizeApplyGates(category.applyGates),
+    secretRefStatus: secretRefs.some((secretRef) =>
+      secretRef.providerKey === selectedAdapter && Boolean(secretRef.ref),
+    )
+      ? "present"
+      : "missing",
+    policyState: category.policyState === "allowed"
+      ? "allowed"
+      : category.policyState === "disabled"
+        ? "disabled"
+        : "blocked",
+    migrationState: "blocked",
+    evidenceRefs: [],
+    applyGates: normalizeApplyGates(),
     supportSafe:
       category.diagnostics?.secretsReturned === false &&
       category.diagnostics?.rawProviderErrorsReturned === false,
@@ -1135,19 +952,11 @@ function normalizeCategory(
     choiceModel: category.choiceModel ?? "not_selected",
     providerCandidates: category.providerCandidates ?? [],
     lastCheckedAt: generatedAt,
-    realityLevel: normalizeRealityLevel(category.realityLevel),
-    evidenceFreshness: normalizeEvidenceFreshness(
-      category.evidenceFreshness,
-      category.dryRunEvidenceExpiresAt,
-    ),
+    realityLevel: normalizeRealityLevel(category.providerRealityLevel),
+    evidenceFreshness: "missing",
     safeNextAction:
-      category.safeNextAction ??
-      category.requiredNextAction ??
+      category.realityLevelRemediation ??
       "Review backend readiness evidence before exposing this domain.",
-    restartSurvivalEvidenceRef: category.restartSurvivalEvidenceRef,
-    dryRunEvidenceRef: category.dryRunEvidenceRef,
-    dryRunEvidenceIssuedAt: category.dryRunEvidenceIssuedAt,
-    dryRunEvidenceExpiresAt: category.dryRunEvidenceExpiresAt,
     secretRefs: secretRefs
       .filter((secretRef) => secretRef.providerKey === selectedAdapter)
       .map((secretRef) => secretRef.ref ?? "")
@@ -1460,7 +1269,7 @@ const sampleSuiteDomainReadiness: SuiteDomainReadiness[] = [
 ];
 
 function normalizeWhitelist(
-  whitelist?: ServerWhitelistPolicy,
+  whitelist?: GeneratedWhitelistResponse,
 ): WhitelistPolicy {
   const profileCapabilities = whitelist?.profileCapabilities ?? {};
   const allowedCapabilities = Array.from(
@@ -1481,7 +1290,7 @@ function normalizeWhitelist(
 }
 
 function normalizeProviderReplacementDryRun(
-  response: ServerProviderReplacementDryRunReport,
+  response: GeneratedReplacementDryRunResponse,
   category: ProviderCategory,
   targetAdapter: string,
 ): ProviderReplacementDryRunReport {
@@ -1716,7 +1525,7 @@ function normalizeState(value?: string): CapabilityState {
   }
 }
 
-function supportSafeSummary(event: ServerAuditEvent): string {
+function supportSafeSummary(event: GeneratedAdminAuditEventResponse): string {
   const payload = event.payload ?? {};
   const providerKey =
     typeof payload.providerKey === "string" ? payload.providerKey : undefined;
