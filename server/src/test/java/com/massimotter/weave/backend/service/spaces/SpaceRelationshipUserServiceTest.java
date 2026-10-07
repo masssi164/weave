@@ -77,6 +77,41 @@ class SpaceRelationshipUserServiceTest {
     }
 
     @Test
+    void filesUseTheConfiguredContextPrincipalRatherThanTheImmutableAccountSubject() {
+        var preferredContext = new ContextAuthorizationProperties(null, null, null,
+                "preferred_username", null, null, null, null);
+        var projection = new SpaceRelationshipUserService(
+                OrganizationIdentityContextResolver.configured(preferredContext), admission,
+                preferredContext, spaces, records, files, calendar, chat, matrix);
+        Jwt session = Jwt.withTokenValue("member-preferred").header("alg", "none")
+                .issuer(ISSUER).subject("stable-keycloak-subject")
+                .claim("preferred_username", "member")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
+                .build();
+        String account = IdentityReferences.accountId(ISSUER, "stable-keycloak-subject");
+        when(admission.allows(session)).thenReturn(true);
+        when(spaces.allows("tenant-default", "workspace-default", account, Permission.VIEW))
+                .thenReturn(true);
+        when(calendar.materializedEventRefsInSpace(session, "workspace-default", "", 100))
+                .thenReturn(List.of());
+        when(chat.joinedConversationRefsInSpace(session, "workspace-default", "", 100))
+                .thenReturn(List.of());
+        when(records.activeInSpace("tenant-default", "workspace-default", "user:member", "", 25))
+                .thenReturn(List.of(resource("file:stable")));
+        when(files.inspect(session, "file:stable")).thenReturn(
+                new com.massimotter.weave.backend.model.files.FilesUserItemResponse(
+                        "file:stable", "file:root", "stable.txt", "/stable.txt",
+                        "file", 0, null, Instant.EPOCH, "revision", List.of("inspect")));
+
+        var result = projection.list(session, "workspace-default", null, 25);
+        assertThat(result.relationships()).extracting(value -> value.targetRef())
+                .containsExactly("file:stable");
+        verify(records).activeInSpace("tenant-default", "workspace-default", "user:member", "", 25);
+        verify(records, never()).activeInSpace(eq("tenant-default"), eq("workspace-default"),
+                eq("user:stable-keycloak-subject"), anyString(), anyInt());
+    }
+
+    @Test
     void revokedSpaceAndProviderRightsUncertaintyFailClosed() {
         assertThatThrownBy(() -> service.list(member, "workspace-default", null, 25))
                 .isInstanceOfSatisfying(ApiErrorException.class,

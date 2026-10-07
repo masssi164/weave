@@ -2,6 +2,11 @@ package com.massimotter.weave.backend.schema;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.massimotter.weave.backend.files.adapter.FilesUserResourceJpaTestFactory;
+import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
+import com.massimotter.weave.backend.files.domain.FilesUserResource;
+import com.massimotter.weave.backend.providerbinding.adapter.ProviderBindingJpaTestFactory;
+import com.massimotter.weave.backend.providerbinding.domain.ProviderObjectMapping;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import com.massimotter.weave.backend.transfer.adapter.JpaTransferRunRepository;
 import com.massimotter.weave.backend.transfer.adapter.TransferRunJpaTestFactory;
@@ -15,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.sql.DriverManager;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,6 +28,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -32,7 +39,8 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * Proves that a private PostgreSQL consistency dump restores canonical transfer
- * state into a separate empty server and remains writable through canonical ports.
+ * state, the active provider binding, stable Files identity and Space membership
+ * into a separate empty server and remains writable through canonical ports.
  */
 @Tag("postgres")
 class CanonicalPostgresBackupRestoreTest {
@@ -54,8 +62,9 @@ class CanonicalPostgresBackupRestoreTest {
     SchemaAuthorityInitializer.run(source.values());
     SchemaReceiptVerifier.verify(source.values());
 
+    DriverManagerDataSource sourceDataSource = dataSource(SOURCE);
     JpaTransferRunRepository sourceRepository =
-        TransferRunJpaTestFactory.create(dataSource(SOURCE));
+        TransferRunJpaTestFactory.create(sourceDataSource);
     Instant now = Instant.parse("2026-08-18T20:00:00Z");
     LossRecord loss = new LossRecord(
         new CanonicalObjectId("calendar-event-1"),
@@ -77,6 +86,31 @@ class CanonicalPostgresBackupRestoreTest {
             now.plusSeconds(1));
     sourceRepository.save(firstBatch, 0);
     assertThat(sourceRepository.findById(firstBatch.id())).contains(firstBatch);
+
+    var sourceBindings = ProviderBindingJpaTestFactory.create(sourceDataSource);
+    var activeFiles = sourceBindings.activate(
+        "org:restore", "files", 0, "weave-native", "configuration:restore:files", now);
+    var providerMapping = sourceBindings.saveMapping(new ProviderObjectMapping(
+        "org:restore", "files", activeFiles.revision(), "file:stable-restore",
+        "native-object:restore-42", "weave-user-http-create", now, now));
+    var sourceFiles = FilesUserResourceJpaTestFactory.create(sourceDataSource);
+    FilesUserResource stableFile = new FilesUserResource(
+        "org:restore", "file:stable-restore", activeFiles.revision(), "space:workspace",
+        "file:root", "/recovery.txt", Kind.FILE, "user:owner",
+        FilesUserResource.State.ACTIVE, now, now);
+    assertThat(sourceFiles.save(stableFile)).isEqualTo(stableFile);
+    JdbcTemplate sourceJdbc = new JdbcTemplate(sourceDataSource);
+    sourceJdbc.update("""
+        INSERT INTO weave_spaces
+          (organization_ref, space_ref, created_at_utc, lifecycle_state, updated_at_utc, version)
+        VALUES (?, ?, ?, 'ACTIVE', ?, 0)
+        """, "org:restore", "space:workspace", Timestamp.from(now), Timestamp.from(now));
+    sourceJdbc.update("""
+        INSERT INTO weave_space_memberships
+          (organization_ref, person_ref, space_ref, created_at_utc, lifecycle_state,
+           permission_set, updated_at_utc, version)
+        VALUES (?, ?, ?, ?, 'ACTIVE', 'VIEW', ?, 0)
+        """, "org:restore", "user:owner", "space:workspace", Timestamp.from(now), Timestamp.from(now));
     SchemaCatalogFingerprint.Snapshot sourceCatalog = catalog(SOURCE);
 
     Path dump = directory.resolve("weave-canonical.dump");
@@ -121,6 +155,26 @@ class CanonicalPostgresBackupRestoreTest {
     JpaTransferRunRepository targetRepository =
         TransferRunJpaTestFactory.create(targetDataSource);
     assertThat(targetRepository.findById(firstBatch.id())).contains(firstBatch);
+    var targetBindings = ProviderBindingJpaTestFactory.create(targetDataSource);
+    var targetFiles = FilesUserResourceJpaTestFactory.create(targetDataSource);
+    assertThat(targetBindings.current("org:restore", "files")).contains(activeFiles);
+    assertThat(targetBindings.mappingByCanonicalId(
+        "org:restore", "files", activeFiles.revision(), stableFile.fileId()))
+        .contains(providerMapping);
+    assertThat(targetFiles.find("org:restore", stableFile.fileId())).contains(stableFile);
+    assertThat(targetFiles.findActivePath(
+        "org:restore", activeFiles.revision(), stableFile.path())).contains(stableFile);
+    JdbcTemplate targetJdbc = new JdbcTemplate(targetDataSource);
+    assertThat(targetJdbc.queryForObject("""
+        SELECT count(*) FROM weave_spaces
+        WHERE organization_ref = ? AND space_ref = ? AND lifecycle_state = 'ACTIVE'
+        """, Integer.class, "org:restore", stableFile.spaceRef())).isEqualTo(1);
+    assertThat(targetJdbc.queryForObject("""
+        SELECT count(*) FROM weave_space_memberships
+        WHERE organization_ref = ? AND space_ref = ? AND person_ref = ?
+          AND lifecycle_state = 'ACTIVE' AND permission_set = 'VIEW'
+        """, Integer.class, "org:restore", stableFile.spaceRef(), stableFile.ownerPrincipalRef()))
+        .isEqualTo(1);
 
     TransferRun completed = firstBatch.advance(
         null,
@@ -132,9 +186,18 @@ class CanonicalPostgresBackupRestoreTest {
     targetRepository.save(completed, firstBatch.stateRevision());
     assertThat(targetRepository.findById(completed.id())).contains(completed);
 
+    FilesUserResource renamedFile = new FilesUserResource(
+        stableFile.organizationRef(), stableFile.fileId(), stableFile.bindingRevision(),
+        stableFile.spaceRef(), stableFile.parentFileId(), "/renamed-after-restore.txt",
+        stableFile.kind(), stableFile.ownerPrincipalRef(), stableFile.state(),
+        stableFile.createdAt(), now.plusSeconds(3));
+    assertThat(targetFiles.save(renamedFile)).isEqualTo(renamedFile);
+    assertThat(targetFiles.find("org:restore", stableFile.fileId())).contains(renamedFile);
+
     // The target is an independent database. Continuing the restored run must not
     // mutate the original source instance.
     assertThat(sourceRepository.findById(firstBatch.id())).contains(firstBatch);
+    assertThat(sourceFiles.find("org:restore", stableFile.fileId())).contains(stableFile);
     JpaTestDatabase.validateSchema(targetDataSource);
   }
 

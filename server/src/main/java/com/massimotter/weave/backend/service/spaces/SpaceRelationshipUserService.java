@@ -70,7 +70,7 @@ public class SpaceRelationshipUserService {
                 && !validCursor(afterRelationRef))) {
             throw error(HttpStatus.BAD_REQUEST, "space-query-invalid", "The relation page request is invalid.");
         }
-        String owner = context.principalRef(jwt.getSubject());
+        String owner = context.principalRef(jwt.getClaimAsString(context.principalClaim()));
         if (owner == null) {
             throw error(HttpStatus.FORBIDDEN, "space-member-required", "A member identity is required.");
         }

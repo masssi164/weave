@@ -90,6 +90,7 @@ public final class FreshProductFlow {
     boolean regrantRestored = false;
     boolean sameHumanSubjectAfterRegrant = false;
     boolean samePersonRefAfterRegrant = false;
+    boolean spaceRevocationRestored = false;
     List<CollaborationJourney.PassProof> collaborationPasses = new java.util.ArrayList<>();
 
     try (OidcBrowserJourney browser = new OidcBrowserJourney(environment, http)) {
@@ -376,6 +377,10 @@ public final class FreshProductFlow {
             "the regranted Cell did not restore the same MCP projection");
       }
 
+      spaces.verifyRevocationAndVersionedRegrant(adminSession.accessToken(),
+          memberSession.accessToken(), personRef, generatedFilesProof.fileId());
+      spaceRevocationRestored = true;
+
       writeEvidence(
           startedAt,
           ownerEmail,
@@ -388,6 +393,7 @@ public final class FreshProductFlow {
           regrantRestored,
           sameHumanSubjectAfterRegrant,
           samePersonRefAfterRegrant,
+          spaceRevocationRestored,
           collaborationPasses);
     } finally {
       // Avoid retaining references longer than the single bounded JVM run.
@@ -917,6 +923,7 @@ public final class FreshProductFlow {
       boolean regrantRestored,
       boolean sameHumanSubjectAfterRegrant,
       boolean samePersonRefAfterRegrant,
+      boolean spaceRevocationRestored,
       List<CollaborationJourney.PassProof> collaborationPasses) {
     ObjectNode evidence = http.mapper().createObjectNode();
     evidence.put("schemaVersion", "weave.test-app-product-flow/v2");
@@ -952,6 +959,7 @@ public final class FreshProductFlow {
     evidence.put("regrantRestored", regrantRestored);
     evidence.put("sameHumanSubjectAfterRegrant", sameHumanSubjectAfterRegrant);
     evidence.put("samePersonRefAfterRegrant", samePersonRefAfterRegrant);
+    evidence.put("spaceRevocationRestored", spaceRevocationRestored);
     if (collaborationPasses.size() != 2
         || collaborationPasses.get(0).pass() != 1
         || collaborationPasses.get(1).pass() != 2
