@@ -5,6 +5,7 @@ the labels and priorities below record that earlier inventory and are not curren
 product or release authority. For current work, read the pinned corpus through
 [Specification source of truth](specification-source-of-truth.md), then
 [Core development workflow](development/core-workflow.md),
+[Current workflow ownership](development/current-workflow-ownership.md),
 [Developer handbook](developer-handbook.md), and the current #1470 child stories.
 Provider migration belongs to #1498. Native Flutter/Matrix and physical-device
 validation are active #1475/#1480 evidence, not historical release extras.
