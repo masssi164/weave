@@ -68,7 +68,7 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `serverCi` | Existing server Gradle test path. |
 | `mcpCi` | Separate MCP process, security, schema, and architecture checks. |
 | `testAppContract` | Compile/unit/ArchUnit checks for the framework-free Fresh product-flow driver. |
-| `testApp` | Full disposable invitation, activation, PKCE, ARC, WebDAV, MCP, revocation, and exact-cleanup proof. |
+| `testApp` | Disposable invitation, browser activation, PKCE, generated User API Files/Calendar, Weave Matrix facade, MCP, revocation, restart, and exact-cleanup proof. It does not exercise the native Flutter UI or provider migration. |
 | `adminCi` | Admin console npm CI path. |
 | `infraStatic` | Compose, renderer, lifecycle, secret, and infrastructure contract checks. |
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
