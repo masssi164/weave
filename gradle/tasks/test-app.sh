@@ -49,18 +49,26 @@ validate_runtime_image() {
     fail "${expected_title} image dependency-platform label is invalid"
 }
 
+discard_unsafe_diagnostics() {
+  python3 "${REPOSITORY_ROOT}/gradle/scripts/discard_unsafe_diagnostics.py" \
+    --output-root "${OUTPUT_ROOT}" --diagnostics-dir "$1"
+}
+
 cleanup() {
   local primary_status="$?" cleanup_status=0
   trap - EXIT INT TERM
   set +e
   if [[ "${STACK_PREPARED}" == "true" ]]; then
     if ((primary_status != 0)) && [[ -x "${FAILURE_DIAGNOSTICS}" ]]; then
+      local diagnostics_dir="${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/failure-diagnostics"
       WEAVE_PROFILE=e2e \
         WEAVE_RESOURCE_PREFIX="${WEAVE_E2E_RUN_NAMESPACE}" \
         WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=30 \
         bash "${FAILURE_DIAGNOSTICS}" \
-          "${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/failure-diagnostics" ||
+          "${diagnostics_dir}" || {
+        discard_unsafe_diagnostics "${diagnostics_dir}" || cleanup_status=$?
         log "WEAVE_TEST_APP_LIFECYCLE_WARNING support-safe failure diagnostics did not complete"
+      }
     fi
     WEAVE_TEARDOWN_EVIDENCE_FILE="${WEAVE_TEST_APP_TEARDOWN_EVIDENCE_PATH}" \
       bash "${TEARDOWN}" e2e \

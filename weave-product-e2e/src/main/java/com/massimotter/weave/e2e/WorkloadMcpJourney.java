@@ -386,8 +386,18 @@ final class WorkloadMcpJourney {
     if (!sessionId.isBlank()) {
       headers.put("Mcp-Session-Id", sessionId);
     }
+    String method = request.path("method").asString("");
+    String operation = switch (method) {
+      case "initialize" -> "initialize";
+      case "tools/list" -> "tools/list";
+      case "tools/call" -> {
+        String name = request.path("params").path("name").asString("");
+        yield "tools/call " + (name.equals("files.search") || name.equals("calendar.agenda") ? name : "unknown");
+      }
+      default -> "unknown method";
+    };
     return http.send(
-        "invoke MCP Streamable HTTP",
+        "invoke MCP Streamable HTTP " + operation,
         "POST",
         environment.mcpEndpoint(),
         Map.copyOf(headers),
