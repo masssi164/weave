@@ -33,6 +33,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -79,6 +80,7 @@ class McpWorkloadAuthorizationServiceTest {
         when(governance.findEffectiveRevision("org:test", "person:test", ENTITLEMENT_REVISION, NOW))
                 .thenReturn(Optional.of(entitlement()));
         when(entitlementAuthority.observe(any())).thenReturn(observation());
+        when(entitlementAuthority.currentWeaveRoles(any())).thenReturn(Set.of("member"));
         doNothing().when(identities).requireCurrentBinding(any());
         tokenPolicy = new McpExchangedTokenPolicy(API_RESOURCE, "weave-mcp-server");
         service = new McpWorkloadAuthorizationService(
@@ -125,6 +127,31 @@ class McpWorkloadAuthorizationServiceTest {
     }
 
     @Test
+    void unavailableCurrentRoleAuthorityDeniesCalendarWrite() {
+        when(verifier.verify(any(), any())).thenReturn(profile("calendar.write"));
+        when(entitlementAuthority.currentWeaveRoles(any()))
+                .thenThrow(new RuntimeEntitlementAuthorityException("private role lookup diagnostic"));
+
+        assertThatThrownBy(() -> service.authorize(token("calendar.write")))
+                .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
+                        failure -> assertThat(failure.authorityUnavailable()).isTrue())
+                .hasMessageNotContaining("private role lookup diagnostic");
+    }
+
+    @Test
+    void calendarWriteRequiresCurrentAdminRole() {
+        when(verifier.verify(any(), any())).thenReturn(profile("calendar.write"));
+
+        assertThatThrownBy(() -> service.authorize(token("calendar.write")))
+                .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
+                        failure -> assertThat(failure.reasonCode()).isEqualTo("tool-scope"));
+
+        when(entitlementAuthority.currentWeaveRoles(any())).thenReturn(Set.of("admin"));
+        assertThat(service.authorize(token("calendar.write")).visibleToolClasses())
+                .containsExactly("calendar.write");
+    }
+
+    @Test
     void rejectsRevokedOrCrossBoundCellsBeforeDomainAccess() {
         RuntimeCell revoked = new RuntimeCell(
                 cell.recordId(), cell.organizationRef(), cell.personRef(), cell.memberBinding(), cell.cellRef(),
@@ -143,10 +170,14 @@ class McpWorkloadAuthorizationServiceTest {
     }
 
     private ExchangedWorkloadToken token() {
-        return tokenPolicy.resolve(jwt());
+        return token("calendar.read");
     }
 
-    private static Jwt jwt() {
+    private ExchangedWorkloadToken token(String scope) {
+        return tokenPolicy.resolve(jwt(scope));
+    }
+
+    private static Jwt jwt(String scope) {
         return Jwt.withTokenValue("exchanged-secret-token")
                 .header("alg", "RS256")
                 .header("typ", "at+jwt")
@@ -154,7 +185,7 @@ class McpWorkloadAuthorizationServiceTest {
                 .subject(SUBJECT)
                 .audience(List.of(API_RESOURCE))
                 .claim("azp", "weave-mcp-server")
-                .claim("scope", "calendar.read")
+                .claim("scope", scope)
                 .claim("realm_access", Map.of())
                 .claim("resource_access", Map.of())
                 .jti("exchange-jti")
@@ -208,6 +239,10 @@ class McpWorkloadAuthorizationServiceTest {
     }
 
     private static RuntimeProfile profile() {
+        return profile("calendar.read");
+    }
+
+    private static RuntimeProfile profile(String scope) {
         return new RuntimeProfile(
                 RuntimeProfile.VERSION,
                 PROFILE_ID,
@@ -243,10 +278,10 @@ class McpWorkloadAuthorizationServiceTest {
                                 "https://api.weave.test/mcp",
                                 "io.modelcontextprotocol/oauth-client-credentials",
                                 "client_credentials",
-                                List.of("mcp.tools", "calendar.read"),
+                                List.of("mcp.tools", scope),
                                 "credentialref://weave/mcp/test",
-                                List.of("calendar.read"))),
-                        List.of("calendar.read")),
+                                List.of(scope))),
+                        List.of(scope)),
                 new RuntimeProfile.ApprovalPolicy(
                         "openclaw",
                         new RuntimeProfile.PluginRouting(

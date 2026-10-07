@@ -87,7 +87,7 @@ index 0000000..4bcf925
 +    static final String CLIENT_ID_MAPPER = "weaver-runtime-client-id";
 +    static final String REALM_ROLE_MAPPER = "weaver-runtime-realm-role";
 +    static final Set<String> OPTIONAL_SCOPES =
-+            Set.of("agent-runtime.profile.read", "mcp.tools", "files.read", "calendar.read");
++            Set.of("agent-runtime.profile.read", "mcp.tools", "files.read", "calendar.read", "calendar.write");
 +    static final Pattern CLIENT_ID_PATTERN =
 +            Pattern.compile("^weaver-cell-[A-Za-z0-9_-]+$");
 +    static final String INVALID_DETAIL = "Weave workload client metadata is not permitted.";
@@ -1504,7 +1504,7 @@ index 0000000..29c97d2
 +
 +    private static final String CLIENT_ID = "weaver-cell-example_01";
 +    private static final String APPROVED_SCOPES =
-+            "agent-runtime.profile.read mcp.tools files.read calendar.read";
++            "agent-runtime.profile.read mcp.tools files.read calendar.read calendar.write";
 +
 +    @Test
 +    void acceptsAndNormalizesTheExactOidcMetadataContract() {
@@ -1518,7 +1518,7 @@ index 0000000..29c97d2
 +        assertEquals(CLIENT_ID, representation.getClientId());
 +        representation.setScope("unapproved.scope");
 +        WeaveWorkloadClientRegistrationExecutor.normalizeOidcResponseMetadata(representation);
-+        assertEquals("agent-runtime.profile.read calendar.read files.read mcp.tools", representation.getScope());
++        assertEquals("agent-runtime.profile.read calendar.read calendar.write files.read mcp.tools", representation.getScope());
 +    }
 +
 +    @Test

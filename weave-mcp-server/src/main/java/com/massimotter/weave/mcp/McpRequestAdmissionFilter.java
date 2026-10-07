@@ -135,6 +135,7 @@ final class McpRequestAdmissionFilter extends OncePerRequestFilter {
       return switch (name.isString() ? name.stringValue() : "") {
         case "files.search" -> "files.read";
         case "calendar.agenda" -> "calendar.read";
+        case "calendar.create", "calendar.update", "calendar.delete" -> "calendar.write";
         default -> null;
       };
     }

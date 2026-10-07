@@ -26,6 +26,8 @@ assert_contains() {
 jq -e '
   .schema == "weave-mcp-workload-contract-v2"
   and .status == "guarded-workload-boundary-active"
+  and .canonicalDomainsScope == "deferred-broad-arc-catalog"
+  and .globalControlsScope == "deferred-broad-arc-catalog"
   and .placement.contractArea == "infra/weave-workspace"
   and .placement.runtimeModule == "weave-mcp-server"
   and (.placement.implementation | test("server-owned cell binding"))
@@ -77,7 +79,9 @@ jq -e '
   and .activeRuntimeEvidence.backendContext == "standard-token-exchange-v2-and-current-arc-binding"
   and .activeRuntimeEvidence.security == "bound-cell-only-rfc9068-exact-audience-and-current-arc-context"
   and .activeRuntimeEvidence.oidcGatekeeper == "spring-security-oauth2-resource-server"
-  and .activeRuntimeEvidence.tools == ["files.search", "calendar.agenda"]
+  and .activeRuntimeEvidence.tools == ["files.search", "calendar.agenda", "calendar.create", "calendar.update", "calendar.delete"]
+  and .activeRuntimeEvidence.writeApprovalOwner == "existing-openclaw-approval"
+  and .activeRuntimeEvidence.weaveApprovalDecisionEvidenceRequired == false
   and .activeRuntimeEvidence.resources == ["weave://files/{canonicalFileId}"]
   and .activeRuntimeEvidence.prompts == []
   and .activeRuntimeEvidence.filesDataPlane.facade == "/api/files/items"
@@ -91,12 +95,13 @@ jq -e '
   and .activeRuntimeEvidence.handwrittenJsonRpcRemoved == true
 ' "${CONTRACT}" >/dev/null || fail "Weave MCP tool contract is missing required support-safe/fail-closed controls"
 
-assert_contains "${DOC}" "Status: **Guarded / bounded read slices active**"
-assert_contains "${DOC}" "Each enabled Weaver cell receives its own confidential Keycloak workload client,"
-assert_contains "${DOC}" '`weaver-cell-{cellId}`, through Agent Runtime Control (ARC).'
+assert_contains "${DOC}" "Status: **Guarded / curated Files and Calendar slices active**"
+assert_contains "${DOC}" "The current implementation uses an isolated, bound confidential Keycloak workload client,"
+assert_contains "${DOC}" 'Full ARC Cell provisioning, lifecycle, and restore orchestration are deferred from #1470.'
 assert_contains "${DOC}" "Human access tokens"
 assert_contains "${DOC}" '`files.search`'
 assert_contains "${DOC}" '`calendar.agenda`'
+assert_contains "${DOC}" '`calendar.create`'
 assert_contains "${DOC}" '`weave://files/{canonicalFileId}`'
 assert_contains "${PRODUCT_PLAN}" "Weave is planned product-first, not agent-first."
 assert_contains "${PRODUCT_PLAN}" "OpenClaw configuration remains ephemeral implementation output, not the product model."

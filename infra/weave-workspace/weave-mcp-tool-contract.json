@@ -1,6 +1,8 @@
 {
   "schema": "weave-mcp-workload-contract-v2",
   "status": "guarded-workload-boundary-active",
+  "canonicalDomainsScope": "deferred-broad-arc-catalog",
+  "globalControlsScope": "deferred-broad-arc-catalog",
   "placement": {
     "contractArea": "infra/weave-workspace",
     "runtimeModule": "weave-mcp-server",
@@ -11,7 +13,7 @@
   },
   "authorityBoundary": {
     "productAuthority": "weave-backend",
-    "mcpRole": "workload-only protocol projection; the active Files read slice consumes the generated Weave User API",
+    "mcpRole": "workload-only protocol projection; the curated Files and Calendar slices consume the generated Weave User API",
     "canonicalApiRemainsAuthoritative": true,
     "runtimeDirectProviderAccessAllowed": false,
     "memberMayConfigureProvidersThroughMcp": false,
@@ -214,27 +216,32 @@
     "protectedResourceMetadata": "/.well-known/oauth-protected-resource/mcp",
     "clientCredentialsExtension": "io.modelcontextprotocol/oauth-client-credentials",
     "backendContext": "standard-token-exchange-v2-and-current-arc-binding",
-  "tools": [
-    "files.search",
-    "calendar.agenda"
+    "writeApprovalOwner": "existing-openclaw-approval",
+    "weaveApprovalDecisionEvidenceRequired": false,
+    "tools": [
+      "files.search",
+      "calendar.agenda",
+      "calendar.create",
+      "calendar.update",
+      "calendar.delete"
     ],
     "resources": [
       "weave://files/{canonicalFileId}"
     ],
     "prompts": [],
-  "filesDataPlane": {
+    "filesDataPlane": {
       "standard": "generated Weave User Files OpenAPI",
       "facade": "/api/files/items",
       "canonicalIdProperty": "fileId",
-    "toolSpecificBackendEndpoint": false
-  },
-  "calendarDataPlane": {
-    "standard": "generated Weave User Calendar OpenAPI",
-    "facade": "/api/calendar/calendars",
-    "canonicalIdProperty": "calendarId",
-    "toolSpecificBackendEndpoint": false,
-    "previewMaterializationAllowed": false
-  },
+      "toolSpecificBackendEndpoint": false
+    },
+    "calendarDataPlane": {
+      "standard": "generated Weave User Calendar OpenAPI",
+      "facade": "/api/calendar/calendars",
+      "canonicalIdProperty": "calendarId",
+      "toolSpecificBackendEndpoint": false,
+      "previewMaterializationAllowed": false
+    },
     "pythonFastMcpRemoved": true,
     "handwrittenJsonRpcRemoved": true,
     "enabled": true,

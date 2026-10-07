@@ -5,9 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.userapi.api.CalendarUserApi;
 import com.massimotter.weave.userapi.invoker.ApiClient;
 import com.massimotter.weave.userapi.invoker.ApiException;
+import com.massimotter.weave.userapi.model.CalendarEventWriteRequest;
 import com.massimotter.weave.userapi.model.CalendarUserAgenda;
 import com.massimotter.weave.userapi.model.CalendarUserCalendar;
 import com.massimotter.weave.userapi.model.CalendarUserCalendars;
+import com.massimotter.weave.userapi.model.CalendarUserEvent;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -42,9 +44,7 @@ final class CalendarUserApiClient {
   }
 
   CalendarUserAgenda agenda(String calendarId, String from, String to, String evaluationTimeZone) {
-    if (calendarId == null || !calendarId.matches("calendar:[0-9a-f]{64}")) {
-      throw new IllegalArgumentException("A stable Weave Calendar reference is required");
-    }
+    requireCalendarId(calendarId);
     OffsetDateTime start;
     OffsetDateTime end;
     String zone;
@@ -86,6 +86,101 @@ final class CalendarUserApiClient {
     } catch (JsonProcessingException failure) {
       throw new IllegalStateException("The Calendar agenda is unavailable");
     }
+  }
+
+  CalendarUserEvent create(String calendarId, String idempotencyKey, CalendarEventWriteRequest event) {
+    requireCalendarId(calendarId);
+    if (idempotencyKey == null || idempotencyKey.isBlank() || event == null) {
+      throw new IllegalArgumentException("Calendar create requires an idempotency key and complete event");
+    }
+    try {
+      return boundedEvent(calendarId, calendars.createCalendarEvent(
+          calendarId, idempotencyKey, event, authorization()));
+    } catch (ApiException failure) {
+      throw apiFailure(failure);
+    }
+  }
+
+  CalendarEventWriteRequest eventRequest(Map<String, Object> event) {
+    if (event == null || event.isEmpty()) {
+      throw new IllegalArgumentException("Complete Calendar event content is required");
+    }
+    try {
+      // Spring AI treats the generated model's Jackson any-setter as a required
+      // MCP input field. Convert the MCP object immediately to the generated
+      // User transport model; the Server remains the contract validator.
+      return mapper.convertValue(event, CalendarEventWriteRequest.class);
+    } catch (IllegalArgumentException invalid) {
+      throw new IllegalArgumentException("Invalid Calendar event content");
+    }
+  }
+
+  CalendarUserEvent update(String calendarId, String eventId, String ifMatch,
+      CalendarEventWriteRequest event) {
+    requireCalendarId(calendarId);
+    requireEventId(eventId);
+    requireVersion(ifMatch);
+    if (event == null) {
+      throw new IllegalArgumentException("Calendar update requires complete event content");
+    }
+    try {
+      return boundedEvent(calendarId, calendars.updateCalendarEvent(
+          calendarId, eventId, ifMatch, event, authorization()));
+    } catch (ApiException failure) {
+      throw apiFailure(failure);
+    }
+  }
+
+  void delete(String calendarId, String eventId, String ifMatch) {
+    requireCalendarId(calendarId);
+    requireEventId(eventId);
+    requireVersion(ifMatch);
+    try {
+      calendars.deleteCalendarEvent(calendarId, eventId, ifMatch, authorization());
+    } catch (ApiException failure) {
+      throw apiFailure(failure);
+    }
+  }
+
+  private CalendarUserEvent boundedEvent(String calendarId, CalendarUserEvent event) {
+    if (event == null || !calendarId.equals(event.getCalendarId()) || event.getId() == null
+        || event.getVersion() == null || event.getContent() == null) {
+      throw new IllegalStateException("The Calendar User API returned an invalid event");
+    }
+    try {
+      if (mapper.writeValueAsBytes(event).length > MAX_RESULT_BYTES) {
+        throw new IllegalStateException("The Calendar event exceeds the MCP result bound");
+      }
+    } catch (JsonProcessingException failure) {
+      throw new IllegalStateException("The Calendar event is unavailable");
+    }
+    return event;
+  }
+
+  private Map<String, String> authorization() {
+    return Map.of("Authorization", "Bearer " + credentials.exchangedBearer());
+  }
+
+  private static void requireCalendarId(String id) {
+    if (id == null || !id.matches("calendar:[0-9a-f]{64}")) {
+      throw new IllegalArgumentException("A stable Weave Calendar reference is required");
+    }
+  }
+
+  private static void requireEventId(String id) {
+    if (id == null || !id.matches("event:[0-9a-f]{64}")) {
+      throw new IllegalArgumentException("A stable Weave Event reference is required");
+    }
+  }
+
+  private static void requireVersion(String version) {
+    if (version == null || version.isBlank()) {
+      throw new IllegalArgumentException("A strong Calendar event version is required");
+    }
+  }
+
+  private static IllegalStateException apiFailure(ApiException failure) {
+    return new IllegalStateException("Calendar User API rejected request: HTTP " + failure.getCode());
   }
 
   private static boolean visible(CalendarUserCalendar item, String expected) {

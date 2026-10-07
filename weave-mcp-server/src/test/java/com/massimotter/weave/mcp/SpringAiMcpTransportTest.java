@@ -81,6 +81,10 @@ class SpringAiMcpTransportTest {
         .thenReturn(new ExchangedAccessToken(
             "calendar-backend-token", SUBJECT, EDGE, Set.of("https://api.weave.test/api"),
             Set.of("calendar.read"), now, now.plusSeconds(30)));
+    when(exchange.exchange(any(), anyString(), eq(Set.of("calendar.write"))))
+        .thenReturn(new ExchangedAccessToken(
+            "calendar-write-backend-token", SUBJECT, EDGE, Set.of("https://api.weave.test/api"),
+            Set.of("calendar.write"), now, now.plusSeconds(30)));
   }
 
   @Test
@@ -93,7 +97,8 @@ class SpringAiMcpTransportTest {
             jsonPath("$.authorization_servers[0]", is("https://auth.weave.test/realms/weave")))
         .andExpect(jsonPath("$.scopes_supported[0]", is("mcp.tools")))
         .andExpect(jsonPath("$.scopes_supported[1]", is("files.read")))
-        .andExpect(jsonPath("$.scopes_supported[2]", is("calendar.read")));
+        .andExpect(jsonPath("$.scopes_supported[2]", is("calendar.read")))
+        .andExpect(jsonPath("$.scopes_supported[3]", is("calendar.write")));
   }
 
   @Test
@@ -139,7 +144,7 @@ class SpringAiMcpTransportTest {
             header()
                 .string(
                     HttpHeaders.WWW_AUTHENTICATE,
-                    containsString("scope=\"mcp.tools files.read calendar.read\"")));
+                    containsString("scope=\"mcp.tools files.read calendar.read calendar.write\"")));
     verify(exchange, never()).exchange(any(), anyString(), any());
   }
 
@@ -262,6 +267,70 @@ class SpringAiMcpTransportTest {
         eq("2026-10-29T00:00:00Z"), eq("Europe/Berlin"));
   }
 
+  @Test
+  void discoversAndInvokesCuratedCalendarWriteToolsWithGeneratedModels() throws Exception {
+    String calendarId = "calendar:" + "a".repeat(64);
+    String eventId = "event:" + "b".repeat(64);
+    when(calendarClient.eventRequest(any())).thenAnswer(call -> {
+      Map<?, ?> event = call.getArgument(0);
+      return new CalendarEventWriteRequest().title(event.get("title").toString());
+    });
+    when(calendarClient.create(eq(calendarId), eq("retry-key"), any(CalendarEventWriteRequest.class)))
+        .thenReturn(new CalendarUserEvent()
+            .id(eventId).calendarId(calendarId).version("v1")
+            .meetingThreadRef("room:meeting")
+            .scope(new CalendarUserScope().type(CalendarUserScope.TypeEnum.WORKSPACE)
+                .spaceId("workspace-default"))
+            .allowedActions(List.of("read", "update", "delete"))
+            .content(new CalendarEventWriteRequest().title("MCP planning")
+                .start(new CalendarTimeValue().kind(CalendarTimeValue.KindEnum.DATE)
+                    .date(LocalDate.parse("2026-10-25")))
+                .end(new CalendarTimeValue().kind(CalendarTimeValue.KindEnum.DATE)
+                    .date(LocalDate.parse("2026-10-26")))
+                .attendees(List.of()).overrides(List.of())));
+    var initialized = mvc.perform(mcpInitialize("calendar-write", true))
+        .andExpect(status().isOk()).andReturn();
+    String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
+
+    mvc.perform(post("/mcp")
+            .header(HttpHeaders.AUTHORIZATION, "Bearer calendar-write")
+            .header("Mcp-Session-Id", sessionId)
+            .contentType(MediaType.APPLICATION_JSON)
+            .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
+            .content("""
+                {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
+                """))
+        .andExpect(status().isOk())
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+            .string(containsString("\"name\":\"calendar.create\"")))
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+            .string(containsString("\"name\":\"calendar.update\"")))
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+            .string(containsString("\"name\":\"calendar.delete\"")));
+
+    mvc.perform(post("/mcp")
+            .header(HttpHeaders.AUTHORIZATION, "Bearer calendar-write")
+            .header("Mcp-Session-Id", sessionId)
+            .contentType(MediaType.APPLICATION_JSON)
+            .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
+            .content("""
+                {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
+                  "name":"calendar.create","arguments":{
+                    "calendarId":"%s","idempotencyKey":"retry-key",
+                    "event":{"title":"MCP planning",
+                      "start":{"kind":"DATE","date":"2026-10-25"},
+                      "end":{"kind":"DATE","date":"2026-10-26"},
+                      "attendees":[],"overrides":[]}}}}
+                """.formatted(calendarId)))
+        .andExpect(status().isOk())
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+            .string(containsString(eventId)))
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+            .string(containsString("\"isError\":false")));
+    verify(calendarClient).create(eq(calendarId), eq("retry-key"),
+        org.mockito.ArgumentMatchers.argThat(event -> "MCP planning".equals(event.getTitle())));
+  }
+
   private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder mcpInitialize(
       String bearer, boolean extension) {
     var request =
@@ -280,7 +349,9 @@ class SpringAiMcpTransportTest {
     boolean extraAudience = "extra-audience".equals(tokenValue);
     String clientId = human ? "weave-app" : CELL;
     String scope = insufficient ? "mcp.tools"
-        : "calendar".equals(tokenValue) ? "mcp.tools calendar.read" : "mcp.tools files.read";
+        : "calendar".equals(tokenValue) ? "mcp.tools calendar.read"
+        : "calendar-write".equals(tokenValue) ? "mcp.tools calendar.write"
+        : "mcp.tools files.read";
     return Jwt.withTokenValue(tokenValue)
         .header("alg", "RS256")
         .header("typ", "at+jwt")

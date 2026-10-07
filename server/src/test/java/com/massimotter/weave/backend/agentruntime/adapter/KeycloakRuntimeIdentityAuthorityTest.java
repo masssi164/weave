@@ -128,6 +128,22 @@ class KeycloakRuntimeIdentityAuthorityTest {
     }
 
     @Test
+    void currentMemberRolesComeFromNativeOrganizationGroupsWithoutUserRoleAdminApis() {
+        assertThat(authority.currentWeaveRoles(command(ISSUER))).containsExactly("member");
+
+        keycloak.groups.removeIf(group -> "/members".equals(group.path("path").asString()));
+        keycloak.groups.add(group("role-admin", "admins", "/admins"));
+        assertThat(authority.currentWeaveRoles(command(ISSUER))).containsExactly("admin");
+
+        keycloak.groups.removeIf(group -> "/admins".equals(group.path("path").asString()));
+        keycloak.groups.add(group("role-guest", "guests", "/guests"));
+        assertThat(authority.currentWeaveRoles(command(ISSUER))).containsExactly("guest");
+        assertThat(keycloak.requestPaths)
+                .allMatch(path -> path.startsWith("/admin/realms/weave/organizations/"))
+                .noneMatch(path -> path.contains("/users/") || path.contains("/role-mappings"));
+    }
+
+    @Test
     void resolvesOnlyTheOpaqueAccountReferenceInsideTheConfiguredOrganization() {
         String personRef = IdentityReferences.accountId(ISSUER, SUBJECT);
 

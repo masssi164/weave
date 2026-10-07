@@ -165,7 +165,7 @@ class JwtDecoderConfigTest {
     }
 
     @Test
-    void calendarWorkloadDecoderAcceptsOnlyAnExactSignedCalendarReadToken() throws Exception {
+    void calendarWorkloadDecoderAcceptsOneExactSignedCalendarScope() throws Exception {
         RSAKey signingKey = rsaSigningKey();
         try (JwksServer jwksServer = JwksServer.start(signingKey)) {
             OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
@@ -178,7 +178,12 @@ class JwtDecoderConfigTest {
                     List.of("https://api.weave.test/api"), "weave-mcp-server",
                     new JOSEObjectType("at+jwt"), "cell-subject", "calendar.read"))
                     .getClaimAsString("scope")).isEqualTo("calendar.read");
-            for (String scope : List.of("files.read", "files.read calendar.read", "calendar.write")) {
+            assertThat(decoder.decode(signedToken(signingKey, ISSUER_URI,
+                    List.of("https://api.weave.test/api"), "weave-mcp-server",
+                    new JOSEObjectType("at+jwt"), "cell-subject", "calendar.write"))
+                    .getClaimAsString("scope")).isEqualTo("calendar.write");
+            for (String scope : List.of("files.read", "files.read calendar.read",
+                    "calendar.read calendar.write", "calendar.write calendar.write")) {
                 assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(signingKey,
                         ISSUER_URI, List.of("https://api.weave.test/api"), "weave-mcp-server",
                         new JOSEObjectType("at+jwt"), "cell-subject", scope)));

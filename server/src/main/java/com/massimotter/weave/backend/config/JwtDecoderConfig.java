@@ -107,7 +107,7 @@ public class JwtDecoderConfig {
                 rfc9068AccessTokenTypeValidator(),
                 exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
                 requiredAuthorizedPartyValidator("weave-mcp-server"),
-                exactScopesValidator(Set.of("calendar.read")));
+                oneOfExactScopesValidator(Set.of("calendar.read", "calendar.write")));
         return configuredRfc9068Decoder(resourceServerProperties, validator);
     }
 
@@ -244,6 +244,19 @@ public class JwtDecoderConfig {
             }
             return OAuth2TokenValidatorResult.failure(
                     error("invalid_token", "The token scope set is not exact."));
+        };
+    }
+
+    static OAuth2TokenValidator<Jwt> oneOfExactScopesValidator(Set<String> allowedScopes) {
+        Set<String> allowed = Set.copyOf(allowedScopes);
+        return jwt -> {
+            String claim = jwt.getClaimAsString("scope");
+            if (claim != null && allowed.contains(claim.trim())
+                    && claim.trim().split("\\s+").length == 1) {
+                return OAuth2TokenValidatorResult.success();
+            }
+            return OAuth2TokenValidatorResult.failure(
+                    error("invalid_token", "The token scope is not an admitted exact domain scope."));
         };
     }
 
