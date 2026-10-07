@@ -9,11 +9,11 @@ Feature: MCP domain facade boundary
     And no raw provider URL or unrestricted WebDAV scripting surface is exposed
 
   @mcp-calendar-facade
-  Scenario: MCP Calendar catalog stays empty until the Calendar action contract is complete
+  Scenario: MCP Calendar agenda projects bounded generated User Calendar reads
     Given Calendar remains authoritative for its own events and authorization
     When runtime-approved MCP discovery is evaluated
-    Then no Calendar tool is advertised before its domain catalog and current authorization gates exist
-    And no raw provider payload or provider-shaped calendar operation is exposed
+    Then calendar.agenda uses generated User Calendar operations and current member and Space authorization
+    And browsing never materializes an Event or exposes raw provider payload
 
   @mcp-chat-facade
   Scenario: MCP Chat catalog stays empty until the Chat action contract is complete
@@ -53,7 +53,7 @@ Feature: MCP domain facade boundary
   Scenario: Runtime-approved MCP workload reaches the standard Server projection while other catalogs stay guarded
     Given ARC has a current workload binding and RuntimeProfile v2
     When the bound cell initializes MCP and invokes the Files search tool
-    Then the edge exchanges its workload token and calls the standard WebDAV projection
+    Then the edge exchanges only the tool's admitted domain scope and calls the generated User API
     And no domain tool is advertised before its catalog, authorization, and evidence gates are implemented
     And no obsolete member runtime profile or approved-tools compatibility path is exposed
 

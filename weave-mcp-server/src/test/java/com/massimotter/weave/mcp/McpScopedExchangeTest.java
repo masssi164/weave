@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.springframework.http.MediaType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -85,6 +86,48 @@ class McpScopedExchangeTest {
   }
 
   @Test
+  void eachToolExchangesOnlyItsOwnDomainEvenWhenTheCellHoldsBoth() throws Exception {
+    for (String tool : List.of("files.search", "calendar.agenda")) {
+      String expected = tool.startsWith("files.") ? "files.read" : "calendar.read";
+      var exchange = mock(McpBackendTokenExchange.class);
+      Instant now = Instant.now();
+      var exchanged = new ExchangedAccessToken("backend-token", "cell-subject",
+          "weave-mcp-server", Set.of(BACKEND), Set.of(expected), now, now.plusSeconds(30));
+      when(exchange.exchange(any(), eq("cell-token"), eq(Set.of(expected)))).thenReturn(exchanged);
+      SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
+          token("mcp.tools files.read calendar.read"), List.of()));
+      var request = toolRequest(tool);
+      var response = new MockHttpServletResponse();
+      var forwarded = new AtomicBoolean();
+
+      new McpRequestAdmissionFilter(properties(), exchange, JsonMapper.builder().build())
+          .doFilter(request, response, (effective, ignored) -> {
+            assertThat(effective.getAttribute(McpRequestAdmissionFilter.EXCHANGED_TOKEN_ATTRIBUTE))
+                .isSameAs(exchanged);
+            forwarded.set(true);
+          });
+
+      assertThat(forwarded).isTrue();
+      verify(exchange).exchange(any(), eq("cell-token"), eq(Set.of(expected)));
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  @Test
+  void calendarOnlyCellCannotInvokeFilesToolBeforeExchange() throws Exception {
+    var exchange = mock(McpBackendTokenExchange.class);
+    SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
+        token("mcp.tools calendar.read"), List.of()));
+    var response = new MockHttpServletResponse();
+
+    new McpRequestAdmissionFilter(properties(), exchange, JsonMapper.builder().build())
+        .doFilter(toolRequest("files.search"), response, (request, ignored) -> {});
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    verify(exchange, never()).exchange(any(), any(), any());
+  }
+
+  @Test
   void rejectsAConfiguredScopeThatIsNotPartOfTheClosedDomainCeiling() {
     assertThatThrownBy(() -> new McpWorkloadProperties(
         URI.create(RESOURCE),
@@ -125,5 +168,13 @@ class McpScopedExchangeTest {
         .claim("scope", scope)
         .claim("realm_access", Map.of("roles", List.of("weaver-runtime")))
         .build();
+  }
+
+  private static MockHttpServletRequest toolRequest(String tool) {
+    var request = new MockHttpServletRequest("POST", "/mcp");
+    request.setContentType(MediaType.APPLICATION_JSON_VALUE);
+    request.setContent(("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\","
+        + "\"params\":{\"name\":\"" + tool + "\",\"arguments\":{}}}").getBytes());
+    return request;
   }
 }

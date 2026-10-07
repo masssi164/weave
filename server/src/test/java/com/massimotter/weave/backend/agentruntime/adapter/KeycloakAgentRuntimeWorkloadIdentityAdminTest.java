@@ -64,7 +64,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                         Duration.ofSeconds(2),
                         "weaver-runtime",
                         List.of("weaver-runtime-workload"),
-                        List.of("agent-runtime.profile.read", "mcp.tools", "files.read"),
+                        List.of("agent-runtime.profile.read", "mcp.tools", "files.read", "calendar.read"),
                         KeycloakAgentRuntimeWorkloadIdentityAdmin
                                 .WORKLOAD_ACCESS_TOKEN_LIFESPAN_SECONDS),
                 credentials,
@@ -83,7 +83,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                         Duration.ofSeconds(2),
                         "weaver-runtime",
                         List.of("weaver-runtime-workload"),
-                        List.of("agent-runtime.profile.read", "mcp.tools", "files.read"),
+                        List.of("agent-runtime.profile.read", "mcp.tools", "files.read", "calendar.read"),
                         60))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("workload access-token lifespan must be exactly 59 seconds");
@@ -157,7 +157,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                         Duration.ofSeconds(2),
                         "weaver-runtime",
                         List.of("weaver-runtime-workload"),
-                        List.of("agent-runtime.profile.read", "mcp.tools", "files.read"),
+                        List.of("agent-runtime.profile.read", "mcp.tools", "files.read", "calendar.read"),
                         KeycloakAgentRuntimeWorkloadIdentityAdmin
                                 .WORKLOAD_ACCESS_TOKEN_LIFESPAN_SECONDS),
                 mapper,
@@ -167,7 +167,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
 
         assertThat(digest)
                 .isEqualTo(
-                        "sha256:c3defc7bd4d3b064ae000f316aec6d5bcae0ba1e12ab4bac8f21c26300b583ee");
+                        "sha256:f9c11782acacb4906768f6dd6c5ad9d05086eeb13416c9936808f182aef93251");
     }
 
     @Test
@@ -586,7 +586,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                         Duration.ofSeconds(2),
                         "weaver-runtime",
                         List.of("weaver-runtime-workload"),
-                        List.of("agent-runtime.profile.read", "mcp.tools", "files.read"),
+                        List.of("agent-runtime.profile.read", "mcp.tools", "files.read", "calendar.read"),
                         KeycloakAgentRuntimeWorkloadIdentityAdmin
                                 .WORKLOAD_ACCESS_TOKEN_LIFESPAN_SECONDS),
                 credentialStore,
@@ -791,7 +791,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                     new String(rat, StandardCharsets.UTF_8));
             response.put(
                     "scope",
-                    "agent-runtime.profile.read mcp.tools files.read");
+                    "agent-runtime.profile.read mcp.tools files.read calendar.read");
             Consumer<ObjectNode> mutation = nextResponseMutation;
             nextResponseMutation = ignored -> {};
             mutation.accept(response);

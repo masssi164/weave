@@ -38,6 +38,8 @@ import java.util.Set;
 public final class KeycloakRuntimeIdentityAuthority
         implements RuntimeEntitlementAuthority, RuntimePersonDirectory {
     public static final String WEAVER_CAPABILITY_GROUP_PATH = "/capabilities/weaver";
+    private static final Set<String> MEMBER_READ_ROLE_GROUP_PATHS =
+            Set.of("/owners", "/admins", "/members");
     private static final int PAGE_SIZE = 100;
     private static final int MAX_ORGANIZATIONS = 1_000;
     private static final int MAX_ORGANIZATION_GROUPS = 10_000;
@@ -97,7 +99,12 @@ public final class KeycloakRuntimeIdentityAuthority
                     "The authoritative identity is not a current enabled organization member");
         }
 
-        List<Group> eligible = organizationGroups(command.memberBinding().subject()).stream()
+        List<Group> currentGroups = organizationGroups(command.memberBinding().subject());
+        if (currentGroups.stream().noneMatch(group -> MEMBER_READ_ROLE_GROUP_PATHS.contains(group.path()))) {
+            throw new RuntimeEntitlementDeniedException(
+                    "The member has no current organization role for Weave domain reads");
+        }
+        List<Group> eligible = currentGroups.stream()
                 .filter(group -> WEAVER_CAPABILITY_GROUP_PATH.equals(group.path()))
                 .sorted(Comparator.comparing(Group::path).thenComparing(Group::id))
                 .toList();

@@ -77,21 +77,26 @@ jq -e '
   and .activeRuntimeEvidence.backendContext == "standard-token-exchange-v2-and-current-arc-binding"
   and .activeRuntimeEvidence.security == "bound-cell-only-rfc9068-exact-audience-and-current-arc-context"
   and .activeRuntimeEvidence.oidcGatekeeper == "spring-security-oauth2-resource-server"
-  and .activeRuntimeEvidence.tools == ["files.search"]
+  and .activeRuntimeEvidence.tools == ["files.search", "calendar.agenda"]
   and .activeRuntimeEvidence.resources == ["weave://files/{canonicalFileId}"]
   and .activeRuntimeEvidence.prompts == []
   and .activeRuntimeEvidence.filesDataPlane.facade == "/api/files/items"
   and .activeRuntimeEvidence.filesDataPlane.canonicalIdProperty == "fileId"
   and .activeRuntimeEvidence.filesDataPlane.toolSpecificBackendEndpoint == false
+  and .activeRuntimeEvidence.calendarDataPlane.facade == "/api/calendar/calendars"
+  and .activeRuntimeEvidence.calendarDataPlane.canonicalIdProperty == "calendarId"
+  and .activeRuntimeEvidence.calendarDataPlane.toolSpecificBackendEndpoint == false
+  and .activeRuntimeEvidence.calendarDataPlane.previewMaterializationAllowed == false
   and .activeRuntimeEvidence.pythonFastMcpRemoved == true
   and .activeRuntimeEvidence.handwrittenJsonRpcRemoved == true
 ' "${CONTRACT}" >/dev/null || fail "Weave MCP tool contract is missing required support-safe/fail-closed controls"
 
-assert_contains "${DOC}" "Status: **Guarded / first read-only Files slice active**"
+assert_contains "${DOC}" "Status: **Guarded / bounded read slices active**"
 assert_contains "${DOC}" "Each enabled Weaver cell receives its own confidential Keycloak workload client,"
 assert_contains "${DOC}" '`weaver-cell-{cellId}`, through Agent Runtime Control (ARC).'
 assert_contains "${DOC}" "Human access tokens"
 assert_contains "${DOC}" '`files.search`'
+assert_contains "${DOC}" '`calendar.agenda`'
 assert_contains "${DOC}" '`weave://files/{canonicalFileId}`'
 assert_contains "${PRODUCT_PLAN}" "Weave is planned product-first, not agent-first."
 assert_contains "${PRODUCT_PLAN}" "OpenClaw configuration remains ephemeral implementation output, not the product model."

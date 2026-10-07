@@ -5,6 +5,11 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
+import com.massimotter.weave.backend.agentruntime.domain.ExchangedWorkloadToken;
+import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.*;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
@@ -22,6 +27,7 @@ import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -83,6 +89,94 @@ class CalendarUserApiServiceTest {
                 Instant.parse("2026-01-02T00:00:00Z"), "UTC"), HttpStatus.FORBIDDEN);
         verify(provider, never()).query(any(), any(), any(), any());
         verify(rights, never()).check(any());
+    }
+
+    @Test
+    void currentCalendarWorkloadReadsThroughMemberSpaceAndAuditsWithoutMaterializing() {
+        CalendarUserApiService workload = workloadService();
+        when(provider.query(any(), any(), any(), any())).thenReturn(List.of());
+
+        assertThat(workload.calendars(workloadJwt()).calendars())
+                .singleElement().satisfies(visible -> {
+                    assertThat(visible.id()).isEqualTo(calendar);
+                    assertThat(visible.allowedActions()).containsExactly("read");
+                });
+        assertThat(workload.agenda(workloadJwt(), calendar,
+                Instant.parse("2026-10-07T00:00:00Z"), Instant.parse("2026-10-08T00:00:00Z"), "UTC")
+                .events()).isEmpty();
+        verify(provider).query(any(), any(), any(), any());
+        verify(bindings, never()).saveMapping(any());
+        verify(audit, times(2)).publish(any());
+    }
+
+    @Test
+    void revokedWorkloadSpaceFailsBeforeCalendarProviderQuery() {
+        CalendarUserApiService workload = workloadService();
+        when(rights.check(any())).thenReturn(ContextAuthorizationDecision.deny("revoked"));
+
+        assertStatus(() -> workload.agenda(workloadJwt(), calendar,
+                Instant.parse("2026-10-07T00:00:00Z"), Instant.parse("2026-10-08T00:00:00Z"), "UTC"),
+                HttpStatus.FORBIDDEN);
+        verify(provider, never()).query(any(), any(), any(), any());
+    }
+
+    @Test
+    void workloadCannotMaterializePreviewOrCreateAnEvent() {
+        CalendarUserApiService workload = workloadService();
+        assertStatus(() -> workload.create(workloadJwt(), calendar, content("Denied"),
+                "workload-create-key"), HttpStatus.FORBIDDEN);
+        verify(provider, never()).write(any());
+        verify(bindings, never()).saveMapping(any());
+    }
+
+    @Test
+    void workloadPreviewRemainsTransientEvenWhenExplicitMaterializationIsRequested() {
+        service.create(member, calendar, content("External planning"), "calendar-fixture-key-2");
+        mappings.clear();
+        clearInvocations(bindings, audit);
+        when(provider.query(any(), any(), any(), any())).thenAnswer(call -> List.copyOf(events.values()));
+        CalendarUserApiService workload = workloadService();
+        EventPreview preview = workload.agenda(workloadJwt(), calendar,
+                Instant.parse("2026-03-28T00:00:00Z"),
+                Instant.parse("2026-03-29T00:00:00Z"), "UTC").previews().getFirst();
+        clearInvocations(provider);
+
+        assertStatus(() -> workload.materializePreview(workloadJwt(), calendar, preview.handle()),
+                HttpStatus.FORBIDDEN);
+        assertThat(mappings).isEmpty();
+        verify(bindings, never()).saveMapping(any());
+        verifyNoInteractions(provider);
+    }
+
+    @SuppressWarnings("unchecked")
+    private CalendarUserApiService workloadService() {
+        var authorization = mock(McpWorkloadAuthorizationService.class);
+        var tokenPolicy = mock(McpExchangedTokenPolicy.class);
+        ObjectProvider<McpWorkloadAuthorizationService> authorizationProvider = mock(ObjectProvider.class);
+        ObjectProvider<McpExchangedTokenPolicy> tokenProvider = mock(ObjectProvider.class);
+        when(authorizationProvider.getIfAvailable()).thenReturn(authorization);
+        when(tokenProvider.getIfAvailable()).thenReturn(tokenPolicy);
+        Instant now = Instant.now();
+        var exchanged = new ExchangedWorkloadToken(
+                "https://auth.weave.test/realms/weave", "workload-subject", "weave-mcp-server",
+                Set.of("calendar.read"), now, now.plusSeconds(60), "exchange-calendar-1");
+        var principal = new WeaverWorkloadPrincipal(
+                exchanged.issuer(), exchanged.subject(), "weaver-cell-1", "weave-mcp-server",
+                "tenant-default", "person-1", new RuntimeMemberBinding(exchanged.issuer(), "member"),
+                "member", "cell-1", "profile-1", "sha256:profile", "entitlement-1",
+                now.plusSeconds(60), Set.of("calendar.read"), Set.of("calendar.read"));
+        when(tokenPolicy.resolve(any())).thenReturn(exchanged);
+        when(authorization.authorize(exchanged)).thenReturn(principal);
+        var context = new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
+        return new CalendarUserApiService(HumanJwtTestSupport.organizationAdmission(),
+                OrganizationIdentityContextResolver.configured(context), context, rights, null,
+                capabilities, bindings, List.of(provider), audit, authorizationProvider, tokenProvider);
+    }
+
+    private Jwt workloadJwt() {
+        return Jwt.withTokenValue("workload-token").header("typ", "at+jwt")
+                .issuer("https://auth.weave.test/realms/weave").subject("workload-subject")
+                .claim("azp", "weave-mcp-server").build();
     }
 
     @Test

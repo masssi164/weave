@@ -1,18 +1,9 @@
-import type {
-  GeneratedAdminAuditEventResponse,
-  GeneratedAdminControlPlaneResponse,
-  GeneratedCapabilityWhitelistResponse,
-  GeneratedMemberInvitationRequest,
-  GeneratedMemberInvitationResponse,
-  GeneratedPlatformIdentityReadinessResponse,
-  GeneratedProviderReadinessTestRequest,
-  GeneratedProviderReadinessTestResponse,
-} from "./generated/openapi";
 import {
   AdminControlPlaneApi as GeneratedAdminControlPlaneApi,
   Configuration as GeneratedConfiguration,
   OrganizationInvitationsApi as GeneratedOrganizationInvitationsApi,
   type AdminControlPlaneResponse as GeneratedControlPlaneResponse,
+  type AdminAuditEventResponse as GeneratedAdminAuditEventResponse,
   type CapabilityWhitelistResponse as GeneratedWhitelistResponse,
   type GoLiveReadinessResponse as GeneratedGoLiveReadinessResponse,
   type McpServerBindingResponse as GeneratedMcpServerBindingResponse,
@@ -23,6 +14,9 @@ import {
   type SuiteDomainReadinessResponse as GeneratedSuiteDomainReadinessResponse,
   type ProviderSelectionRequest as GeneratedProviderSelectionRequest,
   type ProviderSelectionResponse as GeneratedProviderSelectionResponse,
+  type MemberInvitationRequest as GeneratedMemberInvitationRequest,
+  type MemberInvitationResponse as GeneratedMemberInvitationResponse,
+  type ProviderReadinessTestRequest as GeneratedProviderReadinessTestRequest,
   ResponseError as GeneratedResponseError,
 } from "./generated/admin-client";
 import {
@@ -616,7 +610,7 @@ export class AdminControlPlaneApi {
         action: event.action ?? "unknown",
         actor: event.actorRef ?? "unknown-actor",
         createdAt: occurredAt ?? "",
-        summary: supportSafeSummary({ ...event, occurredAt }),
+        summary: supportSafeSummary(event),
       };
     });
   }

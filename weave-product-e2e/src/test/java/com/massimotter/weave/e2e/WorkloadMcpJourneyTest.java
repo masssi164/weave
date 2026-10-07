@@ -141,4 +141,31 @@ class WorkloadMcpJourneyTest {
     assertThat(WorkloadMcpJourney.supportSafeErrorClass(unsafe))
         .isEqualTo("redacted-tool-error");
   }
+
+  @Test
+  void classifiesOnlyAllowlistedCalendarFailures() throws Exception {
+    var mapper = JsonMapper.builder().build();
+    var downstream = mapper.readTree("""
+        {"jsonrpc":"2.0","result":{"isError":true,"content":[
+          {"type":"text","text":"Calendar User API rejected request: HTTP 403"}
+        ]}}
+        """);
+    var invisible = mapper.readTree("""
+        {"jsonrpc":"2.0","result":{"isError":true,"content":[
+          {"type":"text","text":"The Calendar is unavailable to the current member"}
+        ]}}
+        """);
+    var secret = mapper.readTree("""
+        {"jsonrpc":"2.0","result":{"isError":true,"content":[
+          {"type":"text","text":"private-calendar-value"}
+        ]}}
+        """);
+
+    assertThat(WorkloadMcpJourney.supportSafeErrorClass(downstream))
+        .isEqualTo("calendar-user-http-403");
+    assertThat(WorkloadMcpJourney.supportSafeErrorClass(invisible))
+        .isEqualTo("calendar-not-visible");
+    assertThat(WorkloadMcpJourney.supportSafeErrorClass(secret))
+        .isEqualTo("redacted-tool-error");
+  }
 }
