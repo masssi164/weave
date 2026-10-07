@@ -105,6 +105,37 @@ class OpenApiDocumentationTest {
     }
 
     @Test
+    void profileUserOperationsDescribeJsonSuccessAndErrorBodies() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode user = mapper.readTree(mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        int checked = 0;
+        for (String path : new String[] {"/api/profile", "/api/profile/readiness", "/api/profile/sync-status"}) {
+            for (var method : user.path("paths").path(path).properties()) {
+                if (!Set.of("get", "patch").contains(method.getKey())) {
+                    continue;
+                }
+                for (var response : method.getValue().path("responses").properties()) {
+                    JsonNode content = response.getValue().path("content");
+                    assertEquals(1, content.size(), path + " " + method.getKey() + " " + response.getKey());
+                    String expectedSchema = response.getKey().startsWith("2")
+                            ? switch (path) {
+                                case "/api/profile/readiness" -> "ProfileReadinessResponse";
+                                case "/api/profile/sync-status" -> "ModuleSyncStatusResponse";
+                                default -> "ProductProfileResponse";
+                            }
+                            : "ApiErrorResponse";
+                    assertEquals("#/components/schemas/" + expectedSchema,
+                            content.path("application/json").path("schema").path("$ref").asText(),
+                            path + " " + method.getKey() + " " + response.getKey());
+                    checked++;
+                }
+            }
+        }
+        assertEquals(14, checked, "Expected every Profile User success and documented error response");
+    }
+
+    @Test
     void workspaceDiagnosticsAreAdminOnlyAndHomeCountsAreExplicitlyUnknown() throws Exception {
         mockMvc.perform(get("/v3/api-docs/user"))
                 .andExpect(status().isOk())

@@ -35,6 +35,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(
@@ -79,6 +80,7 @@ class ProfileControllerTest {
     void returnsProfileDerivedFromAuthenticatedPrincipal() throws Exception {
         mockMvc.perform(get("/api/profile").with(profileJwt()))
                 .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.userId", startsWith("acct_")))
                 .andExpect(jsonPath("$.username").value("alice"))
                 .andExpect(jsonPath("$.displayName").value("Alice Example"))
@@ -151,8 +153,20 @@ class ProfileControllerTest {
                         .content("{\"timezone\":\"Mars/Olympus\"}")
                         .with(profileJwt()))
                 .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.code").value("validation-error"))
                 .andExpect(jsonPath("$.details.fields.timezone").value("must be a valid IANA timezone"));
+    }
+
+    @Test
+    void unsupportedProfileUpdateMediaTypeUsesDocumentedJsonError() throws Exception {
+        mockMvc.perform(patch("/api/profile")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("displayName=Alice Weave")
+                        .with(profileJwt()))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value("unsupported-media-type"));
     }
 
     @Test
@@ -160,7 +174,8 @@ class ProfileControllerTest {
         mockMvc.perform(patch("/api/profile")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"displayName\":\"Alice Weave\"}"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
     }
 
     @Test
@@ -173,7 +188,8 @@ class ProfileControllerTest {
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("preferred_username", "alice")
                                 .claim("aud", List.of("weave-app")))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
     }
 
     private static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor profileJwt() {
