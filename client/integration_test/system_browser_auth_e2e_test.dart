@@ -1,9 +1,23 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+
+import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:weave/core/persistence/secure_store.dart';
+import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
+import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
+import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
+import 'package:weave/features/auth/domain/entities/auth_session.dart';
+import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
+import 'package:weave/features/chat/data/repositories/matrix_device_identity_repository.dart';
+import 'package:weave/features/chat/data/repositories/native_matrix_chat_repository.dart';
+import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
@@ -11,7 +25,11 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/matrix_session_access.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/weave_member_matrix_session_coordinator.dart';
 import 'package:weave/integrations/rust_matrix_core/presentation/providers/matrix_crypto_session_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_client_provider.dart';
 import 'package:weave/main.dart';
 
 import 'helpers/test_config.dart';
@@ -23,6 +41,9 @@ void main() {
   const matrixEnabled = bool.fromEnvironment('WEAVE_MEMBER_MATRIX_E2E');
   const disposableMessageEnabled = bool.fromEnvironment(
     'WEAVE_DISPOSABLE_MATRIX_MESSAGE_E2E',
+  );
+  const twoDeviceRecoveryEnabled = bool.fromEnvironment(
+    'WEAVE_TWO_DEVICE_MATRIX_RECOVERY_E2E',
   );
   final config = TestConfig.fromEnvironment();
 
@@ -146,6 +167,273 @@ void main() {
     skip: !matrixEnabled || !disposableMessageEnabled,
     timeout: const Timeout(Duration(minutes: 12)),
   );
+
+  testWidgets(
+    'two isolated native devices recover backed-up room history and reject revocation',
+    (tester) async {
+      final container = await _openWeaveSession(tester, config);
+      final authConfiguration = AuthConfiguration(
+        issuer: config.issuerUrl,
+        clientId: config.clientId,
+      );
+      final firstAuth = await container
+          .read(authSessionRepositoryProvider)
+          .restoreSession(authConfiguration);
+      expect(firstAuth.isAuthenticated, isTrue);
+      final firstSession = firstAuth.session!;
+
+      final firstCoordinator = container.read(
+        matrixCryptoSessionCoordinatorProvider,
+      );
+      final firstChat = container.read(chatRepositoryProvider);
+      const bridge = RustMatrixCoreBridge();
+      final temporaryStore = await Directory.systemTemp.createTemp(
+        'weave-matrix-second-device-',
+      );
+      final secondSecureStore = _EphemeralSecureStore();
+      final secondAuth = OidcAuthSessionRepository(
+        secureStore: secondSecureStore,
+        oidcClient: _FreshBrowserOidcClient(),
+      );
+      final secondCoordinator = WeaveMemberMatrixSessionCoordinator(
+        serverConfigurationRepository: container.read(
+          serverConfigurationRepositoryProvider,
+        ),
+        authSessionRepository: secondAuth,
+        matrixDeviceIdentityRepository: MatrixDeviceIdentityRepository(
+          secureStore: secondSecureStore,
+        ),
+        matrixSessionAccess: GeneratedMatrixSessionAccess(
+          httpClient: container.read(weaveApiHttpClientProvider),
+        ),
+        secureStore: secondSecureStore,
+        storeRootLoader: () async => temporaryStore,
+      );
+      final secondChat = NativeMatrixChatRepository(
+        matrixCryptoSessionCoordinator: secondCoordinator,
+      );
+      final marker =
+          'Weave native backup ${DateTime.now().toUtc().microsecondsSinceEpoch}';
+      try {
+        final first = await firstCoordinator.open(
+          allowInteractiveSignIn: false,
+        );
+        final room = await firstChat.createConversation(title: marker);
+        await firstChat.sendMessage(roomId: room.id, message: marker);
+        final firstEventId = await _waitForEncryptedMessage(
+          firstChat,
+          room.id,
+          marker,
+        );
+        // Bootstrap after the send so the SDK waits for this room key to be
+        // uploaded before the second device attempts recovery.
+        final recoveryKey = await bridge.bootstrapRecovery(
+          profileKey: first.profileKey,
+        );
+        expect(recoveryKey, isNotEmpty);
+
+        // This second AppAuth login is a separate device session. A reused
+        // Keycloak sid cannot be bound to another Matrix device by the server.
+        final secondAuthState = await secondAuth.signIn(authConfiguration);
+        expect(secondAuthState.isAuthenticated, isTrue);
+        final secondSession = secondAuthState.session!;
+        expect(
+          _idTokenClaim(secondSession, 'sub') ==
+              _idTokenClaim(firstSession, 'sub'),
+          isTrue,
+          reason: 'Both device sessions must belong to the same member.',
+        );
+        final firstSessionId = _oidcSessionId(firstSession);
+        final secondSessionId = _oidcSessionId(secondSession);
+        expect(firstSessionId, isNotEmpty);
+        expect(
+          secondSessionId != firstSessionId,
+          isTrue,
+          reason:
+              'The identity provider reused the first device session. Use an '
+              'independent OIDC browser session for the second device.',
+        );
+
+        final second = await secondCoordinator.open(
+          allowInteractiveSignIn: false,
+        );
+        expect(second.userId, first.userId);
+        expect(second.deviceId, isNot(first.deviceId));
+        expect(second.profileKey, isNot(first.profileKey));
+        await bridge.recover(
+          profileKey: second.profileKey,
+          recoveryKeyOrPassphrase: recoveryKey,
+        );
+        expect(
+          (await bridge.loadSecurityState(
+            profileKey: second.profileKey,
+          )).recoveryState,
+          'enabled',
+        );
+        expect(
+          await _waitForEncryptedMessage(secondChat, room.id, marker),
+          firstEventId,
+        );
+
+        final secondProof = await secondSecureStore.read(
+          'matrix_member_device_proof_v1_${second.profileKey}',
+        );
+        expect(secondProof, isNotNull);
+        final matrixHeaders = <String, String>{
+          'Authorization': 'Bearer ${secondSession.accessToken}',
+          'x-weave-matrix-device-id': second.deviceId,
+          'x-weave-matrix-device-proof': secondProof!,
+        };
+        final matrixBase = config.matrixHomeserverUrl;
+        final revoke = await container
+            .read(weaveApiHttpClientProvider)
+            .delete(
+              matrixBase.resolve(
+                '/_matrix/client/v3/devices/${Uri.encodeComponent(second.deviceId)}',
+              ),
+              headers: matrixHeaders,
+            );
+        expect(revoke.statusCode, 200);
+        final denied = await container
+            .read(weaveApiHttpClientProvider)
+            .get(
+              matrixBase.resolve('/_matrix/client/v3/account/whoami'),
+              headers: matrixHeaders,
+            );
+        expect(denied.statusCode, 401);
+        expect(jsonDecode(denied.body)['errcode'], 'M_UNKNOWN_TOKEN');
+        await expectLater(
+          secondCoordinator.open(allowInteractiveSignIn: false),
+          throwsA(anything),
+        );
+        debugPrint(
+          'NATIVE_MATRIX_TWO_DEVICE_RESULT status=passed '
+          'separateOidcSessions=true nativeSdk=true backupRecovery=true '
+          'sameEventReadback=true revokedDeviceDenied=true supportSafe=true',
+        );
+      } finally {
+        await secondCoordinator.disposePreservingCryptoState();
+        await secondAuth.clearLocalSession();
+        secondSecureStore.clear();
+        await firstCoordinator.disposePreservingCryptoState();
+        if (await temporaryStore.exists()) {
+          await temporaryStore.delete(recursive: true);
+        }
+      }
+    },
+    skip:
+        !matrixEnabled ||
+        !disposableMessageEnabled ||
+        !twoDeviceRecoveryEnabled,
+    timeout: const Timeout(Duration(minutes: 18)),
+  );
+}
+
+Future<String> _waitForEncryptedMessage(
+  ChatRepository chat,
+  String roomId,
+  String marker,
+) async {
+  for (var attempt = 0; attempt < 30; attempt++) {
+    final timeline = await chat.loadRoomTimeline(roomId);
+    final matching = timeline.messages
+        .where((message) => message.text == marker)
+        .toList(growable: false);
+    if (matching.length == 1) {
+      expect(matching.single.id, startsWith(r'$'));
+      return matching.single.id;
+    }
+    await Future<void>.delayed(const Duration(seconds: 1));
+  }
+  fail('Native Matrix encrypted message readback did not arrive.');
+}
+
+String _idTokenClaim(AuthSession session, String claim) {
+  final parts = session.idToken?.split('.') ?? const <String>[];
+  if (parts.length != 3) throw StateError('OIDC ID token is unavailable.');
+  final payload = jsonDecode(
+    utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+  );
+  if (payload is! Map || payload[claim] is! String) {
+    throw StateError('OIDC $claim claim is unavailable.');
+  }
+  return payload[claim] as String;
+}
+
+String _oidcSessionId(AuthSession session) {
+  try {
+    return _idTokenClaim(session, 'sid');
+  } on StateError {
+    return _idTokenClaim(session, 'session_state');
+  }
+}
+
+class _EphemeralSecureStore implements SecureStore {
+  final _values = <String, String>{};
+
+  void clear() => _values.clear();
+
+  @override
+  Future<String?> read(String key) async => _values[key];
+
+  @override
+  Future<void> write(String key, String value) async {
+    _values[key] = value;
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    _values.remove(key);
+  }
+}
+
+class _FreshBrowserOidcClient implements OidcClient {
+  final _appAuth = const FlutterAppAuth();
+  final _normalClient = FlutterAppAuthOidcClient();
+
+  @override
+  Future<OidcTokenBundle> authorizeAndExchangeCode(
+    AuthConfiguration configuration,
+  ) async {
+    final random = Random.secure();
+    final nonceBytes = List<int>.generate(32, (_) => random.nextInt(256));
+    final response = await _appAuth.authorizeAndExchangeCode(
+      AuthorizationTokenRequest(
+        configuration.clientId,
+        oidcRedirectUri,
+        issuer: configuration.issuer.toString(),
+        scopes: oidcDefaultScopes,
+        nonce: base64UrlEncode(nonceBytes).replaceAll('=', ''),
+        promptValues: const <String>['login'],
+        externalUserAgent:
+            ExternalUserAgent.ephemeralAsWebAuthenticationSession,
+      ),
+    );
+    final accessToken = response.accessToken;
+    if (accessToken == null || accessToken.isEmpty) {
+      throw StateError('The second OIDC device session was not established.');
+    }
+    return OidcTokenBundle(
+      accessToken: accessToken,
+      refreshToken: response.refreshToken,
+      idToken: response.idToken,
+      expiresAt: response.accessTokenExpirationDateTime,
+      tokenType: response.tokenType,
+      scopes: response.scopes ?? const <String>[],
+    );
+  }
+
+  @override
+  Future<OidcTokenBundle> refresh(
+    AuthConfiguration configuration, {
+    required String refreshToken,
+  }) => _normalClient.refresh(configuration, refreshToken: refreshToken);
+
+  @override
+  Future<void> endSession(
+    AuthConfiguration configuration, {
+    required String idTokenHint,
+  }) => _normalClient.endSession(configuration, idTokenHint: idTokenHint);
 }
 
 Future<ProviderContainer> _openWeaveSession(
