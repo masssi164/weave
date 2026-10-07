@@ -60,6 +60,26 @@ class JwtDecoderConfigTest {
     }
 
     @Test
+    void humanDecodersRejectSignedTokensWithoutAnImmutableSubject() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
+            JwtDecoder userDecoder = jwtDecoder(jwksServer.jwkSetUri());
+            JwtDecoder adminDecoder = productAdminJwtDecoder(jwksServer.jwkSetUri());
+            JwtDecoder runtimeAdminDecoder = adminJwtDecoder(jwksServer.jwkSetUri());
+
+            for (String subject : new String[] {null, "", "   "}) {
+                assertThrows(JwtValidationException.class, () -> userDecoder.decode(signedToken(
+                        signingKey, ISSUER_URI, List.of("https://api.weave.test/api"), "weave-app", null, subject)));
+                assertThrows(JwtValidationException.class, () -> adminDecoder.decode(signedToken(
+                        signingKey, ISSUER_URI, List.of("https://api.weave.test/api"), "weave-admin-console", null, subject)));
+                assertThrows(JwtValidationException.class, () -> runtimeAdminDecoder.decode(signedToken(
+                        signingKey, ISSUER_URI, List.of("https://api.weave.test/api"),
+                        AgentRuntimeAdminSecurityConfiguration.CLIENT_ID, null, subject)));
+            }
+        }
+    }
+
+    @Test
     void nativeUserDecoderRejectsExtraAudienceAndAdminClient() throws Exception {
         RSAKey signingKey = rsaSigningKey();
         try (JwksServer jwksServer = JwksServer.start(signingKey)) {
@@ -249,6 +269,15 @@ class JwtDecoderConfigTest {
                 new WeaveSecurityProperties("https://api.weave.test/api", "weave-app"));
     }
 
+    private JwtDecoder productAdminJwtDecoder(String jwkSetUri) {
+        OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+        properties.getJwt().setIssuerUri(ISSUER_URI);
+        properties.getJwt().setJwkSetUri(jwkSetUri);
+        return new JwtDecoderConfig().adminApiJwtDecoder(
+                properties,
+                new WeaveSecurityProperties("https://api.weave.test/api", "weave-app"));
+    }
+
     private static RSAKey rsaSigningKey() throws Exception {
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
         keyPairGenerator.initialize(2048);
@@ -281,10 +310,20 @@ class JwtDecoderConfigTest {
             List<String> audiences,
             String authorizedParty,
             JOSEObjectType type) throws Exception {
+        return signedToken(signingKey, issuerUri, audiences, authorizedParty, type, "user-123");
+    }
+
+    private static String signedToken(
+            RSAKey signingKey,
+            String issuerUri,
+            List<String> audiences,
+            String authorizedParty,
+            JOSEObjectType type,
+            String subject) throws Exception {
         Instant now = Instant.now();
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .issuer(issuerUri)
-                .subject("user-123")
+                .subject(subject)
                 .audience(audiences)
                 .claim("azp", authorizedParty)
                 .claim("scope", "weave:workspace")
