@@ -12,10 +12,23 @@ import {
   AdminControlPlaneApi as GeneratedAdminControlPlaneApi,
   Configuration as GeneratedConfiguration,
   OrganizationInvitationsApi as GeneratedOrganizationInvitationsApi,
+  type AdminControlPlaneResponse as GeneratedControlPlaneResponse,
+  type CapabilityWhitelistResponse as GeneratedWhitelistResponse,
+  type GoLiveReadinessResponse as GeneratedGoLiveReadinessResponse,
+  type McpServerBindingResponse as GeneratedMcpServerBindingResponse,
+  type PlatformIdentityReadinessResponse as GeneratedIdentityReadinessResponse,
+  type ProviderCategoryStatusResponse as GeneratedProviderCategoryResponse,
+  type ProviderReplacementDryRunResponse as GeneratedReplacementDryRunResponse,
+  type ReleaseClaimControlResponse as GeneratedReleaseClaimControlResponse,
+  type SuiteDomainReadinessResponse as GeneratedSuiteDomainReadinessResponse,
   type ProviderSelectionRequest as GeneratedProviderSelectionRequest,
   type ProviderSelectionResponse as GeneratedProviderSelectionResponse,
   ResponseError as GeneratedResponseError,
 } from "./generated/admin-client";
+import {
+  Configuration as GeneratedUserConfiguration,
+  PlatformApi as GeneratedPlatformApi,
+} from "./generated/user-client";
 
 export type CapabilityState =
   | "ready"
@@ -141,32 +154,6 @@ export interface McpServerBinding {
   auditRefs: string[];
   nextActions: string[];
 }
-
-export interface AgentRuntimeProjection {
-  personRef: string;
-  cellRef?: string;
-  runtimeProvider?: string;
-  entitlementState: "entitled" | "not_entitled" | "revoked";
-  entitlementRevision?: string;
-  desiredState: string;
-  observedState: string;
-  runtimeProfileRef?: string;
-  workspaceRevision?: string;
-  lastWakeAt?: string;
-  lastSyncAt?: string;
-  conflicts: number;
-  capabilityState: CapabilityState;
-  auditRef: string;
-}
-
-export type AgentRuntimeLifecycleAction =
-  | "provision"
-  | "start"
-  | "stop"
-  | "suspend"
-  | "reconcile"
-  | "revoke"
-  | "delete-runtime-state";
 
 export interface AuditEvent {
   id: string;
@@ -363,46 +350,6 @@ export interface ProviderReplacementDryRunReport {
   }>;
 }
 
-interface ServerProviderReplacementDryRunReport {
-  dryRunId?: string;
-  status?: string;
-  category?: string;
-  currentAdapter?: string;
-  targetAdapter?: string;
-  readinessState?: string;
-  migrationDryRunRequired?: boolean;
-  memberImpactStates?: string[];
-  supportSafe?: boolean;
-  providerDiagnosticsRedacted?: boolean;
-  cutoverGates?: string[];
-  auditRefs?: string[];
-  consequencePreview?: Partial<ProviderReplacementDryRunReport["consequencePreview"]>;
-  lossyMappingReport?: Partial<
-    ProviderReplacementDryRunReport["lossyMappingReport"]
-  >;
-  lifecycleExpectations?: Partial<
-    ProviderReplacementDryRunReport["lifecycleExpectations"]
-  >;
-  portableExportImportContract?: Partial<
-    ProviderReplacementDryRunReport["portableExportImportContract"]
-  >;
-  switchPlan?: Partial<
-    Omit<ProviderReplacementDryRunReport["switchPlan"], "memberFacingStateDuringSwitch">
-  > & { memberFacingStateDuringSwitch?: string };
-  noUnaccountedDataLossReport?: Partial<
-    ProviderReplacementDryRunReport["noUnaccountedDataLossReport"]
-  >;
-  boundedProof?: Partial<ProviderReplacementDryRunReport["boundedProof"]>;
-  crossDomainImpact?: Array<{
-    domainKey?: string;
-    canonicalObjectRef?: string;
-    mappingClass?: string;
-    consequenceSummary?: string;
-    evidenceRefs?: string[];
-    applyBlockers?: string[];
-  }>;
-}
-
 export interface ControlPlaneResponse {
   organization: {
     id: string;
@@ -450,10 +397,6 @@ export const adminConsoleConfig: AdminConsoleConfig = {
     runtimeEnv.VITE_WEAVE_ADMIN_OIDC_CLIENT_ID ?? "weave-admin-console",
 };
 
-interface PlatformBootstrapConfig {
-  oidc?: { issuer?: string };
-}
-
 /**
  * A packaged console discovers only public coordinates from the same Server
  * process that served its immutable assets. The Vite host-development fallback
@@ -473,11 +416,14 @@ export async function resolveAdminConsoleConfig(
   }
 
   try {
-    const response = await fetchImpl(`${apiBaseUrl}/platform/config`, {
-      headers: { Accept: "application/json" },
-    });
-    if (!response.ok) return { ...adminConsoleConfig, apiBaseUrl };
-    const platform = (await response.json()) as PlatformBootstrapConfig;
+    const publicApi = new GeneratedPlatformApi(
+      new GeneratedUserConfiguration({
+        basePath: apiBaseUrl.slice(0, -4),
+        fetchApi: fetchImpl,
+        headers: { Accept: "application/json" },
+      }),
+    );
+    const platform = await publicApi.config();
     const issuer = platform.oidc?.issuer?.trim();
     if (!issuer) return { ...adminConsoleConfig, apiBaseUrl };
     return {
@@ -497,160 +443,6 @@ export class AdminApiError extends Error {
   ) {
     super(message);
   }
-}
-
-interface ServerControlPlaneResponse {
-  organizationId?: string;
-  organizationName?: string;
-  providerConfigSource?: string;
-  bootstrapDefaultsAreSuggestionsOnly?: boolean;
-  generatedAt?: string;
-  categories?: ServerProviderCategory[];
-  selectedProviderMappings?: Array<{
-    category?: string;
-    providerKey?: string;
-    secretRef?: string;
-  }>;
-  whitelist?: ServerWhitelistPolicy;
-  platformIdentityReadiness?: ServerPlatformIdentityReadiness;
-  suiteDomainReadiness?: ServerSuiteDomainReadiness[];
-  goLiveReadiness?: ServerGoLiveReadiness;
-  secretRefs?: Array<{ ref?: string; providerKey?: string }>;
-  mcpServerBindings?: ServerMcpServerBinding[];
-}
-
-interface ServerMcpServerBinding {
-  serverKey?: string;
-  displayName?: string;
-  transport?: string;
-  endpointRef?: string;
-  authRef?: string;
-  allowedTools?: string[];
-  allowedCapabilities?: string[];
-  approvalRequiredForWrites?: boolean;
-  enabled?: boolean;
-  readinessState?: string;
-  supportSafe?: boolean;
-  rawEndpointExposed?: boolean;
-  rawServerConfigExposed?: boolean;
-  secretValuesExposed?: boolean;
-  auditRefs?: string[];
-  nextActions?: string[];
-}
-
-interface ServerSuiteDomainReadiness {
-  domain?: string;
-  label?: string;
-  adminReadiness?: string;
-  memberState?: string;
-  selectedAdapterPosture?: string;
-  sourceOfTruthMode?: string;
-  providerCategoryKeys?: string[];
-  canonicalObjectKinds?: string[];
-  capabilityStates?: string[];
-  supportSafeErrors?: string[];
-  portabilityNotes?: string[];
-  auditRefs?: string[];
-  nextAction?: string;
-  backendOwnedFacade?: boolean;
-  providerMappingOwnedByServer?: boolean;
-  rawProviderConfigExposedToMembers?: boolean;
-}
-
-interface ServerGoLiveReadiness {
-  state?: string;
-  memberPreviewState?: string;
-  blockers?: string[];
-  adminActions?: string[];
-  auditRefs?: string[];
-  supportSafe?: boolean;
-  normalMembersMayAccessSetupControls?: boolean;
-  rawProviderDiagnosticsExposed?: boolean;
-  releaseClaimControl?: ServerReleaseClaimControl;
-}
-
-interface ServerReleaseClaimControl {
-  claimState?: string;
-  candidateTag?: string;
-  pinnedSpecCorpusRef?: string;
-  releaseNotesSource?: string;
-  supportBundleRef?: string;
-  accessibilityEvidenceRef?: string;
-  unresolvedVetoes?: string[];
-  gates?: Array<{
-    key?: string;
-    label?: string;
-    state?: string;
-    evidenceFreshness?: string;
-    evidenceRefs?: string[];
-    nextAction?: string;
-    blocksReleaseClaim?: boolean;
-  }>;
-}
-
-interface ServerPlatformIdentityReadiness {
-  contractVersion?: string;
-  platformAuthority?: string;
-  overallState?: string;
-  supportSafe?: boolean;
-  diagnosticsRedacted?: boolean;
-  backendOwnedFacade?: boolean;
-  memberClientMayConfigurePlatformSecurity?: boolean;
-  requiredForMemberFlows?: boolean;
-  stableStates?: string[];
-  cards?: Array<{
-    key?: string;
-    label?: string;
-    state?: string;
-    summary?: string;
-    memberImpact?: string;
-    remediation?: string;
-    nextActions?: string[];
-    evidenceRefs?: string[];
-    diagnostics?: Record<string, unknown>;
-  }>;
-  nextActions?: string[];
-}
-
-interface ServerProviderCategory {
-  category?: string;
-  label?: string;
-  readiness?: string;
-  memberImpact?: string;
-  requiredNextAction?: string;
-  secretRefStatus?: ProviderCategory["secretRefStatus"];
-  policyState?: ProviderCategory["policyState"];
-  migrationState?: ProviderCategory["migrationState"];
-  evidenceRefs?: string[];
-  applyGates?: Partial<ProviderSwitchApplyGates>;
-  providerCandidates?: string[];
-  selectedProviderKey?: string;
-  choiceModel?: string;
-  selectedByAdmin?: boolean;
-  bootstrapSuggestionOnly?: boolean;
-  diagnostics?: Record<string, unknown>;
-  realityLevel?: string;
-  evidenceFreshness?: string;
-  safeNextAction?: string;
-  restartSurvivalEvidenceRef?: string;
-  dryRunEvidenceRef?: string;
-  dryRunEvidenceIssuedAt?: string;
-  dryRunEvidenceExpiresAt?: string;
-}
-
-interface ServerWhitelistPolicy {
-  denyByDefault?: boolean;
-  profileCapabilities?: Record<string, string[]>;
-  effectiveCapabilities?: string[];
-}
-
-interface ServerAuditEvent {
-  idempotencyKey?: string;
-  action?: string;
-  actorRef?: string;
-  occurredAt?: string;
-  sourceRef?: string;
-  payload?: Record<string, unknown>;
 }
 
 export class AdminControlPlaneApi {
@@ -695,13 +487,7 @@ export class AdminControlPlaneApi {
     );
     const auditEvents = await this.listAuditEvents().catch(() => []);
     return normalizeControlPlane(
-      {
-        ...controlPlane,
-        generatedAt:
-          controlPlane.generatedAt && !Number.isNaN(controlPlane.generatedAt.getTime())
-            ? controlPlane.generatedAt.toISOString()
-            : undefined,
-      } as ServerControlPlaneResponse,
+      controlPlane,
       auditEvents,
       this.config.oidcIssuerUrl,
     );
@@ -720,53 +506,7 @@ export class AdminControlPlaneApi {
         },
       }),
     );
-    return normalizeWhitelist(response as ServerWhitelistPolicy);
-  }
-
-  async getAgentRuntime(personRef: string): Promise<AgentRuntimeProjection> {
-    return this.request<AgentRuntimeProjection>(
-      `/admin/agent-runtimes/${encodeURIComponent(personRef)}`,
-    );
-  }
-
-  async changeAgentRuntime(
-    personRef: string,
-    action: AgentRuntimeLifecycleAction,
-    idempotencyKey: string,
-    options: { reason?: string; entitlementRevision?: string } = {},
-  ): Promise<AgentRuntimeProjection> {
-    const base = `/admin/agent-runtimes/${encodeURIComponent(personRef)}`;
-    const headers = { "Idempotency-Key": idempotencyKey };
-    if (action === "revoke" && !options.entitlementRevision) {
-      throw new Error("A current entitlement revision is required for revocation.");
-    }
-    if (action === "delete-runtime-state") {
-      return this.request<AgentRuntimeProjection>(`${base}/runtime-state`, {
-        method: "DELETE",
-        headers,
-        body: JSON.stringify({
-          reason: options.reason ?? "Deleted through Organization/Admin Console",
-          confirmation: "DELETE_RUNTIME_STATE_ONLY",
-        }),
-      });
-    }
-
-    const body =
-      action === "stop"
-        ? { mode: "graceful" }
-        : action === "suspend"
-          ? { reason: options.reason ?? "Suspended through Organization/Admin Console" }
-          : action === "revoke"
-            ? {
-                reason: options.reason ?? "Revoked through Organization/Admin Console",
-                entitlementRevision: options.entitlementRevision,
-              }
-            : undefined;
-    return this.request<AgentRuntimeProjection>(`${base}/${action}`, {
-      method: "POST",
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    return normalizeWhitelist(response);
   }
 
   async selectProvider(
@@ -839,7 +579,7 @@ export class AdminControlPlaneApi {
       this.generatedControlPlane.getPlatformIdentityReadiness(),
     );
     return normalizePlatformIdentityReadiness(
-      response as ServerPlatformIdentityReadiness,
+      response,
     );
   }
 
@@ -928,29 +668,7 @@ export class AdminControlPlaneApi {
     );
   }
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    if (path !== "/admin" && !path.startsWith("/admin/")) {
-      throw new Error("Admin Console requests must stay under the Weave /api/admin boundary");
-    }
-    const token = this.tokenProvider();
-    const headers = new Headers(init.headers);
-    headers.set("Accept", "application/json");
-    if (init.body) headers.set("Content-Type", "application/json");
-    if (token) headers.set("Authorization", `Bearer ${token}`);
 
-    const response = await this.fetchImpl(`${this.config.apiBaseUrl}${path}`, {
-      ...init,
-      headers,
-    });
-    if (!response.ok) {
-      throw new AdminApiError(
-        `Admin API request failed with HTTP ${response.status}`,
-        response.status,
-      );
-    }
-    if (response.status === 204) return undefined as T;
-    return response.json() as Promise<T>;
-  }
 }
 
 function invitationIdempotencyKey(
@@ -965,7 +683,7 @@ function invitationIdempotencyKey(
 }
 
 function normalizeControlPlane(
-  controlPlane: ServerControlPlaneResponse,
+  controlPlane: GeneratedControlPlaneResponse,
   auditEvents: AuditEvent[],
   oidcIssuerUrl: string,
 ): ControlPlaneResponse {
@@ -974,7 +692,7 @@ function normalizeControlPlane(
   return {
     organization: {
       id: controlPlane.organizationId ?? "weave-dogfood",
-      displayName: controlPlane.organizationName ?? "Weave Dogfood",
+      displayName: controlPlane.displayName ?? "Weave Dogfood",
       manifestUrl: "/api/organization/manifest",
       authIssuerUrl: oidcIssuerUrl,
     },
@@ -988,7 +706,7 @@ function normalizeControlPlane(
         category,
         selections,
         secretRefs,
-        controlPlane.generatedAt,
+        controlPlane.generatedAt?.toISOString(),
       ),
     ),
     platformIdentityReadiness: normalizePlatformIdentityReadiness(
@@ -1005,7 +723,7 @@ function normalizeControlPlane(
 }
 
 function normalizeMcpServerBindings(
-  bindings?: ServerMcpServerBinding[],
+  bindings?: GeneratedMcpServerBindingResponse[],
 ): McpServerBinding[] {
   const normalized = (bindings ?? []).map((binding) => ({
     serverKey: binding.serverKey ?? "weave-domain-tools",
@@ -1034,7 +752,7 @@ function normalizeMcpServerBindings(
 }
 
 function normalizeSuiteDomainReadiness(
-  readiness?: ServerSuiteDomainReadiness[],
+  readiness?: GeneratedSuiteDomainReadinessResponse[],
 ): SuiteDomainReadiness[] {
   const domains = (readiness ?? []).map((domain) => ({
     domain: domain.domain ?? "suite-domain",
@@ -1068,7 +786,7 @@ function normalizeSuiteDomainReadiness(
 }
 
 function normalizeGoLiveReadiness(
-  readiness?: ServerGoLiveReadiness,
+  readiness?: GeneratedGoLiveReadinessResponse,
 ): GoLiveReadiness {
   return {
     state: normalizeState(readiness?.state ?? "admin-action-required"),
@@ -1092,7 +810,7 @@ function normalizeGoLiveReadiness(
 }
 
 function normalizeReleaseClaimControl(
-  claim?: ServerReleaseClaimControl,
+  claim?: GeneratedReleaseClaimControlResponse,
 ): ReleaseClaimControl {
   const gates = (claim?.gates ?? []).map((gate, index) => ({
     key: gate.key ?? `rc-evidence-gate-${index + 1}`,
@@ -1125,7 +843,7 @@ function normalizeReleaseClaimControl(
 }
 
 function normalizePlatformIdentityReadiness(
-  readiness?: ServerPlatformIdentityReadiness,
+  readiness?: GeneratedIdentityReadinessResponse,
 ): PlatformIdentityReadiness {
   const cards = (readiness?.cards ?? []).map((card) => ({
     key: card.key ?? "identity-readiness-card",
@@ -1189,7 +907,7 @@ function normalizePlatformIdentityReadiness(
 }
 
 function normalizeCategory(
-  category: ServerProviderCategory,
+  category: GeneratedProviderCategoryResponse,
   selections: Array<{ category?: string; providerKey?: string }>,
   secretRefs: Array<{ ref?: string; providerKey?: string }>,
   generatedAt?: string,
@@ -1211,13 +929,21 @@ function normalizeCategory(
       normalizeMemberCapabilityState(category.memberImpact) ??
       memberStableStateFromCapability(state),
     requiredNextAction:
-      category.requiredNextAction ??
+      category.realityLevelRemediation ??
       "Review backend readiness evidence before exposing this domain.",
-    secretRefStatus: category.secretRefStatus ?? "sample_only",
-    policyState: category.policyState ?? "review_required",
-    migrationState: category.migrationState ?? "dry_run_required",
-    evidenceRefs: category.evidenceRefs ?? [],
-    applyGates: normalizeApplyGates(category.applyGates),
+    secretRefStatus: secretRefs.some((secretRef) =>
+      secretRef.providerKey === selectedAdapter && Boolean(secretRef.ref),
+    )
+      ? "present"
+      : "missing",
+    policyState: category.policyState === "allowed"
+      ? "allowed"
+      : category.policyState === "disabled"
+        ? "disabled"
+        : "blocked",
+    migrationState: "blocked",
+    evidenceRefs: [],
+    applyGates: normalizeApplyGates(),
     supportSafe:
       category.diagnostics?.secretsReturned === false &&
       category.diagnostics?.rawProviderErrorsReturned === false,
@@ -1226,19 +952,11 @@ function normalizeCategory(
     choiceModel: category.choiceModel ?? "not_selected",
     providerCandidates: category.providerCandidates ?? [],
     lastCheckedAt: generatedAt,
-    realityLevel: normalizeRealityLevel(category.realityLevel),
-    evidenceFreshness: normalizeEvidenceFreshness(
-      category.evidenceFreshness,
-      category.dryRunEvidenceExpiresAt,
-    ),
+    realityLevel: normalizeRealityLevel(category.providerRealityLevel),
+    evidenceFreshness: "missing",
     safeNextAction:
-      category.safeNextAction ??
-      category.requiredNextAction ??
+      category.realityLevelRemediation ??
       "Review backend readiness evidence before exposing this domain.",
-    restartSurvivalEvidenceRef: category.restartSurvivalEvidenceRef,
-    dryRunEvidenceRef: category.dryRunEvidenceRef,
-    dryRunEvidenceIssuedAt: category.dryRunEvidenceIssuedAt,
-    dryRunEvidenceExpiresAt: category.dryRunEvidenceExpiresAt,
     secretRefs: secretRefs
       .filter((secretRef) => secretRef.providerKey === selectedAdapter)
       .map((secretRef) => secretRef.ref ?? "")
@@ -1551,7 +1269,7 @@ const sampleSuiteDomainReadiness: SuiteDomainReadiness[] = [
 ];
 
 function normalizeWhitelist(
-  whitelist?: ServerWhitelistPolicy,
+  whitelist?: GeneratedWhitelistResponse,
 ): WhitelistPolicy {
   const profileCapabilities = whitelist?.profileCapabilities ?? {};
   const allowedCapabilities = Array.from(
@@ -1572,7 +1290,7 @@ function normalizeWhitelist(
 }
 
 function normalizeProviderReplacementDryRun(
-  response: ServerProviderReplacementDryRunReport,
+  response: GeneratedReplacementDryRunResponse,
   category: ProviderCategory,
   targetAdapter: string,
 ): ProviderReplacementDryRunReport {
@@ -1807,7 +1525,7 @@ function normalizeState(value?: string): CapabilityState {
   }
 }
 
-function supportSafeSummary(event: ServerAuditEvent): string {
+function supportSafeSummary(event: GeneratedAdminAuditEventResponse): string {
   const payload = event.payload ?? {};
   const providerKey =
     typeof payload.providerKey === "string" ? payload.providerKey : undefined;
