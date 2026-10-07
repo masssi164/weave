@@ -87,9 +87,12 @@ final class GeneratedSpacesJourney {
 
   void verifyOwnerOnlyFileRelation(String memberToken, String ownerToken, String fileId) {
     try {
-      if (!containsFile(memberToken, fileId) || containsFile(ownerToken, fileId)) {
+      boolean memberVisible = containsFile(memberToken, fileId);
+      boolean ownerVisible = containsFile(ownerToken, fileId);
+      if (!memberVisible || ownerVisible) {
         throw new ProductFlowException(
-            "Direct Space File relation did not preserve current owner-only visibility");
+            "Direct Space File relation did not preserve current owner-only visibility"
+                + " memberVisible=" + memberVisible + " ownerVisible=" + ownerVisible);
       }
     } catch (com.massimotter.weave.userapi.invoker.ApiException failure) {
       throw new ProductFlowException("Generated Space relation read failed with HTTP "
