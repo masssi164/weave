@@ -94,11 +94,24 @@ public final class CalendarUserModels {
             @NotNull List<String> allowedActions,
             @NotNull WriteRequest content) {}
 
+    @Schema(name = "CalendarUserEventPreview", description = "Transient provider-backed event view. The opaque handle is short-lived and is not a stable resource identity or authorization grant.")
+    public record EventPreview(
+            @NotNull String handle,
+            @NotNull String calendarId,
+            @NotNull Scope scope,
+            @NotNull Instant expiresAt,
+            @NotNull List<String> allowedActions,
+            @NotNull WriteRequest content) {}
+
     @Schema(name = "CalendarUserOccurrence", description = "An agenda-window projection. Event content retains its exact temporal intent.")
     public record Occurrence(@NotNull String eventId, @NotNull Instant startsAt, @NotNull Instant endsAt) {}
+
+    @Schema(name = "CalendarUserPreviewOccurrence", description = "An agenda-window projection linked only to a transient preview handle.")
+    public record PreviewOccurrence(@NotNull String previewHandle, @NotNull Instant startsAt, @NotNull Instant endsAt) {}
 
     @Schema(name = "CalendarUserAgenda")
     public record Agenda(@NotNull String calendarId, @NotNull Instant from, @NotNull Instant to,
             @NotNull String evaluationTimeZone, @NotNull List<Event> events,
-            @NotNull List<Occurrence> occurrences) {}
+            @NotNull List<Occurrence> occurrences, @NotNull List<EventPreview> previews,
+            @NotNull List<PreviewOccurrence> previewOccurrences) {}
 }

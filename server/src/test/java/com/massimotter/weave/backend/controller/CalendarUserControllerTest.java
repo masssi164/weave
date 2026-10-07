@@ -13,6 +13,7 @@ import com.massimotter.weave.backend.service.calendar.CalendarUserApiService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.util.List;
 import java.util.Map;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
@@ -58,6 +59,38 @@ class CalendarUserControllerTest {
                 .andExpect(jsonPath("$.content.start.kind").value("DATE"))
                 .andExpect(jsonPath("$.content.start.date").value("2026-03-28"))
                 .andExpect(jsonPath("$.providerRef").doesNotExist());
+    }
+
+    @Test
+    void previewReadExposesOnlyTransientContentAndMaterializationReturnsStableVersion() throws Exception {
+        String handle = "pv_0123456789abcdefghijklmnopqrstuv";
+        WriteRequest content = new WriteRequest("Planning", null,
+                new TimeValue(TemporalKind.DATE, "2026-03-28", null, null, null),
+                new TimeValue(TemporalKind.DATE, "2026-03-29", null, null, null),
+                null, List.of(), null, List.of());
+        Scope scope = new Scope(ScopeType.WORKSPACE, "workspace-default", null, null);
+        when(calendar.readPreview(any(), eq("calendar:test"), eq(handle))).thenReturn(
+                new EventPreview(handle, "calendar:test", scope, Instant.parse("2026-03-28T12:00:00Z"),
+                        List.of("read", "materialize", "update"), content));
+        when(calendar.materializePreview(any(), eq("calendar:test"), eq(handle))).thenReturn(
+                new Event("event:test", "calendar:test", scope, "meeting:test", "\"calendar-test\"",
+                        List.of("read", "update"), content));
+        String route = ROUTE + "/previews/" + handle;
+        mvc.perform(get(route).with(member())).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.handle").value(handle))
+                .andExpect(jsonPath("$.content.title").value("Planning"))
+                .andExpect(jsonPath("$.id").doesNotExist())
+                .andExpect(jsonPath("$.version").doesNotExist())
+                .andExpect(jsonPath("$.meetingThreadRef").doesNotExist());
+        mvc.perform(post(route + "/materialization").with(member()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("ETag", "\"calendar-test\""))
+                .andExpect(jsonPath("$.id").value("event:test"))
+                .andExpect(jsonPath("$.meetingThreadRef").value("meeting:test"));
+        mvc.perform(post(route + "/materialization"))
+                .andExpect(status().isUnauthorized());
+        verify(calendar, times(1)).materializePreview(any(), eq("calendar:test"), eq(handle));
     }
 
     @Test

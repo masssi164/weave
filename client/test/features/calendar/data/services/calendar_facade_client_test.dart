@@ -64,6 +64,7 @@ class _Auth implements AuthSessionRepository {
 
 const calendarId = 'calendar:12345678-1234-1234-1234-123456789abc';
 const eventId = 'event:12345678-1234-1234-1234-123456789abc';
+const previewHandle = 'pv_0123456789abcdefghijklmnopqrstuv';
 const scopeJson = {'type': 'WORKSPACE', 'spaceId': 'workspace-default'};
 const scope = CalendarScope(
   id: calendarId,
@@ -110,6 +111,16 @@ Map<String, Object?> event({
   'meetingThreadRef': 'meeting:stable',
   'allowedActions': actions,
   'content': payload ?? content(),
+};
+Map<String, Object?> preview({
+  List<String> actions = const ['read', 'materialize', 'update', 'delete'],
+}) => {
+  'handle': previewHandle,
+  'calendarId': calendarId,
+  'scope': scopeJson,
+  'expiresAt': '2026-10-25T11:00:00Z',
+  'allowedActions': actions,
+  'content': content(),
 };
 http.Response json(Object payload, [int status = 200]) => http.Response(
   jsonEncode(payload),
@@ -178,6 +189,7 @@ void main() {
           'from': '2026-10-01T00:00:00Z',
           'to': '2026-11-01T00:00:00Z',
           'events': [stored],
+          'previews': [],
           'occurrences': [
             {
               'eventId': eventId,
@@ -185,6 +197,7 @@ void main() {
               'endsAt': '2026-10-25T10:00:00Z',
             },
           ],
+          'previewOccurrences': [],
         });
       }
       if (request.method == 'GET') return json(stored);
@@ -238,6 +251,188 @@ void main() {
         calls.any((request) => request.url.path.contains('caldav')),
         isFalse,
       );
+    },
+  );
+
+  test(
+    'unmapped agenda event stays transient through provider-backed read',
+    () async {
+      final service = client((request) async {
+        if (request.url.path.endsWith('/events')) {
+          return json({
+            'calendarId': calendarId,
+            'evaluationTimeZone': 'Europe/Berlin',
+            'from': '2026-10-01T00:00:00Z',
+            'to': '2026-11-01T00:00:00Z',
+            'events': [],
+            'occurrences': [],
+            'previews': [preview()],
+            'previewOccurrences': [
+              {
+                'previewHandle': previewHandle,
+                'startsAt': '2026-10-25T09:00:00Z',
+                'endsAt': '2026-10-25T10:00:00Z',
+              },
+            ],
+          });
+        }
+        if (request.url.path.endsWith('/previews/$previewHandle')) {
+          return json(preview());
+        }
+        return null;
+      });
+      final agenda = await service.listEvents();
+      expect(agenda.events, hasLength(1));
+      final item = agenda.events.single;
+      expect(item.id, previewHandle);
+      expect(item.isTransientPreview, isTrue);
+      expect(item.etag, isNull);
+      expect(item.threadRef.meetingThreadId, isNull);
+      expect(item.startTime, DateTime.utc(2026, 10, 25, 10));
+      final read = await service.readEvent(item.id);
+      expect(read.title, 'Planning');
+      expect(read.isTransientPreview, isTrue);
+      expect(calls.where((call) => call.method == 'POST'), isEmpty);
+      expect(
+        calls.last.url.path,
+        '/api/calendar/calendars/$calendarId/events/previews/$previewHandle',
+      );
+    },
+  );
+
+  test(
+    'editing a preview materializes then writes with the stable version',
+    () async {
+      final service = client((request) async {
+        if (request.method == 'POST' &&
+            request.url.path.endsWith(
+              '/previews/$previewHandle/materialization',
+            )) {
+          return json(event());
+        }
+        if (request.method == 'GET' && request.url.path.endsWith('/events')) {
+          return json({
+            'calendarId': calendarId,
+            'evaluationTimeZone': 'Europe/Berlin',
+            'from': '2026-10-01T00:00:00Z',
+            'to': '2026-11-01T00:00:00Z',
+            'events': [],
+            'occurrences': [],
+            'previews': [preview()],
+            'previewOccurrences': [
+              {
+                'previewHandle': previewHandle,
+                'startsAt': '2026-10-25T09:00:00Z',
+                'endsAt': '2026-10-25T10:00:00Z',
+              },
+            ],
+          });
+        }
+        return null;
+      });
+      await service.listEvents();
+      final updated = await service.updateEvent(
+        id: previewHandle,
+        draft: draft(title: 'New title'),
+      );
+      expect(updated.id, eventId);
+      expect(updated.isTransientPreview, isFalse);
+      final writes = calls
+          .where((call) => call.method == 'POST' || call.method == 'PUT')
+          .toList();
+      expect(writes.map((call) => call.method), ['POST', 'PUT']);
+      expect(
+        writes.first.url.path,
+        '/api/calendar/calendars/$calendarId/events/previews/$previewHandle/materialization',
+      );
+      expect(
+        writes.last.url.path,
+        '/api/calendar/calendars/$calendarId/events/$eventId',
+      );
+      expect(writes.last.headers['if-match'], version);
+      expect((jsonDecode(writes.last.body) as Map)['title'], 'New title');
+    },
+  );
+
+  test(
+    'failed materialization blocks preview deletion without provider write',
+    () async {
+      final service = client((request) async {
+        if (request.method == 'POST' &&
+            request.url.path.contains('/previews/')) {
+          return http.Response('', 412);
+        }
+        if (request.method == 'GET' && request.url.path.endsWith('/events')) {
+          return json({
+            'calendarId': calendarId,
+            'evaluationTimeZone': 'Europe/Berlin',
+            'from': '2026-10-01T00:00:00Z',
+            'to': '2026-11-01T00:00:00Z',
+            'events': [],
+            'occurrences': [],
+            'previews': [preview()],
+            'previewOccurrences': [
+              {
+                'previewHandle': previewHandle,
+                'startsAt': '2026-10-25T09:00:00Z',
+                'endsAt': '2026-10-25T10:00:00Z',
+              },
+            ],
+          });
+        }
+        return null;
+      });
+      await service.listEvents();
+      await expectLater(
+        service.deleteEvent(previewHandle),
+        fails(CalendarFailureKind.conflict),
+      );
+      expect(calls.where((call) => call.method == 'POST'), hasLength(1));
+      expect(calls.where((call) => call.method == 'DELETE'), isEmpty);
+    },
+  );
+
+  test(
+    'preview deletion uses the materialized event identity and version',
+    () async {
+      final service = client((request) async {
+        if (request.method == 'POST' &&
+            request.url.path.endsWith(
+              '/previews/$previewHandle/materialization',
+            )) {
+          return json(event());
+        }
+        if (request.method == 'GET' && request.url.path.endsWith('/events')) {
+          return json({
+            'calendarId': calendarId,
+            'evaluationTimeZone': 'Europe/Berlin',
+            'from': '2026-10-01T00:00:00Z',
+            'to': '2026-11-01T00:00:00Z',
+            'events': [],
+            'occurrences': [],
+            'previews': [preview()],
+            'previewOccurrences': [
+              {
+                'previewHandle': previewHandle,
+                'startsAt': '2026-10-25T09:00:00Z',
+                'endsAt': '2026-10-25T10:00:00Z',
+              },
+            ],
+          });
+        }
+        return null;
+      });
+      await service.listEvents();
+      await service.deleteEvent(previewHandle);
+      final writes = calls
+          .where((call) => call.method == 'POST' || call.method == 'DELETE')
+          .toList();
+      expect(writes.map((call) => call.method), ['POST', 'DELETE']);
+      expect(
+        writes.last.url.path,
+        '/api/calendar/calendars/$calendarId/events/$eventId',
+      );
+      expect(writes.last.headers['if-match'], version);
     },
   );
 

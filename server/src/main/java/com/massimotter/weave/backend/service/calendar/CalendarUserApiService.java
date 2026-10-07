@@ -18,6 +18,7 @@ import java.security.MessageDigest;
 import java.time.*;
 import java.util.*;
 import java.util.function.Supplier;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -36,6 +37,7 @@ public class CalendarUserApiService {
     private final Map<String, CalendarProviderPort> providers;
     private final AuditEventPublisher audit;
     private final CalendarOccurrenceEngine occurrences = new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine());
+    private final CalendarPreviewRegistry previews = new CalendarPreviewRegistry();
 
     public CalendarUserApiService(DeploymentOrganizationAdmission admission, OrganizationIdentityContextResolver identities,
             ContextAuthorizationProperties context, ContextAuthorizationPort authorization, WorkspaceCapabilityService capabilities,
@@ -81,18 +83,62 @@ public class CalendarUserApiService {
         if (candidates.size() > 1000) throw tooLarge();
         List<Event> events = new ArrayList<>();
         List<Occurrence> projected = new ArrayList<>();
+        List<EventPreview> transientEvents = new ArrayList<>();
+        List<PreviewOccurrence> transientProjected = new ArrayList<>();
         for (CalendarEvent event : candidates) {
             verifyEvent(member, scope, event, null);
             List<CalendarOccurrence> expanded = provider(() -> occurrences.occurrences(event, from, to, zone));
-            if (expanded.size() >= 10000 || projected.size() + expanded.size() > 10000) throw tooLarge();
+            if (expanded.size() >= 10000 || projected.size() + transientProjected.size() + expanded.size() > 10000) throw tooLarge();
             if (expanded.isEmpty()) continue;
-            String id = identity(member, bound, scope, event.id(), null);
-            events.add(project(member, bound, scope, id, event));
-            expanded.forEach(value -> projected.add(new Occurrence(id, value.start().toInstant(), value.end().toInstant())));
+            Optional<String> id = existingIdentity(member, bound, scope, event.id());
+            if (id.isPresent()) {
+                events.add(project(member, bound, scope, id.get(), event));
+                expanded.forEach(value -> projected.add(new Occurrence(id.get(), value.start().toInstant(), value.end().toInstant())));
+            } else {
+                CalendarPreviewRegistry.Issued issued;
+                try {
+                    issued = previews.issue(member.organization(), member.principal(), calendarRef, scope,
+                            bound.binding().revision(), event.id(), providerVersion(event));
+                } catch (IllegalStateException capacity) { throw unavailable(); }
+                transientEvents.add(projectPreview(member, scope, issued.handle(), issued.expiresAt(), event));
+                expanded.forEach(value -> transientProjected.add(new PreviewOccurrence(issued.handle(),
+                        value.start().toInstant(), value.end().toInstant())));
+            }
         }
         current(member, bound);
         projected.sort(Comparator.comparing(Occurrence::startsAt).thenComparing(Occurrence::eventId));
-        return new Agenda(calendarRef, from, to, zone.getId(), List.copyOf(events), List.copyOf(projected));
+        transientProjected.sort(Comparator.comparing(PreviewOccurrence::startsAt).thenComparing(PreviewOccurrence::previewHandle));
+        return new Agenda(calendarRef, from, to, zone.getId(), List.copyOf(events), List.copyOf(projected),
+                List.copyOf(transientEvents), List.copyOf(transientProjected));
+    }
+
+    public EventPreview readPreview(Jwt jwt, String calendarRef, String handle) {
+        PreviewRead read = preview(jwt, calendarRef, handle);
+        return projectPreview(read.member(), read.scope(), handle, read.lease().expiresAt(), read.event());
+    }
+
+    public Event materializePreview(Jwt jwt, String calendarRef, String handle) {
+        PreviewRead read = preview(jwt, calendarRef, handle);
+        current(read.member(), read.bound());
+        auditMaterialization(read.member(), read.scope(), handle);
+        String id = identity(read.member(), read.bound(), read.scope(), read.event().id(), null);
+        current(read.member(), read.bound());
+        return project(read.member(), read.bound(), read.scope(), id, read.event());
+    }
+
+    private PreviewRead preview(Jwt jwt, String calendarRef, String handle) {
+        Member member = member(jwt, false);
+        CalendarScope scope = scope(member, calendarRef, ContextPermission.VIEW);
+        Bound bound = bound(member);
+        CalendarPreviewRegistry.Lease lease = previews.resolve(handle).orElseThrow(this::missing);
+        if (!member.organization().equals(lease.organization()) || !member.principal().equals(lease.principal())
+                || !calendarRef.equals(lease.calendarId()) || !scope.equals(lease.scope())) throw missing();
+        if (bound.binding().revision() != lease.bindingRevision()) throw stale();
+        CalendarEvent event = provider(() -> bound.provider().read(providerCalendar(member), scope, lease.providerId()));
+        verifyEvent(member, scope, event, lease.providerId());
+        if (!lease.providerVersion().equals(providerVersion(event))) throw stale();
+        current(member, bound);
+        return new PreviewRead(member, scope, bound, lease, event);
     }
 
     public Event read(Jwt jwt, String calendarRef, String eventRef) {
@@ -238,19 +284,33 @@ public class CalendarUserApiService {
 
     private String identity(Member member, Bound bound, CalendarScope scope, EventId id, String requested) {
         String providerRef = providerRef(member, scope, id);
-        var mapping = bindings.mappingByProviderRef(member.organization(), DOMAIN, bound.binding().revision(), providerRef);
-        if (mapping.isPresent()) {
-            ProviderObjectMapping existing = mapping.get();
-            if (!member.organization().equals(existing.organizationRef()) || !DOMAIN.equals(existing.domain())
-                    || bound.binding().revision() != existing.bindingRevision() || !providerRef.equals(existing.providerObjectRef())
-                    || !existing.canonicalObjectId().matches("event:[0-9a-f]{64}")) throw unavailable();
-            if (requested != null && !requested.equals(mapping.get().canonicalObjectId())) throw conflict();
-            return mapping.get().canonicalObjectId();
+        Optional<String> existing = existingIdentity(member, bound, scope, id);
+        if (existing.isPresent()) {
+            if (requested != null && !requested.equals(existing.get())) throw conflict();
+            return existing.get();
         }
         String canonical = requested == null ? "event:" + digest(member.organization() + "\0" + providerRef) : requested;
         Instant now = Instant.now();
-        return bindings.saveMapping(new ProviderObjectMapping(member.organization(), DOMAIN, bound.binding().revision(), canonical,
-                providerRef, "calendar-user-api", now, now)).canonicalObjectId();
+        try {
+            return bindings.saveMapping(new ProviderObjectMapping(member.organization(), DOMAIN, bound.binding().revision(), canonical,
+                    providerRef, "calendar-user-api", now, now)).canonicalObjectId();
+        } catch (DataIntegrityViolationException concurrent) {
+            Optional<String> winner = existingIdentity(member, bound, scope, id);
+            if (winner.isEmpty()) throw unavailable();
+            if (requested != null && !requested.equals(winner.get())) throw conflict();
+            return winner.get();
+        }
+    }
+
+    private Optional<String> existingIdentity(Member member, Bound bound, CalendarScope scope, EventId id) {
+        String providerRef = providerRef(member, scope, id);
+        return bindings.mappingByProviderRef(member.organization(), DOMAIN, bound.binding().revision(), providerRef)
+                .map(existing -> {
+                    if (!member.organization().equals(existing.organizationRef()) || !DOMAIN.equals(existing.domain())
+                            || bound.binding().revision() != existing.bindingRevision() || !providerRef.equals(existing.providerObjectRef())
+                            || !existing.canonicalObjectId().matches("event:[0-9a-f]{64}")) throw unavailable();
+                    return existing.canonicalObjectId();
+                });
     }
 
     private CalendarEvent readMapped(Member member, Bound bound, CalendarScope scope, String id) {
@@ -281,11 +341,26 @@ public class CalendarUserApiService {
                 version(bound, id, event), actions(member, scope), CalendarUserModelMapper.content(event));
     }
 
+    private EventPreview projectPreview(Member member, CalendarScope scope, String handle, Instant expiresAt, CalendarEvent event) {
+        List<String> allowed = new ArrayList<>(List.of("read", "materialize"));
+        if (member.mayEdit() && allowed(member, scope, ContextPermission.EDIT)) allowed.addAll(List.of("update", "delete"));
+        return new EventPreview(handle, calendarRef(member, scope), transportScope(scope), expiresAt,
+                List.copyOf(allowed), CalendarUserModelMapper.content(event));
+    }
+
+    private String providerVersion(CalendarEvent event) {
+        String value = event.version().value();
+        if (value == null || !value.matches("\"[^\"\\r\\n]+\"")) throw unavailable();
+        return value;
+    }
+
     private String version(Bound bound, String id, CalendarEvent event) {
-        String etag = event.version().value();
-        if (etag == null || !etag.matches("\"[^\"\\r\\n]+\"")) throw unavailable();
+        String etag = providerVersion(event);
         return "\"calendar-" + digest(id + "\0" + bound.binding().revision() + "\0" + etag) + "\"";
     }
+
+    private record PreviewRead(Member member, CalendarScope scope, Bound bound,
+            CalendarPreviewRegistry.Lease lease, CalendarEvent event) {}
 
     private void requireVersion(String value) {
         if (value == null || value.isBlank()) throw error(HttpStatus.PRECONDITION_REQUIRED, "calendar-precondition-required", "A current If-Match version is required.");
@@ -298,6 +373,17 @@ public class CalendarUserApiService {
                     AuditAction.CALENDAR_EVENT_WRITE_ATTEMPTED, Instant.now(),
                     "calendar-write:" + digest(id + "\0" + action + "\0" + version + "\0" + UUID.randomUUID()),
                     AuditRedactionLevel.SUPPORT_SAFE, Map.of("module", DOMAIN, "operation", action, "supportSafe", true)));
+        } catch (RuntimeException unavailable) {
+            throw error(HttpStatus.SERVICE_UNAVAILABLE, "calendar-audit-unavailable", "Calendar audit is unavailable.");
+        }
+    }
+
+    private void auditMaterialization(Member member, CalendarScope scope, String handle) {
+        try {
+            AuditWriteGate.publishRequired(audit, new AuditEvent(member.organization(), space(scope), member.principal(),
+                    "weave:calendar-user-api", AuditAction.CALENDAR_EVENT_REFERENCE_MATERIALIZATION_ATTEMPTED,
+                    Instant.now(), "calendar-reference:" + digest(handle + "\0" + UUID.randomUUID()),
+                    AuditRedactionLevel.SUPPORT_SAFE, Map.of("module", DOMAIN, "operation", "materialize", "supportSafe", true)));
         } catch (RuntimeException unavailable) {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "calendar-audit-unavailable", "Calendar audit is unavailable.");
         }

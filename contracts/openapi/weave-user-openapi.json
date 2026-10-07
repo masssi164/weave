@@ -918,6 +918,18 @@
             },
             "type": "array"
           },
+          "previewOccurrences": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarUserPreviewOccurrence"
+            },
+            "type": "array"
+          },
+          "previews": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarUserEventPreview"
+            },
+            "type": "array"
+          },
           "to": {
             "format": "date-time",
             "type": "string"
@@ -929,6 +941,8 @@
           "events",
           "from",
           "occurrences",
+          "previewOccurrences",
+          "previews",
           "to"
         ],
         "type": "object"
@@ -1007,6 +1021,42 @@
         ],
         "type": "object"
       },
+      "CalendarUserEventPreview": {
+        "description": "Transient provider-backed event view. The opaque handle is short-lived and is not a stable resource identity or authorization grant.",
+        "properties": {
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "calendarId": {
+            "type": "string"
+          },
+          "content": {
+            "$ref": "#/components/schemas/CalendarEventWriteRequest"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/CalendarUserScope"
+          }
+        },
+        "required": [
+          "allowedActions",
+          "calendarId",
+          "content",
+          "expiresAt",
+          "handle",
+          "scope"
+        ],
+        "type": "object"
+      },
       "CalendarUserOccurrence": {
         "description": "An agenda-window projection. Event content retains its exact temporal intent.",
         "properties": {
@@ -1025,6 +1075,28 @@
         "required": [
           "endsAt",
           "eventId",
+          "startsAt"
+        ],
+        "type": "object"
+      },
+      "CalendarUserPreviewOccurrence": {
+        "description": "An agenda-window projection linked only to a transient preview handle.",
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "previewHandle": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endsAt",
+          "previewHandle",
           "startsAt"
         ],
         "type": "object"
@@ -4572,6 +4644,222 @@
           }
         ],
         "summary": "Create an event with a stable retry identity",
+        "tags": [
+          "Calendar User"
+        ]
+      }
+    },
+    "/api/calendar/calendars/{calendarId}/events/previews/{handle}": {
+      "get": {
+        "operationId": "readCalendarEventPreview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarUserEventPreview"
+                }
+              }
+            },
+            "description": "Current provider-backed event preview without a stable Event identity."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or unsupported Calendar input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "A valid User session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Organization, capability or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Calendar or event is absent or not visible."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The provider event or binding changed after the preview was issued."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Current provider, mapping, audit or lossless profile support unavailable."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read a transient Calendar event preview under current authorization",
+        "tags": [
+          "Calendar User"
+        ]
+      }
+    },
+    "/api/calendar/calendars/{calendarId}/events/previews/{handle}/materialization": {
+      "post": {
+        "operationId": "materializeCalendarEventPreview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarUserEvent"
+                }
+              }
+            },
+            "description": "Idempotently materialized stable event.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or unsupported Calendar input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "A valid User session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Organization, capability or Space access denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Calendar or event is absent or not visible."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The provider event or binding changed after the preview was issued."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Current provider, mapping, audit or lossless profile support unavailable."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Explicitly create or reuse a stable reference to a provider event",
         "tags": [
           "Calendar User"
         ]
