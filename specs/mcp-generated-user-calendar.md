@@ -2,8 +2,8 @@
 
 Status: implementation contract for the bounded read slice of #1479 under
 #1470. Product and security authority are the pinned Calendar domain and
-workload-token acceptance examples in `weave-specs` commit
-`02d87bd58147349eaf45ef9cdbba52d32ab4782f`. This document records
+workload-token acceptance examples in the pinned `weave-specs` commit
+`8c74d6d0aac045106587e25f1cddbc6cba2dbc0c`. This document records
 repository conformance and does not define a second HTTP schema.
 
 The curated `calendar.agenda` tool uses the generated JVM `CalendarUserApi`
@@ -19,7 +19,8 @@ The MCP edge requests only the admitted `calendar.read` scope in its Standard
 Token Exchange V2 request. The API accepts that exchanged workload token for
 Calendar GET operations only and rejects it for mutations. The Server resolves
 the signed profile's member binding, rechecks current Keycloak entitlement,
-organization membership and Space `VIEW` access, and verifies the active
+organization membership, a current role granting the same `calendar.read`
+capability as the User API, and Space `VIEW` access, and verifies the active
 Calendar provider binding before content leaves the boundary. It never uses
 the workload subject as the member identity or forwards either bearer to a
 provider. Human User tokens retain their existing admission path.
