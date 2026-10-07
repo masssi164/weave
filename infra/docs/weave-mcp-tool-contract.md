@@ -1,8 +1,8 @@
 # Weave MCP workload boundary
 
-Status: **Guarded / first read-only Files slice active**. The identity, admission,
-token-exchange, and current-context path is implemented. `files.search` and the canonical
-`weave://files/{canonicalFileId}` resource consume the generated Weave User Files API. This is not a
+Status: **Guarded / bounded read slices active**. The identity, admission,
+token-exchange, and current-context path is implemented. `files.search`, the canonical
+`weave://files/{canonicalFileId}` resource, and `calendar.agenda` consume the generated Weave User API. This is not a
 production-ready Weaver or autonomous-action claim.
 
 ## Identity and protocol contract
@@ -20,9 +20,10 @@ production-ready Weaver or autonomous-action claim.
   only the domain scopes granted by its current RuntimeProfile.
 - The MCP edge configuration names the bounded domain-scope ceiling. Admission requires
   `mcp.tools` and at least one configured domain scope, rejects unknown or repeated scopes, and
-  exchanges only the admitted cell token's domain-scope subset. The exchange never adds a scope
-  merely because the edge configuration permits it. The present deployment ceiling remains
-  `files.read`; adding another domain scope requires its own backend authorization and tool gate.
+  exchanges only the admitted cell token's domain-scope subset. A Files or Calendar tool
+  invocation narrows exchange further to its own domain. The exchange never adds a scope
+  merely because the edge configuration permits it. The deployment ceiling contains
+  `files.read` and `calendar.read`; each request still requires its current member and Space grant.
 - The edge publishes OAuth Protected Resource Metadata at
   `/.well-known/oauth-protected-resource/mcp`. Missing bearer tokens receive a discoverable
   challenge; initialization without the client-credentials extension fails closed.
@@ -42,13 +43,15 @@ production-ready Weaver or autonomous-action claim.
 - `files.search` through the generated User list operation, with bounded traversal and
   provider-neutral structured output;
 - exact canonical-ID resource resolution through generated User metadata and bounded download;
+- `calendar.agenda` through generated User Calendar listing and agenda operations, with
+  bounded output and no preview materialization;
 - negative rejection of human tokens, unbound service accounts, missing extension negotiation,
   missing scopes, upscope attempts, stale profiles, and direct workload access to admin routes.
 
 ## What remains guarded
 
 The fixed canonical domain catalog is a capability ceiling, not an authorization grant. Only the
-Files read slice is advertised. Further discovery may open only as the intersection of the catalog,
+Files and Calendar agenda read slices are active. Further discovery may open only as the intersection of the catalog,
 the current RuntimeProfile, current domain authorization, and runtime availability. Write-like
 tools additionally require argument-bound, signed, single-use ApprovalDecisionEvidence v2 and
 must emit immutable ActionEvidence v2. OpenClaw owns approval presentation and decision state;
