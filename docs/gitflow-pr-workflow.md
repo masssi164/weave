@@ -10,7 +10,7 @@ Weave uses clear DevOps lanes instead of heavy classic GitFlow: `dev` for integr
 4. Open a PR early enough for CI and review, but mark it draft if it is not review-ready.
 5. Before requesting review, run the smallest meaningful local gate and record it in the PR body.
 6. Declare target lane, linked issue, release-note line or none reason, spec impact, and gates run.
-7. Request GitHub Copilot review on every review-ready PR.
+7. Request GitHub Copilot review on review-ready PRs unless the owner has explicitly waived that review for the assigned delivery, as for the delegated #1470 consolidation. Record an independent review of substantive changes.
 8. Do not merge until protected checks are green, conversations are resolved, and the release-notes label gate passes.
 
 
@@ -48,7 +48,7 @@ Before review-ready:
 - Note contract/spec changes or explicitly mark that there are none.
 - For UI-facing changes, include accessibility and localization impact.
 - For docs/release process changes, run `make docs-check`; use `make release-notes-check` alone only for release-note page or label-policy edits that do not need a site build.
-- Request Copilot review with `gh pr edit <number> --add-reviewer @copilot` or through the GitHub UI.
+- Request Copilot review with `gh pr edit <number> --add-reviewer @copilot` or through the GitHub UI unless the owner explicitly waived it for the assigned delivery. Record the alternative independent review evidence.
 
 ## CI enforcement
 
@@ -61,7 +61,7 @@ The docs gate also checks that release-note pages and diagram navigation remain 
 A PR is merge-ready only when:
 
 - it declares target lane, spec impact, release-note line or none reason, and exactly one release-notes label;
-- Copilot review was requested for the review-ready PR;
+- Copilot review was requested, or the owner-waived delivery has independent review evidence;
 - required CI is green or an explicit accepted exception is documented;
 - acceptance/evidence changes are mapped where product behavior changed;
 - no unrelated local, generated, secret, or OpenClaw agent files are included.

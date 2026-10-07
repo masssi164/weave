@@ -12,6 +12,8 @@ import {
   AdminControlPlaneApi as GeneratedAdminControlPlaneApi,
   Configuration as GeneratedConfiguration,
   OrganizationInvitationsApi as GeneratedOrganizationInvitationsApi,
+  type ProviderSelectionRequest as GeneratedProviderSelectionRequest,
+  type ProviderSelectionResponse as GeneratedProviderSelectionResponse,
   ResponseError as GeneratedResponseError,
 } from "./generated/admin-client";
 
@@ -636,22 +638,6 @@ interface ServerProviderCategory {
   dryRunEvidenceExpiresAt?: string;
 }
 
-interface ServerProviderSelectionResult {
-  category?: string;
-  providerKey?: string;
-  choiceModel?: string;
-  dryRun?: boolean;
-  evidenceRef?: string;
-  dryRunEvidenceRef?: string;
-  dryRunId?: string;
-  issuedAt?: string;
-  dryRunEvidenceIssuedAt?: string;
-  expiresAt?: string;
-  dryRunEvidenceExpiresAt?: string;
-  restartSurvivalEvidenceRef?: string;
-  supportSafe?: boolean;
-}
-
 interface ServerWhitelistPolicy {
   denyByDefault?: boolean;
   profileCapabilities?: Record<string, string[]>;
@@ -788,27 +774,19 @@ export class AdminControlPlaneApi {
     providerKey: string,
     choiceModel = "recommended_self_hosted_default",
     dryRun = false,
-    dryRunEvidenceRef?: string,
   ): Promise<ProviderSelectionResult> {
-    const response = await this.request<ServerProviderSelectionResult>(
-      "/admin/providers/selections",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          category,
-          providerKey,
-          choiceModel,
-          dryRun,
-          secretRef: `secretref://weave/provider/${providerKey}`,
-          dryRunEvidenceRef,
-          consequenceConfirmation: dryRun
-            ? undefined
-            : "ADMIN_CONFIRMED_PROVIDER_SWITCH_CONSEQUENCES",
-          reason: dryRun
-            ? "Dry-run through Organization/Admin Console"
-            : "Selected through Organization/Admin Console after fresh dry-run evidence and consequence confirmation",
-        }),
-      },
+    const providerSelectionRequest: GeneratedProviderSelectionRequest = {
+      category,
+      providerKey,
+      choiceModel,
+      dryRun,
+      secretRef: `secretref://weave/provider/${providerKey}`,
+      reason: dryRun
+        ? "Dry-run of provider-selection metadata through Organization/Admin Console"
+        : "Provider-selection metadata requested through Organization/Admin Console",
+    };
+    const response = await this.generated(
+      this.generatedControlPlane.selectProvider({ providerSelectionRequest }),
     );
     return normalizeProviderSelectionResult(
       response,
@@ -1269,7 +1247,7 @@ function normalizeCategory(
 }
 
 function normalizeProviderSelectionResult(
-  response: ServerProviderSelectionResult,
+  response: GeneratedProviderSelectionResponse,
   category: string,
   providerKey: string,
   choiceModel: string,
@@ -1280,11 +1258,8 @@ function normalizeProviderSelectionResult(
     providerKey: response.providerKey ?? providerKey,
     choiceModel: response.choiceModel ?? choiceModel,
     dryRun: response.dryRun ?? dryRun,
-    evidenceRef: response.evidenceRef ?? response.dryRunEvidenceRef,
-    dryRunId: response.dryRunId,
-    issuedAt: response.issuedAt ?? response.dryRunEvidenceIssuedAt,
-    expiresAt: response.expiresAt ?? response.dryRunEvidenceExpiresAt,
-    restartSurvivalEvidenceRef: response.restartSurvivalEvidenceRef,
+    // Provider-selection metadata is not backend-owned adoption/cutover evidence.
+    // Its generated response cannot unlock the guarded apply flow.
     supportSafe: response.supportSafe ?? false,
   };
 }
