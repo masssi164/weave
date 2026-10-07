@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import java.util.Map;
+import org.springframework.http.MediaType;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -50,11 +51,11 @@ public class BootstrapOwnerInvitationController {
       security = @SecurityRequirement(name = "owner-bootstrap-token"))
   @ApiResponses({
       @ApiResponse(responseCode = "201", description = "First owner invitation.",
-          content = @Content(schema = @Schema(implementation = MemberInvitationResponse.class))),
+          content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MemberInvitationResponse.class))),
       @ApiResponse(responseCode = "401", description = "Invalid owner-bootstrap credential.",
-          content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+          content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
       @ApiResponse(responseCode = "503", description = "Owner bootstrap is unavailable.",
-          content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+          content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
   })
   public MemberInvitationResponse create(
       @RequestHeader(CREDENTIAL_HEADER) String suppliedCredential,

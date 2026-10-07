@@ -5,10 +5,15 @@ import com.massimotter.weave.backend.model.PlatformStatusResponse;
 import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
 import com.massimotter.weave.backend.service.PlatformContractService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.stream.Stream;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,6 +33,9 @@ public class HealthController {
 
     @GetMapping("/api/health/live")
     @Operation(operationId = "live")
+    @ApiResponse(responseCode = "200", description = "The backend process is running.",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = HealthResponse.class)))
     public HealthResponse live(HttpServletRequest request) {
         String requestId = RequestIdFilter.requestId(request);
         return new HealthResponse(
@@ -45,6 +53,14 @@ public class HealthController {
 
     @GetMapping("/api/health/ready")
     @Operation(operationId = "ready")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Required dependencies are ready.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = HealthResponse.class))),
+            @ApiResponse(responseCode = "503", description = "A required dependency is degraded or blocked.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = HealthResponse.class)))
+    })
     public ResponseEntity<HealthResponse> ready(HttpServletRequest request) {
         PlatformStatusResponse status = platformContractService.status(RequestIdFilter.requestId(request));
         List<PlatformStatusResponse.DiagnosticCheck> backendChecks = Stream.concat(

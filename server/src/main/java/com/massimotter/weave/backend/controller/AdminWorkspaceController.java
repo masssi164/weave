@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -42,11 +43,11 @@ public class AdminWorkspaceController {
             @ApiResponse(
                     responseCode = "200",
                     description = "Workspace capability policy snapshot.",
-                    content = @Content(schema = @Schema(implementation = WorkspaceCapabilityPolicyResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkspaceCapabilityPolicyResponse.class))),
             @ApiResponse(responseCode = "401", description = "Missing or invalid Admin Console bearer token.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Workspace scope, current deployment organization, selected owner/admin role or readiness capability is missing.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public WorkspaceCapabilityPolicyResponse capabilityPolicy(@AuthenticationPrincipal Jwt jwt) {
         return workspaceCapabilityService.policySnapshot(jwt);
@@ -63,11 +64,11 @@ public class AdminWorkspaceController {
             @ApiResponse(
                     responseCode = "200",
                     description = "Admin workspace configuration snapshot; not live provider or release verification.",
-                    content = @Content(schema = @Schema(implementation = WorkspaceReleaseReadinessResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkspaceReleaseReadinessResponse.class))),
             @ApiResponse(responseCode = "401", description = "Missing or invalid Admin Console bearer token.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Workspace scope, current deployment organization, selected owner/admin role or readiness capability is missing.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public WorkspaceReleaseReadinessResponse releaseReadiness(@AuthenticationPrincipal Jwt jwt) {
         return workspaceReleaseReadinessService.snapshot(jwt);
