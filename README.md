@@ -98,8 +98,8 @@ The current release boundary is a server-owned code-first User/Admin API with ge
 ## Documentation
 
 - **Start contributing:** [Developer handbook](docs/developer-handbook.md), [Gitflow workflow](docs/gitflow-pr-workflow.md), and [contribution guide](CONTRIBUTING.md).
-- **Read implementation notes:** [Data-sovereignty core](docs/architecture/data-sovereignty-core.md), [package boundaries](docs/architecture/core-package-boundaries.md), and [transfer kernel](docs/architecture/canonical-transfer-kernel.md). Apply the current release profile when older plans conflict.
-- **Check the evidence:** [Workflow disposition](docs/development/workflow-disposition.md), [documentation audit](docs/documentation-audit.md), and [CI runs](https://github.com/masssi164/weave/actions).
+- **Read implementation notes:** [Data-sovereignty core](docs/architecture/data-sovereignty-core.md) and [package boundaries](docs/architecture/core-package-boundaries.md). The [transfer-kernel inventory](docs/architecture/canonical-transfer-kernel.md) records historical design; apply the pinned release profile to current work.
+- **Check the evidence:** [Current workflow ownership](docs/development/current-workflow-ownership.md) and [CI runs](https://github.com/masssi164/weave/actions); use the historical [workflow disposition](docs/development/workflow-disposition.md) and [documentation audit](docs/documentation-audit.md) when tracing older decisions.
 
 ## Release notes
 
