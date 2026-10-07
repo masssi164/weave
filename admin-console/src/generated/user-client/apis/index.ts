@@ -15,4 +15,5 @@ export * from './InteropApi';
 export * from './OfficeFacadeApi';
 export * from './PlatformApi';
 export * from './ProfileApi';
+export * from './SpacesUserApi';
 export * from './WorkspaceApi';
