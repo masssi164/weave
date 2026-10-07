@@ -1,6 +1,10 @@
 # Mainline convergence
 
-Status: active one-time source-line convergence for issue #1299 and pull request #1413.
+Status: historical proposal for superseded issue #1299 and pull request #1413. This file is
+retained as source-line history, not an active promotion procedure. The current protected
+integration and mainline rules are in [Gitflow PR workflow](../gitflow-pr-workflow.md),
+with #1481 owning final #1470 delivery. Do not use the sequence below to promote an
+unqualified `dev` tree or restore the old Core scope.
 
 ## Purpose
 

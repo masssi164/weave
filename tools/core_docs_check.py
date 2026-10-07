@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Objective integrity checks for the active Weave core documentation."""
+"""Objective integrity checks for current Weave documentation and historical links."""
 
 from __future__ import annotations
 
@@ -15,8 +15,15 @@ ACTIVE_DOCS = (
     README,
     ROOT / "docs/architecture/data-sovereignty-core.md",
     ROOT / "docs/architecture/core-package-boundaries.md",
-    ROOT / "docs/architecture/canonical-transfer-kernel.md",
+    ROOT / "docs/specification-source-of-truth.md",
+    ROOT / "docs/developer-handbook.md",
     ROOT / "docs/development/core-workflow.md",
+    ROOT / "docs/development/current-workflow-ownership.md",
+    ROOT / "docs/gitflow-pr-workflow.md",
+)
+HISTORICAL_DOCS = (
+    ROOT / "docs/architecture/canonical-transfer-kernel.md",
+    ROOT / "docs/development/mainline-convergence.md",
     ROOT / "docs/development/workflow-disposition.md",
     ROOT / "docs/testing/core-test-strategy.md",
     ROOT / "docs/documentation-audit.md",
@@ -88,7 +95,7 @@ def check_links(path: Path, failures: list[str]) -> None:
 def main() -> int:
     failures: list[str] = []
 
-    for path in (*ACTIVE_DOCS, *REDIRECT_DOCS):
+    for path in (*ACTIVE_DOCS, *HISTORICAL_DOCS, *REDIRECT_DOCS):
         if not path.is_file():
             fail(f"missing required documentation file: {path.relative_to(ROOT)}", failures)
 
@@ -130,13 +137,21 @@ def main() -> int:
             fail(f"redirect is not marked superseded near the top: {path.relative_to(ROOT)}", failures)
         check_links(path, failures)
 
+    for path in HISTORICAL_DOCS:
+        if not any(
+            line.startswith("Status: historical")
+            for line in path.read_text(encoding="utf-8").splitlines()[2:8]
+        ):
+            fail(f"historical document lacks explicit status: {path.relative_to(ROOT)}", failures)
+        check_links(path, failures)
+
     task_sources = [ROOT / "build.gradle", *sorted((ROOT / "gradle/tasks").glob("*.gradle"))]
     combined_tasks = "\n".join(path.read_text(encoding="utf-8") for path in task_sources)
     for task in REQUIRED_TASKS:
         if task not in combined_tasks:
             fail(f"documented Gradle task is not registered: {task}", failures)
 
-    disposition = (ROOT / "docs/development/workflow-disposition.md").read_text(encoding="utf-8")
+    disposition = (ROOT / "docs/development/current-workflow-ownership.md").read_text(encoding="utf-8")
     for workflow in sorted((ROOT / ".github/workflows").glob("*.yml")):
         if workflow.name not in disposition:
             fail(f"workflow has no documented disposition: {workflow.name}", failures)
