@@ -83,6 +83,10 @@ organization. This fix preserves existing data and does not implement provider m
   including when a test fixture or stale local state presents a purported evidence
   reference. #1498 owns those operations. Recording a category selection cannot
   be presented as an active binding change.
+- The historical `WEAVE_SPEC_0010_PROVIDER_CHANGE` scenario stays mapped as
+  offline specification evidence for #1498. Its current Admin UI test fragment
+  asserts only the fail-closed selection boundary; it does not prove migration,
+  cutover, reconciliation or rollback for #1470.
 - Actual Files binding status is projected from
   `ProviderBindingRepository.current(canonicalOrganization, "files")`; adapter
   readiness is checked through the existing Files resolver. No private configuration

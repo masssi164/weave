@@ -3723,7 +3723,7 @@
         {
           "path": "admin-console/src/App.test.tsx",
           "fragments": [
-            "applies selected providers only after fresh dry-run evidence and consequence confirmation",
+            "does not activate a provider from selection metadata even when a fixture claims fresh evidence",
             "blocks provider apply when dry-run evidence becomes stale after selection changes"
           ]
         },
