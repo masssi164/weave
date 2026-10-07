@@ -18,6 +18,8 @@ class CalendarUserAgenda {
     this.events = const [],
     required this.from,
     this.occurrences = const [],
+    this.previewOccurrences = const [],
+    this.previews = const [],
     required this.to,
   });
 
@@ -31,6 +33,10 @@ class CalendarUserAgenda {
 
   List<CalendarUserOccurrence> occurrences;
 
+  List<CalendarUserPreviewOccurrence> previewOccurrences;
+
+  List<CalendarUserEventPreview> previews;
+
   DateTime to;
 
   @override
@@ -42,6 +48,8 @@ class CalendarUserAgenda {
           _deepEquality.equals(other.events, events) &&
           other.from == from &&
           _deepEquality.equals(other.occurrences, occurrences) &&
+          _deepEquality.equals(other.previewOccurrences, previewOccurrences) &&
+          _deepEquality.equals(other.previews, previews) &&
           other.to == to;
 
   @override
@@ -52,11 +60,13 @@ class CalendarUserAgenda {
       (events.hashCode) +
       (from.hashCode) +
       (occurrences.hashCode) +
+      (previewOccurrences.hashCode) +
+      (previews.hashCode) +
       (to.hashCode);
 
   @override
   String toString() =>
-      'CalendarUserAgenda[calendarId=$calendarId, evaluationTimeZone=$evaluationTimeZone, events=$events, from=$from, occurrences=$occurrences, to=$to]';
+      'CalendarUserAgenda[calendarId=$calendarId, evaluationTimeZone=$evaluationTimeZone, events=$events, from=$from, occurrences=$occurrences, previewOccurrences=$previewOccurrences, previews=$previews, to=$to]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -65,6 +75,8 @@ class CalendarUserAgenda {
     json[r'events'] = this.events;
     json[r'from'] = this.from.toUtc().toIso8601String();
     json[r'occurrences'] = this.occurrences;
+    json[r'previewOccurrences'] = this.previewOccurrences;
+    json[r'previews'] = this.previews;
     json[r'to'] = this.to.toUtc().toIso8601String();
     return json;
   }
@@ -96,6 +108,9 @@ class CalendarUserAgenda {
         events: CalendarUserEvent.listFromJson(json[r'events']),
         from: mapDateTime(json, r'from', r'')!,
         occurrences: CalendarUserOccurrence.listFromJson(json[r'occurrences']),
+        previewOccurrences: CalendarUserPreviewOccurrence.listFromJson(
+            json[r'previewOccurrences']),
+        previews: CalendarUserEventPreview.listFromJson(json[r'previews']),
         to: mapDateTime(json, r'to', r'')!,
       );
     }
@@ -158,6 +173,8 @@ class CalendarUserAgenda {
     'events',
     'from',
     'occurrences',
+    'previewOccurrences',
+    'previews',
     'to',
   };
 }

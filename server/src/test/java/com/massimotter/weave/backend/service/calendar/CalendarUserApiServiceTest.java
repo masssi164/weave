@@ -210,6 +210,85 @@ class CalendarUserApiServiceTest {
     }
 
     @Test
+    void browsingProviderEventUsesTransientPreviewUntilExplicitMaterialization() {
+        service.create(member, calendar, content("External planning"), "calendar-fixture-key-1");
+        mappings.clear();
+        clearInvocations(bindings, audit);
+        when(provider.query(any(), any(), any(), any())).thenAnswer(call -> List.copyOf(events.values()));
+
+        Agenda agenda = service.agenda(member, calendar, Instant.parse("2026-03-28T00:00:00Z"),
+                Instant.parse("2026-03-29T00:00:00Z"), "UTC");
+        assertThat(agenda.events()).isEmpty();
+        assertThat(agenda.occurrences()).isEmpty();
+        assertThat(agenda.previews()).hasSize(1);
+        assertThat(agenda.previewOccurrences()).hasSize(1);
+        EventPreview preview = agenda.previews().getFirst();
+        assertThat(preview.handle()).startsWith("pv_").doesNotContain("@calendar", "event:");
+        assertThat(preview.content().title()).isEqualTo("External planning");
+        assertThat(agenda.previewOccurrences().getFirst().previewHandle()).isEqualTo(preview.handle());
+        assertThat(service.readPreview(member, calendar, preview.handle()).content()).isEqualTo(preview.content());
+        assertThat(mappings).isEmpty();
+        verify(bindings, never()).saveMapping(any());
+
+        Event materialized = service.materializePreview(member, calendar, preview.handle());
+        assertThat(materialized.id()).startsWith("event:");
+        assertThat(service.materializePreview(member, calendar, preview.handle()).id()).isEqualTo(materialized.id());
+        assertThat(mappings).containsOnlyKeys(materialized.id());
+        ArgumentCaptor<AuditEvent> materializations = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(audit, times(2)).publish(materializations.capture());
+        assertThat(materializations.getAllValues()).allSatisfy(attempt -> {
+            assertThat(attempt.action()).isEqualTo(com.massimotter.weave.backend.audit.AuditAction.CALENDAR_EVENT_REFERENCE_MATERIALIZATION_ATTEMPTED);
+            assertThat(attempt.tenantId()).isEqualTo("tenant-default");
+        });
+        assertThat(service.agenda(member, calendar, Instant.parse("2026-03-28T00:00:00Z"),
+                Instant.parse("2026-03-29T00:00:00Z"), "UTC").events())
+                .extracting(Event::id).containsExactly(materialized.id());
+    }
+
+    @Test
+    void previewCannotCrossActorBindingVersionOrAuditBoundary() {
+        service.create(member, calendar, content("External planning"), "calendar-fixture-key-1");
+        mappings.clear();
+        when(provider.query(any(), any(), any(), any())).thenAnswer(call -> List.copyOf(events.values()));
+        EventPreview preview = service.agenda(member, calendar, Instant.parse("2026-03-28T00:00:00Z"),
+                Instant.parse("2026-03-29T00:00:00Z"), "UTC").previews().getFirst();
+        Jwt other = Jwt.withTokenValue("other").header("alg", "none").subject("other")
+                .issuer("https://auth.weave.test/realms/weave")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member")).build();
+        assertStatus(() -> service.materializePreview(other, calendar, preview.handle()), HttpStatus.NOT_FOUND);
+        assertStatus(() -> service.materializePreview(member, calendar, preview.handle() + "x"), HttpStatus.NOT_FOUND);
+        assertThat(mappings).isEmpty();
+
+        clearInvocations(provider, audit);
+        when(rights.check(any())).thenReturn(ContextAuthorizationDecision.deny("revoked"));
+        assertStatus(() -> service.readPreview(member, calendar, preview.handle()), HttpStatus.FORBIDDEN);
+        assertStatus(() -> service.materializePreview(member, calendar, preview.handle()), HttpStatus.FORBIDDEN);
+        assertThat(mappings).isEmpty();
+        verify(provider, never()).read(any(), any(), any());
+        verifyNoInteractions(audit);
+        when(rights.check(any())).thenReturn(ContextAuthorizationDecision.allow("restored"));
+
+        doThrow(new IllegalStateException("audit unavailable")).when(audit).publish(any());
+        assertStatus(() -> service.materializePreview(member, calendar, preview.handle()), HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(mappings).isEmpty();
+        reset(audit);
+
+        CalendarEvent original = events.values().iterator().next();
+        events.put(original.id().value(), new CalendarEvent(original.calendarId(), original.id(), original.scope(),
+                original.title(), original.description(), original.startValue(), original.endValue(), original.location(),
+                original.attendees(), original.recurrence(), original.overrides(), new EventVersion("\"private-etag-2\""), Instant.now()));
+        assertStatus(() -> service.materializePreview(member, calendar, preview.handle()), HttpStatus.PRECONDITION_FAILED);
+        assertThat(mappings).isEmpty();
+        events.put(original.id().value(), original);
+
+        ProviderBinding newer = new ProviderBinding("tenant-default", "calendar", 2, "test-provider",
+                CalendarUserApiService.CONFIGURATION_REF, ProviderBinding.State.ACTIVE, Instant.now());
+        when(bindings.current("tenant-default", "calendar")).thenReturn(Optional.of(newer));
+        assertStatus(() -> service.materializePreview(member, calendar, preview.handle()), HttpStatus.PRECONDITION_FAILED);
+        assertThat(mappings).isEmpty();
+    }
+
+    @Test
     void missingOrDifferentBindingFailsClosed() {
         when(bindings.current("tenant-default", "calendar")).thenReturn(Optional.empty());
         assertStatus(() -> service.create(member, calendar, content("Planning"), "calendar-create-key-1"), HttpStatus.SERVICE_UNAVAILABLE);

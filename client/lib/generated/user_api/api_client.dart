@@ -280,8 +280,12 @@ class ApiClient {
           return CalendarUserCalendars.fromJson(value);
         case 'CalendarUserEvent':
           return CalendarUserEvent.fromJson(value);
+        case 'CalendarUserEventPreview':
+          return CalendarUserEventPreview.fromJson(value);
         case 'CalendarUserOccurrence':
           return CalendarUserOccurrence.fromJson(value);
+        case 'CalendarUserPreviewOccurrence':
+          return CalendarUserPreviewOccurrence.fromJson(value);
         case 'CalendarUserScope':
           return CalendarUserScope.fromJson(value);
         case 'CanonicalBridgeEventResponse':

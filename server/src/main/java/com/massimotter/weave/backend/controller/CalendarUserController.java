@@ -61,6 +61,24 @@ public class CalendarUserController {
         return calendar.agenda(jwt, calendarId, from, to, evaluationTimeZone);
     }
 
+    @GetMapping("/{calendarId}/events/previews/{handle}")
+    @Operation(operationId = "readCalendarEventPreview", summary = "Read a transient Calendar event preview under current authorization")
+    @ApiResponse(responseCode = "200", description = "Current provider-backed event preview without a stable Event identity.")
+    @ApiResponse(responseCode = "412", description = "The provider event or binding changed after the preview was issued.", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    public ResponseEntity<EventPreview> readPreview(@AuthenticationPrincipal Jwt jwt, @PathVariable String calendarId,
+            @PathVariable String handle) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(calendar.readPreview(jwt, calendarId, handle));
+    }
+
+    @PostMapping("/{calendarId}/events/previews/{handle}/materialization")
+    @Operation(operationId = "materializeCalendarEventPreview", summary = "Explicitly create or reuse a stable reference to a provider event")
+    @ApiResponse(responseCode = "200", description = "Idempotently materialized stable event.", headers = @Header(name = "ETag", schema = @Schema(type = "string")))
+    @ApiResponse(responseCode = "412", description = "The provider event or binding changed after the preview was issued.", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    public ResponseEntity<Event> materializePreview(@AuthenticationPrincipal Jwt jwt, @PathVariable String calendarId,
+            @PathVariable String handle) {
+        return response(calendar.materializePreview(jwt, calendarId, handle), HttpStatus.OK);
+    }
+
     @GetMapping("/{calendarId}/events/{eventId}")
     @Operation(operationId = "getCalendarEvent", summary = "Read a stable Weave Calendar event")
     @ApiResponse(responseCode = "200", description = "Exact current event content.", headers = @Header(name = "ETag", schema = @Schema(type = "string")))

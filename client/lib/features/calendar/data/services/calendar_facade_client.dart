@@ -36,6 +36,7 @@ class CalendarFacadeClient {
   final AuthSessionRepository _auth;
   final Future<String> Function() _evaluationTimeZone;
   final _events = <String, _EventSnapshot>{};
+  final _previews = <String, _PreviewSnapshot>{};
   final _calendars = <String, CalendarScope>{};
   String? _owner;
   final _pendingCreates = <String, String>{};
@@ -95,6 +96,12 @@ class CalendarFacadeClient {
       _remember(context, event, scope.id);
       masters[event.id] = event;
     }
+    _previews.clear();
+    final previewMasters = <String, api.CalendarUserEventPreview>{};
+    for (final preview in result.previews) {
+      _rememberPreview(context, preview, scope.id);
+      previewMasters[preview.handle] = preview;
+    }
     final rows = <CalendarEvent>[];
     for (final occurrence in result.occurrences) {
       final event = masters[occurrence.eventId];
@@ -111,12 +118,40 @@ class CalendarFacadeClient {
         ),
       );
     }
+    for (final occurrence in result.previewOccurrences) {
+      final preview = previewMasters[occurrence.previewHandle];
+      if (preview == null) {
+        throw const CalendarFailure(CalendarFailureKind.unavailable);
+      }
+      rows.add(
+        _viewPreview(
+          preview,
+          scope,
+          start: _wallClock(tz.TZDateTime.from(occurrence.startsAt, zone)),
+          end: _wallClock(tz.TZDateTime.from(occurrence.endsAt, zone)),
+          displayZone: zone.name,
+        ),
+      );
+    }
     rows.sort((left, right) => left.startTime.compareTo(right.startTime));
     return CalendarEventList(scope: scope, events: rows);
   }
 
   Future<CalendarEvent> readEvent(String id) async {
     final context = await _context();
+    final pending = _previews[id];
+    if (pending != null) {
+      final preview = _previewSnapshot(context, id);
+      final result = await _invoke(
+        context,
+        (client) => client.readCalendarEventPreview(preview.calendarId, id),
+      );
+      if (result == null || result.handle != id) {
+        throw const CalendarFailure(CalendarFailureKind.unavailable);
+      }
+      _rememberPreview(context, result, preview.calendarId);
+      return _viewPreview(result, _calendars[result.calendarId]!);
+    }
     final previous = _snapshot(context, id);
     final result = await _invoke(
       context,
@@ -165,46 +200,82 @@ class CalendarFacadeClient {
     String? version,
   }) async {
     final context = await _context();
-    final original = _snapshot(context, id);
+    final preview = _previews[id];
+    if (preview != null) {
+      final pending = _previewSnapshot(context, id);
+      _allow(pending.allowedActions, 'update');
+      if (_recurringContent(pending.content)) {
+        throw const CalendarFailure(CalendarFailureKind.unsupportedEdit);
+      }
+      if (version != null || draft.scope.id != pending.calendarId) {
+        throw const CalendarFailure(CalendarFailureKind.conflict);
+      }
+      _content(draft, original: pending.content);
+    }
+    final original = preview == null
+        ? _snapshot(context, id)
+        : await _materializePreview(context, preview.preview);
     _allow(original.allowedActions, 'update');
     if (_recurring(original)) {
       throw const CalendarFailure(CalendarFailureKind.unsupportedEdit);
     }
-    if (version == null ||
-        version != original.version ||
+    if ((preview == null && (version == null || version != original.version)) ||
         draft.scope.id != original.calendarId) {
       throw const CalendarFailure(CalendarFailureKind.conflict);
     }
     final content = _content(draft, original: original.content);
     final result = await _invoke(
       context,
-      (client) =>
-          client.updateCalendarEvent(original.calendarId, id, version, content),
+      (client) => client.updateCalendarEvent(
+        original.calendarId,
+        original.id,
+        original.version,
+        content,
+      ),
       mutation: true,
     );
-    if (result == null || result.id != id) {
+    if (result == null || result.id != original.id) {
       throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
     _remember(context, result, original.calendarId);
+    _previews.remove(id);
     return _view(result, _calendars[result.calendarId]!);
   }
 
   Future<void> deleteEvent(String id, {String? version}) async {
     final context = await _context();
-    final original = _snapshot(context, id);
+    final preview = _previews[id];
+    if (preview != null) {
+      final pending = _previewSnapshot(context, id);
+      _allow(pending.allowedActions, 'delete');
+      if (_recurringContent(pending.content)) {
+        throw const CalendarFailure(CalendarFailureKind.unsupportedEdit);
+      }
+      if (version != null) {
+        throw const CalendarFailure(CalendarFailureKind.conflict);
+      }
+    }
+    final original = preview == null
+        ? _snapshot(context, id)
+        : await _materializePreview(context, preview.preview);
     _allow(original.allowedActions, 'delete');
     if (_recurring(original)) {
       throw const CalendarFailure(CalendarFailureKind.unsupportedEdit);
     }
-    if (version == null || version != original.version) {
+    if (preview == null && (version == null || version != original.version)) {
       throw const CalendarFailure(CalendarFailureKind.conflict);
     }
     await _invoke(
       context,
-      (client) => client.deleteCalendarEvent(original.calendarId, id, version),
+      (client) => client.deleteCalendarEvent(
+        original.calendarId,
+        original.id,
+        original.version,
+      ),
       mutation: true,
     );
-    _events.remove(id);
+    _events.remove(original.id);
+    _previews.remove(id);
   }
 
   CalendarScope _selected(CalendarScopeList scopes, CalendarScope? selected) {
@@ -256,6 +327,26 @@ class CalendarFacadeClient {
     _events[event.id] = _EventSnapshot(context.owner, event);
   }
 
+  void _rememberPreview(
+    _Context context,
+    api.CalendarUserEventPreview preview,
+    String calendarId,
+  ) {
+    if (!RegExp(r'^pv_[A-Za-z0-9_-]{32}$').hasMatch(preview.handle) ||
+        preview.calendarId != calendarId ||
+        !_calendars.containsKey(calendarId)) {
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+    final scope = _calendars[calendarId]!;
+    if (preview.scope.spaceId != scope.contextId ||
+        preview.scope.type.value.toLowerCase() != scope.type ||
+        preview.scope.teamId != scope.teamId ||
+        preview.scope.channelId != scope.channelId) {
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+    _previews[preview.handle] = _PreviewSnapshot(context.owner, preview);
+  }
+
   api.CalendarUserEvent _snapshot(_Context context, String id) {
     final snapshot = _events[id];
     if (snapshot == null || snapshot.owner != context.owner) {
@@ -264,8 +355,38 @@ class CalendarFacadeClient {
     return snapshot.event;
   }
 
+  api.CalendarUserEventPreview _previewSnapshot(_Context context, String id) {
+    final snapshot = _previews[id];
+    if (snapshot == null || snapshot.owner != context.owner) {
+      throw const CalendarFailure(CalendarFailureKind.conflict);
+    }
+    return snapshot.preview;
+  }
+
+  Future<api.CalendarUserEvent> _materializePreview(
+    _Context context,
+    api.CalendarUserEventPreview preview,
+  ) async {
+    final result = await _invoke(
+      context,
+      (client) => client.materializeCalendarEventPreview(
+        preview.calendarId,
+        preview.handle,
+      ),
+      mutation: true,
+    );
+    if (result == null || result.calendarId != preview.calendarId) {
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+    _remember(context, result, preview.calendarId);
+    return result;
+  }
+
   bool _recurring(api.CalendarUserEvent event) =>
-      event.content.recurrence != null || event.content.overrides.isNotEmpty;
+      _recurringContent(event.content);
+
+  bool _recurringContent(api.CalendarEventWriteRequest content) =>
+      content.recurrence != null || content.overrides.isNotEmpty;
 
   CalendarEvent _view(
     api.CalendarUserEvent event,
@@ -273,46 +394,85 @@ class CalendarFacadeClient {
     DateTime? start,
     DateTime? end,
     String? displayZone,
-  }) {
-    final content = event.content;
-    return CalendarEvent(
-      id: event.id,
-      title: content.title,
-      description: content.description,
-      location: content.location,
-      startTime: start ?? _time(content.start),
-      endTime: end ?? _time(content.end),
-      timezone:
-          displayZone ??
-          content.start.timeZone ??
-          (content.start.kind == api.CalendarTimeValueKindEnum.UTC
-              ? 'UTC'
-              : null),
-      allDay: content.start.kind == api.CalendarTimeValueKindEnum.DATE,
-      timeKind: CalendarTimeKind.values.byName(
-        content.start.kind.value.toLowerCase(),
-      ),
-      recurring: _recurring(event),
-      allowedActions: List.unmodifiable(event.allowedActions),
-      etag: event.version,
-      scope: scope,
-      threadRef: CalendarThreadRef(
-        contextId: scope.contextId,
-        channelId: scope.channelId,
-        meetingThreadId: event.meetingThreadRef,
-      ),
-      attendees: content.attendees
-          .map(
-            (attendee) => CalendarAttendee(
-              name: attendee.displayName,
-              email: attendee.address,
-              role: attendee.role,
-              responseStatus: attendee.response,
-            ),
-          )
-          .toList(growable: false),
-    );
-  }
+  }) => _viewContent(
+    id: event.id,
+    content: event.content,
+    allowedActions: event.allowedActions,
+    etag: event.version,
+    scope: scope,
+    threadRef: CalendarThreadRef(
+      contextId: scope.contextId,
+      channelId: scope.channelId,
+      meetingThreadId: event.meetingThreadRef,
+    ),
+    start: start,
+    end: end,
+    displayZone: displayZone,
+  );
+
+  CalendarEvent _viewPreview(
+    api.CalendarUserEventPreview preview,
+    CalendarScope scope, {
+    DateTime? start,
+    DateTime? end,
+    String? displayZone,
+  }) => _viewContent(
+    id: preview.handle,
+    previewHandle: preview.handle,
+    content: preview.content,
+    allowedActions: preview.allowedActions,
+    scope: scope,
+    threadRef: CalendarThreadRef.forScope(scope),
+    start: start,
+    end: end,
+    displayZone: displayZone,
+  );
+
+  CalendarEvent _viewContent({
+    required String id,
+    String? previewHandle,
+    required api.CalendarEventWriteRequest content,
+    required List<String> allowedActions,
+    required CalendarScope scope,
+    required CalendarThreadRef threadRef,
+    String? etag,
+    DateTime? start,
+    DateTime? end,
+    String? displayZone,
+  }) => CalendarEvent(
+    id: id,
+    previewHandle: previewHandle,
+    title: content.title,
+    description: content.description,
+    location: content.location,
+    startTime: start ?? _time(content.start),
+    endTime: end ?? _time(content.end),
+    timezone:
+        displayZone ??
+        content.start.timeZone ??
+        (content.start.kind == api.CalendarTimeValueKindEnum.UTC
+            ? 'UTC'
+            : null),
+    allDay: content.start.kind == api.CalendarTimeValueKindEnum.DATE,
+    timeKind: CalendarTimeKind.values.byName(
+      content.start.kind.value.toLowerCase(),
+    ),
+    recurring: _recurringContent(content),
+    allowedActions: List.unmodifiable(allowedActions),
+    etag: etag,
+    scope: scope,
+    threadRef: threadRef,
+    attendees: content.attendees
+        .map(
+          (attendee) => CalendarAttendee(
+            name: attendee.displayName,
+            email: attendee.address,
+            role: attendee.role,
+            responseStatus: attendee.response,
+          ),
+        )
+        .toList(growable: false),
+  );
 
   DateTime _time(api.CalendarTimeValue value) {
     if (value.kind == api.CalendarTimeValueKindEnum.DATE &&
@@ -446,6 +606,7 @@ class CalendarFacadeClient {
     await _assertCurrent(context);
     if (_owner != context.owner) {
       _events.clear();
+      _previews.clear();
       _calendars.clear();
       _pendingCreates.clear();
       _owner = context.owner;
@@ -565,4 +726,10 @@ class _EventSnapshot {
   _EventSnapshot(this.owner, this.event);
   final String owner;
   final api.CalendarUserEvent event;
+}
+
+class _PreviewSnapshot {
+  _PreviewSnapshot(this.owner, this.preview);
+  final String owner;
+  final api.CalendarUserEventPreview preview;
 }

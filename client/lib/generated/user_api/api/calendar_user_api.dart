@@ -277,6 +277,76 @@ class CalendarUserApi {
     return null;
   }
 
+  /// Explicitly create or reuse a stable reference to a provider event
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] calendarId (required):
+  ///
+  /// * [String] handle (required):
+  Future<Response> materializeCalendarEventPreviewWithHttpInfo(
+    String calendarId,
+    String handle,
+  ) async {
+    // ignore: prefer_const_declarations
+    final path =
+        r'/api/calendar/calendars/{calendarId}/events/previews/{handle}/materialization'
+            .replaceAll('{calendarId}', calendarId)
+            .replaceAll('{handle}', handle);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Explicitly create or reuse a stable reference to a provider event
+  ///
+  /// Parameters:
+  ///
+  /// * [String] calendarId (required):
+  ///
+  /// * [String] handle (required):
+  Future<CalendarUserEvent?> materializeCalendarEventPreview(
+    String calendarId,
+    String handle,
+  ) async {
+    final response = await materializeCalendarEventPreviewWithHttpInfo(
+      calendarId,
+      handle,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'CalendarUserEvent',
+      ) as CalendarUserEvent;
+    }
+    return null;
+  }
+
   /// Query a bounded Calendar agenda with an explicit evaluation timezone
   ///
   /// Note: This method returns the HTTP [Response].
@@ -362,6 +432,76 @@ class CalendarUserApi {
         await _decodeBodyBytes(response),
         'CalendarUserAgenda',
       ) as CalendarUserAgenda;
+    }
+    return null;
+  }
+
+  /// Read a transient Calendar event preview under current authorization
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] calendarId (required):
+  ///
+  /// * [String] handle (required):
+  Future<Response> readCalendarEventPreviewWithHttpInfo(
+    String calendarId,
+    String handle,
+  ) async {
+    // ignore: prefer_const_declarations
+    final path =
+        r'/api/calendar/calendars/{calendarId}/events/previews/{handle}'
+            .replaceAll('{calendarId}', calendarId)
+            .replaceAll('{handle}', handle);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Read a transient Calendar event preview under current authorization
+  ///
+  /// Parameters:
+  ///
+  /// * [String] calendarId (required):
+  ///
+  /// * [String] handle (required):
+  Future<CalendarUserEventPreview?> readCalendarEventPreview(
+    String calendarId,
+    String handle,
+  ) async {
+    final response = await readCalendarEventPreviewWithHttpInfo(
+      calendarId,
+      handle,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'CalendarUserEventPreview',
+      ) as CalendarUserEventPreview;
     }
     return null;
   }

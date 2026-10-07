@@ -488,6 +488,47 @@ void main() {
       );
     });
 
+    testWidgets('transient preview edits through the normal event dialog', (
+      tester,
+    ) async {
+      const handle = 'pv_0123456789abcdefghijklmnopqrstuv';
+      final repository = _FakeCalendarRepository(
+        events: [
+          CalendarEvent(
+            id: handle,
+            previewHandle: handle,
+            title: 'Provider planning',
+            startTime: DateTime(2026, 10, 25, 10),
+            endTime: DateTime(2026, 10, 25, 11),
+            allowedActions: const ['read', 'materialize', 'update', 'delete'],
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              const AsyncData(_readySnapshot),
+            ),
+            calendarRepositoryProvider.overrideWithValue(repository),
+            calendarEvaluationTimeZoneProvider.overrideWith(
+              (ref) async => 'Europe/Berlin',
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Edit Provider planning'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'Revised planning');
+      await tester.tap(find.text('Save event'));
+      await tester.pumpAndSettle();
+      expect(repository.updatedDrafts.single.title, 'Revised planning');
+      expect(repository.updatedEtags.single, isNull);
+      expect(find.text('Revised planning'), findsWidgets);
+    });
+
     testWidgets(
       'version conflict explains reload and leaves the event visible',
       (tester) async {

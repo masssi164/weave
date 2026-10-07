@@ -117,6 +117,7 @@ enum CalendarTimeKind { date, floating, utc, zoned }
 class CalendarEvent {
   CalendarEvent({
     required this.id,
+    this.previewHandle,
     required this.title,
     required this.startTime,
     required this.endTime,
@@ -135,6 +136,10 @@ class CalendarEvent {
   }) : threadRef = threadRef ?? CalendarThreadRef.forScope(scope);
 
   final String id;
+
+  /// Present only for a short-lived provider event view without a stable Event ID.
+  final String? previewHandle;
+  bool get isTransientPreview => previewHandle != null;
   final String title;
   final String? description;
 

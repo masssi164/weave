@@ -1,9 +1,10 @@
 # Calendar User API implementation contract
 
-Status: backend slice validated for #1472 and #1479; generated-consumer and real
-product runtime integration remain separate acceptance requirements.
+Status: backend Calendar slice and generated transient-preview consumer are under
+integration for #1476/#1479. Real product runtime integration remains a separate
+acceptance requirement.
 Classification: cross-repo contract; Server owns implementation. This file is
-implementation evidence for pinned corpus `3b27ad2e667e462d9f63ff9c58fc02469e167f9b`,
+implementation evidence for pinned corpus `71a2093d91ad300bc733ede66080bddc90f97e60`,
 `steering/release-2026-10-product-consolidation.md`, `domains/calendar/spec.md` and
 `docs/reference/calendar-support-profile.md`. It does not redefine product truth.
 
@@ -31,10 +32,22 @@ implementation evidence for pinned corpus `3b27ad2e667e462d9f63ff9c58fc02469e167
   It admits only the configured canonical organization and creates a missing initial
   binding; conflicting existing authority is rejected without replacing it.
 - Reuse provider payload storage and the existing private provider object mapping
-  repository. Identity mappings contain no event payload. Browsing may record an
-  opaque event identity, but does not create a generic Resource or relationship.
-  Raw collection IDs, UIDs, paths, ETags and sync tokens remain private. Existing
-  provider payload must never override the authorized scope.
+  repository. Identity mappings contain no event payload. Agenda browsing of an
+  unmapped provider event returns a transient event preview and occurrence projections,
+  never a durable Event mapping, Resource, or relationship. The preview has a bounded
+  opaque handle, provider-backed readback, current organization/actor/Calendar scope
+  checks, active-binding revision and provider-version checks. It has no stable Event
+  ID or meeting-thread reference and is not an authorization grant. Repeated
+  browsing of the same actor, scope, binding and provider version reuses
+  its live preview handle while at least half its lease remains. Near expiry,
+  browsing issues a fresh handle while the previous handle remains valid until
+  its original expiry. This prevents ordinary refreshes from exhausting the
+  bounded lease registry or presenting an almost-expired preview. Explicit
+  materialization through a generated User operation rechecks the provider and creates
+  or reuses one stable mapping before an existing event can be edited or deleted.
+  Expiry, tampering, stale binding/version, member denial and audit failure must not
+  publish a mapping. Raw collection IDs, UIDs, paths, ETags and sync tokens remain
+  private. Existing provider payload must never override the authorized scope.
   Native Calendar's existing normalized temporal/attendee/recurrence/override
   tables must be represented in the entity-first persistence model. The retired
   SQL definitions alone do not establish the current runtime schema. Add those
@@ -80,18 +93,21 @@ checks, temporal/recurrence round trips and actual provider persistence tests.
 Include stale identical updates and concurrent delete ordering, unknown CalDAV
 properties, wrong scope/organization and zero provider writes on rejection.
 Run existing Calendar integrity/security tests and code-first metadata tests.
-Root integration owns artifact/client generation, deployment bootstrap and real
-Flutter/MCP/provider journeys. Local mocks or compilation do not close the stories.
+Root integration owns artifact/client generation, Flutter's preview-to-edit flow,
+deployment bootstrap and real Flutter/MCP/provider journeys. Local mocks or
+compilation do not close the stories.
 Public CalDAV and provider migration acceptance remain deferred.
 
-## Committed backend validation evidence
+## Validation evidence
 
-- `:server:test`: 1,098 tests, zero failures/errors. Four authoritative normalized
+- `:server:test`: 1,158 tests, zero failures/errors. Four authoritative normalized
   Calendar persistence cases are deliberately skipped here and run on PostgreSQL.
-- `:server:postgresJpaTest --tests '*NativeCalendarProviderAdapterTest'`: all eight
+- `:server:postgresJpaTest --tests '*NativeCalendarProviderAdapterTest'`: all nine
   Calendar tests pass with zero skips, using entity-first PostgreSQL tables and the
   production `NativeCalendarRelationalStore`. The existing Cucumber engine also runs
-  twelve unchanged Boards scenarios. Evidence includes all four temporal kinds,
+  twelve unchanged Boards scenarios. Evidence includes provider-backed transient
+  preview, no browse mapping, idempotent materialization and stable readback after
+  adapter/service restart, as well as all four temporal kinds,
   attendees, typed UNTIL/RDATE/EXDATE, moved and cancelled instances, fresh adapter
   read/query, exact versions, stale delete, deletion and database interval constraints.
 - HTTP/controller/service tests cover shared human organization admission, unknown
@@ -104,12 +120,19 @@ Public CalDAV and provider migration acceptance remain deferred.
 - Calendar recurrence regressions prove all four temporal kinds include intervals
   that start before and overlap an agenda window, UTC supports all four frequencies,
   and result exhaustion fails instead of silently truncating.
-- `specCorpusConformance` passes against pinned corpus `3b27ad2e667e`; `docsCheck`
-  passes using the existing pinned docs dependency environment. Initial docs execution
-  with system Python lacked MkDocs; no documentation gate was relaxed.
+- `specCorpusConformance` passes against pinned corpus `71a2093d91ad`;
+  `docsStructureCheck`, `checkOpenApiContractFresh` and `checkClientUserApiFresh`
+  pass. The full Flutter unit/widget suite passes with one existing skip;
+  JVM User/Admin client checks and MCP/product-E2E module tests pass. These are
+  build and local test results, not a substitute for a real deployed product journey.
 
-This is backend qualification, not closure of #1472/#1473/#1479. No generated artifact,
-Flutter/MCP consumer, infrastructure file or production deployment is changed here.
-CalDAV external interoperability, actual deployment journeys and generated consumers
-still require their integration evidence. Unsupported preservation cases remain
-blocked; native provider success does not qualify every possible provider payload.
+The transient-preview increment adds generated User OpenAPI/Dart operations and a
+Flutter preview-to-edit/delete path. Focused server service and HTTP tests assert
+opaque previews, zero browse mappings, explicit idempotent materialization,
+cross-actor and stale-version denial, and the transport distinction between a
+preview and materialized Event. The Flutter transport tests cover provider-backed
+readback and materialization ordering. The root generation freshness tasks pass.
+This does not close #1476/#1479: real integrated provider and Flutter journeys,
+PostgreSQL restart/restore, and MCP/admin behavior still need independent evidence.
+Unsupported preservation cases remain blocked; native provider success does not
+qualify every possible provider payload.

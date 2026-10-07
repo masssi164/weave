@@ -2,7 +2,17 @@ package com.massimotter.weave.backend.calendar.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.Attendee;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
@@ -11,25 +21,42 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarWrit
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventId;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceFrequency;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceOverride;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceSet;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.TemporalKind;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.TemporalValue;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
+import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
+import com.massimotter.weave.backend.providerbinding.domain.ProviderObjectMapping;
+import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.service.calendar.CalendarOccurrenceEngine;
+import com.massimotter.weave.backend.service.calendar.CalendarUserApiService;
+import com.massimotter.weave.backend.service.calendar.Ical4jRecurrenceEngine;
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import com.massimotter.weave.backend.calendar.domain.CalendarDomain.TemporalKind;
-import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceOverride;
-import com.massimotter.weave.backend.service.calendar.CalendarOccurrenceEngine;
-import com.massimotter.weave.backend.service.calendar.Ical4jRecurrenceEngine;
+import org.mockito.AdditionalAnswers;
+import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 class NativeCalendarProviderAdapterTest {
 
@@ -82,6 +109,72 @@ class NativeCalendarProviderAdapterTest {
         assertThat(adapter.freeBusy(CALENDAR, WORKSPACE, from, to))
                 .extracting(window -> window.start().atZone(ZoneId.of("Europe/Berlin")).toLocalDate().toString())
                 .containsExactly("2026-03-28", "2026-03-29", "2026-03-31", "2026-04-02");
+    }
+
+    @Test
+    void providerBackedPreviewDoesNotMapOnBrowseAndMaterializedEventSurvivesRestart() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(Boolean.getBoolean("weave.test.postgres"), "Authoritative PostgreSQL gate");
+        DataSource database = JpaTestDatabase.entityFirstDataSource("native-calendar-preview-v1");
+        CalendarProviderPort first = mock(CalendarProviderPort.class, AdditionalAnswers.delegatesTo(adapter(database)));
+        ProviderBindingRepository bindings = mock(ProviderBindingRepository.class);
+        ContextAuthorizationPort rights = mock(ContextAuthorizationPort.class);
+        WorkspaceCapabilityService capabilities = mock(WorkspaceCapabilityService.class);
+        AuditEventPublisher audit = mock(AuditEventPublisher.class);
+        Map<String, ProviderObjectMapping> mappings = new HashMap<>();
+        ProviderBinding binding = new ProviderBinding("tenant-default", "calendar", 1, "weave-native",
+                CalendarUserApiService.CONFIGURATION_REF, ProviderBinding.State.ACTIVE, Instant.EPOCH);
+        when(bindings.current("tenant-default", "calendar")).thenReturn(Optional.of(binding));
+        when(bindings.mappingByProviderRef(anyString(), eq("calendar"), anyLong(), anyString()))
+                .thenAnswer(call -> mappings.values().stream().filter(value -> value.providerObjectRef().equals(call.getArgument(3))).findFirst());
+        when(bindings.mappingByCanonicalId(anyString(), eq("calendar"), anyLong(), anyString()))
+                .thenAnswer(call -> Optional.ofNullable(mappings.get(call.getArgument(3))));
+        when(bindings.saveMapping(any())).thenAnswer(call -> {
+            ProviderObjectMapping mapping = call.getArgument(0);
+            mappings.put(mapping.canonicalObjectId(), mapping);
+            return mapping;
+        });
+        when(rights.check(any())).thenReturn(ContextAuthorizationDecision.allow("member"));
+        ContextAuthorizationProperties context = new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
+        Jwt member = Jwt.withTokenValue("member").header("alg", "none").subject("member")
+                .issuer("https://auth.weave.test/realms/weave")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member")).build();
+        CalendarUserApiService service = new CalendarUserApiService(HumanJwtTestSupport.organizationAdmission(),
+                OrganizationIdentityContextResolver.configured(context), context, rights, capabilities,
+                bindings, List.of(first), audit);
+        String calendarRef = service.calendars(member).calendars().getFirst().id();
+        Instant from = Instant.parse("2026-03-28T00:00:00Z");
+        Instant to = Instant.parse("2026-03-29T00:00:00Z");
+        assertThat(service.agenda(member, calendarRef, from, to, "UTC").events()).isEmpty();
+        ArgumentCaptor<CalendarId> providerCalendar = ArgumentCaptor.forClass(CalendarId.class);
+        verify(first).query(providerCalendar.capture(), eq(WORKSPACE), any(), any());
+        CalendarEvent source = new CalendarEvent(providerCalendar.getValue(), new EventId("external-native"), WORKSPACE,
+                "Provider planning", "Preserved", TemporalValue.floating(LocalDateTime.parse("2026-03-28T09:00:00")),
+                TemporalValue.floating(LocalDateTime.parse("2026-03-28T10:00:00")), null, List.of(), null, List.of(),
+                EventVersion.unknown(), CLOCK.instant());
+        first.write(new CalendarWrite(source, WriteIntent.CREATE, EventVersion.unknown()));
+
+        var agenda = service.agenda(member, calendarRef, from, to, "UTC");
+        assertThat(agenda.events()).isEmpty();
+        assertThat(agenda.previews()).singleElement().satisfies(preview -> {
+            assertThat(preview.handle()).startsWith("pv_").doesNotContain("external-native");
+            assertThat(preview.content().title()).isEqualTo("Provider planning");
+        });
+        assertThat(mappings).isEmpty();
+        verify(bindings, never()).saveMapping(any());
+        String handle = agenda.previews().getFirst().handle();
+        assertThat(service.readPreview(member, calendarRef, handle).content().title()).isEqualTo("Provider planning");
+        var materialized = service.materializePreview(member, calendarRef, handle);
+        assertThat(service.materializePreview(member, calendarRef, handle).id()).isEqualTo(materialized.id());
+        assertThat(mappings).hasSize(1);
+        verify(bindings, times(1)).saveMapping(any());
+
+        CalendarUserApiService restarted = new CalendarUserApiService(HumanJwtTestSupport.organizationAdmission(),
+                OrganizationIdentityContextResolver.configured(context), context, rights, capabilities,
+                bindings, List.of(adapter(database)), audit);
+        assertThat(restarted.read(member, calendarRef, materialized.id()).content().title()).isEqualTo("Provider planning");
+        assertThat(restarted.agenda(member, calendarRef, from, to, "UTC").events())
+                .extracting(com.massimotter.weave.backend.model.calendar.CalendarUserModels.Event::id)
+                .containsExactly(materialized.id());
     }
 
     @Test
