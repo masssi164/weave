@@ -4,6 +4,7 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
@@ -57,6 +58,17 @@ final weaveApiWorkspaceCapabilitySnapshotProvider =
         );
       }, confirmCurrentSession: true);
     });
+
+final weaveApiMemberSpacesProvider = FutureProvider<MemberSpaceAccessSnapshot?>(
+  (ref) async {
+    return _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
+      return client.fetchMemberSpaces(
+        baseUrl: baseUrl,
+        accessToken: accessToken,
+      );
+    }, confirmCurrentSession: true);
+  },
+);
 
 final weaveApiWorkspaceHomeProvider = FutureProvider<WorkspaceHomeSnapshot?>((
   ref,

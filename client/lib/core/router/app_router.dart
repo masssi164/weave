@@ -7,6 +7,7 @@ import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
+import 'package:weave/features/chat/presentation/chat_admission_gate.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
@@ -117,7 +118,9 @@ GoRouter appRouter(Ref ref) {
                     builder: (context, state) {
                       final conversation = state.extra;
                       if (conversation is ChatConversation) {
-                        return ChatRoomScreen(conversation: conversation);
+                        return ChatAdmissionGate(
+                          child: ChatRoomScreen(conversation: conversation),
+                        );
                       }
 
                       return const ChatScreen();

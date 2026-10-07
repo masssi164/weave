@@ -7,6 +7,7 @@ import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
 import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
@@ -212,6 +213,15 @@ class _StaticWeaveApiClient implements WeaveApiClient {
   const _StaticWeaveApiClient(this.snapshot);
 
   final WorkspaceCapabilitySnapshot snapshot;
+
+  @override
+  Future<MemberSpaceAccessSnapshot> fetchMemberSpaces({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async => const MemberSpaceAccessSnapshot(
+    visibleSpaceRefs: {'workspace-default'},
+    defaultSpaceReadable: true,
+  );
 
   @override
   Future<IdentitySessionReconcileResult> reconcileIdentitySession({

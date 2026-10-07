@@ -100,7 +100,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                 guidance: l10n.filesErrorGuidance,
                 retryLabel: l10n.retryButton,
                 onRetry: () {
-                  ref.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider);
+                  ref
+                    ..invalidate(weaveApiWorkspaceCapabilitySnapshotProvider)
+                    ..invalidate(weaveApiMemberSpacesProvider);
                 },
               ),
             ),
@@ -109,8 +111,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
             _fillStateSliver(
               child: _FilesCapabilityBody(
                 capability: value.files,
-                onRetry: () =>
-                    ref.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider),
+                onRetry: () => ref
+                  ..invalidate(weaveApiWorkspaceCapabilitySnapshotProvider)
+                  ..invalidate(weaveApiMemberSpacesProvider),
               ),
             ),
           ],
