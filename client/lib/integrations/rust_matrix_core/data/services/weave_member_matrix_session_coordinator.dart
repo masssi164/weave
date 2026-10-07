@@ -268,41 +268,40 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
       );
       await revalidate();
       if (synchronize) await _bridge.syncClient(profileKey: profileKey);
+      await _secureStore.write(
+        bindingKey,
+        jsonEncode(<String, String>{
+          'homeserverUrl': homeserver.toString(),
+          'userId': userId,
+          'deviceId': deviceId,
+          'profileKey': profileKey,
+          'organizationId': access.organizationId,
+        }),
+      );
+      await _secureStore.write(matrixOAuthCurrentBindingKey, bindingKey);
+      final oldGrant = File.fromUri(
+        store.uri.resolve('weave-matrix-oauth-session.v1'),
+      );
+      try {
+        if (await oldGrant.exists()) await oldGrant.delete();
+      } on FileSystemException catch (error) {
+        throw ChatFailure.storage(
+          'M_WEAVE_MATRIX_RETIRED_GRANT_CLEAR_FAILED',
+          cause: error,
+        );
+      }
+      final opened = MatrixCryptoSession(
+        profileKey: profileKey,
+        userId: userId,
+        deviceId: deviceId,
+      );
+      _active = opened;
+      _activeFingerprint = fingerprint;
+      return opened;
     } on Object {
       await _bridge.disposeClient(profileKey: profileKey);
       rethrow;
     }
-    await _secureStore.write(
-      bindingKey,
-      jsonEncode(<String, String>{
-        'homeserverUrl': homeserver.toString(),
-        'userId': userId,
-        'deviceId': deviceId,
-        'profileKey': profileKey,
-        'organizationId': access.organizationId,
-      }),
-    );
-    await _secureStore.write(matrixOAuthCurrentBindingKey, bindingKey);
-    final oldGrant = File.fromUri(
-      store.uri.resolve('weave-matrix-oauth-session.v1'),
-    );
-    try {
-      if (await oldGrant.exists()) await oldGrant.delete();
-    } on FileSystemException catch (error) {
-      await _bridge.disposeClient(profileKey: profileKey);
-      throw ChatFailure.storage(
-        'M_WEAVE_MATRIX_RETIRED_GRANT_CLEAR_FAILED',
-        cause: error,
-      );
-    }
-    final opened = MatrixCryptoSession(
-      profileKey: profileKey,
-      userId: userId,
-      deviceId: deviceId,
-    );
-    _active = opened;
-    _activeFingerprint = fingerprint;
-    return opened;
   }
 
   Future<MatrixSessionAccess> _authorize(

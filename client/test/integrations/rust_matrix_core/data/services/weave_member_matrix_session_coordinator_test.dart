@@ -75,6 +75,16 @@ class _Access implements MatrixSessionAccessPort {
   }
 }
 
+class _FailingBindingStore extends InMemorySecureStore {
+  @override
+  Future<void> write(String key, String value) async {
+    if (key == matrixOAuthCurrentBindingKey) {
+      throw StateError('Secure binding write failed');
+    }
+    await super.write(key, value);
+  }
+}
+
 String _idToken() {
   String encode(Map<String, Object> value) =>
       base64UrlEncode(utf8.encode(jsonEncode(value))).replaceAll('=', '');
@@ -250,6 +260,26 @@ void main() {
       );
       expect(bridge.disposedProfiles, contains(first.profileKey));
       expect(bridge.memberActivations, hasLength(1));
+    },
+  );
+
+  test(
+    'failed binding persistence disposes the native member client',
+    () async {
+      store = _FailingBindingStore();
+      final current = coordinator();
+
+      await expectLater(
+        current.open(synchronize: false),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(bridge.memberActivations, hasLength(1));
+      expect(
+        bridge.disposedProfiles,
+        contains(bridge.memberActivations.single['profileKey']),
+      );
+      expect(store.rawValue(matrixOAuthCurrentBindingKey), isNull);
     },
   );
 
