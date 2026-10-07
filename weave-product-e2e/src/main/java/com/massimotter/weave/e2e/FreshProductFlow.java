@@ -143,6 +143,8 @@ public final class FreshProductFlow {
       validateAdminToken(browser.jwtPayload(adminSession.accessToken()));
       assertSeparatedApiSessions(ownerSession.accessToken(), adminSession.accessToken());
       assertGeneratedAdminControlPlane(adminSession.accessToken(), organizationId);
+      GeneratedSpacesJourney spaces = new GeneratedSpacesJourney(environment);
+      spaces.provisionDefault(adminSession.accessToken(), ownerSession.accessToken());
       configureRequiredProviders(adminSession.accessToken());
       awaitChatReadiness(ownerSession.accessToken());
 
@@ -189,6 +191,9 @@ public final class FreshProductFlow {
               browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
       JsonNode memberClaims = browser.jwtPayload(memberSession.accessToken());
       validateHumanWorkspaceToken(memberClaims, "weave-app");
+      spaces.verifyAbsent(memberSession.accessToken());
+      spaces.grantEditor(adminSession.accessToken(), memberSession.accessToken(),
+          accountId(environment.issuer().toString(), memberSession.subject()));
       String memberUsername = memberEmail.substring(0, memberEmail.indexOf('@'));
       if (!memberUsername.equals(memberClaims.path("preferred_username").asString())) {
         throw new ProductFlowException(
@@ -234,11 +239,14 @@ public final class FreshProductFlow {
               browser, outsiderSession, "guest", outsiderEmail, outsiderPassword);
       outsiderSession = awaitAuthority(browser, outsiderSession, "/guests", "guest");
       validateHumanWorkspaceToken(browser.jwtPayload(outsiderSession.accessToken()), "weave-app");
+      spaces.verifyAbsent(outsiderSession.accessToken());
 
       GeneratedFilesJourney generatedFiles = new GeneratedFilesJourney(environment);
       GeneratedFilesJourney.Proof generatedFilesProof =
           generatedFiles.createAndVerify(
               memberSession.accessToken(), outsiderSession.accessToken(), environment.runId());
+      spaces.verifyOwnerOnlyFileRelation(memberSession.accessToken(), ownerSession.accessToken(),
+          generatedFilesProof.fileId());
 
       CollaborationJourney collaboration = new CollaborationJourney(environment, http);
       collaborationPasses.add(
