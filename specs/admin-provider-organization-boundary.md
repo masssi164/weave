@@ -87,6 +87,17 @@ organization. This fix preserves existing data and does not implement provider m
   offline specification evidence for #1498. Its current Admin UI test fragment
   asserts only the fail-closed selection boundary; it does not prove migration,
   cutover, reconciliation or rollback for #1470.
+- A legacy category-selection request must not persist metadata that contradicts
+  an existing active organization binding. For Files, Chat and Calendar, a
+  different adapter key is a conflict even when the request is marked dry-run;
+  a verified candidate/preflight belongs to #1498. An identical key can record
+  configuration metadata without altering the binding or its revision. The
+  rejection is independently tested with the canonical organization and a
+  foreign organization; neither request dispatches to a provider or mutates a
+  binding. The code-first Admin operation documents HTTP 409 and its error
+  model, and labels `applied` as recorded category metadata rather than active
+  binding activation. Generated Admin consumers inherit this description. This
+  guard does not turn a selection response into cutover evidence.
 - Actual Files binding status is projected from
   `ProviderBindingRepository.current(canonicalOrganization, "files")`; adapter
   readiness is checked through the existing Files resolver. No private configuration
