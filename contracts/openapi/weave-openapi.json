@@ -9472,6 +9472,9 @@
             "headers": {
               "ETag": {
                 "description": "Strong current member version.",
+                "schema": {
+                  "type": "string"
+                },
                 "style": "simple"
               }
             }
@@ -9528,6 +9531,9 @@
             "headers": {
               "ETag": {
                 "description": "Strong revoked member version.",
+                "schema": {
+                  "type": "string"
+                },
                 "style": "simple"
               }
             }
@@ -9602,6 +9608,9 @@
             "headers": {
               "ETag": {
                 "description": "Strong current member version required for replacement or revocation.",
+                "schema": {
+                  "type": "string"
+                },
                 "style": "simple"
               }
             }

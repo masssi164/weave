@@ -87,12 +87,14 @@ public class SpacesAdminController {
     @Operation(operationId = "getSpaceMember", summary = "Read current Space member grant and version")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Current member grant.",
-                    headers = @Header(name = "ETag", description = "Strong current member version."),
+                    headers = @Header(name = "ETag", description = "Strong current member version.",
+                            schema = @Schema(type = "string")),
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = SpaceMemberResponse.class))),
             @ApiResponse(responseCode = "404", description = "Current member unavailable."),
             @ApiResponse(responseCode = "410", description = "Revoked grant; ETag identifies the tombstone for explicit regrant.",
-                    headers = @Header(name = "ETag", description = "Strong revoked member version."),
+                    headers = @Header(name = "ETag", description = "Strong revoked member version.",
+                            schema = @Schema(type = "string")),
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ApiErrorResponse.class)))
     })
@@ -108,7 +110,8 @@ public class SpacesAdminController {
     @Operation(operationId = "putSpaceMember", summary = "Grant or replace current Space membership")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Versioned current member grant.",
-                    headers = @Header(name = "ETag", description = "Strong current member version required for replacement or revocation."),
+                    headers = @Header(name = "ETag", description = "Strong current member version required for replacement or revocation.",
+                            schema = @Schema(type = "string")),
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = SpaceMemberResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid grant or precondition."),
