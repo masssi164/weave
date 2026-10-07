@@ -31,6 +31,10 @@
     "auditRequiredForEveryToolCall": true,
     "serverApprovalOracleAllowed": false,
     "serverOwnedBindingRequired": true,
+    "currentMemberAuthorizationRequired": true,
+    "currentToolGrantRequired": true,
+    "incomingBearerRelayAllowed": false,
+    "exchangedScopeMayExceedAdmittedWorkloadScope": false,
     "humanTokensForbidden": true,
     "genericServiceAccountsForbidden": true
   },

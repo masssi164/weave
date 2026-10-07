@@ -40,6 +40,10 @@ jq -e '
   and .globalControls.defaultExposeTools == false
   and .globalControls.staticCatalogDoesNotAuthorizeInvocation == true
   and .globalControls.serverOwnedBindingRequired == true
+  and .globalControls.currentMemberAuthorizationRequired == true
+  and .globalControls.currentToolGrantRequired == true
+  and .globalControls.incomingBearerRelayAllowed == false
+  and .globalControls.exchangedScopeMayExceedAdmittedWorkloadScope == false
   and .globalControls.humanTokensForbidden == true
   and .globalControls.genericServiceAccountsForbidden == true
   and .globalControls.denyUnknownTools == true
