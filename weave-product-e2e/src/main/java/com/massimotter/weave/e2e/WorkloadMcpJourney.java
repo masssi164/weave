@@ -107,11 +107,7 @@ final class WorkloadMcpJourney {
 
   void invokeCalendarAgenda(String cellRef, GeneratedCalendarJourney.Proof proof) {
     String clientId = "weaver-cell-" + requireCellKey(cellRef);
-    String token = clientCredentials(clientId, readActiveKey(clientId), CALENDAR_SCOPES);
-    validateWorkloadToken(token, clientId, CALENDAR_SCOPES);
-    String sessionId = initializeSession(token);
-    requireTool(token, sessionId, "calendar.agenda");
-
+    RSAKey key = readActiveKey(clientId);
     ObjectNode call = request(3, "tools/call");
     call.putObject("params")
         .put("name", "calendar.agenda")
@@ -120,6 +116,20 @@ final class WorkloadMcpJourney {
         .put("from", "2026-10-23T00:00:00Z")
         .put("to", "2026-10-29T00:00:00Z")
         .put("evaluationTimeZone", "Europe/Berlin");
+
+    String filesToken = clientCredentials(clientId, key, FILES_SCOPES);
+    validateWorkloadToken(filesToken, clientId, FILES_SCOPES);
+    String filesSession = initializeSession(filesToken);
+    JsonHttpClient.Response wrongScope = mcp(filesToken, filesSession, call, Set.of(403));
+    if (!wrongScope.firstHeader("WWW-Authenticate").contains("error=\"insufficient_scope\"")
+        || !wrongScope.bodyText().contains("\"error\":\"insufficient_scope\"")) {
+      throw new ProductFlowException("a Files-only Cell token reached Calendar MCP");
+    }
+
+    String token = clientCredentials(clientId, key, CALENDAR_SCOPES);
+    validateWorkloadToken(token, clientId, CALENDAR_SCOPES);
+    String sessionId = initializeSession(token);
+    requireTool(token, sessionId, "calendar.agenda");
     JsonNode result = protocolBody(mcp(token, sessionId, call, Set.of(200)));
     requireNoError(result, "MCP calendar.agenda");
     String serialized = result.path("result").toString();

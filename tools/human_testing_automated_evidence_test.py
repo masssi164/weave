@@ -109,6 +109,7 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
             "sameMcpCellAfterRestart": True,
             "revocationDenied": True,
             "calendarMcpAgenda": True,
+            "calendarMcpWrongScopeDenied": True,
             "calendarMcpRevocationDenied": True,
             "regrantRestored": True,
             "sameHumanSubjectAfterRegrant": True,

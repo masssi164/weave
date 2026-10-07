@@ -416,6 +416,7 @@ def build_live(
         "sameMcpCellAfterRestart",
         "revocationDenied",
         "calendarMcpAgenda",
+        "calendarMcpWrongScopeDenied",
         "calendarMcpRevocationDenied",
         "regrantRestored",
         "sameHumanSubjectAfterRegrant",

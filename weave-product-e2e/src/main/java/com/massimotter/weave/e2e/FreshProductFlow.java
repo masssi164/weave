@@ -966,6 +966,7 @@ public final class FreshProductFlow {
     evidence.put("workloadOAuth", "client_credentials_private_key_jwt");
     evidence.put("mcpTool", mcpProof.toolName());
     evidence.put("calendarMcpAgenda", true);
+    evidence.put("calendarMcpWrongScopeDenied", true);
     evidence.put("calendarMcpRevocationDenied", calendarRevocationDenied);
     evidence.put("serverProjection", mcpProof.serverProjection());
     evidence.put("canonicalResourceSeen", mcpProof.canonicalResourceSeen());
