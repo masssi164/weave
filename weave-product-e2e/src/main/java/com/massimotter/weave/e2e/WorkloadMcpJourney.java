@@ -37,6 +37,8 @@ final class WorkloadMcpJourney {
   private static final Set<String> CALENDAR_SCOPES = Set.of("mcp.tools", "calendar.read");
   private static final Pattern FILES_ERROR_CODE =
       Pattern.compile("Files User API rejected request: HTTP ([0-9]{3})");
+  private static final Pattern CALENDAR_ERROR_CODE =
+      Pattern.compile("Calendar User API rejected request: HTTP ([0-9]{3})");
   private static final Pattern FILES_RESOURCE_URI =
       Pattern.compile("weave://files/[A-Za-z0-9%:_-]+");
 
@@ -452,6 +454,23 @@ final class WorkloadMcpJourney {
     Matcher filesError = FILES_ERROR_CODE.matcher(response.toString());
     if (filesError.find()) {
       return "files-user-http-" + filesError.group(1);
+    }
+    Matcher calendarError = CALENDAR_ERROR_CODE.matcher(response.toString());
+    if (calendarError.find()) {
+      return "calendar-user-http-" + calendarError.group(1);
+    }
+    String toolContent = response.path("result").path("content").path(0).path("text").asString("");
+    if (toolContent.contains("The Calendar is unavailable to the current member")) {
+      return "calendar-not-visible";
+    }
+    if (toolContent.contains("The Calendar agenda exceeds the MCP result bound")
+        || toolContent.contains("The Calendar agenda exceeds the MCP byte bound")) {
+      return "calendar-result-bound";
+    }
+    if (toolContent.contains("A stable Weave Calendar reference is required")
+        || toolContent.contains("A valid bounded Calendar interval and time zone are required")
+        || toolContent.contains("The Calendar interval must be at most 366 days")) {
+      return "calendar-invalid-arguments";
     }
     JsonNode code = response.path("error").path("code");
     if (code.canConvertToInt()) {
