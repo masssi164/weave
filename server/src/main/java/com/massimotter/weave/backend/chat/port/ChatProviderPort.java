@@ -41,6 +41,9 @@ public interface ChatProviderPort {
     /** Stable, bounded canonical identifiers for rooms joined by the current actor in one Space. */
     java.util.List<String> joinedConversationRefs(ChatRequestContext context, String afterConversationId, int limit);
 
+    /** Finds a joined room's Space without consulting a caller-selected or stale token context. */
+    java.util.Optional<String> joinedConversationContext(ChatRequestContext context, ConversationId conversationId);
+
     default ChatConversations joinedConversations(ChatActorRef actorRef) {
         return joinedConversations(ChatRequestContext.isolatedTest(actorRef));
     }

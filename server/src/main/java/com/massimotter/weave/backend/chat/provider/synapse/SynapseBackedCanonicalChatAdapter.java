@@ -137,6 +137,11 @@ public final class SynapseBackedCanonicalChatAdapter implements ChatProviderPort
     }
 
     @Override
+    public java.util.Optional<String> joinedConversationContext(ChatRequestContext context, ConversationId conversationId) {
+        return store.joinedConversationContext(context, conversationId);
+    }
+
+    @Override
     public ChatCursor currentCursor(ChatRequestContext context) {
         return store.currentCursor(context);
     }

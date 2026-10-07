@@ -166,6 +166,16 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
     }
 
     @Override
+    public java.util.Optional<String> joinedConversationContext(
+            ChatRequestContext context, ConversationId conversationId) {
+        var conversation = conversations.get(conversationId.value());
+        return conversation != null
+                && "joined".equals(conversation.membershipStates().get(context.actorRef().value()))
+                ? java.util.Optional.of(conversation.contextId())
+                : java.util.Optional.empty();
+    }
+
+    @Override
     public ChatCursor currentCursor(ChatRequestContext context) {
         return new ChatCursor("chat-revision-" + revision.get());
     }

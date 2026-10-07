@@ -301,7 +301,7 @@ class JpaCanonicalChatStoreTest {
             adapter.createConversation(author, new ChatTransactionId("space-room-" + index),
                     "Space room " + index, "channel", List.of(), ChatEncryptionState.unencrypted());
         }
-        adapter.createConversation(otherSpace, new ChatTransactionId("other-space-room"),
+        ChatConversation other = adapter.createConversation(otherSpace, new ChatTransactionId("other-space-room"),
                 "Other Space room", "channel", List.of(), ChatEncryptionState.unencrypted());
 
         List<String> first = store.joinedConversationRefs(author, "", 2);
@@ -311,6 +311,10 @@ class JpaCanonicalChatStoreTest {
         assertThat(second.getFirst()).isGreaterThan(first.getLast());
         assertThat(store.joinedConversationRefs(outsider, "", 100)).isEmpty();
         assertThat(store.joinedConversationRefs(otherSpace, "", 100)).hasSize(1);
+        assertThat(store.joinedConversationContext(author, new ConversationId(other.conversationId())))
+                .contains("other-space");
+        assertThat(store.joinedConversationContext(outsider, new ConversationId(other.conversationId())))
+                .isEmpty();
         assertThatThrownBy(() -> store.joinedConversationRefs(author, "", 101))
                 .isInstanceOf(IllegalArgumentException.class);
     }

@@ -35,6 +35,9 @@ public interface CanonicalChatStore {
     /** Stable, bounded canonical identifiers for rooms joined by the current actor in one Space. */
     List<String> joinedConversationRefs(ChatRequestContext context, String afterConversationId, int limit);
 
+    /** Finds a joined room's Space without consulting a caller-selected or stale token context. */
+    Optional<String> joinedConversationContext(ChatRequestContext context, ConversationId conversationId);
+
     ChatCursor currentCursor(ChatRequestContext context);
 
     ChatMessages timeline(ChatRequestContext context, ConversationId conversationId, ChatCursor cursor, int limit);
