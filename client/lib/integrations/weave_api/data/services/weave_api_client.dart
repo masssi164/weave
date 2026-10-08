@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
@@ -243,16 +242,16 @@ class HttpWeaveApiClient implements WeaveApiClient {
     required String fileId,
     required String requestedMode,
   }) async {
+    final apiClient = _client(baseUrl, accessToken);
     try {
-      final response =
-          await user_api.OfficeFacadeApi(_client(baseUrl, accessToken))
-              .launch(
-                user_api.OfficeLaunchRequest(
-                  fileId: fileId,
-                  requestedMode: requestedMode,
-                ),
-              )
-              .timeout(const Duration(seconds: 5));
+      final response = await user_api.OfficeFacadeApi(apiClient)
+          .launch(
+            user_api.OfficeLaunchRequest(
+              fileId: fileId,
+              requestedMode: requestedMode,
+            ),
+          )
+          .timeout(const Duration(seconds: 5));
       if (response == null) {
         throw const AppFailure.unknown(
           'The Weave backend returned an invalid Office launch payload.',
@@ -261,15 +260,19 @@ class HttpWeaveApiClient implements WeaveApiClient {
       return response.toSnapshot();
     } on user_api.ApiException catch (error) {
       if (error.code == 503) {
-        Object? decoded;
+        user_api.ApiErrorResponse? errorResponse;
         try {
-          decoded = jsonDecode(error.message ?? '');
-        } on FormatException {
-          decoded = null;
+          final decoded = await apiClient.deserializeAsync(
+            error.message ?? '',
+            'ApiErrorResponse',
+          );
+          if (decoded is user_api.ApiErrorResponse) {
+            errorResponse = decoded;
+          }
+        } catch (_) {
+          // A malformed error body still leaves the Office launch fail-closed.
         }
-        return officeLaunchFailClosedSnapshot(
-          decoded is Map<String, dynamic> ? decoded : <String, dynamic>{},
-        );
+        return officeLaunchFailClosedSnapshot(errorResponse);
       }
       if (error.code == 401 || error.code == 403) {
         throw AppFailure.unknown(
