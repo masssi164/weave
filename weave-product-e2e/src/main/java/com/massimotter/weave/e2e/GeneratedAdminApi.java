@@ -9,6 +9,7 @@ import com.massimotter.weave.adminapi.api.ProviderRegistryApi;
 import com.massimotter.weave.adminapi.invoker.ApiClient;
 import com.massimotter.weave.adminapi.invoker.ApiException;
 import com.massimotter.weave.adminapi.model.AdminControlPlaneResponse;
+import com.massimotter.weave.adminapi.model.ApiErrorResponse;
 import com.massimotter.weave.adminapi.model.BootstrapOwnerInvitationRequest;
 import com.massimotter.weave.adminapi.model.MemberInvitationRequest;
 import com.massimotter.weave.adminapi.model.MemberInvitationResponse;
@@ -18,7 +19,6 @@ import com.massimotter.weave.adminapi.model.ProviderSelectionRequest;
 import com.massimotter.weave.adminapi.model.ProviderSelectionResponse;
 import com.massimotter.weave.adminapi.model.ProviderRegistryResponse;
 import com.massimotter.weave.adminapi.model.WeaverEntitlementUpdateRequest;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 
 /** TLS-bound consumer of the generated server-owned Admin contract. */
 final class GeneratedAdminApi {
-  private static final ObjectMapper ERROR_MAPPER = new ObjectMapper();
+  private final ObjectMapper mapper;
   private final AdminControlPlaneApi controlPlane;
   private final ProviderRegistryApi providers;
   private final AdminWorkspaceApi workspace;
@@ -53,6 +53,7 @@ final class GeneratedAdminApi {
             .setHttpClientBuilder(httpClientBuilder)
             .setReadTimeout(Duration.ofSeconds(30));
     client.updateBaseUri(apiOrigin.getScheme() + "://" + apiOrigin.getRawAuthority());
+    mapper = client.getObjectMapper();
     controlPlane = new AdminControlPlaneApi(client);
     providers = new ProviderRegistryApi(client);
     workspace = new AdminWorkspaceApi(client);
@@ -189,15 +190,16 @@ final class GeneratedAdminApi {
     }
   }
 
-  private static String supportSafeErrorCode(ApiException failure) {
+  private String supportSafeErrorCode(ApiException failure) {
     String body = failure.getResponseBody();
     if (body == null || body.length() > 8192) {
       return "";
     }
     try {
-      JsonNode code = ERROR_MAPPER.readTree(body).path("code");
-      String value = code.isTextual() ? code.textValue() : "";
-      return value.matches("[a-z0-9-]{1,80}") ? " (code=" + value + ")" : "";
+      ApiErrorResponse error = mapper.readValue(body, ApiErrorResponse.class);
+      String value = error.getCode();
+      return value != null && value.matches("[a-z0-9-]{1,80}")
+          ? " (code=" + value + ")" : "";
     } catch (Exception ignored) {
       return "";
     }
