@@ -248,6 +248,18 @@ two Accessibility text fields: one unlabeled field and one uniquely titled
 `Password`. The previous single-field assumption timed out with
 `password-not-observed`; no password was entered. The driver now selects a
 uniquely labeled password control inside the verified current IdP window.
+Candidate `bf805d45e3` submitted both real Keycloak steps, but Flutter failed
+after callback while saving its session. A focused native Flutter probe using
+the same secure-storage plugin and a disposable non-secret value reproduced
+Keychain OSStatus `-34018` (`A required entitlement isn't present`). The app's
+ad hoc debug signature lacked Keychain access groups. Both macOS entitlement
+files now declare that capability. The project placeholder bundle ID
+`com.example.weave` cannot be registered to the available development team,
+so the local test uses a dedicated configurable signing bundle ID and Apple
+Development certificate. The signed native Keychain probe then passed; the
+built app's TeamIdentifier, bundle ID, and Keychain entitlement were verified.
+This is a test signing configuration, not a change to the public OIDC contract.
+The full OIDC product journey has not yet passed with this signed build.
 
 ## Existing executable coverage
 
@@ -295,6 +307,8 @@ python3 client/tool/setup_native_acceptance_ca.py --trust  # one-time macOS appr
 WEAVE_SPEC_CORPUS_ROOT=/absolute/path/to/pinned/weave-specs-worktree \
 WEAVE_TEST_APP_PUBLIC_DOMAIN=weave.localhost \
 WEAVE_TEST_APP_NATIVE_CA_ROOT="$HOME/.local/share/weave/native-acceptance-ca" \
+WEAVE_NATIVE_SIGNING_TEAM="<10-character Apple development team ID>" \
+WEAVE_NATIVE_SIGNING_BUNDLE_ID="<provisioned test app bundle ID>" \
 WEAVE_TEST_APP_NATIVE_RUNNER="$PWD/client/tool/run_native_product_acceptance.py" \
   ./gradlew testApp
 ```
@@ -315,6 +329,11 @@ and records sanitized Flutter/XCTest milestones. These are diagnostic fixes,
 not native product acceptance evidence. The `Full Compose
 E2E` job runs backend/Chromium and Matrix protocol evidence. No CI job
 currently runs the real native AppAuth/product case.
+The signing team, development certificate, and provisioning profile must be
+available to the logged-in macOS test user. The runner generates a temporary
+Xcode configuration, verifies the signed bundle and Keychain entitlement, and
+removes that configuration afterward. CI must provision the same capability;
+an ad hoc signed build cannot qualify native session storage.
 
 Current reproducible diagnostic command:
 

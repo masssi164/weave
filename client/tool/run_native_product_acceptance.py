@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import plistlib
 import queue
 import re
 import signal
@@ -23,6 +24,7 @@ from urllib.parse import urlparse
 
 CLIENT = Path(__file__).resolve().parents[1]
 DRIVER = CLIENT / "tool/native_macos_appauth_driver.swift"
+APP = CLIENT / "build/macos/Build/Products/Debug/weave.app"
 
 
 def require(name: str) -> str:
@@ -32,9 +34,9 @@ def require(name: str) -> str:
     return value
 
 
-def run_quiet(command: list[str], *, timeout: int) -> None:
+def run_quiet(command: list[str], *, timeout: int, env: dict[str, str] | None = None) -> None:
     result = subprocess.run(
-        command, cwd=CLIENT, capture_output=True, text=True, timeout=timeout
+        command, cwd=CLIENT, env=env, capture_output=True, text=True, timeout=timeout
     )
     if result.returncode:
         raise RuntimeError(f"{command[0]} exited {result.returncode}")
@@ -72,10 +74,30 @@ def _process_exists(pid: int) -> bool:
         return False
 
 
+def verify_signed_app(team: str, bundle_id: str) -> None:
+    info = plistlib.loads((APP / "Contents/Info.plist").read_bytes())
+    if info.get("CFBundleIdentifier") != bundle_id:
+        raise RuntimeError("native app bundle identifier does not match signing profile")
+    result = subprocess.run(
+        ["codesign", "-dv", "--verbose=2", str(APP)],
+        capture_output=True, text=True, timeout=15,
+    )
+    if result.returncode or f"TeamIdentifier={team}" not in result.stderr:
+        raise RuntimeError("native app has no matching development signature")
+    entitlements = subprocess.run(
+        ["codesign", "-d", "--entitlements", ":-", str(APP)],
+        capture_output=True, timeout=15,
+    )
+    if entitlements.returncode or "keychain-access-groups" not in plistlib.loads(
+        entitlements.stdout
+    ):
+        raise RuntimeError("native app lacks the Keychain entitlement")
+    print("NATIVE_SIGNING_RESULT status=passed keychain=true", flush=True)
+
+
 def checkout_app_pids() -> list[int]:
     """Find only the native Flutter executable built by this checkout."""
-    executable = str((CLIENT / "build/macos/Build/Products/Debug/weave.app"
-                      / "Contents/MacOS/weave").resolve())
+    executable = str((APP / "Contents/MacOS/weave").resolve())
     listing = subprocess.run(
         ["ps", "-axo", "pid=,command="], capture_output=True, text=True,
         check=True, timeout=10,
@@ -142,6 +164,12 @@ def main() -> int:
     matrix = require("WEAVE_NATIVE_MATRIX_URL")
     ca = Path(require("WEAVE_NATIVE_CA"))
     run_id = require("WEAVE_E2E_RUN_ID")
+    signing_team = require("WEAVE_NATIVE_SIGNING_TEAM")
+    signing_bundle = require("WEAVE_NATIVE_SIGNING_BUNDLE_ID")
+    if not re.fullmatch(r"[A-Z0-9]{10}", signing_team):
+        raise RuntimeError("invalid native signing team")
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*){2,}", signing_bundle):
+        raise RuntimeError("invalid native signing bundle ID")
     if not ca.is_file() or urlparse(issuer).hostname != "auth.weave.localhost":
         raise RuntimeError("native acceptance requires the disposable localhost IdP")
     if urlparse(api).hostname != "api.weave.localhost":
@@ -153,35 +181,43 @@ def main() -> int:
     if trusted.returncode:
         raise RuntimeError("the dedicated native test CA is not trusted by macOS")
     print("NATIVE_TEST_CA_RESULT status=trusted scope=user-ssl-preconfigured", flush=True)
-    stop_checkout_app()
-    cleanup = subprocess.run(
-        ["swift", str(DRIVER), "--clear-stale-consent"], cwd=CLIENT,
-        capture_output=True, text=True, timeout=30,
-    )
-    consent_marker = re.search(
-        r"NATIVE_STALE_CONSENT_RESULT status=(cleared|absent)", cleanup.stdout
-    )
-    browser_marker = re.search(
-        r"NATIVE_STALE_BROWSER_RESULT status=(closed|absent)", cleanup.stdout
-    )
-    if cleanup.returncode or not consent_marker or not browser_marker:
-        raise RuntimeError("stale native AppAuth consent cleanup failed")
-    print(consent_marker.group(0), flush=True)
-    print(browser_marker.group(0), flush=True)
-    run_quiet(["flutter", "build", "macos", "--debug"], timeout=900)
-    print("NATIVE_BUILD_PREPARATION_RESULT status=passed target=macos", flush=True)
-
     with tempfile.TemporaryDirectory(prefix="weave-native-acceptance-") as temporary:
+        signing = Path(temporary) / "signing.xcconfig"
+        signing.write_text(
+            "CODE_SIGN_IDENTITY = Apple Development\n"
+            f"DEVELOPMENT_TEAM = {signing_team}\n"
+            "CODE_SIGN_STYLE = Automatic\n"
+            f"PRODUCT_BUNDLE_IDENTIFIER = {signing_bundle}\n"
+        )
+        env = os.environ.copy()
+        env["XCODE_XCCONFIG_FILE"] = str(signing)
+        stop_checkout_app()
+        cleanup = subprocess.run(
+            ["swift", str(DRIVER), "--clear-stale-consent", signing_bundle],
+            cwd=CLIENT, capture_output=True, text=True, timeout=30,
+        )
+        consent_marker = re.search(
+            r"NATIVE_STALE_CONSENT_RESULT status=(cleared|absent)", cleanup.stdout
+        )
+        browser_marker = re.search(
+            r"NATIVE_STALE_BROWSER_RESULT status=(closed|absent)", cleanup.stdout
+        )
+        if cleanup.returncode or not consent_marker or not browser_marker:
+            raise RuntimeError("stale native AppAuth consent cleanup failed")
+        print(consent_marker.group(0), flush=True)
+        print(browser_marker.group(0), flush=True)
+        run_quiet(["flutter", "build", "macos", "--debug"], timeout=900, env=env)
+        print("NATIVE_BUILD_PREPARATION_RESULT status=passed target=macos", flush=True)
+        verify_signed_app(signing_team, signing_bundle)
         pipe = Path(temporary) / "member.pipe"
         os.mkfifo(pipe, 0o600)
         fixture = json.dumps({
             "email": email, "password": password,
             "issuerHost": urlparse(issuer).hostname,
             "issuerAuthority": urlparse(issuer).netloc,
-            "appExecutable": str((CLIENT / "build/macos/Build/Products/Debug/weave.app"
-                                  / "Contents/MacOS/weave").resolve()),
+            "appBundleIdentifier": signing_bundle,
+            "appExecutable": str((APP / "Contents/MacOS/weave").resolve()),
         }, separators=(",", ":")).encode()
-        env = os.environ.copy()
         env.update({
             "WEAVE_PHYSICAL_DEVICE_ID": "macos",
             "WEAVE_DEVICE_DISPOSABLE_STACK": "true",

@@ -10,6 +10,7 @@ struct Fixture: Decodable {
   let password: String
   let issuerHost: String
   let issuerAuthority: String
+  let appBundleIdentifier: String
   let appExecutable: String
 }
 
@@ -47,10 +48,11 @@ func fail(_ stage: String) -> Never {
   exit(1)
 }
 
-if CommandLine.arguments.count == 2 && CommandLine.arguments[1] == "--clear-stale-consent" {
+if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--clear-stale-consent" {
   guard AXIsProcessTrusted() else { fail("accessibility-permission") }
+  let bundleId = CommandLine.arguments[2]
   guard !NSWorkspace.shared.runningApplications.contains(where: {
-    $0.bundleIdentifier == "com.example.weave"
+    $0.bundleIdentifier == bundleId
   }) else { fail("app-running-during-cleanup") }
   var cleared = false
   for app in NSWorkspace.shared.runningApplications
@@ -100,6 +102,7 @@ guard CommandLine.arguments.count == 2,
       let fixture = try? JSONDecoder().decode(Fixture.self, from: data),
       fixture.issuerHost == "auth.weave.localhost",
       fixture.issuerAuthority.hasPrefix("auth.weave.localhost:"),
+      fixture.appBundleIdentifier.contains("."),
       fixture.email.contains("@"), !fixture.password.isEmpty else {
   fail("fixture")
 }
@@ -109,7 +112,7 @@ guard AXIsProcessTrusted() else {
 
 func expectedNativeAppIsRunning() -> Bool {
   NSWorkspace.shared.runningApplications.contains {
-    $0.bundleIdentifier == "com.example.weave" &&
+    $0.bundleIdentifier == fixture.appBundleIdentifier &&
       $0.executableURL?.resolvingSymlinksInPath().path == fixture.appExecutable
   }
 }
