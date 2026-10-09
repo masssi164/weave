@@ -43,18 +43,16 @@ create action. The fixture now advertises the right and checks the actual
 localized button is enabled. Both native fixture tests passed. Their
 `NATIVE_SHELL_UI_RESULT` marker records `platform=macos` and
 `evidenceMode=fixture-ui`; it is not OIDC, provider, or product acceptance.
-The `Native macOS Flutter fixture` job in the live-stack workflow runs this
-test on the same bounded runner. Repository CI variable
-`WEAVE_FLUTTER_SDK_ROOT` points to the runner's installed SDK; the job checks
-that its version is exactly Flutter 3.41.6 before testing. It reports a separate
-status so a Compose capacity failure cannot hide native execution. This job
-enforces native build and fixture navigation within its lane; branch-protection
-status and the native product journey are separate, still unverified gates.
-The first exact-head CI execution on `915648ea9b51a11f8e57b8e0b2dce5dd9b4ea793`
-built and ran the native app, then failed because the first test left a
-`SemanticsHandle` active. Both fixture cases now unmount `WeaveApp` before test
-completion. The corrected local macOS run passed both cases; CI evidence for
-the correction must still come from the new exact head.
+An experimental `Native macOS Flutter fixture` CI job on
+`915648ea9b51a11f8e57b8e0b2dce5dd9b4ea793` built and ran the native app,
+then failed because the first test left a `SemanticsHandle` active. Both
+fixture cases now unmount `WeaveApp` before test completion. On this Mac, the
+unchanged fixture suite failed once with the same handle assertion and then
+passed after a diagnostic run; instrumentation showed a constant handle count
+while navigating the six screens. The cause of this intermittent failure
+remains unresolved. The CI job was removed from the current candidate:
+fixture execution cannot close the live AppAuth/product gate, and the native
+product journey must pass reproducibly on this Mac before moving to CI.
 
 ## Authentication automation boundary
 
@@ -65,6 +63,10 @@ The existing Compose E2E Playwright browser proves invitation, activation,
 Authorization Code/PKCE, and backend behavior, but its Chromium session is not
 the native AppAuth session. Passing a token, callback URL, or mocked OIDC client
 to Flutter would bypass the required integration boundary.
+Safari WebDriver is also insufficient for the native callback: Apple confines
+its WebDriver sessions to isolated automation windows, while AppAuth asks the
+system browser to open a separate authentication session. See
+[Apple's Safari WebDriver isolation contract](https://developer.apple.com/documentation/safari-developer-tools/webdriver).
 
 The local graphical Aqua session and native Flutter target are present. The
 shell process reports `AXIsProcessTrusted() == false`; a separate ChatGPT
@@ -77,6 +79,15 @@ Screen Recording is only needed if that driver
 captures pixels. Apple Events permission would only be needed by an Apple
 Events based driver. No broad host permission should be requested in lieu of
 an executable native test.
+
+A temporary XCUITest UI target was also probed locally and then removed. After
+`flutter build macos --debug`, the unsigned probe compiled and started an
+`RunnerUITests-Runner` process, but it never entered its test body or launched
+a new Weave process within the bounded observation. A signed retry failed at
+link time with `Operation not permitted` while writing into Xcode's generated
+test-runner bundle. These results do not establish whether Accessibility is
+the blocker for XCUITest; the probe must execute before that can be assessed.
+No UI-test target or new framework is included in this candidate.
 
 ## Existing executable coverage
 
@@ -101,15 +112,15 @@ feature mapping and `integration_test` assertions remain the right structure.
 
 ## Required execution lane
 
-The native lane needs a logged-in graphical macOS runner, a fresh app profile,
+The native lane needs a logged-in graphical macOS session, a fresh app profile,
 the exact disposable `testApp` stack and dedicated member identity, trusted
 test CA and host routing for AppAuth, and a driver that operates the actual
 macOS system authentication browser and returns through AppAuth. It must run
 `make -C client physical-device-product-e2e` with `WEAVE_PHYSICAL_DEVICE_ID=macos`
 and the stack's endpoint variables, capture sanitized pass/fail markers, and
 tear down the stack. The `Full Compose E2E` job runs backend/Chromium and
-Matrix protocol evidence. The separate native job runs fixture UI only. Neither
-job currently runs the real native AppAuth/product case.
+Matrix protocol evidence. No CI job currently runs the real native
+AppAuth/product case.
 
 Current reproducible diagnostic command:
 
@@ -124,6 +135,8 @@ product acceptance, the command must execute the product test with the
 disposable-stack and endpoint defines, emit `NATIVE_PRODUCT_SIGN_IN_RESULT`,
 and exit zero. CI must require that observed result; skipped tests, manual
 interaction, and backend-only markers do not satisfy it.
+This guard was executed locally on the current candidate: the native app built,
+the test ran, and it exited 1 with `No native acceptance journey was selected`.
 
 Native fixture smoke, which uses in-memory identities and repositories:
 
@@ -138,9 +151,13 @@ PATH="$PWD/tool/native_macos_open:$PATH" \
 - Implement and execute a macOS driver for the actual
   `ASWebAuthenticationSession` prompt, IdP form, and callback without token
   injection. Validate any required TCC grant against the requesting process.
+  Resolve the local XCUITest runner startup and generated-bundle write failures
+  before treating it as a viable driver.
+- Resolve the intermittent native fixture `SemanticsHandle` assertion and
+  demonstrate a repeatable local pass before transferring this lane to CI.
 - Provision a fresh native profile and disposable identity alongside `testApp`,
-  including trusted CA and local host routing, and run the journey on one exact
-  candidate in CI with cleanup and sanitized evidence.
+  including trusted CA and local host routing. Run the journey locally first,
+  then move the same passing lane to CI with cleanup and sanitized evidence.
 - Exercise server-side revocation, wrong-account and cross-organization denial,
   recoverable downstream-session loss, and a real process restart in that native
   lane. Logout denial alone does not prove revocation; rebuilding `WeaveApp` in

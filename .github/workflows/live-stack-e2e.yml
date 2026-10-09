@@ -19,40 +19,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  native-macos-flutter:
-    name: Native macOS Flutter fixture
-    runs-on: [self-hosted, macOS, ARM64, weave-live]
-    timeout-minutes: 25
-    env:
-      EXPECTED_RUNNER_NAME: weave-live-mac-mini
-      WEAVE_CANDIDATE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-      WEAVE_FLUTTER_SDK_ROOT: ${{ vars.WEAVE_FLUTTER_SDK_ROOT }}
-    steps:
-      - name: Verify bounded runner
-        run: |
-          set -euo pipefail
-          [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]]
-
-      - name: Check out exact source
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          ref: ${{ env.WEAVE_CANDIDATE_COMMIT }}
-          fetch-depth: 0
-
-      - name: Run native fixture integration
-        working-directory: client
-        run: |
-          set -euo pipefail
-          [[ "$(git rev-parse HEAD)" == "$WEAVE_CANDIDATE_COMMIT" ]]
-          [[ "$WEAVE_FLUTTER_SDK_ROOT" == /* ]]
-          [[ -x "$WEAVE_FLUTTER_SDK_ROOT/bin/flutter" ]]
-          PATH="$WEAVE_FLUTTER_SDK_ROOT/bin:$PWD/tool/native_macos_open:$PATH"
-          export PATH
-          [[ "$(flutter --version --machine | jq -er .frameworkVersion)" == "3.41.6" ]]
-          flutter pub get --enforce-lockfile
-          flutter test integration_test/shell_navigation_e2e_test.dart \
-            -d macos --no-pub
-
   full-compose-e2e:
     name: Full Compose E2E
     runs-on: [self-hosted, macOS, ARM64, weave-live]
