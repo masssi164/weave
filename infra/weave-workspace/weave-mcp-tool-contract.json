@@ -46,9 +46,14 @@
     "protectedResourceMetadata": "/.well-known/oauth-protected-resource/mcp",
     "clientCredentialsExtension": "io.modelcontextprotocol/oauth-client-credentials",
     "backendContext": "downscoped-token-exchange-and-current-member-binding",
+    "writeApprovalOwner": "existing-openclaw-approval",
+    "weaveApprovalDecisionEvidenceRequired": false,
     "tools": [
       "files.search",
-      "calendar.agenda"
+      "calendar.agenda",
+      "calendar.create",
+      "calendar.update",
+      "calendar.delete"
     ],
     "resources": [
       "weave://files/{canonicalFileId}"

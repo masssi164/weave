@@ -324,7 +324,7 @@ public class CalendarUserApiService {
     }
 
     private Member workloadMember(Jwt jwt, boolean write) {
-        if (write || mcpWorkloads == null || mcpTokens == null) {
+        if (mcpWorkloads == null || mcpTokens == null) {
             throw error(HttpStatus.FORBIDDEN, "mcp-workload-calendar-forbidden",
                     "The MCP workload has no current Calendar authorization.");
         }
@@ -338,8 +338,9 @@ public class CalendarUserApiService {
                     denied.authorityUnavailable() ? "The MCP workload authority is temporarily unavailable."
                             : "The MCP workload has no current Calendar authorization.");
         }
-        if (!workload.scopes().contains("calendar.read")
-                || !workload.visibleToolClasses().contains("calendar.read")) {
+        String requiredScope = write ? "calendar.write" : "calendar.read";
+        if (!workload.scopes().contains(requiredScope)
+                || !workload.visibleToolClasses().contains(requiredScope)) {
             throw error(HttpStatus.FORBIDDEN, "mcp-workload-calendar-forbidden",
                     "The MCP workload has no current Calendar authorization.");
         }
@@ -356,7 +357,7 @@ public class CalendarUserApiService {
             throw error(HttpStatus.FORBIDDEN, "mcp-workload-calendar-forbidden",
                     "The MCP workload has no current Calendar authorization.");
         }
-        return new Member(workload.organizationRef(), principal, accountRef, false, workload);
+        return new Member(workload.organizationRef(), principal, accountRef, write, workload);
     }
 
     private void auditWorkloadRead(Member member, String tool, String reference, int count) {

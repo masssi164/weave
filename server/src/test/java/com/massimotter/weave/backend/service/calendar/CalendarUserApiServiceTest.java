@@ -130,6 +130,27 @@ class CalendarUserApiServiceTest {
     }
 
     @Test
+    void authorizedCalendarWriteWorkloadUsesTheSameVersionedProviderMutationPath() {
+        CalendarUserApiService workload = workloadService("calendar.write");
+        Event created = workload.create(workloadJwt(), calendar, content("MCP planning"),
+                "mcp-calendar-create-key");
+        assertThat(service.read(member, calendar, created.id()).content().title())
+                .isEqualTo("MCP planning");
+        assertThat(workload.create(workloadJwt(), calendar, content("MCP planning"),
+                "mcp-calendar-create-key")).isEqualTo(created);
+
+        Event updated = workload.update(workloadJwt(), calendar, created.id(),
+                content("MCP updated"), created.version());
+        assertThat(updated.id()).isEqualTo(created.id());
+        assertThat(service.read(member, calendar, created.id()).content().title())
+                .isEqualTo("MCP updated");
+        assertStatus(() -> workload.delete(workloadJwt(), calendar, created.id(),
+                created.version()), HttpStatus.PRECONDITION_FAILED);
+        workload.delete(workloadJwt(), calendar, created.id(), updated.version());
+        verify(provider).delete(any(), any(), any(), any());
+    }
+
+    @Test
     void workloadPreviewRemainsTransientEvenWhenExplicitMaterializationIsRequested() {
         service.create(member, calendar, content("External planning"), "calendar-fixture-key-2");
         mappings.clear();
@@ -150,6 +171,11 @@ class CalendarUserApiServiceTest {
 
     @SuppressWarnings("unchecked")
     private CalendarUserApiService workloadService() {
+        return workloadService("calendar.read");
+    }
+
+    @SuppressWarnings("unchecked")
+    private CalendarUserApiService workloadService(String scope) {
         var authorization = mock(McpWorkloadAuthorizationService.class);
         var tokenPolicy = mock(McpExchangedTokenPolicy.class);
         ObjectProvider<McpWorkloadAuthorizationService> authorizationProvider = mock(ObjectProvider.class);
@@ -159,12 +185,12 @@ class CalendarUserApiServiceTest {
         Instant now = Instant.now();
         var exchanged = new ExchangedWorkloadToken(
                 "https://auth.weave.test/realms/weave", "workload-subject", "weave-mcp-server",
-                Set.of("calendar.read"), now, now.plusSeconds(60), "exchange-calendar-1");
+                Set.of(scope), now, now.plusSeconds(60), "exchange-calendar-1");
         var principal = new WeaverWorkloadPrincipal(
                 exchanged.issuer(), exchanged.subject(), "weaver-cell-1", "weave-mcp-server",
                 "tenant-default", "person-1", new RuntimeMemberBinding(exchanged.issuer(), "member"),
                 "member", "cell-1", "profile-1", "sha256:profile", "entitlement-1",
-                now.plusSeconds(60), Set.of("calendar.read"), Set.of("calendar.read"));
+                now.plusSeconds(60), Set.of(scope), Set.of(scope));
         when(tokenPolicy.resolve(any())).thenReturn(exchanged);
         when(authorization.authorize(exchanged)).thenReturn(principal);
         var context = new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);

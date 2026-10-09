@@ -124,13 +124,13 @@ Feature: Weave v0.1 dogfood production release
     And private Runner cells, workspace materialization, and long-polling execution are not current release gates
 
   @weave-v01-mcp-workload-boundary
-  Scenario: MCP admits only a current entitled workload and advertises the guarded Files read slice
-    Given an ARC-bound cell has an exact-audience Keycloak workload token
-    When the cell negotiates the MCP Client Credentials extension over Spring AI Streamable HTTP
-    Then the MCP edge exchanges rather than relays the workload token and resolves current backend cell context
+  Scenario: MCP admits only a current entitled workload and advertises curated Files and Calendar tools
+    Given a protected workload-to-member binding has an exact-audience Keycloak workload token
+    When the workload initializes over Spring AI Streamable HTTP with a valid bearer
+    Then the MCP edge exchanges rather than relays the workload token and resolves current backend member context
     And human tokens, generic service accounts, stale profiles, and upscope attempts are denied
-    And domain tool resource and prompt catalogs remain empty until current authorization and evidence gates are executable
-    And a future domain side effect still requires independent domain authorization and single-use decision evidence
+    And only the curated Files and Calendar tools and Files resource are advertised
+    And Calendar writes still require current member, Space, capability, and version authorization
 
   @weave-v01-channel-workspace
   Scenario: A Space control room is the primary workspace surface

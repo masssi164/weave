@@ -35,10 +35,10 @@ Feature: MCP domain facade boundary
     Then no raw provider URL, credential, token, tenant ID, SecretRef value, or downstream payload is present
 
   @spring-ai-mcp-transport
-  Scenario: MCP admits only a current ARC-bound workload
+  Scenario: MCP admits only a currently bound workload
     Given the Spring AI Streamable HTTP implementation is installed
-    When a bound cell negotiates the MCP Client Credentials extension at /mcp
-    Then the edge exchanges its exact-audience workload token and resolves current ARC context before protocol dispatch
+    When a bound workload initializes at /mcp with a valid bearer and no optional extension marker
+    Then the edge exchanges its exact-audience workload token and resolves current protected member context before protocol dispatch
     And a human token or unbound service account is rejected
     And the handwritten JSON-RPC and Python FastMCP runtimes are absent
 

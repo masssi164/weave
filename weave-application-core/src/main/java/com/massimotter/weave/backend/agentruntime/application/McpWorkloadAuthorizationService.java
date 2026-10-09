@@ -104,9 +104,11 @@ public final class McpWorkloadAuthorizationService {
                 .filter(current -> current.memberBinding().equals(cell.memberBinding()))
                 .orElseThrow(() -> denied(McpWorkloadAuthorizationException.Reason.ENTITLEMENT_NOT_FOUND));
         RuntimeEntitlementObservation observation;
+        RuntimeEntitlementAuthority.ObserveEntitlementCommand observationCommand =
+                new RuntimeEntitlementAuthority.ObserveEntitlementCommand(
+                        cell.organizationRef(), cell.personRef(), cell.memberBinding(), auditRef);
         try {
-            observation = entitlementAuthority.observe(new RuntimeEntitlementAuthority.ObserveEntitlementCommand(
-                    cell.organizationRef(), cell.personRef(), cell.memberBinding(), auditRef));
+            observation = entitlementAuthority.observe(observationCommand);
         } catch (RuntimeEntitlementAuthorityException unavailable) {
             throw new McpWorkloadAuthorizationException(
                     true, McpWorkloadAuthorizationException.Reason.AUTHORITY_UNAVAILABLE);
@@ -118,6 +120,24 @@ public final class McpWorkloadAuthorizationService {
         }
 
         Set<String> visibleToolClasses = grantedToolClasses(profile, token.scopes());
+        if (visibleToolClasses.contains("calendar.write")) {
+            Set<String> currentRoles;
+            try {
+                currentRoles = entitlementAuthority.currentWeaveRoles(observationCommand);
+            } catch (RuntimeEntitlementAuthorityException unavailable) {
+                throw new McpWorkloadAuthorizationException(
+                        true, McpWorkloadAuthorizationException.Reason.AUTHORITY_UNAVAILABLE);
+            } catch (RuntimeException denied) {
+                throw denied(McpWorkloadAuthorizationException.Reason.ENTITLEMENT_OBSERVATION);
+            }
+            // The current User capability policy grants calendar.manage_events
+            // only to owner/admin. A workload scope or Space EDIT cannot broaden it.
+            boolean administrator = currentRoles != null
+                    && (currentRoles.contains("owner") || currentRoles.contains("admin"));
+            if (!administrator) {
+                throw denied(McpWorkloadAuthorizationException.Reason.TOOL_SCOPE);
+            }
+        }
         Instant authorizationExpiry = minimum(token.expiresAt(), profile.expiresAt(), observation.expiresAt());
         return new WeaverWorkloadPrincipal(
                 token.issuer(),

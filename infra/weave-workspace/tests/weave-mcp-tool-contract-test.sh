@@ -64,7 +64,9 @@ jq -e '
   and .activeRuntimeEvidence.backendContext == "downscoped-token-exchange-and-current-member-binding"
   and .activeRuntimeEvidence.security == "rfc9068-exact-audience-scope-and-current-member-resource-authorization"
   and .activeRuntimeEvidence.oidcGatekeeper == "spring-security-oauth2-resource-server"
-  and .activeRuntimeEvidence.tools == ["files.search", "calendar.agenda"]
+  and .activeRuntimeEvidence.tools == ["files.search", "calendar.agenda", "calendar.create", "calendar.update", "calendar.delete"]
+  and .activeRuntimeEvidence.writeApprovalOwner == "existing-openclaw-approval"
+  and .activeRuntimeEvidence.weaveApprovalDecisionEvidenceRequired == false
   and .activeRuntimeEvidence.resources == ["weave://files/{canonicalFileId}"]
   and .activeRuntimeEvidence.prompts == []
   and .activeRuntimeEvidence.filesDataPlane.facade == "/api/files/items"
@@ -78,12 +80,13 @@ jq -e '
   and .activeRuntimeEvidence.handwrittenJsonRpcRemoved == true
 ' "${CONTRACT}" >/dev/null || fail "Weave MCP tool contract is missing required support-safe/fail-closed controls"
 
-assert_contains "${DOC}" "Status: **Guarded / bounded read slices active**"
+assert_contains "${DOC}" "Status: **Guarded / curated Files and Calendar slices active**"
 assert_contains "${DOC}" "The current implementation reuses an existing cell-bound workload client"
 assert_contains "${DOC}" "lifecycle are not #1470 release gates."
 assert_contains "${DOC}" "Human access tokens"
 assert_contains "${DOC}" '`files.search`'
 assert_contains "${DOC}" '`calendar.agenda`'
+assert_contains "${DOC}" '`calendar.create`'
 assert_contains "${DOC}" '`weave://files/{canonicalFileId}`'
 assert_contains "${PRODUCT_PLAN}" "Weave is planned product-first, not agent-first."
 assert_contains "${PRODUCT_PLAN}" "OpenClaw configuration remains ephemeral implementation output, not the product model."

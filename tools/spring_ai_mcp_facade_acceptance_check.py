@@ -175,7 +175,7 @@ def main() -> int:
         "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
         "publishesProtectedResourceMetadataWithoutAuthentication",
         "humanBearerCannotDiscoverTheMcpCatalog",
-        "extensionNegotiationIsMandatoryForWorkloadClientCredentials",
+        "validWorkloadBearerInitializesWithoutOptionalExtensionMarker",
         "boundCellIsExchangedAndDispatchedThroughTheFrameworkTransport",
         "discoversTheCuratedFilesToolAndCanonicalResourceTemplate",
     )

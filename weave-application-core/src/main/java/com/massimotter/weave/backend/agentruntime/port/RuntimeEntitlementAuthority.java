@@ -2,10 +2,16 @@ package com.massimotter.weave.backend.agentruntime.port;
 
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import java.util.Set;
 
 /** Reads current entitlement from the configured IDM; it never trusts request claims as authority. */
 public interface RuntimeEntitlementAuthority {
     RuntimeEntitlementObservation observe(ObserveEntitlementCommand command);
+
+    /** Current Weave organization roles for write-capability checks; other authorities deny by default. */
+    default Set<String> currentWeaveRoles(ObserveEntitlementCommand command) {
+        return Set.of();
+    }
 
     record ObserveEntitlementCommand(
             String organizationRef,

@@ -323,6 +323,7 @@ public final class FreshProductFlow {
       String cellRef = requiredText(startedRuntime, "cellRef");
       mcpProof = mcpJourney.invokeFilesSearch(cellRef, mcpTextProof);
       mcpJourney.invokeCalendarAgenda(cellRef, mcpCalendarProof);
+      mcpJourney.verifyCalendarWriteDeniedForMember(cellRef, mcpCalendarProof.calendarId());
 
       restartProof = new PersistenceRestartJourney(environment, http).restart();
       JsonNode persistedRuntime =

@@ -67,7 +67,7 @@ Server controllers, transport models and validation generate the separate User a
 ./gradlew generatedApiCi
 ```
 
-Do not edit generated artifacts manually. Flutter consumes the User API; the Admin UI uses the generated Admin client for authorized operations and a separate generated User client for public pre-login configuration. MCP Files and Calendar read tools use the generated JVM User client, and product E2E uses generated User and separately credentialed Admin clients.
+Do not edit generated artifacts manually. Flutter consumes the User API; the Admin UI uses the generated Admin client for authorized operations and a separate generated User client for public pre-login configuration. The curated MCP Files and Calendar tools use the generated JVM User client, and product E2E uses generated User and separately credentialed Admin clients. Calendar mutations remain subject to current organization and resource authorization.
 Remaining consumer and integrated acceptance work is tracked in the linked consolidation stories.
 
 ## Core architecture

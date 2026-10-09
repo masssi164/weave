@@ -10,6 +10,10 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Added
 
+- Adds scoped `calendar.create`, `calendar.update`, and `calendar.delete` MCP tools through
+  the generated JVM User Calendar client. The Server checks current organization role and
+  Space authorization, and mutations retain idempotency or strong version preconditions.
+  Live OpenClaw/provider acceptance remains pending.
 - Adds a bounded, read-only `calendar.agenda` MCP tool over the generated User Calendar client,
   with per-tool downscoped workload exchange and current member/Space authorization.
 - Adds the Fresh Weave JVM architecture with framework-free application/files cores, explicit

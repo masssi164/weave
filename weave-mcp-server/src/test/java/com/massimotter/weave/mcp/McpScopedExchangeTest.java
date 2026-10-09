@@ -39,7 +39,7 @@ class McpScopedExchangeTest {
 
   @Test
   void exchangesThePresentedDomainSubsetWithoutAddingConfiguredScopes() throws Exception {
-    for (String domain : List.of("files.read", "calendar.read")) {
+    for (String domain : List.of("files.read", "calendar.read", "calendar.write")) {
       var properties = properties();
       var exchange = mock(McpBackendTokenExchange.class);
       Instant now = Instant.now();
@@ -67,7 +67,7 @@ class McpScopedExchangeTest {
 
   @Test
   void missingDomainUnknownScopeAndRepeatedScopeFailBeforeExchange() throws Exception {
-    for (String scope : List.of("mcp.tools", "mcp.tools calendar.write",
+    for (String scope : List.of("mcp.tools", "mcp.tools calendar.unknown",
         "files.read", "mcp.tools files.read files.read")) {
       var exchange = mock(McpBackendTokenExchange.class);
       SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(token(scope), List.of()));
@@ -87,15 +87,17 @@ class McpScopedExchangeTest {
 
   @Test
   void eachToolExchangesOnlyItsOwnDomainEvenWhenTheCellHoldsBoth() throws Exception {
-    for (String tool : List.of("files.search", "calendar.agenda")) {
-      String expected = tool.startsWith("files.") ? "files.read" : "calendar.read";
+    for (String tool : List.of("files.search", "calendar.agenda", "calendar.create",
+        "calendar.update", "calendar.delete")) {
+      String expected = tool.startsWith("files.") ? "files.read"
+          : tool.equals("calendar.agenda") ? "calendar.read" : "calendar.write";
       var exchange = mock(McpBackendTokenExchange.class);
       Instant now = Instant.now();
       var exchanged = new ExchangedAccessToken("backend-token", "cell-subject",
           "weave-mcp-server", Set.of(BACKEND), Set.of(expected), now, now.plusSeconds(30));
       when(exchange.exchange(any(), eq("cell-token"), eq(Set.of(expected)))).thenReturn(exchanged);
       SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
-          token("mcp.tools files.read calendar.read"), List.of()));
+          token("mcp.tools files.read calendar.read calendar.write"), List.of()));
       var request = toolRequest(tool);
       var response = new MockHttpServletResponse();
       var forwarded = new AtomicBoolean();
@@ -146,10 +148,10 @@ class McpScopedExchangeTest {
         URI.create(RESOURCE),
         URI.create("https://api.weave.test/.well-known/oauth-protected-resource/mcp"),
         URI.create("https://auth.weave.test/realms/weave"),
-        List.of("mcp.tools", "files.read", "calendar.read"),
+        List.of("mcp.tools", "files.read", "calendar.read", "calendar.write"),
         URI.create("https://auth.weave.test/realms/weave/protocol/openid-connect/token"),
         "weave-mcp-server", Path.of("/tmp/weave-mcp-test.jwk"), URI.create(BACKEND),
-        URI.create("https://api.weave.test/api"), List.of("files.read", "calendar.read"),
+        URI.create("https://api.weave.test/api"), List.of("files.read", "calendar.read", "calendar.write"),
         Duration.ofSeconds(10), Duration.ofSeconds(60), 8192);
   }
 

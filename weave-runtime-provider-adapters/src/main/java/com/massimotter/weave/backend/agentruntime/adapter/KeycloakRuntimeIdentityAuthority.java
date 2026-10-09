@@ -132,6 +132,35 @@ public final class KeycloakRuntimeIdentityAuthority
     }
 
     @Override
+    public Set<String> currentWeaveRoles(ObserveEntitlementCommand command) {
+        Objects.requireNonNull(command, "command");
+        if (!settings.enabled()
+                || !settings.issuer().toString().equals(command.memberBinding().issuer())
+                || !settings.organizationRef().equals(command.organizationRef())) {
+            throw new RuntimeEntitlementDeniedException("The member role lookup is outside this authority");
+        }
+        String subject = command.memberBinding().subject();
+        JsonNode member = get(
+                "/organizations/" + path(organizationId()) + "/members/" + path(subject),
+                Set.of(200, 404));
+        if (member == null || !subject.equals(text(member, "id"))
+                || !member.path("enabled").asBoolean(false)) {
+            throw new RuntimeEntitlementDeniedException("The member is not currently enabled in the organization");
+        }
+        Set<String> roles = new LinkedHashSet<>();
+        for (Group group : organizationGroups(subject)) {
+            switch (group.path()) {
+                case "/owners" -> roles.add("owner");
+                case "/admins" -> roles.add("admin");
+                case "/members" -> roles.add("member");
+                case "/guests" -> roles.add("guest");
+                default -> { }
+            }
+        }
+        return Set.copyOf(roles);
+    }
+
+    @Override
     public ResolvedRuntimePerson resolve(ResolveRuntimePersonCommand command) {
         Objects.requireNonNull(command, "command");
         if (!settings.organizationRef().equals(command.organizationRef())

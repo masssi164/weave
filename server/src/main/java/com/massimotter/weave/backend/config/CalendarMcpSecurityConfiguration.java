@@ -22,13 +22,16 @@ import org.springframework.security.oauth2.server.resource.web.authentication.Be
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 
-/** Closed Calendar GET boundary for members and exchanged Weaver workloads. */
+/** Closed Calendar boundary for members and scoped Weaver workloads. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "weave.agent-runtime.workload-identity.enabled", havingValue = "true")
 public class CalendarMcpSecurityConfiguration {
     private static final WebExpressionAuthorizationManager CALENDAR_READ =
             new WebExpressionAuthorizationManager(
                     "hasAuthority('SCOPE_weave:workspace') or hasAuthority('SCOPE_calendar.read')");
+    private static final WebExpressionAuthorizationManager CALENDAR_WRITE =
+            new WebExpressionAuthorizationManager(
+                    "hasAuthority('SCOPE_weave:workspace') or hasAuthority('SCOPE_calendar.write')");
 
     @Bean("calendarMcpJwtDecoder")
     JwtDecoder calendarMcpJwtDecoder(
@@ -73,6 +76,12 @@ public class CalendarMcpSecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/api/calendar/calendars", "/api/calendar/calendars/**")
                                 .access(CALENDAR_READ)
+                        .requestMatchers(HttpMethod.POST, "/api/calendar/calendars/**")
+                                .access(CALENDAR_WRITE)
+                        .requestMatchers(HttpMethod.PUT, "/api/calendar/calendars/**")
+                                .access(CALENDAR_WRITE)
+                        .requestMatchers(HttpMethod.DELETE, "/api/calendar/calendars/**")
+                                .access(CALENDAR_WRITE)
                         .anyRequest().hasAuthority("SCOPE_weave:workspace"))
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint(authenticationEntryPoint)

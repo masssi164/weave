@@ -35,6 +35,7 @@ final class WorkloadMcpJourney {
   private static final long MAXIMUM_WORKLOAD_TOKEN_TTL_SECONDS = 60;
   private static final Set<String> FILES_SCOPES = Set.of("mcp.tools", "files.read");
   private static final Set<String> CALENDAR_SCOPES = Set.of("mcp.tools", "calendar.read");
+  private static final Set<String> CALENDAR_WRITE_SCOPES = Set.of("mcp.tools", "calendar.write");
   private static final Pattern FILES_ERROR_CODE =
       Pattern.compile("Files User API rejected request: HTTP ([0-9]{3})");
   private static final Pattern CALENDAR_ERROR_CODE =
@@ -148,15 +149,49 @@ final class WorkloadMcpJourney {
     }
   }
 
+  void verifyCalendarWriteDeniedForMember(String cellRef, String calendarId) {
+    String clientId = "weaver-cell-" + requireCellKey(cellRef);
+    RSAKey key = readActiveKey(clientId);
+    ObjectNode call = request(3, "tools/call");
+    ObjectNode arguments = call.putObject("params")
+        .put("name", "calendar.create")
+        .putObject("arguments");
+    arguments.put("calendarId", calendarId)
+        .put("idempotencyKey", "calendar-mcp-member-denied-" + environment.runId());
+    ObjectNode event = arguments.putObject("event");
+    event.put("title", "Denied MCP Calendar write " + environment.runId());
+    event.putObject("start").put("kind", "DATE").put("date", "2026-10-25");
+    event.putObject("end").put("kind", "DATE").put("date", "2026-10-26");
+    event.putArray("attendees");
+    event.putArray("overrides");
+
+    String readToken = clientCredentials(clientId, key, CALENDAR_SCOPES);
+    validateWorkloadToken(readToken, clientId, CALENDAR_SCOPES);
+    String readSession = initializeSession(readToken);
+    JsonHttpClient.Response wrongScope = mcp(readToken, readSession, call, Set.of(403));
+    if (!wrongScope.firstHeader("WWW-Authenticate").contains("error=\"insufficient_scope\"")) {
+      throw new ProductFlowException("a Calendar read-only token reached a Calendar mutation");
+    }
+
+    String writeToken = clientCredentials(clientId, key, CALENDAR_WRITE_SCOPES);
+    validateWorkloadToken(writeToken, clientId, CALENDAR_WRITE_SCOPES);
+    String writeSession = initializeSession(writeToken);
+    requireTool(writeToken, writeSession, "calendar.create");
+    JsonNode denied = protocolBody(mcp(writeToken, writeSession, call, Set.of(200)));
+    String result = denied.path("result").toString();
+    if (!denied.path("result").path("isError").asBoolean(false)
+        || !result.contains("Calendar User API rejected request: HTTP 403")
+        || result.contains("providerId") || result.contains("access_token")) {
+      throw new ProductFlowException("a member without calendar.manage_events could write over MCP");
+    }
+  }
+
   private String initializeSession(String workloadToken) {
 
     ObjectNode initialize = request(1, "initialize");
     ObjectNode parameters = initialize.putObject("params");
     parameters.put("protocolVersion", "2025-11-25");
-    parameters
-        .putObject("capabilities")
-        .putObject("extensions")
-        .putObject("io.modelcontextprotocol/oauth-client-credentials");
+    parameters.putObject("capabilities");
     parameters.putObject("clientInfo").put("name", "weave-test-app").put("version", "1.0");
 
     JsonHttpClient.Response initialized =
@@ -394,7 +429,9 @@ final class WorkloadMcpJourney {
       case "tools/list" -> "tools/list";
       case "tools/call" -> {
         String name = request.path("params").path("name").asString("");
-        yield "tools/call " + (name.equals("files.search") || name.equals("calendar.agenda") ? name : "unknown");
+        yield "tools/call " + (name.equals("files.search") || name.equals("calendar.agenda")
+            || name.equals("calendar.create") || name.equals("calendar.update")
+            || name.equals("calendar.delete") ? name : "unknown");
       }
       default -> "unknown method";
     };
