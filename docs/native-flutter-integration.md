@@ -226,6 +226,14 @@ entered. Pre-run cleanup now closes only a Safari window titled `Sign in to
 weave` that contains the disposable IdP host and port while no Weave app is
 running. The standalone cleanup returned `NATIVE_STALE_BROWSER_RESULT
 status=closed`; a full fresh AppAuth callback remains unverified.
+Candidate `1a812db673` again accepted macOS consent but found only the prior
+disposable IdP port. Safari had changed that stale window's title to a page-load
+error, so the title-scoped cleanup missed it. Cleanup now matches the exact
+disposable IdP host with a port while no Weave app runs, independent of Safari's
+transient title. The native Flutter test also reports its configured issuer
+port as a sanitized diagnostic, allowing a future run to distinguish stale
+browser state from a stale Flutter build. No credential was entered in either
+failed run.
 
 ## Existing executable coverage
 

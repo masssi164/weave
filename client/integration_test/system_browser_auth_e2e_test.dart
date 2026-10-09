@@ -737,7 +737,9 @@ Future<ProviderContainer> _openWeaveSession(
     ValueKey('weave.auth.sign-in'),
     ValueKey('weave.workspace.home'),
   ], timeout: const Duration(minutes: 1));
-  debugPrint('NATIVE_PRODUCT_STAGE phase=shell-ready');
+  debugPrint(
+    'NATIVE_PRODUCT_STAGE phase=shell-ready issuerPort=${config.issuerUrl.port}',
+  );
   if (requireFreshSignIn) {
     expect(
       find.byKey(const ValueKey('weave.auth.sign-in')),

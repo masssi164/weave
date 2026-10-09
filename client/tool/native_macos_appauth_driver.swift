@@ -79,9 +79,7 @@ if CommandLine.arguments.count == 2 && CommandLine.arguments[1] == "--clear-stal
     where app.bundleIdentifier == "com.apple.Safari" {
     let root = AXUIElementCreateApplication(app.processIdentifier)
     for window in attribute(root, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
-      let title = attribute(window, kAXTitleAttribute) as? String ?? ""
-      guard title.hasSuffix("Sign in to weave"),
-            descendants(window).contains(where: {
+      guard descendants(window).contains(where: {
               textValues($0).contains { $0.contains("auth.weave.localhost:") }
             }) else { continue }
       guard let close = attribute(window, kAXCloseButtonAttribute),
