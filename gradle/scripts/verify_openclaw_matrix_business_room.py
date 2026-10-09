@@ -25,7 +25,19 @@ def command(argv, environment, timeout):
         check=False,
     )
     if result.returncode != 0 or len(result.stdout) > 1_000_000:
-        raise ProofError("real OpenClaw Matrix command failed")
+        try:
+            payload = json.loads(result.stdout)
+            detail = payload.get("error", {}).get("message", "")
+        except (ValueError, AttributeError):
+            detail = ""
+        if not isinstance(detail, str) or not detail:
+            detail = result.stderr or result.stdout
+        detail = detail.replace(
+            environment.get("WEAVE_MATRIX_MEMBER_TOKEN", ""), "[redacted]"
+        )
+        detail = re.sub(r"[^A-Za-z0-9 .:_/-]", " ", detail).strip()[:200]
+        raise ProofError("real OpenClaw Matrix " + argv[1]
+                         + " failed: " + detail)
     return result.stdout
 
 
@@ -115,8 +127,12 @@ def main():
     parser.add_argument("--private-root", required=True, type=Path)
     try:
         run(parser.parse_args())
-    except Exception as failure:
+    except ProofError as failure:
         print("WEAVE_OPENCLAW_MATRIX_ERROR " + str(failure))
+        return 1
+    except Exception as failure:
+        print("WEAVE_OPENCLAW_MATRIX_ERROR unexpected "
+              + type(failure).__name__)
         return 1
     return 0
 

@@ -351,7 +351,10 @@ final class CollaborationJourney {
       String output = new String(process.getInputStream().readNBytes(4096), StandardCharsets.UTF_8);
       if (process.exitValue() != 0
           || !output.contains("WEAVE_OPENCLAW_MATRIX_RESULT status=passed")) {
-        throw new ProductFlowException("real OpenClaw Matrix send failed");
+        String diagnostic = output.lines()
+            .filter(line -> line.startsWith("WEAVE_OPENCLAW_MATRIX_ERROR "))
+            .findFirst().orElse("WEAVE_OPENCLAW_MATRIX_ERROR unavailable");
+        throw new ProductFlowException(diagnostic);
       }
       System.out.println(output.trim());
       Instant deadline = Instant.now().plus(environment.convergenceTimeout());
