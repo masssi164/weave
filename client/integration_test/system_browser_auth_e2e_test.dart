@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:weave/core/a11y/semantic_button.dart';
+import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
@@ -753,13 +755,21 @@ Future<ProviderContainer> _openWeaveSession(
     );
   }
   if (find.byKey(const ValueKey('weave.auth.sign-in')).evaluate().isNotEmpty) {
-    await tester.tap(find.byKey(const ValueKey('weave.auth.sign-in')));
+    final signIn = find.byKey(const ValueKey('weave.auth.sign-in'));
+    await tester.ensureVisible(signIn);
     await tester.pump();
-    debugPrint('NATIVE_PRODUCT_STAGE phase=appauth-requested');
-    await _waitForWorkspaceAfterSignIn(
-      tester,
-      ProviderScope.containerOf(tester.element(find.byType(WeaveApp))),
+    expect(tester.widget<AccessibleButton>(signIn).onPressed, isNotNull);
+    final authContainer = ProviderScope.containerOf(
+      tester.element(find.byType(WeaveApp)),
     );
+    await tester.tap(signIn);
+    await tester.pump();
+    final started = authContainer.read(authFlowControllerProvider);
+    debugPrint(
+      'NATIVE_PRODUCT_STAGE phase=sign-in-tapped '
+      'busy=${started.isBusy} failure=${started.failure?.type.name ?? 'none'}',
+    );
+    await _waitForWorkspaceAfterSignIn(tester, authContainer);
   } else {
     await _waitFor(
       tester,
@@ -780,6 +790,7 @@ Future<void> _waitForWorkspaceAfterSignIn(
 ) async {
   final deadline = DateTime.now().add(const Duration(minutes: 5));
   var pendingReported = false;
+  var requestReported = false;
   while (DateTime.now().isBefore(deadline)) {
     await tester.pump(const Duration(seconds: 1));
     if (find
@@ -789,6 +800,10 @@ Future<void> _waitForWorkspaceAfterSignIn(
       return;
     }
     final state = container.read(authFlowControllerProvider);
+    if (state.isBusy && !requestReported) {
+      debugPrint('NATIVE_PRODUCT_STAGE phase=appauth-requested busy=true');
+      requestReported = true;
+    }
     final failure = state.failure;
     if (failure != null) {
       debugPrint(
@@ -802,9 +817,23 @@ Future<void> _waitForWorkspaceAfterSignIn(
           deadline.subtract(const Duration(minutes: 4, seconds: 45)),
         )) {
       debugPrint(
-        'NATIVE_PRODUCT_STAGE phase=appauth-pending busy=${state.isBusy}',
+        'NATIVE_PRODUCT_STAGE phase=appauth-pending busy=${state.isBusy} '
+        'signInVisible=${find.byKey(const ValueKey('weave.auth.sign-in')).evaluate().isNotEmpty} '
+        'bootstrap=${container.read(appBootstrapProvider).maybeWhen(data: (value) => value.phase.name, orElse: () => 'pending')}',
       );
       pendingReported = true;
+    }
+    if (!requestReported &&
+        !state.isBusy &&
+        failure == null &&
+        find
+            .byKey(const ValueKey('weave.auth.sign-in'))
+            .evaluate()
+            .isNotEmpty &&
+        DateTime.now().isAfter(
+          deadline.subtract(const Duration(minutes: 4, seconds: 30)),
+        )) {
+      fail('The native sign-in control did not start OIDC authentication.');
     }
   }
   fail('Native OIDC sign-in did not establish the workspace.');

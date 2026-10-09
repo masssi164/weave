@@ -136,6 +136,15 @@ driver now records only bounded, non-secret host, consent, and field-presence
 booleans, while Flutter reports its auth failure category separately. No
 callback or native product claim follows from those diagnostics.
 
+The exact `4d88d792c5` run reported `host=false`, `consent=false`, and
+`fields=false` in the foreground Weave accessibility tree. Flutter had tapped
+its sign-in finder, but 15 seconds later the auth controller was idle with no
+failure. That means the earlier `appauth-requested` marker did not prove that
+the tap reached an enabled on-screen button. The test now scrolls the control
+into view, verifies it is enabled, records the resulting controller state, and
+fails if no OIDC transition occurs. It emits `appauth-requested` only after
+observing the busy auth state.
+
 ## Existing executable coverage
 
 `client/integration_test/system_browser_auth_e2e_test.dart` exercises the
