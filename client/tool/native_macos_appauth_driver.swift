@@ -3,6 +3,7 @@
 // into Flutter; its integration test remains the product and PKCE oracle.
 import AppKit
 import ApplicationServices
+import CoreGraphics
 import Foundation
 
 struct Fixture: Decodable {
@@ -143,8 +144,14 @@ func acceptSystemConsent() -> Bool {
   return false
 }
 
+struct AuthSurface {
+  let window: AXUIElement
+  let elements: [AXUIElement]
+  let safariPID: pid_t
+}
+
 var issuerHostObserved = false
-func issuerWindow() -> [AXUIElement]? {
+func issuerWindow() -> AuthSurface? {
   for app in NSWorkspace.shared.runningApplications where app.bundleIdentifier == "com.apple.Safari" {
     let root = AXUIElementCreateApplication(app.processIdentifier)
     for window in attribute(root, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
@@ -155,28 +162,77 @@ func issuerWindow() -> [AXUIElement]? {
       if elements.contains(where: {
         textValues($0).contains { $0.contains(fixture.issuerAuthority) }
       }) {
-        return elements
+        return AuthSurface(window: window, elements: elements, safariPID: app.processIdentifier)
       }
     }
   }
   return nil
 }
 
-func field(in elements: [AXUIElement], stage: String) -> AXUIElement? {
-  let matches = elements.filter { element in
-    guard [kAXTextFieldRole as String, "AXSecureTextField"].contains(
-      attribute(element, kAXRoleAttribute) as? String ?? "") else { return false }
-    let name = [kAXTitleAttribute, kAXDescriptionAttribute].compactMap {
-      attribute(element, $0) as? String
-    }.joined(separator: " ").lowercased()
-    if stage == "username" {
-      return name.contains("username") || name.contains("email")
-    }
-    return name.contains("password") || name.contains("passwort")
+func namedField(_ element: AXUIElement, stage: String) -> Bool {
+  guard [kAXTextFieldRole as String, "AXSecureTextField"].contains(
+    attribute(element, kAXRoleAttribute) as? String ?? "") else { return false }
+  let name = [kAXTitleAttribute, kAXDescriptionAttribute].compactMap {
+    attribute(element, $0) as? String
+  }.joined(separator: " ").lowercased()
+  if stage == "username" {
+    return name.contains("username") || name.contains("email")
   }
+  return name.contains("password") || name.contains("passwort")
+}
+
+func field(in elements: [AXUIElement], stage: String) -> AXUIElement? {
+  let matches = elements.filter { namedField($0, stage: stage) }
   // Keycloak's password page also exposes a second, unlabeled text field.
   // Choose only a uniquely labeled form control in the exact IdP window.
   return matches.count == 1 ? matches[0] : nil
+}
+
+func postKey(to pid: pid_t, code: CGKeyCode) -> Bool {
+  guard let down = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true),
+        let up = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: false) else {
+    return false
+  }
+  down.postToPid(pid)
+  up.postToPid(pid)
+  return true
+}
+
+func typeTargeted(_ text: String, to pid: pid_t) -> Bool {
+  for unit in text.utf16 {
+    var character = unit
+    guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
+          let up = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false) else {
+      return false
+    }
+    down.keyboardSetUnicodeString(stringLength: 1, unicodeString: &character)
+    up.keyboardSetUnicodeString(stringLength: 1, unicodeString: &character)
+    down.postToPid(pid)
+    up.postToPid(pid)
+  }
+  return true
+}
+
+func focusFieldViaKeyboard(_ surface: AuthSurface, stage: String) -> AXUIElement? {
+  guard let webArea = surface.elements.first(where: {
+    (attribute($0, kAXRoleAttribute) as? String) == "AXWebArea"
+  }), AXUIElementPerformAction(surface.window, kAXRaiseAction as CFString) == .success,
+        AXUIElementSetAttributeValue(
+          webArea, kAXFocusedAttribute as CFString, kCFBooleanTrue
+        ) == .success else { return nil }
+  let safari = AXUIElementCreateApplication(surface.safariPID)
+  for _ in 0..<8 {
+    let focusedWindow = attribute(safari, kAXFocusedWindowAttribute)
+    if let focusedWindow, CFEqual(focusedWindow, surface.window),
+       let focused = attribute(safari, kAXFocusedUIElementAttribute),
+       CFGetTypeID(focused) == AXUIElementGetTypeID(),
+       namedField(focused as! AXUIElement, stage: stage) {
+      return (focused as! AXUIElement)
+    }
+    guard postKey(to: surface.safariPID, code: 48) else { return nil } // Tab
+    _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+  }
+  return nil
 }
 
 func signInButton(in elements: [AXUIElement]) -> AXUIElement? {
@@ -214,16 +270,16 @@ while Date() < deadline {
   if !consentHandled {
     consentHandled = acceptSystemConsent()
   }
-  guard let elements = issuerWindow() else {
+  guard let surface = issuerWindow() else {
     _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.5))
     continue
   }
   issuerObserved = true
-  if let passwordField = field(in: elements, stage: "password") {
+  if let passwordField = field(in: surface.elements, stage: "password") {
     guard usernameSubmitted else { fail("password-before-username") }
     guard fill(passwordField, with: fixture.password) else { fail("password-field") }
     _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.5))
-    guard let submit = signInButton(in: elements) else { fail("password-submit") }
+    guard let submit = signInButton(in: surface.elements) else { fail("password-submit") }
     guard AXUIElementPerformAction(submit, kAXPressAction as CFString) == .success else {
       fail("password-press")
     }
@@ -231,16 +287,34 @@ while Date() < deadline {
     print("NATIVE_APP_AUTH_DRIVER_RESULT status=passed stage=form-submitted")
     exit(0)
   }
-  if !usernameSubmitted, let usernameField = field(in: elements, stage: "username") {
+  if usernameSubmitted,
+     focusFieldViaKeyboard(surface, stage: "password") != nil {
+    guard typeTargeted(fixture.password, to: surface.safariPID),
+          postKey(to: surface.safariPID, code: 36) else { fail("password-targeted-input") }
+    print("NATIVE_AUTH_STAGE phase=password-submitted")
+    print("NATIVE_APP_AUTH_DRIVER_RESULT status=passed stage=form-submitted")
+    exit(0)
+  }
+  if !usernameSubmitted,
+     let usernameField = field(in: surface.elements, stage: "username") {
     usernameFieldObserved = true
     guard fill(usernameField, with: fixture.email) else { fail("username-field") }
     guard waitForUsernameReadback(usernameField, expected: fixture.email) else {
       fail("username-readback")
     }
-    guard let submit = signInButton(in: elements) else { fail("username-submit") }
+    guard let submit = signInButton(in: surface.elements) else { fail("username-submit") }
     guard AXUIElementPerformAction(submit, kAXPressAction as CFString) == .success else {
       fail("username-press")
     }
+    usernameSubmitted = true
+    print("NATIVE_AUTH_STAGE phase=username-submitted")
+  }
+  if !usernameSubmitted,
+     let usernameField = focusFieldViaKeyboard(surface, stage: "username") {
+    usernameFieldObserved = true
+    guard typeTargeted(fixture.email, to: surface.safariPID),
+          waitForUsernameReadback(usernameField, expected: fixture.email),
+          postKey(to: surface.safariPID, code: 36) else { fail("username-targeted-input") }
     usernameSubmitted = true
     print("NATIVE_AUTH_STAGE phase=username-submitted")
   }

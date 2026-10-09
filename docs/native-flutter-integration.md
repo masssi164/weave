@@ -260,6 +260,18 @@ Development certificate. The signed native Keychain probe then passed; the
 built app's TeamIdentifier, bundle ID, and Keychain entitlement were verified.
 This is a test signing configuration, not a change to the public OIDC contract.
 The full OIDC product journey has not yet passed with this signed build.
+Candidate `41f4130dc1` built with verified development signing and Keychain
+entitlement, but Safari exposed an empty Accessibility child tree for the
+current IdP web area (`username-not-observed`), despite the page being visible.
+The form was not submitted. On that expired disposable page, a harmless probe
+showed that focusing the verified Safari web area, pressing Tab, and sending
+Unicode keyboard events directly to Safari's process focused the labeled
+username field and entered the probe; the focused element and window were
+readable through Accessibility. The driver now uses this targeted input path
+only when the normal uniquely labeled form control is absent. It still
+requires the exact current issuer window and focused field label, and Flutter
+still determines whether the AppAuth callback and product journey pass. This
+fallback has not yet passed a live full run.
 
 ## Existing executable coverage
 
