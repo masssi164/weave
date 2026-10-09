@@ -17,6 +17,7 @@ final class RunnerUITests: XCTestCase {
     let password: String
     let issuerHost: String
     let issuerAuthority: String
+    let appExecutable: String
   }
 
   func testAutomationStartupProbe() {
@@ -43,10 +44,19 @@ final class RunnerUITests: XCTestCase {
     var observedConsent = false
     var observedFields = false
     var lastOwner = "none"
+    var activationAttempted = false
     while Date() < deadline {
-      if let owner = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
-         permittedOwners.contains(owner) {
-        lastOwner = owner
+      let owner = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "none"
+      lastOwner = owner
+      if !activationAttempted && !permittedOwners.contains(owner),
+         let nativeApp = NSWorkspace.shared.runningApplications.first(where: {
+           $0.executableURL?.resolvingSymlinksInPath().path == fixture.appExecutable
+         }) {
+        activationAttempted = true
+        let activated = nativeApp.activate(options: [])
+        print("NATIVE_XCTEST_APP_ACTIVATION status=\(activated ? "passed" : "failed")")
+      }
+      if permittedOwners.contains(owner) {
         let description = XCUIApplication(bundleIdentifier: owner).debugDescription
         observedHost = observedHost || description.contains(fixture.issuerHost)
         observedConsent = observedConsent ||

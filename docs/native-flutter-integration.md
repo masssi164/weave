@@ -145,6 +145,14 @@ into view, verifies it is enabled, records the resulting controller state, and
 fails if no OIDC transition occurs. It emits `appauth-requested` only after
 observing the busy auth state.
 
+Candidate `947e33b121` then observed `busy=true` throughout native OIDC, but
+XCTest never saw a permitted foreground owner. The runner now passes the exact
+compiled Flutter executable path through its private fixture. XCTest may make
+one normal macOS activation request for that running executable, and records
+whether the request succeeded. It does not activate another installed Weave
+copy or enter credentials until the disposable IdP is visible in the
+foreground application.
+
 ## Existing executable coverage
 
 `client/integration_test/system_browser_auth_e2e_test.dart` exercises the

@@ -201,6 +201,11 @@ def report_xcode_stream_stage(*streams: str | bytes | None) -> None:
             f"NATIVE_XCTEST_AUTH_DISCOVERY owner={owner} host={host} "
             f"consent={consent} fields={fields}", flush=True,
         )
+    activations = re.findall(
+        r"NATIVE_XCTEST_APP_ACTIVATION status=(passed|failed)", output
+    )
+    if activations:
+        print("NATIVE_XCTEST_APP_ACTIVATION status=" + activations[-1], flush=True)
 
 
 def main() -> int:
@@ -238,7 +243,9 @@ def main() -> int:
         fixture = json.dumps(
             {"email": email, "password": password,
              "issuerHost": urlparse(issuer).hostname,
-             "issuerAuthority": urlparse(issuer).netloc},
+             "issuerAuthority": urlparse(issuer).netloc,
+             "appExecutable": str((CLIENT / "build/macos/Build/Products/Debug/weave.app"
+                                   / "Contents/MacOS/weave").resolve())},
             separators=(",", ":"),
         ).encode()
         try:
