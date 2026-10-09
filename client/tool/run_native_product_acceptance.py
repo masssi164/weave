@@ -18,6 +18,7 @@ import subprocess
 import tempfile
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -77,9 +78,10 @@ def collect_flutter_output(process: subprocess.Popen[str], sink: queue.Queue[str
             sink.put("FLUTTER_NATIVE_TEST_RUN status=failed")
 
 
-def write_once(path: Path, payload: bytes) -> None:
+def write_once(path: Path, payload: bytes, transferred: threading.Event) -> None:
     with path.open("wb", buffering=0) as output:
         output.write(payload)
+    transferred.set()
     print("NATIVE_FIXTURE_TRANSFER_RESULT status=passed", flush=True)
 
 
@@ -236,66 +238,83 @@ def main() -> int:
             # The Flutter command receives only non-secret endpoint defines.
             env.pop("WEAVE_NATIVE_MEMBER_PASSWORD", None)
             env.pop("WEAVE_NATIVE_MEMBER_EMAIL", None)
-            flutter = subprocess.Popen(
-                ["make", "physical-device-product-e2e"],
-                cwd=CLIENT, env=env, stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT, text=True,
-            )
             markers: queue.Queue[str] = queue.Queue()
-            reader = threading.Thread(
-                target=collect_flutter_output, args=(flutter, markers), daemon=True
-            )
-            reader.start()
-            writer = threading.Thread(target=write_once, args=(pipe, fixture), daemon=True)
-            writer.start()
-            try:
-                try:
-                    driver = subprocess.run(
-                        xcode_command("test-without-building", derived, result),
-                        cwd=CLIENT, capture_output=True, text=True, timeout=420,
-                    )
-                except subprocess.TimeoutExpired as timeout:
-                    print("NATIVE_APP_AUTH_DRIVER_RESULT status=failed reason=timeout", flush=True)
-                    report_xcode_result(result, email=email, password=password)
-                    report_xcode_stream_stage(timeout.stdout, timeout.stderr)
-                    while not markers.empty():
-                        print(markers.get_nowait(), flush=True)
-                    print(f"NATIVE_FLUTTER_PROCESS_RESULT running={flutter.poll() is None}", flush=True)
-                    raise
-                print(
-                    "NATIVE_APP_AUTH_DRIVER_RESULT status="
-                    + ("passed" if driver.returncode == 0 else "failed"),
-                    flush=True,
+            flutter: subprocess.Popen[str] | None = None
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                driver_future = executor.submit(
+                    subprocess.run,
+                    xcode_command("test-without-building", derived, result),
+                    cwd=CLIENT, capture_output=True, text=True, timeout=420,
                 )
-                report_xcode_result(result, email=email, password=password)
-                report_xcode_stream_stage(driver.stdout, driver.stderr)
-                if driver.returncode:
-                    while not markers.empty():
-                        print(markers.get_nowait(), flush=True)
-                    print(f"NATIVE_FLUTTER_PROCESS_RESULT running={flutter.poll() is None}", flush=True)
-                    raise RuntimeError("native AppAuth UI driver failed")
-                flutter_status = flutter.wait(timeout=900)
-                reader.join(timeout=2)
-                observed = []
-                while not markers.empty():
-                    observed.append(markers.get_nowait())
-                for marker in observed:
-                    print(marker, flush=True)
-                if flutter_status or not any(
-                    line.startswith("NATIVE_PRODUCT_SIGN_IN_RESULT status=passed")
-                    for line in observed
-                ):
-                    raise RuntimeError("Flutter native product assertions failed")
-                print("NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed", flush=True)
-            finally:
-                if flutter.poll() is None:
-                    flutter.terminate()
+                transferred = threading.Event()
+                threading.Thread(
+                    target=write_once, args=(pipe, fixture, transferred), daemon=True
+                ).start()
+                try:
+                    startup_ready = transferred.wait(timeout=90)
+                    if not startup_ready and driver_future.done():
+                        driver = driver_future.result()
+                        print("NATIVE_APP_AUTH_DRIVER_RESULT status=failed reason=startup", flush=True)
+                        report_xcode_result(result, email=email, password=password)
+                        report_xcode_stream_stage(driver.stdout, driver.stderr)
+                        raise RuntimeError("XCTest failed before fixture transfer")
+                    print(
+                        "NATIVE_XCTEST_STARTUP_RESULT status="
+                        + ("passed" if startup_ready else "delayed"), flush=True,
+                    )
+                    flutter = subprocess.Popen(
+                        ["make", "physical-device-product-e2e"],
+                        cwd=CLIENT, env=env, stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT, text=True,
+                    )
+                    reader = threading.Thread(
+                        target=collect_flutter_output, args=(flutter, markers), daemon=True
+                    )
+                    reader.start()
                     try:
-                        flutter.wait(timeout=10)
-                    except subprocess.TimeoutExpired:
-                        flutter.kill()
-                        flutter.wait(timeout=10)
-                stop_checkout_app()
+                        driver = driver_future.result(timeout=430)
+                    except subprocess.TimeoutExpired as timeout:
+                        print("NATIVE_APP_AUTH_DRIVER_RESULT status=failed reason=timeout", flush=True)
+                        report_xcode_result(result, email=email, password=password)
+                        report_xcode_stream_stage(timeout.stdout, timeout.stderr)
+                        while not markers.empty():
+                            print(markers.get_nowait(), flush=True)
+                        print(f"NATIVE_FLUTTER_PROCESS_RESULT running={flutter.poll() is None}", flush=True)
+                        raise
+                    print(
+                        "NATIVE_APP_AUTH_DRIVER_RESULT status="
+                        + ("passed" if driver.returncode == 0 else "failed"),
+                        flush=True,
+                    )
+                    report_xcode_result(result, email=email, password=password)
+                    report_xcode_stream_stage(driver.stdout, driver.stderr)
+                    if driver.returncode:
+                        while not markers.empty():
+                            print(markers.get_nowait(), flush=True)
+                        print(f"NATIVE_FLUTTER_PROCESS_RESULT running={flutter.poll() is None}", flush=True)
+                        raise RuntimeError("native AppAuth UI driver failed")
+                    flutter_status = flutter.wait(timeout=900)
+                    reader.join(timeout=2)
+                    observed = []
+                    while not markers.empty():
+                        observed.append(markers.get_nowait())
+                    for marker in observed:
+                        print(marker, flush=True)
+                    if flutter_status or not any(
+                        line.startswith("NATIVE_PRODUCT_SIGN_IN_RESULT status=passed")
+                        for line in observed
+                    ):
+                        raise RuntimeError("Flutter native product assertions failed")
+                    print("NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed", flush=True)
+                finally:
+                    if flutter is not None and flutter.poll() is None:
+                        flutter.terminate()
+                        try:
+                            flutter.wait(timeout=10)
+                        except subprocess.TimeoutExpired:
+                            flutter.kill()
+                            flutter.wait(timeout=10)
+                    stop_checkout_app()
         finally:
             # XCTest can put typed form values in its result bundle; the
             # temporary directory and all raw runner output are discarded.

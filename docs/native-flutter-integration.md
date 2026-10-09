@@ -146,8 +146,9 @@ WEAVE_TEST_APP_NATIVE_RUNNER="$PWD/client/tool/run_native_product_acceptance.py"
 
 `testApp` still requires a clean exact source candidate and tears down the
 disposable stack. Its Java browser proof creates and admits the member before
-calling the native runner. The runner builds the macOS UI target, starts the
-existing Flutter product integration test, drives the native browser and
+calling the native runner. The runner builds the macOS UI target, lets XCTest
+establish UI automation and consume the private member fixture, then starts the
+existing Flutter product integration test and drives the native browser. It
 requires both XCUITest and Flutter product markers to pass. The code path is
 implemented but **has not yet completed a live local run**. The local attempt
 at `9dc5c23d4a77` reached healthy Server/MCP and passed disposable Chromium
