@@ -77,6 +77,45 @@ def write_once(path: Path, payload: bytes) -> None:
         output.write(payload)
 
 
+def report_xcode_result(bundle: Path) -> None:
+    """Emit a bounded XCTest diagnosis without copying browser or fixture data."""
+    try:
+        report = subprocess.run(
+            ["xcrun", "xcresulttool", "get", "test-results", "summary",
+             "--path", str(bundle)],
+            capture_output=True, text=True, timeout=15,
+        )
+        if report.returncode:
+            print("NATIVE_XCTEST_DIAGNOSIS stage=result-unavailable", flush=True)
+            return
+        summary = json.loads(report.stdout)
+        counts = (summary.get("passedTests"), summary.get("failedTests"),
+                  summary.get("skippedTests"))
+        if not all(isinstance(value, int) and 0 <= value <= 100 for value in counts):
+            print("NATIVE_XCTEST_DIAGNOSIS stage=invalid-summary", flush=True)
+            return
+        stages = (
+            ("app-window", "Flutter's native test app did not start"),
+            ("issuer-window", "The expected disposable IdP did not appear"),
+            ("account-field", "IdP account field unavailable"),
+            ("password-field", "IdP password field unavailable"),
+            ("sign-in-action", "IdP sign-in action unavailable"),
+            ("callback", "Native application did not return after authentication"),
+        )
+        failures = summary.get("testFailures", [])
+        stage = "none" if counts[1] == 0 else "unclassified"
+        if isinstance(failures, list):
+            for failure in failures:
+                detail = failure.get("failureText", "") if isinstance(failure, dict) else ""
+                stage = next((name for name, phrase in stages if phrase in detail), stage)
+        print(
+            f"NATIVE_XCTEST_DIAGNOSIS passed={counts[0]} failed={counts[1]} "
+            f"skipped={counts[2]} stage={stage}", flush=True,
+        )
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        print("NATIVE_XCTEST_DIAGNOSIS stage=result-unavailable", flush=True)
+
+
 def main() -> int:
     email = require("WEAVE_NATIVE_MEMBER_EMAIL")
     password = require("WEAVE_NATIVE_MEMBER_PASSWORD")
@@ -147,6 +186,7 @@ def main() -> int:
                     + ("passed" if driver.returncode == 0 else "failed"),
                     flush=True,
                 )
+                report_xcode_result(result)
                 if driver.returncode:
                     raise RuntimeError("native AppAuth UI driver failed")
                 flutter_status = flutter.wait(timeout=900)
