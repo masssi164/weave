@@ -397,6 +397,7 @@ log "Running invitation, real Chromium activation, PKCE, generated User Files/Ca
   "-Dweave.e2e.mcp-endpoint=${WEAVE_TEST_APP_MCP_ENDPOINT}" \
   "-Dweave.e2e.mcp-local-port=${WEAVE_MCP_HOST_PORT}" \
   "-Dweave.e2e.openclaw-script=${REPOSITORY_ROOT}/gradle/scripts/verify_openclaw_release_mcp.py" \
+  "-Dweave.e2e.openclaw-matrix-script=${REPOSITORY_ROOT}/gradle/scripts/verify_openclaw_matrix_business_room.py" \
   "-Dweave.e2e.release-mcp=${RELEASE_MCP}" \
   "-Dweave.e2e.chat-proof-origin=${WEAVE_TEST_APP_CHAT_PROOF_ORIGIN}" \
   "-Dweave.e2e.ca-certificate=${WEAVE_TEST_APP_TLS_ROOT}/ca.pem" \

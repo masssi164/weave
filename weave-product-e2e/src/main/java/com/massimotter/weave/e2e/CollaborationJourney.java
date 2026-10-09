@@ -87,7 +87,10 @@ final class CollaborationJourney {
       }
       MatrixIdentity collaboratorMatrix = matrixIdentity(collaboratorIdentity, pass);
       matrixIdentity(outsiderIdentity, pass);
-      matrixIdentity(authorIdentity, pass);
+      MatrixIdentity authorMatrix = matrixIdentity(authorIdentity, pass);
+      if (pass == 1 && Boolean.getBoolean("weave.e2e.release-mcp")) {
+        proveOpenClawBusinessRoom(authorIdentity, authorMatrix.userId(), pass);
+      }
       if (pass == 2) {
         restartContinuityVerified =
             verifyAndCleanRetainedFirstPass(
@@ -310,6 +313,73 @@ final class CollaborationJourney {
     }
     requireDeviceProofDenial(identity, pass);
     return new MatrixIdentity(userId, deviceId);
+  }
+
+  private void proveOpenClawBusinessRoom(Identity member, String userId, int pass) {
+    String script = System.getProperty("weave.e2e.openclaw-matrix-script", "");
+    if (script.isBlank() || !Path.of(script).isAbsolute()
+        || !Files.isRegularFile(Path.of(script))) {
+      throw new ProductFlowException("real OpenClaw Matrix proof script is unavailable");
+    }
+    ObjectNode request = http.mapper().createObjectNode();
+    request.put("name", "Weave business Chat " + runHash());
+    JsonNode created = http.json(
+        "create authorized non-encrypted business room", "POST",
+        environment.api("/_matrix/client/v3/createRoom"),
+        bearer(member.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(member.role(), pass))),
+        request, Set.of(200));
+    String roomId = created.path("room_id").asString();
+    if (!roomId.matches("![^:]{1,200}:[A-Za-z0-9.:-]+")) {
+      throw new ProductFlowException("business Matrix room projection is invalid");
+    }
+    String marker = "Weave OpenClaw Matrix E2E " + runHash();
+    try {
+      ProcessBuilder builder = new ProcessBuilder(
+          "python3", script,
+          "--homeserver", environment.apiOrigin().toString(),
+          "--user", userId,
+          "--room", roomId,
+          "--message", marker,
+          "--ca", environment.caCertificate().toString(),
+          "--private-root", environment.evidenceFile().getParent().toString());
+      builder.environment().put("WEAVE_MATRIX_MEMBER_TOKEN", member.token());
+      Process process = builder.redirectErrorStream(true).start();
+      if (!process.waitFor(PROCESS_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
+        process.destroyForcibly();
+        throw new ProductFlowException("real OpenClaw Matrix send exceeded its deadline");
+      }
+      String output = new String(process.getInputStream().readNBytes(4096), StandardCharsets.UTF_8);
+      if (process.exitValue() != 0
+          || !output.contains("WEAVE_OPENCLAW_MATRIX_RESULT status=passed")) {
+        throw new ProductFlowException("real OpenClaw Matrix send failed");
+      }
+      System.out.println(output.trim());
+      Instant deadline = Instant.now().plus(environment.convergenceTimeout());
+      while (Instant.now().isBefore(deadline)) {
+        JsonNode messages = http.json(
+            "independently read OpenClaw business-room event", "GET",
+            environment.api("/_matrix/client/v3/rooms/" + encode(roomId) + "/messages?limit=100"),
+            bearer(member.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(member.role(), pass))),
+            null, Set.of(200));
+        for (JsonNode event : messages.path("chunk")) {
+          if ("m.room.message".equals(event.path("type").asString())
+              && marker.equals(event.path("content").path("body").asString())
+              && userId.equals(event.path("sender").asString())
+              && event.path("event_id").asString().startsWith("$")) {
+            return;
+          }
+        }
+        sleep();
+      }
+      throw new ProductFlowException("OpenClaw business-room event did not converge");
+    } catch (InterruptedException failure) {
+      Thread.currentThread().interrupt();
+      throw new ProductFlowException("real OpenClaw Matrix proof was interrupted", failure);
+    } catch (IOException failure) {
+      throw new ProductFlowException("real OpenClaw Matrix proof could not start", failure);
+    } finally {
+      leaveBestEffort(member, roomId, pass);
+    }
   }
 
   private void requireDeviceProofDenial(Identity identity, int pass) {
