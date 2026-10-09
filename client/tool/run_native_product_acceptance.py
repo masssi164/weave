@@ -119,7 +119,7 @@ def _process_exists(pid: int) -> bool:
         return False
 
 
-def report_xcode_result(bundle: Path) -> None:
+def report_xcode_result(bundle: Path, *, email: str, password: str) -> None:
     """Emit a bounded XCTest diagnosis without copying browser or fixture data."""
     try:
         report = subprocess.run(
@@ -146,14 +146,26 @@ def report_xcode_result(bundle: Path) -> None:
         )
         failures = summary.get("testFailures", [])
         stage = "none" if counts[1] == 0 else "unclassified"
+        safe_failure = "none"
         if isinstance(failures, list):
             for failure in failures:
                 detail = failure.get("failureText", "") if isinstance(failure, dict) else ""
                 stage = next((name for name, phrase in stages if phrase in detail), stage)
+                if isinstance(detail, str) and detail:
+                    first_line = detail.splitlines()[0]
+                    first_line = first_line.replace(email, "[member]").replace(
+                        password, "[credential]")
+                    first_line = re.sub(r"https?://\S+", "[url]", first_line)
+                    first_line = re.sub(
+                        r"(?i)\b(?:access_token|refresh_token|code|state|password)=\S+",
+                        "[redacted]", first_line)
+                    safe_failure = re.sub(r"[^\x20-\x7e]", " ", first_line)[:180]
         print(
             f"NATIVE_XCTEST_DIAGNOSIS passed={counts[0]} failed={counts[1]} "
             f"skipped={counts[2]} stage={stage}", flush=True,
         )
+        if counts[1]:
+            print(f"NATIVE_XCTEST_FAILURE_SUMMARY text={safe_failure}", flush=True)
     except (OSError, ValueError, subprocess.TimeoutExpired):
         print("NATIVE_XCTEST_DIAGNOSIS stage=result-unavailable", flush=True)
 
@@ -244,7 +256,7 @@ def main() -> int:
                     )
                 except subprocess.TimeoutExpired as timeout:
                     print("NATIVE_APP_AUTH_DRIVER_RESULT status=failed reason=timeout", flush=True)
-                    report_xcode_result(result)
+                    report_xcode_result(result, email=email, password=password)
                     report_xcode_stream_stage(timeout.stdout, timeout.stderr)
                     while not markers.empty():
                         print(markers.get_nowait(), flush=True)
@@ -255,7 +267,7 @@ def main() -> int:
                     + ("passed" if driver.returncode == 0 else "failed"),
                     flush=True,
                 )
-                report_xcode_result(result)
+                report_xcode_result(result, email=email, password=password)
                 report_xcode_stream_stage(driver.stdout, driver.stderr)
                 if driver.returncode:
                     while not markers.empty():
