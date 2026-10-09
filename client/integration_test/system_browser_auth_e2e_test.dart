@@ -26,6 +26,7 @@ import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_failure.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
@@ -165,7 +166,20 @@ void main() {
         debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-start');
         final scopes = await calendar.loadScopes();
         expect(scopes.scopes, isNotEmpty);
-        final agenda = await calendar.loadEvents(scope: scopes.scopes.first);
+        CalendarEventList agenda;
+        try {
+          agenda = await calendar.loadEvents(scope: scopes.scopes.first);
+        } on CalendarFailure catch (error) {
+          debugPrint(
+            'NATIVE_PRODUCT_STAGE phase=calendar-agenda-failed kind=${error.kind.name}',
+          );
+          rethrow;
+        } catch (error) {
+          debugPrint(
+            'NATIVE_PRODUCT_STAGE phase=calendar-agenda-failed type=${error.runtimeType}',
+          );
+          rethrow;
+        }
         expect(agenda.scope.id, scopes.scopes.first.id);
         final writableScope = scopes.scopes.firstWhere(
           (scope) => scope.capabilities.contains('create'),
