@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import 'package:timezone/data/latest.dart' as timezone_data;
@@ -73,6 +74,10 @@ class CalendarFacadeClient {
   }) async {
     final context = await _context();
     final zone = await _zone();
+    assert(() {
+      debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-zone-ready');
+      return true;
+    }());
     final scopes = await _discover(context);
     if (scopes.scopes.isEmpty) return const CalendarEventList();
     final scope = _selected(scopes, selectedScope);
@@ -86,6 +91,14 @@ class CalendarFacadeClient {
         zone.name,
       ),
     );
+    assert(() {
+      debugPrint(
+        'NATIVE_PRODUCT_STAGE phase=calendar-agenda-response '
+        'present=${result != null} calendarMatches=${result?.calendarId == scope.id} '
+        'zoneMatches=${result?.evaluationTimeZone == zone.name}',
+      );
+      return true;
+    }());
     if (result == null ||
         result.calendarId != scope.id ||
         result.evaluationTimeZone != zone.name) {
@@ -667,6 +680,12 @@ class CalendarFacadeClient {
     try {
       return await send();
     } on api.ApiException catch (error) {
+      assert(() {
+        debugPrint(
+          'NATIVE_PRODUCT_STAGE phase=calendar-api-error status=${error.code}',
+        );
+        return true;
+      }());
       if (error.code == 401) {
         await _assertCurrent(context);
         final state = await _auth.refreshSession(context.auth);
@@ -694,7 +713,13 @@ class CalendarFacadeClient {
       throw _failure(error.code);
     } on CalendarFailure {
       rethrow;
-    } catch (_) {
+    } catch (error) {
+      assert(() {
+        debugPrint(
+          'NATIVE_PRODUCT_STAGE phase=calendar-transport-error type=${error.runtimeType}',
+        );
+        return true;
+      }());
       throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
   }
