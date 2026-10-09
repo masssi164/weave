@@ -806,9 +806,19 @@ Future<void> _waitForWorkspaceAfterSignIn(
     }
     final failure = state.failure;
     if (failure != null) {
+      final cause = failure.cause;
+      final platform = cause is FlutterAppAuthPlatformException ? cause : null;
+      String safeCode(String? value) =>
+          value != null && RegExp(r'^[A-Za-z0-9_.-]{1,80}$').hasMatch(value)
+          ? value
+          : 'unavailable';
       debugPrint(
         'NATIVE_PRODUCT_STAGE phase=auth-failed '
-        'category=${failure.type.name} causeType=${failure.cause.runtimeType}',
+        'category=${failure.type.name} causeType=${cause.runtimeType} '
+        'appAuthCode=${safeCode(platform?.code)} '
+        'nativeType=${safeCode(platform?.platformErrorDetails.type)} '
+        'nativeCode=${safeCode(platform?.platformErrorDetails.code)} '
+        'nativeDomain=${safeCode(platform?.platformErrorDetails.domain)}',
       );
       fail('Native OIDC sign-in failed (${failure.type.name}).');
     }

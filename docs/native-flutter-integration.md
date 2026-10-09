@@ -164,10 +164,20 @@ notification focus. A read-only native Accessibility inspection identified a
 `com.apple.UserNotificationCenter` window containing both the exact test host
 and app name, with exactly one `Fortfahren` button. XCTest's
 `XCUIApplication.debugDescription` did not expose that hosted prompt. The
-driver now uses the macOS Accessibility element for this one action, requiring
-the expected host, app name, and a unique Continue button before pressing it.
-The exact `40b31e1bb2` run failed with `passed=0 failed=1 skipped=0`; the new
-driver has compiled but has not yet passed the integrated native journey.
+exact `40b31e1bb2` run failed with `passed=0 failed=1 skipped=0`.
+Candidate `5d48bf338f` then compiled a direct Accessibility action into
+XCTest, but its full run again failed at the issuer window. A separate,
+passed Xcode startup probe reported `NATIVE_XCTEST_AX_TRUST status=untrusted`:
+Xcode's UI automation grant does not grant direct Accessibility access to the
+isolated `RunnerUITests-Runner` process. A local diagnostic process with
+Accessibility access verified the host, app name, and unique Continue button
+and pressed that exact element. The AppAuth request then failed with a platform
+exception before callback; this diagnostic does not count as automated test
+coverage. The native runner now starts the same narrow system-consent check as
+a separate process alongside XCTest. It records whether the prompt was
+accepted, absent, or inaccessible. Flutter's callback and product assertions
+remain the acceptance oracle. The next run also records sanitized AppAuth SDK
+error codes so the remaining browser failure can be classified.
 
 ## Existing executable coverage
 

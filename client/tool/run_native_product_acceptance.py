@@ -206,13 +206,17 @@ def report_xcode_stream_stage(*streams: str | bytes | None) -> None:
     )
     if activations:
         print("NATIVE_XCTEST_APP_ACTIVATION status=" + activations[-1], flush=True)
-    consents = re.findall(
-        r"NATIVE_XCTEST_OS_CONSENT status=(verified|accepted) "
-        r"owner=([A-Za-z0-9.-]{1,80})", output
+
+
+def report_consent_result(output: str) -> str:
+    matches = re.findall(
+        r"NATIVE_MACOS_CONSENT_RESULT status="
+        r"(accepted|not-observed|accessibility-unavailable|invalid-host|ambiguous-action|press-failed)",
+        output,
     )
-    if consents:
-        status, owner = consents[-1]
-        print(f"NATIVE_XCTEST_OS_CONSENT status={status} owner={owner}", flush=True)
+    status = matches[-1] if matches else "result-unavailable"
+    print("NATIVE_MACOS_CONSENT_RESULT status=" + status, flush=True)
+    return status
 
 
 def main() -> int:
@@ -276,6 +280,7 @@ def main() -> int:
             env.pop("WEAVE_NATIVE_MEMBER_EMAIL", None)
             markers: queue.Queue[str] = queue.Queue()
             flutter: subprocess.Popen[str] | None = None
+            consent: subprocess.Popen[str] | None = None
             with ThreadPoolExecutor(max_workers=1) as executor:
                 driver_future = executor.submit(
                     subprocess.run,
@@ -303,6 +308,12 @@ def main() -> int:
                         cwd=CLIENT, env=env, stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT, text=True,
                     )
+                    consent = subprocess.Popen(
+                        ["swift", str(CLIENT / "tool/native_macos_auth_consent.swift"),
+                         urlparse(issuer).hostname or ""],
+                        cwd=CLIENT, env=env, stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE, text=True,
+                    )
                     reader = threading.Thread(
                         target=collect_flutter_output, args=(flutter, markers), daemon=True
                     )
@@ -324,6 +335,12 @@ def main() -> int:
                     )
                     report_xcode_result(result, email=email, password=password)
                     report_xcode_stream_stage(driver.stdout, driver.stderr)
+                    consent_output, _ = consent.communicate(timeout=90)
+                    consent_status = report_consent_result(consent_output)
+                    if consent.returncode or consent_status in {
+                        "invalid-host", "ambiguous-action", "press-failed", "result-unavailable"
+                    }:
+                        raise RuntimeError("native macOS IdP consent driver failed")
                     if driver.returncode:
                         while not markers.empty():
                             print(markers.get_nowait(), flush=True)
@@ -343,6 +360,9 @@ def main() -> int:
                         raise RuntimeError("Flutter native product assertions failed")
                     print("NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed", flush=True)
                 finally:
+                    if consent is not None and consent.poll() is None:
+                        consent.terminate()
+                        consent.wait(timeout=10)
                     if flutter is not None and flutter.poll() is None:
                         flutter.terminate()
                         try:
