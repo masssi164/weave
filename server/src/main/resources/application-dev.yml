@@ -23,7 +23,7 @@ weave:
     public-base-url: https://weave.test
     api-base-url: https://api.weave.test/api
     auth-base-url: https://auth.weave.test
-    release-posture: dev
+    release-posture: development
   security:
     required-audience: https://api.weave.test/api
     primary-organization:
