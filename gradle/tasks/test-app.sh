@@ -395,6 +395,8 @@ log "Running invitation, real Chromium activation, PKCE, generated User Files/Ca
   "-Dweave.e2e.mailpit-origin=${WEAVE_TEST_APP_MAILPIT_ORIGIN}" \
   "-Dweave.e2e.mailpit-api=${WEAVE_TEST_APP_MAILPIT_API}" \
   "-Dweave.e2e.mcp-endpoint=${WEAVE_TEST_APP_MCP_ENDPOINT}" \
+  "-Dweave.e2e.mcp-local-port=${WEAVE_MCP_HOST_PORT}" \
+  "-Dweave.e2e.openclaw-script=${REPOSITORY_ROOT}/gradle/scripts/verify_openclaw_release_mcp.py" \
   "-Dweave.e2e.release-mcp=${RELEASE_MCP}" \
   "-Dweave.e2e.chat-proof-origin=${WEAVE_TEST_APP_CHAT_PROOF_ORIGIN}" \
   "-Dweave.e2e.ca-certificate=${WEAVE_TEST_APP_TLS_ROOT}/ca.pem" \
@@ -421,6 +423,9 @@ jq -e \
     .schemaVersion == "weave.test-app-product-flow/v3-release" and
     .arcCellCreated == false and
     .sameReleaseBindingAfterRestart == true and
+    .openClawFilesInvoked == true and
+    .openClawCalendarInvoked == true and
+    (.openClawClientVersion | test("^20[0-9]{2}\\.[0-9]+\\.[0-9]+$")) and
     (.releaseBindingRefSha256 | test("^[0-9a-f]{64}$")) and
     (.cellRefSha256 == null) and
     (.sameJpaCellAfterRestart == null) and

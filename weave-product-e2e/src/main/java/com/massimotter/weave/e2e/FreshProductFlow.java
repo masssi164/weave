@@ -322,6 +322,10 @@ public final class FreshProductFlow {
         mcpProof = release.files(mcpTextProof);
         release.calendar(mcpCalendarProof);
         release.verifyCalendarWriteDenied(mcpCalendarProof.calendarId());
+        String openClawVersion = release.proveOpenClawFiles(mcpTextProof);
+        if (!openClawVersion.equals(release.proveOpenClawCalendar(mcpCalendarProof))) {
+          throw new ProductFlowException("OpenClaw client version changed within one proof");
+        }
 
         restartProof = new PersistenceRestartJourney(environment, http).restart();
         WorkloadMcpJourney.McpProof afterRestart = release.files(mcpTextProof);
@@ -371,7 +375,8 @@ public final class FreshProductFlow {
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
             release.bindingRef(), mcpProof, restartProof, revocationDenied,
             calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
-            samePersonRefAfterRegrant, spaceRevocationRestored, collaborationPasses, true);
+            samePersonRefAfterRegrant, spaceRevocationRestored, collaborationPasses,
+            true, openClawVersion);
       } else {
         JsonNode provisioned = provisionRuntime(personRef, adminSession.accessToken());
         startedRuntime = startRuntime(personRef, adminSession.accessToken(), provisioned);
@@ -473,7 +478,8 @@ public final class FreshProductFlow {
             samePersonRefAfterRegrant,
             spaceRevocationRestored,
             collaborationPasses,
-            false);
+            false,
+            "");
       }
     } finally {
       // Avoid retaining references longer than the single bounded JVM run.
@@ -1038,7 +1044,8 @@ public final class FreshProductFlow {
       boolean samePersonRefAfterRegrant,
       boolean spaceRevocationRestored,
       List<CollaborationJourney.PassProof> collaborationPasses,
-      boolean releaseMcp) {
+      boolean releaseMcp,
+      String openClawVersion) {
     ObjectNode evidence = http.mapper().createObjectNode();
     evidence.put("schemaVersion", releaseMcp
         ? "weave.test-app-product-flow/v3-release" : "weave.test-app-product-flow/v2");
@@ -1057,6 +1064,9 @@ public final class FreshProductFlow {
       evidence.put("releaseBindingRefSha256", Hashing.sha256(cellRef));
       evidence.put("arcCellCreated", false);
       evidence.put("sameReleaseBindingAfterRestart", true);
+      evidence.put("openClawClientVersion", openClawVersion);
+      evidence.put("openClawFilesInvoked", true);
+      evidence.put("openClawCalendarInvoked", true);
     } else {
       evidence.put("cellRefSha256", Hashing.sha256(cellRef));
     }

@@ -12,7 +12,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /** Disposable, revocable release MCP binding; no ARC Cell or signed profile is created. */
 final class ReleaseMcpJourney {
@@ -102,5 +105,89 @@ final class ReleaseMcpJourney {
 
   void verifyCalendarWriteDenied(String calendarId) {
     mcp.verifyCalendarWriteDeniedForMember(clientId, key, calendarId);
+  }
+
+  String proveOpenClawFiles(GeneratedFilesJourney.Proof proof) {
+    ObjectNode expected = http.mapper().createObjectNode();
+    expected.put("tool", "files.search");
+    expected.putObject("arguments")
+        .put("query", proof.name()).put("path", "/").put("limit", 10);
+    expected.putArray("contains").add(proof.name()).add(proof.fileId());
+    return proveOpenClaw(expected, Set.of("mcp.tools", "files.read"));
+  }
+
+  String proveOpenClawCalendar(GeneratedCalendarJourney.Proof proof) {
+    ObjectNode expected = http.mapper().createObjectNode();
+    expected.put("tool", "calendar.agenda");
+    expected.putObject("arguments")
+        .put("calendarId", proof.calendarId())
+        .put("from", "2026-10-23T00:00:00Z")
+        .put("to", "2026-10-29T00:00:00Z")
+        .put("evaluationTimeZone", "Europe/Berlin");
+    var contents = expected.putArray("contains").add(proof.calendarId());
+    for (GeneratedCalendarJourney.EventProof event : proof.events()) {
+      contents.add(event.event().getId()).add(event.event().getContent().getTitle());
+    }
+    return proveOpenClaw(expected, Set.of("mcp.tools", "calendar.read"));
+  }
+
+  private String proveOpenClaw(ObjectNode expected, Set<String> scopes) {
+    String port = System.getProperty("weave.e2e.mcp-local-port", "");
+    String script = System.getProperty("weave.e2e.openclaw-script", "");
+    if (!port.matches("[0-9]{4,5}") || Integer.parseInt(port) > 65_535
+        || !Path.of(script).isAbsolute() || !Files.isRegularFile(Path.of(script))) {
+      throw new ProductFlowException("real OpenClaw proof inputs are unavailable");
+    }
+    Path expectedFile;
+    try {
+      expectedFile = Files.createTempFile(
+          environment.evidenceFile().getParent(), ".openclaw-expected-", ".json",
+          PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+      Files.write(expectedFile, http.mapper().writeValueAsBytes(expected));
+    } catch (IOException | JacksonException failure) {
+      throw new ProductFlowException("independent OpenClaw expectation cannot be prepared", failure);
+    }
+    try {
+      ArrayList<String> command = new ArrayList<>();
+      command.add("python3");
+      command.add(script);
+      command.add("--mcp-url");
+      command.add("http://127.0.0.1:" + port + "/mcp");
+      command.add("--expected");
+      command.add(expectedFile.toString());
+      command.add("--private-root");
+      command.add(environment.evidenceFile().getParent().toString());
+      ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+      builder.environment().put("WEAVE_MCP_WORKLOAD_TOKEN",
+          mcp.clientCredentials(clientId, key, scopes));
+      Process process = builder.start();
+      if (!process.waitFor(Duration.ofSeconds(120).toSeconds(), TimeUnit.SECONDS)) {
+        process.destroyForcibly();
+        throw new ProductFlowException("real OpenClaw MCP invocation exceeded its deadline");
+      }
+      String output = new String(process.getInputStream().readNBytes(4096));
+      if (process.exitValue() != 0
+          || !output.contains("WEAVE_OPENCLAW_RELEASE_MCP_RESULT status=passed")) {
+        throw new ProductFlowException("real OpenClaw MCP invocation failed");
+      }
+      java.util.regex.Matcher version = java.util.regex.Pattern
+          .compile("clientVersion=(20[0-9]{2}\\.[0-9]+\\.[0-9]+)")
+          .matcher(output);
+      if (!version.find()) {
+        throw new ProductFlowException("real OpenClaw MCP invocation omitted its version");
+      }
+      return version.group(1);
+    } catch (InterruptedException failure) {
+      Thread.currentThread().interrupt();
+      throw new ProductFlowException("real OpenClaw MCP invocation was interrupted", failure);
+    } catch (IOException failure) {
+      throw new ProductFlowException("real OpenClaw MCP invocation could not start", failure);
+    } finally {
+      try {
+        Files.deleteIfExists(expectedFile);
+      } catch (IOException failure) {
+        throw new ProductFlowException("OpenClaw expectation cleanup failed", failure);
+      }
+    }
   }
 }
