@@ -249,7 +249,10 @@ public final class FreshProductFlow {
       spaces.verifyOwnerOnlyFileRelation(memberSession.accessToken(), ownerSession.accessToken(),
           generatedFilesProof.fileId());
 
-      runNativeMemberJourney(memberEmail, memberPassword);
+      // Calendar mutation requires calendar.manage_events; the ordinary member
+      // remains read-only. Use the owner's normal weave-app User session here,
+      // never the separately acquired Admin-console token.
+      runNativeAuthorizedJourney(ownerEmail, ownerPassword);
 
       String openClawMatrixMemberToken = null;
       if (Boolean.getBoolean("weave.e2e.release-mcp")) {
@@ -529,7 +532,7 @@ public final class FreshProductFlow {
     }
   }
 
-  private void runNativeMemberJourney(String memberEmail, String memberPassword) {
+  private void runNativeAuthorizedJourney(String memberEmail, String memberPassword) {
     String runner = System.getProperty("weave.e2e.native-runner", "");
     if (runner.isBlank()) {
       return;
