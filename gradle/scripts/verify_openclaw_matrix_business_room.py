@@ -71,13 +71,6 @@ def run(args):
                if plugin.get("id") == "matrix" and plugin.get("status") == "loaded"]
     if len(plugins) != 1 or plugins[0].get("version") != version.split(" ")[1]:
         raise ProofError("version-matched OpenClaw Matrix plugin is unavailable")
-    package = Path(plugins[0]["source"]).parent.parent
-    metadata = json.loads((package / "package.json").read_text(encoding="utf-8"))
-    if (metadata.get("name") != "@openclaw/matrix"
-            or metadata.get("version") != plugins[0]["version"]
-            or not (package / "dist" / "index.js").is_file()):
-        raise ProofError("installed OpenClaw Matrix package is invalid")
-
     with tempfile.TemporaryDirectory(prefix="weave-openclaw-matrix-",
                                      dir=args.private_root) as scratch:
         root = Path(scratch)
@@ -92,9 +85,10 @@ def run(args):
         environment["OPENCLAW_STATE_DIR"] = str(state)
         environment["NODE_EXTRA_CA_CERTS"] = str(args.ca)
         command([
-            "openclaw", "plugins", "install", str(package), "--force",
+            "openclaw", "plugins", "install",
+            "@openclaw/matrix@" + plugins[0]["version"],
             "--accept-capabilities",
-        ], environment, 75)
+        ], environment, 120)
         config = json.loads(config_path.read_text(encoding="utf-8"))
         config["channels"] = {"matrix": {
             "enabled": True,
