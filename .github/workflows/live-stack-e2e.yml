@@ -101,6 +101,22 @@ jobs:
         working-directory: weave
         run: ./gradlew --no-daemon specCorpusConformance testApp
 
+      - name: Set up pinned Flutter for native macOS fixture
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+          cache: true
+
+      - name: Run native macOS fixture integration
+        working-directory: weave/client
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          PATH="$PWD/tool/native_macos_open:$PATH" \
+            flutter test integration_test/shell_navigation_e2e_test.dart \
+              -d macos --no-pub
+
       - name: Verify support-safe E2E diagnostics
         if: always()
         id: evidence_safety

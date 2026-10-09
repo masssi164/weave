@@ -43,6 +43,9 @@ create action. The fixture now advertises the right and checks the actual
 localized button is enabled. Both native fixture tests passed. Their
 `NATIVE_SHELL_UI_RESULT` marker records `platform=macos` and
 `evidenceMode=fixture-ui`; it is not OIDC, provider, or product acceptance.
+The protected `Full Compose E2E` job now runs this native fixture test with
+Flutter 3.41.6. Its required status enforces native build and fixture
+navigation, while the native product journey is still unenforced.
 
 ## Authentication automation boundary
 
@@ -95,7 +98,8 @@ macOS system authentication browser and returns through AppAuth. It must run
 `make -C client physical-device-product-e2e` with `WEAVE_PHYSICAL_DEVICE_ID=macos`
 and the stack's endpoint variables, capture sanitized pass/fail markers, and
 tear down the stack. The existing `Full Compose E2E` job runs backend/Chromium
-and Matrix protocol evidence; it does **not** run this native Flutter case.
+and Matrix protocol evidence plus the native fixture case; it does **not** run
+the real native AppAuth/product case.
 
 Current reproducible diagnostic command:
 
