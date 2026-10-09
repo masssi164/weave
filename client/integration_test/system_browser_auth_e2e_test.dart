@@ -23,6 +23,7 @@ import 'package:weave/features/auth/presentation/providers/auth_flow_controller.
 import 'package:weave/features/chat/data/repositories/matrix_device_identity_repository.dart';
 import 'package:weave/features/chat/data/repositories/native_matrix_chat_repository.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
+import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
@@ -41,6 +42,7 @@ import 'package:weave/features/server_config/domain/entities/service_endpoints.d
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_session_access.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/weave_member_matrix_session_coordinator.dart';
 import 'package:weave/integrations/rust_matrix_core/presentation/providers/matrix_crypto_session_provider.dart';
@@ -213,7 +215,22 @@ void main() {
         debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-passed');
 
         debugPrint('NATIVE_PRODUCT_STAGE phase=matrix-start');
-        final matrix = await coordinator.open(allowInteractiveSignIn: false);
+        MatrixCryptoSession matrix;
+        try {
+          matrix = await coordinator.open(allowInteractiveSignIn: false);
+        } on ChatFailure catch (error) {
+          debugPrint(
+            'NATIVE_PRODUCT_STAGE phase=matrix-open-failed '
+            'type=${error.type.name} code=${error.message}',
+          );
+          rethrow;
+        } catch (error) {
+          debugPrint(
+            'NATIVE_PRODUCT_STAGE phase=matrix-open-failed '
+            'type=${error.runtimeType}',
+          );
+          rethrow;
+        }
         expect(matrix.userId, startsWith('@'));
         expect(matrix.deviceId, isNotEmpty);
         expect(disposableStack, isTrue);
