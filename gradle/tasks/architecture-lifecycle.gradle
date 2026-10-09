@@ -59,7 +59,7 @@ tasks.register('dogfoodReset', Exec) {
 
 tasks.register('testApp', Exec) {
     group = 'verification'
-    description = 'Prove invitation, browser activation, PKCE, WebDAV, ARC, MCP, revocation, and exact cleanup in one disposable stack.'
+    description = 'Prove browser PKCE, authorized Files/Calendar/Chat, bounded MCP, revocation, restart, and cleanup in one disposable stack.'
     workingDir rootProject.projectDir
     commandLine 'bash', 'gradle/tasks/test-app.sh'
     outputs.upToDateWhen { false }
