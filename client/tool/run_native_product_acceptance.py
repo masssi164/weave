@@ -53,6 +53,10 @@ def collect_flutter_output(process: subprocess.Popen[str], sink: queue.Queue[str
         )
         if marker:
             sink.put(line[line.index(marker):].strip())
+        elif match := re.search(
+            r"system_browser_auth_e2e_test\.dart[: ]+(\d+):(\d+)", line
+        ):
+            sink.put(f"NATIVE_FLUTTER_FAILURE_SOURCE line={match.group(1)}")
         elif "All tests passed" in line:
             sink.put("FLUTTER_NATIVE_TEST_RUN status=passed")
         elif "Some tests failed" in line or "Test failed" in line:

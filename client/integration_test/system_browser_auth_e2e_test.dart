@@ -130,6 +130,7 @@ void main() {
         matrixCryptoSessionCoordinatorProvider,
       );
       try {
+        debugPrint('NATIVE_PRODUCT_STAGE phase=files-start');
         expect(
           (await files.restoreConnection()).status,
           FilesConnectionStatus.connected,
@@ -159,7 +160,9 @@ void main() {
           uploaded,
         );
         expect(download.bytes, orderedEquals(fileBytes));
+        debugPrint('NATIVE_PRODUCT_STAGE phase=files-passed');
 
+        debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-start');
         final scopes = await calendar.loadScopes();
         expect(scopes.scopes, isNotEmpty);
         final agenda = await calendar.loadEvents(scope: scopes.scopes.first);
@@ -193,7 +196,9 @@ void main() {
         expect((await calendar.readEvent(updated.id)).title, updated.title);
         await calendar.deleteEvent(updated.id, etag: updated.etag);
         await expectLater(calendar.readEvent(updated.id), throwsA(anything));
+        debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-passed');
 
+        debugPrint('NATIVE_PRODUCT_STAGE phase=matrix-start');
         final matrix = await coordinator.open(allowInteractiveSignIn: false);
         expect(matrix.userId, startsWith('@'));
         expect(matrix.deviceId, isNotEmpty);
@@ -205,6 +210,7 @@ void main() {
         expect(room.id, startsWith('!'));
         await chat.sendMessage(roomId: room.id, message: marker);
         await _requireBusinessRoomReadback(chat, room.id, marker);
+        debugPrint('NATIVE_PRODUCT_STAGE phase=matrix-passed');
 
         await tester.tap(
           find.descendant(
@@ -230,6 +236,7 @@ void main() {
         );
         await tester.pump(const Duration(seconds: 1));
         expect(find.byType(ChatScreen), findsOneWidget);
+        debugPrint('NATIVE_PRODUCT_STAGE phase=navigation-passed');
 
         final refreshed = await container
             .read(authSessionRepositoryProvider)
@@ -240,6 +247,7 @@ void main() {
               ),
             );
         expect(refreshed.isAuthenticated, isTrue);
+        debugPrint('NATIVE_PRODUCT_STAGE phase=refresh-passed');
         await coordinator.disposePreservingCryptoState();
         final reopened = await coordinator.open(allowInteractiveSignIn: false);
         expect(reopened.userId, matrix.userId);
@@ -253,6 +261,7 @@ void main() {
           uploaded.id,
         );
         expect((await calendar.loadScopes()).scopes, isNotEmpty);
+        debugPrint('NATIVE_PRODUCT_STAGE phase=session-reopen-passed');
 
         await coordinator.disposePreservingCryptoState();
         await tester.pumpWidget(const SizedBox.shrink());
@@ -287,6 +296,7 @@ void main() {
             room.id,
             marker,
           );
+          debugPrint('NATIVE_PRODUCT_STAGE phase=app-state-restored');
           await restoredContainer
               .read(authFlowControllerProvider.notifier)
               .signOut();
@@ -316,6 +326,7 @@ void main() {
             throwsA(anything),
           );
           await expectLater(restoredCalendar.loadScopes(), throwsA(anything));
+          debugPrint('NATIVE_PRODUCT_STAGE phase=logout-denial-passed');
         } finally {
           await restoredCoordinator.disposePreservingCryptoState();
         }

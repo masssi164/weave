@@ -272,6 +272,15 @@ only when the normal uniquely labeled form control is absent. It still
 requires the exact current issuer window and focused field label, and Flutter
 still determines whether the AppAuth callback and product journey pass. This
 fallback has not yet passed a live full run.
+Candidate `3c7dd1e58c` completed both live Keycloak form steps through the
+signed native app, and Flutter emitted `phase=workspace-ready` after the real
+AppAuth callback. The native integration test then failed during its product
+assertions, with no `NATIVE_PRODUCT_SIGN_IN_RESULT` pass marker. The runner had
+retained only broad milestones, so the exact failing assertion was unavailable
+from that attempt. The product test now emits support-safe Files, Calendar,
+Matrix, navigation, refresh, session restoration, and logout phase markers;
+the runner retains only source line numbers from Flutter failures. This is
+diagnostic evidence, not a passed native product test.
 
 ## Existing executable coverage
 
