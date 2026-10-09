@@ -108,6 +108,14 @@ void main() {
         final matrix = await coordinator.open(allowInteractiveSignIn: false);
         expect(matrix.userId, startsWith('@'));
         expect(matrix.deviceId, isNotEmpty);
+        expect(disposableStack, isTrue);
+        final chat = container.read(chatRepositoryProvider);
+        final marker =
+            'Weave product E2E ${DateTime.now().toUtc().microsecondsSinceEpoch}';
+        final room = await chat.createConversation(title: marker);
+        expect(room.id, startsWith('!'));
+        await chat.sendMessage(roomId: room.id, message: marker);
+        await _requireBusinessRoomReadback(chat, room.id, marker);
 
         await tester.tap(
           find.descendant(
@@ -147,6 +155,7 @@ void main() {
         final reopened = await coordinator.open(allowInteractiveSignIn: false);
         expect(reopened.userId, matrix.userId);
         expect(reopened.deviceId, matrix.deviceId);
+        await _requireBusinessRoomReadback(chat, room.id, marker);
         expect((await files.listDirectory('/')).path, '/');
         expect((await calendar.loadScopes()).scopes, isNotEmpty);
 
@@ -172,6 +181,11 @@ void main() {
           );
           expect(restoredMatrix.userId, matrix.userId);
           expect(restoredMatrix.deviceId, matrix.deviceId);
+          await _requireBusinessRoomReadback(
+            restoredContainer.read(chatRepositoryProvider),
+            room.id,
+            marker,
+          );
         } finally {
           await restoredCoordinator.disposePreservingCryptoState();
         }
@@ -179,6 +193,7 @@ void main() {
         debugPrint(
           'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed login=single '
           'files=generated calendar=generated matrix=native '
+          'businessRoomSendRead=true '
           'refresh=true sessionReopen=true appRestart=true supportSafe=true',
         );
       } finally {
@@ -243,23 +258,7 @@ void main() {
         expect(room.id, startsWith('!'));
         await chat.sendMessage(roomId: room.id, message: marker);
 
-        Future<void> requireBusinessRoomReadback() async {
-          for (var attempt = 0; attempt < 20; attempt++) {
-            final timeline = await chat.loadRoomTimeline(room.id);
-            final matching = timeline.messages
-                .where((message) => message.text == marker)
-                .toList(growable: false);
-            if (matching.length == 1) {
-              expect(matching.single.isMine, isTrue);
-              expect(matching.single.id, startsWith(r'$'));
-              return;
-            }
-            await Future<void>.delayed(const Duration(seconds: 1));
-          }
-          fail('Native Matrix business-room message readback did not arrive.');
-        }
-
-        await requireBusinessRoomReadback();
+        await _requireBusinessRoomReadback(chat, room.id, marker);
         await coordinator.disposePreservingCryptoState();
         final refreshed = await container
             .read(authSessionRepositoryProvider)
@@ -273,7 +272,7 @@ void main() {
         final restored = await coordinator.open(allowInteractiveSignIn: false);
         expect(restored.userId, first.userId);
         expect(restored.deviceId, first.deviceId);
-        await requireBusinessRoomReadback();
+        await _requireBusinessRoomReadback(chat, room.id, marker);
         debugPrint(
           'NATIVE_MATRIX_MESSAGE_RESULT status=passed login=single '
           'nativeSdk=true businessRoomSendRead=true tokenRefresh=true '
@@ -619,6 +618,26 @@ Future<ProviderContainer> _openWeaveSession(
     timeout: const Duration(minutes: 5),
   );
   return ProviderScope.containerOf(tester.element(find.byType(WeaveApp)));
+}
+
+Future<void> _requireBusinessRoomReadback(
+  ChatRepository chat,
+  String roomId,
+  String marker,
+) async {
+  for (var attempt = 0; attempt < 20; attempt++) {
+    final timeline = await chat.loadRoomTimeline(roomId);
+    final matching = timeline.messages
+        .where((message) => message.text == marker)
+        .toList(growable: false);
+    if (matching.length == 1) {
+      expect(matching.single.isMine, isTrue);
+      expect(matching.single.id, startsWith(r'$'));
+      return;
+    }
+    await Future<void>.delayed(const Duration(seconds: 1));
+  }
+  fail('Native Matrix business-room message readback did not arrive.');
 }
 
 Future<void> _waitFor(
