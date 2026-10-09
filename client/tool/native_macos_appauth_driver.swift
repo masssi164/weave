@@ -198,6 +198,21 @@ func postKey(to pid: pid_t, code: CGKeyCode) -> Bool {
   return true
 }
 
+func clearTargetedField(_ input: AXUIElement, safariPID: pid_t) -> Bool {
+  if AXUIElementSetAttributeValue(input, kAXValueAttribute as CFString, "" as CFString) == .success {
+    return true
+  }
+  guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
+        let up = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false) else {
+    return false
+  }
+  down.flags = .maskCommand
+  up.flags = .maskCommand
+  down.postToPid(safariPID)
+  up.postToPid(safariPID)
+  return postKey(to: safariPID, code: 51) // Delete the selected field value.
+}
+
 func typeTargeted(_ text: String, to pid: pid_t) -> Bool {
   for unit in text.utf16 {
     var character = unit
@@ -312,9 +327,27 @@ while Date() < deadline {
   if !usernameSubmitted,
      let usernameField = focusFieldViaKeyboard(surface, stage: "username") {
     usernameFieldObserved = true
-    guard typeTargeted(fixture.email, to: surface.safariPID),
-          waitForUsernameReadback(usernameField, expected: fixture.email),
-          postKey(to: surface.safariPID, code: 36) else { fail("username-targeted-input") }
+    var entered = fill(usernameField, with: fixture.email) &&
+      waitForUsernameReadback(usernameField, expected: fixture.email)
+    if !entered {
+      // Safari can expose the focused WebKit control while hiding its AX tree.
+      // Check each targeted attempt's exact value before submitting it.
+      for _ in 0..<3 {
+        guard clearTargetedField(usernameField, safariPID: surface.safariPID) else {
+          fail("username-clear")
+        }
+        guard typeTargeted(fixture.email, to: surface.safariPID) else {
+          fail("username-targeted-input")
+        }
+        if waitForUsernameReadback(usernameField, expected: fixture.email) {
+          entered = true
+          break
+        }
+      }
+    }
+    guard entered, postKey(to: surface.safariPID, code: 36) else {
+      fail("username-targeted-input")
+    }
     usernameSubmitted = true
     print("NATIVE_AUTH_STAGE phase=username-submitted")
   }
