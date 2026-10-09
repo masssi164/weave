@@ -44,7 +44,9 @@ localized button is enabled. Both native fixture tests passed. Their
 `NATIVE_SHELL_UI_RESULT` marker records `platform=macos` and
 `evidenceMode=fixture-ui`; it is not OIDC, provider, or product acceptance.
 The `Native macOS Flutter fixture` job in the live-stack workflow runs this
-test with Flutter 3.41.6 on the same bounded runner. It reports a separate
+test on the same bounded runner. Repository CI variable
+`WEAVE_FLUTTER_SDK_ROOT` points to the runner's installed SDK; the job checks
+that its version is exactly Flutter 3.41.6 before testing. It reports a separate
 status so a Compose capacity failure cannot hide native execution. This job
 enforces native build and fixture navigation within its lane; branch-protection
 status and the native product journey are separate, still unverified gates.
@@ -65,7 +67,8 @@ Computer Use attempt reported pending Accessibility and Screen Recording
 permission. These facts constrain desktop UI automation from those processes.
 They do **not** show that Flutter's test runner or `open` needs those
 permissions. A future XCUITest UI driver would require Accessibility for its
-actual Xcode Helper process; Screen Recording is only needed if that driver
+actual Xcode Helper process, as described in [Apple's UI automation guidance](https://developer.apple.com/documentation/xcuiautomation/recording-ui-automation-for-testing).
+Screen Recording is only needed if that driver
 captures pixels. Apple Events permission would only be needed by an Apple
 Events based driver. No broad host permission should be requested in lieu of
 an executable native test.

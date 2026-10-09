@@ -26,6 +26,7 @@ jobs:
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
       WEAVE_CANDIDATE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      WEAVE_FLUTTER_SDK_ROOT: ${{ vars.WEAVE_FLUTTER_SDK_ROOT }}
     steps:
       - name: Verify bounded runner
         run: |
@@ -38,22 +39,19 @@ jobs:
           ref: ${{ env.WEAVE_CANDIDATE_COMMIT }}
           fetch-depth: 0
 
-      - name: Set up pinned Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        with:
-          flutter-version: '3.41.6'
-          channel: stable
-          cache: true
-
       - name: Run native fixture integration
         working-directory: client
         run: |
           set -euo pipefail
           [[ "$(git rev-parse HEAD)" == "$WEAVE_CANDIDATE_COMMIT" ]]
+          [[ "$WEAVE_FLUTTER_SDK_ROOT" == /* ]]
+          [[ -x "$WEAVE_FLUTTER_SDK_ROOT/bin/flutter" ]]
+          PATH="$WEAVE_FLUTTER_SDK_ROOT/bin:$PWD/tool/native_macos_open:$PATH"
+          export PATH
+          [[ "$(flutter --version --machine | jq -er .frameworkVersion)" == "3.41.6" ]]
           flutter pub get --enforce-lockfile
-          PATH="$PWD/tool/native_macos_open:$PATH" \
-            flutter test integration_test/shell_navigation_e2e_test.dart \
-              -d macos --no-pub
+          flutter test integration_test/shell_navigation_e2e_test.dart \
+            -d macos --no-pub
 
   full-compose-e2e:
     name: Full Compose E2E
