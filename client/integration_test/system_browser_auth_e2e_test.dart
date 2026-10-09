@@ -228,7 +228,7 @@ void main() {
   );
 
   testWidgets(
-    'one Weave login sends and reads an encrypted Matrix event on a disposable stack',
+    'one Weave login sends and reads a business-room Matrix event on a disposable stack',
     (tester) async {
       final container = await _openWeaveSession(tester, config);
       final coordinator = container.read(
@@ -243,7 +243,7 @@ void main() {
         expect(room.id, startsWith('!'));
         await chat.sendMessage(roomId: room.id, message: marker);
 
-        Future<void> requireDecryptedReadback() async {
+        Future<void> requireBusinessRoomReadback() async {
           for (var attempt = 0; attempt < 20; attempt++) {
             final timeline = await chat.loadRoomTimeline(room.id);
             final matching = timeline.messages
@@ -256,10 +256,10 @@ void main() {
             }
             await Future<void>.delayed(const Duration(seconds: 1));
           }
-          fail('Native Matrix encrypted message readback did not arrive.');
+          fail('Native Matrix business-room message readback did not arrive.');
         }
 
-        await requireDecryptedReadback();
+        await requireBusinessRoomReadback();
         await coordinator.disposePreservingCryptoState();
         final refreshed = await container
             .read(authSessionRepositoryProvider)
@@ -273,10 +273,10 @@ void main() {
         final restored = await coordinator.open(allowInteractiveSignIn: false);
         expect(restored.userId, first.userId);
         expect(restored.deviceId, first.deviceId);
-        await requireDecryptedReadback();
+        await requireBusinessRoomReadback();
         debugPrint(
           'NATIVE_MATRIX_MESSAGE_RESULT status=passed login=single '
-          'nativeSdk=true encryptedSendRead=true tokenRefresh=true '
+          'nativeSdk=true businessRoomSendRead=true tokenRefresh=true '
           'deviceRetained=true supportSafe=true',
         );
       } finally {
@@ -337,11 +337,15 @@ void main() {
         final first = await firstCoordinator.open(
           allowInteractiveSignIn: false,
         );
-        final room = await firstChat.createConversation(title: marker);
-        await firstChat.sendMessage(roomId: room.id, message: marker);
+        final room = await bridge.createEncryptedRoom(
+          profileKey: first.profileKey,
+          title: marker,
+        );
+        expect(room.encrypted, isTrue);
+        await firstChat.sendMessage(roomId: room.roomId, message: marker);
         final firstEventId = await _waitForEncryptedMessage(
           firstChat,
-          room.id,
+          room.roomId,
           marker,
         );
         // Bootstrap after the send so the SDK waits for this room key to be
@@ -390,7 +394,7 @@ void main() {
           'enabled',
         );
         expect(
-          await _waitForEncryptedMessage(secondChat, room.id, marker),
+          await _waitForEncryptedMessage(secondChat, room.roomId, marker),
           firstEventId,
         );
 
