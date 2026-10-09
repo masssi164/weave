@@ -47,6 +47,9 @@ import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_co
 import 'package:weave/integrations/rust_matrix_core/data/services/weave_member_matrix_session_coordinator.dart';
 import 'package:weave/integrations/rust_matrix_core/presentation/providers/matrix_crypto_session_provider.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_client_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
+import 'package:weave/integrations/weave_api/data/services/weave_user_api_client.dart';
+import 'package:weave/generated/user_api/api.dart' as user_api;
 import 'package:weave/main.dart';
 
 import 'helpers/test_config.dart';
@@ -223,6 +226,40 @@ void main() {
             'NATIVE_PRODUCT_STAGE phase=matrix-open-failed '
             'type=${error.type.name} code=${error.message}',
           );
+          if (error.message == 'M_WEAVE_MATRIX_ACCESS_DENIED') {
+            try {
+              final session = await container.read(
+                weaveAuthenticatedSessionProvider.future,
+              );
+              if (session != null) {
+                final api = weaveUserApiClient(
+                  apiBaseUrl: session.apiBaseUrl,
+                  accessToken: session.accessToken,
+                  httpClient: container.read(weaveApiHttpClientProvider),
+                );
+                final identity = await user_api.IdentityApi(api).me();
+                final capabilities = await user_api.WorkspaceApi(
+                  api,
+                ).capabilities();
+                final chat = capabilities?.chat;
+                debugPrint(
+                  'NATIVE_PRODUCT_STAGE phase=matrix-admission '
+                  'identityPresent=${identity?.subject?.isNotEmpty == true} '
+                  'issuerMatches=${identity?.identityIssuer == config.issuerUrl.toString()} '
+                  'organizationPresent=${identity?.organizationId?.isNotEmpty == true} '
+                  'chatEnabled=${chat?.enabled == true} '
+                  'policy=${chat?.policyState?.toString() ?? 'none'} '
+                  'readiness=${chat?.readiness?.toString() ?? 'none'} '
+                  'readGranted=${chat?.grantedCapabilities.contains('chat.read') == true}',
+                );
+              }
+            } catch (diagnosticFailure) {
+              debugPrint(
+                'NATIVE_PRODUCT_STAGE phase=matrix-admission-diagnostic-failed '
+                'type=${diagnosticFailure.runtimeType}',
+              );
+            }
+          }
           rethrow;
         } catch (error) {
           debugPrint(
