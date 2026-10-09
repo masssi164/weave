@@ -191,10 +191,7 @@ final class WorkloadMcpJourney {
     ObjectNode initialize = request(1, "initialize");
     ObjectNode parameters = initialize.putObject("params");
     parameters.put("protocolVersion", "2025-11-25");
-    parameters
-        .putObject("capabilities")
-        .putObject("extensions")
-        .putObject("io.modelcontextprotocol/oauth-client-credentials");
+    parameters.putObject("capabilities");
     parameters.putObject("clientInfo").put("name", "weave-test-app").put("version", "1.0");
 
     JsonHttpClient.Response initialized =
