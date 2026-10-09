@@ -273,6 +273,8 @@ func waitForUsernameReadback(_ input: AXUIElement, expected: String) -> Bool {
 let deadline = Date().addingTimeInterval(180)
 var consentHandled = false
 var usernameSubmitted = false
+var usernameSubmittedAt: Date?
+var usernameRetryCount = 0
 var appObserved = false
 var issuerObserved = false
 var usernameFieldObserved = false
@@ -310,6 +312,33 @@ while Date() < deadline {
     print("NATIVE_APP_AUTH_DRIVER_RESULT status=passed stage=form-submitted")
     exit(0)
   }
+  if usernameSubmitted,
+     let submittedAt = usernameSubmittedAt,
+     Date().timeIntervalSince(submittedAt) > 3,
+     usernameRetryCount < 3,
+     let usernameField = field(in: surface.elements, stage: "username"),
+     waitForUsernameReadback(usernameField, expected: fixture.email),
+     let submit = signInButton(in: surface.elements) {
+    guard AXUIElementPerformAction(submit, kAXPressAction as CFString) == .success else {
+      fail("username-retry-press")
+    }
+    usernameRetryCount += 1
+    usernameSubmittedAt = Date()
+    print("NATIVE_AUTH_STAGE phase=username-resubmitted attempt=\(usernameRetryCount)")
+  }
+  if usernameSubmitted,
+     let submittedAt = usernameSubmittedAt,
+     Date().timeIntervalSince(submittedAt) > 3,
+     usernameRetryCount < 3,
+     let usernameField = focusFieldViaKeyboard(surface, stage: "username"),
+     waitForUsernameReadback(usernameField, expected: fixture.email) {
+    guard postKey(to: surface.safariPID, code: 36) else {
+      fail("username-retry-targeted")
+    }
+    usernameRetryCount += 1
+    usernameSubmittedAt = Date()
+    print("NATIVE_AUTH_STAGE phase=username-resubmitted attempt=\(usernameRetryCount)")
+  }
   if !usernameSubmitted,
      let usernameField = field(in: surface.elements, stage: "username") {
     usernameFieldObserved = true
@@ -322,6 +351,7 @@ while Date() < deadline {
       fail("username-press")
     }
     usernameSubmitted = true
+    usernameSubmittedAt = Date()
     print("NATIVE_AUTH_STAGE phase=username-submitted")
   }
   if !usernameSubmitted,
@@ -349,6 +379,7 @@ while Date() < deadline {
       fail("username-targeted-input")
     }
     usernameSubmitted = true
+    usernameSubmittedAt = Date()
     print("NATIVE_AUTH_STAGE phase=username-submitted")
   }
   _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.5))
