@@ -73,11 +73,9 @@ class CalendarFacadeClient {
     CalendarScope? selectedScope,
   }) async {
     final context = await _context();
+    debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-context-ready');
     final zone = await _zone();
-    assert(() {
-      debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-zone-ready');
-      return true;
-    }());
+    debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-zone-ready');
     final scopes = await _discover(context);
     if (scopes.scopes.isEmpty) return const CalendarEventList();
     final scope = _selected(scopes, selectedScope);
@@ -91,14 +89,11 @@ class CalendarFacadeClient {
         zone.name,
       ),
     );
-    assert(() {
-      debugPrint(
-        'NATIVE_PRODUCT_STAGE phase=calendar-agenda-response '
-        'present=${result != null} calendarMatches=${result?.calendarId == scope.id} '
-        'zoneMatches=${result?.evaluationTimeZone == zone.name}',
-      );
-      return true;
-    }());
+    debugPrint(
+      'NATIVE_PRODUCT_STAGE phase=calendar-agenda-response '
+      'present=${result != null} calendarMatches=${result?.calendarId == scope.id} '
+      'zoneMatches=${result?.evaluationTimeZone == zone.name}',
+    );
     if (result == null ||
         result.calendarId != scope.id ||
         result.evaluationTimeZone != zone.name) {
@@ -570,11 +565,13 @@ class CalendarFacadeClient {
   Future<tz.Location> _zone() async => _location(await _evaluationTimeZone());
   tz.Location _location(String name) {
     if (!_zonesReady) {
+      debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-zone-data-unavailable');
       throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
     try {
       return tz.getLocation(name);
     } catch (_) {
+      debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-zone-invalid');
       throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
   }
@@ -680,12 +677,9 @@ class CalendarFacadeClient {
     try {
       return await send();
     } on api.ApiException catch (error) {
-      assert(() {
-        debugPrint(
-          'NATIVE_PRODUCT_STAGE phase=calendar-api-error status=${error.code}',
-        );
-        return true;
-      }());
+      debugPrint(
+        'NATIVE_PRODUCT_STAGE phase=calendar-api-error status=${error.code}',
+      );
       if (error.code == 401) {
         await _assertCurrent(context);
         final state = await _auth.refreshSession(context.auth);
@@ -714,12 +708,9 @@ class CalendarFacadeClient {
     } on CalendarFailure {
       rethrow;
     } catch (error) {
-      assert(() {
-        debugPrint(
-          'NATIVE_PRODUCT_STAGE phase=calendar-transport-error type=${error.runtimeType}',
-        );
-        return true;
-      }());
+      debugPrint(
+        'NATIVE_PRODUCT_STAGE phase=calendar-transport-error type=${error.runtimeType}',
+      );
       throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
   }
