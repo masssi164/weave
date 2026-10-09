@@ -80,14 +80,18 @@ captures pixels. Apple Events permission would only be needed by an Apple
 Events based driver. No broad host permission should be requested in lieu of
 an executable native test.
 
-A temporary XCUITest UI target was also probed locally and then removed. After
-`flutter build macos --debug`, the unsigned probe compiled and started an
-`RunnerUITests-Runner` process, but it never entered its test body or launched
-a new Weave process within the bounded observation. A signed retry failed at
-link time with `Operation not permitted` while writing into Xcode's generated
-test-runner bundle. These results do not establish whether Accessibility is
-the blocker for XCUITest; the probe must execute before that can be assessed.
-No UI-test target or new framework is included in this candidate.
+A temporary XCUITest UI target was also probed locally and then removed. The
+first attempt inherited the app's provider link flags and could not load
+`AppAuth.framework` in the test runner. After isolating the UI test link flags
+and using a fresh Xcode output directory, the runner loaded XCTest, but
+`xcodebuild test` failed after 72 seconds with `Timed out while enabling
+automation mode`. A process sample placed the wait inside
+`XCUIInitializeForUITesting` → `enableAutomationModeWithError`; the test body
+never ran and no new Weave process launched. The shell's Accessibility denial
+is consistent with a UI automation permission boundary, but the exact TCC
+decision for the XCUITest runner could not be read, so permission is not
+claimed as the proven sole cause. No UI-test target or new framework is
+included in this candidate.
 
 ## Existing executable coverage
 
@@ -151,8 +155,8 @@ PATH="$PWD/tool/native_macos_open:$PATH" \
 - Implement and execute a macOS driver for the actual
   `ASWebAuthenticationSession` prompt, IdP form, and callback without token
   injection. Validate any required TCC grant against the requesting process.
-  Resolve the local XCUITest runner startup and generated-bundle write failures
-  before treating it as a viable driver.
+  Resolve the local XCUITest `enableAutomationMode` timeout before treating it
+  as a viable driver.
 - Resolve the intermittent native fixture `SemanticsHandle` assertion and
   demonstrate a repeatable local pass before transferring this lane to CI.
 - Provision a fresh native profile and disposable identity alongside `testApp`,
