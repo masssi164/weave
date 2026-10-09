@@ -100,10 +100,38 @@ def run(args):
         config_path.write_text(json.dumps(config, separators=(",", ":")),
                                encoding="utf-8")
         config_path.chmod(0o600)
-        sent = json.loads(command([
-            "openclaw", "message", "send", "--channel", "matrix",
-            "--target", args.room, "--message", args.message, "--json",
-        ], environment, 90))
+        try:
+            sent = json.loads(command([
+                "openclaw", "message", "send", "--channel", "matrix",
+                "--target", args.room, "--message", args.message, "--json",
+            ], environment, 90))
+        except ProofError as failure:
+            private_plugins = json.loads(command(
+                ["openclaw", "plugins", "list", "--json"], environment, 20,
+            ))
+            matrix = [plugin for plugin in private_plugins.get("plugins", [])
+                      if plugin.get("id") == "matrix"
+                      and plugin.get("status") == "loaded"]
+            diagnostic = "matrixSdkProbe=plugin-unavailable"
+            if len(matrix) == 1:
+                package_path = Path(matrix[0]["source"]).parent.parent / "package.json"
+                if package_path.is_file() and package_path.is_relative_to(state):
+                    probe_env = dict(environment)
+                    probe_env["WEAVE_MATRIX_PLUGIN_PACKAGE"] = str(package_path)
+                    probe_env["WEAVE_MATRIX_HOMESERVER"] = args.homeserver
+                    probe_env["WEAVE_MATRIX_USER_ID"] = args.user
+                    try:
+                        probe = subprocess.run(
+                            ["node", str(Path(__file__).with_name(
+                                "probe_matrix_js_sdk_sync.cjs"))],
+                            env=probe_env, capture_output=True, text=True,
+                            timeout=30, check=False,
+                        )
+                        if probe.returncode == 0:
+                            diagnostic = probe.stdout.strip()[:200]
+                    except subprocess.TimeoutExpired:
+                        diagnostic = "matrixSdkProbe=timeout"
+            raise ProofError(str(failure) + " " + diagnostic) from failure
         if sent.get("ok") is False or sent.get("dryRun") is True:
             raise ProofError("OpenClaw Matrix did not send a live event")
     print("WEAVE_OPENCLAW_MATRIX_RESULT status=passed clientVersion="
