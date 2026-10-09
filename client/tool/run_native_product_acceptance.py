@@ -160,8 +160,9 @@ def report_xcode_result(bundle: Path) -> None:
 
 def report_xcode_stream_stage(*streams: str | bytes | None) -> None:
     allowed = {"startup", "fixture-read", "app-window", "browser-requested",
-               "issuer-visible", "form-visible", "form-submitted",
-               "callback-returned"}
+               "issuer-visible", "form-visible", "account-focused",
+               "account-entered", "password-focused", "password-entered",
+               "sign-in-visible", "form-submitted", "callback-returned"}
     output = "\n".join(
         value.decode("utf-8", errors="replace") if isinstance(value, bytes)
         else value or "" for value in streams

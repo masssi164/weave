@@ -58,13 +58,18 @@ final class RunnerUITests: XCTestCase {
     XCTAssertTrue(password.waitForExistence(timeout: 15), "IdP password field unavailable")
     recordStage("form-visible")
     username.click()
+    recordStage("account-focused")
     username.typeText(fixture.email)
+    recordStage("account-entered")
     password.click()
+    recordStage("password-focused")
     password.typeText(fixture.password)
+    recordStage("password-entered")
     let signIn = safari.webViews.buttons.matching(
       NSPredicate(format: "label ==[c] 'Sign in' OR label ==[c] 'Anmelden'")
     ).firstMatch
     XCTAssertTrue(signIn.waitForExistence(timeout: 10), "IdP sign-in action unavailable")
+    recordStage("sign-in-visible")
     signIn.click()
     recordStage("form-submitted")
     XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 60),
