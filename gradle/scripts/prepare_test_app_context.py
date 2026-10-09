@@ -153,7 +153,7 @@ def main() -> int:
         "127.0.0.1 "
         + " ".join(
             [public_domain]
-            + [public_host(name) for name in ("api", "auth", "mail", "matrix", "files")]
+            + [public_host(name) for name in ("api", "auth", "mail")]
         )
         + "\n",
     )
