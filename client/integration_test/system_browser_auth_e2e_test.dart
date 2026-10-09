@@ -224,7 +224,9 @@ void main() {
         } on ChatFailure catch (error) {
           debugPrint(
             'NATIVE_PRODUCT_STAGE phase=matrix-open-failed '
-            'type=${error.type.name} code=${error.message}',
+            'type=${error.type.name} code=${error.message} '
+            'causeType=${error.cause.runtimeType} '
+            'httpStatus=${error.cause is int ? error.cause : 'none'}',
           );
           if (error.message == 'M_WEAVE_MATRIX_ACCESS_DENIED') {
             try {
