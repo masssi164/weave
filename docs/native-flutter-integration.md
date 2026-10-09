@@ -113,13 +113,17 @@ before the bounded driver timeout. Flutter's workspace assertion also failed.
 This does not prove a credential or callback defect. Candidate `daae77f117`
 also timed out: XCTest spent several minutes in a Weave-window accessibility
 lookup, then observed the browser but blocked on `XCUIApplication.typeText`.
-The next driver revision avoids the preliminary window lookup and XCTest's
-cross-application text input. It verifies the disposable IdP authority, checks
-that a known system-browser process is foreground, and posts account, Tab,
-password, and Return through macOS native keyboard events. An unexpected
-foreground app fails before credential entry. The real Flutter callback and
-product assertions still determine success; a focus change or failed
-submission must fail the run.
+Candidate `d66b66d833` removed the preliminary window lookup, but its
+Safari-only authority check failed: the observed foreground process was Weave,
+consistent with AppAuth attaching its system authentication sheet to the
+requesting application. It entered no credentials. The earlier `XCTAssertTrue`
+check had continued after failure, so its subsequent stage marker had falsely
+suggested that Safari had exposed the IdP. The current driver requires the
+exact disposable IdP authority in whichever permitted application owns the
+foreground, then posts account, Tab, password, and Return through macOS native
+keyboard events. An unverified authority or a foreground change fails before
+credential entry. The real Flutter callback and product assertions still
+determine success; a focus change or failed submission must fail the run.
 
 ## Existing executable coverage
 

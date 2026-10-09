@@ -9,6 +9,7 @@ final class RunnerUITests: XCTestCase {
   private enum NativeAuthError: Error {
     case unexpectedForeground
     case keyboardEventUnavailable
+    case idpUnavailable
   }
 
   private struct LoginFixture: Decodable {
@@ -32,44 +33,48 @@ final class RunnerUITests: XCTestCase {
   func testNativeAppAuthCallback() throws {
     let fixture = try readPrivateFixture()
     recordStage("fixture-read")
-    let safari = XCUIApplication(bundleIdentifier: "com.apple.Safari")
+    let permittedOwners = Set([
+      "com.example.weave", "com.apple.Safari", "com.apple.SafariViewService",
+      "com.apple.AuthenticationServicesUIAgent",
+    ])
     let deadline = Date().addingTimeInterval(180)
-    var issuerVisible = false
+    var authOwner: String?
     while Date() < deadline {
-      if safari.exists && safari.debugDescription.contains(fixture.issuerAuthority) {
-        issuerVisible = true
+      if let owner = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+         permittedOwners.contains(owner),
+         XCUIApplication(bundleIdentifier: owner).debugDescription.contains(fixture.issuerAuthority) {
+        authOwner = owner
         break
       }
       Thread.sleep(forTimeInterval: 1)
     }
-    XCTAssertTrue(issuerVisible, "The expected disposable IdP did not appear")
+    guard let authOwner else {
+      XCTFail("The expected disposable IdP did not appear in the foreground app")
+      throw NativeAuthError.idpUnavailable
+    }
     recordStage("issuer-visible")
     // WebKit's accessibility bridge can block even a bounded element query or
     // XCUIApplication.typeText on this AppAuth window. Never post a global
-    // key until the expected disposable authority is visible and the system
-    // browser, rather than another desktop app, owns the foreground.
-    try requireAuthBrowserForeground()
+    // key until the expected disposable authority is visible in the foreground
+    // application. ASWebAuthenticationSession can be attached to Weave's window.
+    try requireAuthSurfaceForeground(authOwner)
     try typeOnFocusedAuthPage(fixture.email)
     recordStage("account-entered")
-    try requireAuthBrowserForeground()
+    try requireAuthSurfaceForeground(authOwner)
     try postKey(48) // Tab to the password field.
     recordStage("password-focused")
     try typeOnFocusedAuthPage(fixture.password)
     recordStage("password-entered")
-    try requireAuthBrowserForeground()
+    try requireAuthSurfaceForeground(authOwner)
     try postKey(36) // Return submits the IdP form.
     recordStage("form-submitted")
     // Flutter's product test observes the callback and authorized workspace.
   }
 
-  private func requireAuthBrowserForeground() throws {
+  private func requireAuthSurfaceForeground(_ expectedOwner: String) throws {
     let identifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "none"
-    let permitted = Set([
-      "com.apple.Safari", "com.apple.SafariViewService",
-      "com.apple.AuthenticationServicesUIAgent",
-    ])
     print("NATIVE_XCTEST_AUTH_FOREGROUND bundle=\(identifier)")
-    guard permitted.contains(identifier) else {
+    guard identifier == expectedOwner else {
       XCTFail("Unexpected foreground during IdP entry")
       throw NativeAuthError.unexpectedForeground
     }
