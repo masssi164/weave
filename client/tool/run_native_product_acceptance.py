@@ -154,6 +154,17 @@ def main() -> int:
         raise RuntimeError("the dedicated native test CA is not trusted by macOS")
     print("NATIVE_TEST_CA_RESULT status=trusted scope=user-ssl-preconfigured", flush=True)
     stop_checkout_app()
+    cleanup = subprocess.run(
+        ["swift", str(DRIVER), "--clear-stale-consent"], cwd=CLIENT,
+        capture_output=True, text=True, timeout=30,
+    )
+    if cleanup.returncode or not re.search(
+        r"NATIVE_STALE_CONSENT_RESULT status=(cleared|absent)", cleanup.stdout
+    ):
+        raise RuntimeError("stale native AppAuth consent cleanup failed")
+    print(re.search(
+        r"NATIVE_STALE_CONSENT_RESULT status=(cleared|absent)", cleanup.stdout
+    ).group(0), flush=True)
     run_quiet(["flutter", "build", "macos", "--debug"], timeout=900)
     print("NATIVE_BUILD_PREPARATION_RESULT status=passed target=macos", flush=True)
 

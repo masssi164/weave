@@ -47,6 +47,37 @@ func fail(_ stage: String) -> Never {
   exit(1)
 }
 
+if CommandLine.arguments.count == 2 && CommandLine.arguments[1] == "--clear-stale-consent" {
+  guard AXIsProcessTrusted() else { fail("accessibility-permission") }
+  guard !NSWorkspace.shared.runningApplications.contains(where: {
+    $0.bundleIdentifier == "com.example.weave"
+  }) else { fail("app-running-during-cleanup") }
+  var cleared = false
+  for app in NSWorkspace.shared.runningApplications
+    where app.bundleIdentifier == "com.apple.UserNotificationCenter" {
+    let root = AXUIElementCreateApplication(app.processIdentifier)
+    for window in attribute(root, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
+      let elements = descendants(window, limit: 100)
+      guard elements.contains(where: {
+        textValues($0).contains {
+          $0.contains("auth.weave.localhost") && $0.localizedCaseInsensitiveContains("weave")
+        }
+      }) else { continue }
+      let cancel = elements.filter {
+        (attribute($0, kAXRoleAttribute) as? String) == kAXButtonRole as String &&
+          ["Abbrechen", "Cancel"].contains(label($0) ?? "")
+      }
+      guard cancel.count == 1 else { fail("stale-consent-ambiguous") }
+      guard AXUIElementPerformAction(cancel[0], kAXPressAction as CFString) == .success else {
+        fail("stale-consent-cancel")
+      }
+      cleared = true
+    }
+  }
+  print("NATIVE_STALE_CONSENT_RESULT status=\(cleared ? "cleared" : "absent")")
+  exit(0)
+}
+
 guard CommandLine.arguments.count == 2,
       let data = try? FileHandle(forReadingFrom: URL(fileURLWithPath: CommandLine.arguments[1])).readToEnd(),
       let fixture = try? JSONDecoder().decode(Fixture.self, from: data),

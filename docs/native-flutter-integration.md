@@ -212,6 +212,12 @@ correctly rejected. The runner now waits for this checkout's native app process
 before starting the helper; the helper runs AppKit's event loop between polls
 so application and browser lifecycle notifications are processed. This fix
 requires a fresh exact local run before it can count as acceptance evidence.
+The aborted AppAuth session also left the system's first-use consent window
+after its app process stopped. A scoped pre-run cleanup now requires no Weave
+app to be running and cancels only a window containing the disposable IdP host
+and Weave app name with one Cancel button. It was exercised locally and
+reported `NATIVE_STALE_CONSENT_RESULT status=cleared`; it does not authenticate
+or stand in for product evidence.
 
 ## Existing executable coverage
 
