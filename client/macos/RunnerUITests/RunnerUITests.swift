@@ -60,7 +60,7 @@ final class RunnerUITests: XCTestCase {
     XCTAssertTrue(username.waitForExistence(timeout: 15), "IdP account field unavailable")
     XCTAssertTrue(password.waitForExistence(timeout: 15), "IdP password field unavailable")
     recordStage("form-visible")
-    username.click()
+    username.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
     recordStage("account-focused")
     username.typeText(fixture.email)
     recordStage("account-entered")
