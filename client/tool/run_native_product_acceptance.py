@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import re
 import shutil
 import signal
 import subprocess
@@ -50,8 +51,9 @@ def xcode_command(action: str, derived: Path, result: Path | None = None) -> lis
         "-destination", "platform=macOS,arch=arm64",
         "-derivedDataPath", str(derived),
         "-only-testing:" + TEST,
-        "-quiet",
     ]
+    if action == "build-for-testing":
+        command.append("-quiet")
     if result is not None:
         command += ["-resultBundlePath", str(result)]
     return command
@@ -78,6 +80,7 @@ def collect_flutter_output(process: subprocess.Popen[str], sink: queue.Queue[str
 def write_once(path: Path, payload: bytes) -> None:
     with path.open("wb", buffering=0) as output:
         output.write(payload)
+    print("NATIVE_FIXTURE_TRANSFER_RESULT status=passed", flush=True)
 
 
 def stop_checkout_app() -> None:
@@ -155,18 +158,18 @@ def report_xcode_result(bundle: Path) -> None:
         print("NATIVE_XCTEST_DIAGNOSIS stage=result-unavailable", flush=True)
 
 
-def report_live_xctest_stage(pipe: Path) -> None:
-    stage_file = Path(str(pipe) + ".stage")
-    allowed = {"fixture-read", "app-window", "browser-requested",
+def report_xcode_stream_stage(*streams: str | bytes | None) -> None:
+    allowed = {"startup", "fixture-read", "app-window", "browser-requested",
                "issuer-visible", "form-visible", "form-submitted",
                "callback-returned"}
-    try:
-        stage = stage_file.read_text(encoding="utf-8").strip()
-    except OSError:
-        stage = "not-started"
+    output = "\n".join(
+        value.decode("utf-8", errors="replace") if isinstance(value, bytes)
+        else value or "" for value in streams
+    )
+    stages = re.findall(r"NATIVE_XCTEST_STAGE phase=([a-z-]+)", output)
+    stage = next((value for value in reversed(stages) if value in allowed), "not-observed")
     print(
-        "NATIVE_XCTEST_LAST_STAGE stage="
-        + (stage if stage in allowed else "unrecognized"), flush=True,
+        "NATIVE_XCTEST_LAST_STAGE stage=" + stage, flush=True,
     )
 
 
@@ -238,10 +241,10 @@ def main() -> int:
                         xcode_command("test-without-building", derived, result),
                         cwd=CLIENT, capture_output=True, text=True, timeout=420,
                     )
-                except subprocess.TimeoutExpired:
+                except subprocess.TimeoutExpired as timeout:
                     print("NATIVE_APP_AUTH_DRIVER_RESULT status=failed reason=timeout", flush=True)
                     report_xcode_result(result)
-                    report_live_xctest_stage(pipe)
+                    report_xcode_stream_stage(timeout.stdout, timeout.stderr)
                     while not markers.empty():
                         print(markers.get_nowait(), flush=True)
                     print(f"NATIVE_FLUTTER_PROCESS_RESULT running={flutter.poll() is None}", flush=True)
@@ -252,7 +255,7 @@ def main() -> int:
                     flush=True,
                 )
                 report_xcode_result(result)
-                report_live_xctest_stage(pipe)
+                report_xcode_stream_stage(driver.stdout, driver.stderr)
                 if driver.returncode:
                     while not markers.empty():
                         print(markers.get_nowait(), flush=True)

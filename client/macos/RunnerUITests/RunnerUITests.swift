@@ -10,6 +10,17 @@ final class RunnerUITests: XCTestCase {
     let issuerHost: String
   }
 
+  func testAutomationStartupProbe() {
+    recordStage("startup")
+    XCTAssertTrue(true)
+  }
+
+  func testPrivateFixtureProbe() throws {
+    let fixture = try readPrivateFixture()
+    XCTAssertEqual(fixture.issuerHost, "auth.weave.localhost")
+    recordStage("fixture-read")
+  }
+
   func testNativeAppAuthCallback() throws {
     let fixture = try readPrivateFixture()
     recordStage("fixture-read")
@@ -62,9 +73,7 @@ final class RunnerUITests: XCTestCase {
   }
 
   private func recordStage(_ stage: String) {
-    guard let path = Bundle(for: type(of: self))
-      .object(forInfoDictionaryKey: "WEAVE_NATIVE_FIXTURE_PATH") as? String else { return }
-    try? stage.write(toFile: path + ".stage", atomically: true, encoding: .utf8)
+    print("NATIVE_XCTEST_STAGE phase=\(stage)")
   }
 
   private func readPrivateFixture() throws -> LoginFixture {
