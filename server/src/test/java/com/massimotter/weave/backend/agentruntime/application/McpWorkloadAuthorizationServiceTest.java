@@ -195,6 +195,24 @@ class McpWorkloadAuthorizationServiceTest {
     }
 
     @Test
+    void releaseBindingAcceptsObservationStampedDuringAuthoritativeLookup() {
+        ReleaseMcpBindingRepository bindings = mock(ReleaseMcpBindingRepository.class);
+        when(bindings.findByWorkload(ISSUER, SUBJECT)).thenReturn(Optional.of(releaseBinding(true)));
+        RuntimeEntitlementObservation current = releaseObservation();
+        when(entitlementAuthority.observe(any())).thenReturn(new RuntimeEntitlementObservation(
+                current.organizationRef(), current.personRef(), current.memberBinding(),
+                current.contextPrincipalClaim(), current.sourceProvider(), current.sourceGroupRef(),
+                current.capabilityRevision(), NOW.plusMillis(5), NOW.plusSeconds(60)));
+        Clock progressingClock = mock(Clock.class);
+        when(progressingClock.instant()).thenReturn(NOW, NOW.plusMillis(10));
+        var release = new McpWorkloadAuthorizationService(
+                bindings, entitlementAuthority, Set.of("calendar.read", "calendar.write", "files.read"),
+                progressingClock);
+
+        assertThat(release.authorize(token()).visibleToolClasses()).containsExactly("calendar.read");
+    }
+
+    @Test
     void releaseBindingRevocationAndScopeChangesFailClosedWithoutCellFallback() {
         ReleaseMcpBindingRepository bindings = mock(ReleaseMcpBindingRepository.class);
         var release = new McpWorkloadAuthorizationService(

@@ -229,12 +229,18 @@ public final class McpWorkloadAuthorizationService {
         } catch (RuntimeException denied) {
             throw denied(McpWorkloadAuthorizationException.Reason.ENTITLEMENT_OBSERVATION);
         }
+        // The authoritative lookup performs I/O and stamps its observation after
+        // the initial token check. Compare it with a fresh clock reading so a
+        // current observation is not mistaken for one from the future.
+        Instant verifiedAt = clock.instant();
         if (!binding.organizationRef().equals(observation.organizationRef())
                 || !binding.personRef().equals(observation.personRef())
                 || !binding.memberBinding().equals(observation.memberBinding())
-                || !now.isBefore(observation.expiresAt())
-                || observation.observedAt().isAfter(now)) {
-                throw denied(McpWorkloadAuthorizationException.Reason.ENTITLEMENT_MISMATCH);
+                || !verifiedAt.isBefore(token.expiresAt())
+                || !verifiedAt.isBefore(binding.expiresAt())
+                || !verifiedAt.isBefore(observation.expiresAt())
+                || observation.observedAt().isAfter(verifiedAt)) {
+            throw denied(McpWorkloadAuthorizationException.Reason.ENTITLEMENT_MISMATCH);
         }
         if (token.scopes().contains("calendar.write")) {
             Set<String> currentRoles;
