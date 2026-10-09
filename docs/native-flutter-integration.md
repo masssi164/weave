@@ -68,9 +68,10 @@ its WebDriver sessions to isolated automation windows, while AppAuth asks the
 system browser to open a separate authentication session. See
 [Apple's Safari WebDriver isolation contract](https://developer.apple.com/documentation/safari-developer-tools/webdriver).
 
-The local graphical Aqua session and native Flutter target are present. The
-shell process still reports `AXIsProcessTrusted() == false`; that does not
-prevent Xcode's UI runner from operating. The separate ChatGPT Computer Use
+The local graphical Aqua session and native Flutter target are present. After
+the Xcode approval, a local macOS Accessibility query reported
+`AXIsProcessTrusted() == true`; Xcode's UI runner also starts successfully.
+The separate ChatGPT Computer Use
 process still lacks its own Accessibility/Screen Recording grant and is not
 needed for this lane. No Apple Events driver or additional broad permission is
 part of the native acceptance runner.
@@ -152,6 +153,21 @@ one normal macOS activation request for that running executable, and records
 whether the request succeeded. It does not activate another installed Weave
 copy or enter credentials until the disposable IdP is visible in the
 foreground application.
+
+Candidate `40b31e1bb2` confirmed the exact compiled Weave app activated and
+Flutter entered the production AppAuth request (`busy=true`), but the browser
+driver still found no IdP page. A local screen capture showed the missing
+first-use macOS consent: “weave” wanted to use `auth.weave.localhost` to sign
+in. This is a system `ASWebAuthenticationSession` prompt, not a Keycloak form.
+The foreground owner could be `UserNotificationCenter` or Weave depending on
+notification focus. A read-only native Accessibility inspection identified a
+`com.apple.UserNotificationCenter` window containing both the exact test host
+and app name, with exactly one `Fortfahren` button. XCTest's
+`XCUIApplication.debugDescription` did not expose that hosted prompt. The
+driver now uses the macOS Accessibility element for this one action, requiring
+the expected host, app name, and a unique Continue button before pressing it.
+The exact `40b31e1bb2` run failed with `passed=0 failed=1 skipped=0`; the new
+driver has compiled but has not yet passed the integrated native journey.
 
 ## Existing executable coverage
 
