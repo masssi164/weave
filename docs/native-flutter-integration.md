@@ -102,9 +102,9 @@ operation. Opening a local HTTP form with `NSWorkspace` and then targeting its
 accessibility text and password fields passed in 5.1 seconds (one passed,
 zero skipped). This validates form-element interaction, but does not yet prove
 that AppAuth's actual authentication window exposes the same elements or that
-its native callback completes. The retained `NativeAcceptance` XCUITest scheme
-is a browser driver; Flutter's existing integration test remains the product
-oracle.
+its native callback completes. The exploratory `NativeAcceptance` XCUITest
+scheme now retains only an optional native-window launch probe. Flutter's
+existing integration test remains the product oracle.
 
 On exact candidate `7f7db0fe20`, the fresh stack, browser PKCE preparation,
 macOS Flutter build, Xcode test build, and XCTest fixture transfer all passed.
@@ -192,7 +192,17 @@ the issued token, and the native journey must prove refresh and session
 restoration using its real refresh token. The OIDC service test now asserts
 the literal requested scope set so the generated client cannot act as its own
 oracle. This correction has passed the focused Flutter test and static
-analysis; the complete native run remains unverified.
+analysis; the complete native run remains unverified. Candidate `8da7d75ea4`
+reached the real Keycloak page, where a screen and Accessibility inspection
+showed separate username and password steps. The prior XCUITest driver had
+assumed one form and used global keyboard events, so the attempt was stopped
+before claiming or continuing credential entry. The native runner now passes
+the disposable member to a scoped macOS Accessibility helper over its private
+pipe. That helper must find the exact current IdP authority in Safari, fill
+the observed username and password fields separately, and submit the real
+forms. An unrelated system prompt or missing/ambiguous field blocks input.
+No Flutter token, callback URL or mocked OIDC response is supplied. This new
+driver has not yet passed a full live run.
 
 ## Existing executable coverage
 
@@ -224,7 +234,8 @@ CA. That CA needs one macOS SSL trust approval before automated runs; a direct
 per-run trust import timed out at a separate Keychain approval prompt. The
 runner verifies the dedicated CA is already trusted and leaves the trust store
 unchanged during tests. It gives Flutter a per-run Keychain account and passes
-the disposable member's login only through a private named pipe to XCTest.
+the disposable member's login only through a private named pipe to the native
+browser helper.
 No credential is passed as a Flutter define.
 
 ## Required execution lane
@@ -245,10 +256,10 @@ WEAVE_TEST_APP_NATIVE_RUNNER="$PWD/client/tool/run_native_product_acceptance.py"
 
 `testApp` still requires a clean exact source candidate and tears down the
 disposable stack. Its Java browser proof creates and admits the member before
-calling the native runner. The runner builds the macOS UI target, lets XCTest
-establish UI automation and consume the private member fixture, then starts the
-existing Flutter product integration test and drives the native browser. It
-requires both XCUITest and Flutter product markers to pass. The code path is
+calling the native runner. The runner builds the macOS target, starts the
+existing Flutter product integration test, and drives the system browser with
+the narrowly scoped native helper. It requires both browser-form completion
+and Flutter product markers to pass. The code path is
 implemented but **has not yet completed a live local run**. The local attempt
 at `9dc5c23d4a77` reached healthy Server/MCP and passed disposable Chromium
 activation and generated User Files/Calendar before the native XCUITest driver
@@ -286,9 +297,10 @@ PATH="$PWD/tool/native_macos_open:$PATH" \
 
 ## Remaining gates
 
-- Execute the XCUITest driver against the actual `ASWebAuthenticationSession`
-  prompt, IdP form and callback. Adjust selectors from that observed window;
-  the standalone Safari form probe alone cannot qualify AppAuth.
+- Execute the native Accessibility driver against the actual
+  `ASWebAuthenticationSession` prompt and two-step IdP form. Flutter must
+  observe the real AppAuth callback and authorized product state; a browser
+  submit marker alone cannot qualify the journey.
 - Resolve the intermittent native fixture `SemanticsHandle` assertion and
   demonstrate a repeatable local pass before transferring this lane to CI.
 - Provision a fresh native profile and disposable identity alongside `testApp`,
