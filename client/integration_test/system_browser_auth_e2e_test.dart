@@ -263,6 +263,12 @@ void main() {
             }
           }
           rethrow;
+        } on RustMatrixCoreBridgeException catch (error) {
+          debugPrint(
+            'NATIVE_PRODUCT_STAGE phase=matrix-open-failed '
+            'type=RustMatrixCoreBridgeException code=${error.code}',
+          );
+          rethrow;
         } catch (error) {
           debugPrint(
             'NATIVE_PRODUCT_STAGE phase=matrix-open-failed '
