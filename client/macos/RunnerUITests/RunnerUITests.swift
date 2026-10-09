@@ -45,9 +45,16 @@ final class RunnerUITests: XCTestCase {
     var observedFields = false
     var lastOwner = "none"
     var activationAttempted = false
+    var consentHandled = false
     while Date() < deadline {
       let owner = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "none"
       lastOwner = owner
+      if !consentHandled {
+        consentHandled = try acceptExpectedSystemBrowserConsent(fixture)
+        if consentHandled {
+          continue
+        }
+      }
       if !activationAttempted && !permittedOwners.contains(owner),
          let nativeApp = NSWorkspace.shared.runningApplications.first(where: {
            $0.executableURL?.resolvingSymlinksInPath().path == fixture.appExecutable
@@ -91,6 +98,37 @@ final class RunnerUITests: XCTestCase {
     try postKey(36) // Return submits the IdP form.
     recordStage("form-submitted")
     // Flutter's product test observes the callback and authorized workspace.
+  }
+
+  private func acceptExpectedSystemBrowserConsent(_ fixture: LoginFixture) throws -> Bool {
+    // macOS asks once whether this exact app may use the requested IdP. The
+    // prompt is not part of Keycloak's page and may be hosted by a separate
+    // system UI process, so foreground ownership alone cannot identify it.
+    let candidates = [
+      "com.example.weave", "com.apple.AuthenticationServicesUIAgent",
+      "com.apple.SafariViewService", "com.apple.Safari",
+      "com.apple.UserNotificationCenter",
+    ]
+    let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+    for bundle in candidates where running.contains(bundle) {
+      let application = XCUIApplication(bundleIdentifier: bundle)
+      let description = application.debugDescription
+      guard description.contains(fixture.issuerHost),
+            description.localizedCaseInsensitiveContains("weave") else {
+        continue
+      }
+      let button = application.buttons["Fortfahren"].firstMatch.exists
+        ? application.buttons["Fortfahren"].firstMatch
+        : application.buttons["Continue"].firstMatch
+      guard button.exists else {
+        continue
+      }
+      print("NATIVE_XCTEST_OS_CONSENT status=verified owner=\(bundle)")
+      button.click()
+      print("NATIVE_XCTEST_OS_CONSENT status=accepted owner=\(bundle)")
+      return true
+    }
+    return false
   }
 
   private func requireAuthSurfaceForeground(_ expectedOwner: String) throws {

@@ -206,6 +206,13 @@ def report_xcode_stream_stage(*streams: str | bytes | None) -> None:
     )
     if activations:
         print("NATIVE_XCTEST_APP_ACTIVATION status=" + activations[-1], flush=True)
+    consents = re.findall(
+        r"NATIVE_XCTEST_OS_CONSENT status=(verified|accepted) "
+        r"owner=([A-Za-z0-9.-]{1,80})", output
+    )
+    if consents:
+        status, owner = consents[-1]
+        print(f"NATIVE_XCTEST_OS_CONSENT status={status} owner={owner}", flush=True)
 
 
 def main() -> int:
