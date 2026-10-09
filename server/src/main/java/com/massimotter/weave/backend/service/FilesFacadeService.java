@@ -953,14 +953,14 @@ public class FilesFacadeService {
                 contextAuthorizationProperties.principalRef(workload.contextPrincipalClaim()),
                 memberSubject,
                 workload.personRef(),
-                "runtime-profile:" + workload.runtimeProfileHash(),
-                "runtime-entitlement:" + workload.entitlementRevision(),
+                workload.policyRevision(),
+                workload.memberEntitlementRevision(),
                 new WorkloadAuditContext(
                         workload.issuer(),
                         workload.workloadSubject(),
                         workload.workloadClientId(),
                         workload.mcpEdgeClientId(),
-                        workload.cellRef(),
+                        workload.bindingRef(),
                         workload.personRef()));
         var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
                 principal.tenantId(),
@@ -1060,8 +1060,11 @@ public class FilesFacadeService {
             String subject,
             String workloadClientId,
             String mcpEdgeClientId,
-            String cellRef,
+            String bindingRef,
             String personRef) {
+        String bindingAuditKey() {
+            return bindingRef.startsWith("mcp-binding:") ? "workloadBindingRef" : "cellRef";
+        }
     }
 
     private record SearchNode(String path, int depth) {
@@ -1245,7 +1248,7 @@ public class FilesFacadeService {
                                 sha256(workload.issuer() + "\u0000" + workload.subject()),
                         "workloadClientId", workload.workloadClientId(),
                         "mcpEdgeClientId", workload.mcpEdgeClientId(),
-                        "cellRef", workload.cellRef(),
+                        workload.bindingAuditKey(), workload.bindingRef(),
                         "personRef", workload.personRef(),
                         "providerBindingKey", "files.default",
                         "objectRefSha256", sha256(objectReference == null ? "/" : objectReference),

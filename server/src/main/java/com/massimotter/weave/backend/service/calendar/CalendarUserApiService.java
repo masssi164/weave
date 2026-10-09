@@ -370,7 +370,7 @@ public class CalendarUserApiService {
                         "workloadSubjectSha256", digest(workload.issuer() + "\0" + workload.workloadSubject()),
                         "workloadClientId", workload.workloadClientId(),
                         "mcpEdgeClientId", workload.mcpEdgeClientId(),
-                        "cellRef", workload.cellRef(), "personRef", workload.personRef(),
+                        workload.bindingAuditKey(), workload.bindingRef(), "personRef", workload.personRef(),
                         "objectRefSha256", digest(reference), "result", "success:" + count)));
     }
 

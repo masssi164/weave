@@ -807,8 +807,8 @@ public class FilesUserApiService {
                     "The MCP workload has no current Files authorization.");
         }
         return new Member(workload.organizationRef(), principal, workload.memberBinding().subject(), false,
-                "runtime-profile:" + workload.runtimeProfileHash(),
-                "runtime-entitlement:" + workload.entitlementRevision(), workload);
+                workload.policyRevision(),
+                workload.memberEntitlementRevision(), workload);
     }
 
     private void auditWorkloadRead(Member member, String tool, String reference, String result, int count) {
@@ -824,7 +824,7 @@ public class FilesUserApiService {
                                 .getBytes(StandardCharsets.UTF_8)),
                         "workloadClientId", workload.workloadClientId(),
                         "mcpEdgeClientId", workload.mcpEdgeClientId(),
-                        "cellRef", workload.cellRef(), "personRef", workload.personRef(),
+                        workload.bindingAuditKey(), workload.bindingRef(), "personRef", workload.personRef(),
                         "providerBindingKey", "files.default",
                         "objectRefSha256", digest(reference.getBytes(StandardCharsets.UTF_8)),
                         "result", result + ":" + count)));

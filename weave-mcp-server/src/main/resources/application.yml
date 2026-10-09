@@ -18,7 +18,7 @@ spring:
         type: SYNC
         name: weave-workload-tools
         version: 0.3.0
-        instructions: Workload-only semantic Files tools; every call requires a current Agent Runtime Control cell binding and domain authorization.
+        instructions: Workload-only Files and Calendar tools; every call requires a protected member binding and current domain authorization.
         tool-callback-converter: true
         annotation-scanner:
           enabled: true

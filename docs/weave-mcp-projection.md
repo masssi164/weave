@@ -1,19 +1,24 @@
 # Weave MCP projection boundary
 
 Status: **Guarded / curated Files and Calendar slices active**. The previous member-oriented v1
-runtime was removed without compatibility readers. The replacement admits only an ARC-bound cell
-workload and exposes curated Files read and Calendar read/write projections.
+runtime was removed without compatibility readers. The current release path admits a workload
+only through a private, revocable server-side member binding. The older Cell/Profile path remains
+available for its later ARC profile when release binding mode is not configured.
 
 ## Implemented path
 
-1. A dedicated `weaver-cell-{cellId}` Keycloak service account obtains a short-lived RFC 9068
-   access token for the exact MCP resource through the MCP Client Credentials extension.
+1. A separately registered `weaver-mcp-*` workload client (or an existing-policy
+   `weaver-cell-*` client registered without a Cell) presents a short-lived RFC 9068
+   client-credentials access token for the exact MCP resource. The supported OpenClaw client
+   may receive this token from a protected operator handoff; automatic extension acquisition
+   is not claimed.
 2. Spring Security validates token type, issuer, lifetime, exact audiences, workload identity,
    role, and required scopes before Spring AI sees the request.
 3. `weave-mcp-server` exchanges that token with Keycloak Standard Token Exchange V2 for a new,
    short-lived, exact-audience backend token. It never forwards the inbound bearer.
-4. `weave-backend` resolves the immutable service-account-to-cell mapping and revalidates the
-   current entitlement, lifecycle, RuntimeProfile v2 hash, policy, and domain scopes.
+4. `weave-backend` resolves the workload subject against its private binding file on every
+   call and revalidates current organization membership, Weaver entitlement, member role,
+   domain scope, and resource access. No Cell or signed RuntimeProfile is needed in this mode.
 5. Only then may the framework-native stateful Streamable HTTP transport dispatch
    `files.search`, `weave://files/{canonicalFileId}`, `calendar.agenda`, or the
    supported `calendar.create`, `calendar.update`, and `calendar.delete` tools.
@@ -22,8 +27,9 @@ workload and exposes curated Files read and Calendar read/write projections.
    provider or a tool-specific backend endpoint.
 
 The edge publishes protected-resource metadata and a discoverable bearer challenge. Human tokens,
-generic service accounts, the fixed MCP edge account, missing extension negotiation, scope
-escalation, stale profiles, and direct workload calls to Admin APIs fail closed. Exchanged
+generic service accounts, the fixed MCP edge account, scope escalation, stale/revoked bindings,
+and direct workload calls to Admin APIs fail closed. The optional initialize extension marker
+is discovery only and its absence does not deny a valid workload bearer. Exchanged
 workload tokens can use only the guarded User Files or Calendar operations for their exact
 admitted scope. Calendar writes additionally require the current owner/admin capability and
 Space EDIT permission at the Server.
@@ -80,7 +86,7 @@ annotated MCP records. Chat remains on Matrix.
 
 Live supported OpenClaw invocation and provider readback are required before #1479 can close.
 Further tools require a current #1470 acceptance criterion and the intersection of the curated
-catalog, current signed RuntimeProfile, product-domain authorization, and runtime availability.
+catalog, protected binding, product-domain authorization, and runtime availability.
 The historical broad ARC approval-evidence profile is deferred; OpenClaw owns the existing
 approval lifecycle for the current Calendar write tools, while Weave remains the final
 authorization and side-effect authority.

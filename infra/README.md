@@ -87,7 +87,7 @@ Support bundles redact tokens, cookies, passwords, signing keys, private JWK mat
 - `weave-workspace/teardown.sh`: exact isolated-E2E cleanup only.
 - `weave-workspace/backup.sh`: private consistency backup for persistent recovery paths.
 - `weave-workspace/support-bundle.sh`: support-safe diagnostics, not backup material.
-- `../gradle/tasks/test-app.sh`: disposable invitation/activation/PKCE/ARC/MCP/product proof.
+- `../gradle/tasks/test-app.sh`: disposable invitation/activation/PKCE/product proof; its current MCP segment still exercises the guarded ARC Cell path and is not yet the bounded #1470 OpenClaw acceptance run.
 
 ## Validation
 

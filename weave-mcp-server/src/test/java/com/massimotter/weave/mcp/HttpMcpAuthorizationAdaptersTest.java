@@ -25,6 +25,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.security.oauth2.jwt.Jwt;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -134,6 +135,33 @@ class HttpMcpAuthorizationAdaptersTest {
         .isInstanceOfSatisfying(
             McpAdmissionException.class,
             failure -> assertThat(failure.kind()).isEqualTo(McpAdmissionException.Kind.FORBIDDEN));
+  }
+
+  @Test
+  void admitsOnlyAConstrainedReleaseWorkloadNamespaceAtTheEdge() {
+    var policy = new McpWorkloadTokenPolicy(properties("/token"));
+    assertThat(policy.resolve(releaseJwt("weaver-mcp-member-test")).clientId())
+        .isEqualTo("weaver-mcp-member-test");
+    assertThatThrownBy(() -> policy.resolve(releaseJwt("ordinary-member")))
+        .isInstanceOf(McpAdmissionException.class);
+  }
+
+  private Jwt releaseJwt(String clientId) {
+    return Jwt.withTokenValue("test-only-workload")
+        .header("alg", "RS256")
+        .header("typ", "at+jwt")
+        .issuer(ISSUER)
+        .subject(SUBJECT)
+        .audience(List.of(MCP_RESOURCE, EDGE))
+        .claim("client_id", clientId)
+        .claim("azp", clientId)
+        .claim("scope", "mcp.tools files.read")
+        .claim("realm_access", Map.of("roles", List.of("weaver-runtime")))
+        .claim("resource_access", Map.of())
+        .jti("release-workload-jti")
+        .issuedAt(now)
+        .expiresAt(now.plusSeconds(45))
+        .build();
   }
 
   @Test
