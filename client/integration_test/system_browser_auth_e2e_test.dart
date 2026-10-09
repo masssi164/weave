@@ -3,11 +3,13 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter_appauth/flutter_appauth.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:weave/core/persistence/secure_store.dart';
+import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/auth/data/services/oidc_client.dart';
@@ -59,6 +61,7 @@ void main() {
     'WEAVE_TWO_DEVICE_MATRIX_RECOVERY_E2E',
   );
   const disposableStack = bool.fromEnvironment('WEAVE_DEVICE_DISPOSABLE_STACK');
+  const nativeTestRunId = String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID');
   final config = TestConfig.fromEnvironment();
 
   test('native acceptance requires an explicitly selected live journey', () {
@@ -77,6 +80,12 @@ void main() {
         isTrue,
         reason:
             'Product and Matrix mutation journeys require a disposable stack.',
+      );
+      expect(
+        nativeTestRunId,
+        isNotEmpty,
+        reason:
+            'Live mutation journeys require an isolated native storage account.',
       );
     }
     expect(config.offlineContractOnly, isFalse);
@@ -315,6 +324,10 @@ void main() {
           'businessRoomSendRead=true '
           'refresh=true sessionReopen=true appStateRecreated=true '
           'logoutDenied=true supportSafe=true',
+        );
+        debugPrint(
+          'PHYSICAL_AUTH_SESSION_RESULT status=passed activation=system-browser '
+          'pkce=true workspaceRestored=true refresh=true supportSafe=true',
         );
       } finally {
         await coordinator.disposePreservingCryptoState();
@@ -696,9 +709,21 @@ Future<ProviderContainer> _openWeaveSession(
       backendApiBaseUrl: config.backendApiBaseUrl,
     ),
   );
+  const nativeTestRunId = String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID');
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (nativeTestRunId.isNotEmpty)
+          secureStoreProvider.overrideWithValue(
+            FlutterSecureStore(
+              storage: const FlutterSecureStorage(
+                mOptions: MacOsOptions(
+                  accountName: 'weave-native-acceptance-$nativeTestRunId',
+                  accessibility: KeychainAccessibility.first_unlock_this_device,
+                ),
+              ),
+            ),
+          ),
         serverConfigurationRepositoryProvider.overrideWithValue(
           _MemoryServerConfigurationRepository(serverConfiguration),
         ),

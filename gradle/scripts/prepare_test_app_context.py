@@ -113,19 +113,28 @@ def main() -> int:
     ports = dict(zip(PORT_NAMES, map(str, reserve_ports(len(PORT_NAMES)))))
     https_port = ports["WEAVE_PROXY_HTTPS_HOST_PORT"]
     http_port = ports["WEAVE_PROXY_HTTP_HOST_PORT"]
+    public_domain = os.environ.get("WEAVE_TEST_APP_PUBLIC_DOMAIN", "weave.test")
+    if public_domain not in {"weave.test", "weave.localhost"}:
+        raise SystemExit(
+            "WEAVE_TEST_APP_CONTEXT_ERROR expected weave.test or weave.localhost"
+        )
+    def public_host(subdomain: str) -> str:
+        return f"{subdomain}.{public_domain}"
+
     placeholder = "sha256:" + "a" * 64
     values = {
         **ports,
         "WEAVE_DEPLOYMENT_CONTEXT": "disposable",
         "WEAVE_DEPLOYMENT_SCOPE": "disposable-e2e",
-        "WEAVE_PUBLIC_URL": f"https://weave.test:{https_port}",
-        "WEAVE_API_ORIGIN": f"https://api.weave.test:{https_port}",
-        "WEAVE_API_URL": f"https://api.weave.test:{https_port}/api",
-        "WEAVE_AUTH_URL": f"https://auth.weave.test:{https_port}",
-        "WEAVE_MATRIX_URL": f"https://matrix.weave.test:{https_port}",
-        "WEAVE_FILES_URL": f"https://files.weave.test:{https_port}",
-        "WEAVE_MAILPIT_URL": f"https://mail.weave.test:{https_port}",
-        "WEAVE_FILES_PUBLIC_AUTHORITY": f"files.weave.test:{https_port}",
+        "WEAVE_TENANT_DOMAIN": public_domain,
+        "WEAVE_PUBLIC_URL": f"https://{public_domain}:{https_port}",
+        "WEAVE_API_ORIGIN": f"https://{public_host('api')}:{https_port}",
+        "WEAVE_API_URL": f"https://{public_host('api')}:{https_port}/api",
+        "WEAVE_AUTH_URL": f"https://{public_host('auth')}:{https_port}",
+        "WEAVE_MATRIX_URL": f"https://{public_host('matrix')}:{https_port}",
+        "WEAVE_FILES_URL": f"https://{public_host('files')}:{https_port}",
+        "WEAVE_MAILPIT_URL": f"https://{public_host('mail')}:{https_port}",
+        "WEAVE_FILES_PUBLIC_AUTHORITY": f"{public_host('files')}:{https_port}",
         "WEAVE_KEYCLOAK_IMAGE": placeholder,
         "WEAVE_BACKEND_IMAGE": placeholder,
         "WEAVE_MCP_IMAGE": placeholder,
@@ -141,7 +150,12 @@ def main() -> int:
     atomic_private_write(env_file, update_environment(template, values))
     atomic_private_write(
         hosts_file,
-        "127.0.0.1 weave.test api.weave.test auth.weave.test mail.weave.test\n",
+        "127.0.0.1 "
+        + " ".join(
+            [public_domain]
+            + [public_host(name) for name in ("api", "auth", "mail", "matrix", "files")]
+        )
+        + "\n",
     )
 
     generated_root = (

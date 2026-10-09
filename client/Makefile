@@ -53,6 +53,7 @@ physical-device-auth-e2e:
 	  --arg WEAVE_DISPOSABLE_MATRIX_MESSAGE_E2E "$${WEAVE_DEVICE_MATRIX_RECOVERY_E2E:-false}" \
 	  --arg WEAVE_TWO_DEVICE_MATRIX_RECOVERY_E2E "$${WEAVE_DEVICE_MATRIX_RECOVERY_E2E:-false}" \
 	  --arg WEAVE_DEVICE_DISPOSABLE_STACK "$${WEAVE_DEVICE_DISPOSABLE_STACK:-false}" \
+	  --arg WEAVE_NATIVE_TEST_RUN_ID "$${WEAVE_NATIVE_TEST_RUN_ID:-}" \
 	  '$$ARGS.named' > "$$dart_defines_file"; \
 	if [ "$${WEAVE_DEVICE_PRODUCT_E2E:-false}" = "true" ]; then \
 	  flutter test integration_test/system_browser_auth_e2e_test.dart \

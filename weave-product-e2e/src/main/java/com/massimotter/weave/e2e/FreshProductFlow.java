@@ -249,6 +249,8 @@ public final class FreshProductFlow {
       spaces.verifyOwnerOnlyFileRelation(memberSession.accessToken(), ownerSession.accessToken(),
           generatedFilesProof.fileId());
 
+      runNativeMemberJourney(memberEmail, memberPassword);
+
       String openClawMatrixMemberToken = null;
       if (Boolean.getBoolean("weave.e2e.release-mcp")) {
         OidcBrowserJourney.TokenSet openClawMatrixSession = browser.authorize(
@@ -524,6 +526,34 @@ public final class FreshProductFlow {
       startedRuntime = null;
       mcpProof = null;
       restartProof = null;
+    }
+  }
+
+  private void runNativeMemberJourney(String memberEmail, String memberPassword) {
+    String runner = System.getProperty("weave.e2e.native-runner", "");
+    if (runner.isBlank()) {
+      return;
+    }
+    ProcessBuilder process = new ProcessBuilder("python3", runner);
+    process.environment().put("WEAVE_NATIVE_MEMBER_EMAIL", memberEmail);
+    process.environment().put("WEAVE_NATIVE_MEMBER_PASSWORD", memberPassword);
+    process.environment().put("WEAVE_NATIVE_ISSUER", environment.issuer().toString());
+    process.environment().put("WEAVE_NATIVE_API_BASE_URL", environment.apiOrigin() + "/api");
+    process.environment().put("WEAVE_NATIVE_MATRIX_URL", environment.apiOrigin().toString());
+    process.environment().put("WEAVE_NATIVE_CA", environment.caCertificate().toString());
+    process.inheritIO();
+    try {
+      int status = process.start().waitFor();
+      if (status != 0) {
+        throw new ProductFlowException("native Flutter acceptance failed");
+      }
+    } catch (IOException failure) {
+      throw new ProductFlowException("native Flutter acceptance could not start");
+    } catch (InterruptedException failure) {
+      Thread.currentThread().interrupt();
+      throw new ProductFlowException("native Flutter acceptance was interrupted");
+    } finally {
+      process.environment().remove("WEAVE_NATIVE_MEMBER_PASSWORD");
     }
   }
 

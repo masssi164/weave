@@ -69,29 +69,31 @@ system browser to open a separate authentication session. See
 [Apple's Safari WebDriver isolation contract](https://developer.apple.com/documentation/safari-developer-tools/webdriver).
 
 The local graphical Aqua session and native Flutter target are present. The
-shell process reports `AXIsProcessTrusted() == false`; a separate ChatGPT
-Computer Use attempt reported pending Accessibility and Screen Recording
-permission. These facts constrain desktop UI automation from those processes.
-They do **not** show that Flutter's test runner or `open` needs those
-permissions. A future XCUITest UI driver would require Accessibility for its
-actual Xcode Helper process, as described in [Apple's UI automation guidance](https://developer.apple.com/documentation/xcuiautomation/recording-ui-automation-for-testing).
-Screen Recording is only needed if that driver
-captures pixels. Apple Events permission would only be needed by an Apple
-Events based driver. No broad host permission should be requested in lieu of
-an executable native test.
+shell process still reports `AXIsProcessTrusted() == false`; that does not
+prevent Xcode's UI runner from operating. The separate ChatGPT Computer Use
+process still lacks its own Accessibility/Screen Recording grant and is not
+needed for this lane. No Apple Events driver or additional broad permission is
+part of the native acceptance runner.
 
-A temporary XCUITest UI target was also probed locally and then removed. The
-first attempt inherited the app's provider link flags and could not load
-`AppAuth.framework` in the test runner. After isolating the UI test link flags
-and using a fresh Xcode output directory, the runner loaded XCTest, but
-`xcodebuild test` failed after 72 seconds with `Timed out while enabling
-automation mode`. A process sample placed the wait inside
-`XCUIInitializeForUITesting` → `enableAutomationModeWithError`; the test body
-never ran and no new Weave process launched. The shell's Accessibility denial
-is consistent with a UI automation permission boundary, but the exact TCC
-decision for the XCUITest runner could not be read, so permission is not
-claimed as the proven sole cause. No UI-test target or new framework is
-included in this candidate.
+The first XCUITest attempt inherited the app's provider link flags and could
+not load `AppAuth.framework` in the UI runner. After isolating those flags and
+using a fresh Xcode output directory, XCTest loaded but timed out in
+`enableAutomationMode` before the test body ran. The owner then granted the
+macOS automation request for Xcode. On the same Mac, XCUITest passed a real
+Weave-window probe, a Safari-window probe, and a private one-use pipe probe
+(one passed, zero skipped in each result). The repeated test after the grant
+establishes a permission gate for Xcode's UI runner as the cause of the
+automation-mode timeout.
+
+The first Safari form probe timed out while sending a URL through Safari's
+application element. Its XCTest activity log identified that exact keystroke
+operation. Opening a local HTTP form with `NSWorkspace` and then targeting its
+accessibility text and password fields passed in 5.1 seconds (one passed,
+zero skipped). This validates form-element interaction, but does not yet prove
+that AppAuth's actual authentication window exposes the same elements or that
+its native callback completes. The retained `NativeAcceptance` XCUITest scheme
+is a browser driver; Flutter's existing integration test remains the product
+oracle.
 
 ## Existing executable coverage
 
@@ -114,17 +116,41 @@ live evidence parser observes their markers. A Gherkin compatible Dart package
 would not solve the macOS browser control or callback problem; the current
 feature mapping and `integration_test` assertions remain the right structure.
 
+The optional `WEAVE_TEST_APP_PUBLIC_DOMAIN=weave.localhost` profile is for
+native macOS runs. This host resolves directly to loopback on this Mac;
+`weave.test` currently resolves to a LAN address, and `.local` resolution was
+slow enough to time out a native request. The profile changes only disposable
+stack hostnames and a per-run TLS leaf signed by a dedicated native acceptance
+CA. That CA needs one macOS SSL trust approval before automated runs; a direct
+per-run trust import timed out at a separate Keychain approval prompt. The
+runner verifies the dedicated CA is already trusted and leaves the trust store
+unchanged during tests. It gives Flutter a per-run Keychain account and passes
+the disposable member's login only through a private named pipe to XCTest.
+No credential is passed as a Flutter define.
+
 ## Required execution lane
 
-The native lane needs a logged-in graphical macOS session, a fresh app profile,
-the exact disposable `testApp` stack and dedicated member identity, trusted
-test CA and host routing for AppAuth, and a driver that operates the actual
-macOS system authentication browser and returns through AppAuth. It must run
-`make -C client physical-device-product-e2e` with `WEAVE_PHYSICAL_DEVICE_ID=macos`
-and the stack's endpoint variables, capture sanitized pass/fail markers, and
-tear down the stack. The `Full Compose E2E` job runs backend/Chromium and
-Matrix protocol evidence. No CI job currently runs the real native
-AppAuth/product case.
+The native lane needs a logged-in graphical macOS session, the exact disposable
+`testApp` stack and dedicated member identity, trusted test CA and host routing
+for AppAuth, and a driver that operates the actual system authentication window
+and returns through AppAuth. The optional local command is:
+
+```sh
+python3 client/tool/setup_native_acceptance_ca.py --trust  # one-time macOS approval
+WEAVE_TEST_APP_PUBLIC_DOMAIN=weave.localhost \
+WEAVE_TEST_APP_NATIVE_CA_ROOT="$HOME/.local/share/weave/native-acceptance-ca" \
+WEAVE_TEST_APP_NATIVE_RUNNER="$PWD/client/tool/run_native_product_acceptance.py" \
+  ./gradlew testApp
+```
+
+`testApp` still requires a clean exact source candidate and tears down the
+disposable stack. Its Java browser proof creates and admits the member before
+calling the native runner. The runner builds the macOS UI target, starts the
+existing Flutter product integration test, drives the native browser and
+requires both XCUITest and Flutter product markers to pass. The code path is
+implemented but **has not yet completed a live local run**. The `Full Compose
+E2E` job runs backend/Chromium and Matrix protocol evidence. No CI job
+currently runs the real native AppAuth/product case.
 
 Current reproducible diagnostic command:
 
@@ -152,11 +178,9 @@ PATH="$PWD/tool/native_macos_open:$PATH" \
 
 ## Remaining gates
 
-- Implement and execute a macOS driver for the actual
-  `ASWebAuthenticationSession` prompt, IdP form, and callback without token
-  injection. Validate any required TCC grant against the requesting process.
-  Resolve the local XCUITest `enableAutomationMode` timeout before treating it
-  as a viable driver.
+- Execute the XCUITest driver against the actual `ASWebAuthenticationSession`
+  prompt, IdP form and callback. Adjust selectors from that observed window;
+  the standalone Safari form probe alone cannot qualify AppAuth.
 - Resolve the intermittent native fixture `SemanticsHandle` assertion and
   demonstrate a repeatable local pass before transferring this lane to CI.
 - Provision a fresh native profile and disposable identity alongside `testApp`,
