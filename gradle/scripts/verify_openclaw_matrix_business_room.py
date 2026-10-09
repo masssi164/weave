@@ -130,7 +130,11 @@ def run(args):
                             timeout=30, check=False,
                         )
                         if probe.returncode == 0:
-                            diagnostic = probe.stdout.strip()[:200]
+                            diagnostic = next(
+                                (line[:200] for line in probe.stdout.splitlines()
+                                 if line.startswith("matrixSdkProbe=")),
+                                "matrixSdkProbe=no-result",
+                            )
                     except subprocess.TimeoutExpired:
                         diagnostic = "matrixSdkProbe=timeout"
             raise ProofError(diagnostic + "; " + str(failure)) from failure
