@@ -791,7 +791,7 @@
         {
           "path": "infra/docs/weave-mcp-tool-contract.md",
           "fragments": [
-            "Guarded / bounded read slices active",
+            "Guarded / curated Files and Calendar slices active",
             "Human access tokens",
             "Standard Token Exchange V2",
             "`files.search`"
