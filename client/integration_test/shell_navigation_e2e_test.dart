@@ -284,6 +284,9 @@ void main() {
       expect(find.text('Profile'), findsWidgets);
       expect(find.text('Workspace Member'), findsWidgets);
 
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+
       // This marker is fixture UI evidence only. Real identity, provider, and
       // authorization claims are produced by the isolated live-stack lane.
       debugPrint(
@@ -364,6 +367,9 @@ void main() {
     );
     expect(find.text('Einstellungen'), findsWidgets);
     expect(find.text('Settings'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
   });
 }
 

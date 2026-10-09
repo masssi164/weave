@@ -50,6 +50,11 @@ that its version is exactly Flutter 3.41.6 before testing. It reports a separate
 status so a Compose capacity failure cannot hide native execution. This job
 enforces native build and fixture navigation within its lane; branch-protection
 status and the native product journey are separate, still unverified gates.
+The first exact-head CI execution on `915648ea9b51a11f8e57b8e0b2dce5dd9b4ea793`
+built and ran the native app, then failed because the first test left a
+`SemanticsHandle` active. Both fixture cases now unmount `WeaveApp` before test
+completion. The corrected local macOS run passed both cases; CI evidence for
+the correction must still come from the new exact head.
 
 ## Authentication automation boundary
 
