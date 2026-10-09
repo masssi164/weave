@@ -594,7 +594,7 @@ class RustMatrixCoreBridge {
     await _native(() => syncMatrixClient(profileKey: profileKey));
   }
 
-  Future<List<RustMatrixEncryptedRoom>> loadEncryptedRooms({
+  Future<List<RustMatrixEncryptedRoom>> loadRooms({
     required String profileKey,
   }) async {
     final result = await _native(() => matrixRooms(profileKey: profileKey));
@@ -612,7 +612,18 @@ class RustMatrixCoreBridge {
     );
   }
 
-  Future<List<RustMatrixMessageProjection>> loadEncryptedRoomMessages({
+  Future<RustMatrixEncryptedRoom> createBusinessRoom({
+    required String profileKey,
+    required String title,
+  }) async {
+    return RustMatrixEncryptedRoom.fromJson(
+      await _native(
+        () => matrixCreateBusinessRoom(profileKey: profileKey, title: title),
+      ),
+    );
+  }
+
+  Future<List<RustMatrixMessageProjection>> loadRoomMessages({
     required String profileKey,
     required String roomId,
     int limit = 100,
@@ -661,7 +672,7 @@ class RustMatrixCoreBridge {
     );
   }
 
-  Future<String> sendEncryptedText({
+  Future<String> sendText({
     required String profileKey,
     required String roomId,
     required String body,

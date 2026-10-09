@@ -123,9 +123,9 @@ void main() {
         'lib/features/files/data/repositories/backend_files_repository.dart',
       ).readAsString();
       expect(chatRepository, contains('RustMatrixCoreBridge'));
-      expect(chatRepository, contains('loadEncryptedRooms'));
-      expect(chatRepository, contains('loadEncryptedRoomMessages'));
-      expect(chatRepository, contains('sendEncryptedText'));
+      expect(chatRepository, contains('loadRooms'));
+      expect(chatRepository, contains('loadRoomMessages'));
+      expect(chatRepository, contains('sendText'));
       expect(chatRepository, isNot(contains('http.Client')));
       expect(chatRepository, isNot(contains('/_matrix/client/')));
       expect(chatRepository, isNot(contains('/api/chat/conversations')));

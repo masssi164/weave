@@ -10,7 +10,7 @@ import '../../../../helpers/fake_matrix_crypto.dart';
 
 class _FailingRoomBridge extends FakeRustMatrixCoreBridge {
   @override
-  Future<List<RustMatrixEncryptedRoom>> loadEncryptedRooms({
+  Future<List<RustMatrixEncryptedRoom>> loadRooms({
     required String profileKey,
   }) {
     throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_SYNC');
@@ -19,7 +19,7 @@ class _FailingRoomBridge extends FakeRustMatrixCoreBridge {
 
 class _ExpiredRoomBridge extends FakeRustMatrixCoreBridge {
   @override
-  Future<List<RustMatrixEncryptedRoom>> loadEncryptedRooms({
+  Future<List<RustMatrixEncryptedRoom>> loadRooms({
     required String profileKey,
   }) {
     throw const RustMatrixCoreBridgeException('M_UNKNOWN_TOKEN');
@@ -47,7 +47,7 @@ class _FailingMatrixSessionPort extends FakeMatrixCryptoSessionPort {
 
 class _FailingSendBridge extends FakeRustMatrixCoreBridge {
   @override
-  Future<String> sendEncryptedText({
+  Future<String> sendText({
     required String profileKey,
     required String roomId,
     required String body,
@@ -58,7 +58,7 @@ class _FailingSendBridge extends FakeRustMatrixCoreBridge {
 
 class _PendingPeerDeviceBridge extends FakeRustMatrixCoreBridge {
   @override
-  Future<String> sendEncryptedText({
+  Future<String> sendText({
     required String profileKey,
     required String roomId,
     required String body,
@@ -71,7 +71,7 @@ class _PendingPeerDeviceBridge extends FakeRustMatrixCoreBridge {
 
 class _FailingTimelineBridge extends FakeRustMatrixCoreBridge {
   @override
-  Future<List<RustMatrixMessageProjection>> loadEncryptedRoomMessages({
+  Future<List<RustMatrixMessageProjection>> loadRoomMessages({
     required String profileKey,
     required String roomId,
     int limit = 100,
@@ -82,7 +82,7 @@ class _FailingTimelineBridge extends FakeRustMatrixCoreBridge {
 
 class _FailingCreateBridge extends FakeRustMatrixCoreBridge {
   @override
-  Future<RustMatrixEncryptedRoom> createEncryptedRoom({
+  Future<RustMatrixEncryptedRoom> createBusinessRoom({
     required String profileKey,
     required String title,
   }) {
@@ -158,7 +158,7 @@ void main() {
     );
   });
 
-  test('maps only Rust-projected encrypted rooms into chat entities', () async {
+  test('maps encrypted and business rooms into chat entities', () async {
     // MATRIX_SPACES_ROOMS_CONTRACT
     bridge.rooms = const <RustMatrixEncryptedRoom>[
       RustMatrixEncryptedRoom(
@@ -171,7 +171,7 @@ void main() {
         roomId: '!general:api.weave.test',
         title: 'General',
         unreadCount: 2,
-        encrypted: true,
+        encrypted: false,
       ),
     ];
 
@@ -181,17 +181,14 @@ void main() {
       'General',
       'Quiet',
     ]);
-    expect(
-      conversations.first.previewType,
-      ChatConversationPreviewType.encrypted,
-    );
+    expect(conversations.first.previewType, ChatConversationPreviewType.none);
     expect(conversations.first.previewText, isNull);
     expect(conversations.first.unreadCount, 2);
     expect(cryptoSession.interactiveValues, <bool>[true]);
   });
 
   test(
-    'creates an encrypted conversation through the native Rust bridge',
+    'creates a business conversation through the native Rust bridge',
     () async {
       final conversation = await repository().createConversation(
         title: '  Release planning  ',
@@ -204,7 +201,7 @@ void main() {
       });
       expect(conversation.id, '!created:api.weave.test');
       expect(conversation.title, 'Release planning');
-      expect(conversation.previewType, ChatConversationPreviewType.encrypted);
+      expect(conversation.previewType, ChatConversationPreviewType.none);
     },
   );
 
@@ -277,6 +274,24 @@ void main() {
     expect(timeline.messages.single.text, 'decrypted only in Rust');
     expect(timeline.messages.single.isMine, isTrue);
     expect(cryptoSession.synchronizeValues, <bool>[false, false, false]);
+  });
+
+  test('business-room plaintext is presented as ordinary chat text', () async {
+    const roomId = '!business:api.weave.test';
+    bridge.messages[roomId] = const <RustMatrixMessageProjection>[
+      RustMatrixMessageProjection(
+        eventId: r'$plain:api.weave.test',
+        sender: '@user:api.weave.test',
+        originServerTimestamp: 1778244300000,
+        body: 'Business update',
+        contentType: 'text',
+      ),
+    ];
+
+    final timeline = await repository().loadRoomTimeline(roomId);
+
+    expect(timeline.messages.single.contentType, ChatMessageContentType.text);
+    expect(timeline.messages.single.text, 'Business update');
   });
 
   test(
@@ -418,8 +433,7 @@ void main() {
     );
   });
 
-  test('an unencrypted room cannot downgrade the E2EE client path', () async {
-    // MATRIX_E2EE_CLIENT_FAILS_CLOSED
+  test('a business room remains non-E2EE after native sync', () async {
     bridge.rooms = const <RustMatrixEncryptedRoom>[
       RustMatrixEncryptedRoom(
         roomId: '!legacy:api.weave.test',
@@ -431,10 +445,7 @@ void main() {
 
     final conversations = await repository().loadConversations();
 
-    expect(
-      conversations.single.previewType,
-      ChatConversationPreviewType.unsupported,
-    );
+    expect(conversations.single.previewType, ChatConversationPreviewType.none);
     expect(conversations.single.previewText, isNull);
   });
 }

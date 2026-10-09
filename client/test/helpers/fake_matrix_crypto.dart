@@ -226,12 +226,12 @@ class FakeRustMatrixCoreBridge extends RustMatrixCoreBridge {
   }
 
   @override
-  Future<List<RustMatrixEncryptedRoom>> loadEncryptedRooms({
+  Future<List<RustMatrixEncryptedRoom>> loadRooms({
     required String profileKey,
   }) async => rooms;
 
   @override
-  Future<RustMatrixEncryptedRoom> createEncryptedRoom({
+  Future<RustMatrixEncryptedRoom> createBusinessRoom({
     required String profileKey,
     required String title,
   }) async {
@@ -243,19 +243,19 @@ class FakeRustMatrixCoreBridge extends RustMatrixCoreBridge {
       roomId: '!created:api.weave.test',
       title: title,
       unreadCount: 0,
-      encrypted: true,
+      encrypted: false,
     );
   }
 
   @override
-  Future<List<RustMatrixMessageProjection>> loadEncryptedRoomMessages({
+  Future<List<RustMatrixMessageProjection>> loadRoomMessages({
     required String profileKey,
     required String roomId,
     int limit = 100,
   }) async => messages[roomId] ?? const <RustMatrixMessageProjection>[];
 
   @override
-  Future<String> sendEncryptedText({
+  Future<String> sendText({
     required String profileKey,
     required String roomId,
     required String body,

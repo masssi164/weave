@@ -119,6 +119,14 @@ Future<String> matrixCreateEncryptedRoom({
   title: title,
 );
 
+Future<String> matrixCreateBusinessRoom({
+  required String profileKey,
+  required String title,
+}) => RustLib.instance.api.crateFrbApiMatrixCreateBusinessRoom(
+  profileKey: profileKey,
+  title: title,
+);
+
 Future<String> matrixRoomMessages({
   required String profileKey,
   required String roomId,

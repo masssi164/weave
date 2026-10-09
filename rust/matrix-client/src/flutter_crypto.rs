@@ -1306,35 +1306,17 @@ async fn complete_sync_cycle_under_gate(
 ) -> Result<CompletedSyncCycle, String> {
     let (client, since) = client_and_sync_cursor(profile_key)?;
     let settings = sync_settings(timeout, since.as_deref());
-    let mut response = client
+    let response = client
         .sync_once(settings)
         .await
         .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
     record_to_device_diagnostics(profile_key, &response.to_device)?;
     remember_olm_recovery_rotation(&client, &response.to_device).await?;
     reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
-    let (mut enabled_rooms, mut converged_rooms) =
-        converge_joined_room_security(profile_key, &client).await?;
-    if enabled_rooms > 0 {
-        let next_batch = response.next_batch.clone();
-        response = client
-            .sync_once(sync_settings(
-                Duration::from_secs(0),
-                Some(next_batch.as_str()),
-            ))
-            .await
-            .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
-        record_to_device_diagnostics(profile_key, &response.to_device)?;
-        remember_olm_recovery_rotation(&client, &response.to_device).await?;
-        reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
-        let (newly_enabled_rooms, newly_converged_rooms) =
-            converge_joined_room_security(profile_key, &client).await?;
-        enabled_rooms = enabled_rooms.saturating_add(newly_enabled_rooms);
-        converged_rooms = converged_rooms.max(newly_converged_rooms);
-    }
+    let converged_rooms = converge_joined_room_security(profile_key, &client).await?;
     let completed = CompletedSyncCycle {
         next_batch: response.next_batch,
-        enabled_rooms,
+        enabled_rooms: 0,
         converged_rooms,
     };
     remember_sync_cursor(profile_key, completed.next_batch.clone())?;
@@ -1544,11 +1526,7 @@ fn sync_settings(timeout: Duration, since: Option<&str>) -> SyncSettings {
     }
 }
 
-async fn converge_joined_room_security(
-    profile_key: &str,
-    client: &Client,
-) -> Result<(u64, u64), String> {
-    let mut enabled_rooms = 0_u64;
+async fn converge_joined_room_security(profile_key: &str, client: &Client) -> Result<u64, String> {
     let mut converged_rooms = 0_u64;
     for room in client.joined_rooms() {
         let encryption = room
@@ -1556,10 +1534,8 @@ async fn converge_joined_room_security(
             .await
             .map_err(|_| "M_WEAVE_E2EE_ROOM_STATE".to_string())?;
         if !encryption.is_encrypted() {
-            room.enable_encryption()
-                .await
-                .map_err(|_| "M_WEAVE_E2EE_ENABLE_ROOM".to_string())?;
-            enabled_rooms += 1;
+            // Room policy is owned by Weave. Sync must never change a
+            // business room into an encrypted room as a side effect.
             continue;
         }
 
@@ -1586,7 +1562,7 @@ async fn converge_joined_room_security(
             Err(code) => return Err(code),
         }
     }
-    Ok((enabled_rooms, converged_rooms))
+    Ok(converged_rooms)
 }
 
 fn is_conversation_scoped_sync_security_error(code: &str) -> bool {
@@ -1608,10 +1584,18 @@ pub async fn rooms(profile_key: String) -> String {
 }
 
 pub async fn create_encrypted_room(profile_key: String, title: String) -> String {
-    json_result(create_encrypted_room_inner(&profile_key, &title).await)
+    json_result(create_room_inner(&profile_key, &title, true).await)
 }
 
-async fn create_encrypted_room_inner(profile_key: &str, title: &str) -> Result<Value, String> {
+pub async fn create_business_room(profile_key: String, title: String) -> String {
+    json_result(create_room_inner(&profile_key, &title, false).await)
+}
+
+async fn create_room_inner(
+    profile_key: &str,
+    title: &str,
+    encrypted: bool,
+) -> Result<Value, String> {
     let title = title.trim();
     if title.is_empty() || title.chars().count() > 200 {
         return Err("M_INVALID_PARAM".to_string());
@@ -1623,10 +1607,12 @@ async fn create_encrypted_room_inner(profile_key: &str, title: &str) -> Result<V
         let mut request = CreateRoomRequest::new();
         request.name = Some(title.to_owned());
         request.preset = Some(RoomPreset::PrivateChat);
-        request.initial_state = vec![InitialStateEvent::with_empty_state_key(
-            RoomEncryptionEventContent::with_recommended_defaults(),
-        )
-        .to_raw_any()];
+        if encrypted {
+            request.initial_state = vec![InitialStateEvent::with_empty_state_key(
+                RoomEncryptionEventContent::with_recommended_defaults(),
+            )
+            .to_raw_any()];
+        }
         client
             .create_room(request)
             .await
@@ -1644,7 +1630,7 @@ async fn create_encrypted_room_inner(profile_key: &str, title: &str) -> Result<V
     Ok(json!({
         "roomId": room_id.to_string(),
         "title": title,
-        "encrypted": true,
+        "encrypted": encrypted,
     }))
 }
 
@@ -1696,14 +1682,11 @@ async fn room_messages_inner(
     let room = client
         .get_room(&room_id)
         .ok_or_else(|| "M_NOT_FOUND".to_string())?;
-    if !room
+    let encrypted = room
         .latest_encryption_state()
         .await
         .map_err(|_| "M_WEAVE_E2EE_ROOM_STATE".to_string())?
-        .is_encrypted()
-    {
-        return Err("M_WEAVE_E2EE_REQUIRED".to_string());
-    }
+        .is_encrypted();
 
     let mut options = MessagesOptions::backward();
     options.limit =
@@ -1722,7 +1705,7 @@ async fn room_messages_inner(
     let mut messages = response
         .chunk
         .iter()
-        .filter_map(project_timeline_event)
+        .filter_map(|event| project_timeline_event(event, encrypted))
         .collect::<Vec<_>>();
     messages.reverse();
     Ok(json!({
@@ -1768,17 +1751,21 @@ async fn send_text_inner(profile_key: &str, room_id: &str, body: &str) -> Result
     let room = client
         .get_room(&room_id)
         .ok_or_else(|| "M_NOT_FOUND".to_string())?;
-    if !room
+    let encrypted = room
         .latest_encryption_state()
         .await
         .map_err(|_| "M_WEAVE_E2EE_ROOM_STATE".to_string())?
-        .is_encrypted()
-    {
-        return Err("M_WEAVE_E2EE_REQUIRED".to_string());
-    }
-    refresh_active_member_device_keys(profile_key, &client, &room, RoomSecurityRefresh::PreSend)
+        .is_encrypted();
+    if encrypted {
+        refresh_active_member_device_keys(
+            profile_key,
+            &client,
+            &room,
+            RoomSecurityRefresh::PreSend,
+        )
         .await?;
-    let rotate_after_olm_recovery = olm_recovery_rotation_pending(&client).await?;
+    }
+    let rotate_after_olm_recovery = encrypted && olm_recovery_rotation_pending(&client).await?;
     if rotate_after_olm_recovery {
         // A newly-established Olm channel does not invalidate the SDK's
         // existing outbound Megolm sharing record. Rotate exactly once after
@@ -2507,8 +2494,8 @@ fn verification_json(profile_key: &str) -> Result<Value, String> {
     Ok(json!({ "phase": "none" }))
 }
 
-fn project_timeline_event(event: &TimelineEvent) -> Option<Value> {
-    if event.encryption_info().is_none() {
+fn project_timeline_event(event: &TimelineEvent, encrypted_room: bool) -> Option<Value> {
+    if encrypted_room != event.encryption_info().is_some() {
         return None;
     }
     let raw = serde_json::to_value(event.raw()).ok()?;
@@ -2521,7 +2508,7 @@ fn project_timeline_event(event: &TimelineEvent) -> Option<Value> {
         "sender": event.sender().map(|value| value.to_string()).unwrap_or_default(),
         "originServerTs": raw.get("origin_server_ts").and_then(Value::as_u64).unwrap_or_default(),
         "body": body,
-        "contentType": "encryptedText",
+        "contentType": if encrypted_room { "encryptedText" } else { "text" },
     }))
 }
 
