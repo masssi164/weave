@@ -36,6 +36,14 @@ is selected. The product and Matrix mutation journeys also require the
 disposable-stack flag before they can run. A native app build, successful VM
 attachment, or all-skipped run is never reported as product acceptance.
 
+An independent native fixture test, `integration_test/shell_navigation_e2e_test.dart`,
+then ran on macOS. Its first run exposed a stale calendar test expectation:
+the fixture advertised no create right, while the test expected an enabled
+create action. The fixture now advertises the right and checks the actual
+localized button is enabled. Both native fixture tests passed. Their
+`NATIVE_SHELL_UI_RESULT` marker records `platform=macos` and
+`evidenceMode=fixture-ui`; it is not OIDC, provider, or product acceptance.
+
 ## Authentication automation boundary
 
 The Flutter test taps the actual Weave sign-in control. Production
@@ -64,7 +72,7 @@ production `WeaveApp`, AppAuth session repository, generated User API backed
 Files and Calendar repositories, and native Rust/Matrix SDK. The product case
 now asserts Files upload/list/download bytes and stable ID after session
 reconstruction; Calendar agenda/create/read/update/delete; business-room
-Matrix send/read and device retention; refresh, app state reconstruction,
+Matrix send/read and device retention; refresh, in-process app state reconstruction,
 logout, and denial of Files, Calendar, and Matrix after logout. It requires a
 disposable stack because it mutates provider data. These assertions are **test
 implementation only** until a native run actually completes them.
@@ -103,6 +111,14 @@ disposable-stack and endpoint defines, emit `NATIVE_PRODUCT_SIGN_IN_RESULT`,
 and exit zero. CI must require that observed result; skipped tests, manual
 interaction, and backend-only markers do not satisfy it.
 
+Native fixture smoke, which uses in-memory identities and repositories:
+
+```sh
+cd client
+PATH="$PWD/tool/native_macos_open:$PATH" \
+  flutter test integration_test/shell_navigation_e2e_test.dart -d macos
+```
+
 ## Remaining gates
 
 - Implement and execute a macOS driver for the actual
@@ -112,8 +128,9 @@ interaction, and backend-only markers do not satisfy it.
   including trusted CA and local host routing, and run the journey on one exact
   candidate in CI with cleanup and sanitized evidence.
 - Exercise server-side revocation, wrong-account and cross-organization denial,
-  and recoverable downstream-session loss in that native lane. Logout denial
-  alone does not prove revocation.
+  recoverable downstream-session loss, and a real process restart in that native
+  lane. Logout denial alone does not prove revocation; rebuilding `WeaveApp` in
+  the same process does not prove process restart.
 - Keep iOS and Android acceptance unclaimed. No iOS simulator is provisioned on
   the current host, and the Android SDK is absent; macOS evidence cannot replace
   platform-specific tests.

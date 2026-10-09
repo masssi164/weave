@@ -313,7 +313,7 @@ void main() {
           'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed login=single '
           'files=generated-upload-read calendar=generated-crud matrix=native '
           'businessRoomSendRead=true '
-          'refresh=true sessionReopen=true appRestart=true '
+          'refresh=true sessionReopen=true appStateRecreated=true '
           'logoutDenied=true supportSafe=true',
         );
       } finally {
