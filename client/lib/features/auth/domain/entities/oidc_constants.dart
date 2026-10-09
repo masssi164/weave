@@ -8,6 +8,4 @@ const oidcDefaultScopes = <String>[
   'openid',
   'profile',
   'email',
-  'offline_access',
-  oidcWorkspaceScope,
 ];

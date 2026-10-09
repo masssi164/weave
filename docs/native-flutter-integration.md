@@ -179,6 +179,21 @@ accepted, absent, or inaccessible. Flutter's callback and product assertions
 remain the acceptance oracle. The next run also records sanitized AppAuth SDK
 error codes so the remaining browser failure can be classified.
 
+Candidate `21d6452550` made the system consent action reproducible
+(`NATIVE_MACOS_CONSENT_RESULT status=accepted`) and exposed the first product
+defect. AppAuth returned OAuth authorization code `-6`; the disposable
+Keycloak log independently recorded `LOGIN_ERROR` with invalid requested
+scopes `openid profile email offline_access weave:workspace`. The accepted
+identity specification defines `weave:workspace` as a non-requestable default
+client scope, and the already passing Java browser journey requests only
+`openid profile email`. The native Flutter client now requests that same
+three-scope set. Keycloak must still put the exact `weave:workspace` scope in
+the issued token, and the native journey must prove refresh and session
+restoration using its real refresh token. The OIDC service test now asserts
+the literal requested scope set so the generated client cannot act as its own
+oracle. This correction has passed the focused Flutter test and static
+analysis; the complete native run remains unverified.
+
 ## Existing executable coverage
 
 `client/integration_test/system_browser_auth_e2e_test.dart` exercises the
