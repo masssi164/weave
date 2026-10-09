@@ -43,9 +43,11 @@ create action. The fixture now advertises the right and checks the actual
 localized button is enabled. Both native fixture tests passed. Their
 `NATIVE_SHELL_UI_RESULT` marker records `platform=macos` and
 `evidenceMode=fixture-ui`; it is not OIDC, provider, or product acceptance.
-The protected `Full Compose E2E` job now runs this native fixture test with
-Flutter 3.41.6. Its required status enforces native build and fixture
-navigation, while the native product journey is still unenforced.
+The `Native macOS Flutter fixture` job in the live-stack workflow runs this
+test with Flutter 3.41.6 on the same bounded runner. It reports a separate
+status so a Compose capacity failure cannot hide native execution. This job
+enforces native build and fixture navigation within its lane; branch-protection
+status and the native product journey are separate, still unverified gates.
 
 ## Authentication automation boundary
 
@@ -97,9 +99,9 @@ test CA and host routing for AppAuth, and a driver that operates the actual
 macOS system authentication browser and returns through AppAuth. It must run
 `make -C client physical-device-product-e2e` with `WEAVE_PHYSICAL_DEVICE_ID=macos`
 and the stack's endpoint variables, capture sanitized pass/fail markers, and
-tear down the stack. The existing `Full Compose E2E` job runs backend/Chromium
-and Matrix protocol evidence plus the native fixture case; it does **not** run
-the real native AppAuth/product case.
+tear down the stack. The `Full Compose E2E` job runs backend/Chromium and
+Matrix protocol evidence. The separate native job runs fixture UI only. Neither
+job currently runs the real native AppAuth/product case.
 
 Current reproducible diagnostic command:
 

@@ -19,6 +19,42 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  native-macos-flutter:
+    name: Native macOS Flutter fixture
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 25
+    env:
+      EXPECTED_RUNNER_NAME: weave-live-mac-mini
+      WEAVE_CANDIDATE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Verify bounded runner
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]]
+
+      - name: Check out exact source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ env.WEAVE_CANDIDATE_COMMIT }}
+          fetch-depth: 0
+
+      - name: Set up pinned Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+          cache: true
+
+      - name: Run native fixture integration
+        working-directory: client
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$WEAVE_CANDIDATE_COMMIT" ]]
+          flutter pub get --enforce-lockfile
+          PATH="$PWD/tool/native_macos_open:$PATH" \
+            flutter test integration_test/shell_navigation_e2e_test.dart \
+              -d macos --no-pub
+
   full-compose-e2e:
     name: Full Compose E2E
     runs-on: [self-hosted, macOS, ARM64, weave-live]
@@ -100,22 +136,6 @@ jobs:
       - name: Run full isolated product flow
         working-directory: weave
         run: ./gradlew --no-daemon specCorpusConformance testApp
-
-      - name: Set up pinned Flutter for native macOS fixture
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        with:
-          flutter-version: '3.41.6'
-          channel: stable
-          cache: true
-
-      - name: Run native macOS fixture integration
-        working-directory: weave/client
-        run: |
-          set -euo pipefail
-          flutter pub get --enforce-lockfile
-          PATH="$PWD/tool/native_macos_open:$PATH" \
-            flutter test integration_test/shell_navigation_e2e_test.dart \
-              -d macos --no-pub
 
       - name: Verify support-safe E2E diagnostics
         if: always()
