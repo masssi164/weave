@@ -62,7 +62,8 @@ final class CollaborationJourney {
       OidcBrowserJourney.TokenSet outsider,
       JsonNode authorClaims,
       JsonNode collaboratorClaims,
-      JsonNode outsiderClaims) {
+      JsonNode outsiderClaims,
+      String openClawMemberToken) {
     if (pass < 1 || pass > 2) {
       throw new IllegalArgumentException("collaboration pass must be one or two");
     }
@@ -87,9 +88,12 @@ final class CollaborationJourney {
       }
       MatrixIdentity collaboratorMatrix = matrixIdentity(collaboratorIdentity, pass);
       matrixIdentity(outsiderIdentity, pass);
-      MatrixIdentity authorMatrix = matrixIdentity(authorIdentity, pass);
+      matrixIdentity(authorIdentity, pass);
       if (pass == 1 && Boolean.getBoolean("weave.e2e.release-mcp")) {
-        proveOpenClawBusinessRoom(authorIdentity, authorMatrix.userId(), pass);
+        if (openClawMemberToken == null || openClawMemberToken.isBlank()) {
+          throw new ProductFlowException("OpenClaw normal member session is unavailable");
+        }
+        proveOpenClawBusinessRoom(openClawMemberToken, collaboratorMatrix.userId());
       }
       if (pass == 2) {
         restartContinuityVerified =
@@ -315,7 +319,7 @@ final class CollaborationJourney {
     return new MatrixIdentity(userId, deviceId);
   }
 
-  private void proveOpenClawBusinessRoom(Identity member, String userId, int pass) {
+  private void proveOpenClawBusinessRoom(String memberToken, String userId) {
     String script = System.getProperty("weave.e2e.openclaw-matrix-script", "");
     if (script.isBlank() || !Path.of(script).isAbsolute()
         || !Files.isRegularFile(Path.of(script))) {
@@ -326,7 +330,7 @@ final class CollaborationJourney {
     JsonNode created = http.json(
         "create authorized non-encrypted business room", "POST",
         environment.api("/_matrix/client/v3/createRoom"),
-        bearer(member.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(member.role(), pass))),
+        bearer(memberToken, Map.of()),
         request, Set.of(200));
     String roomId = created.path("room_id").asString();
     if (!roomId.matches("![^:]{1,200}:[A-Za-z0-9.:-]+")) {
@@ -342,7 +346,7 @@ final class CollaborationJourney {
           "--message", marker,
           "--ca", environment.caCertificate().toString(),
           "--private-root", environment.evidenceFile().getParent().toString());
-      builder.environment().put("WEAVE_MATRIX_MEMBER_TOKEN", member.token());
+      builder.environment().put("WEAVE_MATRIX_MEMBER_TOKEN", memberToken);
       Process process = builder.redirectErrorStream(true).start();
       if (!process.waitFor(PROCESS_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
         process.destroyForcibly();
@@ -362,7 +366,7 @@ final class CollaborationJourney {
         JsonNode messages = http.json(
             "independently read OpenClaw business-room event", "GET",
             environment.api("/_matrix/client/v3/rooms/" + encode(roomId) + "/messages?limit=100"),
-            bearer(member.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(member.role(), pass))),
+            bearer(memberToken, Map.of()),
             null, Set.of(200));
         for (JsonNode event : messages.path("chunk")) {
           if ("m.room.message".equals(event.path("type").asString())
@@ -381,7 +385,13 @@ final class CollaborationJourney {
     } catch (IOException failure) {
       throw new ProductFlowException("real OpenClaw Matrix proof could not start", failure);
     } finally {
-      leaveBestEffort(member, roomId, pass);
+      try {
+        http.json("leave OpenClaw business room", "POST",
+            environment.api("/_matrix/client/v3/rooms/" + encode(roomId) + "/leave"),
+            bearer(memberToken, Map.of()), http.mapper().createObjectNode(), Set.of(200));
+      } catch (RuntimeException ignored) {
+        // The disposable stack is still torn down after a failed proof.
+      }
     }
   }
 

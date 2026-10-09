@@ -249,6 +249,35 @@ public final class FreshProductFlow {
       spaces.verifyOwnerOnlyFileRelation(memberSession.accessToken(), ownerSession.accessToken(),
           generatedFilesProof.fileId());
 
+      String openClawMatrixMemberToken = null;
+      if (Boolean.getBoolean("weave.e2e.release-mcp")) {
+        OidcBrowserJourney.TokenSet openClawMatrixSession = browser.authorize(
+            "weave-app",
+            URI.create("com.massimotter.weave:/oauthredirect"),
+            List.of("openid", "profile", "email"),
+            memberEmail,
+            memberPassword,
+            "member-openclaw-matrix-device");
+        JsonNode openClawClaims = browser.jwtPayload(openClawMatrixSession.accessToken());
+        validateHumanWorkspaceToken(openClawClaims, "weave-app");
+        JsonNode primaryClaims = browser.jwtPayload(memberSession.accessToken());
+        String primarySessionId = primaryClaims.path("sid").asString();
+        if (primarySessionId.isBlank()) {
+          primarySessionId = primaryClaims.path("session_state").asString();
+        }
+        String openClawSessionId = openClawClaims.path("sid").asString();
+        if (openClawSessionId.isBlank()) {
+          openClawSessionId = openClawClaims.path("session_state").asString();
+        }
+        if (!memberSession.subject().equals(openClawMatrixSession.subject())
+            || primarySessionId.isBlank() || openClawSessionId.isBlank()
+            || primarySessionId.equals(openClawSessionId)) {
+          throw new ProductFlowException(
+              "OpenClaw Matrix needs a distinct normal member OIDC device session");
+        }
+        openClawMatrixMemberToken = openClawMatrixSession.accessToken();
+      }
+
       CollaborationJourney collaboration = new CollaborationJourney(environment, http);
       collaborationPasses.add(
           collaboration.runPass(
@@ -258,7 +287,8 @@ public final class FreshProductFlow {
               outsiderSession,
               browser.jwtPayload(ownerSession.accessToken()),
               browser.jwtPayload(memberSession.accessToken()),
-              browser.jwtPayload(outsiderSession.accessToken())));
+              browser.jwtPayload(outsiderSession.accessToken()),
+              openClawMatrixMemberToken));
       collaboration.restartCollaborationServices();
       browser.awaitIssuerTransportAfterRestart();
       ownerSession =
@@ -296,7 +326,8 @@ public final class FreshProductFlow {
               outsiderSession,
               browser.jwtPayload(ownerSession.accessToken()),
               browser.jwtPayload(memberSession.accessToken()),
-              browser.jwtPayload(outsiderSession.accessToken())));
+              browser.jwtPayload(outsiderSession.accessToken()),
+              null));
 
       adminSession =
           browser.authorize(
