@@ -105,6 +105,17 @@ its native callback completes. The retained `NativeAcceptance` XCUITest scheme
 is a browser driver; Flutter's existing integration test remains the product
 oracle.
 
+On exact candidate `7f7db0fe20`, the fresh stack, browser PKCE preparation,
+macOS Flutter build, Xcode test build, and XCTest fixture transfer all passed.
+Flutter launched and tapped sign-in. XCTest observed the disposable IdP URL and
+focused Safari, then the `safari.webViews.textFields` query did not return
+before the bounded driver timeout. Flutter's workspace assertion also failed.
+This does not prove a credential or callback defect. The next driver revision
+uses the IdP page's initial keyboard focus and sends account, Tab, password,
+and Return through XCTest without enumerating WebKit text-field descendants.
+The real Flutter callback and product assertions still determine success; a
+focus change or failed submission must fail the run.
+
 ## Existing executable coverage
 
 `client/integration_test/system_browser_auth_e2e_test.dart` exercises the

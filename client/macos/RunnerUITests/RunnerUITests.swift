@@ -55,25 +55,17 @@ final class RunnerUITests: XCTestCase {
     safari.activate()
     recordStage("browser-focused")
 
-    let username = safari.webViews.textFields.firstMatch
-    let password = safari.webViews.secureTextFields.firstMatch
-    XCTAssertTrue(username.waitForExistence(timeout: 15), "IdP account field unavailable")
-    XCTAssertTrue(password.waitForExistence(timeout: 15), "IdP password field unavailable")
-    recordStage("form-visible")
-    username.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
-    recordStage("account-focused")
-    username.typeText(fixture.email)
+    // AppAuth's system browser can expose the expected IdP URL while
+    // descendants(matching:) blocks in WebKit's accessibility bridge. The
+    // disposable IdP focuses its account field on load. Drive that native
+    // keyboard focus and let Flutter's callback assertion prove the result.
+    safari.typeText(fixture.email)
     recordStage("account-entered")
-    password.click()
+    safari.typeKey(XCUIKeyboardKey.tab, modifierFlags: [])
     recordStage("password-focused")
-    password.typeText(fixture.password)
+    safari.typeText(fixture.password)
     recordStage("password-entered")
-    let signIn = safari.webViews.buttons.matching(
-      NSPredicate(format: "label ==[c] 'Sign in' OR label ==[c] 'Anmelden'")
-    ).firstMatch
-    XCTAssertTrue(signIn.waitForExistence(timeout: 10), "IdP sign-in action unavailable")
-    recordStage("sign-in-visible")
-    signIn.click()
+    safari.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
     recordStage("form-submitted")
     XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 60),
                   "Native application did not return after authentication")
