@@ -218,6 +218,14 @@ app to be running and cancels only a window containing the disposable IdP host
 and Weave app name with one Cancel button. It was exercised locally and
 reported `NATIVE_STALE_CONSENT_RESULT status=cleared`; it does not authenticate
 or stand in for product evidence.
+Candidate `1184a0c07e` started the helper after the native app was visible and
+accepted the system consent, but failed `issuer-not-observed`: Accessibility
+still exposed only Safari's abandoned auth window for an earlier disposable
+port. The current run's issuer port never appeared, so no credential was
+entered. Pre-run cleanup now closes only a Safari window titled `Sign in to
+weave` that contains the disposable IdP host and port while no Weave app is
+running. The standalone cleanup returned `NATIVE_STALE_BROWSER_RESULT
+status=closed`; a full fresh AppAuth callback remains unverified.
 
 ## Existing executable coverage
 

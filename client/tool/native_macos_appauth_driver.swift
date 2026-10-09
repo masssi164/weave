@@ -74,7 +74,26 @@ if CommandLine.arguments.count == 2 && CommandLine.arguments[1] == "--clear-stal
       cleared = true
     }
   }
+  var staleBrowserClosed = false
+  for app in NSWorkspace.shared.runningApplications
+    where app.bundleIdentifier == "com.apple.Safari" {
+    let root = AXUIElementCreateApplication(app.processIdentifier)
+    for window in attribute(root, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
+      let title = attribute(window, kAXTitleAttribute) as? String ?? ""
+      guard title.hasSuffix("Sign in to weave"),
+            descendants(window).contains(where: {
+              textValues($0).contains { $0.contains("auth.weave.localhost:") }
+            }) else { continue }
+      guard let close = attribute(window, kAXCloseButtonAttribute),
+            CFGetTypeID(close) == AXUIElementGetTypeID(),
+            AXUIElementPerformAction(close as! AXUIElement, kAXPressAction as CFString) == .success else {
+        fail("stale-browser-close")
+      }
+      staleBrowserClosed = true
+    }
+  }
   print("NATIVE_STALE_CONSENT_RESULT status=\(cleared ? "cleared" : "absent")")
+  print("NATIVE_STALE_BROWSER_RESULT status=\(staleBrowserClosed ? "closed" : "absent")")
   exit(0)
 }
 

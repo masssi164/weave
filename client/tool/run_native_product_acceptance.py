@@ -158,13 +158,16 @@ def main() -> int:
         ["swift", str(DRIVER), "--clear-stale-consent"], cwd=CLIENT,
         capture_output=True, text=True, timeout=30,
     )
-    if cleanup.returncode or not re.search(
+    consent_marker = re.search(
         r"NATIVE_STALE_CONSENT_RESULT status=(cleared|absent)", cleanup.stdout
-    ):
+    )
+    browser_marker = re.search(
+        r"NATIVE_STALE_BROWSER_RESULT status=(closed|absent)", cleanup.stdout
+    )
+    if cleanup.returncode or not consent_marker or not browser_marker:
         raise RuntimeError("stale native AppAuth consent cleanup failed")
-    print(re.search(
-        r"NATIVE_STALE_CONSENT_RESULT status=(cleared|absent)", cleanup.stdout
-    ).group(0), flush=True)
+    print(consent_marker.group(0), flush=True)
+    print(browser_marker.group(0), flush=True)
     run_quiet(["flutter", "build", "macos", "--debug"], timeout=900)
     print("NATIVE_BUILD_PREPARATION_RESULT status=passed target=macos", flush=True)
 
