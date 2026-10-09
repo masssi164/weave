@@ -137,6 +137,7 @@ and returns through AppAuth. The optional local command is:
 
 ```sh
 python3 client/tool/setup_native_acceptance_ca.py --trust  # one-time macOS approval
+WEAVE_SPEC_CORPUS_ROOT=/absolute/path/to/pinned/weave-specs-worktree \
 WEAVE_TEST_APP_PUBLIC_DOMAIN=weave.localhost \
 WEAVE_TEST_APP_NATIVE_CA_ROOT="$HOME/.local/share/weave/native-acceptance-ca" \
 WEAVE_TEST_APP_NATIVE_RUNNER="$PWD/client/tool/run_native_product_acceptance.py" \
@@ -148,7 +149,14 @@ disposable stack. Its Java browser proof creates and admits the member before
 calling the native runner. The runner builds the macOS UI target, starts the
 existing Flutter product integration test, drives the native browser and
 requires both XCUITest and Flutter product markers to pass. The code path is
-implemented but **has not yet completed a live local run**. The `Full Compose
+implemented but **has not yet completed a live local run**. The local attempt
+at `9dc5c23d4a77` reached healthy Server/MCP and passed disposable Chromium
+activation and generated User Files/Calendar before the native XCUITest driver
+failed. A following exact attempt at `f871a964d1` reached the same native stage
+but Xcode timed out while a stale Weave app process from the prior attempt
+remained alive. The runner now terminates only orphaned apps from its checkout
+and records sanitized Flutter/XCTest milestones. These are diagnostic fixes,
+not native product acceptance evidence. The `Full Compose
 E2E` job runs backend/Chromium and Matrix protocol evidence. No CI job
 currently runs the real native AppAuth/product case.
 

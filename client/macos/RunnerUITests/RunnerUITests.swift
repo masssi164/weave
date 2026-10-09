@@ -12,9 +12,11 @@ final class RunnerUITests: XCTestCase {
 
   func testNativeAppAuthCallback() throws {
     let fixture = try readPrivateFixture()
+    recordStage("fixture-read")
     let app = XCUIApplication(bundleIdentifier: "com.example.weave")
     XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 180),
                   "Flutter's native test app did not start")
+    recordStage("app-window")
 
     // ASWebAuthenticationSession may first ask to share the browser session.
     // Only acknowledge the consent attached to the requesting Weave app.
@@ -24,6 +26,7 @@ final class RunnerUITests: XCTestCase {
     if continueButton.waitForExistence(timeout: 5) {
       continueButton.click()
     }
+    recordStage("browser-requested")
 
     let safari = XCUIApplication(bundleIdentifier: "com.apple.Safari")
     let deadline = Date().addingTimeInterval(180)
@@ -36,11 +39,13 @@ final class RunnerUITests: XCTestCase {
       Thread.sleep(forTimeInterval: 1)
     }
     XCTAssertTrue(issuerVisible, "The expected disposable IdP did not appear")
+    recordStage("issuer-visible")
 
     let username = safari.webViews.textFields.firstMatch
     let password = safari.webViews.secureTextFields.firstMatch
     XCTAssertTrue(username.waitForExistence(timeout: 15), "IdP account field unavailable")
     XCTAssertTrue(password.waitForExistence(timeout: 15), "IdP password field unavailable")
+    recordStage("form-visible")
     username.click()
     username.typeText(fixture.email)
     password.click()
@@ -50,8 +55,16 @@ final class RunnerUITests: XCTestCase {
     ).firstMatch
     XCTAssertTrue(signIn.waitForExistence(timeout: 10), "IdP sign-in action unavailable")
     signIn.click()
+    recordStage("form-submitted")
     XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 60),
                   "Native application did not return after authentication")
+    recordStage("callback-returned")
+  }
+
+  private func recordStage(_ stage: String) {
+    guard let path = Bundle(for: type(of: self))
+      .object(forInfoDictionaryKey: "WEAVE_NATIVE_FIXTURE_PATH") as? String else { return }
+    try? stage.write(toFile: path + ".stage", atomically: true, encoding: .utf8)
   }
 
   private func readPrivateFixture() throws -> LoginFixture {

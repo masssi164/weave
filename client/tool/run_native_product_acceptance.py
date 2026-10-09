@@ -12,9 +12,11 @@ import json
 import os
 import queue
 import shutil
+import signal
 import subprocess
 import tempfile
 import threading
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -60,7 +62,8 @@ def collect_flutter_output(process: subprocess.Popen[str], sink: queue.Queue[str
     for line in process.stdout:
         marker = next(
             (candidate for candidate in
-             ("NATIVE_PRODUCT_SIGN_IN_RESULT", "PHYSICAL_AUTH_SESSION_RESULT")
+             ("NATIVE_PRODUCT_SIGN_IN_RESULT", "PHYSICAL_AUTH_SESSION_RESULT",
+              "NATIVE_PRODUCT_STAGE")
              if candidate in line),
             None,
         )
@@ -75,6 +78,42 @@ def collect_flutter_output(process: subprocess.Popen[str], sink: queue.Queue[str
 def write_once(path: Path, payload: bytes) -> None:
     with path.open("wb", buffering=0) as output:
         output.write(payload)
+
+
+def stop_checkout_app() -> None:
+    """Remove only orphaned Flutter apps from this checkout's build output."""
+    executable = str((CLIENT / "build/macos/Build/Products/Debug/weave.app"
+                      / "Contents/MacOS/weave").resolve())
+    process_list = subprocess.run(
+        ["ps", "-axo", "pid=,command="], capture_output=True, text=True,
+        check=True, timeout=10,
+    )
+    owned = []
+    for line in process_list.stdout.splitlines():
+        fields = line.strip().split(maxsplit=2)
+        if len(fields) >= 2 and fields[1] == executable and fields[0].isdigit():
+            owned.append(int(fields[0]))
+    for pid in owned:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    for _ in range(30):
+        if not any(_process_exists(pid) for pid in owned):
+            break
+        time.sleep(0.1)
+    if any(_process_exists(pid) for pid in owned):
+        raise RuntimeError("checkout native app did not stop")
+    if owned:
+        print("NATIVE_APP_PROCESS_CLEANUP status=passed scope=checkout", flush=True)
+
+
+def _process_exists(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
 
 
 def report_xcode_result(bundle: Path) -> None:
@@ -116,6 +155,21 @@ def report_xcode_result(bundle: Path) -> None:
         print("NATIVE_XCTEST_DIAGNOSIS stage=result-unavailable", flush=True)
 
 
+def report_live_xctest_stage(pipe: Path) -> None:
+    stage_file = Path(str(pipe) + ".stage")
+    allowed = {"fixture-read", "app-window", "browser-requested",
+               "issuer-visible", "form-visible", "form-submitted",
+               "callback-returned"}
+    try:
+        stage = stage_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        stage = "not-started"
+    print(
+        "NATIVE_XCTEST_LAST_STAGE stage="
+        + (stage if stage in allowed else "unrecognized"), flush=True,
+    )
+
+
 def main() -> int:
     email = require("WEAVE_NATIVE_MEMBER_EMAIL")
     password = require("WEAVE_NATIVE_MEMBER_PASSWORD")
@@ -136,6 +190,7 @@ def main() -> int:
     if trusted.returncode:
         raise RuntimeError("the dedicated native test CA is not trusted by macOS")
     print("NATIVE_TEST_CA_RESULT status=trusted scope=user-ssl-preconfigured", flush=True)
+    stop_checkout_app()
     with tempfile.TemporaryDirectory(prefix="weave-native-acceptance-") as temporary:
         root = Path(temporary)
         pipe = root / "member.pipe"
@@ -150,7 +205,8 @@ def main() -> int:
         try:
             run_quiet(
                 xcode_command("build-for-testing", derived)
-                + [f"WEAVE_NATIVE_FIXTURE_PATH={pipe}"], timeout=300,
+                + [f"WEAVE_NATIVE_FIXTURE_PATH={pipe}",
+                   "FLUTTER_TARGET=lib/main.dart", "DART_DEFINES="], timeout=300,
             )
             env = os.environ.copy()
             env.update({
@@ -177,17 +233,30 @@ def main() -> int:
             writer = threading.Thread(target=write_once, args=(pipe, fixture), daemon=True)
             writer.start()
             try:
-                driver = subprocess.run(
-                    xcode_command("test-without-building", derived, result),
-                    cwd=CLIENT, capture_output=True, text=True, timeout=420,
-                )
+                try:
+                    driver = subprocess.run(
+                        xcode_command("test-without-building", derived, result),
+                        cwd=CLIENT, capture_output=True, text=True, timeout=420,
+                    )
+                except subprocess.TimeoutExpired:
+                    print("NATIVE_APP_AUTH_DRIVER_RESULT status=failed reason=timeout", flush=True)
+                    report_xcode_result(result)
+                    report_live_xctest_stage(pipe)
+                    while not markers.empty():
+                        print(markers.get_nowait(), flush=True)
+                    print(f"NATIVE_FLUTTER_PROCESS_RESULT running={flutter.poll() is None}", flush=True)
+                    raise
                 print(
                     "NATIVE_APP_AUTH_DRIVER_RESULT status="
                     + ("passed" if driver.returncode == 0 else "failed"),
                     flush=True,
                 )
                 report_xcode_result(result)
+                report_live_xctest_stage(pipe)
                 if driver.returncode:
+                    while not markers.empty():
+                        print(markers.get_nowait(), flush=True)
+                    print(f"NATIVE_FLUTTER_PROCESS_RESULT running={flutter.poll() is None}", flush=True)
                     raise RuntimeError("native AppAuth UI driver failed")
                 flutter_status = flutter.wait(timeout=900)
                 reader.join(timeout=2)
@@ -210,6 +279,7 @@ def main() -> int:
                     except subprocess.TimeoutExpired:
                         flutter.kill()
                         flutter.wait(timeout=10)
+                stop_checkout_app()
         finally:
             # XCTest can put typed form values in its result bundle; the
             # temporary directory and all raw runner output are discarded.

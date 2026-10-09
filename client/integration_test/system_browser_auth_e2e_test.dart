@@ -735,6 +735,7 @@ Future<ProviderContainer> _openWeaveSession(
     ValueKey('weave.auth.sign-in'),
     ValueKey('weave.workspace.home'),
   ], timeout: const Duration(minutes: 1));
+  debugPrint('NATIVE_PRODUCT_STAGE phase=shell-ready');
   if (requireFreshSignIn) {
     expect(
       find.byKey(const ValueKey('weave.auth.sign-in')),
@@ -754,6 +755,7 @@ Future<ProviderContainer> _openWeaveSession(
   if (find.byKey(const ValueKey('weave.auth.sign-in')).evaluate().isNotEmpty) {
     await tester.tap(find.byKey(const ValueKey('weave.auth.sign-in')));
     await tester.pump();
+    debugPrint('NATIVE_PRODUCT_STAGE phase=appauth-requested');
   }
   // The production FlutterAppAuthOidcClient owns the system-browser transition.
   // The native acceptance runner must complete the IdP interaction without
@@ -763,6 +765,7 @@ Future<ProviderContainer> _openWeaveSession(
     const ValueKey('weave.workspace.home'),
     timeout: const Duration(minutes: 5),
   );
+  debugPrint('NATIVE_PRODUCT_STAGE phase=workspace-ready');
   return ProviderScope.containerOf(tester.element(find.byType(WeaveApp)));
 }
 
