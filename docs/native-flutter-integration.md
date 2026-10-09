@@ -125,6 +125,17 @@ keyboard events. An unverified authority or a foreground change fails before
 credential entry. The real Flutter callback and product assertions still
 determine success; a focus change or failed submission must fail the run.
 
+The installed `flutter_appauth` 12.0.0 macOS source confirms the mechanism:
+`AppAuthMacOSAuthorization` passes `NSApplication.keyWindow` to
+`OIDExternalUserAgentMac`, which starts `ASWebAuthenticationSession` with that
+window as its presentation anchor. Safari WebDriver's tab inventory and a
+standalone Safari XCUITest target are therefore insufficient to identify the
+native AppAuth sheet. Candidate `f37e238909` still did not expose the full
+disposable authority in the foreground application's accessibility tree. The
+driver now records only bounded, non-secret host, consent, and field-presence
+booleans, while Flutter reports its auth failure category separately. No
+callback or native product claim follows from those diagnostics.
+
 ## Existing executable coverage
 
 `client/integration_test/system_browser_auth_e2e_test.dart` exercises the

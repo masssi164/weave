@@ -39,15 +39,27 @@ final class RunnerUITests: XCTestCase {
     ])
     let deadline = Date().addingTimeInterval(180)
     var authOwner: String?
+    var observedHost = false
+    var observedConsent = false
+    var observedFields = false
+    var lastOwner = "none"
     while Date() < deadline {
       if let owner = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
-         permittedOwners.contains(owner),
-         XCUIApplication(bundleIdentifier: owner).debugDescription.contains(fixture.issuerAuthority) {
-        authOwner = owner
-        break
+         permittedOwners.contains(owner) {
+        lastOwner = owner
+        let description = XCUIApplication(bundleIdentifier: owner).debugDescription
+        observedHost = observedHost || description.contains(fixture.issuerHost)
+        observedConsent = observedConsent ||
+          description.contains("Continue") || description.contains("Fortfahren")
+        observedFields = observedFields || description.contains("SecureTextField")
+        if description.contains(fixture.issuerAuthority) {
+          authOwner = owner
+          break
+        }
       }
       Thread.sleep(forTimeInterval: 1)
     }
+    print("NATIVE_XCTEST_AUTH_DISCOVERY owner=\(lastOwner) host=\(observedHost) consent=\(observedConsent) fields=\(observedFields)")
     guard let authOwner else {
       XCTFail("The expected disposable IdP did not appear in the foreground app")
       throw NativeAuthError.idpUnavailable

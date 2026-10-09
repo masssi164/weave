@@ -191,6 +191,16 @@ def report_xcode_stream_stage(*streams: str | bytes | None) -> None:
     )
     if foregrounds:
         print("NATIVE_XCTEST_LAST_FOREGROUND bundle=" + foregrounds[-1], flush=True)
+    discoveries = re.findall(
+        r"NATIVE_XCTEST_AUTH_DISCOVERY owner=([A-Za-z0-9.-]{1,80}) "
+        r"host=(true|false) consent=(true|false) fields=(true|false)", output
+    )
+    if discoveries:
+        owner, host, consent, fields = discoveries[-1]
+        print(
+            f"NATIVE_XCTEST_AUTH_DISCOVERY owner={owner} host={host} "
+            f"consent={consent} fields={fields}", flush=True,
+        )
 
 
 def main() -> int:
