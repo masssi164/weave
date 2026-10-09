@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "infra/weave-workspace/scripts"
 sys.path.insert(0, str(SCRIPTS))
+sys.path.insert(0, str(SCRIPTS.parent / "keycloak"))
 import oauth_probe  # noqa: E402
 import verify_keycloak_dcr_contract as dcr  # noqa: E402
 
