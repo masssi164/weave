@@ -85,6 +85,16 @@ Weave-window probe, a Safari-window probe, and a private one-use pipe probe
 establishes a permission gate for Xcode's UI runner as the cause of the
 automation-mode timeout.
 
+A new checkout exposed another prerequisite: Xcode `build-for-testing` failed
+before XCTest because Flutter's generated `FlutterInputs.xcfilelist` and
+`FlutterOutputs.xcfilelist` and CocoaPods support file lists did not exist.
+`flutter pub get` alone did not create all of them. `flutter build macos
+--debug` prepared the native project, including the Rust Matrix dependency;
+the same Xcode test build then passed. The native runner now performs that
+preparation itself before starting XCTest and records a separate preparation
+and Xcode build result. This is a checkout setup failure, not an AppAuth or
+macOS activation result.
+
 The first Safari form probe timed out while sending a URL through Safari's
 application element. Its XCTest activity log identified that exact keystroke
 operation. Opening a local HTTP form with `NSWorkspace` and then targeting its

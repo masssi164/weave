@@ -209,6 +209,11 @@ def main() -> int:
         raise RuntimeError("the dedicated native test CA is not trusted by macOS")
     print("NATIVE_TEST_CA_RESULT status=trusted scope=user-ssl-preconfigured", flush=True)
     stop_checkout_app()
+    # Xcode's Flutter Assemble and CocoaPods file lists do not exist in a
+    # fresh checkout. Prepare them before starting the UI runner; the later
+    # Flutter integration-test invocation still builds its own test app.
+    run_quiet(["flutter", "build", "macos", "--debug"], timeout=900)
+    print("NATIVE_BUILD_PREPARATION_RESULT status=passed target=macos", flush=True)
     with tempfile.TemporaryDirectory(prefix="weave-native-acceptance-") as temporary:
         root = Path(temporary)
         pipe = root / "member.pipe"
@@ -227,6 +232,7 @@ def main() -> int:
                 + [f"WEAVE_NATIVE_FIXTURE_PATH={pipe}",
                    "FLUTTER_TARGET=lib/main.dart", "DART_DEFINES="], timeout=300,
             )
+            print("NATIVE_XCTEST_BUILD_RESULT status=passed", flush=True)
             env = os.environ.copy()
             env.update({
                 "WEAVE_PHYSICAL_DEVICE_ID": "macos",
