@@ -8,6 +8,7 @@ final class RunnerUITests: XCTestCase {
     let email: String
     let password: String
     let issuerHost: String
+    let issuerAuthority: String
   }
 
   func testAutomationStartupProbe() {
@@ -43,7 +44,7 @@ final class RunnerUITests: XCTestCase {
     let deadline = Date().addingTimeInterval(180)
     var issuerVisible = false
     while Date() < deadline {
-      if safari.exists && safari.debugDescription.contains(fixture.issuerHost) {
+      if safari.exists && safari.debugDescription.contains(fixture.issuerAuthority) {
         issuerVisible = true
         break
       }
@@ -51,6 +52,8 @@ final class RunnerUITests: XCTestCase {
     }
     XCTAssertTrue(issuerVisible, "The expected disposable IdP did not appear")
     recordStage("issuer-visible")
+    safari.activate()
+    recordStage("browser-focused")
 
     let username = safari.webViews.textFields.firstMatch
     let password = safari.webViews.secureTextFields.firstMatch

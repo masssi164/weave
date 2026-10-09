@@ -174,7 +174,7 @@ def report_xcode_result(bundle: Path, *, email: str, password: str) -> None:
 
 def report_xcode_stream_stage(*streams: str | bytes | None) -> None:
     allowed = {"startup", "fixture-read", "app-window", "browser-requested",
-               "issuer-visible", "form-visible", "account-focused",
+               "issuer-visible", "browser-focused", "form-visible", "account-focused",
                "account-entered", "password-focused", "password-entered",
                "sign-in-visible", "form-submitted", "callback-returned"}
     output = "\n".join(
@@ -217,7 +217,8 @@ def main() -> int:
         result = root / "NativeAcceptance.xcresult"
         fixture = json.dumps(
             {"email": email, "password": password,
-             "issuerHost": urlparse(issuer).hostname},
+             "issuerHost": urlparse(issuer).hostname,
+             "issuerAuthority": urlparse(issuer).netloc},
             separators=(",", ":"),
         ).encode()
         try:
