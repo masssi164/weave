@@ -129,6 +129,10 @@ def main() -> int:
         "WEAVE_KEYCLOAK_IMAGE": placeholder,
         "WEAVE_BACKEND_IMAGE": placeholder,
         "WEAVE_MCP_IMAGE": placeholder,
+        "WEAVE_MCP_RELEASE_BINDING_FILE": (
+            "/run/secrets/agent-runtime/workloads/release-mcp.json"
+            if os.environ.get("WEAVE_TEST_APP_RELEASE_MCP") == "true" else ""
+        ),
     }
     template = (
         repository

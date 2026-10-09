@@ -310,113 +310,171 @@ public final class FreshProductFlow {
 
       personRef =
           accountId(environment.issuer().toString(), memberSession.subject());
-      JsonNode provisioned = provisionRuntime(personRef, adminSession.accessToken());
-      startedRuntime = startRuntime(personRef, adminSession.accessToken(), provisioned);
-
       GeneratedCalendarJourney generatedCalendar = new GeneratedCalendarJourney(environment);
       GeneratedCalendarJourney.Proof mcpCalendarProof = generatedCalendar.createAndVerify(
           ownerSession.accessToken(), memberSession.accessToken(),
           outsiderSession.accessToken(), environment.runId() + "-mcp");
       GeneratedFilesJourney.Proof mcpTextProof =
           generatedFiles.createMcpTextFile(memberSession.accessToken(), environment.runId());
-      WorkloadMcpJourney mcpJourney = new WorkloadMcpJourney(environment, http);
-      String cellRef = requiredText(startedRuntime, "cellRef");
-      mcpProof = mcpJourney.invokeFilesSearch(cellRef, mcpTextProof);
-      mcpJourney.invokeCalendarAgenda(cellRef, mcpCalendarProof);
-      mcpJourney.verifyCalendarWriteDeniedForMember(cellRef, mcpCalendarProof.calendarId());
+      if (Boolean.getBoolean("weave.e2e.release-mcp")) {
+        ReleaseMcpJourney release = new ReleaseMcpJourney(environment, http);
+        release.bind(memberSession.subject(), personRef, true);
+        mcpProof = release.files(mcpTextProof);
+        release.calendar(mcpCalendarProof);
+        release.verifyCalendarWriteDenied(mcpCalendarProof.calendarId());
 
-      restartProof = new PersistenceRestartJourney(environment, http).restart();
-      JsonNode persistedRuntime =
-          getRuntime(personRef, adminSession.accessToken());
-      requireSameRuntime(startedRuntime, persistedRuntime);
-      WorkloadMcpJourney.McpProof postRestartMcpProof =
-          new WorkloadMcpJourney(environment, http)
-              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
-      new WorkloadMcpJourney(environment, http)
-          .invokeCalendarAgenda(cellRef, mcpCalendarProof);
-      if (!mcpProof.equals(postRestartMcpProof)) {
-        throw new ProductFlowException(
-            "the same Cell MCP projection did not persist across service restarts");
-      }
+        restartProof = new PersistenceRestartJourney(environment, http).restart();
+        WorkloadMcpJourney.McpProof afterRestart = release.files(mcpTextProof);
+        release.calendar(mcpCalendarProof);
+        if (!mcpProof.equals(afterRestart)) {
+          throw new ProductFlowException("release MCP binding changed across service restart");
+        }
 
-      String originalSubject = memberSession.subject();
-      setWeaverEntitlement(
-          organizationId, memberEmail, adminSession.accessToken(), false, "revoke");
-      memberSession =
-          awaitAuthorityAbsent(
-              browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
-      JsonNode revokedRuntime = reconcileRuntime(personRef, adminSession.accessToken(), "revoke");
-      if (!"revoked".equals(revokedRuntime.path("entitlementState").asString())) {
-        throw new ProductFlowException("ARC reconciliation did not revoke the unentitled cell");
-      }
-      try {
-        new WorkloadMcpJourney(environment, http)
-            .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
-      } catch (ProductFlowException expectedDenial) {
+        String originalSubject = memberSession.subject();
+        release.bind(originalSubject, personRef, false);
+        if (!releaseMcpDenied(release, mcpTextProof)) {
+          throw new ProductFlowException("revoked release binding retained Files access");
+        }
+        setWeaverEntitlement(
+            organizationId, memberEmail, adminSession.accessToken(), false, "revoke");
+        memberSession = awaitAuthorityAbsent(
+            browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
+        release.bind(originalSubject, personRef, true);
+        if (!releaseMcpDenied(release, mcpTextProof)) {
+          throw new ProductFlowException("removed Weaver entitlement retained Files access");
+        }
         revocationDenied = true;
-      }
-      if (!revocationDenied) {
-        throw new ProductFlowException("revoked cell remained able to invoke MCP");
-      }
-      boolean calendarRevocationDenied = false;
-      try {
+        if (!releaseCalendarDenied(release, mcpCalendarProof)) {
+          throw new ProductFlowException("removed Weaver entitlement retained Calendar access");
+        }
+        boolean calendarRevocationDenied = true;
+
+        setWeaverEntitlement(
+            organizationId, memberEmail, adminSession.accessToken(), true, "regrant");
+        memberSession = awaitAuthority(
+            browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
+        sameHumanSubjectAfterRegrant = originalSubject.equals(memberSession.subject());
+        samePersonRefAfterRegrant = personRef.equals(
+            accountId(environment.issuer().toString(), memberSession.subject()));
+        if (!sameHumanSubjectAfterRegrant || !samePersonRefAfterRegrant) {
+          throw new ProductFlowException("Weaver regrant replaced the immutable member identity");
+        }
+        regrantRestored = mcpProof.equals(release.files(mcpTextProof));
+        release.calendar(mcpCalendarProof);
+        if (!regrantRestored) {
+          throw new ProductFlowException("release MCP access did not recover after regrant");
+        }
+        spaces.verifyRevocationAndVersionedRegrant(adminSession.accessToken(),
+            memberSession.accessToken(), personRef, generatedFilesProof.fileId());
+        spaceRevocationRestored = true;
+        generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
+        writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
+            release.bindingRef(), mcpProof, restartProof, revocationDenied,
+            calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
+            samePersonRefAfterRegrant, spaceRevocationRestored, collaborationPasses, true);
+      } else {
+        JsonNode provisioned = provisionRuntime(personRef, adminSession.accessToken());
+        startedRuntime = startRuntime(personRef, adminSession.accessToken(), provisioned);
+        WorkloadMcpJourney mcpJourney = new WorkloadMcpJourney(environment, http);
+        String cellRef = requiredText(startedRuntime, "cellRef");
+        mcpProof = mcpJourney.invokeFilesSearch(cellRef, mcpTextProof);
+        mcpJourney.invokeCalendarAgenda(cellRef, mcpCalendarProof);
+        mcpJourney.verifyCalendarWriteDeniedForMember(cellRef, mcpCalendarProof.calendarId());
+
+        restartProof = new PersistenceRestartJourney(environment, http).restart();
+        JsonNode persistedRuntime =
+            getRuntime(personRef, adminSession.accessToken());
+        requireSameRuntime(startedRuntime, persistedRuntime);
+        WorkloadMcpJourney.McpProof postRestartMcpProof =
+            new WorkloadMcpJourney(environment, http)
+                .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
         new WorkloadMcpJourney(environment, http)
             .invokeCalendarAgenda(cellRef, mcpCalendarProof);
-      } catch (ProductFlowException expectedDenial) {
-        calendarRevocationDenied = true;
-      }
-      if (!calendarRevocationDenied) {
-        throw new ProductFlowException("revoked cell remained able to read Calendar over MCP");
-      }
+        if (!mcpProof.equals(postRestartMcpProof)) {
+          throw new ProductFlowException(
+              "the same Cell MCP projection did not persist across service restarts");
+        }
 
-      setWeaverEntitlement(
-          organizationId, memberEmail, adminSession.accessToken(), true, "regrant");
-      memberSession =
-          awaitAuthority(
-              browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
-      sameHumanSubjectAfterRegrant = originalSubject.equals(memberSession.subject());
-      String regrantedPersonRef =
-          accountId(environment.issuer().toString(), memberSession.subject());
-      samePersonRefAfterRegrant = personRef.equals(regrantedPersonRef);
-      if (!sameHumanSubjectAfterRegrant || !samePersonRefAfterRegrant) {
-        throw new ProductFlowException("Weaver regrant replaced the immutable human identity");
-      }
-      JsonNode regrantedRuntime =
-          provisionRuntime(regrantedPersonRef, adminSession.accessToken(), "regrant");
-      JsonNode restartedRuntime =
-          startRuntime(regrantedPersonRef, adminSession.accessToken(), regrantedRuntime, "regrant");
-      requireSameRuntimeIdentity(startedRuntime, restartedRuntime);
-      WorkloadMcpJourney.McpProof postRegrantMcpProof =
+        String originalSubject = memberSession.subject();
+        setWeaverEntitlement(
+            organizationId, memberEmail, adminSession.accessToken(), false, "revoke");
+        memberSession =
+            awaitAuthorityAbsent(
+                browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
+        JsonNode revokedRuntime = reconcileRuntime(personRef, adminSession.accessToken(), "revoke");
+        if (!"revoked".equals(revokedRuntime.path("entitlementState").asString())) {
+          throw new ProductFlowException("ARC reconciliation did not revoke the unentitled cell");
+        }
+        try {
           new WorkloadMcpJourney(environment, http)
-              .invokeFilesSearch(requiredText(restartedRuntime, "cellRef"), mcpTextProof);
-      new WorkloadMcpJourney(environment, http)
-          .invokeCalendarAgenda(cellRef, mcpCalendarProof);
-      regrantRestored = mcpProof.equals(postRegrantMcpProof);
-      if (!regrantRestored) {
-        throw new ProductFlowException(
-            "the regranted Cell did not restore the same MCP projection");
+              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
+        } catch (ProductFlowException expectedDenial) {
+          revocationDenied = true;
+        }
+        if (!revocationDenied) {
+          throw new ProductFlowException("revoked cell remained able to invoke MCP");
+        }
+        boolean calendarRevocationDenied = false;
+        try {
+          new WorkloadMcpJourney(environment, http)
+              .invokeCalendarAgenda(cellRef, mcpCalendarProof);
+        } catch (ProductFlowException expectedDenial) {
+          calendarRevocationDenied = true;
+        }
+        if (!calendarRevocationDenied) {
+          throw new ProductFlowException("revoked cell remained able to read Calendar over MCP");
+        }
+
+        setWeaverEntitlement(
+            organizationId, memberEmail, adminSession.accessToken(), true, "regrant");
+        memberSession =
+            awaitAuthority(
+                browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
+        sameHumanSubjectAfterRegrant = originalSubject.equals(memberSession.subject());
+        String regrantedPersonRef =
+            accountId(environment.issuer().toString(), memberSession.subject());
+        samePersonRefAfterRegrant = personRef.equals(regrantedPersonRef);
+        if (!sameHumanSubjectAfterRegrant || !samePersonRefAfterRegrant) {
+          throw new ProductFlowException("Weaver regrant replaced the immutable human identity");
+        }
+        JsonNode regrantedRuntime =
+            provisionRuntime(regrantedPersonRef, adminSession.accessToken(), "regrant");
+        JsonNode restartedRuntime =
+            startRuntime(regrantedPersonRef, adminSession.accessToken(), regrantedRuntime, "regrant");
+        requireSameRuntimeIdentity(startedRuntime, restartedRuntime);
+        WorkloadMcpJourney.McpProof postRegrantMcpProof =
+            new WorkloadMcpJourney(environment, http)
+                .invokeFilesSearch(requiredText(restartedRuntime, "cellRef"), mcpTextProof);
+        new WorkloadMcpJourney(environment, http)
+            .invokeCalendarAgenda(cellRef, mcpCalendarProof);
+        regrantRestored = mcpProof.equals(postRegrantMcpProof);
+        if (!regrantRestored) {
+          throw new ProductFlowException(
+              "the regranted Cell did not restore the same MCP projection");
+        }
+
+        spaces.verifyRevocationAndVersionedRegrant(adminSession.accessToken(),
+            memberSession.accessToken(), personRef, generatedFilesProof.fileId());
+        spaceRevocationRestored = true;
+        generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
+
+        writeEvidence(
+            startedAt,
+            ownerEmail,
+            memberEmail,
+            outsiderEmail,
+            requiredText(startedRuntime, "cellRef"),
+            mcpProof,
+            restartProof,
+            revocationDenied,
+            calendarRevocationDenied,
+            regrantRestored,
+            sameHumanSubjectAfterRegrant,
+            samePersonRefAfterRegrant,
+            spaceRevocationRestored,
+            collaborationPasses,
+            false);
       }
-
-      spaces.verifyRevocationAndVersionedRegrant(adminSession.accessToken(),
-          memberSession.accessToken(), personRef, generatedFilesProof.fileId());
-      spaceRevocationRestored = true;
-      generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
-
-      writeEvidence(
-          startedAt,
-          ownerEmail,
-          memberEmail,
-          outsiderEmail,
-          requiredText(startedRuntime, "cellRef"),
-          mcpProof,
-          restartProof,
-          revocationDenied,
-          calendarRevocationDenied,
-          regrantRestored,
-          sameHumanSubjectAfterRegrant,
-          samePersonRefAfterRegrant,
-          spaceRevocationRestored,
-          collaborationPasses);
     } finally {
       // Avoid retaining references longer than the single bounded JVM run.
       ownerPassword = "";
@@ -933,6 +991,38 @@ public final class FreshProductFlow {
         "/api/admin/agent-runtimes/" + encodeSegment(personRef) + operation);
   }
 
+  private static boolean releaseMcpDenied(
+      ReleaseMcpJourney release, GeneratedFilesJourney.Proof proof) {
+    try {
+      release.files(proof);
+      return false;
+    } catch (ProductFlowException denied) {
+      if (!isExpectedReleaseDenial(denied)) {
+        throw denied;
+      }
+      return true;
+    }
+  }
+
+  private static boolean releaseCalendarDenied(
+      ReleaseMcpJourney release, GeneratedCalendarJourney.Proof proof) {
+    try {
+      release.calendar(proof);
+      return false;
+    } catch (ProductFlowException denied) {
+      if (!isExpectedReleaseDenial(denied)) {
+        throw denied;
+      }
+      return true;
+    }
+  }
+
+  private static boolean isExpectedReleaseDenial(ProductFlowException denied) {
+    String message = denied.getMessage();
+    return message != null && (message.contains("http-403")
+        || message.contains("HTTP 403"));
+  }
+
   private void writeEvidence(
       Instant startedAt,
       String ownerEmail,
@@ -947,9 +1037,11 @@ public final class FreshProductFlow {
       boolean sameHumanSubjectAfterRegrant,
       boolean samePersonRefAfterRegrant,
       boolean spaceRevocationRestored,
-      List<CollaborationJourney.PassProof> collaborationPasses) {
+      List<CollaborationJourney.PassProof> collaborationPasses,
+      boolean releaseMcp) {
     ObjectNode evidence = http.mapper().createObjectNode();
-    evidence.put("schemaVersion", "weave.test-app-product-flow/v2");
+    evidence.put("schemaVersion", releaseMcp
+        ? "weave.test-app-product-flow/v3-release" : "weave.test-app-product-flow/v2");
     evidence.put("startedAt", startedAt.toString());
     evidence.put("completedAt", Instant.now().toString());
     evidence.put("candidateCommit", environment.candidateCommit());
@@ -961,7 +1053,13 @@ public final class FreshProductFlow {
     evidence.put("ownerEmailSha256", Hashing.sha256(ownerEmail));
     evidence.put("memberEmailSha256", Hashing.sha256(memberEmail));
     evidence.put("outsiderEmailSha256", Hashing.sha256(outsiderEmail));
-    evidence.put("cellRefSha256", Hashing.sha256(cellRef));
+    if (releaseMcp) {
+      evidence.put("releaseBindingRefSha256", Hashing.sha256(cellRef));
+      evidence.put("arcCellCreated", false);
+      evidence.put("sameReleaseBindingAfterRestart", true);
+    } else {
+      evidence.put("cellRefSha256", Hashing.sha256(cellRef));
+    }
     evidence.put("activation", "keycloak-required-actions-real-chromium");
     evidence.put("humanOAuth", "authorization_code_pkce_s256");
     evidence.put("workloadOAuth", "client_credentials_private_key_jwt");
@@ -976,8 +1074,10 @@ public final class FreshProductFlow {
         "runtimeStateRestartObserved", restartProof.runtimeStateRestartObserved());
     evidence.put(
         "runtimeStateFixtureRestored", restartProof.runtimeStateFixtureRestored());
-    evidence.put("sameJpaCellAfterRestart", true);
-    evidence.put("sameMcpCellAfterRestart", true);
+    if (!releaseMcp) {
+      evidence.put("sameJpaCellAfterRestart", true);
+      evidence.put("sameMcpCellAfterRestart", true);
+    }
     evidence.put(
         "persistenceRestartEvidenceSha256",
         "sha256:" + restartProof.evidenceSha256());
