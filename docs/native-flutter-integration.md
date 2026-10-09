@@ -242,6 +242,12 @@ WebKit applies `AXUIElementSetAttributeValue` asynchronously: the old field
 value was returned immediately and the new value after 0.5 seconds. The driver
 now waits up to two seconds for the username value. It never logs or reads the
 password value; the live IdP and Flutter callback remain the outcome checks.
+Candidate `476054e872` submitted the real username step and reached Keycloak's
+password page (`NATIVE_AUTH_STAGE phase=username-submitted`). That page exposes
+two Accessibility text fields: one unlabeled field and one uniquely titled
+`Password`. The previous single-field assumption timed out with
+`password-not-observed`; no password was entered. The driver now selects a
+uniquely labeled password control inside the verified current IdP window.
 
 ## Existing executable coverage
 

@@ -160,21 +160,20 @@ func issuerWindow() -> [AXUIElement]? {
 }
 
 func field(in elements: [AXUIElement], stage: String) -> AXUIElement? {
-  let matches = elements.filter {
-    [kAXTextFieldRole as String, "AXSecureTextField"].contains(
-      attribute($0, kAXRoleAttribute) as? String ?? "")
+  let matches = elements.filter { element in
+    guard [kAXTextFieldRole as String, "AXSecureTextField"].contains(
+      attribute(element, kAXRoleAttribute) as? String ?? "") else { return false }
+    let name = [kAXTitleAttribute, kAXDescriptionAttribute].compactMap {
+      attribute(element, $0) as? String
+    }.joined(separator: " ").lowercased()
+    if stage == "username" {
+      return name.contains("username") || name.contains("email")
+    }
+    return name.contains("password") || name.contains("passwort")
   }
-  // The AppAuth Safari window has one Keycloak form field at either step.
-  // A browser address/search field in another window is never selected.
-  guard matches.count == 1 else { return nil }
-  let text = elements.flatMap(textValues).joined(separator: " ").lowercased()
-  if stage == "username" && (text.contains("username") || text.contains("email")) {
-    return matches[0]
-  }
-  if stage == "password" && text.contains("password") {
-    return matches[0]
-  }
-  return nil
+  // Keycloak's password page also exposes a second, unlabeled text field.
+  // Choose only a uniquely labeled form control in the exact IdP window.
+  return matches.count == 1 ? matches[0] : nil
 }
 
 func signInButton(in elements: [AXUIElement]) -> AXUIElement? {
