@@ -32,6 +32,7 @@ def command(argv, environment, timeout):
             detail = ""
         if not isinstance(detail, str) or not detail:
             detail = result.stderr or result.stdout
+        detail = detail.split("FetchHttpApi:", 1)[0]
         detail = detail.replace(
             environment.get("WEAVE_MATRIX_MEMBER_TOKEN", ""), "[redacted]"
         )
@@ -115,7 +116,8 @@ def run(args):
             diagnostic = "matrixSdkProbe=plugin-unavailable"
             if len(matrix) == 1:
                 package_path = Path(matrix[0]["source"]).parent.parent / "package.json"
-                if package_path.is_file() and package_path.is_relative_to(state):
+                if (package_path.is_file()
+                        and package_path.resolve().is_relative_to(state.resolve())):
                     probe_env = dict(environment)
                     probe_env["WEAVE_MATRIX_PLUGIN_PACKAGE"] = str(package_path)
                     probe_env["WEAVE_MATRIX_HOMESERVER"] = args.homeserver
@@ -131,7 +133,7 @@ def run(args):
                             diagnostic = probe.stdout.strip()[:200]
                     except subprocess.TimeoutExpired:
                         diagnostic = "matrixSdkProbe=timeout"
-            raise ProofError(str(failure) + " " + diagnostic) from failure
+            raise ProofError(diagnostic + "; " + str(failure)) from failure
         if sent.get("ok") is False or sent.get("dryRun") is True:
             raise ProofError("OpenClaw Matrix did not send a live event")
     print("WEAVE_OPENCLAW_MATRIX_RESULT status=passed clientVersion="
