@@ -189,6 +189,14 @@ func fill(_ input: AXUIElement, with text: String) -> Bool {
   AXUIElementSetAttributeValue(input, kAXValueAttribute as CFString, text as CFString) == .success
 }
 
+func waitForUsernameReadback(_ input: AXUIElement, expected: String) -> Bool {
+  for _ in 0..<20 {
+    if (attribute(input, kAXValueAttribute) as? String) == expected { return true }
+    _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.1))
+  }
+  return false
+}
+
 let deadline = Date().addingTimeInterval(180)
 var consentHandled = false
 var usernameSubmitted = false
@@ -212,6 +220,7 @@ while Date() < deadline {
   if let passwordField = field(in: elements, stage: "password") {
     guard usernameSubmitted else { fail("password-before-username") }
     guard fill(passwordField, with: fixture.password) else { fail("password-field") }
+    _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.5))
     guard let submit = signInButton(in: elements) else { fail("password-submit") }
     guard AXUIElementPerformAction(submit, kAXPressAction as CFString) == .success else {
       fail("password-press")
@@ -223,7 +232,7 @@ while Date() < deadline {
   if !usernameSubmitted, let usernameField = field(in: elements, stage: "username") {
     usernameFieldObserved = true
     guard fill(usernameField, with: fixture.email) else { fail("username-field") }
-    guard (attribute(usernameField, kAXValueAttribute) as? String) == fixture.email else {
+    guard waitForUsernameReadback(usernameField, expected: fixture.email) else {
       fail("username-readback")
     }
     guard let submit = signInButton(in: elements) else { fail("username-submit") }

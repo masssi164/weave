@@ -234,6 +234,14 @@ transient title. The native Flutter test also reports its configured issuer
 port as a sanitized diagnostic, allowing a future run to distinguish stale
 browser state from a stale Flutter build. No credential was entered in either
 failed run.
+Candidate `6ac5fa1f78` closed that stale page before launch, accepted macOS
+consent, and matched Flutter's reported issuer port to the new Safari auth
+window. The driver found the username field, then failed at immediate value
+readback before form submission. A harmless probe on the abandoned page showed
+WebKit applies `AXUIElementSetAttributeValue` asynchronously: the old field
+value was returned immediately and the new value after 0.5 seconds. The driver
+now waits up to two seconds for the username value. It never logs or reads the
+password value; the live IdP and Flutter callback remain the outcome checks.
 
 ## Existing executable coverage
 
