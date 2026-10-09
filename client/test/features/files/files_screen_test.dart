@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/files/data/services/file_picker_files_import_picker.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
@@ -19,6 +22,70 @@ import 'package:weave/features/server_config/presentation/providers/server_confi
 
 import '../../helpers/server_config_test_data.dart';
 import '../../helpers/test_app.dart';
+
+const _readyFilesSnapshot = WorkspaceCapabilitySnapshot(
+  shellAccess: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.shellAccess,
+    readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
+  ),
+  chat: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.chat,
+    readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
+  ),
+  files: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.files,
+    readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
+  ),
+  calendar: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.calendar,
+    readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
+  ),
+  boards: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.boards,
+    readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
+  ),
+);
+
+Widget _filesTestApp(Widget child, {List<dynamic> overrides = const []}) {
+  return createTestApp(
+    child,
+    overrides: [
+      workspaceCapabilitySnapshotProvider.overrideWithValue(
+        const AsyncData(_readyFilesSnapshot),
+      ),
+      ...overrides,
+    ],
+  );
+}
+
+WorkspaceCapabilitySnapshot _blockedFilesSnapshot() =>
+    WorkspaceCapabilitySnapshot(
+      shellAccess: _readyFilesSnapshot.shellAccess,
+      chat: _readyFilesSnapshot.chat,
+      files: const WorkspaceCapabilityState(
+        capability: WorkspaceCapability.files,
+        readiness: WorkspaceCapabilityReadiness.blocked,
+        policyState: WorkspaceCapabilityPolicyState.policyBlocked,
+      ),
+      calendar: _readyFilesSnapshot.calendar,
+      boards: _readyFilesSnapshot.boards,
+    );
+
+class _CapabilitySnapshotController
+    extends Notifier<AsyncValue<WorkspaceCapabilitySnapshot>> {
+  @override
+  AsyncValue<WorkspaceCapabilitySnapshot> build() =>
+      AsyncData(_blockedFilesSnapshot());
+
+  void show(WorkspaceCapabilitySnapshot snapshot) {
+    state = AsyncData(snapshot);
+  }
+}
 
 class _FakeFilesRepository
     implements FilesRepository, FilesEntryMutationRepository {
@@ -44,6 +111,7 @@ class _FakeFilesRepository
   createFolderHandler;
   final bool grantActions;
   final List<String> requestedPaths = <String>[];
+  int restoreConnectionCalls = 0;
 
   @override
   Future<FilesConnectionState> connect() async => connectionState;
@@ -124,7 +192,10 @@ class _FakeFilesRepository
   }
 
   @override
-  Future<FilesConnectionState> restoreConnection() async => connectionState;
+  Future<FilesConnectionState> restoreConnection() async {
+    restoreConnectionCalls++;
+    return connectionState;
+  }
 }
 
 class _FakeServerConfigurationRepository
@@ -154,6 +225,100 @@ class _FakeFilesImportPicker implements FilesImportPicker {
 
 void main() {
   group('FilesScreen', () {
+    testWidgets(
+      'waits for member access, opens Files automatically, and hides revoked content',
+      (tester) async {
+        final capabilityState =
+            NotifierProvider<
+              _CapabilitySnapshotController,
+              AsyncValue<WorkspaceCapabilitySnapshot>
+            >(_CapabilitySnapshotController.new);
+        final repository = _FakeFilesRepository(
+          connectionState: FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://api.weave.local/api'),
+            accountLabel: 'Weave files',
+          ),
+          listings: {
+            '/': const DirectoryListing(
+              path: '/',
+              entries: [
+                FileEntry(
+                  id: 'file:10fd870a-6c0e-4c06-9181-b0c1cdb855b7',
+                  name: 'Private plan.txt',
+                  path: '/Private plan.txt',
+                  isDirectory: false,
+                ),
+              ],
+            ),
+          },
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            const FilesScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWith(
+                (ref) => ref.watch(capabilityState),
+              ),
+              filesRepositoryProvider.overrideWithValue(repository),
+              serverConfigurationRepositoryProvider.overrideWith(
+                (ref) => _FakeServerConfigurationRepository(
+                  buildTestConfiguration(),
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Files are unavailable'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel(
+            RegExp('Files.*State: Disabled by policy.*Recovery:'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Private plan.txt'), findsNothing);
+        expect(repository.restoreConnectionCalls, 0);
+        expect(repository.requestedPaths, isEmpty);
+
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(FilesScreen)),
+        );
+        container.read(capabilityState.notifier).show(_readyFilesSnapshot);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Private plan.txt'), findsOneWidget);
+        expect(repository.restoreConnectionCalls, 1);
+        expect(repository.requestedPaths, ['/']);
+        expect(find.text('Connect Files'), findsNothing);
+
+        container.read(capabilityState.notifier).show(_blockedFilesSnapshot());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Private plan.txt'), findsNothing);
+        expect(find.text('Files are unavailable'), findsOneWidget);
+
+        repository.listings['/'] = const DirectoryListing(
+          path: '/',
+          entries: [
+            FileEntry(
+              id: 'file:20fd870a-6c0e-4c06-9181-b0c1cdb855b7',
+              name: 'Current plan.txt',
+              path: '/Current plan.txt',
+              isDirectory: false,
+            ),
+          ],
+        );
+        container.read(capabilityState.notifier).show(_readyFilesSnapshot);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Private plan.txt'), findsNothing);
+        expect(find.text('Current plan.txt'), findsOneWidget);
+        expect(repository.restoreConnectionCalls, 2);
+        expect(repository.requestedPaths, ['/', '/']);
+      },
+    );
+
     testWidgets('points to the shared Weave sign-in when Files has no session', (
       tester,
     ) async {
@@ -164,7 +329,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -212,7 +377,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -245,7 +410,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -298,7 +463,7 @@ void main() {
         },
       );
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -373,7 +538,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -447,7 +612,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          createTestApp(
+          _filesTestApp(
             const FilesScreen(),
             overrides: [
               filesRepositoryProvider.overrideWithValue(repository),
@@ -531,7 +696,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -586,7 +751,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -641,7 +806,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -709,7 +874,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -765,7 +930,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          createTestApp(
+          _filesTestApp(
             const FilesScreen(),
             overrides: [
               filesRepositoryProvider.overrideWithValue(repository),
@@ -831,7 +996,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -884,7 +1049,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -958,7 +1123,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -1009,7 +1174,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -1035,7 +1200,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -1059,7 +1224,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),

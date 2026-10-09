@@ -7,6 +7,7 @@ import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/presentation/chat_admission_gate.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -15,8 +16,16 @@ import 'package:weave/l10n/generated/app_localizations.dart';
 ///
 /// Uses [CustomScrollView] with a [SliverAppBar] and shows loading,
 /// empty, or error states via the shared core widgets.
-class ChatScreen extends ConsumerWidget {
+class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const ChatAdmissionGate(child: _AdmittedChatScreen());
+}
+
+class _AdmittedChatScreen extends ConsumerWidget {
+  const _AdmittedChatScreen();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -33,7 +42,9 @@ class ChatScreen extends ConsumerWidget {
       } else {
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (context) => ChatRoomScreen(conversation: conversation),
+            builder: (context) => ChatAdmissionGate(
+              child: ChatRoomScreen(conversation: conversation),
+            ),
           ),
         );
       }

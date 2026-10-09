@@ -90,6 +90,29 @@ const _memberProfile = UserProfile(
   groups: ['workspace-default'],
 );
 
+const _readyCapabilities = WorkspaceCapabilitySnapshot(
+  shellAccess: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.shellAccess,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  chat: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.chat,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  files: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.files,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  calendar: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.calendar,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  boards: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.boards,
+    readiness: WorkspaceCapabilityReadiness.unavailable,
+  ),
+);
+
 void main() {
   group('AppShell', () {
     ProviderScope buildApp({
@@ -97,6 +120,7 @@ void main() {
       FakeFilesRepository? filesRepository,
       InMemoryPreferencesStore? preferencesStore,
       WorkspaceHomeSnapshot? homeSnapshot,
+      WorkspaceCapabilitySnapshot? capabilitySnapshot,
     }) {
       final secureStore = InMemorySecureStore({
         authSessionStorageKey: AuthSessionDto.fromSession(
@@ -135,6 +159,10 @@ void main() {
           weaveApiWorkspaceHomeProvider.overrideWith(
             (ref) async => homeSnapshot,
           ),
+          if (capabilitySnapshot != null)
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              AsyncData(capabilitySnapshot),
+            ),
         ],
         child: const WeaveApp(),
       );
@@ -146,6 +174,7 @@ void main() {
       FakeFilesRepository? filesRepository,
       InMemoryPreferencesStore? preferencesStore,
       WorkspaceHomeSnapshot? homeSnapshot,
+      WorkspaceCapabilitySnapshot? capabilitySnapshot,
     }) async {
       await tester.pumpWidget(
         buildApp(
@@ -153,6 +182,7 @@ void main() {
           filesRepository: filesRepository,
           preferencesStore: preferencesStore,
           homeSnapshot: homeSnapshot,
+          capabilitySnapshot: capabilitySnapshot,
         ),
       );
       await tester.pumpAndSettle();
@@ -366,7 +396,11 @@ void main() {
         },
       );
 
-      await pumpReadyShell(tester, filesRepository: filesRepository);
+      await pumpReadyShell(
+        tester,
+        filesRepository: filesRepository,
+        capabilitySnapshot: _readyCapabilities,
+      );
 
       await tester.tap(find.byIcon(Icons.folder_outlined));
       await tester.pumpAndSettle();
