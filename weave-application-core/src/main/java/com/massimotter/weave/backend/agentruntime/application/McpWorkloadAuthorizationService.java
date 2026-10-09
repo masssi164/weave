@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.agentruntime.application;
 
 import com.massimotter.weave.backend.agentruntime.domain.ExchangedWorkloadToken;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
+import com.massimotter.weave.backend.agentruntime.domain.ReleaseMcpBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementRef;
@@ -14,6 +15,7 @@ import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal
 import com.massimotter.weave.backend.agentruntime.port.InvalidRuntimeProfileException;
 import com.massimotter.weave.backend.agentruntime.port.McpWorkloadAuthorizationException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCellRepository;
+import com.massimotter.weave.backend.agentruntime.port.ReleaseMcpBindingRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthority;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthorityException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeGovernanceRepository;
@@ -46,6 +48,8 @@ public final class McpWorkloadAuthorizationService {
     private final RuntimeGovernanceRepository governance;
     private final RuntimeWorkloadBindingAuthority workloadIdentities;
     private final RuntimeEntitlementAuthority entitlementAuthority;
+    private final ReleaseMcpBindingRepository releaseBindings;
+    private final Set<String> releaseAllowedCapabilities;
     private final Clock clock;
 
     public McpWorkloadAuthorizationService(
@@ -56,12 +60,43 @@ public final class McpWorkloadAuthorizationService {
             RuntimeWorkloadBindingAuthority workloadIdentities,
             RuntimeEntitlementAuthority entitlementAuthority,
             Clock clock) {
+        this(cells, profiles, verifier, governance, workloadIdentities, entitlementAuthority, null, clock);
+    }
+
+    public McpWorkloadAuthorizationService(
+            RuntimeCellRepository cells,
+            RuntimeProfileRepository profiles,
+            RuntimeProfileVerifier verifier,
+            RuntimeGovernanceRepository governance,
+            RuntimeWorkloadBindingAuthority workloadIdentities,
+            RuntimeEntitlementAuthority entitlementAuthority,
+            ReleaseMcpBindingRepository releaseBindings,
+            Clock clock) {
         this.cells = Objects.requireNonNull(cells, "cells");
         this.profiles = Objects.requireNonNull(profiles, "profiles");
         this.verifier = Objects.requireNonNull(verifier, "verifier");
         this.governance = Objects.requireNonNull(governance, "governance");
         this.workloadIdentities = Objects.requireNonNull(workloadIdentities, "workloadIdentities");
         this.entitlementAuthority = Objects.requireNonNull(entitlementAuthority, "entitlementAuthority");
+        this.releaseBindings = releaseBindings;
+        this.releaseAllowedCapabilities = null;
+        this.clock = Objects.requireNonNull(clock, "clock");
+    }
+
+    public McpWorkloadAuthorizationService(
+            ReleaseMcpBindingRepository releaseBindings,
+            RuntimeEntitlementAuthority entitlementAuthority,
+            Set<String> allowedCapabilities,
+            Clock clock) {
+        this.cells = null;
+        this.profiles = null;
+        this.verifier = null;
+        this.governance = null;
+        this.workloadIdentities = null;
+        this.entitlementAuthority = Objects.requireNonNull(entitlementAuthority, "entitlementAuthority");
+        this.releaseBindings = Objects.requireNonNull(releaseBindings, "releaseBindings");
+        this.releaseAllowedCapabilities = Set.copyOf(
+                Objects.requireNonNull(allowedCapabilities, "allowedCapabilities"));
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -71,6 +106,19 @@ public final class McpWorkloadAuthorizationService {
         if (token.expiresAt().isAfter(token.issuedAt().plus(MAXIMUM_EXCHANGED_TOKEN_TTL))
                 || !now.isBefore(token.expiresAt())) {
             throw denied(McpWorkloadAuthorizationException.Reason.TOKEN_LIFETIME);
+        }
+        if (releaseBindings != null) {
+            ReleaseMcpBinding releaseBinding;
+            try {
+                releaseBinding = releaseBindings.findByWorkload(token.issuer(), token.subject())
+                        .orElseThrow(() -> denied(McpWorkloadAuthorizationException.Reason.IDENTITY_BINDING));
+            } catch (McpWorkloadAuthorizationException denied) {
+                throw denied;
+            } catch (RuntimeException unavailable) {
+                throw new McpWorkloadAuthorizationException(
+                        true, McpWorkloadAuthorizationException.Reason.AUTHORITY_UNAVAILABLE);
+            }
+            return authorizeReleaseBinding(releaseBinding, token, now);
         }
         RuntimeCell cell = cells.findByWorkload(token.issuer(), token.subject()).orElseThrow(
                 () -> denied(McpWorkloadAuthorizationException.Reason.CELL_NOT_FOUND));
@@ -155,6 +203,67 @@ public final class McpWorkloadAuthorizationService {
                 authorizationExpiry,
                 token.scopes(),
                 visibleToolClasses);
+    }
+
+    private WeaverWorkloadPrincipal authorizeReleaseBinding(
+            ReleaseMcpBinding binding, ExchangedWorkloadToken token, Instant now) {
+        if (!binding.active()
+                || !now.isBefore(binding.expiresAt())
+                || !binding.workloadIssuer().equals(token.issuer())
+                || !binding.workloadSubject().equals(token.subject())
+                || !binding.allowedToolClasses().containsAll(token.scopes())
+                || !releaseAllowedCapabilities.containsAll(token.scopes())) {
+            throw denied(McpWorkloadAuthorizationException.Reason.IDENTITY_BINDING);
+        }
+        String auditRef = "audit:mcp-workload:" + RuntimeWorkloadOwnership.fingerprint(
+                token.issuer() + "\u0000" + token.tokenId() + "\u0000" + binding.bindingRef()).substring(7);
+        RuntimeEntitlementAuthority.ObserveEntitlementCommand observationCommand =
+                new RuntimeEntitlementAuthority.ObserveEntitlementCommand(
+                        binding.organizationRef(), binding.personRef(), binding.memberBinding(), auditRef);
+        RuntimeEntitlementObservation observation;
+        try {
+            observation = entitlementAuthority.observe(observationCommand);
+        } catch (RuntimeEntitlementAuthorityException unavailable) {
+            throw new McpWorkloadAuthorizationException(
+                    true, McpWorkloadAuthorizationException.Reason.AUTHORITY_UNAVAILABLE);
+        } catch (RuntimeException denied) {
+            throw denied(McpWorkloadAuthorizationException.Reason.ENTITLEMENT_OBSERVATION);
+        }
+        // The authoritative lookup performs I/O and stamps its observation after
+        // the initial token check. Compare it with a fresh clock reading so a
+        // current observation is not mistaken for one from the future.
+        Instant verifiedAt = clock.instant();
+        if (!binding.organizationRef().equals(observation.organizationRef())
+                || !binding.personRef().equals(observation.personRef())
+                || !binding.memberBinding().equals(observation.memberBinding())
+                || !verifiedAt.isBefore(token.expiresAt())
+                || !verifiedAt.isBefore(binding.expiresAt())
+                || !verifiedAt.isBefore(observation.expiresAt())
+                || observation.observedAt().isAfter(verifiedAt)) {
+            throw denied(McpWorkloadAuthorizationException.Reason.ENTITLEMENT_MISMATCH);
+        }
+        if (token.scopes().contains("calendar.write")) {
+            Set<String> currentRoles;
+            try {
+                currentRoles = entitlementAuthority.currentWeaveRoles(observationCommand);
+            } catch (RuntimeEntitlementAuthorityException unavailable) {
+                throw new McpWorkloadAuthorizationException(
+                        true, McpWorkloadAuthorizationException.Reason.AUTHORITY_UNAVAILABLE);
+            } catch (RuntimeException denied) {
+                throw denied(McpWorkloadAuthorizationException.Reason.ENTITLEMENT_OBSERVATION);
+            }
+            if (currentRoles == null
+                    || !(currentRoles.contains("owner") || currentRoles.contains("admin"))) {
+                throw denied(McpWorkloadAuthorizationException.Reason.TOOL_SCOPE);
+            }
+        }
+        return new WeaverWorkloadPrincipal(
+                token.issuer(), token.subject(), binding.workloadClientId(), token.edgeClientId(),
+                binding.organizationRef(), binding.personRef(), binding.memberBinding(),
+                observation.contextPrincipalClaim(), binding.bindingRef(), binding.bindingRef(),
+                binding.revision(), observation.capabilityRevision(),
+                minimum(token.expiresAt(), binding.expiresAt(), observation.expiresAt()),
+                token.scopes(), token.scopes());
     }
 
     private static void requireActiveCell(RuntimeCell cell, ExchangedWorkloadToken token) {

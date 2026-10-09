@@ -20,6 +20,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnExpression(
         "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
+                + " && '${weave.mcp.release-binding-file:}' == ''"
                 + " && '${weave.agent-runtime.policy.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.state-store.enabled:false}' == 'true'")

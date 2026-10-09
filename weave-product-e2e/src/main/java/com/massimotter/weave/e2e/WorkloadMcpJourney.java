@@ -55,6 +55,10 @@ final class WorkloadMcpJourney {
     String cellKey = requireCellKey(cellRef);
     String clientId = "weaver-cell-" + cellKey;
     RSAKey key = readActiveKey(clientId);
+    return invokeFilesSearch(clientId, key, proof);
+  }
+
+  McpProof invokeFilesSearch(String clientId, RSAKey key, GeneratedFilesJourney.Proof proof) {
     String workloadToken = clientCredentials(clientId, key, FILES_SCOPES);
     validateWorkloadToken(workloadToken, clientId, FILES_SCOPES);
 
@@ -111,6 +115,10 @@ final class WorkloadMcpJourney {
   void invokeCalendarAgenda(String cellRef, GeneratedCalendarJourney.Proof proof) {
     String clientId = "weaver-cell-" + requireCellKey(cellRef);
     RSAKey key = readActiveKey(clientId);
+    invokeCalendarAgenda(clientId, key, proof);
+  }
+
+  void invokeCalendarAgenda(String clientId, RSAKey key, GeneratedCalendarJourney.Proof proof) {
     ObjectNode call = request(3, "tools/call");
     call.putObject("params")
         .put("name", "calendar.agenda")
@@ -152,6 +160,10 @@ final class WorkloadMcpJourney {
   void verifyCalendarWriteDeniedForMember(String cellRef, String calendarId) {
     String clientId = "weaver-cell-" + requireCellKey(cellRef);
     RSAKey key = readActiveKey(clientId);
+    verifyCalendarWriteDeniedForMember(clientId, key, calendarId);
+  }
+
+  void verifyCalendarWriteDeniedForMember(String clientId, RSAKey key, String calendarId) {
     ObjectNode call = request(3, "tools/call");
     ObjectNode arguments = call.putObject("params")
         .put("name", "calendar.create")
@@ -177,7 +189,12 @@ final class WorkloadMcpJourney {
     validateWorkloadToken(writeToken, clientId, CALENDAR_WRITE_SCOPES);
     String writeSession = initializeSession(writeToken);
     requireTool(writeToken, writeSession, "calendar.create");
-    JsonNode denied = protocolBody(mcp(writeToken, writeSession, call, Set.of(200)));
+    JsonHttpClient.Response deniedResponse =
+        mcp(writeToken, writeSession, call, Set.of(200, 403));
+    if (deniedResponse.status() == 403) {
+      return;
+    }
+    JsonNode denied = protocolBody(deniedResponse);
     String result = denied.path("result").toString();
     if (!denied.path("result").path("isError").asBoolean(false)
         || !result.contains("Calendar User API rejected request: HTTP 403")
@@ -234,7 +251,7 @@ final class WorkloadMcpJourney {
     }
   }
 
-  private String clientCredentials(String clientId, RSAKey key, Set<String> scopes) {
+  String clientCredentials(String clientId, RSAKey key, Set<String> scopes) {
     URI tokenUri = environment.oidc("/protocol/openid-connect/token");
     Instant now = Instant.now();
     JWTClaimsSet claims =
@@ -516,7 +533,7 @@ final class WorkloadMcpJourney {
     return "redacted-tool-error";
   }
 
-  private JsonNode jwtPayload(String token) {
+  JsonNode jwtPayload(String token) {
     return jwtPart(token, 1);
   }
 

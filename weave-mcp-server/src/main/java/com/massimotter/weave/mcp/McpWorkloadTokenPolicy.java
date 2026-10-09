@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 final class McpWorkloadTokenPolicy {
-  private static final Pattern CLIENT_ID = Pattern.compile("weaver-cell-[A-Za-z0-9_-]+");
+  private static final Pattern CLIENT_ID = Pattern.compile("weaver-(?:cell|mcp)-[A-Za-z0-9_-]+");
   private static final String WORKLOAD_ROLE = "weaver-runtime";
   private static final Set<String> ALLOWED_REALM_ROLES =
       Set.of(WORKLOAD_ROLE, "default-roles-weave", "offline_access", "uma_authorization");

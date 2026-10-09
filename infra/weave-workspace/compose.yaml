@@ -912,7 +912,9 @@ services:
       weave.identity.invitations.keycloak.organization-alias: ${WEAVE_ORGANIZATION_ALIAS:?required}
       weave.identity.invitations.keycloak.private-key-jwt-audience: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
       weave.agent-runtime.workload-identity.issuer: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
+      weave.agent-runtime.workload-identity.keycloak-admin-base-url: http://keycloak:8080
       weave.agent-runtime.workload-identity.keycloak-organization-id: 8f771be4-f526-5bef-97dc-00c8e2fa383d
+      WEAVE_MCP_RELEASE_BINDING_FILE: ${WEAVE_MCP_RELEASE_BINDING_FILE:-}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${WEAVE_BACKEND_DB_NAME:-weave_backend}
       SPRING_DATASOURCE_USERNAME: ${WEAVE_BACKEND_DB_USERNAME:-weave_backend}
       SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/,optional:configtree:/run/secrets/providers/
