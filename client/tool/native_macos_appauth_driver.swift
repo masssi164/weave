@@ -92,11 +92,15 @@ func acceptSystemConsent() -> Bool {
   return false
 }
 
+var issuerHostObserved = false
 func issuerWindow() -> [AXUIElement]? {
   for app in NSWorkspace.shared.runningApplications where app.bundleIdentifier == "com.apple.Safari" {
     let root = AXUIElementCreateApplication(app.processIdentifier)
     for window in attribute(root, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
       let elements = descendants(window)
+      issuerHostObserved = issuerHostObserved || elements.contains(where: {
+        textValues($0).contains { $0.contains(fixture.issuerHost) }
+      })
       if elements.contains(where: {
         textValues($0).contains { $0.contains(fixture.issuerAuthority) }
       }) {
@@ -140,11 +144,15 @@ func fill(_ input: AXUIElement, with text: String) -> Bool {
 let deadline = Date().addingTimeInterval(180)
 var consentHandled = false
 var usernameSubmitted = false
+var appObserved = false
+var issuerObserved = false
+var usernameFieldObserved = false
 while Date() < deadline {
   guard expectedNativeAppIsRunning() else {
     Thread.sleep(forTimeInterval: 0.5)
     continue
   }
+  appObserved = true
   if !consentHandled {
     consentHandled = acceptSystemConsent()
   }
@@ -152,6 +160,7 @@ while Date() < deadline {
     Thread.sleep(forTimeInterval: 0.5)
     continue
   }
+  issuerObserved = true
   if let passwordField = field(in: elements, stage: "password") {
     guard usernameSubmitted else { fail("password-before-username") }
     guard fill(passwordField, with: fixture.password) else { fail("password-field") }
@@ -164,6 +173,7 @@ while Date() < deadline {
     exit(0)
   }
   if !usernameSubmitted, let usernameField = field(in: elements, stage: "username") {
+    usernameFieldObserved = true
     guard fill(usernameField, with: fixture.email) else { fail("username-field") }
     guard (attribute(usernameField, kAXValueAttribute) as? String) == fixture.email else {
       fail("username-readback")
@@ -177,4 +187,8 @@ while Date() < deadline {
   }
   Thread.sleep(forTimeInterval: 0.5)
 }
-fail("issuer-or-form-timeout")
+if !appObserved { fail("app-not-observed") }
+if !issuerHostObserved { fail("issuer-host-not-observed") }
+if !issuerObserved { fail("issuer-not-observed") }
+if !usernameFieldObserved { fail("username-not-observed") }
+fail("password-not-observed")
