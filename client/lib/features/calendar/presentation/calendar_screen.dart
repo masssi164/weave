@@ -30,11 +30,27 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    ref.listen(workspaceCapabilitySnapshotProvider, (previous, next) {
+      final wasReady = previous?.asData?.value.calendar.isReady == true;
+      final isReady = next.asData?.value.calendar.isReady == true;
+      if (!wasReady && isReady) {
+        // Returning to an admitted Space must load its current calendar data.
+        ref
+          ..invalidate(calendarProvider)
+          ..invalidate(calendarScopesProvider);
+      }
+    });
     final capabilitySnapshot = ref.watch(workspaceCapabilitySnapshotProvider);
-    final scopes =
-        ref.watch(calendarScopesProvider).asData?.value.scopes ??
-        const <CalendarScope>[];
-    final selection = ref.watch(selectedCalendarScopeProvider);
+    final calendarReady =
+        capabilitySnapshot.asData?.value.calendar.isReady == true;
+    // Do not discover member calendars until the server has confirmed access.
+    final scopes = calendarReady
+        ? ref.watch(calendarScopesProvider).asData?.value.scopes ??
+              const <CalendarScope>[]
+        : const <CalendarScope>[];
+    final selection = calendarReady
+        ? ref.watch(selectedCalendarScopeProvider)
+        : CalendarScope.workspace;
     final active = scopes.where(
       (scope) =>
           scope.id == selection.id ||
@@ -99,7 +115,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   }
 
   void _refreshCapability() {
-    ref.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider);
+    ref
+      ..invalidate(weaveApiWorkspaceCapabilitySnapshotProvider)
+      ..invalidate(weaveApiMemberSpacesProvider);
   }
 
   void _refreshCalendar() {

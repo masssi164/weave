@@ -1000,5 +1000,103 @@ void main() {
         throwsA(isA<AppFailure>()),
       );
     });
+
+    test(
+      'reads durable member Spaces using generated User operations',
+      () async {
+        final requestedPaths = <String>[];
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            requestedPaths.add(request.url.path);
+            expect(request.headers['Authorization'], 'Bearer token-123');
+            if (request.url.path.endsWith('/workspace-default')) {
+              return _jsonResponse({'spaceRef': 'workspace-default'});
+            }
+            if (request.url.queryParameters['afterSpaceRef'] ==
+                'workspace-default') {
+              return _jsonResponse({
+                'spaces': [
+                  {'spaceRef': 'team-space'},
+                ],
+                'nextAfterSpaceRef': null,
+              });
+            }
+            return _jsonResponse({
+              'spaces': [
+                {'spaceRef': 'workspace-default'},
+              ],
+              'nextAfterSpaceRef': 'workspace-default',
+            });
+          }),
+        );
+
+        final access = await client.fetchMemberSpaces(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accessToken: 'token-123',
+        );
+
+        expect(access.hasDefaultSpace, isTrue);
+        expect(access.visibleSpaceRefs, {'workspace-default', 'team-space'});
+        expect(requestedPaths, [
+          '/api/spaces',
+          '/api/spaces',
+          '/api/spaces/workspace-default',
+        ]);
+      },
+    );
+
+    test('removes default Space revoked between list and read', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          if (request.url.path.endsWith('/workspace-default')) {
+            return _jsonResponse({'error': 'not_found'}, statusCode: 404);
+          }
+          return _jsonResponse({
+            'spaces': [
+              {'spaceRef': 'workspace-default'},
+            ],
+            'nextAfterSpaceRef': null,
+          });
+        }),
+      );
+
+      final access = await client.fetchMemberSpaces(
+        baseUrl: Uri.parse('https://api.weave.test/api'),
+        accessToken: 'token-123',
+      );
+
+      expect(access.hasDefaultSpace, isFalse);
+      expect(access.hasChatSpace, isFalse);
+    });
+
+    test('rejects a denied default Space read as an expired session', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          if (request.url.path.endsWith('/workspace-default')) {
+            return _jsonResponse({'error': 'forbidden'}, statusCode: 403);
+          }
+          return _jsonResponse({
+            'spaces': [
+              {'spaceRef': 'workspace-default'},
+            ],
+            'nextAfterSpaceRef': null,
+          });
+        }),
+      );
+
+      await expectLater(
+        client.fetchMemberSpaces(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accessToken: 'token-123',
+        ),
+        throwsA(
+          isA<AppFailure>().having(
+            (failure) => failure.message,
+            'message',
+            contains('rejected the current session'),
+          ),
+        ),
+      );
+    });
   });
 }

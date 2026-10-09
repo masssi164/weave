@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
 import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
@@ -103,6 +104,15 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
   _RecordingWeaveApiClient({required this.snapshot});
 
   final WorkspaceCapabilitySnapshot snapshot;
+
+  @override
+  Future<MemberSpaceAccessSnapshot> fetchMemberSpaces({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async => const MemberSpaceAccessSnapshot(
+    visibleSpaceRefs: {'workspace-default'},
+    defaultSpaceReadable: true,
+  );
   Uri? lastBaseUrl;
   String? lastAccessToken;
   int callCount = 0;

@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
@@ -83,6 +84,39 @@ http.Response _home() => http.Response(
   headers: {'content-type': 'application/json'},
 );
 
+http.Response _capabilities() {
+  Map<String, Object?> status(bool enabled) => {
+    'enabled': enabled,
+    'readiness': enabled ? 'ready' : 'unavailable',
+    'policyState': enabled ? 'allowed' : 'disabled',
+    'grantedCapabilities': <String>[],
+  };
+  return http.Response(
+    jsonEncode({
+      for (final key in [
+        'shellAccess',
+        'chat',
+        'files',
+        'calendar',
+        'boards',
+        'decisionsEvidence',
+        'manualsHelp',
+        'releaseEvidence',
+        'adminControlPlane',
+      ])
+        key: status(true),
+      for (final key in [
+        'meetingsCalls',
+        'documentsCollaboration',
+        'agentRuntimeControl',
+      ])
+        key: status(false),
+    }),
+    200,
+    headers: {'content-type': 'application/json'},
+  );
+}
+
 void main() {
   late _Configuration configuration;
   late _Auth auth;
@@ -100,6 +134,26 @@ void main() {
     addTearDown(result.dispose);
     final subscription = result.listen(
       weaveApiWorkspaceHomeProvider,
+      (_, _) {},
+    );
+    addTearDown(subscription.close);
+    return result;
+  }
+
+  ProviderContainer capabilityContainer(http.Client transport) {
+    final result = ProviderContainer(
+      overrides: [
+        serverConfigurationRepositoryProvider.overrideWithValue(configuration),
+        authSessionRepositoryProvider.overrideWithValue(auth),
+        appBootstrapProvider.overrideWith(_ReadyBootstrap.new),
+        weaveApiClientProvider.overrideWithValue(
+          HttpWeaveApiClient(httpClient: transport),
+        ),
+      ],
+    );
+    addTearDown(result.dispose);
+    final subscription = result.listen(
+      weaveApiWorkspaceCapabilitySnapshotProvider,
       (_, _) {},
     );
     addTearDown(subscription.close);
@@ -128,6 +182,73 @@ void main() {
           'Restore before request and confirm the same session before publishing.',
     );
   });
+
+  test(
+    'capabilities confirm the ordinary member session before display',
+    () async {
+      final state = capabilityContainer(
+        MockClient((request) async {
+          expect(request.url.path, '/api/workspace/capabilities');
+          expect(request.headers['authorization'], 'Bearer restored-token');
+          return _capabilities();
+        }),
+      );
+      final snapshot = await state.read(
+        weaveApiWorkspaceCapabilitySnapshotProvider.future,
+      );
+      expect(snapshot!.files.isReady, isTrue);
+      expect(snapshot.calendar.isReady, isTrue);
+      expect(auth.restores, 2);
+    },
+  );
+
+  for (final change in ['member', 'sign-out', 'server']) {
+    test('pending capabilities are discarded after $change changes', () async {
+      final reached = Completer<void>();
+      final resume = Completer<void>();
+      final state = capabilityContainer(
+        MockClient((request) async {
+          reached.complete();
+          await resume.future;
+          return _capabilities();
+        }),
+      );
+      final rejected = Completer<AsyncValue<WorkspaceCapabilitySnapshot?>>();
+      final published = <WorkspaceCapabilitySnapshot>[];
+      final subscription = state.listen(
+        weaveApiWorkspaceCapabilitySnapshotProvider,
+        (previous, next) {
+          final snapshot = next.asData?.value;
+          if (snapshot != null) published.add(snapshot);
+          if (next.hasError && !rejected.isCompleted) rejected.complete(next);
+        },
+      );
+      addTearDown(subscription.close);
+      await reached.future.timeout(const Duration(seconds: 3));
+      if (change == 'member') {
+        auth.state = AuthState.authenticated(
+          buildTestAuthSession(accessToken: 'other-member'),
+        );
+      } else if (change == 'sign-out') {
+        await auth.clearLocalSession();
+      } else {
+        configuration.current = buildTestConfiguration(
+          backendApiBaseUrl: 'https://different.example.test/api',
+        );
+      }
+      resume.complete();
+      final failure = await rejected.future.timeout(const Duration(seconds: 3));
+      expect(
+        failure.error,
+        isA<AppFailure>().having(
+          (value) => value.message,
+          'session fence',
+          contains('session changed'),
+        ),
+      );
+      expect(published, isEmpty);
+    });
+  }
 
   for (final change in ['member', 'sign-out', 'server']) {
     test('pending Home response is discarded after $change changes', () async {

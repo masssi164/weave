@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/theme/app_theme.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
@@ -23,8 +25,151 @@ import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/fake_chat_security_repository.dart';
 import '../../helpers/test_app.dart';
 
+const _readyChatSnapshot = WorkspaceCapabilitySnapshot(
+  shellAccess: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.shellAccess,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  chat: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.chat,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  files: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.files,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  calendar: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.calendar,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  boards: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.boards,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+);
+
+final _blockedChatSnapshot = WorkspaceCapabilitySnapshot(
+  shellAccess: _readyChatSnapshot.shellAccess,
+  chat: const WorkspaceCapabilityState(
+    capability: WorkspaceCapability.chat,
+    readiness: WorkspaceCapabilityReadiness.blocked,
+    policyState: WorkspaceCapabilityPolicyState.policyBlocked,
+  ),
+  files: _readyChatSnapshot.files,
+  calendar: _readyChatSnapshot.calendar,
+  boards: _readyChatSnapshot.boards,
+);
+
+class _ChatCapabilityController
+    extends Notifier<AsyncValue<WorkspaceCapabilitySnapshot>> {
+  @override
+  AsyncValue<WorkspaceCapabilitySnapshot> build() =>
+      const AsyncData(_readyChatSnapshot);
+
+  void show(WorkspaceCapabilitySnapshot snapshot) {
+    state = AsyncData(snapshot);
+  }
+}
+
+Widget _chatTestApp(Widget child, {List<dynamic> overrides = const []}) {
+  return createTestApp(
+    child,
+    overrides: [
+      workspaceCapabilitySnapshotProvider.overrideWithValue(
+        const AsyncData(_readyChatSnapshot),
+      ),
+      ...overrides,
+    ],
+  );
+}
+
+Widget _chatTestRouterApp(
+  GoRouter router, {
+  List<dynamic> overrides = const [],
+}) {
+  return createTestRouterApp(
+    router,
+    overrides: [
+      workspaceCapabilitySnapshotProvider.overrideWithValue(
+        const AsyncData(_readyChatSnapshot),
+      ),
+      ...overrides,
+    ],
+  );
+}
+
 void main() {
   group('ChatScreen', () {
+    testWidgets('hides revoked rooms and reloads after grant restoration', (
+      tester,
+    ) async {
+      final capabilityState =
+          NotifierProvider<
+            _ChatCapabilityController,
+            AsyncValue<WorkspaceCapabilitySnapshot>
+          >(_ChatCapabilityController.new);
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async => const [
+          ChatConversation(
+            id: '!room:home.internal',
+            title: 'Private project',
+            previewType: ChatConversationPreviewType.text,
+            unreadCount: 0,
+            isInvite: false,
+            isDirectMessage: false,
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) => ref.watch(capabilityState),
+            ),
+            chatRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Private project'), findsOneWidget);
+      final initialReads = repository.loadConversationsCalls;
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      container.read(capabilityState.notifier).show(_blockedChatSnapshot);
+      await tester.pumpAndSettle();
+      expect(find.text('Private project'), findsNothing);
+      expect(repository.loadConversationsCalls, initialReads);
+
+      container.read(capabilityState.notifier).show(_readyChatSnapshot);
+      await tester.pumpAndSettle();
+      expect(repository.loadConversationsCalls, greaterThan(initialReads));
+      expect(find.text('Private project'), findsOneWidget);
+    });
+
+    testWidgets('does not start native Matrix without a current Space grant', (
+      tester,
+    ) async {
+      final repository = FakeChatRepository();
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              AsyncData(_blockedChatSnapshot),
+            ),
+            chatRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repository.loadConversationsCalls, 0);
+      expect(find.text('No conversations yet'), findsOneWidget);
+    });
+
     FakeChatSecurityRepository buildSecurityRepository() {
       return FakeChatSecurityRepository(
         loadSecurityStateHandler: ({bool refresh = false}) async {
@@ -54,7 +199,7 @@ void main() {
       final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -88,7 +233,7 @@ void main() {
           ];
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -119,7 +264,7 @@ void main() {
         };
 
         await tester.pumpWidget(
-          createTestApp(
+          _chatTestApp(
             const ChatScreen(),
             overrides: [
               chatRepositoryProvider.overrideWithValue(repository),
@@ -169,7 +314,7 @@ void main() {
       };
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -222,6 +367,9 @@ void main() {
       final securityRepository = buildSecurityRepository();
       final container = ProviderContainer.test(
         overrides: [
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            const AsyncData(_readyChatSnapshot),
+          ),
           chatRepositoryProvider.overrideWithValue(repository),
           chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
         ],
@@ -288,7 +436,7 @@ void main() {
       final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -363,7 +511,7 @@ void main() {
         addTearDown(router.dispose);
 
         await tester.pumpWidget(
-          createTestRouterApp(
+          _chatTestRouterApp(
             router,
             overrides: [
               chatRepositoryProvider.overrideWithValue(repository),
@@ -416,7 +564,7 @@ void main() {
       final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -470,7 +618,7 @@ void main() {
         final securityRepository = buildSecurityRepository();
 
         await tester.pumpWidget(
-          createTestApp(
+          _chatTestApp(
             const ChatScreen(),
             overrides: [
               chatRepositoryProvider.overrideWithValue(repository),
@@ -539,7 +687,7 @@ void main() {
         final securityRepository = buildSecurityRepository();
 
         await tester.pumpWidget(
-          createTestApp(
+          _chatTestApp(
             const ChatScreen(),
             overrides: [
               chatRepositoryProvider.overrideWithValue(repository),
@@ -613,7 +761,7 @@ void main() {
       final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -682,6 +830,9 @@ void main() {
       final securityRepository = buildSecurityRepository();
       final container = ProviderContainer.test(
         overrides: [
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            const AsyncData(_readyChatSnapshot),
+          ),
           chatRepositoryProvider.overrideWithValue(repository),
           chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
         ],
@@ -748,7 +899,7 @@ void main() {
       final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -780,7 +931,7 @@ void main() {
       final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),

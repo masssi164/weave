@@ -4,6 +4,7 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
@@ -25,9 +26,8 @@ export 'package:weave/integrations/weave_api/presentation/providers/weave_api_cl
 ///
 /// The error states ([unreachable], [unauthorized], [serverError]) are
 /// reachable because [weaveApiWorkspaceCapabilitySnapshotProvider] propagates
-/// [AppFailure] into the Riverpod error channel. The merged
-/// [workspaceCapabilitySnapshotProvider] handles the error gracefully by
-/// falling back to the local capability snapshot.
+/// [AppFailure] into the Riverpod error channel. The merged workspace
+/// capability provider preserves that error so member views fail closed.
 enum WeaveBackendConnectionState {
   /// The backend URL is not configured (or the app is not yet ready); no
   /// fetch is attempted.
@@ -56,8 +56,19 @@ final weaveApiWorkspaceCapabilitySnapshotProvider =
           baseUrl: baseUrl,
           accessToken: accessToken,
         );
-      });
+      }, confirmCurrentSession: true);
     });
+
+final weaveApiMemberSpacesProvider = FutureProvider<MemberSpaceAccessSnapshot?>(
+  (ref) async {
+    return _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
+      return client.fetchMemberSpaces(
+        baseUrl: baseUrl,
+        accessToken: accessToken,
+      );
+    }, confirmCurrentSession: true);
+  },
+);
 
 final weaveApiWorkspaceHomeProvider = FutureProvider<WorkspaceHomeSnapshot?>((
   ref,
@@ -185,8 +196,8 @@ Future<T?> _withWeaveApiSession<T>(
       'The Weave backend rejected the current session.',
     );
   } on AppFailure {
-    // Propagate to Riverpod error channel; workspaceCapabilitySnapshotProvider
-    // already falls back to the local snapshot on AsyncError.
+    // Propagate to Riverpod so a failed member authorization check cannot
+    // reveal a previously loaded capability as current.
     rethrow;
   } catch (error) {
     throw AppFailure.unknown(

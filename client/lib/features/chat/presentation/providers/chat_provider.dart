@@ -46,6 +46,7 @@ class ChatUiState {
 
 class ChatController extends Notifier<ChatUiState> {
   int? _sessionGeneration;
+  int _requestSequence = 0;
 
   @override
   ChatUiState build() {
@@ -55,7 +56,12 @@ class ChatController extends Notifier<ChatUiState> {
     final sessionGeneration = invalidation?.sequence ?? 0;
     if (_sessionGeneration != sessionGeneration) {
       _sessionGeneration = sessionGeneration;
-      Future<void>.microtask(() => _loadConversations());
+      final requestSequence = _requestSequence;
+      Future<void>.microtask(() async {
+        if (ref.mounted && requestSequence == _requestSequence) {
+          await _loadConversations();
+        }
+      });
     }
 
     return const ChatUiState.loading();
@@ -73,10 +79,28 @@ class ChatController extends Notifier<ChatUiState> {
     await _loadConversations(staleConversations: cachedConversations);
   }
 
+  /// Drop cached rooms when durable Space access is no longer current.
+  void clearForAccessLoss() {
+    _requestSequence++;
+    state = const ChatUiState.loading();
+  }
+
+  /// Re-enter Chat with a fresh room list, never showing rooms from an old grant.
+  Future<void> reloadAfterAccessChange() async {
+    state = const ChatUiState.loading();
+    await _loadConversations();
+  }
+
   Future<ChatConversation> createConversation({required String title}) async {
+    final requestSequence = _requestSequence;
     final conversation = await ref
         .read(chatRepositoryProvider)
         .createConversation(title: title);
+    if (requestSequence != _requestSequence) {
+      throw const ChatFailure.sessionRequired(
+        'Space access changed while creating this conversation.',
+      );
+    }
     final conversations = <ChatConversation>[
       conversation,
       ...state.conversations.where((item) => item.id != conversation.id),
@@ -88,16 +112,20 @@ class ChatController extends Notifier<ChatUiState> {
   Future<void> _loadConversations({
     List<ChatConversation>? staleConversations,
   }) async {
+    final requestSequence = ++_requestSequence;
     final repository = ref.read(chatRepositoryProvider);
 
     try {
       final conversations = await repository.loadConversations();
+      if (requestSequence != _requestSequence || !ref.mounted) return;
       state = conversations.isEmpty
           ? const ChatUiState.empty()
           : ChatUiState.content(conversations);
     } on ChatFailure catch (failure) {
+      if (requestSequence != _requestSequence || !ref.mounted) return;
       state = _stateForLoadFailure(failure, staleConversations);
     } catch (error) {
+      if (requestSequence != _requestSequence || !ref.mounted) return;
       state = _stateForLoadFailure(
         ChatFailure.unknown(
           'Unable to load conversations right now.',

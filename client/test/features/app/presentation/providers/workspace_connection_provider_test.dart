@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
@@ -141,6 +142,12 @@ void main() {
                 ),
               ),
             ),
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => const MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: {'workspace-default'},
+                defaultSpaceReadable: true,
+              ),
+            ),
             weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
               (ref) async => const WorkspaceCapabilitySnapshot(
                 shellAccess: WorkspaceCapabilityState(
@@ -173,6 +180,7 @@ void main() {
         await container.read(
           weaveApiWorkspaceCapabilitySnapshotProvider.future,
         );
+        await container.read(weaveApiMemberSpacesProvider.future);
         final workspace = container.read(workspaceConnectionStateProvider);
         final capabilities = container.read(
           workspaceCapabilitySnapshotProvider,
@@ -238,6 +246,12 @@ void main() {
               ),
             ),
             filesRepositoryProvider.overrideWithValue(filesRepository),
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => const MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: {'workspace-default'},
+                defaultSpaceReadable: true,
+              ),
+            ),
             weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
               (ref) async => const WorkspaceCapabilitySnapshot(
                 shellAccess: WorkspaceCapabilityState(
@@ -270,6 +284,7 @@ void main() {
         await container.read(
           weaveApiWorkspaceCapabilitySnapshotProvider.future,
         );
+        await container.read(weaveApiMemberSpacesProvider.future);
 
         final capabilities = container.read(
           workspaceCapabilitySnapshotProvider,
@@ -284,6 +299,101 @@ void main() {
           WorkspaceCapabilityReadiness.blocked,
         );
         expect(filesRepository.restoreConnectionCalls, 0);
+      },
+    );
+
+    test(
+      'revocation and restoration change module admission without login',
+      () async {
+        var access = const MemberSpaceAccessSnapshot(
+          visibleSpaceRefs: {'workspace-default'},
+          defaultSpaceReadable: true,
+        );
+        const backend = WorkspaceCapabilitySnapshot(
+          shellAccess: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.shellAccess,
+            readiness: WorkspaceCapabilityReadiness.ready,
+          ),
+          chat: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.chat,
+            readiness: WorkspaceCapabilityReadiness.ready,
+          ),
+          files: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.files,
+            readiness: WorkspaceCapabilityReadiness.ready,
+          ),
+          calendar: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.calendar,
+            readiness: WorkspaceCapabilityReadiness.ready,
+          ),
+          boards: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.boards,
+            readiness: WorkspaceCapabilityReadiness.unavailable,
+          ),
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            appBootstrapProvider.overrideWith(
+              () => _FakeAppBootstrap(const BootstrapState.ready()),
+            ),
+            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) async => backend,
+            ),
+            weaveApiMemberSpacesProvider.overrideWith((ref) async => access),
+          ],
+        );
+        addTearDown(container.dispose);
+        await container.read(appBootstrapProvider.future);
+        await container.read(
+          weaveApiWorkspaceCapabilitySnapshotProvider.future,
+        );
+        await container.read(weaveApiMemberSpacesProvider.future);
+        expect(
+          container
+              .read(workspaceCapabilitySnapshotProvider)
+              .requireValue
+              .files
+              .isReady,
+          isTrue,
+        );
+        expect(
+          container
+              .read(workspaceCapabilitySnapshotProvider)
+              .requireValue
+              .chat
+              .isReady,
+          isTrue,
+        );
+
+        access = const MemberSpaceAccessSnapshot(
+          visibleSpaceRefs: {},
+          defaultSpaceReadable: false,
+        );
+        container.invalidate(weaveApiMemberSpacesProvider);
+        expect(
+          container.read(workspaceCapabilitySnapshotProvider).isLoading,
+          isTrue,
+        );
+        await container.read(weaveApiMemberSpacesProvider.future);
+        final revoked = container
+            .read(workspaceCapabilitySnapshotProvider)
+            .requireValue;
+        expect(revoked.chat.isReady, isFalse);
+        expect(revoked.files.isReady, isFalse);
+        expect(revoked.calendar.isReady, isFalse);
+
+        access = const MemberSpaceAccessSnapshot(
+          visibleSpaceRefs: {'workspace-default'},
+          defaultSpaceReadable: true,
+        );
+        container.invalidate(weaveApiMemberSpacesProvider);
+        await container.read(weaveApiMemberSpacesProvider.future);
+        final restored = container
+            .read(workspaceCapabilitySnapshotProvider)
+            .requireValue;
+        expect(restored.chat.isReady, isTrue);
+        expect(restored.files.isReady, isTrue);
+        expect(restored.calendar.isReady, isTrue);
       },
     );
 
