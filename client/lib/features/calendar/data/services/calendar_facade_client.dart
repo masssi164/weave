@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import 'package:timezone/data/latest.dart' as timezone_data;
@@ -73,9 +72,8 @@ class CalendarFacadeClient {
     CalendarScope? selectedScope,
   }) async {
     final context = await _context();
-    debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-context-ready');
-    final zone = await _zone();
-    debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-zone-ready');
+    final evaluationZoneName = await _evaluationTimeZone();
+    final zone = _location(evaluationZoneName);
     final scopes = await _discover(context);
     if (scopes.scopes.isEmpty) return const CalendarEventList();
     final scope = _selected(scopes, selectedScope);
@@ -86,17 +84,12 @@ class CalendarFacadeClient {
         scope.id,
         from ?? now.subtract(const Duration(days: 30)),
         to ?? now.add(const Duration(days: 180)),
-        zone.name,
+        evaluationZoneName,
       ),
-    );
-    debugPrint(
-      'NATIVE_PRODUCT_STAGE phase=calendar-agenda-response '
-      'present=${result != null} calendarMatches=${result?.calendarId == scope.id} '
-      'zoneMatches=${result?.evaluationTimeZone == zone.name}',
     );
     if (result == null ||
         result.calendarId != scope.id ||
-        result.evaluationTimeZone != zone.name) {
+        result.evaluationTimeZone != evaluationZoneName) {
       throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
     final masters = <String, api.CalendarUserEvent>{};
@@ -122,7 +115,7 @@ class CalendarFacadeClient {
           scope,
           start: _wallClock(tz.TZDateTime.from(occurrence.startsAt, zone)),
           end: _wallClock(tz.TZDateTime.from(occurrence.endsAt, zone)),
-          displayZone: zone.name,
+          displayZone: evaluationZoneName,
         ),
       );
     }
@@ -137,7 +130,7 @@ class CalendarFacadeClient {
           scope,
           start: _wallClock(tz.TZDateTime.from(occurrence.startsAt, zone)),
           end: _wallClock(tz.TZDateTime.from(occurrence.endsAt, zone)),
-          displayZone: zone.name,
+          displayZone: evaluationZoneName,
         ),
       );
     }
@@ -562,16 +555,14 @@ class CalendarFacadeClient {
     date.minute,
     date.second,
   );
-  Future<tz.Location> _zone() async => _location(await _evaluationTimeZone());
   tz.Location _location(String name) {
     if (!_zonesReady) {
-      debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-zone-data-unavailable');
       throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
+    if (name == 'UTC') return tz.UTC;
     try {
       return tz.getLocation(name);
     } catch (_) {
-      debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-zone-invalid');
       throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
   }
@@ -677,9 +668,6 @@ class CalendarFacadeClient {
     try {
       return await send();
     } on api.ApiException catch (error) {
-      debugPrint(
-        'NATIVE_PRODUCT_STAGE phase=calendar-api-error status=${error.code}',
-      );
       if (error.code == 401) {
         await _assertCurrent(context);
         final state = await _auth.refreshSession(context.auth);
@@ -707,10 +695,7 @@ class CalendarFacadeClient {
       throw _failure(error.code);
     } on CalendarFailure {
       rethrow;
-    } catch (error) {
-      debugPrint(
-        'NATIVE_PRODUCT_STAGE phase=calendar-transport-error type=${error.runtimeType}',
-      );
+    } catch (_) {
       throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
   }

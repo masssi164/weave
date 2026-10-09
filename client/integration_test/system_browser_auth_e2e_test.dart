@@ -34,7 +34,6 @@ import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -167,18 +166,6 @@ void main() {
         debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-start');
         final scopes = await calendar.loadScopes();
         expect(scopes.scopes, isNotEmpty);
-        try {
-          final profile = await container.read(userProfileProvider.future);
-          debugPrint(
-            'NATIVE_PRODUCT_STAGE phase=calendar-profile '
-            'available=${profile != null} zone=${profile?.timezone ?? 'none'}',
-          );
-        } catch (error) {
-          debugPrint(
-            'NATIVE_PRODUCT_STAGE phase=calendar-profile-failed '
-            'type=${error.runtimeType}',
-          );
-        }
         CalendarEventList agenda;
         try {
           agenda = await calendar.loadEvents(scope: scopes.scopes.first);
