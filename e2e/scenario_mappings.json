@@ -772,22 +772,13 @@
     },
     {
       "tag": "@weave-v01-mcp-workload-boundary",
-      "scenario": "MCP admits only a current entitled workload and advertises the guarded Files read slice",
+      "scenario": "MCP admits only a current entitled workload and advertises curated Files and Calendar tools",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
       "executableTest": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
       "evidenceMarkers": [
         "V01_MCP_WORKLOAD_BOUNDARY"
       ],
       "additionalEvidence": [
-        {
-          "path": "docs/governed-weaver-runtime-security-contract.md",
-          "fragments": [
-            "MCP is an AI-workload surface, never a human member API",
-            "The first active catalog entry is the read-only Files projection",
-            "inbound bearer is never relayed",
-            "ApprovalDecisionEvidence v2"
-          ]
-        },
         {
           "path": "infra/docs/weave-mcp-tool-contract.md",
           "fragments": [
@@ -5366,7 +5357,7 @@
     },
     {
       "tag": "@spring-ai-mcp-transport",
-      "scenario": "MCP admits only a current ARC-bound workload",
+      "scenario": "MCP admits only a currently bound workload",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -5379,6 +5370,7 @@
           "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
           "fragments": [
             "boundCellIsExchangedAndDispatchedThroughTheFrameworkTransport",
+            "validWorkloadBearerInitializesWithoutOptionalExtensionMarker",
             "humanBearerCannotDiscoverTheMcpCatalog",
             "weaver-cell-test",
             "status().isForbidden()"

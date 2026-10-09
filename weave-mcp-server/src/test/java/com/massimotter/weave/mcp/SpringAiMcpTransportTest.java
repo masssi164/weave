@@ -149,9 +149,9 @@ class SpringAiMcpTransportTest {
   }
 
   @Test
-  void extensionNegotiationIsMandatoryForWorkloadClientCredentials() throws Exception {
-    mvc.perform(mcpInitialize("valid", false)).andExpect(status().isBadRequest());
-    verify(exchange, never()).exchange(any(), anyString(), any());
+  void validWorkloadBearerInitializesWithoutOptionalExtensionMarker() throws Exception {
+    mvc.perform(mcpInitialize("valid", false)).andExpect(status().isOk());
+    verify(exchange).exchange(any(McpCellWorkloadPrincipal.class), eq("valid"), eq(DOMAIN_SCOPES));
   }
 
   @Test

@@ -14,7 +14,7 @@ production-ready Weaver or autonomous-action claim.
   The #1470 requirement is a protected workload-to-member/organization binding with current
   authorization, not dynamic client provisioning or a Cell lifecycle. Per-cell provisioning and
   lifecycle are not #1470 release gates.
-- The workload uses the MCP Client Credentials extension
+- The workload may discover the MCP Client Credentials extension
   `io.modelcontextprotocol/oauth-client-credentials`. It presents a short-lived RFC 9068
   `at+jwt` access token with the exact MCP audience, the `weaver-runtime` role, `mcp.tools`, and
   only the domain scopes admitted for that workload.
@@ -26,7 +26,8 @@ production-ready Weaver or autonomous-action claim.
   `files.read`, `calendar.read`, and `calendar.write`; each request still requires its current member and Space grant.
 - The edge publishes OAuth Protected Resource Metadata at
   `/.well-known/oauth-protected-resource/mcp`. Missing bearer tokens receive a discoverable
-  challenge; initialization without the client-credentials extension fails closed.
+  challenge. An optional initialize capability marker does not grant authority, and its
+  absence does not reject an otherwise valid, currently authorized workload bearer.
 - Before Spring AI protocol dispatch, the edge resolves the authenticated workload to its
   protected organization/member binding. The existing implementation uses a Cell and
   RuntimeProfile v2 for that lookup. It uses Keycloak Standard Token Exchange V2 to mint a
@@ -38,7 +39,7 @@ production-ready Weaver or autonomous-action claim.
 
 - Spring AI 2.0 stateful Streamable HTTP at `/mcp`;
 - RFC 9068 token-type, issuer, time, exact-audience, workload-role, and scope validation;
-- protected-resource discovery and the MCP Client Credentials extension handshake;
+- protected-resource discovery and optional MCP Client Credentials extension advertisement;
 - server-owned workload/member binding and current backend context resolution;
 - downscoped workload token exchange with no refresh or ID token;
 - `files.search` through the generated User list operation, with bounded traversal and
@@ -49,7 +50,7 @@ production-ready Weaver or autonomous-action claim.
 - `calendar.create`, `calendar.update`, and `calendar.delete` through generated User Calendar
   operations and models, with current owner/admin capability, Space EDIT, idempotency or strong
   version preconditions, and the same provider mutation path as the User API;
-- negative rejection of human tokens, unbound service accounts, missing extension negotiation,
+- negative rejection of human tokens, unbound service accounts,
   missing scopes, upscope attempts, stale bindings, and direct workload access to admin routes.
 
 ## What remains guarded

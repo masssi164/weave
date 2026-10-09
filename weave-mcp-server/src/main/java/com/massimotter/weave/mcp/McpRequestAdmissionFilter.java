@@ -60,7 +60,7 @@ final class McpRequestAdmissionFilter extends OncePerRequestFilter {
     }
     try {
       McpCellWorkloadPrincipal workload = tokenPolicy.resolve(jwtAuthentication.getToken());
-      HttpServletRequest effectiveRequest = validateExtensionNegotiation(request);
+      HttpServletRequest effectiveRequest = validateRequest(request);
       Set<String> admittedScopes =
           workload.scopes().stream()
               .filter(properties.exchangeScopes()::contains)
@@ -87,7 +87,7 @@ final class McpRequestAdmissionFilter extends OncePerRequestFilter {
     }
   }
 
-  private HttpServletRequest validateExtensionNegotiation(HttpServletRequest request)
+  private HttpServletRequest validateRequest(HttpServletRequest request)
       throws IOException {
     if (!"POST".equalsIgnoreCase(request.getMethod())) {
       return request;
@@ -116,7 +116,7 @@ final class McpRequestAdmissionFilter extends OncePerRequestFilter {
               .path("capabilities")
               .path("extensions")
               .path(McpWorkloadProperties.CLIENT_CREDENTIALS_EXTENSION);
-      if (!extension.isObject()) {
+      if (!extension.isMissingNode() && !extension.isObject()) {
         throw new McpAdmissionException(McpAdmissionException.Kind.BAD_REQUEST);
       }
     }
