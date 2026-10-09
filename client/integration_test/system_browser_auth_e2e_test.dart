@@ -756,17 +756,58 @@ Future<ProviderContainer> _openWeaveSession(
     await tester.tap(find.byKey(const ValueKey('weave.auth.sign-in')));
     await tester.pump();
     debugPrint('NATIVE_PRODUCT_STAGE phase=appauth-requested');
+    await _waitForWorkspaceAfterSignIn(
+      tester,
+      ProviderScope.containerOf(tester.element(find.byType(WeaveApp))),
+    );
+  } else {
+    await _waitFor(
+      tester,
+      const ValueKey('weave.workspace.home'),
+      timeout: const Duration(minutes: 5),
+    );
   }
   // The production FlutterAppAuthOidcClient owns the system-browser transition.
   // The native acceptance runner must complete the IdP interaction without
   // injecting tokens into this app or replacing the AppAuth callback.
-  await _waitFor(
-    tester,
-    const ValueKey('weave.workspace.home'),
-    timeout: const Duration(minutes: 5),
-  );
   debugPrint('NATIVE_PRODUCT_STAGE phase=workspace-ready');
   return ProviderScope.containerOf(tester.element(find.byType(WeaveApp)));
+}
+
+Future<void> _waitForWorkspaceAfterSignIn(
+  WidgetTester tester,
+  ProviderContainer container,
+) async {
+  final deadline = DateTime.now().add(const Duration(minutes: 5));
+  var pendingReported = false;
+  while (DateTime.now().isBefore(deadline)) {
+    await tester.pump(const Duration(seconds: 1));
+    if (find
+        .byKey(const ValueKey('weave.workspace.home'))
+        .evaluate()
+        .isNotEmpty) {
+      return;
+    }
+    final state = container.read(authFlowControllerProvider);
+    final failure = state.failure;
+    if (failure != null) {
+      debugPrint(
+        'NATIVE_PRODUCT_STAGE phase=auth-failed '
+        'category=${failure.type.name} causeType=${failure.cause.runtimeType}',
+      );
+      fail('Native OIDC sign-in failed (${failure.type.name}).');
+    }
+    if (!pendingReported &&
+        DateTime.now().isAfter(
+          deadline.subtract(const Duration(minutes: 4, seconds: 45)),
+        )) {
+      debugPrint(
+        'NATIVE_PRODUCT_STAGE phase=appauth-pending busy=${state.isBusy}',
+      );
+      pendingReported = true;
+    }
+  }
+  fail('Native OIDC sign-in did not establish the workspace.');
 }
 
 Future<void> _requireBusinessRoomReadback(
