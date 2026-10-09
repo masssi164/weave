@@ -4863,7 +4863,7 @@
         {
           "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
-            "maps only Rust-projected encrypted rooms into chat entities",
+            "maps encrypted and business rooms into chat entities",
             "MATRIX_SPACES_ROOMS_CONTRACT",
             "RustMatrixEncryptedRoom"
           ]
@@ -5729,7 +5729,7 @@
       "tag": "@matrix-e2ee-fail-closed-client",
       "scenario": "A client without E2EE capability cannot downgrade a room",
       "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
+      "executableTest": "rust/matrix-client/src/flutter_crypto.rs",
       "evidenceMarkers": [
         "MATRIX_E2EE_CLIENT_FAILS_CLOSED"
       ],

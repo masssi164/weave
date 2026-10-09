@@ -2495,6 +2495,8 @@ fn verification_json(profile_key: &str) -> Result<Value, String> {
 }
 
 fn project_timeline_event(event: &TimelineEvent, encrypted_room: bool) -> Option<Value> {
+    // MATRIX_E2EE_CLIENT_FAILS_CLOSED: never project a plaintext event as
+    // content of an explicitly encrypted room.
     if encrypted_room != event.encryption_info().is_some() {
         return None;
     }
