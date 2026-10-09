@@ -9,15 +9,15 @@ production-ready Weaver or autonomous-action claim.
 
 - MCP is a workload protocol surface, not a member API. Human access tokens, browser sessions,
   forwarded user tokens, generic service accounts, and the fixed `weave-mcp-server` account are
-  invalid inbound cell identities.
-- Each enabled Weaver cell receives its own confidential Keycloak workload client,
-  `weaver-cell-{cellId}`, through Agent Runtime Control (ARC). The protected Compose/Keycloak
-  reconciler owns the fixed realm baseline; ARC owns dynamic client creation, rotation, suspension, deletion, and restore
-  reconciliation.
-- The cell uses the MCP Client Credentials extension
+  invalid inbound workload identities.
+- The current implementation reuses an existing cell-bound workload client and ARC storage.
+  The #1470 requirement is a protected workload-to-member/organization binding with current
+  authorization, not dynamic client provisioning or a Cell lifecycle. Per-cell provisioning and
+  lifecycle are not #1470 release gates.
+- The workload uses the MCP Client Credentials extension
   `io.modelcontextprotocol/oauth-client-credentials`. It presents a short-lived RFC 9068
   `at+jwt` access token with the exact MCP audience, the `weaver-runtime` role, `mcp.tools`, and
-  only the domain scopes granted by its current RuntimeProfile.
+  only the domain scopes admitted for that workload.
 - The MCP edge configuration names the bounded domain-scope ceiling. Admission requires
   `mcp.tools` and at least one configured domain scope, rejects unknown or repeated scopes, and
   exchanges only the admitted cell token's domain-scope subset. A Files or Calendar tool
@@ -27,18 +27,19 @@ production-ready Weaver or autonomous-action claim.
 - The edge publishes OAuth Protected Resource Metadata at
   `/.well-known/oauth-protected-resource/mcp`. Missing bearer tokens receive a discoverable
   challenge; initialization without the client-credentials extension fails closed.
-- Before Spring AI protocol dispatch, the edge resolves the authenticated workload through
-  `client -> cell -> organization -> immutable person owner -> current RuntimeProfile v2`.
-  It uses Keycloak Standard Token Exchange V2 to mint a new exact-audience backend token and
-  asks `weave-backend` to revalidate current entitlement, lifecycle, profile, policy, and domain
-  scopes. The inbound token is never relayed downstream.
+- Before Spring AI protocol dispatch, the edge resolves the authenticated workload to its
+  protected organization/member binding. The existing implementation uses a Cell and
+  RuntimeProfile v2 for that lookup. It uses Keycloak Standard Token Exchange V2 to mint a
+  new exact-audience backend token and asks `weave-backend` to revalidate current entitlement,
+  membership, policy, resource access, and domain scopes. The inbound token is never relayed
+  downstream.
 
 ## What is active
 
 - Spring AI 2.0 stateful Streamable HTTP at `/mcp`;
 - RFC 9068 token-type, issuer, time, exact-audience, workload-role, and scope validation;
 - protected-resource discovery and the MCP Client Credentials extension handshake;
-- server-owned ARC binding and current backend context resolution;
+- server-owned workload/member binding and current backend context resolution;
 - downscoped workload token exchange with no refresh or ID token;
 - `files.search` through the generated User list operation, with bounded traversal and
   provider-neutral structured output;
@@ -46,16 +47,16 @@ production-ready Weaver or autonomous-action claim.
 - `calendar.agenda` through generated User Calendar listing and agenda operations, with
   bounded output and no preview materialization;
 - negative rejection of human tokens, unbound service accounts, missing extension negotiation,
-  missing scopes, upscope attempts, stale profiles, and direct workload access to admin routes.
+  missing scopes, upscope attempts, stale bindings, and direct workload access to admin routes.
 
 ## What remains guarded
 
-The fixed canonical domain catalog is a capability ceiling, not an authorization grant. Only the
-Files and Calendar agenda read slices are active. Further discovery may open only as the intersection of the catalog,
-the current RuntimeProfile, current domain authorization, and runtime availability. Write-like
-tools additionally require argument-bound, signed, single-use ApprovalDecisionEvidence v2 and
-must emit immutable ActionEvidence v2. OpenClaw owns approval presentation and decision state;
-caller-supplied MCP elicitation is never authority.
+Only the Files search/resource and Calendar agenda read slices are active. The executable
+projection below lists exactly those tools and resources; it is not a reservation of Chat,
+Admin, identity, audit, write, or broader ARC capabilities. Additional tools require a separate
+accepted contract with current member/resource authorization. Write-like tools also require the
+applicable approval and immutable action evidence. OpenClaw owns approval presentation and
+decision state; caller-supplied MCP elicitation is never authority.
 
 The removed v1 member runtime profile, `MemberMcp*` catalog, member-token exchange, caller header
 binding, fake Scout surface, Python/FastMCP gateway, and handwritten JSON-RPC controller have no

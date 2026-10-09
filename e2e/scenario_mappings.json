@@ -71,8 +71,9 @@
         {
           "path": "infra/weave-workspace/weave-mcp-tool-contract.json",
           "fragments": [
-            "\"dataPlaneAuthority\": \"weave-user-api\"",
-            "rawProviderUrl"
+            "curated workload-only Files and Calendar projection through the generated Weave User API",
+            "\"runtimeDirectProviderAccessAllowed\": false",
+            "\"rawProviderInternalsReturned\": false"
           ]
         }
       ]
