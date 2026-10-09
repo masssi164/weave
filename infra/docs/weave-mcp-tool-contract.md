@@ -38,8 +38,8 @@ production-ready Weaver or autonomous-action claim.
 ## Bounded release binding configuration
 
 Set `WEAVE_MCP_RELEASE_BINDING_FILE` **only on Server** to an absolute path to a regular JSON
-file. Its parent must not be group/world writable, and the file must be owned by the Server
-process with mode `0600`; symlinks, malformed files and unavailable state fail closed. The
+file. Its parent must not be group/world writable, and the file must be accessible to the
+Server service account with mode `0600`; symlinks, malformed files and unavailable state fail closed. The
 Server rereads it on every invocation, so an atomic file replacement can revoke a binding
 without waiting for a process restart. Keep the file and its member identifiers out of source,
 MCP edge configuration, logs and support bundles. A configured release file is authoritative:

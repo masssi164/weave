@@ -59,3 +59,13 @@ process-local secret input to its MCP Authorization header. It contains the
 short-lived workload token only, never a member, provider, or IAM-admin token;
 rotation and reconnection are required before its 60-second expiry. This
 variable is not a Server or MCP-edge setting.
+
+The release `testApp` profile starts an isolated Server and MCP stack with the
+binding file present but empty, registers a scoped Keycloak workload without
+creating a Cell, then atomically binds the browser-signed-in member. It checks
+generated User API parity for Files and Calendar, wrong-scope and member-write
+denial, restart continuity, binding revocation, live entitlement removal and
+regrant. Its support-safe evidence has the `v3-release` schema and records no
+Cell reference. The older ARC Cell journey remains runnable only as a deferred
+profile; it is not the release acceptance oracle. A real OpenClaw invocation
+and exact candidate proof remain required before #1479 can close.

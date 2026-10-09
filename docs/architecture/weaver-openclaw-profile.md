@@ -5,6 +5,10 @@ identity, encrypted external state generations, and the MCP identity/context cha
 A production cell runtime, immutable workspace materializer, external KMS custody, native approval
 evidence, and cross-node crash/reconstruction proof remain gated.
 
+This page describes the later ARC profile. The #1470 release MCP path uses a private,
+revocable workload-to-member binding without a Cell or signed profile; see the
+[current MCP projection](../weave-mcp-projection.md).
+
 ## Ownership
 
 Weave is the provider-neutral organization product. Weaver is an optional OpenClaw-based runtime,
