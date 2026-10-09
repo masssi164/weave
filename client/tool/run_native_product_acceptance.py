@@ -186,6 +186,11 @@ def report_xcode_stream_stage(*streams: str | bytes | None) -> None:
     print(
         "NATIVE_XCTEST_LAST_STAGE stage=" + stage, flush=True,
     )
+    foregrounds = re.findall(
+        r"NATIVE_XCTEST_AUTH_FOREGROUND bundle=([A-Za-z0-9.-]{1,80})", output
+    )
+    if foregrounds:
+        print("NATIVE_XCTEST_LAST_FOREGROUND bundle=" + foregrounds[-1], flush=True)
 
 
 def main() -> int:

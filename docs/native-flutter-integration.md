@@ -110,11 +110,16 @@ macOS Flutter build, Xcode test build, and XCTest fixture transfer all passed.
 Flutter launched and tapped sign-in. XCTest observed the disposable IdP URL and
 focused Safari, then the `safari.webViews.textFields` query did not return
 before the bounded driver timeout. Flutter's workspace assertion also failed.
-This does not prove a credential or callback defect. The next driver revision
-uses the IdP page's initial keyboard focus and sends account, Tab, password,
-and Return through XCTest without enumerating WebKit text-field descendants.
-The real Flutter callback and product assertions still determine success; a
-focus change or failed submission must fail the run.
+This does not prove a credential or callback defect. Candidate `daae77f117`
+also timed out: XCTest spent several minutes in a Weave-window accessibility
+lookup, then observed the browser but blocked on `XCUIApplication.typeText`.
+The next driver revision avoids the preliminary window lookup and XCTest's
+cross-application text input. It verifies the disposable IdP authority, checks
+that a known system-browser process is foreground, and posts account, Tab,
+password, and Return through macOS native keyboard events. An unexpected
+foreground app fails before credential entry. The real Flutter callback and
+product assertions still determine success; a focus change or failed
+submission must fail the run.
 
 ## Existing executable coverage
 

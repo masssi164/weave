@@ -1,9 +1,16 @@
+import AppKit
+import CoreGraphics
 import Foundation
 import XCTest
 
 /// Drives the browser opened by production AppAuth while Flutter's
 /// integration_test remains responsible for product assertions.
 final class RunnerUITests: XCTestCase {
+  private enum NativeAuthError: Error {
+    case unexpectedForeground
+    case keyboardEventUnavailable
+  }
+
   private struct LoginFixture: Decodable {
     let email: String
     let password: String
@@ -25,21 +32,6 @@ final class RunnerUITests: XCTestCase {
   func testNativeAppAuthCallback() throws {
     let fixture = try readPrivateFixture()
     recordStage("fixture-read")
-    let app = XCUIApplication(bundleIdentifier: "com.example.weave")
-    XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 180),
-                  "Flutter's native test app did not start")
-    recordStage("app-window")
-
-    // ASWebAuthenticationSession may first ask to share the browser session.
-    // Only acknowledge the consent attached to the requesting Weave app.
-    let continueButton = app.buttons.matching(
-      NSPredicate(format: "label ==[c] 'Continue' OR label ==[c] 'Fortfahren'")
-    ).firstMatch
-    if continueButton.waitForExistence(timeout: 5) {
-      continueButton.click()
-    }
-    recordStage("browser-requested")
-
     let safari = XCUIApplication(bundleIdentifier: "com.apple.Safari")
     let deadline = Date().addingTimeInterval(180)
     var issuerVisible = false
@@ -52,24 +44,58 @@ final class RunnerUITests: XCTestCase {
     }
     XCTAssertTrue(issuerVisible, "The expected disposable IdP did not appear")
     recordStage("issuer-visible")
-    safari.activate()
-    recordStage("browser-focused")
-
-    // AppAuth's system browser can expose the expected IdP URL while
-    // descendants(matching:) blocks in WebKit's accessibility bridge. The
-    // disposable IdP focuses its account field on load. Drive that native
-    // keyboard focus and let Flutter's callback assertion prove the result.
-    safari.typeText(fixture.email)
+    // WebKit's accessibility bridge can block even a bounded element query or
+    // XCUIApplication.typeText on this AppAuth window. Never post a global
+    // key until the expected disposable authority is visible and the system
+    // browser, rather than another desktop app, owns the foreground.
+    try requireAuthBrowserForeground()
+    try typeOnFocusedAuthPage(fixture.email)
     recordStage("account-entered")
-    safari.typeKey(XCUIKeyboardKey.tab, modifierFlags: [])
+    try requireAuthBrowserForeground()
+    try postKey(48) // Tab to the password field.
     recordStage("password-focused")
-    safari.typeText(fixture.password)
+    try typeOnFocusedAuthPage(fixture.password)
     recordStage("password-entered")
-    safari.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
+    try requireAuthBrowserForeground()
+    try postKey(36) // Return submits the IdP form.
     recordStage("form-submitted")
-    XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 60),
-                  "Native application did not return after authentication")
-    recordStage("callback-returned")
+    // Flutter's product test observes the callback and authorized workspace.
+  }
+
+  private func requireAuthBrowserForeground() throws {
+    let identifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "none"
+    let permitted = Set([
+      "com.apple.Safari", "com.apple.SafariViewService",
+      "com.apple.AuthenticationServicesUIAgent",
+    ])
+    print("NATIVE_XCTEST_AUTH_FOREGROUND bundle=\(identifier)")
+    guard permitted.contains(identifier) else {
+      XCTFail("Unexpected foreground during IdP entry")
+      throw NativeAuthError.unexpectedForeground
+    }
+  }
+
+  private func typeOnFocusedAuthPage(_ text: String) throws {
+    for unit in text.utf16 {
+      var character = unit
+      guard let press = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
+            let release = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false) else {
+        throw NativeAuthError.keyboardEventUnavailable
+      }
+      press.keyboardSetUnicodeString(stringLength: 1, unicodeString: &character)
+      release.keyboardSetUnicodeString(stringLength: 1, unicodeString: &character)
+      press.post(tap: .cghidEventTap)
+      release.post(tap: .cghidEventTap)
+    }
+  }
+
+  private func postKey(_ code: CGKeyCode) throws {
+    guard let press = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true),
+          let release = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: false) else {
+      throw NativeAuthError.keyboardEventUnavailable
+    }
+    press.post(tap: .cghidEventTap)
+    release.post(tap: .cghidEventTap)
   }
 
   private func recordStage(_ stage: String) {
