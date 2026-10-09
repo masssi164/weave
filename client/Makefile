@@ -37,6 +37,9 @@ physical-device-auth-e2e:
 	  '.[] | select(.id == $$id and .emulator == false)' >/dev/null; then \
 	  echo "WEAVE_PHYSICAL_DEVICE_ID must identify a connected physical device." >&2; exit 2; \
 	fi; \
+	if [ "$$device_id" = "macos" ]; then \
+	  PATH="$(CURDIR)/tool/native_macos_open:$$PATH"; export PATH; \
+	fi; \
 	dart_defines_file=$$(mktemp); \
 	trap 'rm -f "$$dart_defines_file"' EXIT; \
 	jq -n \

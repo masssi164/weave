@@ -21,9 +21,12 @@ import 'package:weave/features/chat/data/repositories/native_matrix_chat_reposit
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
+import 'package:weave/features/files/domain/entities/file_upload_request.dart';
+import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
@@ -57,6 +60,27 @@ void main() {
   );
   const disposableStack = bool.fromEnvironment('WEAVE_DEVICE_DISPOSABLE_STACK');
   final config = TestConfig.fromEnvironment();
+
+  test('native acceptance requires an explicitly selected live journey', () {
+    expect(
+      enabled || matrixEnabled || productEnabled,
+      isTrue,
+      reason:
+          'No native acceptance journey was selected. An all-skipped '
+          'Flutter run is not integration evidence.',
+    );
+    if (productEnabled ||
+        disposableMessageEnabled ||
+        twoDeviceRecoveryEnabled) {
+      expect(
+        disposableStack,
+        isTrue,
+        reason:
+            'Product and Matrix mutation journeys require a disposable stack.',
+      );
+    }
+    expect(config.offlineContractOnly, isFalse);
+  });
 
   testWidgets(
     'activation and OIDC Authorization Code with PKCE use the system browser',
@@ -99,12 +123,65 @@ void main() {
           (await files.restoreConnection()).status,
           FilesConnectionStatus.connected,
         );
-        expect((await files.listDirectory('/')).path, '/');
+        final root = await files.listDirectory('/');
+        expect(root.path, '/');
+        expect(root.allowedActions, contains('upload'));
+        final fileName =
+            'weave-native-${DateTime.now().toUtc().microsecondsSinceEpoch}.txt';
+        final fileBytes = utf8.encode(
+          'Weave native Files acceptance $fileName',
+        );
+        await files.uploadFile(
+          '/',
+          FileUploadRequest(
+            fileName: fileName,
+            sizeInBytes: fileBytes.length,
+            byteStream: Stream.value(fileBytes),
+          ),
+        );
+        final uploaded = (await files.listDirectory(
+          '/',
+        )).entries.where((entry) => entry.name == fileName).single;
+        expect(uploaded.id, startsWith('file:'));
+        expect(uploaded.isDirectory, isFalse);
+        final download = await (files as FilesExportRepository).downloadFile(
+          uploaded,
+        );
+        expect(download.bytes, orderedEquals(fileBytes));
 
         final scopes = await calendar.loadScopes();
         expect(scopes.scopes, isNotEmpty);
         final agenda = await calendar.loadEvents(scope: scopes.scopes.first);
         expect(agenda.scope.id, scopes.scopes.first.id);
+        final writableScope = scopes.scopes.firstWhere(
+          (scope) => scope.capabilities.contains('create'),
+        );
+        final eventStart = DateTime.now().toUtc().add(const Duration(days: 2));
+        final eventDraft = CalendarEventDraft(
+          title: 'Weave native Calendar acceptance',
+          startTime: eventStart,
+          endTime: eventStart.add(const Duration(hours: 1)),
+          timezone: 'UTC',
+          timeKind: CalendarTimeKind.utc,
+          scope: writableScope,
+        );
+        final created = await calendar.createEvent(eventDraft);
+        expect((await calendar.readEvent(created.id)).title, eventDraft.title);
+        final updated = await calendar.updateEvent(
+          created.id,
+          CalendarEventDraft(
+            title: 'Weave native Calendar updated',
+            startTime: eventDraft.startTime,
+            endTime: eventDraft.endTime,
+            timezone: eventDraft.timezone,
+            timeKind: eventDraft.timeKind,
+            scope: writableScope,
+          ),
+          etag: created.etag,
+        );
+        expect((await calendar.readEvent(updated.id)).title, updated.title);
+        await calendar.deleteEvent(updated.id, etag: updated.etag);
+        await expectLater(calendar.readEvent(updated.id), throwsA(anything));
 
         final matrix = await coordinator.open(allowInteractiveSignIn: false);
         expect(matrix.userId, startsWith('@'));
@@ -158,6 +235,12 @@ void main() {
         expect(reopened.deviceId, matrix.deviceId);
         await _requireBusinessRoomReadback(chat, room.id, marker);
         expect((await files.listDirectory('/')).path, '/');
+        expect(
+          (await files.listDirectory(
+            '/',
+          )).entries.where((entry) => entry.name == fileName).single.id,
+          uploaded.id,
+        );
         expect((await calendar.loadScopes()).scopes, isNotEmpty);
 
         await coordinator.disposePreservingCryptoState();
@@ -176,6 +259,12 @@ void main() {
         );
         try {
           expect((await restoredFiles.listDirectory('/')).path, '/');
+          expect(
+            (await restoredFiles.listDirectory(
+              '/',
+            )).entries.where((entry) => entry.name == fileName).single.id,
+            uploaded.id,
+          );
           expect((await restoredCalendar.loadScopes()).scopes, isNotEmpty);
           final restoredMatrix = await restoredCoordinator.open(
             allowInteractiveSignIn: false,
@@ -211,13 +300,18 @@ void main() {
             restoredCoordinator.open(allowInteractiveSignIn: false),
             throwsA(anything),
           );
+          await expectLater(
+            restoredFiles.listDirectory('/'),
+            throwsA(anything),
+          );
+          await expectLater(restoredCalendar.loadScopes(), throwsA(anything));
         } finally {
           await restoredCoordinator.disposePreservingCryptoState();
         }
 
         debugPrint(
           'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed login=single '
-          'files=generated calendar=generated matrix=native '
+          'files=generated-upload-read calendar=generated-crud matrix=native '
           'businessRoomSendRead=true '
           'refresh=true sessionReopen=true appRestart=true '
           'logoutDenied=true supportSafe=true',
@@ -636,8 +730,9 @@ Future<ProviderContainer> _openWeaveSession(
     await tester.tap(find.byKey(const ValueKey('weave.auth.sign-in')));
     await tester.pump();
   }
-  // The production FlutterAppAuthOidcClient owns the system-browser
-  // transition. A human completes activation and login in Keycloak.
+  // The production FlutterAppAuthOidcClient owns the system-browser transition.
+  // The native acceptance runner must complete the IdP interaction without
+  // injecting tokens into this app or replacing the AppAuth callback.
   await _waitFor(
     tester,
     const ValueKey('weave.workspace.home'),
