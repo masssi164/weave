@@ -72,19 +72,25 @@ def _process_exists(pid: int) -> bool:
         return False
 
 
-def stop_checkout_app() -> None:
-    """Stop only an orphaned Flutter app built by this checkout."""
+def checkout_app_pids() -> list[int]:
+    """Find only the native Flutter executable built by this checkout."""
     executable = str((CLIENT / "build/macos/Build/Products/Debug/weave.app"
                       / "Contents/MacOS/weave").resolve())
     listing = subprocess.run(
         ["ps", "-axo", "pid=,command="], capture_output=True, text=True,
         check=True, timeout=10,
     )
-    owned = []
+    owned: list[int] = []
     for line in listing.stdout.splitlines():
         fields = line.strip().split(maxsplit=2)
         if len(fields) >= 2 and fields[1] == executable and fields[0].isdigit():
             owned.append(int(fields[0]))
+    return owned
+
+
+def stop_checkout_app() -> None:
+    """Stop only an orphaned Flutter app built by this checkout."""
+    owned = checkout_app_pids()
     for pid in owned:
         try:
             os.kill(pid, signal.SIGTERM)
@@ -184,6 +190,15 @@ def main() -> int:
                 target=collect_flutter_output, args=(flutter, markers), daemon=True
             )
             reader.start()
+            app_deadline = time.monotonic() + 120
+            while not checkout_app_pids() and time.monotonic() < app_deadline:
+                if flutter.poll() is not None:
+                    report_flutter_markers(markers)
+                    raise RuntimeError("Flutter exited before native app launch")
+                time.sleep(0.5)
+            if not checkout_app_pids():
+                raise RuntimeError("native Flutter app did not launch")
+            print("NATIVE_APP_LAUNCH_RESULT status=passed scope=checkout", flush=True)
             driver = subprocess.Popen(
                 ["swift", str(DRIVER), str(pipe)], cwd=CLIENT, env=env,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,

@@ -149,7 +149,7 @@ var issuerObserved = false
 var usernameFieldObserved = false
 while Date() < deadline {
   guard expectedNativeAppIsRunning() else {
-    Thread.sleep(forTimeInterval: 0.5)
+    _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.5))
     continue
   }
   appObserved = true
@@ -157,7 +157,7 @@ while Date() < deadline {
     consentHandled = acceptSystemConsent()
   }
   guard let elements = issuerWindow() else {
-    Thread.sleep(forTimeInterval: 0.5)
+    _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.5))
     continue
   }
   issuerObserved = true
@@ -185,7 +185,7 @@ while Date() < deadline {
     usernameSubmitted = true
     print("NATIVE_AUTH_STAGE phase=username-submitted")
   }
-  Thread.sleep(forTimeInterval: 0.5)
+  _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.5))
 }
 if !appObserved { fail("app-not-observed") }
 if !issuerHostObserved { fail("issuer-host-not-observed") }

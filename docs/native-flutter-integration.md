@@ -119,7 +119,7 @@ Safari-only authority check failed: the observed foreground process was Weave,
 consistent with AppAuth attaching its system authentication sheet to the
 requesting application. It entered no credentials. The earlier `XCTAssertTrue`
 check had continued after failure, so its subsequent stage marker had falsely
-suggested that Safari had exposed the IdP. The current driver requires the
+suggested that Safari had exposed the IdP. That experimental driver required the
 exact disposable IdP authority in whichever permitted application owns the
 foreground, then posts account, Tab, password, and Return through macOS native
 keyboard events. An unverified authority or a foreground change fails before
@@ -202,7 +202,16 @@ pipe. That helper must find the exact current IdP authority in Safari, fill
 the observed username and password fields separately, and submit the real
 forms. An unrelated system prompt or missing/ambiguous field blocks input.
 No Flutter token, callback URL or mocked OIDC response is supplied. This new
-driver has not yet passed a full live run.
+driver has not yet passed a full live run. The first two exact runs against it
+(`db5f126c97`, `9d21a11dc0`) failed closed before credential entry. The
+second run identified `app-not-observed`: a separate Accessibility process saw
+the exact compiled Weave app while the helper, started earlier, kept polling
+an unchanged `NSWorkspace.runningApplications` snapshot. Safari also showed a
+login page from the prior disposable IdP port, which the exact-authority guard
+correctly rejected. The runner now waits for this checkout's native app process
+before starting the helper; the helper runs AppKit's event loop between polls
+so application and browser lifecycle notifications are processed. This fix
+requires a fresh exact local run before it can count as acceptance evidence.
 
 ## Existing executable coverage
 
