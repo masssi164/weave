@@ -31,8 +31,8 @@ class SignOutWorkspace {
     Object? firstFailure;
     StackTrace? firstFailureStack;
     try {
-      // Matrix owns a separate OAuth session. End it before the Weave OIDC
-      // session so remote revocation can still use the Matrix SDK session.
+      // Revoke the Matrix device while the Weave member session can still
+      // authorize that request, then end the member OIDC session.
       await _chatSessionPort.signOut();
     } on Object catch (error, stack) {
       firstFailure = error;

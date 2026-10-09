@@ -15,6 +15,7 @@ import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_session.dart';
 import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
+import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/chat/data/repositories/matrix_device_identity_repository.dart';
 import 'package:weave/features/chat/data/repositories/native_matrix_chat_repository.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
@@ -186,6 +187,30 @@ void main() {
             room.id,
             marker,
           );
+          await restoredContainer
+              .read(authFlowControllerProvider.notifier)
+              .signOut();
+          await _waitFor(
+            tester,
+            const ValueKey('weave.auth.sign-in'),
+            timeout: const Duration(minutes: 1),
+          );
+          expect(
+            (await restoredContainer
+                    .read(authSessionRepositoryProvider)
+                    .restoreSession(
+                      AuthConfiguration(
+                        issuer: config.issuerUrl,
+                        clientId: config.clientId,
+                      ),
+                    ))
+                .isAuthenticated,
+            isFalse,
+          );
+          await expectLater(
+            restoredCoordinator.open(allowInteractiveSignIn: false),
+            throwsA(anything),
+          );
         } finally {
           await restoredCoordinator.disposePreservingCryptoState();
         }
@@ -194,7 +219,8 @@ void main() {
           'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed login=single '
           'files=generated calendar=generated matrix=native '
           'businessRoomSendRead=true '
-          'refresh=true sessionReopen=true appRestart=true supportSafe=true',
+          'refresh=true sessionReopen=true appRestart=true '
+          'logoutDenied=true supportSafe=true',
         );
       } finally {
         await coordinator.disposePreservingCryptoState();
