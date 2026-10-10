@@ -36,10 +36,32 @@ def require(name: str) -> str:
 
 
 def run_quiet(command: list[str], *, timeout: int, env: dict[str, str] | None = None) -> None:
-    result = subprocess.run(
-        command, cwd=CLIENT, env=env, capture_output=True, text=True, timeout=timeout
-    )
+    """Keep build output private, but retain it on failure for runner diagnosis."""
+    print("NATIVE_BUILD_PREPARATION_RESULT status=started target=macos", flush=True)
+    try:
+        result = subprocess.run(
+            command, cwd=CLIENT, env=env, capture_output=True, text=True, timeout=timeout
+        )
+    except subprocess.TimeoutExpired:
+        print("NATIVE_BUILD_PREPARATION_RESULT status=failed category=timeout", flush=True)
+        raise
     if result.returncode:
+        private_dir = CLIENT / "build/private-native-acceptance"
+        private_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if private_dir.is_symlink():
+            raise RuntimeError("native private diagnostic directory is a symlink")
+        private_dir.chmod(0o700)
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", prefix="flutter-build-", suffix=".log",
+            dir=private_dir, delete=False,
+        ) as diagnostic:
+            diagnostic.write(result.stdout)
+            diagnostic.write(result.stderr)
+        print(
+            "NATIVE_BUILD_PREPARATION_RESULT status=failed "
+            f"exit={result.returncode} privateDiagnostic=retained",
+            flush=True,
+        )
         raise RuntimeError(f"{command[0]} exited {result.returncode}")
 
 
@@ -224,6 +246,10 @@ def main() -> int:
         )
         env = os.environ.copy()
         env["XCODE_XCCONFIG_FILE"] = str(signing)
+        # The disposable credentials are only for the private AppAuth driver.
+        # They must never enter Flutter/Xcode/Cargo child environments.
+        env.pop("WEAVE_NATIVE_MEMBER_EMAIL", None)
+        env.pop("WEAVE_NATIVE_MEMBER_PASSWORD", None)
         stop_checkout_app()
         cleanup = subprocess.run(
             ["swift", str(DRIVER), "--clear-stale-consent", signing_bundle],
