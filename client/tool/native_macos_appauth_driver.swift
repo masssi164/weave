@@ -13,6 +13,7 @@ struct Fixture: Decodable {
   let issuerAuthority: String
   let appBundleIdentifier: String
   let appExecutable: String
+  let nativeAuthCompletionPath: String
 }
 
 func attribute(_ element: AXUIElement, _ key: String) -> CFTypeRef? {
@@ -210,6 +211,9 @@ guard CommandLine.arguments.count == 2,
       fixture.issuerHost == "auth.weave.localhost",
       fixture.issuerAuthority.hasPrefix("auth.weave.localhost:"),
       fixture.appBundleIdentifier.contains("."),
+      fixture.nativeAuthCompletionPath.hasSuffix("/native-auth-established"),
+      URL(fileURLWithPath: fixture.nativeAuthCompletionPath).deletingLastPathComponent()
+        .lastPathComponent.hasPrefix("weave-native-acceptance-"),
       fixture.email.contains("@"), !fixture.password.isEmpty else {
   fail("fixture")
 }
@@ -376,14 +380,14 @@ func enterUsername(_ input: AXUIElement, in surface: AuthSurface, expected: Stri
   return false
 }
 
-func waitForAuthWindowToClose(_ surface: AuthSurface) -> Bool {
-  let deadline = Date().addingTimeInterval(5)
-  let root = AXUIElementCreateApplication(surface.safariPID)
+func waitForNativeSession(timeout: TimeInterval) -> Bool {
+  let deadline = Date().addingTimeInterval(timeout)
   while Date() < deadline {
-    // Only a successful window-list read can prove this exact AppAuth window
-    // closed. Missing fields or an unreadable AX tree are indeterminate.
-    if let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement],
-       !windows.contains(where: { CFEqual($0, surface.window) }) { return true }
+    // The owned runner writes this private signal only after Flutter's real
+    // workspace assertion. Safari may retain its window after native callback;
+    // neither that window nor a missing AX field is the completion oracle.
+    if let data = try? Data(contentsOf: URL(fileURLWithPath: fixture.nativeAuthCompletionPath)),
+       data == Data("workspace-ready\n".utf8) { return true }
     _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.1))
   }
   return false
@@ -397,29 +401,38 @@ func submitPassword(_ input: AXUIElement, in surface: AuthSurface) {
     fail("password-press")
   }
   var method = "accessibility"
-  if !waitForAuthWindowToClose(surface) {
+  if !waitForNativeSession(timeout: 5) {
     // Safari can acknowledge AXPress without submitting an unfocused form.
     // Re-resolve the exact disposable IdP window, focus its password field,
     // and send Return only to that Safari process. Never treat AX success as
     // proof of navigation or of the native AppAuth callback.
-    guard let current = issuerWindow(),
-          let password = field(in: current.elements, stage: "password"),
-          let safari = NSRunningApplication(processIdentifier: current.safariPID),
+    if let current = issuerWindow(),
+       let password = field(in: current.elements, stage: "password") {
+      guard let safari = NSRunningApplication(processIdentifier: current.safariPID),
           safari.bundleIdentifier == "com.apple.Safari",
           safari.activate(options: [.activateIgnoringOtherApps]),
           AXUIElementPerformAction(current.window, kAXRaiseAction as CFString) == .success,
           AXUIElementSetAttributeValue(password, kAXFocusedAttribute as CFString, kCFBooleanTrue)
             == .success else { fail("password-focus") }
-    let root = AXUIElementCreateApplication(current.safariPID)
-    guard let focusedWindow = attribute(root, kAXFocusedWindowAttribute),
-          CFEqual(focusedWindow, current.window),
-          let focused = attribute(root, kAXFocusedUIElementAttribute),
-          CFEqual(focused, password),
-          postKey(to: current.safariPID, code: 36) else { fail("password-targeted-submit") }
-    method = "targeted-keyboard"
-    guard waitForAuthWindowToClose(current) else { fail("password-navigation") }
+      let root = AXUIElementCreateApplication(current.safariPID)
+      let focusDeadline = Date().addingTimeInterval(2)
+      var focusedPassword = false
+      while Date() < focusDeadline {
+        if let focusedWindow = attribute(root, kAXFocusedWindowAttribute),
+           CFEqual(focusedWindow, current.window),
+           let focused = attribute(root, kAXFocusedUIElementAttribute),
+           CFEqual(focused, password) { focusedPassword = true; break }
+        _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.1))
+      }
+      guard focusedPassword, postKey(to: current.safariPID, code: 36) else {
+        fail("password-targeted-submit")
+      }
+      method = "targeted-keyboard"
+    }
+    guard waitForNativeSession(timeout: 30) else { fail("native-callback") }
   }
   print("NATIVE_PASSWORD_SUBMISSION_RESULT status=passed method=\(method)")
+  print("NATIVE_AUTH_CALLBACK_RESULT status=observed")
   print("NATIVE_AUTH_STAGE phase=password-submitted")
   print("NATIVE_APP_AUTH_DRIVER_RESULT status=passed stage=form-submitted")
 }
@@ -455,8 +468,9 @@ while Date() < deadline {
      focusFieldViaKeyboard(surface, stage: "password") != nil {
     guard typeTargeted(fixture.password, to: surface.safariPID),
           postKey(to: surface.safariPID, code: 36) else { fail("password-targeted-input") }
-    guard waitForAuthWindowToClose(surface) else { fail("password-navigation") }
+    guard waitForNativeSession(timeout: 30) else { fail("native-callback") }
     print("NATIVE_PASSWORD_SUBMISSION_RESULT status=passed method=targeted-keyboard")
+    print("NATIVE_AUTH_CALLBACK_RESULT status=observed")
     print("NATIVE_AUTH_STAGE phase=password-submitted")
     print("NATIVE_APP_AUTH_DRIVER_RESULT status=passed stage=form-submitted")
     exit(0)

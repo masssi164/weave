@@ -47,16 +47,22 @@ already removed the stack, this diagnostic action reached an unavailable page.
 It is not a successful authentication test.
 
 Safari had acknowledged the driver's `AXPress` without navigating. The driver
-now requires a readable window-list observation that the exact AppAuth browser
-window closed before reporting submission. Missing fields or unreadable
-Accessibility state are indeterminate. If the window remains, the driver
-re-resolves the exact disposable issuer authority, activates
-that Safari process, verifies the focused window and password field, and sends
-Return to that process. Failure to close the authentication window fails the driver. Only the
-separate Flutter assertions can prove the actual PKCE callback, member session
-and authorized product journey. Neither a button-action return code nor browser
-navigation alone establishes native acceptance. No credentials or callback
-values enter public diagnostics.
+now waits for a one-use private completion signal written only after Flutter's
+real workspace assertion following system-browser PKCE. No token or callback
+is supplied to Flutter. If completion is still pending and the exact IdP
+password form is observable, the driver activates that Safari process, verifies
+the focused window and password field, and sends Return only to that process.
+Missing fields are indeterminate; the driver still waits for the real assertion.
+Failure to observe completion fails the driver. Flutter must additionally pass
+the full product and session-lifecycle assertions.
+
+A diagnostic local run on `2d5ab400a4e93f2b76389248698af83b4fc4ef6f`
+authenticated in Flutter and passed Files, Calendar and Matrix assertions, but
+failed the driver's attempted window-closure requirement. Safari can retain
+that window after a successful native callback. This failed run is not full
+acceptance evidence and window closure is not the completion oracle. Neither
+a button-action return code nor browser navigation alone establishes native
+acceptance. No credentials or callback values enter public diagnostics.
 
 The documented disposable `specCorpusConformance testApp` command, with
 `--max-workers=2`, passed in 14m 59s overall (12m 4s for the inner product

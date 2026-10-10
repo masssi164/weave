@@ -67,6 +67,7 @@ def run_quiet(command: list[str], *, timeout: int, env: dict[str, str] | None = 
 
 def collect_flutter_output(
     process: subprocess.Popen[str], sink: queue.Queue[str], diagnostic,
+    auth_completion: Path | None = None,
 ) -> None:
     assert process.stdout is not None
     def record(marker: str) -> None:
@@ -84,7 +85,14 @@ def collect_flutter_output(
             None,
         )
         if marker:
-            record(line[line.index(marker):].strip())
+            observed = line[line.index(marker):].strip()
+            record(observed)
+            if auth_completion is not None and observed == "NATIVE_PRODUCT_STAGE phase=workspace-ready":
+                # No token or callback is injected. This one-use private signal
+                # follows the real Flutter workspace assertion after PKCE.
+                with auth_completion.open("x", opener=lambda path, flags: os.open(path, flags, 0o600)) as ready:
+                    ready.write("workspace-ready\n")
+                auth_completion = None
         elif match := re.search(
             r"system_browser_auth_e2e_test\.dart[: ]+(\d+):(\d+)", line
         ):
@@ -230,8 +238,11 @@ def report_driver_output(output: str) -> bool:
         r"stage=([a-z-]{1,60})", output
     )
     status, stage = result[-1] if result else ("failed", "result-unavailable")
+    callback_observed = output.count("NATIVE_AUTH_CALLBACK_RESULT status=observed") == 1
+    if callback_observed:
+        print("NATIVE_AUTH_CALLBACK_RESULT status=observed", flush=True)
     print(f"NATIVE_APP_AUTH_DRIVER_RESULT status={status} stage={stage}", flush=True)
-    return status == "passed" and stage == "form-submitted"
+    return status == "passed" and stage == "form-submitted" and callback_observed
 
 
 def report_flutter_markers(markers: queue.Queue[str]) -> list[str]:
@@ -352,6 +363,7 @@ def main() -> int:
         print("NATIVE_BUILD_PREPARATION_RESULT status=passed target=macos", flush=True)
         verify_signed_app(signing_team, signing_bundle)
         pipe = Path(temporary) / "member.pipe"
+        auth_completion = Path(temporary) / "native-auth-established"
         os.mkfifo(pipe, 0o600)
         fixture = json.dumps({
             "email": email, "password": password,
@@ -359,6 +371,7 @@ def main() -> int:
             "issuerAuthority": urlparse(issuer).netloc,
             "appBundleIdentifier": signing_bundle,
             "appExecutable": str((APP / "Contents/MacOS/weave").resolve()),
+            "nativeAuthCompletionPath": str(auth_completion),
         }, separators=(",", ":")).encode()
         env.update({
             "WEAVE_PHYSICAL_DEVICE_ID": "macos",
@@ -396,7 +409,7 @@ def main() -> int:
             )
             reader = threading.Thread(
                 target=collect_flutter_output,
-                args=(flutter, markers, diagnostic), daemon=True,
+                args=(flutter, markers, diagnostic, auth_completion), daemon=True,
             )
             reader.start()
             app_deadline = time.monotonic() + 120
