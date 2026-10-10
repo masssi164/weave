@@ -5840,7 +5840,8 @@
       "feature": "e2e/features/calendar_user_api_generated.feature",
       "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
       "evidenceMarkers": [
-        "WEAVE_CALENDAR_MCP_WRITE_PARITY_RESULT"
+        "WEAVE_CALENDAR_MCP_WRITE_PARITY_RESULT",
+        "WEAVE_OPENCLAW_CALENDAR_WRITE_PARITY_RESULT"
       ],
       "evidenceMode": "live-runtime",
       "runtimeSources": [
@@ -5854,6 +5855,14 @@
             "calendar.create replay",
             "MCP stale calendar.update",
             "verifyMcpEventDeleted"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/ReleaseMcpJourney.java",
+          "fragments": [
+            "proveOpenClawCalendarWriteDenied",
+            "proveOpenClawCalendarWriteParity",
+            "calendar.verifyMcpEventDeleted"
           ]
         },
         {

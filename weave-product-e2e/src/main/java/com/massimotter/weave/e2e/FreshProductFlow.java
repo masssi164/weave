@@ -366,11 +366,15 @@ public final class FreshProductFlow {
         mcpProof = release.files(mcpTextProof);
         release.calendar(mcpCalendarProof);
         release.verifyCalendarWriteDenied(mcpCalendarProof.calendarId());
+        release.proveOpenClawCalendarWriteDenied(mcpCalendarProof.calendarId());
         release.bind(ownerSession.subject(),
             accountId(environment.issuer().toString(), ownerSession.subject()), true);
+        String openClawWriteVersion;
         try {
           release.verifyCalendarWriteParity(generatedCalendar,
               mcpCalendarProof.calendarId(), ownerSession.accessToken());
+          openClawWriteVersion = release.proveOpenClawCalendarWriteParity(
+              generatedCalendar, mcpCalendarProof.calendarId(), ownerSession.accessToken());
         } finally {
           release.bind(memberSession.subject(), personRef, true);
         }
@@ -378,9 +382,13 @@ public final class FreshProductFlow {
             + "create=true replay=true update=true conflict=true delete=true "
             + "generatedReadback=true supportSafe=true");
         String openClawVersion = release.proveOpenClawFiles(mcpTextProof);
-        if (!openClawVersion.equals(release.proveOpenClawCalendar(mcpCalendarProof))) {
+        if (!openClawVersion.equals(release.proveOpenClawCalendar(mcpCalendarProof))
+            || !openClawVersion.equals(openClawWriteVersion)) {
           throw new ProductFlowException("OpenClaw client version changed within one proof");
         }
+        System.out.println("WEAVE_OPENCLAW_CALENDAR_WRITE_PARITY_RESULT status=passed "
+            + "client=real create=true replay=true update=true staleDenied=true "
+            + "delete=true memberDenied=true generatedReadback=true supportSafe=true");
 
         restartProof = new PersistenceRestartJourney(environment, http).restart();
         WorkloadMcpJourney.McpProof afterRestart = release.files(mcpTextProof);
@@ -1158,6 +1166,7 @@ public final class FreshProductFlow {
       evidence.put("openClawFilesInvoked", true);
       evidence.put("openClawCalendarInvoked", true);
       evidence.put("calendarMcpWriteParity", true);
+      evidence.put("openClawCalendarWriteParity", true);
     } else {
       evidence.put("cellRefSha256", Hashing.sha256(cellRef));
     }
