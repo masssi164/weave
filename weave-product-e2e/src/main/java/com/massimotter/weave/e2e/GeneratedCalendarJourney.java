@@ -195,6 +195,41 @@ final class GeneratedCalendarJourney {
     }
   }
 
+  CalendarUserEvent readMcpEvent(String calendarId, String title, String author) {
+    try {
+      var agenda = calendar.queryCalendarAgenda(calendarId, FROM, TO, ZONE, bearer(author));
+      var matches = agenda.getEvents().stream()
+          .filter(event -> title.equals(event.getContent().getTitle())).toList();
+      if (matches.size() != 1) {
+        throw failure("MCP Calendar write did not produce one visible event");
+      }
+      CalendarUserEvent event = calendar.getCalendarEvent(
+          calendarId, matches.getFirst().getId(), bearer(author));
+      if (!title.equals(event.getContent().getTitle())
+          || !calendarId.equals(event.getCalendarId())
+          || !event.getId().matches("event:[0-9a-f]{64}")) {
+        throw failure("MCP Calendar write changed the generated User readback");
+      }
+      return event;
+    } catch (ApiException failure) {
+      throw failure("MCP Calendar readback failed with HTTP " + failure.getCode());
+    }
+  }
+
+  void verifyMcpEventUnchanged(String calendarId, CalendarUserEvent expected, String author) {
+    try {
+      requireSame(expected, calendar.getCalendarEvent(
+          calendarId, expected.getId(), bearer(author)));
+    } catch (ApiException failure) {
+      throw failure("MCP Calendar conflict changed the event or denied readback");
+    }
+  }
+
+  void verifyMcpEventDeleted(String calendarId, String eventId, String author) {
+    expectStatus(Set.of(404), "MCP-deleted Calendar event", () ->
+        calendar.getCalendarEvent(calendarId, eventId, bearer(author)));
+  }
+
   private static List<CalendarEventWriteRequest> fixtures(String runId) {
     String title = "Calendar " + Hashing.sha256(runId).substring(0, 16);
     var date = content(title + " DATE", date("2026-10-25"), date("2026-10-26"));

@@ -441,6 +441,7 @@ jq -e \
     .sameReleaseBindingAfterRestart == true and
     .openClawFilesInvoked == true and
     .openClawCalendarInvoked == true and
+    .calendarMcpWriteParity == true and
     (.openClawClientVersion | test("^20[0-9]{2}\\.[0-9]+\\.[0-9]+$")) and
     (.releaseBindingRefSha256 | test("^[0-9a-f]{64}$")) and
     (.cellRefSha256 == null) and

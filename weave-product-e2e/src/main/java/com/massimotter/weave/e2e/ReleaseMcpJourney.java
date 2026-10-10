@@ -107,6 +107,12 @@ final class ReleaseMcpJourney {
     mcp.verifyCalendarWriteDeniedForMember(clientId, key, calendarId);
   }
 
+  void verifyCalendarWriteParity(
+      GeneratedCalendarJourney calendar, String calendarId, String authorToken) {
+    mcp.verifyCalendarWriteParity(
+        clientId, key, calendar, calendarId, authorToken, environment.runId());
+  }
+
   String proveOpenClawFiles(GeneratedFilesJourney.Proof proof) {
     ObjectNode expected = http.mapper().createObjectNode();
     expected.put("tool", "files.search");

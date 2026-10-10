@@ -4668,6 +4668,24 @@
       ]
     },
     {
+      "tag": "@calendar-mcp-write-parity",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "weaver_user"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "bound workload uses generated User Calendar writes",
+        "independent generated User readback verifies stable identity and DATE intent",
+        "changed idempotency replay and stale version fail without mutation",
+        "read-only scope and unauthorized member writes fail closed"
+      ]
+    },
+    {
       "tag": "@calendar-user-api-runtime",
       "suiteId": "member-live-critical-path",
       "personas": [

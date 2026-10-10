@@ -5835,6 +5835,38 @@
       "evidenceMode": "offline-spec"
     },
     {
+      "tag": "@calendar-mcp-write-parity",
+      "scenario": "Authorized MCP scheduling preserves User API versions and access",
+      "feature": "e2e/features/calendar_user_api_generated.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
+      "evidenceMarkers": [
+        "WEAVE_CALENDAR_MCP_WRITE_PARITY_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "test-app"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/WorkloadMcpJourney.java",
+          "fragments": [
+            "verifyCalendarWriteParity",
+            "calendar.create replay",
+            "MCP stale calendar.update",
+            "verifyMcpEventDeleted"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedCalendarJourney.java",
+          "fragments": [
+            "readMcpEvent",
+            "verifyMcpEventUnchanged",
+            "verifyMcpEventDeleted"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@calendar-user-api-runtime",
       "scenario": "Shared scheduling preserves time and access after restart",
       "feature": "e2e/features/calendar_user_api_generated.feature",

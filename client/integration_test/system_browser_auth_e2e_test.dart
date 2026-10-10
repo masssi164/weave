@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
@@ -1065,7 +1066,26 @@ Future<void> _waitForWorkspaceAfterSignIn(
     final failure = state.failure;
     if (failure != null) {
       final cause = failure.cause;
-      final platform = cause is FlutterAppAuthPlatformException ? cause : null;
+      final appFailure = cause is AppFailure ? cause : null;
+      final nestedCause = appFailure?.cause ?? cause;
+      final platform = nestedCause is FlutterAppAuthPlatformException
+          ? nestedCause
+          : null;
+      final backendStatus = nestedCause is int &&
+              nestedCause >= 100 && nestedCause <= 599
+          ? nestedCause.toString()
+          : 'unavailable';
+      final backendFailure = switch (appFailure?.message) {
+        'The Weave backend rejected the current session.' => 'session-rejected',
+        'Unable to reach the Weave backend right now.' => 'timeout',
+        'The Weave backend failed to reconcile organization access.' =>
+          'request-failed',
+        'The Weave backend returned an invalid identity-session reconciliation payload.' =>
+          'invalid-payload',
+        'The Weave backend returned an unknown identity-session reconciliation state.' =>
+          'unknown-state',
+        _ => 'none',
+      };
       String safeCode(String? value) =>
           value != null && RegExp(r'^[A-Za-z0-9_.-]{1,80}$').hasMatch(value)
           ? value
@@ -1073,6 +1093,9 @@ Future<void> _waitForWorkspaceAfterSignIn(
       debugPrint(
         'NATIVE_PRODUCT_STAGE phase=auth-failed '
         'category=${failure.type.name} causeType=${cause.runtimeType} '
+        'appFailureType=${appFailure?.type.name ?? 'none'} '
+        'nestedCauseType=${nestedCause.runtimeType} '
+        'backendFailure=$backendFailure backendStatus=$backendStatus '
         'appAuthCode=${safeCode(platform?.code)} '
         'nativeType=${safeCode(platform?.platformErrorDetails.type)} '
         'nativeCode=${safeCode(platform?.platformErrorDetails.code)} '

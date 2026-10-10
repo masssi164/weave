@@ -361,6 +361,17 @@ public final class FreshProductFlow {
         mcpProof = release.files(mcpTextProof);
         release.calendar(mcpCalendarProof);
         release.verifyCalendarWriteDenied(mcpCalendarProof.calendarId());
+        release.bind(ownerSession.subject(),
+            accountId(environment.issuer().toString(), ownerSession.subject()), true);
+        try {
+          release.verifyCalendarWriteParity(generatedCalendar,
+              mcpCalendarProof.calendarId(), ownerSession.accessToken());
+        } finally {
+          release.bind(memberSession.subject(), personRef, true);
+        }
+        System.out.println("WEAVE_CALENDAR_MCP_WRITE_PARITY_RESULT status=passed "
+            + "create=true replay=true update=true conflict=true delete=true "
+            + "generatedReadback=true supportSafe=true");
         String openClawVersion = release.proveOpenClawFiles(mcpTextProof);
         if (!openClawVersion.equals(release.proveOpenClawCalendar(mcpCalendarProof))) {
           throw new ProductFlowException("OpenClaw client version changed within one proof");
@@ -1141,6 +1152,7 @@ public final class FreshProductFlow {
       evidence.put("openClawClientVersion", openClawVersion);
       evidence.put("openClawFilesInvoked", true);
       evidence.put("openClawCalendarInvoked", true);
+      evidence.put("calendarMcpWriteParity", true);
     } else {
       evidence.put("cellRefSha256", Hashing.sha256(cellRef));
     }
