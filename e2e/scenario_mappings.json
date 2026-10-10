@@ -13,6 +13,16 @@
       "evidenceMode": "live-runtime"
     },
     {
+      "tag": "@weave-live-native-product",
+      "scenario": "One native sign-in opens Files Calendar and Chat",
+      "feature": "e2e/features/live_stack_app.feature",
+      "executableTest": "client/integration_test/system_browser_auth_e2e_test.dart",
+      "evidenceMarkers": [
+        "NATIVE_PRODUCT_SIGN_IN_RESULT"
+      ],
+      "evidenceMode": "live-runtime"
+    },
+    {
       "tag": "@files-webdav-read-list-download",
       "scenario": "Historical WebDAV read tests retain provider isolation evidence",
       "feature": "e2e/features/files_webdav_facade.feature",

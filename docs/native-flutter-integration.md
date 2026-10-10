@@ -1,9 +1,14 @@
 # Native Flutter integration acceptance for #1533
 
-Status: **open**. This record separates executable test code from observed
-native product evidence. The #1475, #1479, and #1480 native acceptance gates
-remain open until an automated macOS run completes the real AppAuth callback
-and product journey on one disposable candidate.
+Status: **local native journey passed; CI and remaining lifecycle gates open**.
+This record separates executable test code from observed native product
+evidence. A disposable local `testApp` run at source commit
+`8f13cde956a03375f4f5da25db02e3041b170e1d` completed the real AppAuth
+callback, generated Files and Calendar operations, native Rust Matrix business
+room send/read, refresh, app-state restoration, logout denial, and supported
+OpenClaw Matrix readback. The overall Gradle task exited zero. This is local
+macOS evidence; the #1475, #1479, and #1480 integrated closure gates still
+require the exact CI candidate and the lifecycle gaps below.
 
 ## macOS launch diagnosis
 
@@ -334,27 +339,26 @@ WEAVE_TEST_APP_NATIVE_RUNNER="$PWD/client/tool/run_native_product_acceptance.py"
   ./gradlew testApp
 ```
 
-`testApp` still requires a clean exact source candidate and tears down the
-disposable stack. Its Java browser proof creates and admits the member before
-calling the native runner. The runner builds the macOS target, starts the
-existing Flutter product integration test, and drives the system browser with
-the narrowly scoped native helper. It requires both browser-form completion
-and Flutter product markers to pass. The code path is
-implemented but **has not yet completed a live local run**. The local attempt
-at `9dc5c23d4a77` reached healthy Server/MCP and passed disposable Chromium
-activation and generated User Files/Calendar before the native XCUITest driver
-failed. A following exact attempt at `f871a964d1` reached the same native stage
-but Xcode timed out while a stale Weave app process from the prior attempt
-remained alive. The runner now terminates only orphaned apps from its checkout
-and records sanitized Flutter/XCTest milestones. These are diagnostic fixes,
-not native product acceptance evidence. The `Full Compose
-E2E` job runs backend/Chromium and Matrix protocol evidence. No CI job
-currently runs the real native AppAuth/product case.
+`testApp` requires a clean exact source candidate and tears down the disposable
+stack. Its Java browser proof creates and admits the member before calling the
+native runner. The runner builds and signs the macOS target, starts the existing
+Flutter product integration test, and drives the system browser with a narrowly
+scoped native helper. It requires browser form completion, Flutter product
+markers, and a zero Flutter test exit. At `8f13cde956`, the local run emitted
+`NATIVE_PRODUCT_SIGN_IN_RESULT status=passed`,
+`FLUTTER_NATIVE_TEST_RUN status=passed`, and
+`NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed`, followed by
+`BUILD SUCCESSFUL in 7m 9s` for `testApp`. The `Full Compose E2E` job now selects
+this same native runner and fails when its signing/CA prerequisites are absent;
+its first CI execution is still pending.
 The signing team, development certificate, and provisioning profile must be
-available to the logged-in macOS test user. The runner generates a temporary
+available to the logged-in macOS test user. CI reads the nonsecret signing team
+and bundle ID from repository variables `WEAVE_NATIVE_SIGNING_TEAM` and
+`WEAVE_NATIVE_SIGNING_BUNDLE_ID`; the same runner user must have the trusted CA
+at `~/.local/share/weave/native-acceptance-ca`. The runner generates a temporary
 Xcode configuration, verifies the signed bundle and Keychain entitlement, and
-removes that configuration afterward. CI must provision the same capability;
-an ad hoc signed build cannot qualify native session storage.
+removes that configuration afterward. An ad hoc signed build cannot qualify
+native session storage.
 
 Current reproducible diagnostic command:
 
@@ -382,15 +386,11 @@ PATH="$PWD/tool/native_macos_open:$PATH" \
 
 ## Remaining gates
 
-- Execute the native Accessibility driver against the actual
-  `ASWebAuthenticationSession` prompt and two-step IdP form. Flutter must
-  observe the real AppAuth callback and authorized product state; a browser
-  submit marker alone cannot qualify the journey.
-- Resolve the intermittent native fixture `SemanticsHandle` assertion and
-  demonstrate a repeatable local pass before transferring this lane to CI.
-- Provision a fresh native profile and disposable identity alongside `testApp`,
-  including trusted CA and local host routing. Run the journey locally first,
-  then move the same passing lane to CI with cleanup and sanitized evidence.
+- Run the exact committed candidate in the protected self-hosted macOS `Full
+  Compose E2E` lane, with native product marker and zero Flutter/Gradle exit.
+  The prior local fixture `SemanticsHandle` failure is not accepted as a product
+  result; the product journey unmounts its app before the harness finishes and
+  passed locally. Fixture stability remains a separate diagnostic concern.
 - Exercise server-side revocation, wrong-account and cross-organization denial,
   recoverable downstream-session loss, and a real process restart in that native
   lane. Logout denial alone does not prove revocation; rebuilding `WeaveApp` in

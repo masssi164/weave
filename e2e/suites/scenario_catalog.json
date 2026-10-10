@@ -292,6 +292,28 @@
       ]
     },
     {
+      "tag": "@weave-live-native-product",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "spaces"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "one native system-browser sign-in",
+        "authorized Files upload and readback",
+        "authorized Calendar create update and delete",
+        "native Matrix business-room send and readback",
+        "session refresh and app-state restoration",
+        "sign-out removes capability access"
+      ]
+    },
+    {
       "tag": "@files-webdav-read-list-download",
       "suiteId": "product-e2e-scenario-layer",
       "personas": [
