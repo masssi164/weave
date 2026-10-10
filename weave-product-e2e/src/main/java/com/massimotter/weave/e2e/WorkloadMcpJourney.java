@@ -265,9 +265,9 @@ final class WorkloadMcpJourney {
     deleteArguments.put("ifMatch", updated.getVersion());
     JsonNode deletedResult = protocolBody(mcp(token, sessionId, delete, Set.of(200)));
     requireNoError(deletedResult, "MCP calendar.delete");
-    String deletedProjection = deletedResult.path("result").toString();
-    if (!deletedProjection.contains(updated.getId())
-        || !deletedProjection.contains("\"deleted\":true")) {
+    JsonNode deletedProjection = toolPayload(deletedResult, "eventId", "MCP calendar.delete");
+    if (!updated.getId().equals(deletedProjection.path("eventId").asString())
+        || !deletedProjection.path("deleted").asBoolean(false)) {
       throw new ProductFlowException("MCP Calendar delete omitted its canonical result");
     }
     userCalendar.verifyMcpEventDeleted(calendarId, updated.getId(), authorToken);
@@ -302,21 +302,39 @@ final class WorkloadMcpJourney {
     }
   }
 
-  private static void requireCalendarResult(
+  private void requireCalendarResult(
       JsonNode result, CalendarUserEvent event, String operation) {
-    String serialized = result.path("result").toString();
-    if (!serialized.contains(event.getId())
-        || !serialized.contains(event.getVersion())
-        || !serialized.contains(event.getContent().getTitle())
+    JsonNode projection = toolPayload(result, "id", operation);
+    String serialized = projection.toString();
+    if (!event.getId().equals(projection.path("id").asString())
+        || !event.getVersion().equals(projection.path("version").asString())
+        || !event.getContent().getTitle().equals(
+            projection.path("content").path("title").asString())
         || serialized.contains("providerId")
         || serialized.toLowerCase(java.util.Locale.ROOT).contains("nextcloud")) {
-      throw new ProductFlowException(operation + " differed from generated User readback"
-          + " idPresent=" + serialized.contains(event.getId())
-          + " versionPresent=" + serialized.contains(event.getVersion())
-          + " titlePresent=" + serialized.contains(event.getContent().getTitle())
-          + " providerReferencePresent=" + (serialized.contains("providerId")
-              || serialized.toLowerCase(java.util.Locale.ROOT).contains("nextcloud")));
+      throw new ProductFlowException(operation + " differed from generated User readback");
     }
+  }
+
+  private JsonNode toolPayload(JsonNode response, String requiredField, String operation) {
+    JsonNode result = response.path("result");
+    JsonNode structured = result.path("structuredContent");
+    if (structured.isObject() && !structured.path(requiredField).isMissingNode()) {
+      return structured;
+    }
+    for (JsonNode entry : result.path("content")) {
+      if (!"text".equals(entry.path("type").asString())) continue;
+      try {
+        JsonNode parsed = http.mapper().readTree(entry.path("text").asString());
+        if (parsed != null && parsed.isObject()
+            && !parsed.path(requiredField).isMissingNode()) {
+          return parsed;
+        }
+      } catch (JacksonException malformed) {
+        // A text rendering is not authoritative unless it parses as a result object.
+      }
+    }
+    throw new ProductFlowException(operation + " omitted structured tool content");
   }
 
   private static void requireCalendarConflict(JsonNode result, int code, String operation) {
