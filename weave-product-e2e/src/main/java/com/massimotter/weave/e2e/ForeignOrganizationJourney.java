@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import tools.jackson.databind.JsonNode;
 
@@ -76,6 +77,8 @@ final class ForeignOrganizationJourney {
         List.of("openid", "profile", "email"), fixture.email(), fixture.password(),
         "foreign-organization-user");
     requireForeignClaims(browser.jwtPayload(userSession.accessToken()), fixture, "weave-app");
+    requireComparableUserToken(browser.jwtPayload(primaryOwnerToken),
+        browser.jwtPayload(userSession.accessToken()));
     files.verifyForeignOrganizationDenied(file, userSession.accessToken(), primaryMemberToken);
     calendar.verifyForeignOrganizationDenied(event, userSession.accessToken(), primaryOwnerToken);
 
@@ -110,6 +113,30 @@ final class ForeignOrganizationJourney {
 
   private static Map<String, String> bearer(String token) {
     return Map.of("Authorization", "Bearer " + token);
+  }
+
+  private static void requireComparableUserToken(JsonNode primary, JsonNode foreign) {
+    if (!setOf(primary.path("aud")).equals(setOf(foreign.path("aud")))) {
+      throw new ProductFlowException("foreign user token audience differs from the primary owner");
+    }
+    if (!Set.of(primary.path("scope").asString().split(" "))
+        .equals(Set.of(foreign.path("scope").asString().split(" ")))) {
+      throw new ProductFlowException("foreign user token scope differs from the primary owner");
+    }
+    if (!primary.path("iss").asString().equals(foreign.path("iss").asString())
+        || primary.path("sub").asString().equals(foreign.path("sub").asString())) {
+      throw new ProductFlowException("foreign user token identity is not independent");
+    }
+  }
+
+  private static Set<String> setOf(JsonNode value) {
+    Set<String> result = new TreeSet<>();
+    if (value.isArray()) {
+      for (JsonNode entry : value) result.add(entry.asString());
+    } else if (value.isString()) {
+      result.add(value.asString());
+    }
+    return result;
   }
 
   private static void requireMatrixDenial(JsonNode body) {
