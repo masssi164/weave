@@ -150,10 +150,9 @@ public class JpaMatrixFacadeClientStateStore implements MatrixFacadeClientStateS
             Instant revokedAt,
             Instant expiresAt,
             boolean[] attemptedCreate) {
-        MatrixRevokedSessionJpaEntity existing = revokedSessions.findById(sessionHash).orElse(null);
-        if (existing != null) {
-            // A second logout can present a refreshed bearer for the same
-            // OIDC session. The first bounded tombstone already denies it.
+        if (revokedSessions.extendExpiry(sessionHash, expiresAt) != 0) {
+            // Each logout may occur after a refresh. Keep the latest bounded
+            // denial window rather than expiring from the first logout.
             return;
         }
         attemptedCreate[0] = true;

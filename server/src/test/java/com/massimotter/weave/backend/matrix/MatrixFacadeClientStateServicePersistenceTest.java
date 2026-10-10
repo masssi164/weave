@@ -33,6 +33,28 @@ import static org.mockito.Mockito.when;
 class MatrixFacadeClientStateServicePersistenceTest {
 
     @Test
+    void repeatedLogoutExtendsDurableRevocationWithoutShorteningIt() {
+        DriverManagerDataSource dataSource = dataSource();
+        com.massimotter.weave.backend.testing.JpaTestDatabase.initializeSchema(dataSource);
+        MatrixFacadeClientStateStore first = stateStore(dataSource);
+        Instant revokedAt = Instant.parse("2026-10-10T10:00:00Z");
+        Instant firstExpiry = revokedAt.plus(30, ChronoUnit.DAYS);
+        Instant laterLogout = revokedAt.plus(20, ChronoUnit.DAYS);
+        Instant extendedExpiry = laterLogout.plus(30, ChronoUnit.DAYS);
+        first.revokeSession("stable-session-hash", revokedAt, firstExpiry);
+        first.revokeSession("stable-session-hash", laterLogout, extendedExpiry);
+        first.revokeSession("stable-session-hash", laterLogout, firstExpiry);
+
+        MatrixFacadeClientStateStore restarted = stateStore(dataSource);
+        assertThat(restarted.isSessionRevoked("stable-session-hash", firstExpiry.plusSeconds(1)))
+                .isTrue();
+        assertThat(restarted.isSessionRevoked("stable-session-hash", extendedExpiry.minusSeconds(1)))
+                .isTrue();
+        assertThat(restarted.isSessionRevoked("stable-session-hash", extendedExpiry))
+                .isFalse();
+    }
+
+    @Test
     void keycloakDerivedIdentityProjectionSurvivesBackendRestart() {
         DriverManagerDataSource dataSource = dataSource();
         com.massimotter.weave.backend.testing.JpaTestDatabase.initializeSchema(dataSource);

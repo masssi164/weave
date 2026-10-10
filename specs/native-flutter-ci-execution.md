@@ -29,6 +29,27 @@ provider, and IdP versions recorded. A local pass, build-only run, skipped
 integration test, or unavailable signing identity does not count as CI proof.
 The macOS lane does not assert iOS or Android device compatibility.
 
+The Matrix member ID used by the native client and facade is the same stable,
+opaque account reference derived from the validated issuer and full subject.
+It must not normalize case, discard colon prefixes, or replace characters in
+the subject. The server's `IdentityReferences.accountId` projection, Rust
+Matrix sender/state projection, and Flutter's expected `whoami` ID must agree.
+For a pre-release installation with an older projected Matrix ID, canonical
+Chat memberships and messages keep their Weave actor references and reproject
+under the new ID, so authorized business-room history remains readable.
+The older server-side identity/device binding and local crypto store remain
+quarantined under the old ID; they are not silently rebound to the new ID.
+The member establishes a fresh scoped device proof for the new ID. Any
+encrypted-room continuity needs a separately verified key recovery or
+migration before access is advertised, and those rooms remain fail-closed in
+this release profile. Tests include subjects that previously collided, issuer
+changes, room event senders, and denied reuse of another account's local store.
+
+Incremental Matrix `/sync` does not reuse its chat/E2EE `since` token as a
+room-history `prev_batch`. When no canonical per-room history cursor is
+available, that field is omitted. An advertised `prev_batch` must be accepted
+by the authorized `/rooms/{roomId}/messages` route.
+
 The native Flutter test binding enables semantics before each widget test's
 handle baseline is recorded. macOS Accessibility may activate the platform's
 semantics owner after a test starts; that owner must not be mistaken for an

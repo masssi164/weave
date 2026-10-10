@@ -114,6 +114,7 @@ pub mod frb_api {
         crate::flutter_crypto::create_encrypted_room(profile_key, title).await
     }
 
+    #[cfg(feature = "flutter")]
     pub async fn matrix_create_business_room(profile_key: String, title: String) -> String {
         crate::flutter_crypto::create_business_room(profile_key, title).await
     }

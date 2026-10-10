@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 @Service
 public class MatrixProtocolCoreService implements MatrixProtocolCodec {
@@ -25,13 +26,16 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
 
     private final ObjectMapper objectMapper;
     private final String serverName;
+    private final String identityIssuer;
 
     @Autowired
     public MatrixProtocolCoreService(
             ObjectMapper objectMapper,
-            @Value("${weave.matrix.facade.server-name:api.weave.test}") String serverName) {
+            @Value("${weave.matrix.facade.server-name:api.weave.test}") String serverName,
+            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}") String identityIssuer) {
         this.objectMapper = objectMapper;
         this.serverName = requireText(serverName, "Matrix facade server name");
+        this.identityIssuer = identityIssuer == null ? "" : identityIssuer;
     }
 
     @PostConstruct
@@ -218,7 +222,24 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
     private Map<String, Object> project(MatrixProtocolOperation operation, String inputJson, boolean rejectMatrixError) {
         if (operation == null) throw new IllegalArgumentException("Matrix protocol operation is required.");
         NativeMatrixCore.ensureLoaded();
-        return readOutput(NativeMatrixCore.projectJson(operation.wireName(), inputJson, serverName), rejectMatrixError);
+        String projectionInput = switch (operation) {
+            case WHOAMI, SYNC, MESSAGES, MEMBERS, USER_ID -> withIdentityIssuer(inputJson);
+            default -> inputJson;
+        };
+        return readOutput(NativeMatrixCore.projectJson(operation.wireName(), projectionInput, serverName), rejectMatrixError);
+    }
+
+    private String withIdentityIssuer(String inputJson) {
+        try {
+            var input = objectMapper.readTree(inputJson);
+            if (input instanceof ObjectNode object) {
+                object.put("identityIssuer", identityIssuer);
+                return objectMapper.writeValueAsString(object);
+            }
+            return inputJson;
+        } catch (JacksonException exception) {
+            return inputJson;
+        }
     }
 
     private Map<String, Object> readOutput(String output, boolean rejectMatrixError) {

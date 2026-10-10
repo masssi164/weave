@@ -1,6 +1,7 @@
 use ruma::{OwnedEventId, OwnedRoomId, OwnedServerName, OwnedUserId};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use thiserror::Error;
 use tracing::instrument;
@@ -103,6 +104,8 @@ impl MatrixCoreError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProjectionInput {
+    #[serde(default)]
+    identity_issuer: String,
     #[serde(default)]
     subject: String,
     #[serde(default)]
@@ -222,8 +225,8 @@ struct MatrixRoomEvent {
 struct MatrixTimeline {
     #[serde(default)]
     limited: bool,
-    #[serde(default)]
-    prev_batch: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    prev_batch: Option<String>,
     #[serde(default)]
     events: Vec<MatrixEvent>,
 }
@@ -358,13 +361,14 @@ pub fn matrix_facade_descriptor_json(server_name: String) -> Result<String, Matr
 
 #[instrument(skip(subject, conversation_id, server_name))]
 pub fn project_weave_matrix_ids(
+    identity_issuer: String,
     subject: String,
     conversation_id: String,
     server_name: String,
 ) -> Result<MatrixIdProjection, MatrixCoreError> {
     let server_name = validate_server_name(&server_name)?;
     Ok(MatrixIdProjection {
-        user_id: matrix_user_id(&subject, &server_name)?.to_string(),
+        user_id: matrix_user_id(&identity_issuer, &subject, &server_name)?.to_string(),
         room_id: matrix_room_id(&conversation_id, &server_name)?.to_string(),
     })
 }
@@ -434,7 +438,7 @@ fn whoami_value(
 ) -> Result<Value, MatrixCoreError> {
     let device_id = validate_device_id(&input.device_id)?;
     Ok(json!({
-        "user_id": matrix_user_id(&input.subject, server_name)?.to_string(),
+        "user_id": matrix_user_id(&input.identity_issuer, &input.subject, server_name)?.to_string(),
         "device_id": device_id,
         "is_guest": false,
         "weaveBoundary": "northbound-matrix-client-server",
@@ -483,18 +487,24 @@ fn sync_value(
             room_id,
             MatrixJoinedRoom {
                 state: MatrixState {
-                    events: room_state_events(conversation, server_name)?,
+                    events: room_state_events(conversation, &input.identity_issuer, server_name)?,
                 },
                 timeline: MatrixTimeline {
                     limited: conversation.timeline_limited,
-                    prev_batch: conversation.timeline_before_cursor.as_deref()
+                    prev_batch: conversation
+                        .timeline_before_cursor
+                        .as_deref()
                         .map(encode_sync_token)
-                        .or_else(|| input.since.clone())
-                        .unwrap_or_else(|| encode_sync_token("timeline-revision-0")),
+                        .or_else(|| {
+                            input
+                                .since
+                                .is_none()
+                                .then(|| encode_sync_token("timeline-revision-0"))
+                        }),
                     events: conversation
                         .messages
                         .iter()
-                        .map(|m| message_event(m, server_name))
+                        .map(|m| message_event(m, &input.identity_issuer, server_name))
                         .collect::<Result<Vec<_>, _>>()?,
                 },
                 unread_notifications: MatrixUnreadNotifications {
@@ -570,7 +580,7 @@ fn messages_value(
         .rev()
         .map(|message| {
             Ok(MatrixRoomEvent {
-                event: message_event(message, server_name)?,
+                event: message_event(message, &input.identity_issuer, server_name)?,
                 room_id: room_id.clone(),
                 unsigned: BTreeMap::new(),
             })
@@ -595,7 +605,12 @@ fn members_value(
         .iter()
         .map(|membership| {
             Ok(MatrixRoomEvent {
-                event: membership_event(conversation, membership, server_name)?,
+                event: membership_event(
+                    conversation,
+                    membership,
+                    &input.identity_issuer,
+                    server_name,
+                )?,
                 room_id: room_id.clone(),
                 unsigned: BTreeMap::new(),
             })
@@ -845,7 +860,11 @@ fn user_id_value(
         .get("memberRef")
         .and_then(Value::as_str)
         .ok_or(MatrixCoreError::InvalidRequest)?;
-    Ok(json!({"userId":matrix_user_id(member,server_name)?.to_string()}))
+    let issuer = input
+        .get("identityIssuer")
+        .and_then(Value::as_str)
+        .ok_or(MatrixCoreError::InvalidRequest)?;
+    Ok(json!({"userId":matrix_actor_user_id(issuer,member,server_name)?.to_string()}))
 }
 
 fn matrix_error_value(input_json: &str) -> Result<Value, MatrixCoreError> {
@@ -1033,13 +1052,41 @@ fn validate_server_name(value: &str) -> Result<OwnedServerName, MatrixCoreError>
     })
 }
 fn matrix_user_id(
+    issuer: &str,
     subject: &str,
     server_name: &OwnedServerName,
 ) -> Result<OwnedUserId, MatrixCoreError> {
-    let source = subject.rsplit(':').next().unwrap_or(subject);
-    let local = canonical_localpart(source.trim_start_matches('@'), "subject")?;
+    if issuer.is_empty() || subject.is_empty() || issuer.contains('#') || subject.contains('#') {
+        return Err(MatrixCoreError::InvalidRequest);
+    }
+    // Match IdentityReferences.accountId and the native Flutter projection.
+    // The canonical issuer+subject tuple is hashed before it becomes a public
+    // Matrix localpart; distinct subjects cannot collide by normalization.
+    matrix_key_id(&format!("issuer+subject:{issuer}#{subject}"), server_name)
+}
+fn matrix_key_id(key: &str, server_name: &OwnedServerName) -> Result<OwnedUserId, MatrixCoreError> {
+    let digest = Sha256::digest(key.as_bytes());
+    let local = format!(
+        "acct_{}",
+        digest[..16]
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
+    );
     OwnedUserId::try_from(format!("@{}:{}", local, server_name))
         .map_err(|_| MatrixCoreError::InvalidMatrixId { kind: "user id" })
+}
+fn matrix_actor_user_id(
+    issuer: &str,
+    actor_ref: &str,
+    server_name: &OwnedServerName,
+) -> Result<OwnedUserId, MatrixCoreError> {
+    if let Some(subject) = actor_ref.strip_prefix("user:") {
+        matrix_user_id(issuer, subject, server_name)
+    } else {
+        // Keep service actors in a separate namespace from human subjects.
+        matrix_key_id(&format!("issuer+actor:{issuer}#{actor_ref}"), server_name)
+    }
 }
 fn matrix_room_id(id: &str, server_name: &OwnedServerName) -> Result<OwnedRoomId, MatrixCoreError> {
     let local = canonical_localpart(id.trim_start_matches('!'), "conversation")?;
@@ -1153,6 +1200,7 @@ fn parse<T: for<'de> Deserialize<'de>>(input: &str) -> Result<T, MatrixCoreError
 
 fn room_state_events(
     conversation: &CanonicalConversationInput,
+    issuer: &str,
     server: &OwnedServerName,
 ) -> Result<Vec<MatrixEvent>, MatrixCoreError> {
     let mut events = Vec::new();
@@ -1162,7 +1210,7 @@ fn room_state_events(
         .find(|m| m.state == "joined")
         .map(|m| m.member_ref.as_str())
         .unwrap_or("system");
-    let sender = matrix_user_id(creator, server)?.to_string();
+    let sender = matrix_actor_user_id(issuer, creator, server)?.to_string();
     events.push(MatrixEvent {
         event_type: "m.room.name".into(),
         sender: sender.clone(),
@@ -1187,13 +1235,14 @@ fn room_state_events(
         });
     }
     for membership in &conversation.memberships {
-        events.push(membership_event(conversation, membership, server)?);
+        events.push(membership_event(conversation, membership, issuer, server)?);
     }
     Ok(events)
 }
 fn membership_event(
     conversation: &CanonicalConversationInput,
     membership: &CanonicalMembershipInput,
+    issuer: &str,
     server: &OwnedServerName,
 ) -> Result<MatrixEvent, MatrixCoreError> {
     let state = match membership.state.as_str() {
@@ -1203,7 +1252,7 @@ fn membership_event(
         "banned" | "ban" => "ban",
         _ => return Err(MatrixCoreError::InvalidRequest),
     };
-    let user = matrix_user_id(&membership.member_ref, server)?.to_string();
+    let user = matrix_actor_user_id(issuer, &membership.member_ref, server)?.to_string();
     Ok(MatrixEvent {
         event_type: "m.room.member".into(),
         sender: user.clone(),
@@ -1222,9 +1271,10 @@ fn membership_event(
 }
 fn message_event(
     message: &CanonicalMessageInput,
+    issuer: &str,
     server: &OwnedServerName,
 ) -> Result<MatrixEvent, MatrixCoreError> {
-    let sender = matrix_user_id(&message.sender_ref, server)?.to_string();
+    let sender = matrix_actor_user_id(issuer, &message.sender_ref, server)?.to_string();
     let content = if message.redacted {
         json!({})
     } else if message.kind == "encrypted" {
@@ -1320,11 +1370,36 @@ mod tests {
     use super::*;
     #[test]
     fn ids_round_trip() {
-        let ids =
-            project_weave_matrix_ids("user:abc".into(), "room-1".into(), "api.weave.test".into())
-                .unwrap();
+        let ids = project_weave_matrix_ids(
+            "https://auth.example".into(),
+            "abc".into(),
+            "room-1".into(),
+            "api.weave.test".into(),
+        )
+        .unwrap();
         assert!(ids.user_id.starts_with('@'));
         assert!(ids.room_id.starts_with('!'));
+    }
+    #[test]
+    fn matrix_identity_keeps_full_issuer_and_subject_distinct() {
+        let server = validate_server_name("api.weave.test").unwrap();
+        let id = |issuer, subject| matrix_user_id(issuer, subject, &server).unwrap();
+        assert_ne!(
+            id("https://auth.example", "User"),
+            id("https://auth.example", "user")
+        );
+        assert_ne!(
+            id("https://auth.example", "a:x"),
+            id("https://auth.example", "b:x")
+        );
+        assert_ne!(
+            id("https://auth.example", "user"),
+            id("https://other.example", "user")
+        );
+        assert_eq!(
+            id("https://auth.example", "user"),
+            matrix_actor_user_id("https://auth.example", "user:user", &server).unwrap()
+        );
     }
     #[test]
     fn sync_tokens_are_opaque_and_reversible() {

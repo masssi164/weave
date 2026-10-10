@@ -153,7 +153,10 @@ void main() {
         allowInteractiveSignIn: false,
       );
 
-      expect(session.userId, '@person-1:api.weave.test');
+      expect(
+        session.userId,
+        '@acct_e476de73525691fc887829c1c645e993:api.weave.test',
+      );
       expect(bridge.memberActivations, hasLength(1));
       expect(bridge.memberActivations.single['accessToken'], 'access-token');
       final proof = bridge.memberActivations.single['deviceProof']!;
@@ -184,7 +187,10 @@ void main() {
       allowInteractiveSignIn: false,
     );
 
-    expect(session.userId, '@person-1:api.weave.test');
+    expect(
+      session.userId,
+      '@acct_e476de73525691fc887829c1c645e993:api.weave.test',
+    );
     expect(
       bridge.memberActivations.single['homeserverUrl'],
       'https://api.weave.test:44443',

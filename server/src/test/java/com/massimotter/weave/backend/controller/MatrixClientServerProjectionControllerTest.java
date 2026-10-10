@@ -191,7 +191,7 @@ class MatrixClientServerProjectionControllerTest {
                         .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("WEAVE0123456789abcdef0123456789abcdef0123"))
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.user_id").value("@user_example.com:api.weave.test"))
+                .andExpect(jsonPath("$.user_id").value("@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test"))
                 .andExpect(jsonPath("$.device_id").value("WEAVE0123456789abcdef0123456789abcdef0123"))
                 .andExpect(jsonPath("$.is_guest").value(false));
     }
@@ -227,7 +227,7 @@ class MatrixClientServerProjectionControllerTest {
     @Test
     void legacyKeyedDeviceNeedsExistingPrivateKeySignatureBeforeProofBinding() throws Exception {
         String device = "WEAVELEGACYDEVICEPROOF";
-        String user = "@user_example.com:api.weave.test";
+        String user = "@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test";
         String proof = deviceProof(device);
         String tenant = identityContextResolver.configuredOrganizationId();
         var keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
@@ -437,9 +437,10 @@ class MatrixClientServerProjectionControllerTest {
                         .value(1))
                 .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.events[0].content.body")
                         .value("After cursor"))
-                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.prev_batch")
-                        .value(since))
                 .andReturn().getResponse().getContentAsString();
+        assertThat(objectMapper.readTree(incremental).path("rooms").path("join")
+                .path("!channel-general:api.weave.test").path("timeline")
+                .has("prev_batch")).isFalse();
         String decoded = matrixProtocolCoreService.decodeSyncCursor(
                 objectMapper.readTree(incremental).path("next_batch").asString());
         assertThat(decoded).startsWith("chat-revision-8|e2ee:");
@@ -472,7 +473,7 @@ class MatrixClientServerProjectionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.global.override").isArray());
 
-        String filterResponse = mockMvc.perform(post("/_matrix/client/v3/user/@user_example.com:api.weave.test/filter")
+        String filterResponse = mockMvc.perform(post("/_matrix/client/v3/user/@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test/filter")
                         .with(workspaceJwt())
                         .contentType("application/json")
                         .content("""
@@ -484,12 +485,12 @@ class MatrixClientServerProjectionControllerTest {
                 .getContentAsString();
         String filterId = objectMapper.readTree(filterResponse).path("filter_id").asString();
 
-        mockMvc.perform(get("/_matrix/client/v3/user/@user_example.com:api.weave.test/filter/" + filterId)
+        mockMvc.perform(get("/_matrix/client/v3/user/@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test/filter/" + filterId)
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.room.timeline.limit").value(20));
 
-        mockMvc.perform(put("/_matrix/client/v3/user/@user_example.com:api.weave.test/account_data/m.direct")
+        mockMvc.perform(put("/_matrix/client/v3/user/@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test/account_data/m.direct")
                         .with(workspaceJwt())
                         .contentType("application/json")
                         .content("""
@@ -497,7 +498,7 @@ class MatrixClientServerProjectionControllerTest {
                                 """))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/_matrix/client/v3/user/@user_example.com:api.weave.test/account_data/m.direct")
+        mockMvc.perform(get("/_matrix/client/v3/user/@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test/account_data/m.direct")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$['@assistant:api.weave.test'][0]")
@@ -722,7 +723,7 @@ class MatrixClientServerProjectionControllerTest {
     @Test
     void keyLifecycleToDeviceSyncAndLostDeviceRevocationAreDeviceScoped() throws Exception {
         stubConversation();
-        String userId = "@user_example.com:api.weave.test";
+        String userId = "@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test";
         String trustedDevice = "WEAVETRUSTEDDEVICE";
         String secondDevice = "WEAVESECONDDEVICE";
 
@@ -804,7 +805,7 @@ class MatrixClientServerProjectionControllerTest {
 
     @Test
     void signatureUploadPreservesDeviceSelfSignatureAndIdentityKeys() throws Exception {
-        String userId = "@user_example.com:api.weave.test";
+        String userId = "@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test";
         String deviceId = "WEAVESIGNEDDEVICE";
         String sessionId = "signed-device-session";
 
@@ -896,7 +897,7 @@ class MatrixClientServerProjectionControllerTest {
     @Test
     void fallbackKeyBootstrapsOlmWhenOneTimeKeyPoolIsEmpty() throws Exception {
         stubConversation();
-        String userId = "@user_example.com:api.weave.test";
+        String userId = "@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test";
         String targetDevice = "WEAVEFALLBACKDEVICE";
         String claimantDevice = "WEAVEFALLBACKCLAIMANT";
 
@@ -1123,7 +1124,7 @@ class MatrixClientServerProjectionControllerTest {
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.chunk[0].type").value("m.room.member"))
-                .andExpect(jsonPath("$.chunk[0].state_key").value("@alice:api.weave.test"))
+                .andExpect(jsonPath("$.chunk[0].state_key").value("@acct_3b46d7c8589dfad60e9e8f2156df0700:api.weave.test"))
                 .andExpect(jsonPath("$.chunk[0].room_id").value("!channel-general:api.weave.test"))
                 .andExpect(jsonPath("$.chunk[0].content.membership").value("join"))
                 .andExpect(jsonPath("$.chunk[0].unsigned").isMap())
@@ -1152,7 +1153,7 @@ class MatrixClientServerProjectionControllerTest {
         mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/joined_members")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.joined['@alice:api.weave.test'].display_name").value("alice"));
+                .andExpect(jsonPath("$.joined['@acct_3b46d7c8589dfad60e9e8f2156df0700:api.weave.test'].display_name").value("alice"));
 
         mockMvc.perform(post("/_matrix/client/v3/rooms/!channel-general:api.weave.test/receipt/m.read/$msg-1:api.weave.test")
                         .with(workspaceJwt())
@@ -1160,7 +1161,7 @@ class MatrixClientServerProjectionControllerTest {
                         .content("{}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(put("/_matrix/client/v3/rooms/!channel-general:api.weave.test/typing/@user_example.com:api.weave.test")
+        mockMvc.perform(put("/_matrix/client/v3/rooms/!channel-general:api.weave.test/typing/@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test")
                         .with(workspaceJwt())
                         .contentType("application/json")
                         .content("""
@@ -1205,10 +1206,10 @@ class MatrixClientServerProjectionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("General"));
 
-        mockMvc.perform(get("/_matrix/client/v3/profile/@user_example.com:api.weave.test")
+        mockMvc.perform(get("/_matrix/client/v3/profile/@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.displayname").value("user_example.com"));
+                .andExpect(jsonPath("$.displayname").value("user@example.com"));
 
         mockMvc.perform(post("/_matrix/client/v3/rooms/!channel-general:api.weave.test/leave")
                         .with(workspaceJwt())
@@ -1371,7 +1372,7 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     private void uploadDeviceKeys(String deviceId, String signingKey, String oneTimeKey) throws Exception {
-        String userId = "@user_example.com:api.weave.test";
+        String userId = "@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test";
         String oneTimeKeys = oneTimeKey == null
                 ? "{}"
                 : """

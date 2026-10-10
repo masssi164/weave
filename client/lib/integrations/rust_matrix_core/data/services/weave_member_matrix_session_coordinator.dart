@@ -14,6 +14,7 @@ import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 
 import 'matrix_crypto_session_coordinator.dart';
+import 'matrix_identity_projection.dart';
 import 'matrix_session_access.dart';
 import 'rust_matrix_core_bridge.dart';
 
@@ -131,7 +132,11 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
       throw const ChatFailure.configuration('M_WEAVE_MATRIX_ENDPOINT_MISMATCH');
     }
     final deviceId = await _matrixDeviceIdentityRepository.loadOrCreate();
-    final userId = _matrixUserId(subject, homeserver);
+    final userId = matrixUserIdForMember(
+      authConfiguration.issuer,
+      subject,
+      homeserver,
+    );
     final bindingKey =
         '$matrixOAuthBindingKeyPrefix${_digest('${authConfiguration.issuer}|$subject|${_homeserverIdentity(homeserver)}|$deviceId')}';
     final profileKey = _digest(
@@ -496,29 +501,6 @@ bool _matchesAdvertisedMatrixOrigin(Uri configured, Uri advertised) =>
     _isSecureMatrixOrigin(configured) &&
     _isSecureMatrixOrigin(advertised) &&
     configured.origin == advertised.origin;
-
-String _matrixUserId(String subject, Uri homeserver) {
-  final source = subject.split(':').last.replaceFirst(RegExp(r'^@+'), '');
-  final localpart = source
-      .trim()
-      .runes
-      .map((rune) {
-        final lower = rune >= 65 && rune <= 90 ? rune + 32 : rune;
-        final allowed =
-            (lower >= 97 && lower <= 122) ||
-            (lower >= 48 && lower <= 57) ||
-            const {46, 95, 45, 61, 47}.contains(lower);
-        return allowed ? String.fromCharCode(lower) : '_';
-      })
-      .join()
-      .replaceAll(RegExp(r'^_+|_+$'), '');
-  if (localpart.isEmpty) {
-    throw const ChatFailure.sessionRequired('M_WEAVE_MATRIX_IDENTITY_INVALID');
-  }
-  // A local HTTPS port identifies the transport endpoint, not the Matrix
-  // server name used in user IDs. The facade projects IDs from its host.
-  return '@$localpart:${homeserver.host}';
-}
 
 String _verifiedSubject(AuthSession session, AuthConfiguration configuration) {
   final idToken = session.idToken;
