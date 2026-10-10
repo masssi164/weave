@@ -242,7 +242,7 @@ final class OidcBrowserJourney implements AutoCloseable {
       navigate(page, authorization, authorizationOperation(evidenceStage));
       callback =
           authenticateAndAwaitCallback(
-              page, redirectUri, observedCallback, email, password);
+              page, redirectUri, observedCallback, email, password, evidenceStage);
     }
 
     Map<String, String> callbackParameters = query(callback);
@@ -386,7 +386,8 @@ final class OidcBrowserJourney implements AutoCloseable {
       URI redirectUri,
       AtomicReference<String> observedCallback,
       String email,
-      String password) {
+      String password,
+      String evidenceStage) {
     boolean passwordSubmitted = false;
     for (int step = 0; step < MAX_BROWSER_STEPS; step++) {
       captureCallback(page.url(), redirectUri, observedCallback);
@@ -423,7 +424,8 @@ final class OidcBrowserJourney implements AutoCloseable {
       }
       waitForPage(page);
       if (hasVisibleError(page)) {
-        throw new ProductFlowException("OIDC login rejected the credentials");
+        throw new ProductFlowException(
+            "OIDC login rejected the credentials at " + evidenceStage);
       }
       if (passwordSubmitted) {
         return awaitCallback(page, redirectUri, observedCallback);
