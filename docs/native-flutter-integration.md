@@ -376,11 +376,21 @@ separate CI process. Accessibility for that exact runner executable is the
 current host prerequisite; Screen Recording and Apple Events are not required
 by the test driver. The CI run remains failed until a fresh unattended run
 completes the native app assertions.
-The next candidate reuses the existing isolated collaboration-service restart
-control between the two Flutter processes. This is intended to exercise native
-session restoration after Server, Keycloak and PostgreSQL restart; it is not
-evidence until the full local and CI runs pass, and it does not replace a
-separate active southbound provider-session outage proof.
+The next local run at `6b7006425cfa3e58504fceeca6ffaa99604add58`
+reused the existing isolated collaboration-service restart control between
+the two Flutter processes. It emitted
+`NATIVE_SERVICE_RESTART_RESULT status=passed` after Server, Keycloak and
+PostgreSQL restarted and returned healthy. The second Flutter process restored
+the same member, Matrix device,
+business-room message, stable file ID and downloaded file bytes without
+another browser sign-in. It then proved logout denial. Both Flutter harness
+processes exited zero; `NATIVE_PROCESS_RESTART_RESULT status=passed` and
+`NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed` were emitted, and `testApp`
+exited zero in 11m 46s. The support-safe evidence file records candidate
+`6b7006425cfa3e58504fceeca6ffaa99604add58` and specification
+`c726993168651f1109259f9a80cc23117d24a37f`. This local result does not
+replace the pending exact-candidate CI run or a separate active southbound
+provider-session outage proof.
 The signing team, development certificate, and provisioning profile must be
 available to the logged-in macOS test user. CI reads the nonsecret signing team
 and bundle ID from repository variables `WEAVE_NATIVE_SIGNING_TEAM` and
@@ -423,8 +433,9 @@ PATH="$PWD/tool/native_macos_open:$PATH" \
   passed locally. Fixture stability remains a separate diagnostic concern.
 - Exercise server-side revocation, wrong-account and cross-organization denial,
   and recoverable downstream-session loss in the native lane. The local
-  two-process result proves native process restart; it does not establish those
-  separate denial and recovery cases. Logout denial does not prove revocation.
+  two-process result proves native process and collaboration-service restart;
+  it does not establish those separate denial and downstream recovery cases.
+  Logout denial does not prove server-side revocation.
 - Keep iOS and Android acceptance unclaimed. No iOS simulator is provisioned on
   the current host, and the Android SDK is absent; macOS evidence cannot replace
   platform-specific tests.
