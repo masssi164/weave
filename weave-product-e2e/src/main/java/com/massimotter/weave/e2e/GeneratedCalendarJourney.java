@@ -103,9 +103,9 @@ final class GeneratedCalendarJourney {
 
   void verifyForeignOrganizationDenied(Proof proof, String foreignToken, String ownerToken) {
     CalendarUserEvent event = proof.events().get(0).event();
-    expectStatus(Set.of(403, 404), "foreign organization Calendar read", () ->
+    expectForeignAdmissionDenied("foreign organization Calendar read", () ->
         calendar.getCalendarEvent(proof.calendarId(), event.getId(), bearer(foreignToken)));
-    expectStatus(Set.of(403, 404), "foreign organization Calendar write", () ->
+    expectForeignAdmissionDenied("foreign organization Calendar write", () ->
         calendar.updateCalendarEvent(proof.calendarId(), event.getId(), event.getVersion(),
             event.getContent(), bearer(foreignToken)));
     try {
@@ -303,6 +303,26 @@ final class GeneratedCalendarJourney {
     } catch (ApiException failure) {
       if (statuses.contains(failure.getCode())) return;
       throw failure(stage + " returned HTTP " + failure.getCode());
+    }
+    throw failure(stage + " unexpectedly succeeded");
+  }
+
+  private static void expectForeignAdmissionDenied(String stage, Request request) {
+    try {
+      request.invoke();
+    } catch (ApiException denial) {
+      String body = denial.getResponseBody();
+      if (denial.getCode() == 401 && body != null && body.length() <= 8192) {
+        try {
+          if ("unauthorized".equals(WIRE_MAPPER.readTree(body).path("code").asText())) {
+            return;
+          }
+        } catch (Exception ignored) {
+          // A malformed error envelope fails the assertion without exposing its body.
+        }
+      }
+      throw failure(stage + " returned HTTP " + denial.getCode()
+          + " without the expected unauthorized error contract");
     }
     throw failure(stage + " unexpectedly succeeded");
   }

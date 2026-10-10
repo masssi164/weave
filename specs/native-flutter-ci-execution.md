@@ -42,3 +42,8 @@ Keycloak-issued member token through browser Authorization Code with PKCE,
 verifies that its sole organization claim is foreign, and proves that primary
 User/Admin/Matrix resources and mutations are denied. Only boolean results
 and exact candidate provenance may enter uploaded evidence.
+The Files and Calendar workload-aware decoders reject a validated foreign
+member during deployment-organization admission with HTTP 401 and the
+`unauthorized` error envelope. The test requires that exact response after
+comparing the foreign bearer with a freshly refreshed primary bearer. Matrix
+and Admin use their own authorization gates and are asserted separately.

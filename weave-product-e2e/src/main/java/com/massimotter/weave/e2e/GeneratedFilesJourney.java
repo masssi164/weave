@@ -213,7 +213,7 @@ final class GeneratedFilesJourney {
       files.getFilesItem(proof.fileId(), bearer(foreignToken));
       throw new ProductFlowException("foreign organization read the primary File");
     } catch (ApiException denial) {
-      if (denial.getCode() != 403 && denial.getCode() != 404) {
+      if (denial.getCode() != 401 || !"unauthorized".equals(safeErrorCode(denial))) {
         throw new ProductFlowException(
             "foreign organization Files read returned HTTP " + denial.getCode());
       }
@@ -229,7 +229,7 @@ final class GeneratedFilesJourney {
             "text/plain", bearer(foreignToken));
         throw new ProductFlowException("foreign organization wrote a primary File");
       } catch (ApiException denial) {
-        if (denial.getCode() != 403 && denial.getCode() != 404) {
+        if (denial.getCode() != 401 || !"unauthorized".equals(safeErrorCode(denial))) {
           throw new ProductFlowException(
               "foreign organization Files write returned HTTP " + denial.getCode());
         }
