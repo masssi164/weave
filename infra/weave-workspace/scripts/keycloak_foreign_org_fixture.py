@@ -136,7 +136,8 @@ def _provision_with_administrator(context, base: str, token: str) -> Path:
     password = "Aa9!" + secrets.token_urlsafe(36)
     _, user_location = _request(
         base, "POST", admin + "/users", token=token,
-        payload={"username": email.split("@", 1)[0], "email": email,
+        payload={"username": email, "email": email,
+                 "firstName": "Weave", "lastName": "Foreign E2E",
                  "enabled": True, "emailVerified": True,
                  "credentials": [{"type": "password", "value": password,
                                   "temporary": False}]},
@@ -150,7 +151,10 @@ def _provision_with_administrator(context, base: str, token: str) -> Path:
     user, _ = _request(base, "GET", admin + f"/users/{user_id}", token=token)
     if (not isinstance(user, dict) or user.get("enabled") is not True
             or user.get("emailVerified") is not True
-            or user.get("email") != email or user.get("requiredActions")):
+            or user.get("email") != email or user.get("username") != email
+            or user.get("firstName") != "Weave"
+            or user.get("lastName") != "Foreign E2E"
+            or user.get("requiredActions")):
         raise ContractError("foreign organization fixture user is not ready for browser login")
     credentials, _ = _request(
         base, "GET", admin + f"/users/{user_id}/credentials", token=token)
