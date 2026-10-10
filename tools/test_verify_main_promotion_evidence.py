@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Offline negatives for the protected main promotion evidence gate."""
 
+import os
+from pathlib import Path
+import subprocess
+import tempfile
 import unittest
 
 from tools.verify_main_promotion_evidence import (
@@ -31,6 +35,30 @@ HUMAN = "\n".join(
 
 
 class MainPromotionEvidenceTest(unittest.TestCase):
+    def test_queue_commit_cannot_supply_missing_hotfix_head_ancestry(self) -> None:
+        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/main-promotion-gate.yml").read_text()
+        step = workflow.split("      - name: Verify hotfix ancestry\n", 1)[1].split("      - name:", 1)[0]
+        script = "\n".join(line[10:] for line in step.split("        run: |\n", 1)[1].splitlines())
+        with tempfile.TemporaryDirectory() as directory:
+            def git(*args: str) -> str:
+                return subprocess.check_output(["git", "-C", directory, *args], text=True,
+                                               stderr=subprocess.DEVNULL).strip()
+            git("init", "--quiet")
+            git("config", "user.name", "Disposable gate test")
+            git("config", "user.email", "gate@example.invalid")
+            git("-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Old hotfix base")
+            stale_head = git("rev-parse", "HEAD")
+            git("-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Current main")
+            current_main = git("rev-parse", "HEAD")
+            git("update-ref", "refs/remotes/origin/main", current_main)
+            git("-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Synthetic queue candidate")
+            candidate = git("rev-parse", "HEAD")
+            for head, expected in ((stale_head, 1), (current_main, 0)):
+                result = subprocess.run(["bash", "-c", script], cwd=directory,
+                                        env={**os.environ, "CANDIDATE": candidate, "EVIDENCE_SHA": head},
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, expected, result.stderr)
+
     def test_merge_group_binds_synthetic_head_to_current_same_repo_pr(self) -> None:
         repository = "masssi164/weave"
         pr = {
