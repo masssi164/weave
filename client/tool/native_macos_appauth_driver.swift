@@ -126,6 +126,20 @@ if CommandLine.arguments.count == 5 && CommandLine.arguments[1] == "--accept-nex
   let executable = CommandLine.arguments[4]
   guard bundleId.contains("."), issuerAuthority.hasPrefix("auth.weave.localhost:"),
         !executable.isEmpty else { fail("logout-fixture") }
+  let registrationDeadline = Date().addingTimeInterval(10)
+  var registered = false
+  var waitedForRegistration = false
+  while Date() < registrationDeadline {
+    registered = NSWorkspace.shared.runningApplications.contains(where: {
+      $0.bundleIdentifier == bundleId &&
+        $0.executableURL?.resolvingSymlinksInPath().path == executable
+    })
+    if registered { break }
+    waitedForRegistration = true
+    _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.1))
+  }
+  guard registered else { fail("logout-app-registration-timeout") }
+  print("NATIVE_LOGOUT_APP_REGISTRATION_RESULT status=passed waited=\(waitedForRegistration)")
   let deadline = Date().addingTimeInterval(720)
   while Date() < deadline {
     guard NSWorkspace.shared.runningApplications.contains(where: {

@@ -367,7 +367,35 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
   Future<void> endSession() async {
     try {
       final bindingKey = await _secureStore.read(matrixOAuthCurrentBindingKey);
-      if (bindingKey == null) return;
+      if (bindingKey == null) {
+        // A member can sign out before Chat has ever opened. Tombstone the
+        // OIDC session through the existing Matrix logout route in that case;
+        // the facade derives its default device from the session SID.
+        final configuration = await _serverConfigurationRepository
+            .loadConfiguration();
+        if (configuration == null ||
+            !configuration.hasCompleteAuthConfiguration) {
+          throw const ChatFailure.configuration(
+            'M_WEAVE_MATRIX_LOGOUT_ENDPOINT_UNCONFIRMED',
+          );
+        }
+        final authState = await _authSessionRepository.restoreSession(
+          AuthConfiguration(
+            issuer: configuration.oidcIssuerUrl,
+            clientId: configuration.oidcClientRegistration.clientId,
+          ),
+        );
+        final session = authState.session;
+        if (!authState.isAuthenticated || session == null) return;
+        final homeserver = configuration.serviceEndpoints.matrixHomeserverUrl;
+        if (!_isSecureMatrixOrigin(homeserver)) {
+          throw const ChatFailure.configuration(
+            'M_WEAVE_MATRIX_LOGOUT_ENDPOINT_UNCONFIRMED',
+          );
+        }
+        await _revokeMatrixSession(homeserver, session);
+        return;
+      }
       final raw = await _secureStore.read(bindingKey);
       if (raw == null) {
         throw const ChatFailure.storage('M_WEAVE_MATRIX_BINDING_INVALID');
@@ -412,24 +440,12 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
           'M_WEAVE_MATRIX_LOGOUT_REVOCATION_UNCONFIRMED',
         );
       }
-      final response = await _matrixHttpClient
-          .post(
-            homeserver.resolve('/_matrix/client/v3/logout'),
-            headers: <String, String>{
-              'Authorization': 'Bearer ${session.accessToken}',
-              'x-weave-matrix-device-id': deviceId,
-              'x-weave-matrix-device-proof': proof,
-              'Content-Type': 'application/json',
-            },
-            body: '{}',
-          )
-          .timeout(const Duration(seconds: 8));
-      if (response.statusCode != 200) {
-        throw ChatFailure.protocol(
-          'M_WEAVE_MATRIX_LOGOUT_REVOCATION_UNCONFIRMED',
-          cause: response.statusCode,
-        );
-      }
+      await _revokeMatrixSession(
+        homeserver,
+        session,
+        deviceId: deviceId,
+        proof: proof,
+      );
     } on ChatFailure {
       rethrow;
     } on Object catch (error) {
@@ -439,6 +455,32 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
       );
     } finally {
       await disposePreservingCryptoState();
+    }
+  }
+
+  Future<void> _revokeMatrixSession(
+    Uri homeserver,
+    AuthSession session, {
+    String? deviceId,
+    String? proof,
+  }) async {
+    final response = await _matrixHttpClient
+        .post(
+          homeserver.resolve('/_matrix/client/v3/logout'),
+          headers: <String, String>{
+            'Authorization': 'Bearer ${session.accessToken}',
+            if (deviceId != null) 'x-weave-matrix-device-id': deviceId,
+            if (proof != null) 'x-weave-matrix-device-proof': proof,
+            'Content-Type': 'application/json',
+          },
+          body: '{}',
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) {
+      throw ChatFailure.protocol(
+        'M_WEAVE_MATRIX_LOGOUT_REVOCATION_UNCONFIRMED',
+        cause: response.statusCode,
+      );
     }
   }
 

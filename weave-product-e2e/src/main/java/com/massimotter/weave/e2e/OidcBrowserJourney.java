@@ -309,6 +309,21 @@ final class OidcBrowserJourney implements AutoCloseable {
         current.idToken());
   }
 
+  void requireRefreshDenied(TokenSet revoked) {
+    if (revoked.refreshToken().isBlank()) {
+      throw new ProductFlowException("revocation probe has no refresh credential");
+    }
+    JsonNode denial = http.form(
+        "deny revoked OIDC refresh session",
+        environment.oidc("/protocol/openid-connect/token"),
+        Map.of("grant_type", "refresh_token", "client_id", revoked.clientId(),
+            "refresh_token", revoked.refreshToken()),
+        Set.of(400));
+    if (!"invalid_grant".equals(denial.path("error").asString())) {
+      throw new ProductFlowException("revoked OIDC refresh returned the wrong failure");
+    }
+  }
+
   JsonNode jwtPayload(String token) {
     String[] parts = token.split("\\.");
     if (parts.length != 3) {

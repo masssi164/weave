@@ -1,26 +1,71 @@
 # Native Flutter integration acceptance for #1533
 
-Status: **automated local native and unattended CI journeys passed on recorded
-source; integrated dev/dogfood/main acceptance is tracked in #1475, #1479,
-#1480 and #1481**.
+Status: **local native, real administrator revocation and cross-organization
+journeys passed on `6f974dff73`; exact-head CI and mainline release gates open**.
+This record separates executable test code from observed native product
+evidence. A disposable local `testApp` run at source commit
+`6f974dff7356bc78a9d1376e929988e9f86e8696` completed the real AppAuth
+callback, generated Files and Calendar operations, native Rust Matrix business
+room send/read, refresh, a restart of Server, Keycloak and PostgreSQL, and a
+second native Flutter process restoring the same session and references. It
+also proved logout denial and supported OpenClaw Matrix readback.
+Both Flutter test processes and the overall Gradle task exited zero. This is local
+macOS evidence; the #1475, #1479, and #1480 integrated closure gates still
+require the exact CI candidate and protected integrated-source evidence.
 
-[Full Compose E2E 38062852255](https://github.com/masssi164/weave/actions/runs/38062852255)
-passed on source `7e3cbb7a1f338fbb45ee6742198720412f2ee4b4` with accepted specs
-`c726993168651f1109259f9a80cc23117d24a37f`. It executed two native macOS
-Flutter processes, real system-browser OIDC/PKCE, generated Files/Calendar,
-native Rust Matrix business rooms, refresh, service/process restart, room
-access removal, logout/revocation and real second-organization denial. Real
-OpenClaw `2026.9.8` exercised Matrix and Files/Calendar MCP, including writes,
-permission denial and stale-version rejection. No skipped native test counted
-as a pass. The exact artifact and bounded claims are recorded in the
-[Matrix evidence](evidence/matrix/release-business-room-v3.md).
+## Current local acceptance result, 2026-10-10
 
-Core CI on that source failed the Dart formatting gate; the two-line correction
-and every later source's required CI are recorded in [#1533](https://github.com/masssi164/weave/pull/1533).
-Recorded earlier passes retain their original source SHA. Final integration,
-platform-specific acceptance and human dogfood remain separately gated.
-The following diagnosis entries preserve the observed failures and fixes;
-later qualification records supersede earlier pending-gate snapshots.
+The documented disposable `specCorpusConformance testApp` command, with
+`--max-workers=2`, passed in 14m 59s overall (12m 4s for the inner product
+task) on exact source `6f974dff7356bc78a9d1376e929988e9f86e8696` and
+specifications `c726993168651f1109259f9a80cc23117d24a37f`. This Mac ran
+macOS 26.4.1, Xcode 26.5 (17F42), Flutter 3.41.6 and Dart 3.11.4;
+the disposable stack used Keycloak 26.7.1, PostgreSQL persistence and
+`weave-native` Chat/Files/Calendar providers. Real OpenClaw 2026.9.8 passed
+Matrix business-room send/read and Files/Calendar MCP operations, including
+Calendar version conflicts and current permission denial.
+
+Both native Flutter processes exited zero. The first completed actual
+system-browser AppAuth Authorization Code + PKCE, workspace admission,
+generated Files upload/read, Calendar CRUD, native Rust Matrix send/read,
+navigation, refresh and app-state recreation. After Server, Keycloak and
+PostgreSQL restart, the second restored the session and references, waited
+for the original real bearer to expire beyond production clock skew, compared
+expired User/Matrix denial with fresh-session success, left its room and
+verified retained User/Matrix bearer denial after explicit logout.
+
+The same run exercised generated Admin session revocation against real IdP
+sessions: retained unexpired User/Admin/Matrix bearers and revoked refresh
+credentials were denied; normal PKCE reauthorization restored the same member;
+replaying the completed revocation preserved the new sessions; logout before
+Chat initialization denied both retained and refreshed member bearers. A real
+foreign-organization PKCE identity failed generated User/Admin and Matrix
+access. These are executable assertions, not mapping-only evidence.
+
+Support-safe product JSON SHA-256:
+`d9f7c56efdc511494b23fd37cb0b80cb720305f8ec522f3ed8f7bf39556e68ef`.
+The local output is
+`build/test-app/weave-e2e-8f1ada0fa9e034f3/weave-test-app-evidence.json`;
+runtime image evidence records observed image IDs and exact source/spec
+commits. Teardown verified ownership and zero remaining containers, networks,
+volumes or owned resources. Private raw logs are not release artifacts.
+
+The immediately preceding `092a82dc9b` run passed its first native process
+and real administrator revocation but failed after launching the second
+process. Its logout-driver failure stage was discarded, so the precise original
+driver cause is unverified. The runner now waits for exact bundle/executable
+`NSWorkspace` registration, preserves safe failure stages, validates the
+logout driver even if Flutter exits between polls, and stops its own Flutter
+process group before closing diagnostics. The successful `6f974dff73` run
+reported registration without waiting; it proves execution after the fix,
+not reproduction of delayed registration in that prior failure. Focused
+subprocess probes verified pending completion and failure rejection, plus
+cleanup of a child that ignored termination and held the output stream open.
+
+This result is local macOS acceptance. Exact-head CI, integrated `dev`,
+dogfood/human acceptance and remote `main` remain separate gates. E2EE remains
+Guarded and encrypted rooms must fail closed. iOS/Android and independent
+Synapse/Nextcloud session-loss recovery are not qualified by this run.
 
 ## macOS launch diagnosis
 
@@ -517,7 +562,7 @@ denial, logout denial, two zero-exit Flutter harness processes and
 were cleaned up. This is local evidence; the exact-head unattended CI rerun is
 still required.
 
-## Gate snapshot before combined CI qualification
+## Remaining gates
 
 - Repeat the native and cross-consumer journey on the final combined source in
   unattended CI. The new local foreign-organization fixture passed against a

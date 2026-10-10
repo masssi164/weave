@@ -101,6 +101,25 @@ def collect_flutter_output(
             record("FLUTTER_NATIVE_TEST_RUN status=failed")
 
 
+def stop_flutter_process_group(process: subprocess.Popen[str]) -> None:
+    """Stop only the session created for this Flutter command, including children."""
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        pass
+    # make can exit before its Flutter child. Ensure inherited output handles
+    # close even when the parent has already exited.
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.wait(timeout=10)
+
+
 def write_once(path: Path, payload: bytes, transferred: threading.Event) -> None:
     with path.open("wb", buffering=0) as output:
         output.write(payload)
@@ -215,6 +234,28 @@ def report_flutter_markers(markers: queue.Queue[str]) -> list[str]:
     while not markers.empty():
         observed.append(markers.get_nowait())
     return observed
+
+
+def verify_logout_consent(driver: subprocess.Popen[str]) -> None:
+    output, _ = driver.communicate(timeout=10)
+    if driver.returncode:
+        stage = re.search(
+            r"NATIVE_APP_AUTH_DRIVER_RESULT status=failed stage=([a-z-]{1,60})",
+            output,
+        )
+        print("NATIVE_LOGOUT_CONSENT_RESULT status=failed stage="
+              + (stage.group(1) if stage else "result-unavailable"), flush=True)
+        raise RuntimeError("native logout consent driver failed")
+    if "NATIVE_LOGOUT_CONSENT_RESULT status=accepted" not in output:
+        raise RuntimeError("native logout consent result was not verified")
+    registration = re.search(
+        r"NATIVE_LOGOUT_APP_REGISTRATION_RESULT status=passed waited=(true|false)",
+        output,
+    )
+    if not registration:
+        raise RuntimeError("native logout app registration was not verified")
+    print(registration.group(0), flush=True)
+    print("NATIVE_LOGOUT_CONSENT_RESULT status=accepted", flush=True)
 
 
 def restart_disposable_services(env: dict[str, str]) -> None:
@@ -346,6 +387,7 @@ def main() -> int:
             flutter = subprocess.Popen(
                 ["make", "physical-device-product-e2e"], cwd=CLIENT, env=env,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                start_new_session=True,
             )
             reader = threading.Thread(
                 target=collect_flutter_output,
@@ -406,7 +448,10 @@ def main() -> int:
             if flutter.poll() is None:
                 raise RuntimeError("initial Flutter native product assertions timed out")
             initial_status = flutter.returncode
-            reader.join(timeout=2)
+            stop_flutter_process_group(flutter)
+            reader.join(timeout=10)
+            if reader.is_alive():
+                raise RuntimeError("initial Flutter diagnostic stream did not finish")
             initial_observed = report_flutter_markers(markers)
             if initial_status or not any(
                 line.startswith("NATIVE_PRODUCT_INITIAL_RESULT status=passed")
@@ -426,6 +471,7 @@ def main() -> int:
             flutter = subprocess.Popen(
                 ["make", "physical-device-product-e2e"], cwd=CLIENT, env=env,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                start_new_session=True,
             )
             reader = threading.Thread(
                 target=collect_flutter_output,
@@ -449,23 +495,29 @@ def main() -> int:
             flutter_deadline = time.monotonic() + 900
             while flutter.poll() is None and time.monotonic() < flutter_deadline:
                 if logout_consent is not None and logout_consent.poll() is not None:
-                    consent_output, _ = logout_consent.communicate(timeout=10)
-                    if logout_consent.returncode:
-                        raise RuntimeError("native logout consent driver failed")
-                    if "NATIVE_LOGOUT_CONSENT_RESULT status=accepted" not in consent_output:
-                        raise RuntimeError("native logout consent result was not verified")
-                    print("NATIVE_LOGOUT_CONSENT_RESULT status=accepted", flush=True)
+                    verify_logout_consent(logout_consent)
                     logout_consent = None
                 time.sleep(0.5)
             if flutter.poll() is None:
                 raise RuntimeError("Flutter native product assertions timed out")
             flutter_status = flutter.returncode
-            reader.join(timeout=2)
+            # Flutter may finish between driver polls. Its success cannot
+            # substitute for the required native consent-driver result.
+            if logout_consent is not None:
+                verify_logout_consent(logout_consent)
+                logout_consent = None
+            stop_flutter_process_group(flutter)
+            reader.join(timeout=10)
+            if reader.is_alive():
+                raise RuntimeError("restored Flutter diagnostic stream did not finish")
             observed = report_flutter_markers(markers)
             if flutter_status or not any(
                 line.startswith("NATIVE_PRODUCT_SIGN_IN_RESULT status=passed")
                 for line in observed
-            ) or "FLUTTER_NATIVE_TEST_RUN status=passed" not in observed:
+            ) or "FLUTTER_NATIVE_TEST_RUN status=passed" not in observed or not any(
+                line == "NATIVE_PRODUCT_STAGE phase=expired-bearer-denied"
+                for line in observed
+            ):
                 raise RuntimeError("Flutter native product assertions failed")
             print("NATIVE_PROCESS_RESTART_RESULT status=passed", flush=True)
             print("NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed", flush=True)
@@ -477,17 +529,15 @@ def main() -> int:
             if driver is not None and driver.poll() is None:
                 driver.terminate()
                 driver.wait(timeout=10)
-            if flutter is not None and flutter.poll() is None:
-                flutter.terminate()
-                try:
-                    flutter.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    flutter.kill()
-                    flutter.wait(timeout=10)
+            if flutter is not None:
+                stop_flutter_process_group(flutter)
             if reader is not None:
-                reader.join(timeout=2)
+                reader.join(timeout=10)
             for diagnostic in diagnostics:
-                diagnostic.close()
+                # A live reader owns its stream until EOF. Retain the private
+                # stream on failure rather than raising a secondary close race.
+                if reader is None or not reader.is_alive():
+                    diagnostic.close()
                 if accepted:
                     Path(diagnostic.name).unlink()
             if diagnostics and not accepted:

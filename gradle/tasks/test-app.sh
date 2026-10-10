@@ -476,6 +476,9 @@ jq -e \
   .samePersonRefAfterRegrant == true and
   .spaceRevocationRestored == true and
   .foreignOrganizationDenied == true and
+  .administratorSessionRevocationDenied == true and
+  .reauthenticationAfterSessionRevocation == true and
+  .uninitializedChatLogoutDenied == true and
   .collaboration.repeatCount == 2 and
   .collaboration.selectedProviders == {"chat":"weave-native","files":"weave-native","calendar":"weave-native"} and
   .collaboration.northboundContracts == {"matrix":"matrix-client-server","files":"weave-user-api","calendar":"weave-user-api"} and

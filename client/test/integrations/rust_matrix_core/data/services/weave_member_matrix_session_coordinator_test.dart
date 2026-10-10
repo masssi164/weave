@@ -437,6 +437,67 @@ void main() {
     expect(await Directory(path).exists(), isFalse);
   });
 
+  test('logout before Chat opens revokes the current member session', () async {
+    await coordinator().endSession();
+
+    expect(store.rawValue(matrixOAuthCurrentBindingKey), isNull);
+    expect(bridge.memberActivations, isEmpty);
+    expect(logoutRequests, hasLength(1));
+    final request = logoutRequests.single;
+    expect(request.method, 'POST');
+    expect(
+      request.url.toString(),
+      'https://api.weave.test/_matrix/client/v3/logout',
+    );
+    expect(request.headers['authorization'], 'Bearer access-token');
+    expect(request.headers.containsKey('x-weave-matrix-device-id'), isFalse);
+    expect(request.headers.containsKey('x-weave-matrix-device-proof'), isFalse);
+  });
+
+  test('logout without a member session makes no Matrix request', () async {
+    auth.state = const AuthState.signedOut();
+
+    await coordinator().endSession();
+
+    expect(logoutRequests, isEmpty);
+    expect(bridge.memberActivations, isEmpty);
+  });
+
+  test('unbound logout refuses an insecure configured Matrix origin', () async {
+    configuration.configuration = buildTestConfiguration(
+      matrixHomeserverUrl: 'http://api.weave.test',
+    );
+
+    await expectLater(
+      coordinator().endSession(),
+      throwsA(
+        isA<ChatFailure>().having(
+          (failure) => failure.type,
+          'type',
+          ChatFailureType.configuration,
+        ),
+      ),
+    );
+    expect(logoutRequests, isEmpty);
+  });
+
+  test('unbound logout reports remote revocation failure', () async {
+    matrixHttpClient = http_testing.MockClient((request) async {
+      logoutRequests.add(request);
+      return http.Response('{}', 503);
+    });
+
+    await expectLater(
+      coordinator().endSession(),
+      throwsA(
+        isA<ChatFailure>()
+            .having((failure) => failure.type, 'type', ChatFailureType.protocol)
+            .having((failure) => failure.cause, 'status', 503),
+      ),
+    );
+    expect(logoutRequests, hasLength(1));
+  });
+
   test(
     'failed remote logout clears the local bearer and reports failure',
     () async {

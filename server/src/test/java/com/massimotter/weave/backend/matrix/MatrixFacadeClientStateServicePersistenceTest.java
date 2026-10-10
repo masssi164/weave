@@ -5,6 +5,7 @@ import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixRevokedSession
 
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.security.MemberSessionCutoffService;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -31,6 +32,82 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class MatrixFacadeClientStateServicePersistenceTest {
+
+    @Test
+    void memberCutoffSurvivesRestartAndAllowsOnlyLaterIssuedBearerForExactIdentity() {
+        DriverManagerDataSource dataSource = dataSource();
+        com.massimotter.weave.backend.testing.JpaTestDatabase.initializeSchema(dataSource);
+        Instant cutoff = Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(2)
+                .plusNanos(123_456_789);
+        String issuer = "https://auth.example/realms/weave";
+        OrganizationIdentityContextResolver identities =
+                OrganizationIdentityContextResolver.configured(authorization());
+        MemberSessionCutoffService first = new MemberSessionCutoffService(stateStore(dataSource), identities);
+        first.advance("tenant-projection", issuer, "member-cutoff", cutoff);
+        MatrixRevokedSessionJpaRepository rows =
+                com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
+                        dataSource, MatrixRevokedSessionJpaRepository.class);
+        assertThat(rows.findAll()).singleElement().satisfies(row -> {
+            assertThat(row.sessionHash()).hasSize(64).doesNotContain("member-cutoff", issuer);
+            assertThat(row.revokedAt()).isEqualTo(
+                    cutoff.truncatedTo(ChronoUnit.MICROS).plusNanos(1_000));
+            assertThat(row.expiresAt()).isAfter(Instant.parse("9998-01-01T00:00:00Z"));
+        });
+        MemberSessionCutoffService restarted = new MemberSessionCutoffService(stateStore(dataSource), identities);
+
+        assertThat(restarted.revoked(memberToken("member-cutoff", issuer, cutoff.minusSeconds(1)))).isTrue();
+        assertThat(restarted.revoked(memberToken("member-cutoff", issuer, cutoff.minusNanos(1)))).isTrue();
+        assertThat(restarted.revoked(memberToken("member-cutoff", issuer, cutoff))).isTrue();
+        assertThat(restarted.revoked(memberToken("member-cutoff", issuer, null))).isTrue();
+        assertThat(restarted.revoked(memberToken("member-cutoff", issuer, cutoff.plusSeconds(1)))).isFalse();
+        assertThat(restarted.revoked(memberToken("other-member", issuer, cutoff.minusSeconds(1)))).isFalse();
+        assertThat(restarted.revoked(memberToken("member-cutoff", "https://other.example/realms/weave",
+                cutoff.minusSeconds(1)))).isFalse();
+    }
+
+    @Test
+    void concurrentMemberCutoffUpdatesKeepGreatestRevocationAndExpiry() throws Exception {
+        DriverManagerDataSource dataSource = dataSource();
+        com.massimotter.weave.backend.testing.JpaTestDatabase.initializeSchema(dataSource);
+        MatrixFacadeClientStateStore first = stateStore(dataSource);
+        MatrixFacadeClientStateStore second = stateStore(dataSource);
+        String key = "member-cutoff-concurrency-key";
+        Instant earlier = Instant.parse("2026-10-10T10:00:00Z");
+        Instant later = earlier.plusSeconds(30);
+        Instant longerExpiry = later.plusSeconds(3600);
+        first.advanceMemberCutoff(key, earlier, longerExpiry);
+        CyclicBarrier start = new CyclicBarrier(2);
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<?> lower = executor.submit(() -> {
+                start.await(10, TimeUnit.SECONDS);
+                first.advanceMemberCutoff(key, earlier, earlier.plusSeconds(60));
+                return null;
+            });
+            Future<?> higher = executor.submit(() -> {
+                start.await(10, TimeUnit.SECONDS);
+                second.advanceMemberCutoff(key, later, later.plusSeconds(60));
+                return null;
+            });
+            lower.get(20, TimeUnit.SECONDS);
+            higher.get(20, TimeUnit.SECONDS);
+        }
+        MatrixFacadeClientStateStore restarted = stateStore(dataSource);
+        assertThat(restarted.memberCutoff(key, later.plusSeconds(120))).contains(later);
+        assertThat(restarted.memberCutoff(key, longerExpiry.minusSeconds(1))).contains(later);
+        assertThat(restarted.memberCutoff(key, longerExpiry)).isEmpty();
+    }
+
+    private static Jwt memberToken(String subject, String issuer, Instant issuedAt) {
+        Jwt.Builder builder = Jwt.withTokenValue("member-cutoff-token")
+                .header("alg", "none")
+                .subject(subject)
+                .issuer(issuer)
+                .expiresAt(Instant.now().plusSeconds(3600));
+        if (issuedAt != null) {
+            builder.issuedAt(issuedAt);
+        }
+        return builder.build();
+    }
 
     @Test
     void repeatedLogoutExtendsDurableRevocationWithoutShorteningIt() {

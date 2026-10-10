@@ -314,6 +314,29 @@
       ]
     },
     {
+      "tag": "@weave-live-member-session-revocation",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "chat",
+        "spaces",
+        "admin-health-ops"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "actual generated Admin session revocation",
+        "retained unexpired User Admin and Matrix bearer denial",
+        "revoked refresh credential denial",
+        "stable identity and unchanged permissions after PKCE reauthorization",
+        "idempotent replay preserves new sessions",
+        "logout before native Chat initialization"
+      ]
+    },
+    {
       "tag": "@weave-live-foreign-organization-denial",
       "suiteId": "member-live-critical-path",
       "personas": [
