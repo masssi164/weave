@@ -81,8 +81,8 @@ jq -e '
 ' "${CONTRACT}" >/dev/null || fail "Weave MCP tool contract is missing required support-safe/fail-closed controls"
 
 assert_contains "${DOC}" "Status: **Guarded / curated Files and Calendar slices active**"
-assert_contains "${DOC}" "The current implementation reuses an existing cell-bound workload client"
-assert_contains "${DOC}" "lifecycle are not #1470 release gates."
+assert_contains "${DOC}" "The bounded release mode accepts a separately registered"
+assert_contains "${DOC}" "per-cell lifecycle are not #1470 release prerequisites."
 assert_contains "${DOC}" "Human access tokens"
 assert_contains "${DOC}" '`files.search`'
 assert_contains "${DOC}" '`calendar.agenda`'

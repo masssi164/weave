@@ -1,6 +1,7 @@
 # Native Flutter integration acceptance for #1533
 
-Status: **local native journey passed; CI and remaining lifecycle gates open**.
+Status: **local and exact-head CI native journeys passed; cross-organization
+and mainline release gates open**.
 This record separates executable test code from observed native product
 evidence. A disposable local `testApp` run at source commit
 `6b7006425cfa3e58504fceeca6ffaa99604add58` completed the real AppAuth
@@ -511,11 +512,11 @@ still required.
 
 ## Remaining gates
 
-- Run the exact committed candidate in the protected self-hosted macOS `Full
-  Compose E2E` lane, with native product marker and zero Flutter/Gradle exit.
+- Repeat the native and cross-consumer journey on the final combined source
+  after the foreign-organization isolation fixture is qualified and merged.
   The prior local fixture `SemanticsHandle` failure is not accepted as a product
-  result; the product journey unmounts its app before the harness finishes and
-  passed locally. Fixture stability remains a separate diagnostic concern.
+  result; both exact-head CI product tests exited zero. Fixture stability
+  remains a separate diagnostic concern.
 - Reconcile server-side revocation, wrong-account and cross-organization denial
   across the native and black-box lanes. The local two-process result proves
   native process and collaboration-service restart; logout denial does not
@@ -530,3 +531,31 @@ still required.
   authorization and server-side Matrix assertions are shared product behavior;
   browser handoff, callback delivery, secure storage and app lifecycle need
   separate native platform evidence before an iOS or Android claim.
+
+## Exact-head unattended CI qualification, 2026-10-10
+
+The runner's browser driver completed the system-browser AppAuth callback in
+the disposable Keycloak realm. Flutter 3.41.6 now prints `1 test passed.` for
+the selected native test; the first CI attempt at `d975e9120d` executed and
+passed the initial Flutter product test but the wrapper still expected `All
+tests passed`, so that attempt correctly remained red. The wrapper accepts
+either successful summary only with a zero Flutter process exit and required
+product markers. Failure diagnostics remain in mode-0600 local files and are
+removed after a passing run; CI uploads only support-safe evidence.
+
+At exact candidate `80b0774d24175ed04efe08e18b93079304be6254`, [Full
+Compose E2E 38041375327](https://github.com/masssi164/weave/actions/runs/38041375327)
+passed. Both Flutter processes exited zero with one test each. The first
+established the real browser OIDC/PKCE session and exercised generated Files
+upload/read, generated Calendar CRUD, native Rust Matrix business-room
+send/read, refresh and app-state restoration. The second process restored
+after Server, Keycloak and PostgreSQL restart, checked room-leave denial and
+logout denial, then emitted `NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed`.
+The same run passed real OpenClaw 2026.9.8 Matrix and Files/Calendar MCP
+journeys and removed all disposable containers, networks and volumes. Its
+support-safe artifact records source `80b0774d24` and pinned specifications
+`c726993168651f1109259f9a80cc23117d24a37f` with no credentials. The
+selected native providers have no independent downstream authentication
+session; this run does not claim a Synapse or Nextcloud outage recovery test.
+The foreign-organization black-box negative and final integrated source/main
+qualification remain open.

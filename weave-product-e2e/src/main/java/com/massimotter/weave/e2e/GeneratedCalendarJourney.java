@@ -101,6 +101,21 @@ final class GeneratedCalendarJourney {
     }
   }
 
+  void verifyForeignOrganizationDenied(Proof proof, String foreignToken, String ownerToken) {
+    CalendarUserEvent event = proof.events().get(0).event();
+    expectStatus(Set.of(403, 404), "foreign organization Calendar read", () ->
+        calendar.getCalendarEvent(proof.calendarId(), event.getId(), bearer(foreignToken)));
+    expectStatus(Set.of(403, 404), "foreign organization Calendar write", () ->
+        calendar.updateCalendarEvent(proof.calendarId(), event.getId(), event.getVersion(),
+            event.getContent(), bearer(foreignToken)));
+    try {
+      requireSame(event, calendar.getCalendarEvent(
+          proof.calendarId(), event.getId(), bearer(ownerToken)));
+    } catch (ApiException failure) {
+      throw failure("primary Calendar readback failed after foreign denial");
+    }
+  }
+
   void verify(Proof proof, String author, String collaborator, String outsider) {
     try {
       for (EventProof expected : proof.events()) {

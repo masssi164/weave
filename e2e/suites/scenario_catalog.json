@@ -314,6 +314,28 @@
       ]
     },
     {
+      "tag": "@weave-live-foreign-organization-denial",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "admin-health-ops"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "two real organizations in one disposable Keycloak realm",
+        "foreign browser Authorization Code with PKCE",
+        "generated User and Admin denial",
+        "Matrix Client-Server denial",
+        "no primary resource mutation"
+      ]
+    },
+    {
       "tag": "@files-webdav-read-list-download",
       "suiteId": "product-e2e-scenario-layer",
       "personas": [

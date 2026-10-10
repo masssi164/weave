@@ -197,6 +197,46 @@ final class GeneratedFilesJourney {
     }
   }
 
+  void verifyForeignOrganizationDenied(Proof proof, String foreignToken, String memberToken) {
+    try {
+      files.getFilesItem(proof.fileId(), bearer(foreignToken));
+      throw new ProductFlowException("foreign organization read the primary File");
+    } catch (ApiException denial) {
+      if (denial.getCode() != 403 && denial.getCode() != 404) {
+        throw new ProductFlowException(
+            "foreign organization Files read returned HTTP " + denial.getCode());
+      }
+    }
+    Path source = null;
+    String name = "foreign-denied-" + Hashing.sha256(proof.fileId()).substring(0, 16);
+    try {
+      source = Files.createTempFile("weave-foreign-denied-", ".txt");
+      Files.writeString(source, "foreign organization must not write");
+      try {
+        files.uploadFilesItemContent("file:root", name, "*",
+            "foreign-denied-" + Hashing.sha256(name).substring(0, 24), source.toFile(),
+            "text/plain", bearer(foreignToken));
+        throw new ProductFlowException("foreign organization wrote a primary File");
+      } catch (ApiException denial) {
+        if (denial.getCode() != 403 && denial.getCode() != 404) {
+          throw new ProductFlowException(
+              "foreign organization Files write returned HTTP " + denial.getCode());
+        }
+      }
+      FilesUserListResponse root = files.listFilesItems(null, bearer(memberToken));
+      if (root.getItems().stream().anyMatch(item -> name.equals(item.getName()))
+          || root.getItems().stream().noneMatch(item -> proof.fileId().equals(item.getFileId()))) {
+        throw new ProductFlowException("foreign Files denial changed primary state");
+      }
+    } catch (IOException failure) {
+      throw new ProductFlowException("foreign Files denial fixture failed");
+    } catch (ApiException failure) {
+      throw new ProductFlowException("primary Files readback failed after foreign denial");
+    } finally {
+      deleteLocal(source);
+    }
+  }
+
   MemberProof createMemberProof(String ownerToken, String name, String content, String key) {
     Path source = null;
     try {

@@ -32,6 +32,24 @@
       ]
     },
     {
+      "tag": "@weave-live-foreign-organization-denial",
+      "scenario": "A foreign organization owner cannot cross the Weave boundary",
+      "feature": "e2e/features/foreign_organization_isolation.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/ForeignOrganizationJourney.java",
+      "evidenceMarkers": [
+        "WEAVE_FOREIGN_ORGANIZATION_DENIAL_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "gradle/tasks/test-app.sh",
+          "fragments": [
+            ".foreignOrganizationDenied == true"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@files-webdav-read-list-download",
       "scenario": "Historical WebDAV read tests retain provider isolation evidence",
       "feature": "e2e/features/files_webdav_facade.feature",

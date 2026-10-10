@@ -28,3 +28,15 @@ and the two Flutter processes finish successfully, with source, spec, client,
 provider, and IdP versions recorded. A local pass, build-only run, skipped
 integration test, or unavailable signing identity does not count as CI proof.
 The macOS lane does not assert iOS or Android device compatibility.
+
+For the cross-organization release denial, the disposable Keycloak fixture
+creates one additional organization and a dedicated member only inside the
+isolated E2E namespace. The normal realm import and production bootstrap still
+declare one primary organization. The fixture uses the one-shot migration
+administrator while that authority already exists, stores only the foreign
+member's disposable credentials in a mode-0600 local file, and removes the
+administrator before application startup. The product flow obtains a real
+Keycloak-issued member token through browser Authorization Code with PKCE,
+verifies that its sole organization claim is foreign, and proves that primary
+User/Admin/Matrix resources and mutations are denied. Only boolean results
+and exact candidate provenance may enter uploaded evidence.

@@ -91,6 +91,7 @@ public final class FreshProductFlow {
     boolean sameHumanSubjectAfterRegrant = false;
     boolean samePersonRefAfterRegrant = false;
     boolean spaceRevocationRestored = false;
+    boolean foreignOrganizationDenied = false;
     List<CollaborationJourney.PassProof> collaborationPasses = new java.util.ArrayList<>();
 
     try (OidcBrowserJourney browser = new OidcBrowserJourney(environment, http)) {
@@ -345,6 +346,12 @@ public final class FreshProductFlow {
       GeneratedCalendarJourney.Proof mcpCalendarProof = generatedCalendar.createAndVerify(
           ownerSession.accessToken(), memberSession.accessToken(),
           outsiderSession.accessToken(), environment.runId() + "-mcp");
+      new ForeignOrganizationJourney(environment, http).prove(
+          browser, organizationId, generatedFiles, generatedFilesProof,
+          memberSession.accessToken(), generatedCalendar, mcpCalendarProof,
+          ownerSession.accessToken(), adminSession.accessToken(),
+          new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate()));
+      foreignOrganizationDenied = true;
       GeneratedFilesJourney.Proof mcpTextProof =
           generatedFiles.createMcpTextFile(memberSession.accessToken(), environment.runId());
       if (Boolean.getBoolean("weave.e2e.release-mcp")) {
@@ -409,7 +416,8 @@ public final class FreshProductFlow {
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
             release.bindingRef(), mcpProof, restartProof, revocationDenied,
             calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
-            samePersonRefAfterRegrant, spaceRevocationRestored, collaborationPasses,
+            samePersonRefAfterRegrant, spaceRevocationRestored, foreignOrganizationDenied,
+            collaborationPasses,
             true, openClawVersion);
       } else {
         JsonNode provisioned = provisionRuntime(personRef, adminSession.accessToken());
@@ -512,6 +520,7 @@ public final class FreshProductFlow {
             sameHumanSubjectAfterRegrant,
             samePersonRefAfterRegrant,
             spaceRevocationRestored,
+            foreignOrganizationDenied,
             collaborationPasses,
             false,
             "");
@@ -1106,6 +1115,7 @@ public final class FreshProductFlow {
       boolean sameHumanSubjectAfterRegrant,
       boolean samePersonRefAfterRegrant,
       boolean spaceRevocationRestored,
+      boolean foreignOrganizationDenied,
       List<CollaborationJourney.PassProof> collaborationPasses,
       boolean releaseMcp,
       String openClawVersion) {
@@ -1159,6 +1169,7 @@ public final class FreshProductFlow {
     evidence.put("sameHumanSubjectAfterRegrant", sameHumanSubjectAfterRegrant);
     evidence.put("samePersonRefAfterRegrant", samePersonRefAfterRegrant);
     evidence.put("spaceRevocationRestored", spaceRevocationRestored);
+    evidence.put("foreignOrganizationDenied", foreignOrganizationDenied);
     if (collaborationPasses.size() != 2
         || collaborationPasses.get(0).pass() != 1
         || collaborationPasses.get(1).pass() != 2
