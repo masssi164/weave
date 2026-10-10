@@ -123,11 +123,11 @@ final class ForeignOrganizationJourney {
   }
 
   private static void requireComparableUserToken(JsonNode primary, JsonNode foreign) {
-    if (!setOf(primary.path("aud")).equals(setOf(foreign.path("aud")))) {
-      throw new ProductFlowException("foreign user token audience differs from the primary owner");
+    if (!audiences(primary.path("aud")).equals(audiences(foreign.path("aud")))) {
+      throw new ProductFlowException("foreign user token audience count or value differs from the primary owner");
     }
-    if (!Set.of(primary.path("scope").asString().split(" "))
-        .equals(Set.of(foreign.path("scope").asString().split(" ")))) {
+    if (!new TreeSet<>(List.of(primary.path("scope").asString().split(" ")))
+        .equals(new TreeSet<>(List.of(foreign.path("scope").asString().split(" "))))) {
       throw new ProductFlowException("foreign user token scope differs from the primary owner");
     }
     if (!primary.path("iss").asString().equals(foreign.path("iss").asString())
@@ -136,13 +136,14 @@ final class ForeignOrganizationJourney {
     }
   }
 
-  private static Set<String> setOf(JsonNode value) {
-    Set<String> result = new TreeSet<>();
+  private static List<String> audiences(JsonNode value) {
+    List<String> result = new java.util.ArrayList<>();
     if (value.isArray()) {
       for (JsonNode entry : value) result.add(entry.asString());
     } else if (value.isString()) {
       result.add(value.asString());
     }
+    result.sort(String::compareTo);
     return result;
   }
 
