@@ -70,12 +70,7 @@ public final class SchemaAuthorityInitializer {
       String password,
       String candidate,
       Path receipt) throws Exception {
-    Flyway flyway = Flyway.configure()
-        .dataSource(url, username, password)
-        .locations(MIGRATION_LOCATION)
-        .baselineOnMigrate(false)
-        .cleanDisabled(true)
-        .load();
+    Flyway flyway = configuredFlyway(url, username, password);
 
     // Flyway owns DDL and its PostgreSQL history/checksums. A non-empty schema without
     // Flyway history intentionally fails here instead of being silently baselined.
@@ -128,6 +123,18 @@ public final class SchemaAuthorityInitializer {
           targetSchemaVersion,
           validated);
     }
+  }
+
+  static Flyway configuredFlyway(String url, String username, String password) {
+    return Flyway.configure()
+        .dataSource(url, username, password)
+        .locations(MIGRATION_LOCATION)
+        .baselineOnMigrate(false)
+        .cleanDisabled(true)
+        .outOfOrder(false)
+        .validateOnMigrate(true)
+        .validateMigrationNaming(true)
+        .load();
   }
 
   private static void acquireSchemaInitializationLock(Connection connection) throws Exception {

@@ -15,8 +15,30 @@ class RelationalProfileGuardTest {
                 "jdbc:h2:mem:weave-dev;MODE=PostgreSQL",
                 "org.h2.Driver");
 
-        assertThatCode(() -> new RelationalProfileGuard(environment).afterSingletonsInstantiated())
+        assertThatCode(() -> new RelationalProfileGuard(environment).validate())
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void servingRejectsFlywayAutoMigrationEvenOutsidePostgresqlProfiles() {
+        MockEnvironment environment = environment(
+                        "dev",
+                        "jdbc:h2:mem:weave-dev;MODE=PostgreSQL",
+                        "org.h2.Driver")
+                .withProperty("spring.flyway.enabled", "true");
+
+        assertThatThrownBy(() -> new RelationalProfileGuard(environment).validate())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Flyway auto-migration");
+    }
+
+    @Test
+    void servingRejectsMissingFlywayAutoMigrationFence() {
+        MockEnvironment environment = new MockEnvironment();
+
+        assertThatThrownBy(() -> new RelationalProfileGuard(environment).validate())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Flyway auto-migration");
     }
 
     @Test
@@ -26,7 +48,7 @@ class RelationalProfileGuardTest {
                 "jdbc:h2:mem:weave-test",
                 "org.h2.Driver");
 
-        assertThatThrownBy(() -> new RelationalProfileGuard(environment).afterSingletonsInstantiated())
+        assertThatThrownBy(() -> new RelationalProfileGuard(environment).validate())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("PostgreSQL");
     }
@@ -38,7 +60,7 @@ class RelationalProfileGuardTest {
                 "jdbc:h2:mem:weave-dogfood",
                 "org.h2.Driver");
 
-        assertThatThrownBy(() -> new RelationalProfileGuard(environment).afterSingletonsInstantiated())
+        assertThatThrownBy(() -> new RelationalProfileGuard(environment).validate())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("PostgreSQL");
     }
@@ -50,7 +72,7 @@ class RelationalProfileGuardTest {
                 "jdbc:postgresql://postgres:5432/weave_e2e",
                 "org.postgresql.Driver");
 
-        assertThatCode(() -> new RelationalProfileGuard(environment).afterSingletonsInstantiated())
+        assertThatCode(() -> new RelationalProfileGuard(environment).validate())
                 .doesNotThrowAnyException();
     }
 
@@ -61,7 +83,7 @@ class RelationalProfileGuardTest {
                 "jdbc:postgresql://postgres:5432/weave",
                 "org.h2.Driver");
 
-        assertThatThrownBy(() -> new RelationalProfileGuard(environment).afterSingletonsInstantiated())
+        assertThatThrownBy(() -> new RelationalProfileGuard(environment).validate())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("PostgreSQL driver");
     }
@@ -73,7 +95,7 @@ class RelationalProfileGuardTest {
                 "jdbc:postgresql://postgres:5432/weave",
                 "org.postgresql.Driver");
 
-        assertThatCode(() -> new RelationalProfileGuard(environment).afterSingletonsInstantiated())
+        assertThatCode(() -> new RelationalProfileGuard(environment).validate())
                 .doesNotThrowAnyException();
     }
 
@@ -85,7 +107,7 @@ class RelationalProfileGuardTest {
                         "org.postgresql.Driver")
                 .withProperty("spring.jpa.hibernate.ddl-auto", "update");
 
-        assertThatThrownBy(() -> new RelationalProfileGuard(environment).afterSingletonsInstantiated())
+        assertThatThrownBy(() -> new RelationalProfileGuard(environment).validate())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Hibernate validate");
     }
@@ -95,6 +117,7 @@ class RelationalProfileGuardTest {
                 .withProperty("weave.deployment.profile", deploymentProfile)
                 .withProperty("spring.datasource.url", url)
                 .withProperty("spring.datasource.driver-class-name", driver)
+                .withProperty("spring.flyway.enabled", "false")
                 .withProperty("spring.jpa.hibernate.ddl-auto", "validate");
     }
 }

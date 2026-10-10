@@ -33,6 +33,11 @@ External provider databases such as Nextcloud or Matrix homeservers are outside 
 The advisory lock covers migration, Hibernate validation, marker mutation, fingerprint verification, and receipt creation. Flyway's own lock remains the DDL/history authority; the outer lock prevents two one-shot processes from racing after Flyway has released its migration lock.
 
 The normal Server process does not own schema evolution. Deployment fails closed before application traffic when migration, checksum, mapping, catalog, marker, or receipt validation fails.
+Spring Boot Flyway auto-configuration is disabled in the shared serving configuration, and the
+serving profile guard rejects a missing or re-enabled setting before singleton initialization.
+Only the explicit one-shot
+initializer constructs Flyway. It pins `outOfOrder=false`, `baselineOnMigrate=false`,
+`validateOnMigrate=true`, migration-name validation to true, and `cleanDisabled=true`.
 
 ## Catalog fingerprint
 
@@ -48,7 +53,10 @@ There is no backward-compatibility promise for receipts or authority markers pro
 
 Migration files under `server/src/main/resources/db/migration` are immutable once accepted on the current mainline. Changes are forward-only. Destructive evolution uses explicit expansion/contraction migrations and restart-safe data backfills where required.
 
-`baselineOnMigrate` is disabled. A non-empty schema without expected Flyway history is rejected instead of being silently adopted. Flyway `clean` is absent from every production-capable runtime path.
+`baselineOnMigrate` and out-of-order execution are disabled. Validation on migration and
+migration-name validation are enabled. A non-empty schema without expected Flyway history is
+rejected instead of being silently adopted. Flyway `clean` is absent from every
+production-capable runtime path.
 
 Schema version, canonical domain-model version, canonical transfer-format version, and provider-adapter profile version are independent coordinates. A PostgreSQL backup and a serialization of JPA entities are not canonical transfer formats.
 
