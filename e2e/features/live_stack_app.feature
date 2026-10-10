@@ -19,5 +19,5 @@ Feature: Physical client authentication acceptance
     Then the member can write and read a file through Weave
     And the member can create update and delete a calendar event through Weave
     And the member can send and read a message in an authorized business room
-    And those capabilities remain usable after session refresh and app state restoration
+    And those capabilities remain usable after session refresh and a native app restart
     And explicit sign-out removes access to those capabilities

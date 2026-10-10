@@ -51,7 +51,8 @@ def collect_flutter_output(process: subprocess.Popen[str], sink: queue.Queue[str
     for line in process.stdout:
         marker = next(
             (item for item in (
-                "NATIVE_PRODUCT_SIGN_IN_RESULT", "PHYSICAL_AUTH_SESSION_RESULT",
+                "NATIVE_PRODUCT_SIGN_IN_RESULT", "NATIVE_PRODUCT_INITIAL_RESULT",
+                "PHYSICAL_AUTH_SESSION_RESULT",
                 "NATIVE_PRODUCT_STAGE") if item in line),
             None,
         )
@@ -213,6 +214,15 @@ def main() -> int:
             r"NATIVE_STALE_BROWSER_RESULT status=(closed|absent)", cleanup.stdout
         )
         if cleanup.returncode or not consent_marker or not browser_marker:
+            stage = re.search(
+                r"NATIVE_APP_AUTH_DRIVER_RESULT status=failed stage=([a-z-]+)",
+                cleanup.stdout,
+            )
+            print(
+                "NATIVE_STALE_CLEANUP_RESULT status=failed stage="
+                + (stage.group(1) if stage else "unavailable"),
+                flush=True,
+            )
             raise RuntimeError("stale native AppAuth consent cleanup failed")
         print(consent_marker.group(0), flush=True)
         print(browser_marker.group(0), flush=True)
@@ -235,6 +245,7 @@ def main() -> int:
             "WEAVE_DEVICE_OIDC_ISSUER_URL": issuer,
             "WEAVE_DEVICE_MATRIX_HOMESERVER_URL": matrix,
             "WEAVE_NATIVE_TEST_RUN_ID": run_id,
+            "WEAVE_DEVICE_PRODUCT_PHASE": "initial",
         })
         env.pop("WEAVE_NATIVE_MEMBER_EMAIL", None)
         env.pop("WEAVE_NATIVE_MEMBER_PASSWORD", None)
@@ -299,6 +310,40 @@ def main() -> int:
             if password_prompt.returncode or not prompt_marker:
                 raise RuntimeError("native Safari password prompt could not be handled safely")
             print(prompt_marker.group(0), flush=True)
+            flutter_deadline = time.monotonic() + 900
+            while flutter.poll() is None and time.monotonic() < flutter_deadline:
+                time.sleep(0.5)
+            if flutter.poll() is None:
+                raise RuntimeError("initial Flutter native product assertions timed out")
+            initial_status = flutter.returncode
+            reader.join(timeout=2)
+            initial_observed = report_flutter_markers(markers)
+            if initial_status or not any(
+                line.startswith("NATIVE_PRODUCT_INITIAL_RESULT status=passed")
+                for line in initial_observed
+            ) or "FLUTTER_NATIVE_TEST_RUN status=passed" not in initial_observed:
+                raise RuntimeError("initial Flutter native product assertions failed")
+            print("NATIVE_PROCESS_RESTART_STAGE phase=first-process-exited", flush=True)
+            stop_checkout_app()
+            env["WEAVE_DEVICE_PRODUCT_PHASE"] = "restore"
+            markers = queue.Queue()
+            flutter = subprocess.Popen(
+                ["make", "physical-device-product-e2e"], cwd=CLIENT, env=env,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            )
+            reader = threading.Thread(
+                target=collect_flutter_output, args=(flutter, markers), daemon=True
+            )
+            reader.start()
+            app_deadline = time.monotonic() + 120
+            while not checkout_app_pids() and time.monotonic() < app_deadline:
+                if flutter.poll() is not None:
+                    report_flutter_markers(markers)
+                    raise RuntimeError("restored Flutter app exited before launch")
+                time.sleep(0.5)
+            if not checkout_app_pids():
+                raise RuntimeError("restored Flutter app did not launch")
+            print("NATIVE_PROCESS_RESTART_STAGE phase=second-process-launched", flush=True)
             logout_consent = subprocess.Popen(
                 ["swift", str(DRIVER), "--accept-next-consent",
                  signing_bundle, issuer_authority, executable],
@@ -325,6 +370,7 @@ def main() -> int:
                 for line in observed
             ) or "FLUTTER_NATIVE_TEST_RUN status=passed" not in observed:
                 raise RuntimeError("Flutter native product assertions failed")
+            print("NATIVE_PROCESS_RESTART_RESULT status=passed", flush=True)
             print("NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed", flush=True)
         finally:
             if logout_consent is not None and logout_consent.poll() is None:

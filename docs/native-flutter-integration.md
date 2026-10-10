@@ -336,6 +336,7 @@ WEAVE_TEST_APP_NATIVE_CA_ROOT="$HOME/.local/share/weave/native-acceptance-ca" \
 WEAVE_NATIVE_SIGNING_TEAM="<10-character Apple development team ID>" \
 WEAVE_NATIVE_SIGNING_BUNDLE_ID="<provisioned test app bundle ID>" \
 WEAVE_TEST_APP_NATIVE_RUNNER="$PWD/client/tool/run_native_product_acceptance.py" \
+WEAVE_TEST_APP_RELEASE_MCP=true \
   ./gradlew testApp
 ```
 
@@ -350,7 +351,12 @@ markers, and a zero Flutter test exit. At `8f13cde956`, the local run emitted
 `NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed`, followed by
 `BUILD SUCCESSFUL in 7m 9s` for `testApp`. The `Full Compose E2E` job now selects
 this same native runner and fails when its signing/CA prerequisites are absent;
-its first CI execution is still pending.
+its first run on `f657aacbe922828e29391999c50ca6bc92d39474`
+([workflow 38010551714](https://github.com/masssi164/weave/actions/runs/38010551714))
+passed the isolated stack and OpenClaw Matrix proof but failed before the
+native app build in the stale-consent driver. That run discarded the driver's
+specific failure stage. The next candidate reports that bounded stage and
+checks Accessibility trust in the runner process before starting the stack.
 The signing team, development certificate, and provisioning profile must be
 available to the logged-in macOS test user. CI reads the nonsecret signing team
 and bundle ID from repository variables `WEAVE_NATIVE_SIGNING_TEAM` and

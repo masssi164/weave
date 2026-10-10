@@ -56,9 +56,14 @@ physical-device-auth-e2e:
 	  --arg WEAVE_NATIVE_TEST_RUN_ID "$${WEAVE_NATIVE_TEST_RUN_ID:-}" \
 	  '$$ARGS.named' > "$$dart_defines_file"; \
 	if [ "$${WEAVE_DEVICE_PRODUCT_E2E:-false}" = "true" ]; then \
+	  if [ "$${WEAVE_DEVICE_PRODUCT_PHASE:-initial}" = "restore" ]; then \
+	    product_test='native process restart restores Files Calendar Matrix then logout'; \
+	  else \
+	    product_test='one fresh sign-in makes Files Calendar and native Matrix usable'; \
+	  fi; \
 	  flutter test integration_test/system_browser_auth_e2e_test.dart \
 	    -d "$$device_id" --dart-define-from-file="$$dart_defines_file" \
-	    --plain-name 'one fresh sign-in makes Files Calendar and native Matrix usable'; \
+	    --plain-name "$$product_test"; \
 	else \
 	  flutter test integration_test/system_browser_auth_e2e_test.dart \
 	    -d "$$device_id" --dart-define-from-file="$$dart_defines_file"; \

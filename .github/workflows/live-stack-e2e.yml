@@ -116,6 +116,10 @@ jobs:
           }
           echo "WEAVE_TEST_APP_NATIVE_CA_ROOT=$native_ca_root" >> "$GITHUB_ENV"
 
+      - name: Verify native Accessibility trust
+        working-directory: weave
+        run: swift client/tool/native_macos_appauth_driver.swift --check-accessibility
+
       - name: Run full isolated product flow
         working-directory: weave
         run: ./gradlew --no-daemon specCorpusConformance testApp

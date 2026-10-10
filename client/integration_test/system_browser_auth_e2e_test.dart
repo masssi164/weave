@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/persistence/secure_store.dart';
@@ -373,36 +374,17 @@ void main() {
             marker,
           );
           debugPrint('NATIVE_PRODUCT_STAGE phase=app-state-restored');
-          await restoredContainer
-              .read(authFlowControllerProvider.notifier)
-              .signOut();
-          await _waitFor(
-            tester,
-            const ValueKey('weave.auth.sign-in'),
-            timeout: const Duration(minutes: 1),
+          await (await _nativeCheckpoint(nativeTestRunId)).writeAsString(
+            jsonEncode({
+              'fileId': uploaded.id,
+              'fileName': fileName,
+              'roomId': room.id,
+              'roomMessage': marker,
+              'matrixUserId': matrix.userId,
+              'matrixDeviceId': matrix.deviceId,
+            }),
+            flush: true,
           );
-          expect(
-            (await restoredContainer
-                    .read(authSessionRepositoryProvider)
-                    .restoreSession(
-                      AuthConfiguration(
-                        issuer: config.issuerUrl,
-                        clientId: config.clientId,
-                      ),
-                    ))
-                .isAuthenticated,
-            isFalse,
-          );
-          await expectLater(
-            restoredCoordinator.open(allowInteractiveSignIn: false),
-            throwsA(anything),
-          );
-          await expectLater(
-            restoredFiles.listDirectory('/'),
-            throwsA(anything),
-          );
-          await expectLater(restoredCalendar.loadScopes(), throwsA(anything));
-          debugPrint('NATIVE_PRODUCT_STAGE phase=logout-denial-passed');
         } finally {
           await restoredCoordinator.disposePreservingCryptoState();
         }
@@ -413,11 +395,11 @@ void main() {
         await tester.pumpAndSettle();
 
         debugPrint(
-          'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed login=single '
+          'NATIVE_PRODUCT_INITIAL_RESULT status=passed login=single '
           'files=generated-upload-read calendar=generated-crud matrix=native '
           'businessRoomSendRead=true '
           'refresh=true sessionReopen=true appStateRecreated=true '
-          'logoutDenied=true supportSafe=true',
+          'checkpointPrivate=true supportSafe=true',
         );
         debugPrint(
           'PHYSICAL_AUTH_SESSION_RESULT status=passed activation=system-browser '
@@ -429,6 +411,87 @@ void main() {
     },
     skip: !productEnabled,
     timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  testWidgets(
+    'native process restart restores Files Calendar Matrix then logout',
+    (tester) async {
+      final checkpointFile = await _nativeCheckpoint(nativeTestRunId);
+      final checkpoint =
+          jsonDecode(await checkpointFile.readAsString())
+              as Map<String, dynamic>;
+      await checkpointFile.delete();
+      final container = await _openWeaveSession(
+        tester,
+        config,
+        requireRestoredSession: true,
+      );
+      final files = container.read(filesRepositoryProvider);
+      final calendar = container.read(calendarRepositoryProvider);
+      final coordinator = container.read(
+        matrixCryptoSessionCoordinatorProvider,
+      );
+      try {
+        final file = (await files.listDirectory('/')).entries
+            .where((entry) => entry.name == checkpoint['fileName'])
+            .single;
+        expect(file.id, checkpoint['fileId']);
+        expect(
+          (await (files as FilesExportRepository).downloadFile(file)).bytes,
+          orderedEquals(
+            utf8.encode('Weave native Files acceptance ${file.name}'),
+          ),
+        );
+        expect((await calendar.loadScopes()).scopes, isNotEmpty);
+        final matrix = await coordinator.open(allowInteractiveSignIn: false);
+        expect(matrix.userId, checkpoint['matrixUserId']);
+        expect(matrix.deviceId, checkpoint['matrixDeviceId']);
+        await _requireBusinessRoomReadback(
+          container.read(chatRepositoryProvider),
+          checkpoint['roomId'] as String,
+          checkpoint['roomMessage'] as String,
+        );
+        debugPrint('NATIVE_PRODUCT_STAGE phase=process-restart-restored');
+
+        await container.read(authFlowControllerProvider.notifier).signOut();
+        await _waitFor(
+          tester,
+          const ValueKey('weave.auth.sign-in'),
+          timeout: const Duration(minutes: 1),
+        );
+        expect(
+          (await container
+                  .read(authSessionRepositoryProvider)
+                  .restoreSession(
+                    AuthConfiguration(
+                      issuer: config.issuerUrl,
+                      clientId: config.clientId,
+                    ),
+                  ))
+              .isAuthenticated,
+          isFalse,
+        );
+        await expectLater(
+          coordinator.open(allowInteractiveSignIn: false),
+          throwsA(anything),
+        );
+        await expectLater(files.listDirectory('/'), throwsA(anything));
+        await expectLater(calendar.loadScopes(), throwsA(anything));
+        debugPrint('NATIVE_PRODUCT_STAGE phase=logout-denial-passed');
+      } finally {
+        await coordinator.disposePreservingCryptoState();
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      debugPrint(
+        'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed login=single '
+        'files=generated-upload-read calendar=generated-crud matrix=native '
+        'businessRoomSendRead=true refresh=true sessionReopen=true '
+        'processRestart=true logoutDenied=true supportSafe=true',
+      );
+    },
+    skip: !productEnabled,
+    timeout: const Timeout(Duration(minutes: 8)),
   );
 
   testWidgets(
@@ -677,6 +740,15 @@ void main() {
         !disposableStack,
     timeout: const Timeout(Duration(minutes: 18)),
   );
+}
+
+Future<File> _nativeCheckpoint(String runId) async {
+  if (!RegExp(r'^[A-Za-z0-9-]+$').hasMatch(runId)) {
+    throw StateError('Invalid isolated native test run ID.');
+  }
+  final support = await getApplicationSupportDirectory();
+  await support.create(recursive: true);
+  return File('${support.path}/weave-native-acceptance-$runId.json');
 }
 
 Future<String> _waitForEncryptedMessage(

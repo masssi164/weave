@@ -49,6 +49,12 @@ func fail(_ stage: String) -> Never {
   exit(1)
 }
 
+if CommandLine.arguments.count == 2 && CommandLine.arguments[1] == "--check-accessibility" {
+  let trusted = AXIsProcessTrusted()
+  print("NATIVE_ACCESSIBILITY_RESULT status=\(trusted ? "passed" : "denied")")
+  exit(trusted ? 0 : 1)
+}
+
 func acceptWeaveConsent(issuerHost: String) -> Bool {
   for app in NSWorkspace.shared.runningApplications
     where app.bundleIdentifier == "com.apple.UserNotificationCenter" {
