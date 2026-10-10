@@ -1071,8 +1071,8 @@ Future<void> _waitForWorkspaceAfterSignIn(
       final platform = nestedCause is FlutterAppAuthPlatformException
           ? nestedCause
           : null;
-      final backendStatus = nestedCause is int &&
-              nestedCause >= 100 && nestedCause <= 599
+      final backendStatus =
+          nestedCause is int && nestedCause >= 100 && nestedCause <= 599
           ? nestedCause.toString()
           : 'unavailable';
       final backendFailure = switch (appFailure?.message) {
