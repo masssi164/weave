@@ -152,10 +152,8 @@ public class JpaMatrixFacadeClientStateStore implements MatrixFacadeClientStateS
             boolean[] attemptedCreate) {
         MatrixRevokedSessionJpaEntity existing = revokedSessions.findById(sessionHash).orElse(null);
         if (existing != null) {
-            if (!existing.expiresAt().equals(expiresAt)) {
-                throw new IllegalArgumentException(
-                        "Matrix revocation digest is already bound to another session window.");
-            }
+            // A second logout can present a refreshed bearer for the same
+            // OIDC session. The first bounded tombstone already denies it.
             return;
         }
         attemptedCreate[0] = true;

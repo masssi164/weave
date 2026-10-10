@@ -65,6 +65,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -1205,6 +1206,14 @@ class MatrixClientServerProjectionControllerTest {
     @Test
     void logoutRevokesThePresentedMatrixToken() throws Exception {
         // MATRIX_TOKEN_REVOCATION_FACADE
+        InMemoryMatrixFacadeClientStateStore durableState = new InMemoryMatrixFacadeClientStateStore();
+        doAnswer(invocation -> {
+            durableState.revokeSession(
+                    invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2));
+            return null;
+        }).when(stateStore).revokeSession(any(), any(), any());
+        when(stateStore.isSessionRevoked(any(), any())).thenAnswer(invocation ->
+                durableState.isSessionRevoked(invocation.getArgument(0), invocation.getArgument(1)));
         var token = workspaceJwt("runtime-token-to-revoke");
 
         mockMvc.perform(post("/_matrix/client/v3/logout").with(token))

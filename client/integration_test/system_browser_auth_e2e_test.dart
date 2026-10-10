@@ -457,17 +457,26 @@ void main() {
         // its effect through the native Rust SDK rather than a second HTTP
         // read. This proves own-room leave, not admin Space revocation.
         final roomId = checkpoint['roomId'] as String;
-        final memberSession = await container
-            .read(authSessionRepositoryProvider)
-            .restoreSession(
-              AuthConfiguration(
-                issuer: config.issuerUrl,
-                clientId: config.clientId,
-              ),
-            );
-        final memberToken = memberSession.session?.accessToken;
+        final authRepository = container.read(authSessionRepositoryProvider);
+        final authConfiguration = AuthConfiguration(
+          issuer: config.issuerUrl,
+          clientId: config.clientId,
+        );
+        final memberSession = await authRepository.restoreSession(
+          authConfiguration,
+        );
         expect(memberSession.isAuthenticated, isTrue);
-        expect(memberToken, isNotEmpty);
+        final earlierToken = memberSession.session!.accessToken;
+        final refreshed = await authRepository.refreshSession(
+          authConfiguration,
+        );
+        expect(refreshed.isAuthenticated, isTrue);
+        final memberToken = refreshed.session!.accessToken;
+        expect(memberToken, isNot(equals(earlierToken)));
+        final refreshedMatrix = await coordinator.open(
+          allowInteractiveSignIn: false,
+        );
+        expect(refreshedMatrix.deviceId, matrix.deviceId);
         final deviceProof = await container
             .read(secureStoreProvider)
             .read('matrix_member_device_proof_v1_${matrix.profileKey}');
@@ -540,20 +549,22 @@ void main() {
         );
         await expectLater(files.listDirectory('/'), throwsA(anything));
         await expectLater(calendar.loadScopes(), throwsA(anything));
-        final revokedMatrix = await container
-            .read(weaveApiHttpClientProvider)
-            .get(
-              config.matrixHomeserverUrl.resolve(
-                '/_matrix/client/v3/account/whoami',
-              ),
-              headers: <String, String>{
-                'Authorization': 'Bearer $memberToken',
-                'x-weave-matrix-device-id': matrix.deviceId,
-                'x-weave-matrix-device-proof': deviceProof,
-              },
-            );
-        expect(revokedMatrix.statusCode, 401);
-        expect(jsonDecode(revokedMatrix.body)['errcode'], 'M_UNKNOWN_TOKEN');
+        for (final token in <String>[earlierToken, memberToken]) {
+          final revokedMatrix = await container
+              .read(weaveApiHttpClientProvider)
+              .get(
+                config.matrixHomeserverUrl.resolve(
+                  '/_matrix/client/v3/account/whoami',
+                ),
+                headers: <String, String>{
+                  'Authorization': 'Bearer $token',
+                  'x-weave-matrix-device-id': matrix.deviceId,
+                  'x-weave-matrix-device-proof': deviceProof,
+                },
+              );
+          expect(revokedMatrix.statusCode, 401);
+          expect(jsonDecode(revokedMatrix.body)['errcode'], 'M_UNKNOWN_TOKEN');
+        }
         debugPrint('NATIVE_PRODUCT_STAGE phase=logout-denial-passed');
       } finally {
         await coordinator.disposePreservingCryptoState();

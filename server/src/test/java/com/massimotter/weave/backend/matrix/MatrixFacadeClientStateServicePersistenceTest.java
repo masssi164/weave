@@ -112,6 +112,20 @@ class MatrixFacadeClientStateServicePersistenceTest {
                     assertThat(identity.authorizationPrincipalRef()).isEqualTo("policy:subject-projection");
                 });
         assertThat(restarted.revoked(session)).isTrue();
+        Instant refreshedAt = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        Jwt refreshedBearer = Jwt.withTokenValue("rotated-access-token")
+                .header("alg", "none")
+                .subject("subject-projection")
+                .issuer("https://auth.example/realms/weave")
+                .issuedAt(refreshedAt)
+                .expiresAt(refreshedAt.plusSeconds(3600))
+                .claim("sid", "session-projection")
+                .claim("jti", "new-jti-after-refresh")
+                .build();
+        assertThat(restarted.revoked(refreshedBearer)).isTrue();
+        assertThat(restarted.revoked(jwt("subject-projection", "another-session"))).isFalse();
+        restarted.revoke(refreshedBearer);
+        assertThat(restarted.revoked(refreshedBearer)).isTrue();
     }
 
     @Test
