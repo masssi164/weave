@@ -466,6 +466,49 @@ PATH="$PWD/tool/native_macos_open:$PATH" \
   flutter test integration_test/shell_navigation_e2e_test.dart -d macos
 ```
 
+## Unattended macOS runner diagnosis, 2026-10-10
+
+After the runner's Accessibility grant was applied, the exact candidate
+`3c118bfc612be2c224981e90aa418016dccc46f6` reached Xcode but failed
+framework `CodeSign` with `errSecInternalComponent` in [Full Compose E2E
+38036936172](https://github.com/masssi164/weave/actions/runs/38036936172).
+The runner process reported one valid Apple Development identity, so identity
+discovery was insufficient to prove private-key use. A disposable LaunchAgent
+using the same user, signing identity and `/usr/bin/codesign` reproduced the
+failure with `SessionCreate=true` and signed the same test binary with that
+field absent. The GitHub runner's LaunchAgent had `SessionCreate=true`; only
+that field was removed and the service restarted after the owner approved the
+security-session change. The original plist has a local reversible backup.
+The public repository now requires maintainer approval for every external
+contributor's PR workflow, and the `Full Compose E2E` job routes fork PRs to a
+GitHub-hosted runner where it fails before checkout. A workflow check alone is
+not the trust boundary because PR authors can edit workflows; the repository
+approval setting is enforced by GitHub. A dedicated CI signing identity remains
+preferable to a personal login keychain for long-term runner isolation.
+
+On exact candidate `986c93ed3569d815b52caf5b7fb8a2423a8bd473`, [CI run
+38037973487, attempt 2](https://github.com/masssi164/weave/actions/runs/38037973487)
+reported `NATIVE_BUILD_PREPARATION_RESULT status=passed`,
+`NATIVE_SIGNING_RESULT status=passed` and
+`NATIVE_APP_LAUNCH_RESULT status=passed`. It then failed at
+`NATIVE_APP_AUTH_DRIVER_RESULT status=failed stage=username-readback`, before
+the product assertions. In the actual Safari Keycloak window, the username
+field was empty after the driver's unfocused AXValue write. Focused input was
+visible in accessibility readback. The driver now focuses the field, verifies
+its exact value, and falls back to targeted keyboard input only when needed.
+
+Local `./gradlew --no-daemon specCorpusConformance testApp` on exact commit
+`d77bbc6d7a50a606bbf85776415d90927bfbfead` passed in 9m 17s with pinned
+specifications `c726993168651f1109259f9a80cc23117d24a37f`. It used macOS
+26.4.1, Xcode 26.5, Flutter 3.41.6, Keycloak 26.7.1 and OpenClaw 2026.9.8.
+The disposable app emitted browser PKCE login, generated Files upload/read,
+generated Calendar CRUD, native Rust Matrix business-room send/read, refresh,
+second-process restoration after Server/Keycloak/PostgreSQL restart, room-leave
+denial, logout denial, two zero-exit Flutter harness processes and
+`NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed`. The stack and per-run secrets
+were cleaned up. This is local evidence; the exact-head unattended CI rerun is
+still required.
+
 ## Remaining gates
 
 - Run the exact committed candidate in the protected self-hosted macOS `Full
