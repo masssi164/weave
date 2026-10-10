@@ -18,7 +18,6 @@ from compose_runtime import (
 )
 from keycloak_migration import migration_inputs, require_completed_migration
 from keycloak_migration_backup import create_backup_proof
-from keycloak_foreign_org_fixture import provision as provision_foreign_org_fixture
 
 
 def apply(context) -> None:
@@ -56,7 +55,6 @@ def apply(context) -> None:
             "keycloak-realm-migration-bootstrap",
         )
         compose(context, "up", "-d", "--wait", "--wait-timeout", "600", "keycloak")
-        provision_foreign_org_fixture(context, credential)
         compose(
             context,
             "run",

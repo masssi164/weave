@@ -30,12 +30,14 @@ integration test, or unavailable signing identity does not count as CI proof.
 The macOS lane does not assert iOS or Android device compatibility.
 
 For the cross-organization release denial, the disposable Keycloak fixture
-creates one additional organization and a dedicated member only inside the
+creates one additional organization and a dedicated owner only inside the
 isolated E2E namespace. The normal realm import and production bootstrap still
-declare one primary organization. The fixture uses the one-shot migration
-administrator while that authority already exists, stores only the foreign
-member's disposable credentials in a mode-0600 local file, and removes the
-administrator before application startup. The product flow obtains a real
+declare one primary organization. First-owner bootstrap runs against an empty
+realm. Only after that owner has authenticated does the fixture briefly create
+a disposable one-shot Keycloak administrator, restart Keycloak, provision the
+foreign identity, delete the temporary administrator, and verify that its
+credential cannot obtain another token. The product flow stores only the foreign
+owner's disposable credentials in a mode-0600 local file and obtains a real
 Keycloak-issued member token through browser Authorization Code with PKCE,
 verifies that its sole organization claim is foreign, and proves that primary
 User/Admin/Matrix resources and mutations are denied. Only boolean results

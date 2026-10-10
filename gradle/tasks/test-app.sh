@@ -419,6 +419,7 @@ log "Running invitation, real Chromium activation, PKCE, generated User Files/Ca
   "-Dweave.e2e.bootstrap-owner-token=${WEAVE_TEST_APP_SECRET_ROOT}/identity-bootstrap-owner-token" \
   "-Dweave.e2e.chat-proof-token=${WEAVE_TEST_APP_SECRET_ROOT}/chat-e2e-proof-token" \
   "-Dweave.e2e.foreign-organization-identity=${WEAVE_TEST_APP_SECRET_ROOT}/foreign-organization-e2e-identity.json" \
+  "-Dweave.e2e.foreign-organization-fixture-command=${COMPOSE}" \
   "-Dweave.e2e.workload-credential-root=${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads" \
   "-Dweave.e2e.evidence-file=${WEAVE_TEST_APP_EVIDENCE_PATH}" \
   "-Dweave.e2e.persistence-restart-command=${COMPOSE}" \

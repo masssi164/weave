@@ -145,6 +145,7 @@ public final class FreshProductFlow {
       validateAdminToken(browser.jwtPayload(adminSession.accessToken()));
       assertSeparatedApiSessions(ownerSession.accessToken(), adminSession.accessToken());
       assertGeneratedAdminControlPlane(adminSession.accessToken(), organizationId);
+      new ForeignOrganizationJourney(environment, http).provision();
       GeneratedSpacesJourney spaces = new GeneratedSpacesJourney(environment);
       spaces.provisionDefault(adminSession.accessToken(), ownerSession.accessToken());
       configureRequiredProviders(adminSession.accessToken());

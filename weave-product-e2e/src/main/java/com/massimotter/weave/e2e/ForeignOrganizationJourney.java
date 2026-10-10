@@ -6,9 +6,11 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import tools.jackson.databind.JsonNode;
 
 /** Real same-realm foreign organization token against primary product boundaries. */
@@ -19,6 +21,42 @@ final class ForeignOrganizationJourney {
   ForeignOrganizationJourney(ProductFlowEnvironment environment, JsonHttpClient http) {
     this.environment = environment;
     this.http = http;
+  }
+
+  void provision() {
+    Path command = Path.of(System.getProperty(
+        "weave.e2e.foreign-organization-fixture-command", "")).toAbsolutePath().normalize();
+    if (!Files.isRegularFile(command) || Files.isSymbolicLink(command)) {
+      throw new ProductFlowException("foreign organization fixture command is unavailable");
+    }
+    Path output = environment.evidenceFile().resolveSibling(".foreign-organization-fixture.log");
+    Process process = null;
+    try {
+      Files.deleteIfExists(output);
+      Files.createFile(output);
+      Files.setPosixFilePermissions(output, PosixFilePermissions.fromString("rw-------"));
+      process = new ProcessBuilder("bash", command.toString(), "e2e",
+          "foreign-organization-fixture")
+          .redirectErrorStream(true)
+          .redirectOutput(output.toFile())
+          .start();
+      if (!process.waitFor(300, TimeUnit.SECONDS)) {
+        throw BoundedProcessTree.terminatePreservingFailure(process, Duration.ofSeconds(10),
+            new ProductFlowException("foreign organization fixture exceeded its timeout"));
+      }
+      String log = Files.readString(output);
+      if (process.exitValue() != 0 || log.length() > 65536
+          || !log.contains("WEAVE_FOREIGN_ORGANIZATION_FIXTURE_RESULT status=passed "
+              + "supportSafe=true adminRetired=true")) {
+        throw new ProductFlowException("foreign organization fixture failed; private log retained");
+      }
+      Files.delete(output);
+    } catch (IOException failure) {
+      throw new ProductFlowException("foreign organization fixture could not execute");
+    } catch (InterruptedException failure) {
+      throw BoundedProcessTree.interruptedFailure(process, Duration.ofSeconds(10),
+          "foreign organization fixture was interrupted", failure);
+    }
   }
 
   void prove(

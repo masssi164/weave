@@ -1,23 +1,21 @@
-"""Provision a real foreign Keycloak organization in one disposable E2E realm.
-
-The one-shot migration administrator already exists at this point. Its secret
-is never copied into the fixture, and the migration removes that administrator
-before the application tier starts. No production render or import is changed.
-"""
+"""Provision one foreign identity after guarded owner bootstrap in isolated E2E."""
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
 import re
 import secrets
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from compose_env import ContractError
+from compose_env import ContractError, load_context
+from compose_runtime import _write_migration_bootstrap_secret, compose
 
 
 ALIAS = "weave-foreign-e2e"
@@ -68,6 +66,34 @@ def _location_id(location: str) -> str:
     return value
 
 
+def _retire_administrator(base: str, token: str, secret: str) -> None:
+    clients, _ = _request(
+        base, "GET", "/admin/realms/master/clients?clientId=weave-realm-migration-bootstrap",
+        token=token,
+    )
+    if not isinstance(clients, list) or len(clients) != 1:
+        raise ContractError("foreign organization fixture administrator identity is ambiguous")
+    client_id = clients[0].get("id") if isinstance(clients[0], dict) else None
+    if not isinstance(client_id, str) or not IDENTIFIER.fullmatch(client_id):
+        raise ContractError("foreign organization fixture administrator identity is invalid")
+    _request(base, "DELETE", f"/admin/realms/master/clients/{client_id}",
+             token=token, expected=204)
+    request = urllib.request.Request(
+        base + "/realms/master/protocol/openid-connect/token",
+        data=urllib.parse.urlencode({"grant_type": "client_credentials",
+                                     "client_id": "weave-realm-migration-bootstrap",
+                                     "client_secret": secret}).encode(),
+        headers={"Content-Type": "application/x-www-form-urlencoded"}, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=15):
+            raise ContractError("foreign organization fixture administrator remains active")
+    except urllib.error.HTTPError as error:
+        if error.code not in (400, 401):
+            raise ContractError("foreign organization fixture administrator retirement failed") from None
+    except urllib.error.URLError:
+        raise ContractError("foreign organization fixture administrator retirement unavailable") from None
+
+
 def provision(context, migration_secret: Path) -> Path:
     if context.environment != "e2e" or context.isolated_namespace is None:
         raise ContractError("foreign organization fixture requires isolated E2E")
@@ -89,6 +115,15 @@ def provision(context, migration_secret: Path) -> Path:
     if not isinstance(token, str) or not token:
         raise ContractError("foreign organization fixture administrator token missing")
 
+    try:
+        fixture = _provision_with_administrator(context, base, token)
+    finally:
+        _retire_administrator(base, token, secret)
+    print("WEAVE_FOREIGN_ORGANIZATION_FIXTURE_RESULT status=passed supportSafe=true adminRetired=true")
+    return fixture
+
+
+def _provision_with_administrator(context, base: str, token: str) -> Path:
     admin = "/admin/realms/weave"
     _, organization_location = _request(
         base, "POST", admin + "/organizations", token=token,
@@ -149,5 +184,31 @@ def provision(context, migration_secret: Path) -> Path:
         output.write("\n")
         output.flush()
         os.fsync(output.fileno())
-    print("WEAVE_FOREIGN_ORGANIZATION_FIXTURE_RESULT status=passed supportSafe=true")
     return target
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, required=True)
+    parser.add_argument("--env-file", required=True)
+    arguments = parser.parse_args()
+    credential = None
+    try:
+        context = load_context("e2e", arguments.root, arguments.env_file)
+        credential = context.secret_root / "keycloak-realm-migration-bootstrap-secret"
+        _write_migration_bootstrap_secret(context, credential)
+        compose(context, "stop", "--timeout", "30", "keycloak")
+        compose(context, "run", "--rm", "--no-deps", "keycloak-realm-migration-bootstrap")
+        compose(context, "up", "-d", "--wait", "--wait-timeout", "600", "keycloak")
+        provision(context, credential)
+        return 0
+    except (ContractError, OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+        print(f"WEAVE_FOREIGN_ORGANIZATION_FIXTURE_ERROR {error}", file=sys.stderr)
+        return 1
+    finally:
+        if credential is not None and (credential.exists() or credential.is_symlink()):
+            credential.unlink()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
