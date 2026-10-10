@@ -392,6 +392,21 @@ exited zero in 11m 46s. The support-safe evidence file records candidate
 `c726993168651f1109259f9a80cc23117d24a37f`. This local result does not
 replace the pending exact-candidate CI run or a separate active southbound
 provider-session outage proof.
+
+Sanitized terminal markers from that local run:
+
+```text
+NATIVE_PRODUCT_INITIAL_RESULT status=passed login=single files=generated-upload-read calendar=generated-crud matrix=native businessRoomSendRead=true refresh=true sessionReopen=true appStateRecreated=true checkpointPrivate=true supportSafe=true
+FLUTTER_NATIVE_TEST_RUN status=passed
+NATIVE_SERVICE_RESTART_RESULT status=passed backend=healthy keycloak=healthy postgres=healthy supportSafe=true
+NATIVE_PRODUCT_STAGE phase=process-restart-restored
+NATIVE_PRODUCT_STAGE phase=logout-denial-passed
+FLUTTER_NATIVE_TEST_RUN status=passed
+NATIVE_PROCESS_RESTART_RESULT status=passed
+NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed
+BUILD SUCCESSFUL in 11m 46s
+```
+
 The next exact-candidate CI run at `5ee1a4485e5921c9ac6317715e9f3972db1042b1`
 ([workflow 38013608116](https://github.com/masssi164/weave/actions/runs/38013608116))
 failed at the same preflight before stack startup. The 03:34:56 local macOS
@@ -399,6 +414,11 @@ TCC log again attributed the denied Accessibility request to the versioned
 runner Node executable, with `authValue=0`. This independently confirms that
 the native product result remains local evidence and CI has not yet executed
 the native test on this candidate.
+The focused Flutter widget suites for sign-in, Files, Calendar, Chat list and
+Chat room passed locally: 69 tests, zero failures. They exercise screen
+semantics and representative loading, empty, error, revoked-access and session
+states. This is widget evidence alongside the native journey; it is not a
+claim that VoiceOver, iOS or Android behavior was exercised.
 The signing team, development certificate, and provisioning profile must be
 available to the logged-in macOS test user. CI reads the nonsecret signing team
 and bundle ID from repository variables `WEAVE_NATIVE_SIGNING_TEAM` and
@@ -445,5 +465,10 @@ PATH="$PWD/tool/native_macos_open:$PATH" \
   it does not establish those separate denial and downstream recovery cases.
   Logout denial does not prove server-side revocation.
 - Keep iOS and Android acceptance unclaimed. No iOS simulator is provisioned on
-  the current host, and the Android SDK is absent; macOS evidence cannot replace
-  platform-specific tests.
+  the current host (`xcrun simctl list devices available` listed only the iOS
+  runtime header), and the Android SDK is absent (`adb` and `emulator` were not
+  on `PATH`). `flutter devices --machine` listed only macOS and Chrome. macOS
+  evidence cannot replace platform-specific tests. The OIDC, generated API,
+  authorization and server-side Matrix assertions are shared product behavior;
+  browser handoff, callback delivery, secure storage and app lifecycle need
+  separate native platform evidence before an iOS or Android claim.
