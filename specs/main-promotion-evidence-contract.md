@@ -28,6 +28,14 @@ The human result must be attached to the same-repository promotion PR whose
 head is the exact candidate and whose base is `main`; a workflow dispatch
 cannot point at a different issue or older PR as evidence.
 
+For a `merge_group` event, the gate resolves the constituent PR from GitHub's
+current main merge-queue entry whose head commit equals the event candidate.
+Exactly one matching entry is required. Its open same-repository PR head must
+be an ancestor of the tested synthetic candidate and have the same tree.
+Human evidence remains bound to that PR head; the synthetic candidate must
+independently satisfy the protected-lane ancestry and tree checks. Missing,
+ambiguous or changed queue/PR state fails closed.
+
 The human test result is separate from automated E2E. The only human tester
 records a support-safe pass/fail/not-available result for the exact deployed
 dogfood commit and the requested member surfaces. The promotion PR links that
@@ -43,12 +51,16 @@ failed, or incomplete. Production publication remains a separate decision.
 - Human evidence is an owner-authored issue comment on the promotion PR with
   one exact dogfood SHA and explicit result fields. The gate validates author,
   SHA, field completeness and pass values. The latest owner result on the
-  promotion PR after deployment is authoritative; a later failed or incomplete
-  result cannot be hidden by an earlier pass. A new result triggers a fresh
+  promotion PR after deployment is authoritative, ordered by the latest of its
+  creation and modification timestamps; a later edited failure or incomplete
+  result cannot be hidden by an earlier pass. An older comment edited after
+  deployment is eligible only with its current complete exact-commit result.
+  A new or edited result triggers a fresh
   gate run on the unchanged PR head; the comment alone does not turn a stale
   check green.
 - Unit fixtures cover missing/foreign/stale human comments, failed E2E or
-  deployment, wrong commit and a valid exact-commit promotion. Static workflow
+  deployment, wrong commit, edited failures, merge-queue candidate binding and
+  a valid exact-commit promotion. Static workflow
   lint and protected checks validate the workflow before integration.
 - The workflow logs only commit IDs, check conclusions and support-safe human
   result fields, never member content, tokens or provider credentials.

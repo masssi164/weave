@@ -9,6 +9,7 @@ from tools.verify_main_promotion_evidence import (
     owner_human_pass,
     parse_human_comment,
     required_jobs_passed,
+    resolve_merge_group,
 )
 
 SHA = "a" * 40
@@ -30,6 +31,45 @@ HUMAN = "\n".join(
 
 
 class MainPromotionEvidenceTest(unittest.TestCase):
+    def test_merge_group_binds_synthetic_head_to_current_same_repo_pr(self) -> None:
+        repository = "masssi164/weave"
+        pr = {
+            "number": 42, "state": "OPEN", "baseRefName": "main",
+            "baseRepository": {"nameWithOwner": repository},
+            "headRepository": {"nameWithOwner": repository},
+            "headRefOid": SHA, "headRefName": "dogfood",
+        }
+        entry = {"headCommit": {"oid": OTHER}, "pullRequest": pr}
+        self.assertEqual(resolve_merge_group([entry], OTHER, repository), pr)
+        invalid = [[], [entry, entry], [{**entry, "headCommit": {"oid": SHA}}]]
+        for field, value in (
+            ("state", "CLOSED"), ("baseRefName", "dev"),
+            ("headRepository", {"nameWithOwner": "other/weave"}),
+            ("baseRepository", {"nameWithOwner": "other/weave"}),
+            ("headRefOid", "invalid"), ("number", 0),
+        ):
+            invalid.append([{**entry, "pullRequest": {**pr, field: value}}])
+        for entries in invalid:
+            with self.subTest(entries=entries), self.assertRaises(ValueError):
+                resolve_merge_group(entries, OTHER, repository)
+
+    def test_edited_failure_overrides_later_created_pass(self) -> None:
+        passed = {
+            "id": 2, "user": {"login": "masssi164"}, "author_association": "OWNER",
+            "created_at": "2026-10-07T12:00:00Z", "updated_at": "2026-10-07T12:00:00Z",
+            "body": HUMAN,
+        }
+        edited = {
+            **passed, "id": 1, "created_at": "2026-10-07T10:00:00Z",
+            "updated_at": "2026-10-07T13:00:00Z",
+        }
+        for body in (HUMAN.replace("chat: passed", "chat: failed"),
+                     HUMAN.replace("files: passed\n", ""), HUMAN.replace(SHA, OTHER)):
+            self.assertFalse(owner_human_pass([passed, {**edited, "body": body}],
+                                             "masssi164", SHA, "2026-10-07T11:00:00Z"))
+        self.assertTrue(owner_human_pass([edited], "masssi164", SHA, "2026-10-07T11:00:00Z"))
+        self.assertFalse(owner_human_pass([edited], "masssi164", SHA, "2026-10-07T14:00:00Z"))
+
     def test_human_evidence_belongs_to_exact_open_main_promotion(self) -> None:
         repository = "masssi164/weave"
         pr = {

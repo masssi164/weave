@@ -81,18 +81,70 @@ def matches_promotion_pr(pr: dict, repository: str, candidate_sha: str) -> bool:
 
 def owner_human_pass(comments: list[dict], owner: str, sha: str, deployed_at: str) -> bool:
     completed = datetime.fromisoformat(deployed_at.replace("Z", "+00:00"))
+    def result_time(comment: dict) -> datetime:
+        return max(
+            datetime.fromisoformat(comment[field].replace("Z", "+00:00"))
+            for field in ("created_at", "updated_at") if comment.get(field)
+        )
+
     owner_results = [
         comment
         for comment in comments
         if comment.get("user", {}).get("login", "").casefold() == owner.casefold()
         and comment.get("author_association") == "OWNER"
         and comment.get("body", "").strip().startswith(COMMENT_HEADER)
-        and datetime.fromisoformat(comment["created_at"].replace("Z", "+00:00")) >= completed
+        and result_time(comment) >= completed
     ]
     if not owner_results:
         return False
-    latest = max(owner_results, key=lambda comment: (comment["created_at"], comment.get("id", 0)))
+    latest = max(owner_results, key=lambda comment: (result_time(comment), comment.get("id", 0)))
     return parse_human_comment(latest.get("body", ""), sha)
+
+
+def resolve_merge_group(entries: list[dict], candidate_sha: str, repository: str) -> dict:
+    """Bind the tested synthetic head to one current, same-repository queued PR."""
+    matching = [entry for entry in entries
+                if (entry.get("headCommit") or {}).get("oid") == candidate_sha]
+    if len(matching) != 1:
+        raise ValueError("Merge candidate must match exactly one current main queue entry")
+    pr = matching[0].get("pullRequest") or {}
+    if not (
+        pr.get("state") == "OPEN" and pr.get("baseRefName") == "main"
+        and (pr.get("baseRepository") or {}).get("nameWithOwner") == repository
+        and (pr.get("headRepository") or {}).get("nameWithOwner") == repository
+        and SHA.fullmatch(pr.get("headRefOid", ""))
+        and isinstance(pr.get("number"), int) and pr["number"] > 0
+        and pr.get("headRefName")
+    ):
+        raise ValueError("Merge queue evidence must belong to an open same-repository main PR")
+    return pr
+
+
+def queued_pr(repository: str, candidate_sha: str, token: str) -> dict:
+    owner, name = repository.split("/", 1)
+    request = Request(
+        "https://api.github.com/graphql",
+        data=json.dumps({
+            "query": """query($owner:String!, $name:String!) {
+              repository(owner:$owner, name:$name) { mergeQueue(branch:"main") {
+                entries(first:100) { nodes { headCommit { oid } pullRequest {
+                  number state baseRefName headRefOid headRefName
+                  baseRepository { nameWithOwner } headRepository { nameWithOwner }
+                } } pageInfo { hasNextPage } }
+              } }
+            }""",
+            "variables": {"owner": owner, "name": name},
+        }).encode(),
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    )
+    with urlopen(request, timeout=20) as response:
+        result = json.load(response)
+    if result.get("errors"):
+        raise ValueError("GitHub could not verify current merge queue state")
+    queue = result.get("data", {}).get("repository", {}).get("mergeQueue")
+    if not queue or queue["entries"]["pageInfo"]["hasNextPage"]:
+        raise ValueError("Current main merge queue is absent or exceeds the verification window")
+    return resolve_merge_group(queue["entries"]["nodes"], candidate_sha, repository)
 
 
 def api(path: str, token: str) -> object:
@@ -127,13 +179,20 @@ def paged(path: str, token: str, key: str | None = None) -> list[dict]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", required=True)
-    parser.add_argument("--owner", required=True)
+    parser.add_argument("--owner")
     parser.add_argument("--candidate-sha", required=True)
-    parser.add_argument("--dogfood-sha", required=True)
-    parser.add_argument("--pr-number", type=int, required=True)
+    parser.add_argument("--dogfood-sha")
+    parser.add_argument("--pr-number", type=int)
+    parser.add_argument("--resolve-merge-group", action="store_true")
     args = parser.parse_args()
     token = os.environ.get("GITHUB_TOKEN", "")
-    if not token or not SHA.fullmatch(args.candidate_sha) or not SHA.fullmatch(args.dogfood_sha) or args.pr_number < 1:
+    if not token or not SHA.fullmatch(args.candidate_sha):
+        parser.error("A GitHub token and exact candidate SHA are required")
+    if args.resolve_merge_group:
+        pr = queued_pr(args.repository, args.candidate_sha, token)
+        print(f"{pr['number']}\t{pr['headRefOid']}\t{pr['headRefName']}")
+        return 0
+    if not args.owner or not SHA.fullmatch(args.dogfood_sha or "") or not args.pr_number or args.pr_number < 1:
         parser.error("A GitHub token, exact candidate/dogfood SHAs and promotion PR number are required")
 
     repo = args.repository
