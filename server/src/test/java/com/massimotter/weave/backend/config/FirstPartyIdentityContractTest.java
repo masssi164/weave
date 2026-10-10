@@ -47,6 +47,9 @@ class FirstPartyIdentityContractTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService memberSessions;
+
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
@@ -67,6 +70,26 @@ class FirstPartyIdentityContractTest {
         mockMvc.perform(get(WORKSPACE_CAPABILITIES_PATH)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-contract"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void matrixLogoutRejectsRetainedMemberBearerOnUserApi() throws Exception {
+        Jwt session = jwt("logout-user-probe", List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                Map.of("azp", FIRST_PARTY_CLIENT_ID, "sid", "logout-user-probe-session",
+                        "organization", organizationWithRole("member")));
+        JwtDecoder sessionDecoder = JwtDecoderConfig.withMemberSessionRevocation(
+                ignored -> session, () -> memberSessions);
+        org.mockito.Mockito.doAnswer(invocation -> sessionDecoder.decode(invocation.getArgument(0)))
+                .when(jwtDecoder).decode("logout-user-probe");
+        mockMvc.perform(get(WORKSPACE_CAPABILITIES_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer logout-user-probe"))
+                .andExpect(status().isOk());
+        memberSessions.revoke(session);
+        org.assertj.core.api.Assertions.assertThat(memberSessions.revoked(session)).isTrue();
+        mockMvc.perform(get(WORKSPACE_CAPABILITIES_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer logout-user-probe"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("unauthorized"));
     }
 
     @Test

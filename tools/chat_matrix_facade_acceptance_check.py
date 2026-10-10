@@ -53,22 +53,21 @@ def require_matrix_repository_contracts() -> None:
         "MATRIX_CONNECT_CONTRACT",
         "connect opens the native encrypted Matrix session",
         "MATRIX_SPACES_ROOMS_CONTRACT",
-        "maps only Rust-projected encrypted rooms into chat entities",
+        "maps encrypted and business rooms into chat entities",
         "MATRIX_MESSAGE_CONTRACT",
         "MATRIX_READ_RECEIPT_CONTRACT",
         "send, decrypt, and receipt stay inside the Rust Matrix core",
         "encrypted through Rust",
         "decrypted only in Rust",
-        "MATRIX_E2EE_CLIENT_FAILS_CLOSED",
-        "an unencrypted room cannot downgrade the E2EE client path",
+        "business-room plaintext is presented as ordinary chat text",
     )
     require(
         "client/lib/features/chat/data/repositories/native_matrix_chat_repository.dart",
         "class NativeMatrixChatRepository implements ChatRepository",
         "RustMatrixCoreBridge",
-        "loadEncryptedRooms",
-        "loadEncryptedRoomMessages",
-        "sendEncryptedText",
+        "loadRooms",
+        "loadRoomMessages",
+        "sendText",
         "markRead",
         "ChatMessageDeliveryState.sent",
     )
@@ -78,6 +77,12 @@ def require_matrix_repository_contracts() -> None:
         "flutter_vodozemac",
         "BackendChatRepository",
         "jsonDecode(response.body)",
+    )
+    require(
+        "rust/matrix-client/src/flutter_crypto.rs",
+        "MATRIX_E2EE_CLIENT_FAILS_CLOSED",
+        "if encrypted_room != event.encryption_info().is_some()",
+        "RoomSecurityRefresh::PreSend",
     )
     require(
         "client/test/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator_test.dart",

@@ -21,7 +21,7 @@ concurrency:
 jobs:
   full-compose-e2e:
     name: Full Compose E2E
-    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && '["ubuntu-latest"]' || '["self-hosted","macOS","ARM64","weave-live"]') }}
     timeout-minutes: 90
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
@@ -30,9 +30,26 @@ jobs:
       WEAVE_IMAGE_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
       WEAVE_TEST_APP_RUN_ID: e2e-${{ github.run_id }}-${{ github.run_attempt }}
       WEAVE_TEST_APP_RELEASE_MCP: "true"
+      WEAVE_TEST_APP_PUBLIC_DOMAIN: weave.localhost
+      WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/weave-specs
+      WEAVE_TEST_APP_NATIVE_RUNNER: ${{ github.workspace }}/weave/client/tool/run_native_product_acceptance.py
+      WEAVE_NATIVE_SIGNING_TEAM: ${{ vars.WEAVE_NATIVE_SIGNING_TEAM }}
+      WEAVE_NATIVE_SIGNING_BUNDLE_ID: ${{ vars.WEAVE_NATIVE_SIGNING_BUNDLE_ID }}
       WEAVE_TEST_APP_OUTPUT_ROOT: ${{ github.workspace }}/weave/build/test-app
 
     steps:
+      - name: Reject untrusted fork source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" && "$SOURCE_REPOSITORY" != "$BASE_REPOSITORY" ]]; then
+            echo "::error::Full Compose E2E requires a reviewed same-repository source; this fork PR cannot execute on the signing runner."
+            exit 1
+          fi
+
       - name: Verify bounded runner
         run: |
           set -euo pipefail
@@ -96,6 +113,24 @@ jobs:
           set -euo pipefail
           [[ "$(git rev-parse HEAD)" == "$WEAVE_CANDIDATE_COMMIT" ]]
           [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]]
+
+      - name: Configure native macOS acceptance
+        run: |
+          set -euo pipefail
+          [[ -n "$WEAVE_NATIVE_SIGNING_TEAM" && -n "$WEAVE_NATIVE_SIGNING_BUNDLE_ID" ]] || {
+            echo "::error::Native signing variables are not configured."
+            exit 1
+          }
+          native_ca_root="$HOME/.local/share/weave/native-acceptance-ca"
+          [[ -d "$native_ca_root" && ! -L "$native_ca_root" ]] || {
+            echo "::error::The runner user's trusted native acceptance CA is unavailable."
+            exit 1
+          }
+          echo "WEAVE_TEST_APP_NATIVE_CA_ROOT=$native_ca_root" >> "$GITHUB_ENV"
+
+      - name: Verify native Accessibility trust
+        working-directory: weave
+        run: swift client/tool/native_macos_appauth_driver.swift --check-accessibility
 
       - name: Run full isolated product flow
         working-directory: weave

@@ -7,10 +7,12 @@ class MatrixSessionAccess {
   const MatrixSessionAccess({
     required this.organizationId,
     required this.subject,
+    required this.matrixClientServerBaseUrl,
   });
 
   final String organizationId;
   final String subject;
+  final Uri matrixClientServerBaseUrl;
 }
 
 abstract interface class MatrixSessionAccessPort {
@@ -23,7 +25,8 @@ abstract interface class MatrixSessionAccessPort {
 }
 
 /// Checks current member access before opening or reusing a Matrix session.
-/// The Weave bearer is sent only to generated User API operations.
+/// Admission uses generated User API operations before the same member bearer
+/// is handed to the Rust SDK for the Weave Matrix facade.
 class GeneratedMatrixSessionAccess implements MatrixSessionAccessPort {
   const GeneratedMatrixSessionAccess({required http.Client httpClient})
     : _httpClient = httpClient;
@@ -73,9 +76,30 @@ class GeneratedMatrixSessionAccess implements MatrixSessionAccessPort {
           !chat!.grantedCapabilities.contains('chat.read')) {
         throw const ChatFailure.sessionRequired('M_WEAVE_MATRIX_ACCESS_DENIED');
       }
+      final publicApi = user_api.ApiClient(basePath: userApiBaseUrl.origin)
+        ..client = _httpClient
+        ..addDefaultHeader('Accept', 'application/json');
+      final platform = await user_api.PlatformApi(
+        publicApi,
+      ).config().timeout(const Duration(seconds: 8));
+      final advertised = Uri.tryParse(
+        platform?.protocols.matrixClientServerBaseUrl ?? '',
+      );
+      if (advertised == null ||
+          advertised.scheme != 'https' ||
+          advertised.host.isEmpty ||
+          advertised.userInfo.isNotEmpty ||
+          (advertised.path.isNotEmpty && advertised.path != '/') ||
+          advertised.hasQuery ||
+          advertised.hasFragment) {
+        throw const ChatFailure.configuration(
+          'M_WEAVE_MATRIX_ENDPOINT_UNCONFIRMED',
+        );
+      }
       return MatrixSessionAccess(
         organizationId: organizationId,
         subject: subject,
+        matrixClientServerBaseUrl: advertised.replace(path: ''),
       );
     } on ChatFailure {
       rethrow;

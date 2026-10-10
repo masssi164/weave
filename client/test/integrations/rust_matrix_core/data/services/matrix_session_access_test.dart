@@ -44,6 +44,20 @@ Map<String, Object?> _capabilities({
   };
 }
 
+Map<String, Object?> _platformConfig(String matrixUrl) => {
+  'schemaVersion': 2,
+  'organizationOrigin': 'https://weave.test',
+  'userApiBaseUrl': 'https://api.weave.test/api',
+  'oidc': {
+    'issuer': 'https://auth.weave.test/realms/weave',
+    'clientId': 'weave-app',
+  },
+  'protocols': {'matrixClientServerBaseUrl': matrixUrl},
+  'releasePosture': 'dogfood',
+  'domains': <Object>[],
+  'recoveryActions': <Object>[],
+};
+
 void main() {
   final apiBase = Uri.parse('https://api.weave.test/api');
   final issuer = Uri.parse('https://auth.weave.test/realms/weave');
@@ -65,7 +79,12 @@ void main() {
       final client = http_testing.MockClient((request) async {
         requestedPaths.add(request.url.path);
         expect(request.url.origin, apiBase.origin);
-        expect(request.headers['Authorization'], 'Bearer weave-only-token');
+        expect(
+          request.headers['Authorization'],
+          request.url.path == '/api/platform/config'
+              ? isNull
+              : 'Bearer weave-only-token',
+        );
         return http.Response(
           jsonEncode(
             request.url.path == '/api/me'
@@ -74,6 +93,8 @@ void main() {
                     'organizationId': 'organization-1',
                     'identityIssuer': issuer.toString(),
                   }
+                : request.url.path == '/api/platform/config'
+                ? _platformConfig('https://api.weave.test')
                 : _capabilities(),
           ),
           200,
@@ -85,9 +106,53 @@ void main() {
 
       expect(access.organizationId, 'organization-1');
       expect(access.subject, 'member-1');
-      expect(requestedPaths, ['/api/me', '/api/workspace/capabilities']);
+      expect(
+        access.matrixClientServerBaseUrl,
+        Uri.parse('https://api.weave.test'),
+      );
+      expect(requestedPaths, [
+        '/api/me',
+        '/api/workspace/capabilities',
+        '/api/platform/config',
+      ]);
     },
   );
+
+  test('rejects an insecure advertised Matrix endpoint', () async {
+    final client = http_testing.MockClient((request) async {
+      final body = request.url.path == '/api/me'
+          ? {
+              'subject': 'member-1',
+              'organizationId': 'organization-1',
+              'identityIssuer': issuer.toString(),
+            }
+          : request.url.path == '/api/platform/config'
+          ? _platformConfig('http://api.weave.test')
+          : _capabilities();
+      return http.Response(
+        jsonEncode(body),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await expectLater(
+      authorize(client),
+      throwsA(
+        isA<ChatFailure>()
+            .having(
+              (failure) => failure.type,
+              'failure category',
+              ChatFailureType.configuration,
+            )
+            .having(
+              (failure) => failure.message,
+              'support-safe diagnostic code',
+              'M_WEAVE_MATRIX_ENDPOINT_UNCONFIRMED',
+            ),
+      ),
+    );
+  });
 
   for (final (name, identity, chat) in [
     (

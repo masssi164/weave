@@ -70,6 +70,7 @@ class FakeRustMatrixCoreBridge extends RustMatrixCoreBridge {
   final List<Map<String, String>> oauthActivations = <Map<String, String>>[];
   final List<Map<String, String>> oauthRestores = <Map<String, String>>[];
   final List<Map<String, String>> oauthEnds = <Map<String, String>>[];
+  final List<Map<String, String>> memberActivations = <Map<String, String>>[];
   bool remoteRevocationConfirmed = true;
   bool failOAuthEnd = false;
   final List<String> oauthAborts = <String>[];
@@ -82,6 +83,30 @@ class FakeRustMatrixCoreBridge extends RustMatrixCoreBridge {
   final List<Map<String, String>> receipts = <Map<String, String>>[];
   final List<String> disposedProfiles = <String>[];
   String recoveryKey = 'recovery-key';
+
+  @override
+  Future<RustMatrixOAuthIdentity> activateMemberSession({
+    required String profileKey,
+    required String homeserverUrl,
+    required String userId,
+    required String deviceId,
+    required String accessToken,
+    required String deviceProof,
+    required String storePath,
+    required String storePassphrase,
+  }) async {
+    memberActivations.add(<String, String>{
+      'profileKey': profileKey,
+      'homeserverUrl': homeserverUrl,
+      'userId': userId,
+      'deviceId': deviceId,
+      'accessToken': accessToken,
+      'deviceProof': deviceProof,
+      'storePath': storePath,
+      'storePassphrase': storePassphrase,
+    });
+    return RustMatrixOAuthIdentity(userId: userId, deviceId: deviceId);
+  }
 
   @override
   Future<RustMatrixOAuthAuthorization> startOAuth({
@@ -201,12 +226,12 @@ class FakeRustMatrixCoreBridge extends RustMatrixCoreBridge {
   }
 
   @override
-  Future<List<RustMatrixEncryptedRoom>> loadEncryptedRooms({
+  Future<List<RustMatrixEncryptedRoom>> loadRooms({
     required String profileKey,
   }) async => rooms;
 
   @override
-  Future<RustMatrixEncryptedRoom> createEncryptedRoom({
+  Future<RustMatrixEncryptedRoom> createBusinessRoom({
     required String profileKey,
     required String title,
   }) async {
@@ -218,19 +243,19 @@ class FakeRustMatrixCoreBridge extends RustMatrixCoreBridge {
       roomId: '!created:api.weave.test',
       title: title,
       unreadCount: 0,
-      encrypted: true,
+      encrypted: false,
     );
   }
 
   @override
-  Future<List<RustMatrixMessageProjection>> loadEncryptedRoomMessages({
+  Future<List<RustMatrixMessageProjection>> loadRoomMessages({
     required String profileKey,
     required String roomId,
     int limit = 100,
   }) async => messages[roomId] ?? const <RustMatrixMessageProjection>[];
 
   @override
-  Future<String> sendEncryptedText({
+  Future<String> sendText({
     required String profileKey,
     required String roomId,
     required String body,

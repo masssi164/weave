@@ -1,13 +1,14 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
-import com.massimotter.weave.backend.chat.port.ChatSouthboundProvider;
+import com.massimotter.weave.backend.chat.port.ChatProviderPort;
 import com.massimotter.weave.backend.config.ProviderHealthProperties;
 import com.massimotter.weave.backend.config.FilesRuntimeProperties;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.model.admin.ProviderCapabilityHealthResponse;
 import com.massimotter.weave.backend.portability.ProviderCapabilityProbeResult;
 import com.massimotter.weave.backend.portability.ProviderCapabilityState;
+import com.massimotter.weave.backend.portability.ProviderReadiness;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -48,7 +49,7 @@ public class ProviderCapabilityHealthService {
     public ProviderCapabilityHealthService(
             ObjectProvider<FilesProviderPort> filesProvider,
             ObjectProvider<CalendarProviderPort> calendarProvider,
-            ObjectProvider<ChatSouthboundProvider> chatProvider,
+            ObjectProvider<ChatProviderPort> chatProvider,
             FilesRuntimeProperties filesRuntimeProperties,
             ProviderHealthProperties properties,
             MeterRegistry meterRegistry) {
@@ -68,7 +69,7 @@ public class ProviderCapabilityHealthService {
     ProviderCapabilityHealthService(
             FilesProviderPort filesProvider,
             CalendarProviderPort calendarProvider,
-            ChatSouthboundProvider chatProvider,
+            ChatProviderPort chatProvider,
             ProviderHealthProperties properties,
             MeterRegistry meterRegistry,
             Clock clock,
@@ -91,7 +92,7 @@ public class ProviderCapabilityHealthService {
                 now));
         configuredTargets.put("chat", target(
                 "chat",
-                chatProvider == null ? null : chatProvider::healthProbe,
+                chatProvider == null ? null : () -> chatProbe(chatProvider),
                 safelyConfigured(chatProvider),
                 now));
         this.targets = Collections.unmodifiableMap(configuredTargets);
@@ -362,12 +363,23 @@ public class ProviderCapabilityHealthService {
         }
     }
 
-    private boolean safelyConfigured(ChatSouthboundProvider provider) {
+    private boolean safelyConfigured(ChatProviderPort provider) {
         try {
             return provider != null && provider.configured();
         } catch (RuntimeException exception) {
             return false;
         }
+    }
+
+    private ProviderCapabilityProbeResult chatProbe(ChatProviderPort provider) {
+        ProviderReadiness observation = provider.readiness();
+        if (observation.available()) {
+            return ProviderCapabilityProbeResult.available(observation.supportSafeCode());
+        }
+        String code = observation.supportSafeCode();
+        return code.contains("unavailable") || code.contains("interrupted")
+                ? ProviderCapabilityProbeResult.unavailable(code)
+                : ProviderCapabilityProbeResult.degraded(code);
     }
 
     private record ProbeTarget(

@@ -10,7 +10,8 @@
     ".cargo-ok",
     "LICENSE",
     "src/authentication/oauth/mod.rs",
-    "src/authentication/oauth/tests.rs"
+    "src/authentication/oauth/tests.rs",
+    "src/encryption/mod.rs"
   ],
   "allowedPackagingDifferences": [
     ".cargo-ok",
@@ -30,6 +31,20 @@
       ],
       "regressionTests": [
         "authentication::oauth::tests::test_login_url"
+      ]
+    },
+    {
+      "path": "patches/matrix-sdk-0.18.0/0002-device-continuity-signature.patch",
+      "sha256": "360b4a02f90bb1d0b4f2db421bfd47f8aab15ecf653720be95914b9018a51b48",
+      "changedPaths": [
+        "src/encryption/mod.rs"
+      ],
+      "invariant": "The installed Matrix device signs a bounded Weave continuity challenge with its Ed25519 key while its private key stays inside the crypto store.",
+      "upstreamIssues": [
+        "https://github.com/matrix-org/matrix-rust-sdk/issues/797"
+      ],
+      "regressionTests": [
+        "flutter_crypto::tests::installed_crypto_device_signs_continuity_challenge_with_its_own_key"
       ]
     }
   ],

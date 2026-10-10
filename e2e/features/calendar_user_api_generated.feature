@@ -22,3 +22,11 @@ Feature: Calendar events through the generated Weave product API
     And edits preserve all-day, floating, UTC and zoned times and meeting references
     And create retries keep one event identity and stale updates remain rejected
     And changing the account or workspace cannot reveal an earlier session's events
+
+  @calendar-mcp-write-parity
+  Scenario: Authorized MCP scheduling preserves User API versions and access
+    Given a bound workload acts for a member allowed to manage a workspace Calendar
+    When it creates, retries, updates and deletes an event through the Calendar MCP tools
+    Then generated User API readback sees the same stable event and date intent
+    And a changed create retry and stale update fail without changing that event
+    And a read-only workload or member without event-management access cannot write

@@ -2803,6 +2803,8 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "rustls-platform-verifier",
+ "serde",
+ "serde_json",
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
@@ -4051,12 +4053,15 @@ dependencies = [
 name = "weave-matrix-client"
 version = "0.1.0"
 dependencies = [
+ "base64",
+ "ed25519-dalek",
  "flutter_rust_bridge",
  "matrix-sdk",
  "matrix-sdk-store-encryption",
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tokio",
  "url",
@@ -4071,6 +4076,7 @@ dependencies = [
  "ruma",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror 2.0.18",
  "tracing",
 ]

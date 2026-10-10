@@ -255,6 +255,23 @@ void main() {
   );
 
   test(
+    'a default UTC profile can load the generated User API agenda',
+    () async {
+      final service = client((_) async => null, zone: 'UTC');
+      final result = await service.listEvents(
+        from: DateTime.utc(2026, 10),
+        to: DateTime.utc(2026, 11),
+      );
+      final agendaRequest = calls.singleWhere(
+        (request) => request.url.path.endsWith('/events'),
+      );
+      expect(agendaRequest.url.queryParameters['evaluationTimeZone'], 'UTC');
+      expect(result.scope.id, calendarId);
+      expect(result.events.single.startTime, DateTime.utc(2026, 10, 25, 9));
+    },
+  );
+
+  test(
     'unmapped agenda event stays transient through provider-backed read',
     () async {
       final service = client((request) async {

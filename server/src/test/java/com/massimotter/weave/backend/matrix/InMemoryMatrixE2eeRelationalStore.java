@@ -1,6 +1,9 @@
 package com.massimotter.weave.backend.matrix;
 
 import java.util.ArrayList;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -16,6 +19,8 @@ public final class InMemoryMatrixE2eeRelationalStore implements MatrixE2eePersis
 
     private final Map<String, AtomicLong> revisions = new ConcurrentHashMap<>();
     private final Map<DeviceKey, DeviceState> devices = new ConcurrentHashMap<>();
+    private final Map<DeviceKey, String> deviceProofs = new ConcurrentHashMap<>();
+    private final Map<DeviceKey, DeviceRecoveryChallenge> recoveryChallenges = new ConcurrentHashMap<>();
     private final Map<DeviceKey, Map<String, Object>> oneTimeKeys = new ConcurrentHashMap<>();
     private final Map<DeviceKey, Map<String, FallbackState>> fallbackKeys = new ConcurrentHashMap<>();
     private final Map<UserKey, CrossSigningRecord> signing = new ConcurrentHashMap<>();
@@ -207,6 +212,64 @@ public final class InMemoryMatrixE2eeRelationalStore implements MatrixE2eePersis
     }
 
     @Override public boolean bindOidcSession(String tenantId, String userId, String sessionHash, String deviceId) { String existing = oidcBindings.putIfAbsent(new OidcKey(tenantId, userId, sessionHash), deviceId); return existing == null || existing.equals(deviceId); }
+
+    @Override
+    public boolean bindDeviceProof(String tenantId, String userId, String deviceId, String proofHash) {
+        DeviceKey key = new DeviceKey(tenantId, userId, deviceId);
+        DeviceState device = devices.get(key);
+        if (device != null && device.revoked) return false;
+        String existing = deviceProofs.get(key);
+        if (existing == null && device != null && !device.deviceKeys.isEmpty()) return false;
+        if (existing == null) existing = deviceProofs.putIfAbsent(key, proofHash);
+        return existing == null || MessageDigest.isEqual(
+                existing.getBytes(StandardCharsets.US_ASCII), proofHash.getBytes(StandardCharsets.US_ASCII));
+    }
+
+    @Override
+    public Optional<String> deviceProofHash(String tenantId, String userId, String deviceId) {
+        return Optional.ofNullable(deviceProofs.get(new DeviceKey(tenantId, userId, deviceId)));
+    }
+
+    @Override
+    public synchronized boolean issueDeviceRecoveryChallenge(
+            String tenantId, String userId, String deviceId, String challengeId,
+            String challengeText, String proofHash, Instant expiresAt) {
+        DeviceKey key = new DeviceKey(tenantId, userId, deviceId);
+        DeviceState device = devices.get(key);
+        if (device == null || device.revoked || device.deviceKeys.isEmpty() || deviceProofs.containsKey(key)) {
+            return false;
+        }
+        DeviceRecoveryChallenge pending = recoveryChallenges.get(key);
+        if (pending != null && pending.expiresAt().isAfter(Instant.now())
+                && !pending.proofHash().equals(proofHash)) return false;
+        recoveryChallenges.put(key, new DeviceRecoveryChallenge(challengeId, challengeText, proofHash, expiresAt));
+        return true;
+    }
+
+    @Override
+    public synchronized Optional<DeviceRecoveryChallenge> deviceRecoveryChallenge(
+            String tenantId, String userId, String deviceId, String challengeId) {
+        DeviceRecoveryChallenge challenge = recoveryChallenges.get(new DeviceKey(tenantId, userId, deviceId));
+        return challenge != null && challenge.id().equals(challengeId)
+                && challenge.expiresAt().isAfter(Instant.now()) ? Optional.of(challenge) : Optional.empty();
+    }
+
+    @Override
+    public synchronized boolean completeDeviceRecoveryChallenge(
+            String tenantId, String userId, String deviceId, String challengeId,
+            String proofHash, String expectedPublicKey) {
+        DeviceKey key = new DeviceKey(tenantId, userId, deviceId);
+        DeviceRecoveryChallenge challenge = deviceRecoveryChallenge(tenantId, userId, deviceId, challengeId).orElse(null);
+        DeviceState device = devices.get(key);
+        if (challenge == null || !challenge.proofHash().equals(proofHash)
+                || device == null || device.revoked || deviceProofs.containsKey(key)) return false;
+        Object keys = device.deviceKeys.get("keys");
+        if (!(keys instanceof Map<?, ?> matrixKeys)
+                || !expectedPublicKey.equals(matrixKeys.get("ed25519:" + deviceId))) return false;
+        recoveryChallenges.remove(key);
+        deviceProofs.put(key, proofHash);
+        return true;
+    }
 
     @Override
     public String createBackupVersion(String tenantId, String userId, String algorithm, Map<String, Object> authData) {

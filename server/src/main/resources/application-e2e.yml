@@ -22,7 +22,7 @@ weave:
     public-base-url: https://weave.test
     api-base-url: https://api.weave.test/api
     auth-base-url: https://auth.weave.test
-    release-posture: e2e
+    release-posture: dogfood
   security:
     required-audience: https://api.weave.test/api
   files:

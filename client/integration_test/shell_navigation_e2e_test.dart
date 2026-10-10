@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -90,7 +92,7 @@ class _FakeCalendarRepository implements CalendarRepository {
 
   @override
   Future<CalendarScopeList> loadScopes() async =>
-      const CalendarScopeList(scopes: [CalendarScope.workspace]);
+      const CalendarScopeList(scopes: [_writableWorkspaceScope]);
 
   @override
   Future<CalendarEventList> loadEvents({
@@ -98,7 +100,7 @@ class _FakeCalendarRepository implements CalendarRepository {
     DateTime? from,
     DateTime? to,
   }) async => CalendarEventList(
-    scope: scope ?? CalendarScope.workspace,
+    scope: scope ?? _writableWorkspaceScope,
     events: const [],
   );
 
@@ -126,6 +128,12 @@ class _FakeCalendarRepository implements CalendarRepository {
     throw UnimplementedError();
   }
 }
+
+const _writableWorkspaceScope = CalendarScope(
+  type: 'workspace',
+  label: 'Weave workspace calendar',
+  capabilities: ['create'],
+);
 
 const _memberProfile = UserProfile(
   userId: 'member-1',
@@ -166,7 +174,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'fresh Simulator opens the five required shell tabs and nested Profile',
+    'native fixture opens the five required shell tabs and nested Profile',
     (tester) async {
       final secureStore = InMemorySecureStore({
         authSessionStorageKey: AuthSessionDto.fromSession(
@@ -258,6 +266,10 @@ void main() {
       await tester.tap(find.byIcon(Icons.calendar_month_outlined));
       await tester.pumpAndSettle();
       expect(_localizedCreateEventFinder(), findsOneWidget);
+      expect(
+        tester.widget<IconButton>(_localizedCreateEventFinder()).onPressed,
+        isNotNull,
+      );
       expect(find.text('SimulatorProof.md'), findsNothing);
 
       await tester.tap(find.byIcon(Icons.settings_outlined));
@@ -272,10 +284,14 @@ void main() {
       expect(find.text('Profile'), findsWidgets);
       expect(find.text('Workspace Member'), findsWidgets);
 
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+
       // This marker is fixture UI evidence only. Real identity, provider, and
       // authorization claims are produced by the isolated live-stack lane.
       debugPrint(
-        'IOS_SIMULATOR_UI_RESULT status=passed evidenceMode=fixture-ui '
+        'NATIVE_SHELL_UI_RESULT status=passed platform=${Platform.operatingSystem} '
+        'evidenceMode=fixture-ui '
         'surfaces=home,chat,files,calendar,settings,profile supportSafe=true',
       );
     },
@@ -351,13 +367,17 @@ void main() {
     );
     expect(find.text('Einstellungen'), findsWidgets);
     expect(find.text('Settings'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
   });
 }
 
 Finder _localizedCreateEventFinder() {
   return find.byWidgetPredicate(
     (widget) =>
-        widget is Text &&
-        (widget.data == 'Create event' || widget.data == 'Termin erstellen'),
+        widget is IconButton &&
+        (widget.tooltip == 'Create event' ||
+            widget.tooltip == 'Termin erstellen'),
   );
 }

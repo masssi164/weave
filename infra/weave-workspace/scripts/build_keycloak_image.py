@@ -405,6 +405,18 @@ def build_toolchain_identity(source: Path) -> dict[str, str]:
 def build_services(
     repository: Path, temporary: Path
 ) -> tuple[Path, str, str, tuple[str, ...], int, dict[str, str]]:
+    # Source extraction and Maven both affect JAR entry mode bits. The private
+    # temporary directory remains mode 0700 while build inputs are normalized.
+    previous_umask = os.umask(0o022)
+    try:
+        return _build_services(repository, temporary)
+    finally:
+        os.umask(previous_umask)
+
+
+def _build_services(
+    repository: Path, temporary: Path
+) -> tuple[Path, str, str, tuple[str, ...], int, dict[str, str]]:
     patch = repository / PATCH_RELATIVE
     if not patch.is_file():
         raise SystemExit("WEAVE_KEYCLOAK_BUILD_ERROR canonical patch is unavailable")

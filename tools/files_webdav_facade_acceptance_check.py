@@ -52,7 +52,12 @@ def check_historical_dav() -> None:
         "webDavWritePreconditionsFailBeforeStorageMutationButAfterAttemptAudit",
         "webDavWriteRejectionsRequireEditPolicyAndPublishSupportSafeAudit",
     )
-    require("infra/weave-workspace/weave-mcp-tool-contract.json", "rawProviderUrl")
+    require(
+        "infra/weave-workspace/weave-mcp-tool-contract.json",
+        '"runtimeDirectProviderAccessAllowed": false',
+        '"rawProviderInternalsReturned": false',
+        '"credentialBearingUrlsReturned": false',
+    )
     require(
         "e2e/features/files_webdav_facade.feature",
         "Historical Files WebDAV facade evidence",

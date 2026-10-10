@@ -5,12 +5,14 @@ import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatCallbackRetryRequiredException;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
+import com.massimotter.weave.backend.chat.domain.ChatCursor;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
 import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
 import com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
+import com.massimotter.weave.backend.chat.domain.ChatTimelinePage;
 import com.massimotter.weave.backend.chat.domain.ConversationId;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
 import com.massimotter.weave.backend.chat.port.ChatSouthboundProvider;
@@ -26,9 +28,13 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,6 +47,170 @@ class JpaCanonicalChatStoreTest {
 
     private static final Clock FIXED = Clock.fixed(Instant.parse("2026-07-15T08:00:00Z"), ZoneOffset.UTC);
     private static final String PROVIDER = "matrix-synapse";
+
+    @Test
+    void canonicalHistoryBackfillsBeyondColdSyncWindowWithoutDuplicateOrGapAfterRestart() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("history-backfill");
+        ConversationId room = new ConversationId(adapter.createConversation(author,
+                new ChatTransactionId("history-room"), "History", "channel", List.of(),
+                ChatEncryptionState.unencrypted()).conversationId());
+        for (int i = 0; i < 105; i++) {
+            adapter.sendEvent(author, room, new ChatTransactionId("history-event-" + i),
+                    ChatEventContent.text("history-" + i));
+        }
+
+        JpaCanonicalChatStore restarted = store(dataSource);
+        ChatTimelinePage recent = restarted.timelinePage(author, room, null, 100);
+        assertThat(recent.timeline().events()).hasSize(100);
+        assertThat(recent.timeline().events().getFirst().content().body()).isEqualTo("history-5");
+        assertThat(recent.hasEarlier()).isTrue();
+        ChatTimelinePage earlier = restarted.timelinePage(author, room,
+                new ChatCursor(recent.nextBackwardCursor()), 100);
+        assertThat(earlier.timeline().events()).hasSize(5);
+        assertThat(earlier.timeline().events().getFirst().content().body()).isEqualTo("history-0");
+        assertThat(earlier.timeline().events().getLast().content().body()).isEqualTo("history-4");
+        assertThat(earlier.hasEarlier()).isFalse();
+    }
+
+    @Test
+    void leavingMemberReceivesOnlyOwnDepartureChangeAndLosesHistoryAccess() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("leave-actor");
+        ChatRequestContext outsider = context("leave-outsider");
+        ConversationId room = new ConversationId(adapter.createConversation(author,
+                new ChatTransactionId("leave-room"), "Leave", "channel", List.of(),
+                ChatEncryptionState.unencrypted()).conversationId());
+        String before = store.currentCursor(author).value();
+        adapter.leaveConversation(author, room);
+
+        assertThat(store.currentCursor(author).value()).isNotEqualTo(before);
+        assertThat(store.changes(author, new ChatCursor(before), 100).changes())
+                .singleElement().satisfies(change -> {
+                    assertThat(change.kind()).isEqualTo("membership.left");
+                    assertThat(change.conversationId()).isEqualTo(room);
+                    assertThat(change.messageId()).isEqualTo(author.actorRef().value());
+                });
+        assertThat(store.changes(outsider, new ChatCursor(before), 100).changes()).isEmpty();
+        assertThatThrownBy(() -> store.timelinePage(author, room, null, 100))
+                .isInstanceOf(ChatAccessDeniedException.class);
+    }
+
+    @Test
+    void committedJournalSequenceCannotPassAnEarlierOpenTransactionAcrossRooms() throws Exception {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        NativeChatProviderAdapter secondInstance = new NativeChatProviderAdapter(store(dataSource), FIXED);
+        ChatRequestContext author = context("sync-commit-order");
+        String firstRoom = adapter.createConversation(author, new ChatTransactionId("sync-first-room"),
+                "First", "channel", List.of(), ChatEncryptionState.unencrypted()).conversationId();
+        String secondRoom = adapter.createConversation(author, new ChatTransactionId("sync-second-room"),
+                "Second", "channel", List.of(), ChatEncryptionState.unencrypted()).conversationId();
+        long before = Long.parseLong(store.currentCursor(author).value().substring("chat-revision-".length()));
+        TransactionTemplate transaction = new TransactionTemplate(JpaTestDatabase.transactionManager(dataSource));
+        CountDownLatch firstInserted = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch secondStarted = new CountDownLatch(1);
+        CountDownLatch secondFinished = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> transaction.execute(status -> {
+                var event = adapter.sendEvent(author, new ConversationId(firstRoom),
+                        new ChatTransactionId("sync-first-event"), ChatEventContent.text("first"));
+                firstInserted.countDown();
+                try {
+                    if (!releaseFirst.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("test transaction was not released");
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(interrupted);
+                }
+                return event;
+            }));
+            assertThat(firstInserted.await(10, TimeUnit.SECONDS)).isTrue();
+            var second = executor.submit(() -> {
+                secondStarted.countDown();
+                try {
+                    return transaction.execute(status -> secondInstance.sendEvent(author,
+                            new ConversationId(secondRoom), new ChatTransactionId("sync-second-event"),
+                            ChatEventContent.text("second")));
+                } finally {
+                    secondFinished.countDown();
+                }
+            });
+            assertThat(secondStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(secondFinished.await(200, TimeUnit.MILLISECONDS)).isFalse();
+            releaseFirst.countDown();
+            var firstEvent = first.get();
+            var secondEvent = second.get();
+            var committed = store.changes(author, new ChatCursor("chat-revision-" + before), 10).changes();
+            assertThat(committed).hasSize(2);
+            assertThat(committed.get(0).messageId()).isEqualTo(firstEvent.eventId());
+            assertThat(committed.get(1).messageId()).isEqualTo(secondEvent.eventId());
+        } finally {
+            releaseFirst.countDown();
+        }
+    }
+
+    @Test
+    void concurrentSameTransactionAcrossInstancesCreatesOneNativeEvent() throws Exception {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore firstStore = store(dataSource);
+        NativeChatProviderAdapter firstAdapter = new NativeChatProviderAdapter(firstStore, FIXED);
+        NativeChatProviderAdapter secondAdapter = new NativeChatProviderAdapter(store(dataSource), FIXED);
+        ChatRequestContext author = context("native-idempotent-send");
+        ConversationId room = new ConversationId(firstAdapter.createConversation(author,
+                new ChatTransactionId("native-idempotent-room"), "Idempotent", "channel", List.of(),
+                ChatEncryptionState.unencrypted()).conversationId());
+        TransactionTemplate transaction = new TransactionTemplate(JpaTestDatabase.transactionManager(dataSource));
+        CountDownLatch firstStored = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch secondStarted = new CountDownLatch(1);
+        CountDownLatch secondFinished = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> transaction.execute(status -> {
+                var event = firstAdapter.sendEvent(author, room, new ChatTransactionId("same-native-txn"),
+                        ChatEventContent.text("sent once"));
+                firstStored.countDown();
+                try {
+                    if (!releaseFirst.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("test transaction was not released");
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(interrupted);
+                }
+                return event;
+            }));
+            assertThat(firstStored.await(10, TimeUnit.SECONDS)).isTrue();
+            var second = executor.submit(() -> {
+                secondStarted.countDown();
+                try {
+                    return secondAdapter.sendEvent(author, room, new ChatTransactionId("same-native-txn"),
+                            ChatEventContent.text("sent once"));
+                } finally {
+                    secondFinished.countDown();
+                }
+            });
+            assertThat(secondStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(secondFinished.await(200, TimeUnit.MILLISECONDS)).isFalse();
+            releaseFirst.countDown();
+            assertThat(second.get().eventId()).isEqualTo(first.get().eventId());
+            assertThat(firstStore.timelineEvents(author, room, null, 10).events())
+                    .singleElement().satisfies(event ->
+                            assertThat(event.content().body()).isEqualTo("sent once"));
+            assertThatThrownBy(() -> secondAdapter.sendEvent(author, room,
+                    new ChatTransactionId("same-native-txn"), ChatEventContent.text("different payload")))
+                    .isInstanceOf(IllegalArgumentException.class);
+        } finally {
+            releaseFirst.countDown();
+        }
+    }
 
     @Test
     void nativeAdapterCommitsCanonicalStateWithoutProviderMappingsOrBridgeLedger() {

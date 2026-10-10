@@ -882,6 +882,50 @@ void main() {
       expect(find.text('Showing last known rooms'), findsNothing);
     });
 
+    testWidgets('drops cached rooms when refresh loses member authority', (
+      tester,
+    ) async {
+      var accessRevoked = false;
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async {
+          if (accessRevoked) {
+            throw const ChatFailure.sessionRequired(
+              'M_WEAVE_MATRIX_ACCESS_DENIED',
+            );
+          }
+          return const <ChatConversation>[
+            ChatConversation(
+              id: '!private:home.internal',
+              title: 'Private project',
+              previewType: ChatConversationPreviewType.text,
+              unreadCount: 0,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+          ];
+        },
+      );
+      await tester.pumpWidget(
+        _chatTestApp(
+          const ChatScreen(),
+          overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Private project'), findsOneWidget);
+
+      accessRevoked = true;
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      await container.read(chatProvider.notifier).retry();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Private project'), findsNothing);
+      expect(find.text('Showing last known rooms'), findsNothing);
+      expect(find.text('Retry'), findsOneWidget);
+    });
+
     testWidgets('meets androidTapTargetGuideline', (tester) async {
       final repository = FakeChatRepository(
         loadConversationsHandler: () async => const <ChatConversation>[

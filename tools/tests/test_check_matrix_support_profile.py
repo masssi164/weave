@@ -44,6 +44,21 @@ class MatrixSupportProfileCheckTest(unittest.TestCase):
             any("assertion is absent" in error for error in checker.check_profile(stale, ROOT))
         )
 
+    def test_native_flutter_widget_journey_is_a_client_assertion(self):
+        reference = (
+            "`client/integration_test/system_browser_auth_e2e_test.dart"
+            "#one fresh sign-in makes Files Calendar and native Matrix usable`"
+        )
+        self.assertIsNone(checker._client_assertion(reference, ROOT))
+        self.assertIn(
+            "assertion is absent",
+            checker._client_assertion(
+                "`client/integration_test/system_browser_auth_e2e_test.dart"
+                "#a marker that is not a test`",
+                ROOT,
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

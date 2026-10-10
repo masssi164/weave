@@ -659,6 +659,42 @@ void main() {
     expect(find.text('Retry'), findsAtLeastNWidgets(1));
   });
 
+  testWidgets('clears a loaded timeline after authority is revoked', (
+    tester,
+  ) async {
+    var failureOnRefresh = false;
+    final repository = FakeChatRepository(
+      loadRoomTimelineHandler: (_) async {
+        if (failureOnRefresh) {
+          throw const ChatFailure.sessionRequired('M_FORBIDDEN');
+        }
+        return buildTimeline();
+      },
+    );
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatRoomScreen(conversation: conversation),
+        overrides: overridesFor(repository),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Hey there'), findsOneWidget);
+
+    failureOnRefresh = true;
+    await tester.tap(find.byTooltip('Retry').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hey there'), findsNothing);
+    expect(find.text('Alex'), findsNothing);
+    expect(find.text('Project'), findsNothing);
+    expect(
+      find.text('Raw room provider detail should not render.'),
+      findsNothing,
+    );
+    expect(find.text('Retry'), findsAtLeastNWidgets(1));
+    expect(find.byType(TextField), findsNothing);
+  });
+
   testWidgets('keeps a failed outgoing message visible with retry actions', (
     tester,
   ) async {

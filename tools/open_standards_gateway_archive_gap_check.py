@@ -93,7 +93,8 @@ def require_current_evidence_boundaries() -> None:
     require(
         "server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCoreService.java",
         "implements MatrixProtocolCodec",
-        "NativeMatrixCore.projectJson(operation.wireName(), inputJson, serverName)",
+        "NativeMatrixCore.projectJson(operation.wireName(),",
+        ", serverName)",
         'public static final String SERVER_JNI_BOUNDARY = "server-jni-wrapper"',
         'public static final String RUST_PROTOCOL_CORE = "ruma-serde-serde_json-thiserror-tracing"',
     )

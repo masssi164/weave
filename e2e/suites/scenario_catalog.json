@@ -292,6 +292,73 @@
       ]
     },
     {
+      "tag": "@weave-live-native-product",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "spaces"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "one native system-browser sign-in",
+        "authorized Files upload and readback",
+        "authorized Calendar create update and delete",
+        "native Matrix business-room send and readback",
+        "session refresh and native process and service restart",
+        "sign-out removes capability access"
+      ]
+    },
+    {
+      "tag": "@weave-live-member-session-revocation",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "chat",
+        "spaces",
+        "admin-health-ops"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "actual generated Admin session revocation",
+        "retained unexpired User Admin and Matrix bearer denial",
+        "revoked refresh credential denial",
+        "stable identity and unchanged permissions after PKCE reauthorization",
+        "idempotent replay preserves new sessions",
+        "logout before native Chat initialization"
+      ]
+    },
+    {
+      "tag": "@weave-live-foreign-organization-denial",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "admin-health-ops"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "two real organizations in one disposable Keycloak realm",
+        "foreign browser Authorization Code with PKCE",
+        "generated User and Admin denial",
+        "Matrix Client-Server denial",
+        "no primary resource mutation"
+      ]
+    },
+    {
       "tag": "@files-webdav-read-list-download",
       "suiteId": "product-e2e-scenario-layer",
       "personas": [
@@ -3279,7 +3346,7 @@
     },
     {
       "tag": "@matrix-openclaw-stock-channel",
-      "suiteId": "open-standards-gateway-archive-target",
+      "suiteId": "member-live-critical-path",
       "personas": [
         "weaver_user",
         "member"
@@ -3288,7 +3355,7 @@
         "chat",
         "agent-runtime-control"
       ],
-      "testLevel": "offline-contract",
+      "testLevel": "live-e2e",
       "assertionFocus": [
         "signed RuntimeProfile projects stock channels.matrix",
         "OpenClaw startup and approval calls are supported by the Weave facade",
@@ -4621,6 +4688,24 @@
         "exact dogfood source",
         "full Compose E2E prerequisite",
         "no automatic release publication"
+      ]
+    },
+    {
+      "tag": "@calendar-mcp-write-parity",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "weaver_user"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "bound workload uses generated User Calendar writes",
+        "independent generated User readback verifies stable identity and DATE intent",
+        "changed idempotency replay and stale version fail without mutation",
+        "read-only scope and unauthorized member writes fail closed"
       ]
     },
     {

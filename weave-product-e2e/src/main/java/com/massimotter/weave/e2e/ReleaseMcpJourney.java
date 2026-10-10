@@ -2,6 +2,7 @@ package com.massimotter.weave.e2e;
 
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.RSAKey;
+import com.massimotter.weave.userapi.model.CalendarUserEvent;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -105,6 +106,97 @@ final class ReleaseMcpJourney {
 
   void verifyCalendarWriteDenied(String calendarId) {
     mcp.verifyCalendarWriteDeniedForMember(clientId, key, calendarId);
+  }
+
+  void verifyCalendarWriteParity(
+      GeneratedCalendarJourney calendar, String calendarId, String authorToken) {
+    mcp.verifyCalendarWriteParity(
+        clientId, key, calendar, calendarId, authorToken, environment.runId());
+  }
+
+  void proveOpenClawCalendarWriteDenied(String calendarId) {
+    String title = "Denied OpenClaw Calendar " + Hashing.sha256(environment.runId()).substring(0, 16);
+    ObjectNode expected = openClawCalendarWrite("calendar.create", calendarId);
+    ObjectNode arguments = (ObjectNode) expected.path("arguments");
+    arguments.put("idempotencyKey", "openclaw-denied-" + Hashing.sha256(environment.runId()));
+    arguments.set("event", calendarWriteEvent(title));
+    expected.putArray("contains").add("Calendar User API rejected request: HTTP 403");
+    proveOpenClaw(expected, Set.of("mcp.tools", "calendar.write"));
+  }
+
+  String proveOpenClawCalendarWriteParity(
+      GeneratedCalendarJourney calendar, String calendarId, String authorToken) {
+    Set<String> scopes = Set.of("mcp.tools", "calendar.write");
+    String title = "OpenClaw Calendar " + Hashing.sha256(environment.runId()).substring(0, 16);
+    String idempotencyKey = "openclaw-calendar-" + Hashing.sha256(environment.runId());
+    ObjectNode create = openClawCalendarWrite("calendar.create", calendarId);
+    ObjectNode createArguments = (ObjectNode) create.path("arguments");
+    createArguments.put("idempotencyKey", idempotencyKey);
+    createArguments.set("event", calendarWriteEvent(title));
+    create.putArray("contains").add(title);
+    String version = proveOpenClaw(create, scopes);
+    CalendarUserEvent created = calendar.readMcpEvent(calendarId, title, authorToken);
+    calendar.verifyMcpEventUnchanged(calendarId, created, authorToken);
+
+    if (!version.equals(proveOpenClaw(create, scopes))) {
+      throw new ProductFlowException("OpenClaw version changed across Calendar create replay");
+    }
+    calendar.verifyMcpEventUnchanged(calendarId, created, authorToken);
+
+    String updatedTitle = title + " updated";
+    ObjectNode update = openClawCalendarWrite("calendar.update", calendarId);
+    ObjectNode updateArguments = (ObjectNode) update.path("arguments");
+    updateArguments.put("eventId", created.getId());
+    updateArguments.put("ifMatch", created.getVersion());
+    updateArguments.set("event", calendarWriteEvent(updatedTitle));
+    update.putArray("contains").add(created.getId()).add(updatedTitle);
+    if (!version.equals(proveOpenClaw(update, scopes))) {
+      throw new ProductFlowException("OpenClaw version changed across Calendar update");
+    }
+    CalendarUserEvent updated = calendar.readMcpEvent(calendarId, updatedTitle, authorToken);
+    if (!created.getId().equals(updated.getId())
+        || created.getVersion().equals(updated.getVersion())) {
+      throw new ProductFlowException("OpenClaw Calendar update lost identity or version advance");
+    }
+
+    ObjectNode stale = openClawCalendarWrite("calendar.update", calendarId);
+    ObjectNode staleArguments = (ObjectNode) stale.path("arguments");
+    staleArguments.put("eventId", created.getId());
+    staleArguments.put("ifMatch", created.getVersion());
+    staleArguments.set("event", calendarWriteEvent(title + " stale"));
+    stale.putArray("contains").add("Calendar User API rejected request: HTTP 412");
+    if (!version.equals(proveOpenClaw(stale, scopes))) {
+      throw new ProductFlowException("OpenClaw version changed across Calendar stale update");
+    }
+    calendar.verifyMcpEventUnchanged(calendarId, updated, authorToken);
+
+    ObjectNode delete = openClawCalendarWrite("calendar.delete", calendarId);
+    ObjectNode deleteArguments = (ObjectNode) delete.path("arguments");
+    deleteArguments.put("eventId", updated.getId());
+    deleteArguments.put("ifMatch", updated.getVersion());
+    delete.putArray("contains").add(updated.getId()).add("deleted");
+    if (!version.equals(proveOpenClaw(delete, scopes))) {
+      throw new ProductFlowException("OpenClaw version changed across Calendar delete");
+    }
+    calendar.verifyMcpEventDeleted(calendarId, updated.getId(), authorToken);
+    return version;
+  }
+
+  private ObjectNode openClawCalendarWrite(String tool, String calendarId) {
+    ObjectNode expected = http.mapper().createObjectNode();
+    expected.put("tool", tool);
+    expected.putObject("arguments").put("calendarId", calendarId);
+    return expected;
+  }
+
+  private ObjectNode calendarWriteEvent(String title) {
+    ObjectNode event = http.mapper().createObjectNode();
+    event.put("title", title);
+    event.putObject("start").put("kind", "DATE").put("date", "2026-10-25");
+    event.putObject("end").put("kind", "DATE").put("date", "2026-10-26");
+    event.putArray("attendees");
+    event.putArray("overrides");
+    return event;
   }
 
   String proveOpenClawFiles(GeneratedFilesJourney.Proof proof) {

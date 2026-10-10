@@ -331,7 +331,8 @@ class ServerArchitectureBoundaryTest {
                 .contains("matrixProtocolCoreService.parseEvent(")
                 .contains("matrixProtocolCoreService.parseObject(")
                 .contains("chatDomainFacadeService.conversations(jwt)")
-                .contains("chatDomainFacadeService.timeline(")
+                // The bounded Matrix history path uses canonical paged timelines.
+                .contains("chatDomainFacadeService.timelinePage(")
                 .contains("chatDomainFacadeService.sendEvent(")
                 .doesNotContain("/api/chat/conversations")
                 .doesNotContain("ChatFacadeService")

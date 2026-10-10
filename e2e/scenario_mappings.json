@@ -13,6 +13,63 @@
       "evidenceMode": "live-runtime"
     },
     {
+      "tag": "@weave-live-native-product",
+      "scenario": "One native sign-in opens Files Calendar and Chat",
+      "feature": "e2e/features/live_stack_app.feature",
+      "executableTest": "client/integration_test/system_browser_auth_e2e_test.dart",
+      "evidenceMarkers": [
+        "NATIVE_PRODUCT_SIGN_IN_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "client/tool/run_native_product_acceptance.py",
+          "fragments": [
+            "restart_disposable_services(env)",
+            "NATIVE_SERVICE_RESTART_RESULT status=passed"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-live-member-session-revocation",
+      "scenario": "Revoked sessions fail closed and later sign-in restores the same member",
+      "feature": "e2e/features/member_session_revocation.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/MemberSessionRevocationJourney.java",
+      "evidenceMarkers": [
+        "WEAVE_MEMBER_SESSION_REVOCATION_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "gradle/tasks/test-app.sh",
+          "fragments": [
+            ".administratorSessionRevocationDenied == true",
+            ".reauthenticationAfterSessionRevocation == true",
+            ".uninitializedChatLogoutDenied == true"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-live-foreign-organization-denial",
+      "scenario": "A foreign organization owner cannot cross the Weave boundary",
+      "feature": "e2e/features/foreign_organization_isolation.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/ForeignOrganizationJourney.java",
+      "evidenceMarkers": [
+        "WEAVE_FOREIGN_ORGANIZATION_DENIAL_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "gradle/tasks/test-app.sh",
+          "fragments": [
+            ".foreignOrganizationDenied == true"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@files-webdav-read-list-download",
       "scenario": "Historical WebDAV read tests retain provider isolation evidence",
       "feature": "e2e/features/files_webdav_facade.feature",
@@ -4863,7 +4920,7 @@
         {
           "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
-            "maps only Rust-projected encrypted rooms into chat entities",
+            "maps encrypted and business rooms into chat entities",
             "MATRIX_SPACES_ROOMS_CONTRACT",
             "RustMatrixEncryptedRoom"
           ]
@@ -4894,11 +4951,11 @@
       "tag": "@matrix-openclaw-stock-channel",
       "scenario": "Stock OpenClaw Matrix channel runs against the Weave facade",
       "feature": "e2e/features/chat_matrix_facade.feature",
-      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/CollaborationJourney.java",
       "evidenceMarkers": [
-        "MATRIX_OPENCLAW_STOCK_CHANNEL_CONTRACT"
+        "WEAVE_OPENCLAW_MATRIX_RESULT status=passed"
       ],
-      "evidenceMode": "offline-spec",
+      "evidenceMode": "live-runtime",
       "additionalEvidence": [
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
@@ -5729,7 +5786,7 @@
       "tag": "@matrix-e2ee-fail-closed-client",
       "scenario": "A client without E2EE capability cannot downgrade a room",
       "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
+      "executableTest": "rust/matrix-client/src/flutter_crypto.rs",
       "evidenceMarkers": [
         "MATRIX_E2EE_CLIENT_FAILS_CLOSED"
       ],
@@ -5796,6 +5853,47 @@
         "HUMAN_TESTING_HAS_NO_MANIFEST_GATE"
       ],
       "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@calendar-mcp-write-parity",
+      "scenario": "Authorized MCP scheduling preserves User API versions and access",
+      "feature": "e2e/features/calendar_user_api_generated.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
+      "evidenceMarkers": [
+        "WEAVE_CALENDAR_MCP_WRITE_PARITY_RESULT",
+        "WEAVE_OPENCLAW_CALENDAR_WRITE_PARITY_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "test-app"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/WorkloadMcpJourney.java",
+          "fragments": [
+            "verifyCalendarWriteParity",
+            "calendar.create replay",
+            "MCP stale calendar.update",
+            "verifyMcpEventDeleted"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/ReleaseMcpJourney.java",
+          "fragments": [
+            "proveOpenClawCalendarWriteDenied",
+            "proveOpenClawCalendarWriteParity",
+            "calendar.verifyMcpEventDeleted"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedCalendarJourney.java",
+          "fragments": [
+            "readMcpEvent",
+            "verifyMcpEventUnchanged",
+            "verifyMcpEventDeleted"
+          ]
+        }
+      ]
     },
     {
       "tag": "@calendar-user-api-runtime",

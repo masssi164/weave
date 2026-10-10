@@ -65,6 +65,12 @@ artifacts:
     corpusCandidates:
       - steering/release-2026-10-product-consolidation.md
     notes: Defines exact-candidate generation, consumer checks, isolated export and failure evidence for #1472/#1473/#1480; no independent API ownership.
+  - path: specs/native-flutter-ci-execution.md
+    status: implementation-evidence
+    action: keep-as-native-acceptance-runner-and-failure-evidence-contract
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - releases/rc-gates/release-candidate-gate.md
   - path: specs/admin-provider-organization-boundary.md
     status: implementation-evidence
     action: keep-as-scoped-admin-api-and-organization-admission-evidence

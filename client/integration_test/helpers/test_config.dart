@@ -43,12 +43,7 @@ class TestConfig {
       matrixHomeserverUrl: _configuredOrDefault(
         'WEAVE_MATRIX_HOMESERVER_URL',
         const String.fromEnvironment('WEAVE_MATRIX_HOMESERVER_URL'),
-        backendApiBaseUrl.replace(
-          host: 'matrix.$workspaceHost',
-          pathSegments: const [],
-          query: null,
-          fragment: null,
-        ),
+        Uri.parse(backendApiBaseUrl.origin),
       ),
       backendApiBaseUrl: backendApiBaseUrl,
       offlineContractOnly:

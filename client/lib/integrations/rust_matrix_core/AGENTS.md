@@ -10,13 +10,14 @@ Own here:
 Do not own here:
 - Weave Chat presentation state
 - server-side Synapse/MAS/provider setup flows
-- reuse of Weave User API bearer tokens as Matrix credentials
+- persistence or independent refresh of the Weave member bearer outside auth
 
 Boundary rules:
-- Flutter uses the system browser for Matrix OAuth Authorization Code with SDK-managed PKCE and state, reusing the signed-in member's IdP SSO context without a separate Connect Chat action.
+- Flutter uses the normal Weave member OIDC/PKCE session at the Weave Matrix facade after one sign-in. Auth owns bearer refresh and persistence; the Rust SDK receives only the current authorized bearer in memory.
 - The Matrix SDK connects to the Weave Matrix Client-Server northbound endpoint from OrgManifest v2, never directly to the selected southbound Chat provider.
 - Current Weave member, organization and Chat capability checks gate Matrix session creation and recovery; an uncertain or revoked grant fails closed without deleting the client E2EE store.
-- Matrix OAuth tokens and refresh state stay separate from Weave OIDC credentials and are restored from encrypted client-owned storage.
+- The installed Matrix device identity and encrypted Rust crypto store survive member token refresh and app restart. A failed or revoked member grant drops live Matrix access without deleting recovery material.
+- Distinct Matrix OAuth clients, dynamic registration and independent third-party client authentication are deferred from the current release profile.
 - The native Rust Matrix SDK owns Matrix transport, sync and E2EE. The legacy Dart Matrix SDK seam remains retired.
 
 ## Global Weave agent baseline

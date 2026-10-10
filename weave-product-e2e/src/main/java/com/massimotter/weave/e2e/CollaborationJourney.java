@@ -17,9 +17,11 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +33,7 @@ final class CollaborationJourney {
   private static final Set<PosixFilePermission> OWNER_FILE_PERMISSIONS =
       PosixFilePermissions.fromString("rw-------");
   private static final String MATRIX_DEVICE_HEADER = "X-Weave-Matrix-Device-Id";
+  private static final String MATRIX_DEVICE_PROOF_HEADER = "X-Weave-Matrix-Device-Proof";
   private static final String MEGOLM = "m.megolm.v1.aes-sha2";
   private static final Duration PROCESS_TIMEOUT = Duration.ofMinutes(5);
   private static final Duration PROCESS_CLEANUP_TIMEOUT = Duration.ofSeconds(10);
@@ -41,6 +44,8 @@ final class CollaborationJourney {
   private final GeneratedCalendarJourney calendar;
   private final GeneratedFilesJourney files;
   private final GeneratedProfileHomeApi profileHome;
+  private final SecureRandom deviceProofRandom = new SecureRandom();
+  private final Map<String, String> deviceProofs = new LinkedHashMap<>();
 
   CollaborationJourney(ProductFlowEnvironment environment, JsonHttpClient http) {
     this.environment = environment;
@@ -57,7 +62,8 @@ final class CollaborationJourney {
       OidcBrowserJourney.TokenSet outsider,
       JsonNode authorClaims,
       JsonNode collaboratorClaims,
-      JsonNode outsiderClaims) {
+      JsonNode outsiderClaims,
+      String openClawMemberToken) {
     if (pass < 1 || pass > 2) {
       throw new IllegalArgumentException("collaboration pass must be one or two");
     }
@@ -77,9 +83,18 @@ final class CollaborationJourney {
     boolean restartContinuityVerified = false;
     String nativeRevisionHash = null;
     try {
+      if (pass == 1) {
+        requirePublicMatrixDiscovery();
+      }
       MatrixIdentity collaboratorMatrix = matrixIdentity(collaboratorIdentity, pass);
       matrixIdentity(outsiderIdentity, pass);
       matrixIdentity(authorIdentity, pass);
+      if (pass == 1 && Boolean.getBoolean("weave.e2e.release-mcp")) {
+        if (openClawMemberToken == null || openClawMemberToken.isBlank()) {
+          throw new ProductFlowException("OpenClaw normal member session is unavailable");
+        }
+        proveOpenClawBusinessRoom(openClawMemberToken, collaboratorMatrix.userId());
+      }
       if (pass == 2) {
         restartContinuityVerified =
             verifyAndCleanRetainedFirstPass(
@@ -87,11 +102,15 @@ final class CollaborationJourney {
       }
       roomId = createEncryptedRoom(authorIdentity, collaboratorMatrix.userId(), pass);
       joinRoom(collaboratorIdentity, roomId, pass);
+      String collaboratorSyncCursor = matrixSyncCursor(collaboratorIdentity, roomId, pass);
 
       String authorCiphertext = ciphertext("author", pass);
       String collaboratorCiphertext = ciphertext("collaborator", pass);
       authorEventId = sendEncrypted(authorIdentity, roomId, authorCiphertext, "author", pass);
       requireCiphertextObserved(collaboratorIdentity, roomId, authorCiphertext, "author", pass);
+      requireSyncObserved(
+          collaboratorIdentity, roomId, authorEventId, authorCiphertext,
+          collaboratorSyncCursor, pass);
       collaboratorEventId =
           sendEncrypted(collaboratorIdentity, roomId, collaboratorCiphertext, "collaborator", pass);
       requireCiphertextObserved(authorIdentity, roomId, collaboratorCiphertext, "collaborator", pass);
@@ -254,6 +273,32 @@ final class CollaborationJourney {
     }
   }
 
+  private void requirePublicMatrixDiscovery() {
+    JsonNode wellKnown = http.json(
+        "discover Weave Matrix facade", "GET",
+        environment.apiOrigin().resolve("/.well-known/matrix/client"),
+        Map.of(), null, Set.of(200));
+    String expectedOrigin = environment.apiOrigin().getScheme() + "://"
+        + environment.apiOrigin().getRawAuthority();
+    if (!expectedOrigin.equals(
+        wellKnown.path("m.homeserver").path("base_url").asString())) {
+      throw new ProductFlowException("Matrix discovery does not point to the Weave API authority");
+    }
+    JsonNode versions = http.json(
+        "discover public Matrix versions", "GET",
+        environment.api("/_matrix/client/versions"), Map.of(), null, Set.of(200));
+    if (!versions.path("versions").isArray()
+        || !"v1.18".equals(versions.path("versions").path(0).asString())) {
+      throw new ProductFlowException("public Matrix version discovery is unavailable");
+    }
+    JsonNode login = http.json(
+        "discover Matrix login policy", "GET",
+        environment.api("/_matrix/client/v3/login"), Map.of(), null, Set.of(200));
+    if (!login.path("flows").isArray() || login.path("flows").size() != 0) {
+      throw new ProductFlowException("Matrix discovery advertised an unavailable second login");
+    }
+  }
+
   private MatrixIdentity matrixIdentity(Identity identity, int pass) {
     JsonNode response =
         http.jsonRetryingMatrixIdentityConflict(
@@ -270,7 +315,103 @@ final class CollaborationJourney {
         || !deviceId.equals(deviceId(identity.role(), pass))) {
       throw new ProductFlowException(identity.role() + " Matrix identity is invalid");
     }
+    requireDeviceProofDenial(identity, pass);
     return new MatrixIdentity(userId, deviceId);
+  }
+
+  private void proveOpenClawBusinessRoom(String memberToken, String userId) {
+    String script = System.getProperty("weave.e2e.openclaw-matrix-script", "");
+    if (script.isBlank() || !Path.of(script).isAbsolute()
+        || !Files.isRegularFile(Path.of(script))) {
+      throw new ProductFlowException("real OpenClaw Matrix proof script is unavailable");
+    }
+    ObjectNode request = http.mapper().createObjectNode();
+    request.put("name", "Weave business Chat " + runHash());
+    JsonNode created = http.json(
+        "create authorized non-encrypted business room", "POST",
+        environment.api("/_matrix/client/v3/createRoom"),
+        bearer(memberToken, Map.of()),
+        request, Set.of(200));
+    String roomId = created.path("room_id").asString();
+    if (!roomId.matches("![^:]{1,200}:[A-Za-z0-9.:-]+")) {
+      throw new ProductFlowException("business Matrix room projection is invalid");
+    }
+    String marker = "Weave OpenClaw Matrix E2E " + runHash();
+    try {
+      ProcessBuilder builder = new ProcessBuilder(
+          "python3", script,
+          "--homeserver", environment.apiOrigin().toString(),
+          "--user", userId,
+          "--room", roomId,
+          "--message", marker,
+          "--ca", environment.caCertificate().toString(),
+          "--private-root", environment.evidenceFile().getParent().toString());
+      builder.environment().put("WEAVE_MATRIX_MEMBER_TOKEN", memberToken);
+      Process process = builder.redirectErrorStream(true).start();
+      if (!process.waitFor(PROCESS_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
+        process.destroyForcibly();
+        throw new ProductFlowException("real OpenClaw Matrix send exceeded its deadline");
+      }
+      String output = new String(process.getInputStream().readNBytes(4096), StandardCharsets.UTF_8);
+      if (process.exitValue() != 0
+          || !output.contains("WEAVE_OPENCLAW_MATRIX_RESULT status=passed")) {
+        String diagnostic = output.lines()
+            .filter(line -> line.startsWith("WEAVE_OPENCLAW_MATRIX_ERROR "))
+            .findFirst().orElse("WEAVE_OPENCLAW_MATRIX_ERROR unavailable");
+        throw new ProductFlowException(diagnostic);
+      }
+      System.out.println(output.trim());
+      Instant deadline = Instant.now().plus(environment.convergenceTimeout());
+      while (Instant.now().isBefore(deadline)) {
+        JsonNode messages = http.json(
+            "independently read OpenClaw business-room event", "GET",
+            environment.api("/_matrix/client/v3/rooms/" + encode(roomId) + "/messages?limit=100"),
+            bearer(memberToken, Map.of()),
+            null, Set.of(200));
+        for (JsonNode event : messages.path("chunk")) {
+          if ("m.room.message".equals(event.path("type").asString())
+              && marker.equals(event.path("content").path("body").asString())
+              && userId.equals(event.path("sender").asString())
+              && event.path("event_id").asString().startsWith("$")) {
+            return;
+          }
+        }
+        sleep();
+      }
+      throw new ProductFlowException("OpenClaw business-room event did not converge");
+    } catch (InterruptedException failure) {
+      Thread.currentThread().interrupt();
+      throw new ProductFlowException("real OpenClaw Matrix proof was interrupted", failure);
+    } catch (IOException failure) {
+      throw new ProductFlowException("real OpenClaw Matrix proof could not start", failure);
+    } finally {
+      try {
+        http.json("leave OpenClaw business room", "POST",
+            environment.api("/_matrix/client/v3/rooms/" + encode(roomId) + "/leave"),
+            bearer(memberToken, Map.of()), http.mapper().createObjectNode(), Set.of(200));
+      } catch (RuntimeException ignored) {
+        // The disposable stack is still torn down after a failed proof.
+      }
+    }
+  }
+
+  private void requireDeviceProofDenial(Identity identity, int pass) {
+    Map<String, String> headers = new LinkedHashMap<>(
+        bearer(identity.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(identity.role(), pass))));
+    byte[] unboundSecret = new byte[48];
+    deviceProofRandom.nextBytes(unboundSecret);
+    headers.put(MATRIX_DEVICE_PROOF_HEADER,
+        Base64.getUrlEncoder().withoutPadding().encodeToString(unboundSecret));
+    JsonNode denied = http.json(
+        "deny unbound Matrix device proof",
+        "GET",
+        environment.api("/_matrix/client/v3/account/whoami"),
+        Map.copyOf(headers),
+        null,
+        Set.of(401));
+    if (!"M_UNKNOWN_TOKEN".equals(denied.path("errcode").asString())) {
+      throw new ProductFlowException("unbound Matrix device proof was not rejected");
+    }
   }
 
   private String createEncryptedRoom(Identity author, String collaboratorUserId, int pass) {
@@ -384,6 +525,74 @@ final class CollaborationJourney {
       sleep();
     }
     throw new ProductFlowException("encrypted " + actor + " event did not converge");
+  }
+
+  private String matrixSyncCursor(Identity member, String roomId, int pass) {
+    JsonNode response = http.json(
+        "establish member Matrix sync cursor", "GET",
+        environment.api("/_matrix/client/v3/sync?timeout=0"),
+        bearer(member.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(member.role(), pass))),
+        null, Set.of(200));
+    String cursor = response.path("next_batch").asString();
+    JsonNode encryption = response.path("rooms").path("join").path(roomId)
+        .path("state").path("events");
+    if (!cursor.startsWith("weave.s1.") || !encryption.isArray()) {
+      throw new ProductFlowException("member Matrix sync did not establish a Weave room cursor");
+    }
+    boolean encrypted = false;
+    for (JsonNode event : encryption) {
+      if ("m.room.encryption".equals(event.path("type").asString())
+          && MEGOLM.equals(event.path("content").path("algorithm").asString())) {
+        encrypted = true;
+      }
+    }
+    if (!encrypted) {
+      throw new ProductFlowException("member Matrix sync omitted the room encryption policy");
+    }
+    return cursor;
+  }
+
+  private void requireSyncObserved(
+      Identity member, String roomId, String eventId, String ciphertext,
+      String since, int pass) {
+    Instant deadline = Instant.now().plus(environment.convergenceTimeout());
+    while (Instant.now().isBefore(deadline)) {
+      JsonNode response = http.json(
+          "observe member Matrix incremental sync", "GET",
+          environment.api("/_matrix/client/v3/sync?since=" + encode(since) + "&timeout=0"),
+          bearer(member.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(member.role(), pass))),
+          null, Set.of(200));
+      String nextBatch = response.path("next_batch").asString();
+      if (!nextBatch.startsWith("weave.s1.")) {
+        throw new ProductFlowException("member Matrix sync returned an invalid Weave cursor");
+      }
+      if (syncContainsEncryptedEvent(response, roomId, eventId, ciphertext)) {
+        if (since.equals(nextBatch)) {
+          throw new ProductFlowException("member Matrix sync did not advance after an event");
+        }
+        return;
+      }
+      sleep();
+    }
+    throw new ProductFlowException("encrypted event did not converge through member Matrix sync");
+  }
+
+  static boolean syncContainsEncryptedEvent(
+      JsonNode response, String roomId, String eventId, String ciphertext) {
+    JsonNode events = response.path("rooms").path("join").path(roomId)
+        .path("timeline").path("events");
+    if (!events.isArray()) {
+      return false;
+    }
+    for (JsonNode event : events) {
+      if (eventId.equals(event.path("event_id").asString())
+          && "m.room.encrypted".equals(event.path("type").asString())
+          && ciphertext.equals(event.path("content").path("ciphertext").asString())
+          && !event.path("content").has("body")) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private void requireMatrixDenied(Identity outsider, String roomId, int pass) {
@@ -1001,10 +1210,18 @@ final class CollaborationJourney {
     return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
   }
 
-  private static Map<String, String> bearer(String token, Map<String, String> additional) {
+  private Map<String, String> bearer(String token, Map<String, String> additional) {
     Map<String, String> headers = new LinkedHashMap<>();
     headers.put("Authorization", "Bearer " + token);
     headers.putAll(additional);
+    String deviceId = additional.get(MATRIX_DEVICE_HEADER);
+    if (deviceId != null) {
+      headers.put(MATRIX_DEVICE_PROOF_HEADER, deviceProofs.computeIfAbsent(deviceId, ignored -> {
+        byte[] secret = new byte[48];
+        deviceProofRandom.nextBytes(secret);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
+      }));
+    }
     return Map.copyOf(headers);
   }
 
