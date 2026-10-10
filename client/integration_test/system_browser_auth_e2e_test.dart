@@ -136,6 +136,16 @@ void main() {
         config,
         requireFreshSignIn: true,
       );
+      final initialSession = await container
+          .read(authSessionRepositoryProvider)
+          .restoreSession(
+            AuthConfiguration(
+              issuer: config.issuerUrl,
+              clientId: config.clientId,
+            ),
+          );
+      expect(initialSession.isAuthenticated, isTrue);
+      final expiryProbeToken = initialSession.session!.accessToken;
       final files = container.read(filesRepositoryProvider);
       final calendar = container.read(calendarRepositoryProvider);
       final coordinator = container.read(
@@ -390,6 +400,9 @@ void main() {
             }),
             flush: true,
           );
+          await restoredContainer
+              .read(secureStoreProvider)
+              .write(_expiryProbeKey(nativeTestRunId), expiryProbeToken);
         } finally {
           await restoredCoordinator.disposePreservingCryptoState();
         }
@@ -457,6 +470,16 @@ void main() {
         );
         debugPrint('NATIVE_PRODUCT_STAGE phase=process-restart-restored');
 
+        // This is the real bearer issued by the first process's native PKCE
+        // login. It is used only for denial probes, never to establish a session.
+        final secureStore = container.read(secureStoreProvider);
+        final expiryProbeToken = await secureStore.read(
+          _expiryProbeKey(nativeTestRunId),
+        );
+        await secureStore.delete(_expiryProbeKey(nativeTestRunId));
+        expect(expiryProbeToken, isNotEmpty);
+        await _waitForActualBearerExpiry(expiryProbeToken!);
+
         // Initiate a real membership change at the Matrix facade, then verify
         // its effect through the native Rust SDK rather than a second HTTP
         // read. This proves own-room leave, not admin Space revocation.
@@ -476,7 +499,11 @@ void main() {
         );
         expect(refreshed.isAuthenticated, isTrue);
         final memberToken = refreshed.session!.accessToken;
-        expect(memberToken, isNot(equals(earlierToken)));
+        expect(
+          memberToken != earlierToken,
+          isTrue,
+          reason: 'AppAuth refresh must issue a new bearer.',
+        );
         final refreshedMatrix = await coordinator.open(
           allowInteractiveSignIn: false,
         );
@@ -485,6 +512,15 @@ void main() {
             .read(secureStoreProvider)
             .read('matrix_member_device_proof_v1_${matrix.profileKey}');
         expect(deviceProof, isNotEmpty);
+        await _requireExpiredBearerDenied(
+          container,
+          config,
+          expiryProbeToken,
+          memberToken,
+          matrix.deviceId,
+          deviceProof!,
+        );
+        debugPrint('NATIVE_PRODUCT_STAGE phase=expired-bearer-denied');
         final leave = await container
             .read(weaveApiHttpClientProvider)
             .post(
@@ -494,7 +530,7 @@ void main() {
               headers: <String, String>{
                 'Authorization': 'Bearer $memberToken',
                 'x-weave-matrix-device-id': matrix.deviceId,
-                'x-weave-matrix-device-proof': deviceProof!,
+                'x-weave-matrix-device-proof': deviceProof,
                 'Content-Type': 'application/json',
               },
               body: '{}',
@@ -579,7 +615,8 @@ void main() {
         'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed login=single '
         'files=generated-upload-read calendar=generated-crud matrix=native '
         'businessRoomSendRead=true refresh=true sessionReopen=true '
-        'processRestart=true logoutDenied=true supportSafe=true',
+        'processRestart=true expiredBearerDenied=true logoutDenied=true '
+        'supportSafe=true',
       );
     },
     skip: !productEnabled,
@@ -842,6 +879,78 @@ Future<File> _nativeCheckpoint(String runId) async {
   final support = await getApplicationSupportDirectory();
   await support.create(recursive: true);
   return File('${support.path}/weave-native-acceptance-$runId.json');
+}
+
+String _expiryProbeKey(String runId) => 'native_acceptance_expiry_probe_$runId';
+
+DateTime _bearerExpiry(String token) {
+  try {
+    final parts = token.split('.');
+    if (parts.length != 3) throw const FormatException();
+    final claims =
+        jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))))
+            as Map<String, dynamic>;
+    final expiry = claims['exp'];
+    if (expiry is! int) throw const FormatException();
+    return DateTime.fromMillisecondsSinceEpoch(expiry * 1000, isUtc: true);
+  } catch (_) {
+    throw StateError('Native bearer expiry is unavailable.');
+  }
+}
+
+Future<void> _waitForActualBearerExpiry(String token) async {
+  // Production Spring JWT validators permit 60 seconds of clock skew.
+  final expiredAt = _bearerExpiry(token).add(const Duration(seconds: 65));
+  expect(
+    expiredAt.isBefore(DateTime.now().toUtc().add(const Duration(minutes: 6))),
+    isTrue,
+    reason: 'The disposable native expiry proof must finish within its bound.',
+  );
+  while (DateTime.now().toUtc().isBefore(expiredAt)) {
+    await Future<void>.delayed(const Duration(seconds: 1));
+  }
+}
+
+Future<void> _requireExpiredBearerDenied(
+  ProviderContainer container,
+  TestConfig config,
+  String expiredToken,
+  String freshToken,
+  String deviceId,
+  String deviceProof,
+) async {
+  final http = container.read(weaveApiHttpClientProvider);
+  user_api.FilesApi filesFor(String token) => user_api.FilesApi(
+    weaveUserApiClient(
+      apiBaseUrl: config.backendApiBaseUrl,
+      accessToken: token,
+      httpClient: http,
+    ),
+  );
+  expect((await filesFor(freshToken).getFilesReadiness())?.enabled, isTrue);
+  await expectLater(
+    filesFor(expiredToken).getFilesReadiness(),
+    throwsA(
+      isA<user_api.ApiException>().having((e) => e.code, 'HTTP status', 401),
+    ),
+  );
+  for (final token in <String>[freshToken, expiredToken]) {
+    final identity = await http.get(
+      config.matrixHomeserverUrl.resolve('/_matrix/client/v3/account/whoami'),
+      headers: <String, String>{
+        'Authorization': 'Bearer $token',
+        'x-weave-matrix-device-id': deviceId,
+        'x-weave-matrix-device-proof': deviceProof,
+      },
+    );
+    if (token == freshToken) {
+      expect(identity.statusCode, 200);
+      expect(_bearerExpiry(token).isAfter(DateTime.now().toUtc()), isTrue);
+    } else {
+      expect(identity.statusCode, 401);
+      expect(jsonDecode(identity.body)['errcode'], 'M_UNKNOWN_TOKEN');
+    }
+  }
 }
 
 Future<String> _waitForEncryptedMessage(

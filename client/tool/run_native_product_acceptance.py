@@ -465,7 +465,10 @@ def main() -> int:
             if flutter_status or not any(
                 line.startswith("NATIVE_PRODUCT_SIGN_IN_RESULT status=passed")
                 for line in observed
-            ) or "FLUTTER_NATIVE_TEST_RUN status=passed" not in observed:
+            ) or "FLUTTER_NATIVE_TEST_RUN status=passed" not in observed or not any(
+                line == "NATIVE_PRODUCT_STAGE phase=expired-bearer-denied"
+                for line in observed
+            ):
                 raise RuntimeError("Flutter native product assertions failed")
             print("NATIVE_PROCESS_RESTART_RESULT status=passed", flush=True)
             print("NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed", flush=True)

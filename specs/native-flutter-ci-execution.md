@@ -1,6 +1,6 @@
 # Native Flutter acceptance execution for #1533
 
-Status: implementation evidence contract for #1475, #1479, and #1480. The
+Status: implementation evidence contract for #1474, #1475, #1479, and #1480. The
 accepted product behavior remains governed by the pinned Weave Specification
 Corpus and its 2026-10 consolidation release contract.
 
@@ -28,6 +28,19 @@ and the two Flutter processes finish successfully, with source, spec, client,
 provider, and IdP versions recorded. A local pass, build-only run, skipped
 integration test, or unavailable signing identity does not count as CI proof.
 The macOS lane does not assert iOS or Android device compatibility.
+
+The expired-credential negative retains the bearer returned by the real native
+PKCE login only in the run-isolated Keychain namespace. The restored process
+reads and deletes that probe entry, waits for its actual signed expiry plus
+the validator's clock-skew allowance, and refreshes the normal session through
+production AppAuth. Before any room leave or logout, the expired bearer must
+receive HTTP 401 from the generated User Files operation and Matrix facade,
+while the fresh bearer with the same current member/device grant succeeds.
+The probe does not inject a token into the application's authenticated state,
+alter claims or IdP lifetimes, or write a bearer to checkpoint files or evidence.
+A bounded expiry wait, missing probe or unavailable assertion fails the native
+lane. Separate real-signature/JWKS decoder tests verify expired User, Admin and
+MCP token rejection; successful fresh tokens with the same claims are controls.
 
 The Matrix member ID used by the native client and facade is the same stable,
 opaque account reference derived from the validated issuer and full subject.

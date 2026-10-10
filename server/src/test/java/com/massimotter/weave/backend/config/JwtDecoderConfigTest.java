@@ -60,6 +60,43 @@ class JwtDecoderConfigTest {
     }
 
     @Test
+    void rejectsExpiredSignedUserAdminAndMcpCredentialsAfterAcceptingFreshControls() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
+            OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+            properties.getJwt().setIssuerUri(ISSUER_URI);
+            properties.getJwt().setJwkSetUri(jwksServer.jwkSetUri());
+            WeaveSecurityProperties security =
+                    new WeaveSecurityProperties("https://api.weave.test/api", "weave-app");
+            JwtDecoderConfig config = new JwtDecoderConfig();
+            record Credential(JwtDecoder decoder, String client, JOSEObjectType type, String scope) {}
+            List<Credential> credentials = List.of(
+                    new Credential(config.jwtDecoder(properties, security), "weave-app", null, "weave:workspace"),
+                    new Credential(config.adminApiJwtDecoder(properties, security),
+                            "weave-admin-console", null, "weave:workspace"),
+                    new Credential(config.filesMcpWorkloadJwtDecoder(properties, security),
+                            "weave-mcp-server", new JOSEObjectType("at+jwt"), "files.read"),
+                    new Credential(config.calendarMcpWorkloadJwtDecoder(properties, security),
+                            "weave-mcp-server", new JOSEObjectType("at+jwt"), "calendar.write"));
+            for (Credential credential : credentials) {
+                assertThat(credential.decoder().decode(signedToken(signingKey, ISSUER_URI,
+                        List.of("https://api.weave.test/api"), credential.client(),
+                        credential.type(), "expiry-subject", credential.scope())).getSubject())
+                        .isEqualTo("expiry-subject");
+                Instant now = Instant.now();
+                String expired = signedToken(signingKey, ISSUER_URI,
+                        List.of("https://api.weave.test/api"), credential.client(),
+                        credential.type(), "expiry-subject", credential.scope(),
+                        now.minusSeconds(600), now.minusSeconds(120));
+                JwtValidationException denied = assertThrows(
+                        JwtValidationException.class, () -> credential.decoder().decode(expired));
+                assertThat(denied.getErrors()).anySatisfy(
+                        error -> assertThat(error.getDescription()).contains("expired"));
+            }
+        }
+    }
+
+    @Test
     void humanDecodersRejectSignedTokensWithoutAnImmutableSubject() throws Exception {
         RSAKey signingKey = rsaSigningKey();
         try (JwksServer jwksServer = JwksServer.start(signingKey)) {
@@ -363,15 +400,29 @@ class JwtDecoderConfigTest {
             String subject,
             String scope) throws Exception {
         Instant now = Instant.now();
+        return signedToken(signingKey, issuerUri, audiences, authorizedParty, type, subject, scope,
+                now, now.plusSeconds(300));
+    }
+
+    private static String signedToken(
+            RSAKey signingKey,
+            String issuerUri,
+            List<String> audiences,
+            String authorizedParty,
+            JOSEObjectType type,
+            String subject,
+            String scope,
+            Instant issuedAt,
+            Instant expiresAt) throws Exception {
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .issuer(issuerUri)
                 .subject(subject)
                 .audience(audiences)
                 .claim("azp", authorizedParty)
                 .claim("scope", scope)
-                .issueTime(Date.from(now))
-                .notBeforeTime(Date.from(now.minusSeconds(30)))
-                .expirationTime(Date.from(now.plusSeconds(300)))
+                .issueTime(Date.from(issuedAt))
+                .notBeforeTime(Date.from(issuedAt.minusSeconds(30)))
+                .expirationTime(Date.from(expiresAt))
                 .build();
         JWSHeader.Builder header = new JWSHeader.Builder(JWSAlgorithm.RS256)
                 .keyID(signingKey.getKeyID());
