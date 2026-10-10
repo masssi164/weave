@@ -44,7 +44,8 @@ def command(argv, environment, timeout):
 
 def run(args):
     origin = urlsplit(args.homeserver)
-    if (origin.scheme != "https" or origin.hostname != "api.weave.test"
+    if (origin.scheme != "https" or origin.hostname not in {
+            "api.weave.test", "api.weave.localhost"}
             or not origin.port or origin.path not in ("", "/")
             or origin.query or origin.fragment):
         raise ProofError("Matrix facade origin is not the isolated test authority")
