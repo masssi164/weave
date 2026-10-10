@@ -64,3 +64,13 @@ failed, or incomplete. Production publication remains a separate decision.
   lint and protected checks validate the workflow before integration.
 - The workflow logs only commit IDs, check conclusions and support-safe human
   result fields, never member content, tokens or provider credentials.
+
+## Distribution notices
+
+The Server and MCP OCI images identify the current repository-default licence
+for Weave-authored material as `EUPL-1.2-or-later`, consistent with the accepted
+`LICENSE`, `NOTICE.md` and `THIRD_PARTY_NOTICES.md`. The images carry those
+notices under `/app/legal`; the label does not replace third-party grants or
+existing file-level notices, which remain in force. The Server image also
+retains the incorporated Matrix vendor licence texts. This corrects stale
+Apache-only image metadata without changing licence scope or upstream grants.
