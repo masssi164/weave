@@ -21,7 +21,7 @@ concurrency:
 jobs:
   full-compose-e2e:
     name: Full Compose E2E
-    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && '["ubuntu-latest"]' || '["self-hosted","macOS","ARM64","weave-live"]') }}
     timeout-minutes: 90
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
@@ -38,6 +38,18 @@ jobs:
       WEAVE_TEST_APP_OUTPUT_ROOT: ${{ github.workspace }}/weave/build/test-app
 
     steps:
+      - name: Reject untrusted fork source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" && "$SOURCE_REPOSITORY" != "$BASE_REPOSITORY" ]]; then
+            echo "::error::Full Compose E2E requires a reviewed same-repository source; this fork PR cannot execute on the signing runner."
+            exit 1
+          fi
+
       - name: Verify bounded runner
         run: |
           set -euo pipefail
