@@ -22,6 +22,7 @@ final matrixCryptoSessionCoordinatorProvider =
         matrixSessionAccess: GeneratedMatrixSessionAccess(
           httpClient: ref.watch(weaveApiHttpClientProvider),
         ),
+        matrixHttpClient: ref.watch(weaveApiHttpClientProvider),
         secureStore: secureStore,
       );
       ref.onDispose(coordinator.disposePreservingCryptoState);

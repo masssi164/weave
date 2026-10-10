@@ -540,6 +540,20 @@ void main() {
         );
         await expectLater(files.listDirectory('/'), throwsA(anything));
         await expectLater(calendar.loadScopes(), throwsA(anything));
+        final revokedMatrix = await container
+            .read(weaveApiHttpClientProvider)
+            .get(
+              config.matrixHomeserverUrl.resolve(
+                '/_matrix/client/v3/account/whoami',
+              ),
+              headers: <String, String>{
+                'Authorization': 'Bearer $memberToken',
+                'x-weave-matrix-device-id': matrix.deviceId,
+                'x-weave-matrix-device-proof': deviceProof,
+              },
+            );
+        expect(revokedMatrix.statusCode, 401);
+        expect(jsonDecode(revokedMatrix.body)['errcode'], 'M_UNKNOWN_TOKEN');
         debugPrint('NATIVE_PRODUCT_STAGE phase=logout-denial-passed');
       } finally {
         await coordinator.disposePreservingCryptoState();
@@ -677,6 +691,7 @@ void main() {
         matrixSessionAccess: GeneratedMatrixSessionAccess(
           httpClient: container.read(weaveApiHttpClientProvider),
         ),
+        matrixHttpClient: container.read(weaveApiHttpClientProvider),
         secureStore: secondSecureStore,
         storeRootLoader: () async => temporaryStore,
       );

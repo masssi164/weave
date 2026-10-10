@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart' as http_testing;
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
@@ -102,6 +104,8 @@ void main() {
   late _AuthRepository auth;
   late _Access access;
   late FakeRustMatrixCoreBridge bridge;
+  late http.Client matrixHttpClient;
+  late List<http.Request> logoutRequests;
 
   WeaveMemberMatrixSessionCoordinator coordinator() =>
       WeaveMemberMatrixSessionCoordinator(
@@ -112,6 +116,7 @@ void main() {
           random: Random(1),
         ),
         matrixSessionAccess: access,
+        matrixHttpClient: matrixHttpClient,
         secureStore: store,
         rustMatrixCoreBridge: bridge,
         storeRootLoader: () async => root,
@@ -129,6 +134,11 @@ void main() {
     );
     access = _Access();
     bridge = FakeRustMatrixCoreBridge();
+    logoutRequests = <http.Request>[];
+    matrixHttpClient = http_testing.MockClient((request) async {
+      logoutRequests.add(request);
+      return http.Response('{}', 200);
+    });
   });
 
   tearDown(() async {
@@ -389,6 +399,24 @@ void main() {
         '$matrixCryptoStorePassphraseKeyPrefix${session.profileKey}';
     final path = bridge.memberActivations.single['storePath']!;
     await current.endSession();
+    expect(logoutRequests, hasLength(1));
+    expect(
+      logoutRequests.single.url.toString(),
+      'https://api.weave.test/_matrix/client/v3/logout',
+    );
+    expect(logoutRequests.single.method, 'POST');
+    expect(
+      logoutRequests.single.headers['authorization'],
+      'Bearer access-token',
+    );
+    expect(
+      logoutRequests.single.headers['x-weave-matrix-device-id'],
+      session.deviceId,
+    );
+    expect(
+      logoutRequests.single.headers['x-weave-matrix-device-proof'],
+      isNotEmpty,
+    );
     expect(store.rawValue(passphraseKey), isNotNull);
     expect(await Directory(path).exists(), isTrue);
 
@@ -402,4 +430,27 @@ void main() {
     expect(store.rawValue(matrixOAuthCurrentBindingKey), isNull);
     expect(await Directory(path).exists(), isFalse);
   });
+
+  test(
+    'failed remote logout clears the local bearer and reports failure',
+    () async {
+      matrixHttpClient = http_testing.MockClient(
+        (request) async => http.Response('{}', 503),
+      );
+      final current = coordinator();
+      final session = await current.open(synchronize: false);
+
+      await expectLater(
+        current.endSession(),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.type,
+            'type',
+            ChatFailureType.protocol,
+          ),
+        ),
+      );
+      expect(bridge.disposedProfiles, contains(session.profileKey));
+    },
+  );
 }

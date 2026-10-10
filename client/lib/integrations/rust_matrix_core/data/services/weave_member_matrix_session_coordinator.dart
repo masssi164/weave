@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
@@ -27,6 +28,7 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
     required AuthSessionRepository authSessionRepository,
     required MatrixDeviceIdentityRepository matrixDeviceIdentityRepository,
     required MatrixSessionAccessPort matrixSessionAccess,
+    required http.Client matrixHttpClient,
     required SecureStore secureStore,
     RustMatrixCoreBridge rustMatrixCoreBridge = const RustMatrixCoreBridge(),
     MatrixStoreRootLoader storeRootLoader = getApplicationSupportDirectory,
@@ -35,6 +37,7 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
        _authSessionRepository = authSessionRepository,
        _matrixDeviceIdentityRepository = matrixDeviceIdentityRepository,
        _matrixSessionAccess = matrixSessionAccess,
+       _matrixHttpClient = matrixHttpClient,
        _secureStore = secureStore,
        _bridge = rustMatrixCoreBridge,
        _storeRootLoader = storeRootLoader,
@@ -44,6 +47,7 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
   final AuthSessionRepository _authSessionRepository;
   final MatrixDeviceIdentityRepository _matrixDeviceIdentityRepository;
   final MatrixSessionAccessPort _matrixSessionAccess;
+  final http.Client _matrixHttpClient;
   final SecureStore _secureStore;
   final RustMatrixCoreBridge _bridge;
   final MatrixStoreRootLoader _storeRootLoader;
@@ -355,7 +359,83 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
   }
 
   @override
-  Future<void> endSession() => disposePreservingCryptoState();
+  Future<void> endSession() async {
+    try {
+      final bindingKey = await _secureStore.read(matrixOAuthCurrentBindingKey);
+      if (bindingKey == null) return;
+      final raw = await _secureStore.read(bindingKey);
+      if (raw == null) {
+        throw const ChatFailure.storage('M_WEAVE_MATRIX_BINDING_INVALID');
+      }
+      final Map<String, dynamic> binding;
+      try {
+        binding = jsonDecode(raw) as Map<String, dynamic>;
+      } on Object {
+        throw const ChatFailure.storage('M_WEAVE_MATRIX_BINDING_INVALID');
+      }
+      final profileKey = binding['profileKey'];
+      final deviceId = binding['deviceId'];
+      final homeserver = Uri.tryParse(
+        binding['homeserverUrl'] as String? ?? '',
+      );
+      final configuration = await _serverConfigurationRepository
+          .loadConfiguration();
+      if (profileKey is! String ||
+          !RegExp(r'^[0-9a-f]{64}$').hasMatch(profileKey) ||
+          deviceId is! String ||
+          deviceId.isEmpty ||
+          homeserver == null ||
+          !_isSecureMatrixOrigin(homeserver) ||
+          configuration == null ||
+          homeserver != configuration.serviceEndpoints.matrixHomeserverUrl) {
+        throw const ChatFailure.configuration(
+          'M_WEAVE_MATRIX_LOGOUT_ENDPOINT_UNCONFIRMED',
+        );
+      }
+      final authState = await _authSessionRepository.restoreSession(
+        AuthConfiguration(
+          issuer: configuration.oidcIssuerUrl,
+          clientId: configuration.oidcClientRegistration.clientId,
+        ),
+      );
+      final session = authState.session;
+      final proof = await _secureStore.read(
+        '$_memberMatrixDeviceProofKeyPrefix$profileKey',
+      );
+      if (!authState.isAuthenticated || session == null || proof == null) {
+        throw const ChatFailure.sessionRequired(
+          'M_WEAVE_MATRIX_LOGOUT_REVOCATION_UNCONFIRMED',
+        );
+      }
+      final response = await _matrixHttpClient
+          .post(
+            homeserver.resolve('/_matrix/client/v3/logout'),
+            headers: <String, String>{
+              'Authorization': 'Bearer ${session.accessToken}',
+              'x-weave-matrix-device-id': deviceId,
+              'x-weave-matrix-device-proof': proof,
+              'Content-Type': 'application/json',
+            },
+            body: '{}',
+          )
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) {
+        throw ChatFailure.protocol(
+          'M_WEAVE_MATRIX_LOGOUT_REVOCATION_UNCONFIRMED',
+          cause: response.statusCode,
+        );
+      }
+    } on ChatFailure {
+      rethrow;
+    } on Object catch (error) {
+      throw ChatFailure.protocol(
+        'M_WEAVE_MATRIX_LOGOUT_REVOCATION_UNCONFIRMED',
+        cause: error,
+      );
+    } finally {
+      await disposePreservingCryptoState();
+    }
+  }
 
   @override
   Future<void> removeForExplicitAccountRemoval() async {
