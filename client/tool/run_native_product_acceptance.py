@@ -131,6 +131,27 @@ def verify_signed_app(team: str, bundle_id: str) -> None:
     print("NATIVE_SIGNING_RESULT status=passed keychain=true", flush=True)
 
 
+def require_signing_identity() -> None:
+    """Check the signing identity from the runner process, not a desktop shell."""
+    keychain = Path.home() / "Library/Keychains/login.keychain-db"
+    if keychain.is_symlink() or not keychain.is_file():
+        raise RuntimeError("native signing login keychain is unavailable")
+    result = subprocess.run(
+        ["security", "find-identity", "-v", "-p", "codesigning", str(keychain)],
+        capture_output=True, text=True, timeout=15,
+    )
+    match = re.search(r"\b(\d+) valid identities found\b", result.stdout)
+    count = int(match.group(1)) if match else 0
+    print(
+        "NATIVE_SIGNING_CONTEXT_RESULT status="
+        + ("available" if result.returncode == 0 and count > 0 else "unavailable")
+        + f" validIdentityCount={count} supportSafe=true",
+        flush=True,
+    )
+    if result.returncode or count == 0:
+        raise RuntimeError("native signing identity is unavailable to the runner process")
+
+
 def checkout_app_pids() -> list[int]:
     """Find only the native Flutter executable built by this checkout."""
     executable = str((APP / "Contents/MacOS/weave").resolve())
@@ -274,6 +295,7 @@ def main() -> int:
             raise RuntimeError("stale native AppAuth consent cleanup failed")
         print(consent_marker.group(0), flush=True)
         print(browser_marker.group(0), flush=True)
+        require_signing_identity()
         run_quiet(["flutter", "build", "macos", "--debug"], timeout=900, env=env)
         print("NATIVE_BUILD_PREPARATION_RESULT status=passed target=macos", flush=True)
         verify_signed_app(signing_team, signing_bundle)
