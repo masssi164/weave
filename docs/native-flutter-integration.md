@@ -34,6 +34,28 @@ rooms fail closed. Human dogfood is separate from automated acceptance.
 
 ## Current local acceptance result, 2026-10-10
 
+### Password submission diagnosis on integrated dev
+
+[Full Compose run 38093547541](https://github.com/masssi164/weave/actions/runs/38093547541)
+on `5adb95069dd93fd57a28e3318b85fe74ceb4e4f2` failed and is excluded from
+acceptance. Signing, Accessibility, app launch, consent and username submission
+passed. The browser driver reported password submission, but Flutter never
+received authentication completion and failed at its 12-minute test deadline.
+The retained Safari window still showed the exact disposable IdP password form
+with a filled password. A native click submitted that form; because teardown had
+already removed the stack, this diagnostic action reached an unavailable page.
+It is not a successful authentication test.
+
+Safari had acknowledged the driver's `AXPress` without navigating. The driver
+now requires the password form to leave before reporting submission. If it
+remains, the driver re-resolves the exact disposable issuer authority, activates
+that Safari process, verifies the focused window and password field, and sends
+Return to that process. Failure to leave the form fails the driver. Only the
+separate Flutter assertions can prove the actual PKCE callback, member session
+and authorized product journey. Neither a button-action return code nor browser
+navigation alone establishes native acceptance. No credentials or callback
+values enter public diagnostics.
+
 The documented disposable `specCorpusConformance testApp` command, with
 `--max-workers=2`, passed in 14m 59s overall (12m 4s for the inner product
 task) on exact source `6f974dff7356bc78a9d1376e929988e9f86e8696` and
