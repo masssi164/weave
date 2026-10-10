@@ -109,6 +109,22 @@ void main() {
             'and expires through #908.',
       );
     });
+
+    test('interpolated HTTP bearer header is protocol data, not UI copy', () {
+      expect(
+        _looksLikeUserFacingString(
+          "'Authorization': 'Bearer \${session.accessToken}',",
+        ),
+        isFalse,
+      );
+      expect(_looksLikeUserFacingString("Text('Unable to sign in')"), isTrue);
+      expect(
+        _looksLikeUserFacingString(
+          "'Authorization': 'Bearer static credential',",
+        ),
+        isTrue,
+      );
+    });
   });
 }
 
@@ -524,6 +540,7 @@ bool _isLocalizationApprovedPath(String path) {
 
 bool _looksLikeUserFacingString(String line) {
   if (!line.contains("'") && !line.contains('"')) return false;
+  if (_interpolatedBearerHeader.hasMatch(line)) return false;
   if (line.contains('l10n.')) return false;
   if (line.contains('AppLocalizations')) return false;
   if (line.trimLeft().startsWith('import ')) return false;
@@ -544,6 +561,10 @@ bool _looksLikeUserFacingString(String line) {
   }
   return false;
 }
+
+final _interpolatedBearerHeader = RegExp(
+  r'''^\s*['"]Authorization['"]\s*:\s*['"]Bearer \$\{[A-Za-z_][A-Za-z_0-9.]*\}['"],?\s*$''',
+);
 
 final _stringLiteralPattern = RegExp(r'''(r)?'([^']*)'|"(.*?)"''');
 final _userFacingWords = RegExp(
