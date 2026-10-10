@@ -589,6 +589,27 @@ void main() {
         );
         await expectLater(files.listDirectory('/'), throwsA(anything));
         await expectLater(calendar.loadScopes(), throwsA(anything));
+        expect(
+          _bearerExpiry(memberToken).isAfter(DateTime.now().toUtc()),
+          isTrue,
+        );
+        final retainedUserFiles = user_api.FilesApi(
+          weaveUserApiClient(
+            apiBaseUrl: config.backendApiBaseUrl,
+            accessToken: memberToken,
+            httpClient: container.read(weaveApiHttpClientProvider),
+          ),
+        );
+        await expectLater(
+          retainedUserFiles.getFilesReadiness(),
+          throwsA(
+            isA<user_api.ApiException>().having(
+              (e) => e.code,
+              'HTTP status',
+              401,
+            ),
+          ),
+        );
         for (final token in <String>[earlierToken, memberToken]) {
           final revokedMatrix = await container
               .read(weaveApiHttpClientProvider)
@@ -615,7 +636,7 @@ void main() {
         'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed login=single '
         'files=generated-upload-read calendar=generated-crud matrix=native '
         'businessRoomSendRead=true refresh=true sessionReopen=true '
-        'processRestart=true expiredBearerDenied=true logoutDenied=true '
+        'processRestart=true expiredBearerDenied=true userLogoutDenied=true logoutDenied=true '
         'supportSafe=true',
       );
     },

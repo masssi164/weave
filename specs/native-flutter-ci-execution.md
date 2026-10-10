@@ -42,6 +42,13 @@ A bounded expiry wait, missing probe or unavailable assertion fails the native
 lane. Separate real-signature/JWKS decoder tests verify expired User, Admin and
 MCP token rejection; successful fresh tokens with the same claims are controls.
 
+Logout must also reject a retained, still-unexpired refreshed member bearer at
+the generated User Files operation, as well as Matrix. Local credential/cache
+clearing alone is insufficient for the accepted identity-lifecycle scenario.
+The normal User decoder reuses the existing durable, organization/issuer/subject/
+OIDC-session-scoped revocation state. It must not create another session ledger
+or make contract generation depend on loading the native Matrix runtime.
+
 The Matrix member ID used by the native client and facade is the same stable,
 opaque account reference derived from the validated issuer and full subject.
 It must not normalize case, discard colon prefixes, or replace characters in

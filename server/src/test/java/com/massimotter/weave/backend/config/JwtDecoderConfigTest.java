@@ -37,6 +37,33 @@ class JwtDecoderConfigTest {
     private static final String ISSUER_URI = "https://auth.weave.test/realms/weave";
 
     @Test
+    void memberDecoderRejectsRevokedBearerAfterSignatureAndClaimValidation() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
+            var sessions = org.mockito.Mockito.mock(
+                    com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService.class);
+            @SuppressWarnings("unchecked")
+            org.springframework.beans.factory.ObjectProvider<
+                    com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService> provider =
+                    org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+            org.mockito.Mockito.when(provider.getObject()).thenReturn(sessions);
+            OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+            properties.getJwt().setIssuerUri(ISSUER_URI);
+            properties.getJwt().setJwkSetUri(jwksServer.jwkSetUri());
+            JwtDecoder decoder = new JwtDecoderConfig().memberJwtDecoder(
+                    properties, new WeaveSecurityProperties(null, null), provider);
+            String bearer = signedToken(signingKey, ISSUER_URI);
+            assertThat(decoder.decode(bearer).getSubject()).isNotBlank();
+            org.mockito.Mockito.when(sessions.revoked(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+            assertThrows(JwtException.class, () -> decoder.decode(bearer));
+            org.mockito.Mockito.clearInvocations(provider, sessions);
+            assertThrows(JwtException.class,
+                    () -> decoder.decode(signedToken(signingKey, "https://wrong-issuer.invalid")));
+            org.mockito.Mockito.verifyNoInteractions(provider, sessions);
+        }
+    }
+
+    @Test
     void usesConfiguredJwkSetUriAndValidatesPublicIssuer() throws Exception {
         RSAKey signingKey = rsaSigningKey();
         try (JwksServer jwksServer = JwksServer.start(signingKey)) {

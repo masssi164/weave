@@ -1,10 +1,12 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
@@ -12,6 +14,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
@@ -28,8 +31,33 @@ import org.springframework.util.StringUtils;
 @Configuration
 public class JwtDecoderConfig {
 
-    @Bean
+    @Bean("jwtDecoder")
     @Primary
+    JwtDecoder memberJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            ObjectProvider<MatrixFacadeClientStateService> memberSessions) {
+        return withMemberSessionRevocation(
+                jwtDecoder(resourceServerProperties, weaveSecurityProperties), memberSessions::getObject);
+    }
+
+    static JwtDecoder withMemberSessionRevocation(
+            JwtDecoder decoder, Supplier<MatrixFacadeClientStateService> memberSessions) {
+        return token -> {
+            Jwt jwt = decoder.decode(token);
+            // Resolve only after signature/claim validation, so contract export
+            // does not load the native Matrix runtime through authentication.
+            MatrixFacadeClientStateService sessions = memberSessions.get();
+            if (sessions.revoked(jwt)) {
+                // Retain the longest expiry when another already-issued bearer
+                // from the same revoked OIDC session is presented.
+                sessions.revoke(jwt);
+                throw new BadJwtException("The Weave member session was revoked.");
+            }
+            return jwt;
+        };
+    }
+
     JwtDecoder jwtDecoder(
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties) {
