@@ -8,6 +8,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.times;
 
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
@@ -19,6 +22,7 @@ import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminCl
 import com.massimotter.weave.backend.model.identity.OrganizationMemberResponse;
 import com.massimotter.weave.backend.model.identity.OrganizationMemberUpdateRequest;
 import com.massimotter.weave.backend.model.identity.WeaverEntitlementUpdateRequest;
+import com.massimotter.weave.backend.security.MemberSessionCutoffService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -44,6 +48,7 @@ class OrganizationMemberAdministrationServiceTest {
   private IdentityAdminOperationStore operations;
   private IdentityOpaqueReferenceCodec references;
   private InMemoryAuditEventPublisher audit;
+  private MemberSessionCutoffService memberCutoffs;
   private OrganizationMemberAdministrationService service;
 
   @BeforeEach
@@ -57,7 +62,14 @@ class OrganizationMemberAdministrationServiceTest {
     keycloak = org.mockito.Mockito.mock(KeycloakIdentityAdminClient.class);
     operations = org.mockito.Mockito.mock(IdentityAdminOperationStore.class);
     audit = new InMemoryAuditEventPublisher();
+    memberCutoffs = org.mockito.Mockito.mock(MemberSessionCutoffService.class);
     when(keycloak.configuredOrganizationId()).thenReturn(KEYCLOAK_ORGANIZATION_ID);
+    when(keycloak.revokeSessions(anyString(), anyString()))
+        .thenReturn(Instant.parse("2026-07-26T12:00:00Z"));
+    when(keycloak.offboard(anyString(), anyString()))
+        .thenReturn(Instant.parse("2026-07-26T12:00:00Z"));
+    when(operations.claim(anyString(), anyString(), anyString(), anyString()))
+        .thenReturn(Optional.empty());
     service =
         new OrganizationMemberAdministrationService(
             keycloak,
@@ -65,7 +77,9 @@ class OrganizationMemberAdministrationServiceTest {
             operations,
             audit,
             JsonMapper.builder().findAndAddModules().build(),
-            Clock.fixed(Instant.parse("2026-07-26T12:00:00Z"), ZoneOffset.UTC));
+            Clock.fixed(Instant.parse("2026-07-26T12:00:00Z"), ZoneOffset.UTC),
+            memberCutoffs,
+            "https://auth.example.test/realms/weave");
   }
 
   @Test
@@ -256,6 +270,140 @@ class OrganizationMemberAdministrationServiceTest {
             });
 
     verify(keycloak, never()).members(anyString());
+  }
+
+  @Test
+  void sessionRevocationPersistsBeforeAndAfterProviderLogoutAndReplayDoesNotRevokeReauth() {
+    Clock sequence = org.mockito.Mockito.mock(Clock.class);
+    Instant beforeProvider = Instant.parse("2026-07-26T12:00:00Z");
+    Instant afterProvider = beforeProvider.plusSeconds(2);
+    Instant issuerNotBefore = afterProvider.plusSeconds(5);
+    when(sequence.instant()).thenReturn(beforeProvider, afterProvider);
+    service = new OrganizationMemberAdministrationService(
+        keycloak, references, operations, audit, JsonMapper.builder().findAndAddModules().build(),
+        sequence, memberCutoffs, "https://auth.example.test/realms/weave");
+    ProviderMember target = member("subject-member", "member@example.test", "Member", "member", true);
+    when(keycloak.members(KEYCLOAK_ORGANIZATION_ID)).thenReturn(List.of(target));
+    when(keycloak.revokeSessions(KEYCLOAK_ORGANIZATION_ID, target.subject()))
+        .thenReturn(issuerNotBefore);
+    String handle = references.member(ORGANIZATION_ID, target.subject());
+    String version = service.get(ORGANIZATION_ID, handle, jwt("owner")).version();
+    String key = "idempotency-member-revoke-0001";
+    var result = service.revokeSessions(ORGANIZATION_ID, handle, version, key, jwt("owner"));
+
+    assertThat(result.outcome()).isEqualTo("sessions-revoked");
+    var ordered = inOrder(memberCutoffs, keycloak, operations);
+    ordered.verify(memberCutoffs).advance(ORGANIZATION_ID,
+        "https://auth.example.test/realms/weave", target.subject(),
+        beforeProvider);
+    ordered.verify(keycloak).revokeSessions(KEYCLOAK_ORGANIZATION_ID, target.subject());
+    ordered.verify(memberCutoffs).advance(ORGANIZATION_ID,
+        "https://auth.example.test/realms/weave", target.subject(),
+        issuerNotBefore);
+    ordered.verify(operations).complete(org.mockito.ArgumentMatchers.eq(ORGANIZATION_ID),
+        org.mockito.ArgumentMatchers.eq(key), org.mockito.ArgumentMatchers.anyString());
+
+    when(operations.claim(org.mockito.ArgumentMatchers.eq(ORGANIZATION_ID),
+        org.mockito.ArgumentMatchers.eq(key),
+        org.mockito.ArgumentMatchers.eq("member-session-revocation"),
+        org.mockito.ArgumentMatchers.anyString()))
+        .thenReturn(Optional.of("{\"memberHandle\":\"" + handle + "\",\"outcome\":\"sessions-revoked\"}"));
+    assertThat(service.revokeSessions(ORGANIZATION_ID, handle, version, key, jwt("owner")))
+        .isEqualTo(result);
+    verify(memberCutoffs, times(1)).advance(ORGANIZATION_ID,
+        "https://auth.example.test/realms/weave", target.subject(), beforeProvider);
+    verify(memberCutoffs, times(1)).advance(ORGANIZATION_ID,
+        "https://auth.example.test/realms/weave", target.subject(), issuerNotBefore);
+    verify(keycloak, times(1)).revokeSessions(KEYCLOAK_ORGANIZATION_ID, target.subject());
+    verify(sequence, times(3)).instant();
+  }
+
+  @Test
+  void durableRevocationFailureNeverReportsProviderOnlyLogoutAsSuccess() {
+    ProviderMember target = member("subject-member", "member@example.test", "Member", "member", true);
+    when(keycloak.members(KEYCLOAK_ORGANIZATION_ID)).thenReturn(List.of(target));
+    String handle = references.member(ORGANIZATION_ID, target.subject());
+    String version = service.get(ORGANIZATION_ID, handle, jwt("owner")).version();
+    org.mockito.Mockito.doNothing().doThrow(new IllegalStateException("database down"))
+        .when(memberCutoffs).advance(org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.any(Instant.class));
+
+    assertThatThrownBy(() -> service.revokeSessions(ORGANIZATION_ID, handle, version,
+        "idempotency-member-revoke-0002", jwt("owner")))
+        .isInstanceOfSatisfying(ApiErrorException.class, failure -> {
+          assertThat(failure.status().value()).isEqualTo(503);
+          assertThat(failure.code()).isEqualTo("member-session-revocation-unavailable");
+          assertThat(failure.getMessage()).doesNotContain("database");
+        });
+    verify(keycloak).revokeSessions(KEYCLOAK_ORGANIZATION_ID, target.subject());
+    verify(operations, never()).complete(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+    assertThat(audit.events()).isEmpty();
+  }
+
+  @Test
+  void initialDurableCutoffFailureDoesNotCallIdentityProvider() {
+    ProviderMember target = member("subject-member", "member@example.test", "Member", "member", true);
+    when(keycloak.members(KEYCLOAK_ORGANIZATION_ID)).thenReturn(List.of(target));
+    String handle = references.member(ORGANIZATION_ID, target.subject());
+    String version = service.get(ORGANIZATION_ID, handle, jwt("owner")).version();
+    doThrow(new IllegalStateException("database down"))
+        .when(memberCutoffs).advance(org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.any(Instant.class));
+
+    assertThatThrownBy(() -> service.revokeSessions(ORGANIZATION_ID, handle, version,
+        "idempotency-member-revoke-0003", jwt("owner")))
+        .isInstanceOfSatisfying(ApiErrorException.class, failure ->
+            assertThat(failure.status().value()).isEqualTo(503));
+    verify(keycloak, never()).revokeSessions(anyString(), anyString());
+    verify(operations, never()).complete(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+  }
+
+  @Test
+  void offboardingPersistsCutoffAroundProviderMutation() {
+    ProviderMember target = member("subject-member", "member@example.test", "Member", "member", true);
+    when(keycloak.members(KEYCLOAK_ORGANIZATION_ID)).thenReturn(List.of(target));
+    Instant issuerNotBefore = Instant.parse("2026-07-26T12:00:07Z");
+    when(keycloak.offboard(KEYCLOAK_ORGANIZATION_ID, target.subject()))
+        .thenReturn(issuerNotBefore);
+    String handle = references.member(ORGANIZATION_ID, target.subject());
+    String version = service.get(ORGANIZATION_ID, handle, jwt("owner")).version();
+
+    assertThat(service.offboard(ORGANIZATION_ID, handle, version,
+        "idempotency-member-offboard-0001", jwt("owner")).outcome())
+        .isEqualTo("offboarded-and-disabled");
+    var ordered = inOrder(memberCutoffs, keycloak);
+    ordered.verify(memberCutoffs).advance(ORGANIZATION_ID,
+        "https://auth.example.test/realms/weave", target.subject(),
+        Instant.parse("2026-07-26T12:00:00Z"));
+    ordered.verify(keycloak).offboard(KEYCLOAK_ORGANIZATION_ID, target.subject());
+    ordered.verify(memberCutoffs).advance(ORGANIZATION_ID,
+        "https://auth.example.test/realms/weave", target.subject(),
+        issuerNotBefore);
+  }
+
+  @Test
+  void providerFailureAfterPreCutoffDoesNotCompleteTheRevocation() {
+    ProviderMember target = member("subject-member", "member@example.test", "Member", "member", true);
+    when(keycloak.members(KEYCLOAK_ORGANIZATION_ID)).thenReturn(List.of(target));
+    when(keycloak.revokeSessions(KEYCLOAK_ORGANIZATION_ID, target.subject()))
+        .thenThrow(new KeycloakIdentityAdminClient.KeycloakAdminException(
+            503, "Keycloak administration operation failed", "member-session-revocation"));
+    String handle = references.member(ORGANIZATION_ID, target.subject());
+    String version = service.get(ORGANIZATION_ID, handle, jwt("owner")).version();
+
+    assertThatThrownBy(() -> service.revokeSessions(ORGANIZATION_ID, handle, version,
+        "idempotency-member-revoke-0004", jwt("owner")))
+        .isInstanceOf(KeycloakIdentityAdminClient.KeycloakAdminException.class);
+    verify(memberCutoffs).advance(ORGANIZATION_ID,
+        "https://auth.example.test/realms/weave", target.subject(),
+        Instant.parse("2026-07-26T12:00:00Z"));
+    verify(operations, never()).complete(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+    assertThat(audit.events()).isEmpty();
   }
 
   private ProviderMember member(

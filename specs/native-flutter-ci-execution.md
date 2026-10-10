@@ -49,6 +49,53 @@ The normal User decoder reuses the existing durable, organization/issuer/subject
 OIDC-session-scoped revocation state. It must not create another session ledger
 or make contract generation depend on loading the native Matrix runtime.
 
+Administrator member session revocation and offboarding must also deny retained
+unexpired User, Admin and Matrix bearers while preserving existing token-profile
+separation. Ending the IdP session or removing local credentials alone is not
+proof. Reuse the existing durable revocation table with a domain-separated,
+hashed organization/issuer/subject revoked-before cutoff. Resolve the target
+from the current member and the trusted configured issuer. Persist a cutoff
+before provider mutation and advance it after successful provider completion;
+report success only after both outcomes are durable. Repeated/concurrent
+revocations must retain the greatest cutoff and expiry, and a completed
+idempotent replay must not revoke newly authenticated sessions. Missing or
+pre-cutoff issuance fails closed; later genuine OIDC reauthorization remains
+possible. Since the accepted JWT profile currently has no enforced maximum
+lifetime, member cutoffs do not use the shorter per-session tombstone expiry.
+Ordinary API export and Admin revocation must remain independent of loading the
+native Matrix runtime; workload identities retain their separate validation.
+The post-provider cutoff also incorporates the issuer-owned user `notBefore`
+epoch returned after Keycloak logout. Backend wall time alone cannot deny an
+already-issued token when the issuer clock is ahead. Keycloak 26.7.1 sets this
+epoch in its [UserResource logout implementation](https://github.com/keycloak/keycloak/blob/26.7.1/services/src/main/java/org/keycloak/services/resources/admin/UserResource.java)
+and exposes it in its [user representation](https://github.com/keycloak/keycloak/blob/26.7.1/server-spi-private/src/main/java/org/keycloak/models/utils/ModelToRepresentation.java).
+Read only the already-allowlisted, current-member-bound user representation;
+retain the metadata internally, with no product DTO or provider credential
+exposure. Offboarding captures the epoch before removing membership. Missing,
+non-integral, non-positive or mismatched metadata fails the operation; do not
+fall back to wall time and report success. Persist the greatest existing, local
+and issuer cutoff. Tests must prove a signed retained token issued ahead of
+the backend clock is denied permanently, and a later issuer-issued token is
+admitted. Clock disagreement can conservatively delay new issuance admission;
+this is a truthful failure, not a reason to admit retained revoked credentials.
+
+
+Native logout before Chat initialization must use the existing authorized
+Matrix logout route without inventing a device binding or provider login. The
+existing endpoint already accepts an unbound member session without device
+headers. Preserve secure configured-origin checks and truthful remote failure
+while local cleanup proceeds. This does not weaken required possession checks
+for an existing explicit Matrix device or qualify future E2EE recovery.
+
+The integrated disposable journey must invoke the real generated Admin
+session-revocation operation against a real PKCE member session, establish
+fresh positive controls, prove retained unexpired User and Matrix rejection,
+and prove later real reauthorization resumes the same authorized identity.
+Admin decoder and durable cutoff tests must independently verify principal
+separation, repeat/concurrent updates, restart, failed persistence and
+idempotent replay. Client coordinator tests cover the no-binding logout path;
+those unit tests alone are not native product evidence.
+
 The Matrix member ID used by the native client and facade is the same stable,
 opaque account reference derived from the validated issuer and full subject.
 It must not normalize case, discard colon prefixes, or replace characters in
@@ -99,3 +146,9 @@ The Matrix Client-Server northbound must return a Matrix `errcode` and `error`
 object even when a request is denied by the Spring Security filter before the
 facade controller. Missing and invalid bearers use the Matrix authentication
 error profile; a valid foreign-organization bearer uses `M_FORBIDDEN`.
+
+The existing Admin session-revocations and offboarding operations must document
+the actual ApiErrorResponse statuses 400, 404, 409, 412, 428 and 502, plus
+503 for durable revocation persistence failure. Regenerate the server-owned
+Admin contract and consumed SDKs with the existing generation chain; no route
+or schema is introduced by these error metadata corrections.

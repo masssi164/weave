@@ -437,6 +437,8 @@ public final class FreshProductFlow {
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
         // Native Calendar writes use the owner's normal User session. Run its
         // real logout after all JVM journeys that need that owner's SSO state.
+        new MemberSessionRevocationJourney(environment, http).prove(
+            browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword);
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
             release.bindingRef(), mcpProof, restartProof, revocationDenied,
@@ -529,6 +531,8 @@ public final class FreshProductFlow {
             memberSession.accessToken(), personRef, generatedFilesProof.fileId());
         spaceRevocationRestored = true;
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
+        new MemberSessionRevocationJourney(environment, http).prove(
+            browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword);
 
         writeEvidence(
@@ -1197,6 +1201,9 @@ public final class FreshProductFlow {
     evidence.put("samePersonRefAfterRegrant", samePersonRefAfterRegrant);
     evidence.put("spaceRevocationRestored", spaceRevocationRestored);
     evidence.put("foreignOrganizationDenied", foreignOrganizationDenied);
+    evidence.put("administratorSessionRevocationDenied", true);
+    evidence.put("reauthenticationAfterSessionRevocation", true);
+    evidence.put("uninitializedChatLogoutDenied", true);
     if (collaborationPasses.size() != 2
         || collaborationPasses.get(0).pass() != 1
         || collaborationPasses.get(1).pass() != 2

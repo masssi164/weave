@@ -160,6 +160,55 @@ public class JpaMatrixFacadeClientStateStore implements MatrixFacadeClientStateS
                 new MatrixRevokedSessionJpaEntity(sessionHash, revokedAt, expiresAt));
     }
 
+    @Override
+    public void advanceMemberCutoff(String memberHash, Instant revokedBefore, Instant expiresAt) {
+        // The database stores microseconds. Rounding a cutoff down could admit a
+        // fractional-second bearer issued before the actual revocation instant.
+        Instant truncatedCutoff = databaseInstant(revokedBefore);
+        Instant persistedCutoff = truncatedCutoff.isBefore(revokedBefore)
+                ? truncatedCutoff.plusNanos(1_000) : truncatedCutoff;
+        Instant persistedExpiresAt = databaseInstant(expiresAt);
+        RuntimeException lastConflict = null;
+        for (int attempt = 1; attempt <= MAX_CONCURRENT_WRITE_ATTEMPTS; attempt++) {
+            boolean[] attemptedCreate = {false};
+            try {
+                transactions.executeWithoutResult(status -> {
+                    if (revokedSessions.advanceMemberCutoff(
+                            memberHash, persistedCutoff, persistedExpiresAt) != 0) {
+                        return;
+                    }
+                    attemptedCreate[0] = true;
+                    revokedSessions.saveAndFlush(new MatrixRevokedSessionJpaEntity(
+                            memberHash, persistedCutoff, persistedExpiresAt));
+                });
+                return;
+            } catch (OptimisticLockingFailureException | OptimisticLockException conflict) {
+                lastConflict = conflict;
+                Boolean winnerExists = transactions.execute(status -> revokedSessions.existsById(memberHash));
+                if (!Boolean.TRUE.equals(winnerExists)) {
+                    throw conflict;
+                }
+            } catch (DataIntegrityViolationException | PersistenceException conflict) {
+                if (!attemptedCreate[0]) {
+                    throw conflict;
+                }
+                lastConflict = conflict;
+                Boolean winnerExists = transactions.execute(status -> revokedSessions.existsById(memberHash));
+                if (!Boolean.TRUE.equals(winnerExists)) {
+                    throw conflict;
+                }
+            }
+        }
+        throw new ConcurrentWriteException("Concurrent member revocation cutoff did not converge.", lastConflict);
+    }
+
+    @Override
+    public Optional<Instant> memberCutoff(String memberHash, Instant now) {
+        return revokedSessions.findById(memberHash)
+                .filter(value -> value.expiresAt().isAfter(now))
+                .map(MatrixRevokedSessionJpaEntity::revokedAt);
+    }
+
     private Instant databaseInstant(Instant value) {
         return requireNonNull(value, "Matrix session timestamp").truncatedTo(ChronoUnit.MICROS);
     }

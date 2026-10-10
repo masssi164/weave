@@ -28,6 +28,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtValidationException;
+import com.massimotter.weave.backend.security.MemberSessionCutoffService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.testing.InMemoryMatrixFacadeClientStateStore;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -35,6 +38,103 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class JwtDecoderConfigTest {
 
     private static final String ISSUER_URI = "https://auth.weave.test/realms/weave";
+
+    @Test
+    void issuerEpochAheadOfBackendClockRejectsRetainedSignedBearerAndAdmitsLaterIssuance()
+            throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
+            OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+            properties.getJwt().setIssuerUri(ISSUER_URI);
+            properties.getJwt().setJwkSetUri(jwksServer.jwkSetUri());
+            WeaveSecurityProperties security =
+                    new WeaveSecurityProperties("https://api.weave.test/api", "weave-app");
+            var identities = OrganizationIdentityContextResolver.configured(
+                    new ContextAuthorizationProperties("weave_tenant_id", "tenant_id", "acme",
+                            "sub", "user:", List.of(), List.of(), List.of()));
+            var cutoffs = new MemberSessionCutoffService(
+                    new InMemoryMatrixFacadeClientStateStore(), identities);
+            Instant backendNow = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+            Instant issuerNotBefore = backendNow.plusSeconds(20);
+            cutoffs.advance("acme", ISSUER_URI, "revoked-subject", backendNow);
+            cutoffs.advance("acme", ISSUER_URI, "revoked-subject", issuerNotBefore);
+            var sessions = org.mockito.Mockito.mock(
+                    com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService.class);
+            @SuppressWarnings("unchecked")
+            org.springframework.beans.factory.ObjectProvider<
+                    com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService> sessionsProvider =
+                    org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+            @SuppressWarnings("unchecked")
+            org.springframework.beans.factory.ObjectProvider<MemberSessionCutoffService> cutoffProvider =
+                    org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+            org.mockito.Mockito.when(sessionsProvider.getObject()).thenReturn(sessions);
+            org.mockito.Mockito.when(cutoffProvider.getObject()).thenReturn(cutoffs);
+            JwtDecoderConfig config = new JwtDecoderConfig();
+            JwtDecoder user = config.memberJwtDecoder(properties, security, sessionsProvider, cutoffProvider);
+            JwtDecoder admin = config.adminApiJwtDecoder(properties, security, cutoffProvider);
+            for (String client : List.of("weave-app", "weave-admin-console")) {
+                JwtDecoder decoder = "weave-app".equals(client) ? user : admin;
+                String retained = signedToken(signingKey, ISSUER_URI,
+                        List.of("https://api.weave.test/api"), client, null, "revoked-subject",
+                        "weave:workspace", backendNow.plusSeconds(10), backendNow.plusSeconds(300));
+                String later = signedToken(signingKey, ISSUER_URI,
+                        List.of("https://api.weave.test/api"), client, null, "revoked-subject",
+                        "weave:workspace", issuerNotBefore.plusSeconds(1), backendNow.plusSeconds(300));
+                assertThrows(JwtException.class, () -> decoder.decode(retained));
+                assertThat(decoder.decode(later).getSubject()).isEqualTo("revoked-subject");
+            }
+        }
+    }
+
+    @Test
+    void validatedUserAndAdminBearersObeyMemberCutoffWithoutAdmittingWrongPrincipal() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
+            OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+            properties.getJwt().setIssuerUri(ISSUER_URI);
+            properties.getJwt().setJwkSetUri(jwksServer.jwkSetUri());
+            WeaveSecurityProperties security =
+                    new WeaveSecurityProperties("https://api.weave.test/api", "weave-app");
+            var sessions = org.mockito.Mockito.mock(
+                    com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService.class);
+            var cutoffs = org.mockito.Mockito.mock(MemberSessionCutoffService.class);
+            @SuppressWarnings("unchecked")
+            org.springframework.beans.factory.ObjectProvider<
+                    com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService> sessionsProvider =
+                    org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+            @SuppressWarnings("unchecked")
+            org.springframework.beans.factory.ObjectProvider<MemberSessionCutoffService> cutoffProvider =
+                    org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+            org.mockito.Mockito.when(sessionsProvider.getObject()).thenReturn(sessions);
+            org.mockito.Mockito.when(cutoffProvider.getObject()).thenReturn(cutoffs);
+            Instant cutoff = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS).minusSeconds(5);
+            org.mockito.Mockito.when(cutoffs.revoked(org.mockito.ArgumentMatchers.any()))
+                    .thenAnswer(call -> {
+                        Jwt jwt = call.getArgument(0);
+                        return jwt.getIssuedAt() == null || !jwt.getIssuedAt().isAfter(cutoff);
+                    });
+            JwtDecoderConfig config = new JwtDecoderConfig();
+            JwtDecoder user = config.memberJwtDecoder(properties, security, sessionsProvider, cutoffProvider);
+            JwtDecoder admin = config.adminApiJwtDecoder(properties, security, cutoffProvider);
+            for (String client : List.of("weave-app", "weave-admin-console")) {
+                JwtDecoder decoder = "weave-app".equals(client) ? user : admin;
+                String old = signedToken(signingKey, ISSUER_URI,
+                        List.of("https://api.weave.test/api"), client, null, "revoked-subject",
+                        "weave:workspace", cutoff.minusSeconds(30), cutoff.plusSeconds(300));
+                String fresh = signedToken(signingKey, ISSUER_URI,
+                        List.of("https://api.weave.test/api"), client, null, "revoked-subject",
+                        "weave:workspace", cutoff.plusSeconds(1), cutoff.plusSeconds(300));
+                assertThrows(JwtException.class, () -> decoder.decode(old));
+                assertThat(decoder.decode(fresh).getSubject()).isEqualTo("revoked-subject");
+            }
+            org.mockito.Mockito.clearInvocations(cutoffs);
+            assertThrows(JwtValidationException.class, () -> admin.decode(signedToken(signingKey,
+                    ISSUER_URI, List.of("https://api.weave.test/api"), "weave-app")));
+            assertThrows(JwtValidationException.class, () -> user.decode(signedToken(signingKey,
+                    "https://wrong-issuer.invalid", List.of("https://api.weave.test/api"), "weave-app")));
+            org.mockito.Mockito.verifyNoInteractions(cutoffs);
+        }
+    }
 
     @Test
     void memberDecoderRejectsRevokedBearerAfterSignatureAndClaimValidation() throws Exception {

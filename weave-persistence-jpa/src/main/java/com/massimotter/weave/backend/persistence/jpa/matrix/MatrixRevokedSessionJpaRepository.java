@@ -18,4 +18,12 @@ public interface MatrixRevokedSessionJpaRepository
       + "case when session.expiresAt < :expiresAt then :expiresAt else session.expiresAt end "
       + "where session.sessionHash = :sessionHash")
   int extendExpiry(@Param("sessionHash") String sessionHash, @Param("expiresAt") Instant expiresAt);
+
+  @Modifying
+  @Query("update MatrixRevokedSessionJpaEntity session set "
+      + "session.revokedAt = case when session.revokedAt < :revokedBefore then :revokedBefore else session.revokedAt end, "
+      + "session.expiresAt = case when session.expiresAt < :expiresAt then :expiresAt else session.expiresAt end "
+      + "where session.sessionHash = :memberHash")
+  int advanceMemberCutoff(@Param("memberHash") String memberHash,
+      @Param("revokedBefore") Instant revokedBefore, @Param("expiresAt") Instant expiresAt);
 }

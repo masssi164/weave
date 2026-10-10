@@ -56,6 +56,23 @@ public final class InMemoryMatrixFacadeClientStateStore implements MatrixFacadeC
   }
 
   @Override
+  public void advanceMemberCutoff(String memberHash, Instant revokedBefore, Instant expiresAt) {
+    revokedSessions.merge(memberHash, new RevocationWindow(revokedBefore, expiresAt),
+        (existing, replacement) -> new RevocationWindow(
+            existing.revokedAt().isAfter(replacement.revokedAt())
+                ? existing.revokedAt() : replacement.revokedAt(),
+            existing.expiresAt().isAfter(replacement.expiresAt())
+                ? existing.expiresAt() : replacement.expiresAt()));
+  }
+
+  @Override
+  public Optional<Instant> memberCutoff(String memberHash, Instant now) {
+    RevocationWindow window = revokedSessions.get(memberHash);
+    return window != null && window.expiresAt().isAfter(now)
+        ? Optional.of(window.revokedAt()) : Optional.empty();
+  }
+
+  @Override
   public void deleteExpiredSessions(Instant now) {
     revokedSessions.entrySet().removeIf(entry -> !entry.getValue().expiresAt().isAfter(now));
   }

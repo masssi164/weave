@@ -120,10 +120,24 @@ public class OrganizationMemberAdministrationController {
 
   @PostMapping("/{memberHandle}/session-revocations")
   @Operation(operationId = "revokeOrganizationMemberSessions")
-  @ApiResponse(
-      responseCode = "200",
-      description = "Support-safe session revocation result.",
-      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MemberLifecycleOperationResponse.class)))
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Support-safe session revocation result.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MemberLifecycleOperationResponse.class))),
+    @ApiResponse(responseCode = "400", description = "Invalid required request header.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "404", description = "The organization member is unavailable.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "409", description = "The idempotency claim conflicts with an earlier operation.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "412", description = "The member version changed.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "428", description = "A member version precondition is required.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "502", description = "Identity provider administration failed.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "503", description = "Durable session revocation is unavailable.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
+  })
   public MemberLifecycleOperationResponse revokeSessions(
       @PathVariable String organizationId,
       @PathVariable String memberHandle,
@@ -136,10 +150,24 @@ public class OrganizationMemberAdministrationController {
 
   @PostMapping("/{memberHandle}/offboarding")
   @Operation(operationId = "offboardOrganizationMember")
-  @ApiResponse(
-      responseCode = "200",
-      description = "Support-safe member offboarding result.",
-      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MemberLifecycleOperationResponse.class)))
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Support-safe member offboarding result.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MemberLifecycleOperationResponse.class))),
+    @ApiResponse(responseCode = "400", description = "Invalid required request header.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "404", description = "The organization member is unavailable.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "409", description = "The idempotency claim or owner protection conflicts with this operation.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "412", description = "The member version changed.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "428", description = "A member version precondition is required.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "502", description = "Identity provider administration failed.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "503", description = "Durable session revocation is unavailable.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
+  })
   public MemberLifecycleOperationResponse offboard(
       @PathVariable String organizationId,
       @PathVariable String memberHandle,

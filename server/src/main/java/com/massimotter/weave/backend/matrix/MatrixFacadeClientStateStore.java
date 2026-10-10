@@ -15,6 +15,11 @@ public interface MatrixFacadeClientStateStore {
 
     void revokeSession(String sessionHash, Instant revokedAt, Instant expiresAt);
 
+    /** Advance a hashed member's revoked-before cutoff without moving either bound backwards. */
+    void advanceMemberCutoff(String memberHash, Instant revokedBefore, Instant expiresAt);
+
+    Optional<Instant> memberCutoff(String memberHash, Instant now);
+
     void deleteExpiredSessions(Instant now);
 
     boolean isSessionRevoked(String sessionHash, Instant now);

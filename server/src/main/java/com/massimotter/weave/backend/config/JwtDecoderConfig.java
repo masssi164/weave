@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
+import com.massimotter.weave.backend.security.MemberSessionCutoffService;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import java.util.List;
@@ -36,9 +37,31 @@ public class JwtDecoderConfig {
     JwtDecoder memberJwtDecoder(
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
+            ObjectProvider<MatrixFacadeClientStateService> memberSessions,
+            ObjectProvider<MemberSessionCutoffService> memberCutoffs) {
+        return withMemberSessionRevocation(
+                withMemberCutoff(jwtDecoder(resourceServerProperties, weaveSecurityProperties),
+                        memberCutoffs::getObject), memberSessions::getObject);
+    }
+
+    // Direct decoder contract tests exercise the existing per-session boundary.
+    JwtDecoder memberJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
             ObjectProvider<MatrixFacadeClientStateService> memberSessions) {
         return withMemberSessionRevocation(
                 jwtDecoder(resourceServerProperties, weaveSecurityProperties), memberSessions::getObject);
+    }
+
+    static JwtDecoder withMemberCutoff(
+            JwtDecoder decoder, Supplier<MemberSessionCutoffService> memberCutoffs) {
+        return token -> {
+            Jwt jwt = decoder.decode(token);
+            if (memberCutoffs.get().revoked(jwt)) {
+                throw new BadJwtException("The Weave member session was revoked.");
+            }
+            return jwt;
+        };
     }
 
     static JwtDecoder withMemberSessionRevocation(
@@ -83,6 +106,20 @@ public class JwtDecoderConfig {
 
     @Bean("adminApiJwtDecoder")
     JwtDecoder adminApiJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            ObjectProvider<MemberSessionCutoffService> memberCutoffs) {
+        return withMemberCutoff(adminApiValidatedDecoder(resourceServerProperties, weaveSecurityProperties),
+                memberCutoffs::getObject);
+    }
+
+    JwtDecoder adminApiJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties) {
+        return adminApiValidatedDecoder(resourceServerProperties, weaveSecurityProperties);
+    }
+
+    private JwtDecoder adminApiValidatedDecoder(
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties) {
         String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
