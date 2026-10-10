@@ -342,6 +342,26 @@ func waitForUsernameReadback(_ input: AXUIElement, expected: String) -> Bool {
   return false
 }
 
+func enterUsername(_ input: AXUIElement, in surface: AuthSurface, expected: String) -> Bool {
+  // WebKit can report a successful AXValue write to an unfocused field while
+  // leaving the HTML input unchanged. Focus it and verify the value before
+  // submitting; use targeted keyboard events if that AX write does not stick.
+  _ = AXUIElementPerformAction(surface.window, kAXRaiseAction as CFString)
+  if AXUIElementSetAttributeValue(input, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+      == .success,
+     fill(input, with: expected),
+     waitForUsernameReadback(input, expected: expected) {
+    return true
+  }
+  guard let targeted = focusFieldViaKeyboard(surface, stage: "username") else { return false }
+  for _ in 0..<3 {
+    guard clearTargetedField(targeted, safariPID: surface.safariPID),
+          typeTargeted(expected, to: surface.safariPID) else { return false }
+    if waitForUsernameReadback(targeted, expected: expected) { return true }
+  }
+  return false
+}
+
 let deadline = Date().addingTimeInterval(180)
 var consentHandled = false
 var usernameSubmitted = false
@@ -414,8 +434,7 @@ while Date() < deadline {
   if !usernameSubmitted,
      let usernameField = field(in: surface.elements, stage: "username") {
     usernameFieldObserved = true
-    guard fill(usernameField, with: fixture.email) else { fail("username-field") }
-    guard waitForUsernameReadback(usernameField, expected: fixture.email) else {
+    guard enterUsername(usernameField, in: surface, expected: fixture.email) else {
       fail("username-readback")
     }
     guard let submit = signInButton(in: surface.elements) else { fail("username-submit") }
@@ -429,25 +448,8 @@ while Date() < deadline {
   if !usernameSubmitted,
      let usernameField = focusFieldViaKeyboard(surface, stage: "username") {
     usernameFieldObserved = true
-    var entered = fill(usernameField, with: fixture.email) &&
-      waitForUsernameReadback(usernameField, expected: fixture.email)
-    if !entered {
-      // Safari can expose the focused WebKit control while hiding its AX tree.
-      // Check each targeted attempt's exact value before submitting it.
-      for _ in 0..<3 {
-        guard clearTargetedField(usernameField, safariPID: surface.safariPID) else {
-          fail("username-clear")
-        }
-        guard typeTargeted(fixture.email, to: surface.safariPID) else {
-          fail("username-targeted-input")
-        }
-        if waitForUsernameReadback(usernameField, expected: fixture.email) {
-          entered = true
-          break
-        }
-      }
-    }
-    guard entered, postKey(to: surface.safariPID, code: 36) else {
+    guard enterUsername(usernameField, in: surface, expected: fixture.email),
+          postKey(to: surface.safariPID, code: 36) else {
       fail("username-targeted-input")
     }
     usernameSubmitted = true
