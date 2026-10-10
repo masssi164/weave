@@ -6,7 +6,7 @@ Weave is building a modular collaboration platform for files, calendars, and con
 
 [Start developing](#develop-and-test) · [Roadmap](#ordered-roadmap) · [Architecture](#core-architecture) · [Meet Weaver](https://github.com/masssi164/weaver)
 
-> **Bounded standalone profile:** Files, Calendar, and authorized non-E2EE Matrix business rooms have integrated release evidence. Weave does not claim broad production readiness, provider migration, or general Matrix interoperability. Protected branch status is tracked in [#1481](https://github.com/masssi164/weave/issues/1481).
+> **Bounded standalone profile:** Files, Calendar, and authorized non-E2EE Matrix business rooms have integrated release evidence. Weave is not a finished production collaboration platform. Provider migration and general Matrix interoperability remain outside this release profile. Protected branch status is tracked in [#1481](https://github.com/masssi164/weave/issues/1481).
 
 ## What Weave is
 
