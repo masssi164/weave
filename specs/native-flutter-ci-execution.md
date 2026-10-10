@@ -47,3 +47,7 @@ member during deployment-organization admission with HTTP 401 and the
 `unauthorized` error envelope. The test requires that exact response after
 comparing the foreign bearer with a freshly refreshed primary bearer. Matrix
 and Admin use their own authorization gates and are asserted separately.
+The Matrix Client-Server northbound must return a Matrix `errcode` and `error`
+object even when a request is denied by the Spring Security filter before the
+facade controller. Missing and invalid bearers use the Matrix authentication
+error profile; a valid foreign-organization bearer uses `M_FORBIDDEN`.
