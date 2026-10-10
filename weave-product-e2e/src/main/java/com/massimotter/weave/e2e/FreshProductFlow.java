@@ -189,6 +189,11 @@ public final class FreshProductFlow {
               browser, memberSession, "member", memberEmail, memberPassword);
       setWeaverEntitlement(
           organizationId, memberEmail, adminSession.accessToken(), true, "initial");
+      setWeaverEntitlement(
+          organizationId, ownerEmail, adminSession.accessToken(), true, "owner-calendar-write");
+      ownerSession =
+          awaitAuthority(
+              browser, ownerSession, "/capabilities/weaver", "agent-runtime.entitled");
       memberSession =
           awaitAuthority(
               browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
