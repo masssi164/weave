@@ -1,17 +1,36 @@
 # Native Flutter integration acceptance for #1533
 
-Status: **local native, real administrator revocation and cross-organization
-journeys passed on `6f974dff73`; exact-head CI and mainline release gates open**.
-This record separates executable test code from observed native product
-evidence. A disposable local `testApp` run at source commit
-`6f974dff7356bc78a9d1376e929988e9f86e8696` completed the real AppAuth
-callback, generated Files and Calendar operations, native Rust Matrix business
-room send/read, refresh, a restart of Server, Keycloak and PostgreSQL, and a
-second native Flutter process restoring the same session and references. It
-also proved logout denial and supported OpenClaw Matrix readback.
-Both Flutter test processes and the overall Gradle task exited zero. This is local
-macOS evidence; the #1475, #1479, and #1480 integrated closure gates still
-require the exact CI candidate and protected integrated-source evidence.
+Status: **local native and exact-head unattended CI passed; #1533 is integrated
+on protected dev; subsequent source acceptance is tracked in exact checks and stories**.
+
+PR [#1533](https://github.com/masssi164/weave/pull/1533) was squash-merged into
+remote `dev` as `5d78cade66199edfde6c47cea2661c453c4f602d`. Its tree equals the
+qualified PR source `d106855a51eabee87bb57749473d5048aadaa558`.
+[Readiness Core CI](https://github.com/masssi164/weave/actions/runs/38085842856)
+and [readiness Full Compose E2E](https://github.com/masssi164/weave/actions/runs/38085842852)
+passed on that PR source. The latter executed both signed native Flutter
+processes in the disposable integrated product journey, including real
+system-browser PKCE, generated Files/Calendar, native Matrix business rooms,
+service and process restart, expiry, refresh, explicit logout and retained
+credential denial. It also proved real generated Admin revocation,
+cross-organization denial and real OpenClaw Matrix/MCP operations.
+Product JSON SHA-256:
+`feeb2df4c8c44de443d84248aa974d5500a5bd158a78206fdac093117a3236b8`;
+teardown SHA-256:
+`27c48aa2d1168abc24d9ea7b083f67cd945e8c9e9fe8c8cb13dd398b901aa0e0`.
+Teardown verified zero remaining owned containers, networks, volumes or other
+resources. Skipped, build-only and failed runs are excluded from this proof.
+
+The exact integrated `dev` commit has fresh
+[Core CI](https://github.com/masssi164/weave/actions/runs/38088279001) and
+[Full Compose E2E](https://github.com/masssi164/weave/actions/runs/38088279016)
+runs. Their successful conclusions are required for integrated acceptance;
+inspect the actual run results before accepting a later candidate. Current story and
+protected delivery status is recorded in the
+[release closure report](release-1470-closure-report.md) and #1474/#1475/#1479/#1480/#1481.
+The following local and historical records retain their original source and
+result. macOS does not qualify iOS/Android; E2EE remains Guarded and encrypted
+rooms fail closed. Human dogfood is separate from automated acceptance.
 
 ## Current local acceptance result, 2026-10-10
 

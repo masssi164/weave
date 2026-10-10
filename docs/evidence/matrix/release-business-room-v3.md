@@ -1,6 +1,27 @@
 # Matrix business-room profile v3 evidence
 
-This evidence qualifies the five `Supported` rows in the [Matrix Client-Server support profile](../../reference/matrix-client-server-support-profile.md) for Weave-owned Flutter and real OpenClaw clients using authorized non-E2EE business rooms. Integrated-source CI and protected delivery remain required before #1475 or #1470 closure.
+This evidence qualifies the five `Supported` rows in the [Matrix Client-Server support profile](../../reference/matrix-client-server-support-profile.md) for Weave-owned Flutter and real OpenClaw clients using authorized non-E2EE business rooms. Protected dev integration and every later candidate are independently tracked in the [release closure report](../../release-1470-closure-report.md).
+
+## Exact-source unattended qualification and integration
+
+Source `d106855a51eabee87bb57749473d5048aadaa558` passed
+[Core CI](https://github.com/masssi164/weave/actions/runs/38085842856) and
+[Full Compose E2E](https://github.com/masssi164/weave/actions/runs/38085842852),
+as well as [Native Provider Gate](https://github.com/masssi164/weave/actions/runs/38083483807)
+and [Native Persistence Closure](https://github.com/masssi164/weave/actions/runs/38083483819).
+Both selected native Flutter processes genuinely executed. Native SDK and
+real OpenClaw assertions exercised the same Weave Matrix endpoint, with
+independent authorization, sync/readback and business-room send expectations.
+Real expiry, retained bearer logout denial, administrator revocation and
+second-organization denial passed. Product JSON SHA-256:
+`feeb2df4c8c44de443d84248aa974d5500a5bd158a78206fdac093117a3236b8`;
+cleanup verified zero remaining owned resources.
+
+PR #1533 integrated that same tree into protected `dev` at
+`5d78cade66199edfde6c47cea2661c453c4f602d`. Its own post-merge
+[Core](https://github.com/masssi164/weave/actions/runs/38088279001) and
+[Full](https://github.com/masssi164/weave/actions/runs/38088279016) results are
+separately required. Later delivery source must pass its own checks; this record does not claim dogfood, human acceptance or remote main.
 
 ## Current exact local product run
 
