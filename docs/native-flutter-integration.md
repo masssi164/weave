@@ -1,7 +1,7 @@
 # Native Flutter integration acceptance for #1533
 
-Status: **local and exact-head CI native journeys passed; cross-organization
-and mainline release gates open**.
+Status: **local native and cross-organization journeys passed; exact-head CI
+for the combined candidate and mainline release gates open**.
 This record separates executable test code from observed native product
 evidence. A disposable local `testApp` run at source commit
 `6b7006425cfa3e58504fceeca6ffaa99604add58` completed the real AppAuth
@@ -79,10 +79,8 @@ system browser to open a separate authentication session. See
 The local graphical Aqua session and native Flutter target are present. After
 the Xcode approval, a local macOS Accessibility query reported
 `AXIsProcessTrusted() == true`; Xcode's UI runner also starts successfully.
-The separate ChatGPT Computer Use
-process still lacks its own Accessibility/Screen Recording grant and is not
-needed for this lane. No Apple Events driver or additional broad permission is
-part of the native acceptance runner.
+The separate Computer Use process is not part of this lane. No Apple Events
+driver or additional broad permission is part of the native acceptance runner.
 
 The first XCUITest attempt inherited the app's provider link flags and could
 not load `AppAuth.framework` in the UI runner. After isolating those flags and
@@ -512,14 +510,12 @@ still required.
 
 ## Remaining gates
 
-- Repeat the native and cross-consumer journey on the final combined source
-  after the foreign-organization isolation fixture is qualified and merged.
-  The prior local fixture `SemanticsHandle` failure is not accepted as a product
-  result; both exact-head CI product tests exited zero. Fixture stability
-  remains a separate diagnostic concern.
-- Reconcile server-side revocation, wrong-account and cross-organization denial
-  across the native and black-box lanes. The local two-process result proves
-  native process and collaboration-service restart; logout denial does not
+- Repeat the native and cross-consumer journey on the final combined source in
+  unattended CI. The new local foreign-organization fixture passed against a
+  real second Keycloak identity; it is not yet exact-head CI evidence.
+- Reconcile server-side revocation and wrong-account denial across the final
+  native and black-box lanes. The local two-process result proves native
+  process and collaboration-service restart; logout denial alone does not
   prove server-side revocation. External downstream-session recovery becomes
   executable acceptance when such a provider is enabled; the current native
   release profile has no such session.
@@ -559,3 +555,44 @@ selected native providers have no independent downstream authentication
 session; this run does not claim a Synapse or Nextcloud outage recovery test.
 The foreign-organization black-box negative and final integrated source/main
 qualification remain open.
+
+## Combined local native and foreign-organization result, 2026-10-10
+
+On exact source `a9d6d8e14502d5e7e55400b35e229b17af0554e6` and current
+specifications `c726993168651f1109259f9a80cc23117d24a37f`, this Mac ran:
+
+```sh
+WEAVE_SPEC_CORPUS_ROOT=/path/to/pinned/weave-specs \
+WEAVE_TEST_APP_PUBLIC_DOMAIN=weave.localhost \
+WEAVE_TEST_APP_NATIVE_CA_ROOT=$HOME/.local/share/weave/native-acceptance-ca \
+WEAVE_NATIVE_SIGNING_TEAM=<Apple Development team ID> \
+WEAVE_NATIVE_SIGNING_BUNDLE_ID=com.masssi164.weave.nativeacceptance \
+WEAVE_TEST_APP_NATIVE_RUNNER="$PWD/client/tool/run_native_product_acceptance.py" \
+WEAVE_TEST_APP_RELEASE_MCP=true \
+WEAVE_TEST_APP_RUN_ID=<unique disposable run ID> \
+./gradlew --no-daemon specCorpusConformance testApp
+```
+
+The command exited zero in 10m 27s. The Java product flow exercised a real
+second-organization owner through Keycloak browser PKCE and passed generated
+User/Admin and Matrix foreign-organization denial without provider mutation.
+Real OpenClaw 2026.9.8 passed Files/Calendar MCP and Matrix business-room
+operations. The signed native macOS app completed the system-browser callback,
+generated Files upload/read, Calendar CRUD, native Rust/Matrix business-room
+send/read, refresh and app-state restoration. A second Flutter process restored
+after Server, Keycloak and PostgreSQL restart, proved room-leave and logout
+denial, and exited zero. The test runner removed its disposable resources.
+Support-safe evidence is in
+`build/test-app/weave-e2e-6aae0c182a27d26a/weave-test-app-evidence.json`;
+it records the exact source/spec commits, selected `weave-native` providers,
+both collaboration passes, PostgreSQL restart, revocation denial and no
+credentials. The private native logs are not release artifacts.
+
+The earlier macOS `SemanticsHandle` failure was the Flutter harness recording
+its handle baseline before macOS Accessibility enabled a platform-owned handle
+during the test. The native binding now enables semantics before that baseline,
+so accessibility stays on throughout the journey and the ordinary handle-leak
+assertion still detects additional undisposed handles. Both native Flutter
+processes completed with `FLUTTER_NATIVE_TEST_RUN status=passed` on this run.
+This local result does not establish unattended CI, iOS, Android, an independent
+downstream-provider session outage, or human dogfood acceptance.
