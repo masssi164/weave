@@ -13,13 +13,13 @@ The Weave-authored modifications in this vendored tree and the corresponding pat
 
 The exact patch scope and origin are recorded in [the provenance manifest](rust/vendor/matrix-sdk-crypto.weave-provenance.json) and [the vendor documentation](rust/vendor/README.md). This licensing change does not modify the vendored files, patches, licence, or checksums.
 
-## Vendored Matrix SDK OAuth scope correction
+## Vendored Matrix SDK modifications
 
 - Source tree: `rust/vendor/matrix-sdk/**`.
 - Upstream: [Matrix Rust SDK](https://github.com/matrix-org/matrix-rust-sdk), `matrix-sdk` 0.18.0.
 - Package licence: **Apache-2.0**; see the retained [vendored licence](rust/vendor/matrix-sdk/LICENSE). Existing source-file notices and grants remain in place.
 
-The Weave-authored OAuth scope modification and its patch under `rust/vendor/patches/matrix-sdk-0.18.0/**` are licensed under **Apache-2.0** to preserve the upstream contribution path. The [provenance manifest](rust/vendor/matrix-sdk.weave-provenance.json) pins the published crate checksum, upstream commit, patch checksum and complete changed-file allowlist. [Upstream PR #7134](https://github.com/matrix-org/matrix-rust-sdk/pull/7134) tracks the same stable-scope correction.
+The Weave-authored modifications in this vendored tree and their patches under `rust/vendor/patches/matrix-sdk-0.18.0/**` are licensed under **Apache-2.0** to preserve the upstream contribution path. They comprise the OAuth scope correction and the device-continuity signature helper, which keeps the installed device's private key inside its crypto store. The [provenance manifest](rust/vendor/matrix-sdk.weave-provenance.json) pins the published crate checksum, upstream commit, each patch checksum and the complete changed-file allowlist. [Upstream PR #7134](https://github.com/matrix-org/matrix-rust-sdk/pull/7134) tracks the stable-scope correction; the signature helper is a recorded downstream patch and is not claimed to be merged upstream. Existing source-file notices and grants remain intact.
 
 ## Dependencies and imported material
 
