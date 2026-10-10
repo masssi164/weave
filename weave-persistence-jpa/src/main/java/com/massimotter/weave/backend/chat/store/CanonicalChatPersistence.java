@@ -1386,6 +1386,23 @@ class ChatChangeJpaEntity {
   }
 }
 
+/** One database row serializes Chat journal insertion through transaction commit. */
+@Entity
+@Table(name = "weave_chat_change_commit_fence")
+class ChatChangeCommitFenceJpaEntity {
+  @Id
+  @Column(name = "id", nullable = false)
+  private Integer id;
+
+  protected ChatChangeCommitFenceJpaEntity() {}
+}
+
+interface ChatChangeCommitFenceJpaRepository extends JpaRepository<ChatChangeCommitFenceJpaEntity, Integer> {
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select fence from ChatChangeCommitFenceJpaEntity fence where fence.id = 1")
+  Optional<ChatChangeCommitFenceJpaEntity> lockForInsert();
+}
+
 interface ChatConversationJpaRepository
     extends JpaRepository<ChatConversationJpaEntity, ChatPairId> {
   @Query(
@@ -1694,14 +1711,22 @@ interface ChatChangeJpaRepository extends JpaRepository<ChatChangeJpaEntity, Lon
       """
       select coalesce(max(change.sequence), 0) from ChatChangeJpaEntity change
       where change.tenantId = :tenantId
-        and exists (
+        and (exists (
             select membership.id.part1 from ChatMembershipJpaEntity membership
             where membership.id.part1 = change.tenantId
               and membership.id.part2 = change.conversationId
               and membership.id.part3 = :identityIssuer
               and membership.id.part4 = :actorRef
               and membership.state = 'joined'
-        )
+        ) or (change.kind = 'membership.left' and change.canonicalObjectId = :actorRef
+            and exists (
+              select membership.id.part1 from ChatMembershipJpaEntity membership
+              where membership.id.part1 = change.tenantId
+                and membership.id.part2 = change.conversationId
+                and membership.id.part3 = :identityIssuer
+                and membership.id.part4 = :actorRef
+                and membership.state = 'left'
+            )))
         and exists (
             select conversation.id.part1 from ChatConversationJpaEntity conversation
             where conversation.id.part1 = change.tenantId
@@ -1720,14 +1745,22 @@ interface ChatChangeJpaRepository extends JpaRepository<ChatChangeJpaEntity, Lon
       select change from ChatChangeJpaEntity change
       where change.tenantId = :tenantId
         and change.sequence > :after
-        and exists (
+        and (exists (
             select membership.id.part1 from ChatMembershipJpaEntity membership
             where membership.id.part1 = change.tenantId
               and membership.id.part2 = change.conversationId
               and membership.id.part3 = :identityIssuer
               and membership.id.part4 = :actorRef
               and membership.state = 'joined'
-        )
+        ) or (change.kind = 'membership.left' and change.canonicalObjectId = :actorRef
+            and exists (
+              select membership.id.part1 from ChatMembershipJpaEntity membership
+              where membership.id.part1 = change.tenantId
+                and membership.id.part2 = change.conversationId
+                and membership.id.part3 = :identityIssuer
+                and membership.id.part4 = :actorRef
+                and membership.state = 'left'
+            )))
         and exists (
             select conversation.id.part1 from ChatConversationJpaEntity conversation
             where conversation.id.part1 = change.tenantId

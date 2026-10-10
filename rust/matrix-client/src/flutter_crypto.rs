@@ -1691,10 +1691,16 @@ async fn room_messages_inner(
     let mut options = MessagesOptions::backward();
     options.limit =
         UInt::new(u64::from(limit.clamp(1, 100))).expect("bounded Matrix message limit");
-    let response = room
-        .messages(options)
-        .await
-        .map_err(|_| "M_WEAVE_E2EE_TIMELINE".to_string())?;
+    let response = room.messages(options).await.map_err(|error| {
+        let code = matrix_sdk_error_code(&error, "M_WEAVE_E2EE_TIMELINE");
+        match code.as_str() {
+            "M_FORBIDDEN"
+            | "M_UNKNOWN_TOKEN"
+            | "M_MISSING_TOKEN"
+            | "M_WEAVE_MATRIX_SESSION_EXPIRED" => code,
+            _ => "M_WEAVE_E2EE_TIMELINE".to_string(),
+        }
+    })?;
     let timeline_diagnostics = TimelineDecryptionDiagnostics::from_events(&response.chunk);
     remember_timeline_decryption_diagnostics(profile_key, timeline_diagnostics.clone())?;
     let decryption = decryption_diagnostics(

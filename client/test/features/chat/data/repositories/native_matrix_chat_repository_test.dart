@@ -80,6 +80,21 @@ class _FailingTimelineBridge extends FakeRustMatrixCoreBridge {
   }
 }
 
+class _RevokedTimelineBridge extends FakeRustMatrixCoreBridge {
+  _RevokedTimelineBridge(this.code);
+
+  final String code;
+
+  @override
+  Future<List<RustMatrixMessageProjection>> loadRoomMessages({
+    required String profileKey,
+    required String roomId,
+    int limit = 100,
+  }) {
+    throw RustMatrixCoreBridgeException(code);
+  }
+}
+
 class _FailingCreateBridge extends FakeRustMatrixCoreBridge {
   @override
   Future<RustMatrixEncryptedRoom> createBusinessRoom({
@@ -392,6 +407,32 @@ void main() {
               ),
         ),
       );
+    },
+  );
+
+  test(
+    'room denial is an access failure rather than a stale timeline',
+    () async {
+      for (final code in <String>['M_FORBIDDEN', 'M_NOT_FOUND']) {
+        await expectLater(
+          repository(
+            rustBridge: _RevokedTimelineBridge(code),
+          ).loadRoomTimeline('!general:api.weave.test'),
+          throwsA(
+            isA<ChatFailure>()
+                .having(
+                  (failure) => failure.type,
+                  'type',
+                  ChatFailureType.sessionRequired,
+                )
+                .having(
+                  (failure) => failure.message,
+                  'message',
+                  isNot(contains(code)),
+                ),
+          ),
+        );
+      }
     },
   );
 

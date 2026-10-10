@@ -114,6 +114,8 @@ struct ProjectionInput {
     #[serde(default)]
     conversations: Vec<CanonicalConversationInput>,
     #[serde(default)]
+    left_rooms: Vec<String>,
+    #[serde(default)]
     account_data: BTreeMap<String, Value>,
     #[serde(default)]
     to_device_events: Vec<Value>,
@@ -142,6 +144,10 @@ struct CanonicalConversationInput {
     memberships: Vec<CanonicalMembershipInput>,
     #[serde(default)]
     messages: Vec<CanonicalMessageInput>,
+    #[serde(default)]
+    timeline_limited: bool,
+    #[serde(default)]
+    timeline_before_cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -480,8 +486,11 @@ fn sync_value(
                     events: room_state_events(conversation, server_name)?,
                 },
                 timeline: MatrixTimeline {
-                    limited: false,
-                    prev_batch: encode_sync_token("start"),
+                    limited: conversation.timeline_limited,
+                    prev_batch: conversation.timeline_before_cursor.as_deref()
+                        .map(encode_sync_token)
+                        .or_else(|| input.since.clone())
+                        .unwrap_or_else(|| encode_sync_token("timeline-revision-0")),
                     events: conversation
                         .messages
                         .iter()
@@ -495,9 +504,16 @@ fn sync_value(
             },
         );
     }
+    let mut left = BTreeMap::<String, Value>::new();
+    for conversation_id in &input.left_rooms {
+        let room_id = matrix_room_id(conversation_id, server_name)?.to_string();
+        if !joined.contains_key(&room_id) {
+            left.insert(room_id, json!({}));
+        }
+    }
     Ok(json!({
         "next_batch": encode_sync_token(&input.cursor),
-        "rooms": { "join": joined },
+        "rooms": { "join": joined, "leave": left },
         "account_data": { "events": input.account_data.iter().map(|(t,c)| json!({"type":t,"content":c})).collect::<Vec<_>>() },
         "to_device": { "events": input.to_device_events },
         "device_lists": { "changed": input.device_lists_changed, "left": input.device_lists_left },
@@ -551,6 +567,7 @@ fn messages_value(
     let events = conversation
         .messages
         .iter()
+        .rev()
         .map(|message| {
             Ok(MatrixRoomEvent {
                 event: message_event(message, server_name)?,

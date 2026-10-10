@@ -140,7 +140,9 @@ class ChatController extends Notifier<ChatUiState> {
     ChatFailure failure,
     List<ChatConversation>? staleConversations,
   ) {
-    if (staleConversations != null && staleConversations.isNotEmpty) {
+    if (failure.type != ChatFailureType.sessionRequired &&
+        staleConversations != null &&
+        staleConversations.isNotEmpty) {
       return ChatUiState.content(staleConversations, staleFailure: failure);
     }
 

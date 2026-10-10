@@ -14,6 +14,7 @@ import com.massimotter.weave.backend.chat.domain.ChatReadReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRedactionReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
+import com.massimotter.weave.backend.chat.domain.ChatTimelinePage;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
 import com.massimotter.weave.backend.chat.domain.ConversationId;
@@ -43,6 +44,12 @@ public interface CanonicalChatStore {
     ChatMessages timeline(ChatRequestContext context, ConversationId conversationId, ChatCursor cursor, int limit);
 
     ChatTimeline timelineEvents(ChatRequestContext context, ConversationId conversationId, ChatCursor cursor, int limit);
+
+    ChatTimelinePage timelinePage(ChatRequestContext context, ConversationId conversationId, ChatCursor before, int limit);
+
+    /** A currently visible committed event, resolved by stable canonical identity. */
+    ChatTimelineEvent event(ChatRequestContext context, ConversationId conversationId, String eventId);
+
 
     ChatConversation conversation(ChatRequestContext context, ConversationId conversationId);
 

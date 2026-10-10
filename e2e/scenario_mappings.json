@@ -4913,11 +4913,11 @@
       "tag": "@matrix-openclaw-stock-channel",
       "scenario": "Stock OpenClaw Matrix channel runs against the Weave facade",
       "feature": "e2e/features/chat_matrix_facade.feature",
-      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/CollaborationJourney.java",
       "evidenceMarkers": [
-        "MATRIX_OPENCLAW_STOCK_CHANNEL_CONTRACT"
+        "WEAVE_OPENCLAW_MATRIX_RESULT status=passed"
       ],
-      "evidenceMode": "offline-spec",
+      "evidenceMode": "live-runtime",
       "additionalEvidence": [
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",

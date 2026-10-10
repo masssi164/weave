@@ -48,9 +48,10 @@ class NativeMatrixChatRepository implements ChatRepository {
       });
       return conversations;
     } on RustMatrixCoreBridgeException catch (error) {
-      if (isMatrixSessionExpiredCode(error.code)) {
+      if (isMatrixSessionExpiredCode(error.code) ||
+          error.code == 'M_FORBIDDEN') {
         throw ChatFailure.sessionRequired(
-          'Chat authorization expired. Retry with your Weave sign-in.',
+          'Chat access is no longer current. Retry with your Weave sign-in.',
           cause: error,
         );
       }
@@ -139,9 +140,11 @@ class NativeMatrixChatRepository implements ChatRepository {
             .toList(growable: false),
       );
     } on RustMatrixCoreBridgeException catch (error) {
-      if (isMatrixSessionExpiredCode(error.code)) {
+      if (isMatrixSessionExpiredCode(error.code) ||
+          error.code == 'M_FORBIDDEN' ||
+          error.code == 'M_NOT_FOUND') {
         throw ChatFailure.sessionRequired(
-          'Chat authorization expired. Retry with your Weave sign-in.',
+          'Chat room access is no longer current. Retry with your Weave sign-in.',
           cause: error,
         );
       }
@@ -167,9 +170,10 @@ class NativeMatrixChatRepository implements ChatRepository {
         body: message,
       );
     } on RustMatrixCoreBridgeException catch (error) {
-      if (isMatrixSessionExpiredCode(error.code)) {
+      if (isMatrixSessionExpiredCode(error.code) ||
+          error.code == 'M_FORBIDDEN') {
         throw ChatFailure.sessionRequired(
-          'Chat authorization expired. Retry with your Weave sign-in.',
+          'Chat room access is no longer current. Retry with your Weave sign-in.',
           cause: error,
         );
       }

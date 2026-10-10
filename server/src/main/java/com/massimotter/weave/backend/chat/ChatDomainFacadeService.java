@@ -9,6 +9,8 @@ import com.massimotter.weave.backend.chat.domain.ChatConversation;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
+import com.massimotter.weave.backend.chat.domain.ChatChange;
+import com.massimotter.weave.backend.chat.domain.ChatChangeSet;
 import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
 import com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
@@ -19,6 +21,7 @@ import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatProviderUnavailableException;
 import com.massimotter.weave.backend.chat.domain.ChatMessages;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
+import com.massimotter.weave.backend.chat.domain.ChatTimelinePage;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
 import com.massimotter.weave.backend.chat.domain.ConversationId;
@@ -57,10 +60,13 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Comparator;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -304,6 +310,84 @@ public class ChatDomainFacadeService {
         return chatProviderPort.currentCursor(requestContext(jwt)).value();
     }
 
+    /** One bounded, committed canonical change page for a Matrix incremental sync. */
+    public ChatSyncDelta syncDelta(Jwt jwt, String afterCursor, int limit) {
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException("Chat sync page size is invalid.");
+        }
+        long after = syncSequence(afterCursor == null || afterCursor.isBlank()
+                ? "chat-revision-0" : afterCursor);
+        String highWaterCursor = syncCursor(jwt);
+        if (!highWaterCursor.matches("chat-revision-[0-9]+")) {
+            throw new ChatProviderUnavailableException("chat-sync-unavailable");
+        }
+        long highWater = syncSequence(highWaterCursor);
+        if (after > highWater) {
+            throw new IllegalArgumentException("Chat sync cursor is ahead of the current organization.");
+        }
+        ChatRequestContext member = requestContext(jwt);
+        List<ChatRequestContext> contexts;
+        if (durableSpaceAccess == null) {
+            contexts = List.of(member);
+        } else {
+            contexts = visibleSpaceRefs(member).stream()
+                    .map(spaceRef -> inSpace(member, spaceRef))
+                    .filter(space -> currentSpacePermission(space, ContextPermission.VIEW))
+                    .toList();
+        }
+        List<ChatChange> visible = new ArrayList<>();
+        ChatCursor cursor = new ChatCursor("chat-revision-" + after);
+        for (ChatRequestContext context : contexts) {
+            ChatChangeSet page = chatProviderPort.changes(context, cursor, 100);
+            if (page == null || page.changes().size() > 100) {
+                throw new ChatProviderUnavailableException("chat-sync-change-page-invalid");
+            }
+            page.changes().stream()
+                    .filter(change -> change.sequence() <= highWater)
+                    .forEach(visible::add);
+        }
+        visible.sort(Comparator.comparingLong(ChatChange::sequence));
+        List<ChatChange> delivered = visible.subList(0, Math.min(limit, visible.size()));
+        // A full page may have another visible change in the same Space. Advance only
+        // through the last delivered sequence, even when the journal's high water is newer.
+        long next = delivered.size() == limit ? delivered.getLast().sequence() : highWater;
+        Map<String, List<ChatTimelineEvent>> events = new LinkedHashMap<>();
+        Set<String> leftRooms = new LinkedHashSet<>();
+        for (ChatChange change : delivered) {
+            if ("membership.left".equals(change.kind())
+                    && member.actorRef().value().equals(change.messageId())) {
+                leftRooms.add(change.conversationId().value());
+                continue;
+            }
+            if (!List.of("message.created", "reaction.created", "event.redacted").contains(change.kind())) {
+                continue;
+            }
+            String conversationId = change.conversationId().value();
+            ChatRequestContext context = requireConversationContext(jwt, conversationId, ContextPermission.VIEW);
+            ChatTimelineEvent event = chatProviderPort.event(context, change.conversationId(), change.messageId());
+            events.computeIfAbsent(conversationId, ignored -> new ArrayList<>()).add(event);
+        }
+        return new ChatSyncDelta("chat-revision-" + next, events, leftRooms);
+    }
+
+    private static long syncSequence(String cursor) {
+        if (cursor == null || !cursor.matches("chat-revision-[0-9]+")) {
+            throw new IllegalArgumentException("Chat sync cursor is invalid.");
+        }
+        try {
+            return Long.parseLong(cursor.substring("chat-revision-".length()));
+        } catch (NumberFormatException invalid) {
+            throw new IllegalArgumentException("Chat sync cursor is invalid.", invalid);
+        }
+    }
+
+    public record ChatSyncDelta(String cursor, Map<String, List<ChatTimelineEvent>> events,
+            Set<String> leftRooms) {
+        public ChatSyncDelta(String cursor, Map<String, List<ChatTimelineEvent>> events) {
+            this(cursor, events, Set.of());
+        }
+    }
+
     public ChatMessage sendMessage(
             String conversationId,
             String transactionId,
@@ -349,6 +433,27 @@ public class ChatDomainFacadeService {
                 new ConversationId(safeIdentifier(conversationId, "conversation-empty")),
                 null,
                 limit);
+    }
+
+    public ChatTimelineWindow timelineWindow(String conversationId, Jwt jwt, int limit) {
+        ChatTimelinePage page = timelinePage(conversationId, jwt, null, limit);
+        return new ChatTimelineWindow(page.timeline(), page.hasEarlier(), page.nextBackwardCursor());
+    }
+
+    public ChatTimelinePage timelinePage(String conversationId, Jwt jwt, ChatCursor before, int limit) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.read", "chat", "read-timeline-page");
+        ChatReadiness readiness = memberReadiness(jwt);
+        if (readiness.memberState() != ChatMemberState.READY) {
+            throw new ChatProviderUnavailableException("chat-timeline-unavailable");
+        }
+        ChatRequestContext context = requireConversationContext(jwt, conversationId, ContextPermission.VIEW);
+        return chatProviderPort.timelinePage(context, new ConversationId(conversationId), before, limit);
+    }
+
+    public record ChatTimelineWindow(ChatTimeline timeline, boolean limited, String beforeCursor) {
+        public ChatTimelineWindow(ChatTimeline timeline, boolean limited) {
+            this(timeline, limited, "timeline-revision-0");
+        }
     }
 
     public ChatTimelineEvent sendEvent(

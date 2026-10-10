@@ -3301,7 +3301,7 @@
     },
     {
       "tag": "@matrix-openclaw-stock-channel",
-      "suiteId": "open-standards-gateway-archive-target",
+      "suiteId": "member-live-critical-path",
       "personas": [
         "weaver_user",
         "member"
@@ -3310,7 +3310,7 @@
         "chat",
         "agent-runtime-control"
       ],
-      "testLevel": "offline-contract",
+      "testLevel": "live-e2e",
       "assertionFocus": [
         "signed RuntimeProfile projects stock channels.matrix",
         "OpenClaw startup and approval calls are supported by the Weave facade",

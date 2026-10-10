@@ -453,6 +453,57 @@ void main() {
         );
         debugPrint('NATIVE_PRODUCT_STAGE phase=process-restart-restored');
 
+        // Initiate a real membership change at the Matrix facade, then verify
+        // its effect through the native Rust SDK rather than a second HTTP
+        // read. This proves own-room leave, not admin Space revocation.
+        final roomId = checkpoint['roomId'] as String;
+        final memberSession = await container
+            .read(authSessionRepositoryProvider)
+            .restoreSession(
+              AuthConfiguration(
+                issuer: config.issuerUrl,
+                clientId: config.clientId,
+              ),
+            );
+        final memberToken = memberSession.session?.accessToken;
+        expect(memberSession.isAuthenticated, isTrue);
+        expect(memberToken, isNotEmpty);
+        final deviceProof = await container
+            .read(secureStoreProvider)
+            .read('matrix_member_device_proof_v1_${matrix.profileKey}');
+        expect(deviceProof, isNotEmpty);
+        final leave = await container
+            .read(weaveApiHttpClientProvider)
+            .post(
+              config.matrixHomeserverUrl.resolve(
+                '/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/leave',
+              ),
+              headers: <String, String>{
+                'Authorization': 'Bearer $memberToken',
+                'x-weave-matrix-device-id': matrix.deviceId,
+                'x-weave-matrix-device-proof': deviceProof!,
+                'Content-Type': 'application/json',
+              },
+              body: '{}',
+            );
+        expect(leave.statusCode, 200);
+        final chat = container.read(chatRepositoryProvider);
+        expect(
+          (await chat.loadConversations()).where((room) => room.id == roomId),
+          isEmpty,
+        );
+        await expectLater(
+          chat.loadRoomTimeline(roomId),
+          throwsA(
+            isA<ChatFailure>().having(
+              (failure) => failure.type,
+              'type',
+              ChatFailureType.sessionRequired,
+            ),
+          ),
+        );
+        debugPrint('NATIVE_PRODUCT_STAGE phase=own-room-leave-denied');
+
         await container.read(authFlowControllerProvider.notifier).signOut();
         await _waitFor(
           tester,
@@ -474,6 +525,18 @@ void main() {
         await expectLater(
           coordinator.open(allowInteractiveSignIn: false),
           throwsA(anything),
+        );
+        await expectLater(
+          container
+              .read(chatRepositoryProvider)
+              .loadRoomTimeline(checkpoint['roomId'] as String),
+          throwsA(
+            isA<ChatFailure>().having(
+              (failure) => failure.type,
+              'type',
+              ChatFailureType.sessionRequired,
+            ),
+          ),
         );
         await expectLater(files.listDirectory('/'), throwsA(anything));
         await expectLater(calendar.loadScopes(), throwsA(anything));

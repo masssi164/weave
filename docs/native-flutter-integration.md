@@ -390,8 +390,17 @@ denial. Both Flutter harness processes exited zero;
 exited zero in 11m 46s. The support-safe evidence file records candidate
 `6b7006425cfa3e58504fceeca6ffaa99604add58` and specification
 `c726993168651f1109259f9a80cc23117d24a37f`. This local result does not
-replace the pending exact-candidate CI run or a separate active southbound
-provider-session outage proof.
+replace the pending exact-candidate CI run. The selected `weave-native` Chat,
+Files and Calendar adapters use durable Weave state and have no external
+provider session to lose. The result truthfully records
+`southboundProviderDependencyObserved=false`; it does not claim an external
+provider outage or recovery proof. The accepted release contract keeps recovery
+binding when an external provider capability is enabled. Current deployment
+configuration blocks optional Synapse and Nextcloud activation pending their
+separate qualification, so enabling them just to manufacture this test would
+violate that gate. The proposed [#1480 acceptance clarification](https://github.com/masssi164/weave/issues/1480#issuecomment-6092353586)
+records the conditional downstream-session criterion without treating an
+unrun external-provider test as passed.
 
 Sanitized terminal markers from that local run:
 
@@ -409,11 +418,16 @@ BUILD SUCCESSFUL in 11m 46s
 
 The next exact-candidate CI run at `5ee1a4485e5921c9ac6317715e9f3972db1042b1`
 ([workflow 38013608116](https://github.com/masssi164/weave/actions/runs/38013608116))
-failed at the same preflight before stack startup. The 03:34:56 local macOS
-TCC log again attributed the denied Accessibility request to the versioned
-runner Node executable, with `authValue=0`. This independently confirms that
-the native product result remains local evidence and CI has not yet executed
-the native test on this candidate.
+failed at the same preflight before stack startup. A failed-job rerun (attempt
+2) reproduced the denial at 03:52:55 local time. The macOS TCC attribution
+identified the versioned GitHub runner Node executable as the responsible
+process and returned `authValue=0`, `Denied (System Set)`. The exact executable
+is `~/actions-runners/weave-live-mac-mini/externals.2.337.0/node20/bin/node`.
+Launching the same Swift preflight from a local terminal, even through that
+Node binary, passed because the responsible process attribution differed; it
+does not establish the runner grant. Xcode's Accessibility grant is likewise
+separate. The native product result remains local evidence and CI has not yet
+executed the native test on this candidate.
 The focused Flutter widget suites for sign-in, Files, Calendar, Chat list and
 Chat room passed locally: 69 tests, zero failures. They exercise screen
 semantics and representative loading, empty, error, revoked-access and session
@@ -459,11 +473,12 @@ PATH="$PWD/tool/native_macos_open:$PATH" \
   The prior local fixture `SemanticsHandle` failure is not accepted as a product
   result; the product journey unmounts its app before the harness finishes and
   passed locally. Fixture stability remains a separate diagnostic concern.
-- Exercise server-side revocation, wrong-account and cross-organization denial,
-  and recoverable downstream-session loss in the native lane. The local
-  two-process result proves native process and collaboration-service restart;
-  it does not establish those separate denial and downstream recovery cases.
-  Logout denial does not prove server-side revocation.
+- Reconcile server-side revocation, wrong-account and cross-organization denial
+  across the native and black-box lanes. The local two-process result proves
+  native process and collaboration-service restart; logout denial does not
+  prove server-side revocation. External downstream-session recovery becomes
+  executable acceptance when such a provider is enabled; the current native
+  release profile has no such session.
 - Keep iOS and Android acceptance unclaimed. No iOS simulator is provisioned on
   the current host (`xcrun simctl list devices available` listed only the iOS
   runtime header), and the Android SDK is absent (`adb` and `emulator` were not

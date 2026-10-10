@@ -27,6 +27,7 @@ import com.massimotter.weave.backend.chat.domain.ChatReadReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRedactionReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
+import com.massimotter.weave.backend.chat.domain.ChatTimelinePage;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
 import com.massimotter.weave.backend.chat.domain.ConversationId;
@@ -192,6 +193,50 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
         List<ChatTimelineEvent> ordered = new ArrayList<>(reverse);
         java.util.Collections.reverse(ordered);
         return new ChatTimeline(conversationId.value(), ordered);
+    }
+
+    @Override
+    public ChatTimelinePage timelinePage(
+            ChatRequestContext context, ConversationId conversationId, ChatCursor before, int limit) {
+        requireJoined(context, conversationId);
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException("canonical Chat timeline page size is invalid");
+        }
+        long beforeSequence = before == null ? Long.MAX_VALUE : timelineSequence(before);
+        List<ChatEventJpaEntity> reverse = jpa.events().findVisibleBefore(
+                context.tenantId(), conversationId.value(), beforeSequence, PageRequest.of(0, limit + 1));
+        boolean hasEarlier = reverse.size() > limit;
+        List<ChatEventJpaEntity> selected = reverse.subList(0, Math.min(limit, reverse.size()));
+        long nextSequence = selected.isEmpty() ? beforeSequence : selected.getLast().sequence();
+        if (nextSequence == Long.MAX_VALUE) {
+            nextSequence = 0;
+        }
+        List<ChatTimelineEvent> ordered = new ArrayList<>(selected.stream().map(this::mapEvent).toList());
+        java.util.Collections.reverse(ordered);
+        return new ChatTimelinePage(new ChatTimeline(conversationId.value(), ordered),
+                "timeline-revision-" + nextSequence, hasEarlier);
+    }
+
+    private static long timelineSequence(ChatCursor cursor) {
+        String value = cursor.value();
+        if (!value.matches("timeline-revision-[0-9]+")) {
+            throw new IllegalArgumentException("canonical Chat timeline cursor is invalid");
+        }
+        try {
+            return Long.parseLong(value.substring("timeline-revision-".length()));
+        } catch (NumberFormatException invalid) {
+            throw new IllegalArgumentException("canonical Chat timeline cursor is invalid", invalid);
+        }
+    }
+
+    @Override
+    public ChatTimelineEvent event(ChatRequestContext context, ConversationId conversationId, String eventId) {
+        requireJoined(context, conversationId);
+        ChatTimelineEvent event = requireEvent(context.tenantId(), conversationId, eventId);
+        if (!COMMITTED.equals(event.deliveryState())) {
+            throw new IllegalArgumentException("canonical chat event was not found");
+        }
+        return event;
     }
 
     @Override
@@ -2311,6 +2356,7 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
             String providerKey,
             String providerEventRef,
             Instant occurredAt) {
+        lockChangeCommitOrder();
         if (jpa.changes().existsByTenantIdAndConversationIdAndKindAndCanonicalObjectId(
                 tenantId, conversationId.value(), kind, canonicalObjectId)) {
             return;
@@ -2334,6 +2380,7 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
             String kind,
             String canonicalObjectId,
             Instant occurredAt) {
+        lockChangeCommitOrder();
         if (!jpa.changes().existsByTenantIdAndConversationIdAndKindAndCanonicalObjectId(
                 tenantId, conversationId.value(), kind, canonicalObjectId)) {
             recordChange(tenantId, conversationId, kind, canonicalObjectId, occurredAt);
@@ -2355,6 +2402,7 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
             String kind,
             String canonicalObjectId,
             Instant occurredAt) {
+        lockChangeCommitOrder();
         jpa.changes().save(ChatChangeJpaEntity.create(
                 tenantId,
                 conversationId.value(),
@@ -2362,6 +2410,11 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
                 canonicalObjectId,
                 null,
                 occurredAt));
+    }
+
+    private void lockChangeCommitOrder() {
+        jpa.changeCommitFence().lockForInsert()
+                .orElseThrow(() -> new IllegalStateException("Canonical Chat change commit fence is missing."));
     }
 
     private String operationId(

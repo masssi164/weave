@@ -131,6 +131,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     } on ChatFailure catch (failure) {
       if (!mounted) return;
       setState(() {
+        if (failure.type == ChatFailureType.sessionRequired) {
+          _timeline = null;
+          _archivedMessageIds = <String>{};
+          _pendingMessage = null;
+        }
         _failure = failure;
         _loading = false;
       });
@@ -178,11 +183,18 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     } on ChatFailure catch (failure) {
       if (!mounted) return;
       setState(() {
-        _pendingMessage = pendingMessage.copyWith(
-          deliveryState: ChatMessageDeliveryState.failed,
-          failure: failure,
-        );
-        _failure = null;
+        if (failure.type == ChatFailureType.sessionRequired) {
+          _timeline = null;
+          _archivedMessageIds = <String>{};
+          _pendingMessage = null;
+          _failure = failure;
+        } else {
+          _pendingMessage = pendingMessage.copyWith(
+            deliveryState: ChatMessageDeliveryState.failed,
+            failure: failure,
+          );
+          _failure = null;
+        }
         _sending = false;
       });
     } catch (error) {
@@ -349,6 +361,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    if (_failure?.type == ChatFailureType.sessionRequired) {
+      return Scaffold(
+        appBar: AppBar(title: Text(l10n.chatScreenTitle)),
+        body: ErrorState(
+          message: l10n.chatErrorSessionRequiredGuidance,
+          retryLabel: l10n.retryButton,
+          onRetry: _loadTimeline,
+        ),
+      );
+    }
     final timeline = _timeline;
     final activeMessages = timeline == null
         ? const <ChatMessage>[]
@@ -368,8 +390,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         : _pendingMessage;
     final roomTitle = timeline?.roomTitle ?? widget.conversation.title;
     final canSend =
-        !_showingArchivedMessages &&
-        (timeline?.canSendMessages ?? !widget.conversation.isInvite);
+        !_showingArchivedMessages && timeline?.canSendMessages == true;
     final decisionEvidenceRecords = ref.watch(decisionEvidenceProvider);
     final decisionEvidenceSnapshot = RoomDecisionEvidenceSnapshot(
       roomId: widget.conversation.id,

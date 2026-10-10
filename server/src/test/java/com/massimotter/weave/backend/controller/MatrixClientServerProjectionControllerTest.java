@@ -5,6 +5,7 @@ import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
+import com.massimotter.weave.backend.chat.domain.ChatCursor;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
@@ -18,6 +19,7 @@ import com.massimotter.weave.backend.chat.domain.ChatReadiness;
 import com.massimotter.weave.backend.chat.domain.ChatRedactionReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRelation;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
+import com.massimotter.weave.backend.chat.domain.ChatTimelinePage;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
@@ -40,6 +42,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -61,6 +64,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -114,6 +118,9 @@ class MatrixClientServerProjectionControllerTest {
 
     @Autowired
     private OrganizationIdentityContextResolver identityContextResolver;
+
+    @Autowired
+    private MatrixProtocolCoreService matrixProtocolCoreService;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -350,11 +357,98 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void coldSyncMarksTruncatedCanonicalHistoryAsLimited() throws Exception {
+        stubConversation();
+        when(chatDomainFacadeService.timelineWindow(eq("channel-general"), any(), eq(100)))
+                .thenReturn(new ChatDomainFacadeService.ChatTimelineWindow(timeline(), true));
+
+        mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.limited")
+                        .value(true));
+    }
+
+    @Test
+    void coldSyncHistoryCursorBackfillsThroughAuthorizedMessages() throws Exception {
+        stubConversation();
+        when(chatDomainFacadeService.timelineWindow(eq("channel-general"), any(), eq(100)))
+                .thenReturn(new ChatDomainFacadeService.ChatTimelineWindow(
+                        timeline(), true, "timeline-revision-6"));
+        when(chatDomainFacadeService.timelinePage(eq("channel-general"), any(),
+                eq(new ChatCursor("timeline-revision-6")), eq(100)))
+                .thenReturn(new ChatTimelinePage(
+                        new ChatTimeline("channel-general", List.of(event("msg-older",
+                                ChatEventContent.text("Earlier message")))),
+                        "timeline-revision-1", false));
+
+        String initial = mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String from = objectMapper.readTree(initial).path("rooms").path("join")
+                .path("!channel-general:api.weave.test").path("timeline").path("prev_batch").asString();
+        assertThat(matrixProtocolCoreService.decodeSyncCursor(from)).isEqualTo("timeline-revision-6");
+        mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/messages")
+                        .queryParam("from", from).queryParam("dir", "b").with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.chunk[0].content.body").value("Earlier message"))
+                .andExpect(jsonPath("$.start").value(from));
+        mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/messages")
+                        .queryParam("from", "invalid-cursor").with(workspaceJwt()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void incrementalSyncProjectsOwnDepartureAsRoomLeave() throws Exception {
+        stubConversation();
+        String initial = mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String since = objectMapper.readTree(initial).path("next_batch").asString();
+        when(chatDomainFacadeService.syncDelta(any(), eq("chat-revision-7"), eq(100)))
+                .thenReturn(new ChatDomainFacadeService.ChatSyncDelta(
+                        "chat-revision-8", Map.of(), Set.of("channel-general")));
+        when(chatDomainFacadeService.conversations(any()))
+                .thenReturn(new ChatConversations(readiness(), List.of()));
+
+        mockMvc.perform(get("/_matrix/client/v3/sync").queryParam("since", since)
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.leave['!channel-general:api.weave.test']").isMap())
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test']").doesNotExist());
+    }
+
+    @Test
+    void incrementalSyncProjectsOnlyTheCommittedJournalPageAndRetainsItsCursor() throws Exception {
+        stubConversation();
+        String initial = mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String since = objectMapper.readTree(initial).path("next_batch").asString();
+        when(chatDomainFacadeService.syncDelta(any(), eq("chat-revision-7"), eq(100)))
+                .thenReturn(new ChatDomainFacadeService.ChatSyncDelta(
+                        "chat-revision-8",
+                        Map.of("channel-general", List.of(event("msg-2", ChatEventContent.text("After cursor"))))));
+
+        String incremental = mockMvc.perform(get("/_matrix/client/v3/sync")
+                        .queryParam("since", since).with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.events.length()")
+                        .value(1))
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.events[0].content.body")
+                        .value("After cursor"))
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.prev_batch")
+                        .value(since))
+                .andReturn().getResponse().getContentAsString();
+        String decoded = matrixProtocolCoreService.decodeSyncCursor(
+                objectMapper.readTree(incremental).path("next_batch").asString());
+        assertThat(decoded).startsWith("chat-revision-8|e2ee:");
+    }
+
+    @Test
     void syncProjectsCanonicalEncryptionStateForColdClients() throws Exception {
         ChatConversations encrypted = conversations(ChatEncryptionState.matrixMegolm());
         when(chatDomainFacadeService.conversations(any())).thenReturn(encrypted);
         when(chatDomainFacadeService.timeline(eq("channel-general"), any(), anyInt()))
                 .thenReturn(timeline());
+        stubTimelineWindow();
         when(chatDomainFacadeService.syncCursor(any())).thenReturn("chat-revision-7");
 
         mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
@@ -1126,7 +1220,17 @@ class MatrixClientServerProjectionControllerTest {
                 .thenReturn(conversations().conversations().getFirst());
         when(chatDomainFacadeService.timeline(eq("channel-general"), any(), anyInt()))
                 .thenReturn(timeline());
+        when(chatDomainFacadeService.timelinePage(eq("channel-general"), any(), isNull(), anyInt()))
+                .thenReturn(new ChatTimelinePage(timeline(), "timeline-revision-1", false));
+        stubTimelineWindow();
         when(chatDomainFacadeService.syncCursor(any())).thenReturn("chat-revision-7");
+    }
+
+    private void stubTimelineWindow() {
+        when(chatDomainFacadeService.timelineWindow(eq("channel-general"), any(), anyInt()))
+                .thenAnswer(call -> new ChatDomainFacadeService.ChatTimelineWindow(
+                        chatDomainFacadeService.timeline(call.getArgument(0), call.getArgument(1),
+                                call.getArgument(2)), false));
     }
 
     private ChatConversations conversations() {

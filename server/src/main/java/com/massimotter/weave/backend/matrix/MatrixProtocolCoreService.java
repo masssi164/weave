@@ -70,10 +70,21 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             List<CanonicalConversation> conversations,
             Map<String, Map<String, Object>> accountData,
             MatrixSyncCrypto crypto) {
+        return sync(subject, cursor, since, conversations, accountData, crypto, List.of());
+    }
+
+    public Map<String, Object> sync(
+            String subject,
+            String cursor,
+            String since,
+            List<CanonicalConversation> conversations,
+            Map<String, Map<String, Object>> accountData,
+            MatrixSyncCrypto crypto,
+            List<String> leftRooms) {
         return project(MatrixProtocolOperation.SYNC, new CanonicalProjection(
                 subject, cursor, since, conversations, accountData,
                 crypto.toDeviceEvents(), crypto.deviceListsChanged(), crypto.deviceListsLeft(),
-                crypto.oneTimeKeyCounts(), crypto.unusedFallbackKeyTypes()));
+                crypto.oneTimeKeyCounts(), crypto.unusedFallbackKeyTypes(), leftRooms));
     }
 
     public void validateSyncToken(String since) {
@@ -240,14 +251,15 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             List<String> deviceListsChanged,
             List<String> deviceListsLeft,
             Map<String, Long> deviceOneTimeKeysCount,
-            List<String> deviceUnusedFallbackKeyTypes) {
+            List<String> deviceUnusedFallbackKeyTypes,
+            List<String> leftRooms) {
         public CanonicalProjection(
                 String subject,
                 String cursor,
                 String since,
                 List<CanonicalConversation> conversations,
                 Map<String, Map<String, Object>> accountData) {
-            this(subject, cursor, since, conversations, accountData, List.of(), List.of(), List.of(), Map.of(), List.of());
+            this(subject, cursor, since, conversations, accountData, List.of(), List.of(), List.of(), Map.of(), List.of(), List.of());
         }
     }
 
@@ -258,7 +270,22 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             int unreadCount,
             String encryptionAlgorithm,
             List<CanonicalMembership> memberships,
-            List<CanonicalMessage> messages) {}
+            List<CanonicalMessage> messages,
+            boolean timelineLimited,
+            String timelineBeforeCursor) {
+        public CanonicalConversation(String conversationId, String title, long updatedAtEpochMillis,
+                int unreadCount, String encryptionAlgorithm, List<CanonicalMembership> memberships,
+                List<CanonicalMessage> messages) {
+            this(conversationId, title, updatedAtEpochMillis, unreadCount, encryptionAlgorithm,
+                    memberships, messages, false, null);
+        }
+        public CanonicalConversation(String conversationId, String title, long updatedAtEpochMillis,
+                int unreadCount, String encryptionAlgorithm, List<CanonicalMembership> memberships,
+                List<CanonicalMessage> messages, boolean timelineLimited) {
+            this(conversationId, title, updatedAtEpochMillis, unreadCount, encryptionAlgorithm,
+                    memberships, messages, timelineLimited, null);
+        }
+    }
 
     public record CanonicalMembership(String memberRef, String state) {}
 
