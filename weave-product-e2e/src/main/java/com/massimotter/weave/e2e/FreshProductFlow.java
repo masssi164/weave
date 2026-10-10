@@ -350,7 +350,7 @@ public final class FreshProductFlow {
       new ForeignOrganizationJourney(environment, http).prove(
           browser, organizationId, generatedFiles, generatedFilesProof,
           memberSession.accessToken(), generatedCalendar, mcpCalendarProof,
-          ownerSession.accessToken(), adminSession.accessToken(),
+          ownerSession, adminSession.accessToken(),
           new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate()));
       foreignOrganizationDenied = true;
       GeneratedFilesJourney.Proof mcpTextProof =

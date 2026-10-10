@@ -3,6 +3,7 @@ package com.massimotter.weave.e2e;
 import com.massimotter.weave.e2e.GeneratedCalendarJourney.Proof;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Base64;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -68,7 +69,7 @@ final class ForeignOrganizationJourney {
       String primaryMemberToken,
       GeneratedCalendarJourney calendar,
       Proof event,
-      String primaryOwnerToken,
+      OidcBrowserJourney.TokenSet primaryOwnerSession,
       String primaryAdminToken,
       GeneratedAdminApi admin) {
     Fixture fixture = readFixture(primaryOrganizationId);
@@ -77,10 +78,16 @@ final class ForeignOrganizationJourney {
         List.of("openid", "profile", "email"), fixture.email(), fixture.password(),
         "foreign-organization-user");
     requireForeignClaims(browser.jwtPayload(userSession.accessToken()), fixture, "weave-app");
-    requireComparableUserToken(browser.jwtPayload(primaryOwnerToken),
+    OidcBrowserJourney.TokenSet refreshedOwner = browser.refresh(primaryOwnerSession);
+    files.requireRootAvailable(refreshedOwner.accessToken(), "primary owner after foreign fixture");
+    requireComparableUserToken(browser.jwtPayload(refreshedOwner.accessToken()),
         browser.jwtPayload(userSession.accessToken()));
+    if (!jwtKeyId(refreshedOwner.accessToken()).equals(jwtKeyId(userSession.accessToken()))) {
+      throw new ProductFlowException("foreign token signing key differs from refreshed owner");
+    }
     files.verifyForeignOrganizationDenied(file, userSession.accessToken(), primaryMemberToken);
-    calendar.verifyForeignOrganizationDenied(event, userSession.accessToken(), primaryOwnerToken);
+    calendar.verifyForeignOrganizationDenied(event, userSession.accessToken(),
+        refreshedOwner.accessToken());
 
     JsonNode whoami = http.json(
         "foreign organization Matrix identity denial", "GET",
@@ -137,6 +144,18 @@ final class ForeignOrganizationJourney {
       result.add(value.asString());
     }
     return result;
+  }
+
+  private String jwtKeyId(String token) {
+    try {
+      JsonNode header = http.mapper().readTree(
+          Base64.getUrlDecoder().decode(token.split("\\.")[0]));
+      String keyId = header.path("kid").asString();
+      if (keyId.isBlank()) throw new ProductFlowException("OIDC signing key id missing");
+      return keyId;
+    } catch (RuntimeException failure) {
+      throw new ProductFlowException("OIDC signing key header is invalid");
+    }
   }
 
   private static void requireMatrixDenial(JsonNode body) {

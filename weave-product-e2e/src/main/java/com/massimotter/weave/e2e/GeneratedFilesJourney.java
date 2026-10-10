@@ -40,6 +40,17 @@ final class GeneratedFilesJourney {
     files = new FilesUserApi(client);
   }
 
+  void requireRootAvailable(String token, String stage) {
+    try {
+      FilesUserListResponse root = files.listFilesItems(null, bearer(token));
+      if (!"file:root".equals(root.getParentFileId())) {
+        throw new ProductFlowException(stage + " returned an invalid Files root");
+      }
+    } catch (ApiException failure) {
+      throw new ProductFlowException(stage + " returned HTTP " + failure.getCode());
+    }
+  }
+
   Proof createAndVerify(String memberToken, String outsiderToken, String runId) {
     String suffix = Hashing.sha256(runId).substring(0, 20);
     String name = "generated-files-" + suffix + ".bin";
