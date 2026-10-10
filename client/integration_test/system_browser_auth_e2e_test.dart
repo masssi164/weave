@@ -407,6 +407,11 @@ void main() {
           await restoredCoordinator.disposePreservingCryptoState();
         }
 
+        // Release the native app's semantics owner before Flutter's test
+        // harness checks for leaked handles at the end of the journey.
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+
         debugPrint(
           'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed login=single '
           'files=generated-upload-read calendar=generated-crud matrix=native '

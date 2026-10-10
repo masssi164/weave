@@ -63,6 +63,10 @@ def collect_flutter_output(process: subprocess.Popen[str], sink: queue.Queue[str
             record(f"NATIVE_FLUTTER_FAILURE_SOURCE line={match.group(1)}")
         elif "All tests passed" in line:
             record("FLUTTER_NATIVE_TEST_RUN status=passed")
+        elif "A SemanticsHandle was active" in line:
+            record("NATIVE_FLUTTER_HARNESS_FAILURE category=semantics-handle")
+        elif "A Timer is still pending" in line:
+            record("NATIVE_FLUTTER_HARNESS_FAILURE category=pending-timer")
         elif "Some tests failed" in line or "Test failed" in line:
             record("FLUTTER_NATIVE_TEST_RUN status=failed")
 
