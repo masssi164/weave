@@ -3,10 +3,11 @@
 Status: **local native journey passed; CI and remaining lifecycle gates open**.
 This record separates executable test code from observed native product
 evidence. A disposable local `testApp` run at source commit
-`d6395ab177bbce08f535da4f65a7880771b7d05f` completed the real AppAuth
+`6b7006425cfa3e58504fceeca6ffaa99604add58` completed the real AppAuth
 callback, generated Files and Calendar operations, native Rust Matrix business
-room send/read, refresh, a second native Flutter process restoring the same
-session and references, logout denial, and supported OpenClaw Matrix readback.
+room send/read, refresh, a restart of Server, Keycloak and PostgreSQL, and a
+second native Flutter process restoring the same session and references. It
+also proved logout denial and supported OpenClaw Matrix readback.
 Both Flutter test processes and the overall Gradle task exited zero. This is local
 macOS evidence; the #1475, #1479, and #1480 integrated closure gates still
 require the exact CI candidate and the lifecycle gaps below.
@@ -381,16 +382,23 @@ reused the existing isolated collaboration-service restart control between
 the two Flutter processes. It emitted
 `NATIVE_SERVICE_RESTART_RESULT status=passed` after Server, Keycloak and
 PostgreSQL restarted and returned healthy. The second Flutter process restored
-the same member, Matrix device,
-business-room message, stable file ID and downloaded file bytes without
-another browser sign-in. It then proved logout denial. Both Flutter harness
-processes exited zero; `NATIVE_PROCESS_RESTART_RESULT status=passed` and
+the same member, Matrix device, business-room message, stable file ID and
+downloaded file bytes without another browser sign-in. It then proved logout
+denial. Both Flutter harness processes exited zero;
+`NATIVE_PROCESS_RESTART_RESULT status=passed` and
 `NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed` were emitted, and `testApp`
 exited zero in 11m 46s. The support-safe evidence file records candidate
 `6b7006425cfa3e58504fceeca6ffaa99604add58` and specification
 `c726993168651f1109259f9a80cc23117d24a37f`. This local result does not
 replace the pending exact-candidate CI run or a separate active southbound
 provider-session outage proof.
+The next exact-candidate CI run at `5ee1a4485e5921c9ac6317715e9f3972db1042b1`
+([workflow 38013608116](https://github.com/masssi164/weave/actions/runs/38013608116))
+failed at the same preflight before stack startup. The 03:34:56 local macOS
+TCC log again attributed the denied Accessibility request to the versioned
+runner Node executable, with `authValue=0`. This independently confirms that
+the native product result remains local evidence and CI has not yet executed
+the native test on this candidate.
 The signing team, development certificate, and provisioning profile must be
 available to the logged-in macOS test user. CI reads the nonsecret signing team
 and bundle ID from repository variables `WEAVE_NATIVE_SIGNING_TEAM` and
