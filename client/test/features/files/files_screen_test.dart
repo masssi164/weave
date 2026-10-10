@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
@@ -1151,6 +1152,58 @@ void main() {
         find.bySemanticsLabel('Created folder Plans.'),
         findsAtLeastNWidgets(1),
       );
+    });
+
+    testWidgets('opens folder dialog from keyboard and restores action focus', (
+      tester,
+    ) async {
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://files.home.internal'),
+          accountLabel: 'alice',
+        ),
+      );
+      await tester.pumpWidget(
+        _filesTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final trigger = find.widgetWithText(OutlinedButton, 'New folder');
+      Finder focused() => find.byElementPredicate(
+        (element) =>
+            identical(element, FocusManager.instance.primaryFocus?.context),
+      );
+      for (
+        var i = 0;
+        i < 30 &&
+            find.ancestor(of: focused(), matching: trigger).evaluate().isEmpty;
+        i++
+      ) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      expect(find.ancestor(of: focused(), matching: trigger), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      final field = find.byType(TextField);
+      expect(find.ancestor(of: focused(), matching: field), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      final cancel = find.widgetWithText(TextButton, 'Cancel');
+      expect(find.ancestor(of: focused(), matching: cancel), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Create folder'), findsNothing);
+      expect(find.ancestor(of: focused(), matching: trigger), findsOneWidget);
     });
 
     testWidgets('does not offer delete without a generated User operation', (

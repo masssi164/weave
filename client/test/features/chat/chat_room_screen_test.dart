@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
@@ -531,8 +532,23 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'Reply sent');
-    await tester.tap(find.text('Send'));
+    final composer = find.byType(TextField);
+    await tester.enterText(composer, 'Reply sent');
+    Finder focused() => find.byElementPredicate(
+      (element) =>
+          identical(element, FocusManager.instance.primaryFocus?.context),
+    );
+    expect(find.ancestor(of: focused(), matching: composer), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    expect(
+      find.ancestor(
+        of: focused(),
+        matching: find.widgetWithText(FilledButton, 'Send'),
+      ),
+      findsOneWidget,
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 
     expect(repository.sendMessageCalls, 1);
