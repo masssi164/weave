@@ -45,6 +45,15 @@ public class ApiExceptionHandler {
                 exception.details());
     }
 
+    @ExceptionHandler(SpaceMemberRevokedException.class)
+    public void handleRevokedSpaceMember(SpaceMemberRevokedException exception,
+            HttpServletRequest request, HttpServletResponse response) throws IOException {
+        response.setHeader("ETag", exception.strongEtag());
+        errorResponseWriter.write(request, response, HttpStatus.GONE,
+                "space-membership-revoked", exception.getMessage(),
+                Map.of("module", "spaces"));
+    }
+
     @ExceptionHandler(KeycloakAdminException.class)
     public void handleIdentityAdministrationFailure(
             KeycloakAdminException exception,

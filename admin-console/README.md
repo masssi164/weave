@@ -6,7 +6,7 @@ Separate React + MUI admin surface for organization owners, admins, and operator
 
 - Deploys as an immutable Vite production bundle inside the Weave Server `bootJar`: `Weave Server + Admin Console` remains the reproducible Control Plane deployment target without a second production process.
 - Vite is development-only; `npm run dev` remains the unchanged host-development entrypoint and is not the bootstrap/Admin Console deployment target.
-- Talks only to Weave backend admin APIs (`/api/admin/...`).
+- Uses generated Admin operations for authorized `/api/admin/...` calls and the separately generated User client for credential-free `/api/platform/config` discovery before sign-in.
 - Uses browser OIDC Authorization Code + PKCE S256 through the public `weave-admin-console` client. Browser code may use the issuer authorization/token/session endpoints, but never Keycloak Admin REST.
 - Shows organization overview, effective policy explanation, provider category readiness, replacement dry-run results, provider detail/readiness actions, deny-by-default whitelist policy, and redacted audit events.
 - Renders owner/admin, operator, and member boundaries distinctly: owners/admins configure, operators inspect support-safe readiness, and members see only usable/disabled/degraded/policy-blocked capability states.
@@ -25,7 +25,7 @@ npm run generate:openapi
 npm run check:openapi
 ```
 
-OpenAPI consumer types and the fetch client are generated from the separate server-owned `contracts/openapi/weave-admin-openapi.json` artifact. The generator version is pinned in `gradle/tasks/verification.gradle`. Use `npm run generate:openapi` after server contract changes and `npm run check:openapi` to fail on stale generated artifacts. The invitation, control-plane, audit, whitelist, identity readiness, provider readiness, and replacement dry-run operations use the generated client. Older agent-runtime and provider-selection UI calls are still being reconciled with the approved API and migration evidence contract; their presence does not establish release readiness.
+OpenAPI consumer types and fetch clients are generated from the separate server-owned `contracts/openapi/weave-admin-openapi.json` and `contracts/openapi/weave-user-openapi.json` artifacts. The generator version is pinned in `gradle/tasks/verification.gradle`. Use `npm run generate:openapi` after server contract changes and `npm run check:openapi` to fail on stale generated artifacts. The invitation, control-plane, audit, whitelist, identity readiness, provider selection/readiness, and replacement dry-run operations use the generated Admin client. Public platform discovery uses the generated User client without a member bearer. Broad Agent Runtime controls are deferred from the current release; their existing Server security implementation and tests remain separately gated.
 
 ## Dependency update policy
 

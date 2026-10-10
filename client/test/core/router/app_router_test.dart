@@ -13,6 +13,7 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
@@ -272,6 +273,12 @@ void main() {
           // failures do not schedule Riverpod retry timers after disposal.
           weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
             (ref) async => _workspaceCapabilitySnapshot().value,
+          ),
+          weaveApiMemberSpacesProvider.overrideWith(
+            (ref) async => const MemberSpaceAccessSnapshot(
+              visibleSpaceRefs: {'workspace-default'},
+              defaultSpaceReadable: true,
+            ),
           ),
           weaveApiWorkspaceHomeProvider.overrideWith((ref) => null),
         ],

@@ -9,19 +9,47 @@ import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.identity.IdentityReferences;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 class WorkspaceHomeRecentActivityServiceTest {
 
     private static final String TENANT = "tenant-a";
     private static final String SHARED_CONTEXT = "workspace-a";
+
+    @Test
+    void durableSpaceRevocationRemovesHomeActivityDespiteStaticGrant() {
+        SpaceAccessPort spaces = mock(SpaceAccessPort.class);
+        AtomicBoolean granted = new AtomicBoolean(true);
+        when(spaces.allows(any(), any(), any(), any())).thenAnswer(call ->
+                granted.get() && SHARED_CONTEXT.equals(call.getArgument(1)));
+        var staticRights = mock(com.massimotter.weave.backend.context.authz.ContextAuthorizationPort.class);
+        WorkspaceHomeRecentActivityService service = new WorkspaceHomeRecentActivityService(
+                auditFixture(), staticRights, properties(), identityContexts(), spaces);
+
+        assertThat(service.recentActivity(jwt("collaborator-sub", TENANT))).hasSize(2);
+        granted.set(false);
+        assertThat(service.recentActivity(jwt("collaborator-sub", TENANT))).isEmpty();
+        verify(spaces, atLeastOnce()).allows(TENANT, SHARED_CONTEXT,
+                IdentityReferences.accountId("https://auth.weave.test/realms/weave", "collaborator-sub"),
+                SpaceAccessPort.Permission.VIEW);
+        verifyNoInteractions(staticRights);
+    }
 
     @Test
     void projectsOnlyAuthorizedCompletedSupportSafeActivityWithoutPayloadOrIdentityLeakage() {

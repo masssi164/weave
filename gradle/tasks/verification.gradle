@@ -31,8 +31,6 @@ tasks.named('checkOpenApiContractFresh') {
     dependsOn ':server:openApiContractExport', 'openApiNormalizationContractTest'
     environment 'WEAVE_OPENAPI_SKIP_EXPORT', 'true'
 }
-registerRootCommandTask('generateAdminOpenApiTypes', ['python3', 'tools/generate_admin_openapi_types.py'], 'Generate Admin Console TypeScript types from the server-owned OpenAPI artifact.')
-registerRootCommandTask('checkAdminOpenApiTypesFresh', ['python3', 'tools/generate_admin_openapi_types.py', '--check'], 'Fail when Admin Console generated OpenAPI types are stale.')
 configurations { adminOpenApiGenerator }
 dependencies { adminOpenApiGenerator 'org.openapitools:openapi-generator-cli:7.17.0' }
 tasks.register('generateAdminApiClient', Exec) {
@@ -47,8 +45,22 @@ tasks.register('checkAdminApiClientFresh', Exec) {
     commandLine 'python3', rootProject.file('tools/generate_admin_api_client.py'),
             '--jar', configurations.adminOpenApiGenerator.singleFile.absolutePath, '--check'
 }
+tasks.register('generateAdminPublicUserApiClient', Exec) {
+    group = 'build'
+    description = 'Generate the Admin Console public bootstrap client from the separate User OpenAPI artifact.'
+    commandLine 'python3', rootProject.file('tools/generate_admin_api_client.py'),
+            '--jar', configurations.adminOpenApiGenerator.singleFile.absolutePath,
+            '--audience', 'user'
+}
+tasks.register('checkAdminPublicUserApiClientFresh', Exec) {
+    group = 'verification'
+    description = 'Check the Admin Console public bootstrap client against the separate User OpenAPI artifact.'
+    commandLine 'python3', rootProject.file('tools/generate_admin_api_client.py'),
+            '--jar', configurations.adminOpenApiGenerator.singleFile.absolutePath,
+            '--audience', 'user', '--check'
+}
 tasks.named('adminCi') {
-    dependsOn 'checkAdminApiClientFresh', 'checkAdminOpenApiTypesFresh'
+    dependsOn 'checkAdminApiClientFresh', 'checkAdminPublicUserApiClientFresh'
 }
 registerRootCommandTask('generateClientUserApi', ['python3', 'tools/generate_client_user_api.py'], 'Generate the pinned Dart User HTTP SDK from the server-owned User OpenAPI artifact.')
 registerRootCommandTask('checkClientUserApiFresh', ['python3', 'tools/generate_client_user_api.py', '--check'], 'Fail when the checked-in Dart User HTTP SDK differs from the server-owned User OpenAPI artifact.')
@@ -86,7 +98,7 @@ tasks.register('mcpCi') {
 tasks.register('contractAuthorityArchitectureCheck') {
     group = 'verification'
     description = 'Verify the root-orchestrated server/OpenAPI contract authority baseline without running live infrastructure.'
-    dependsOn ':server:test', 'mcpCi', 'docsStructureCheck', 'checkOpenApiContractFresh', 'checkAdminOpenApiTypesFresh', 'checkClientUserApiFresh'
+    dependsOn ':server:test', 'mcpCi', 'docsStructureCheck', 'checkOpenApiContractFresh', 'checkAdminApiClientFresh', 'checkAdminPublicUserApiClientFresh', 'checkClientUserApiFresh'
 }
 registerRootCommandTask('infraStatic', ['bash', '-lc', "find infra/weave-workspace/tests -maxdepth 1 -type f -name '*-test.sh' -print0 | sort -z | xargs -0 -n1 bash"], 'Run the canonical Compose, bounded Keycloak migration, and static infrastructure contract checks.')
 registerRootCommandTask('docsBuild', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; rm -rf build/docs/user build/docs/admin; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/user; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/admin'], 'Build deterministic user and admin MkDocs outputs with strict validation.')

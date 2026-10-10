@@ -37,7 +37,9 @@ public class JwtDecoderConfig {
         if (!StringUtils.hasText(issuerUri)) {
             return configuredDecoder(resourceServerProperties, jwt -> OAuth2TokenValidatorResult.success());
         }
-        OAuth2TokenValidator<Jwt> validator = JwtValidators.createDefaultWithIssuer(issuerUri);
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(issuerUri),
+                requiredHumanSubjectValidator());
         if (weaveSecurityProperties.hasRequiredAudience()) {
             validator = new DelegatingOAuth2TokenValidator<>(
                     validator,
@@ -61,6 +63,7 @@ public class JwtDecoderConfig {
         }
         OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(issuerUri),
+                requiredHumanSubjectValidator(),
                 exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
                 requiredAuthorizedPartyValidator("weave-admin-console"));
         return configuredDecoder(resourceServerProperties, validator);
@@ -87,6 +90,27 @@ public class JwtDecoderConfig {
         return configuredRfc9068Decoder(resourceServerProperties, validator);
     }
 
+    @Bean("calendarMcpWorkloadJwtDecoder")
+    @ConditionalOnProperty(name = "weave.agent-runtime.workload-identity.enabled", havingValue = "true")
+    JwtDecoder calendarMcpWorkloadJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties) {
+        String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
+        if (!StringUtils.hasText(issuerUri)) {
+            return configuredRfc9068Decoder(
+                    resourceServerProperties,
+                    jwt -> OAuth2TokenValidatorResult.success());
+        }
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+                new JwtTimestampValidator(),
+                new JwtIssuerValidator(issuerUri),
+                rfc9068AccessTokenTypeValidator(),
+                exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
+                requiredAuthorizedPartyValidator("weave-mcp-server"),
+                oneOfExactScopesValidator(Set.of("calendar.read", "calendar.write")));
+        return configuredRfc9068Decoder(resourceServerProperties, validator);
+    }
+
     @Bean("agentRuntimeAdminJwtDecoder")
     @ConditionalOnExpression(
             "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
@@ -102,6 +126,7 @@ public class JwtDecoderConfig {
         }
         OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(issuerUri),
+                requiredHumanSubjectValidator(),
                 exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
                 requiredAuthorizedPartyValidator(AgentRuntimeAdminSecurityConfiguration.CLIENT_ID));
         return configuredDecoder(resourceServerProperties, validator);
@@ -168,6 +193,13 @@ public class JwtDecoderConfig {
         };
     }
 
+    static OAuth2TokenValidator<Jwt> requiredHumanSubjectValidator() {
+        return jwt -> StringUtils.hasText(jwt.getSubject())
+                ? OAuth2TokenValidatorResult.success()
+                : OAuth2TokenValidatorResult.failure(
+                        error("invalid_token", "The human access token is missing a subject."));
+    }
+
     static OAuth2TokenValidator<Jwt> requiredAudienceValidator(String requiredAudience) {
         String normalizedRequiredAudience = requiredAudience.trim();
         return jwt -> hasRequiredAudience(jwt, normalizedRequiredAudience);
@@ -212,6 +244,19 @@ public class JwtDecoderConfig {
             }
             return OAuth2TokenValidatorResult.failure(
                     error("invalid_token", "The token scope set is not exact."));
+        };
+    }
+
+    static OAuth2TokenValidator<Jwt> oneOfExactScopesValidator(Set<String> allowedScopes) {
+        Set<String> allowed = Set.copyOf(allowedScopes);
+        return jwt -> {
+            String claim = jwt.getClaimAsString("scope");
+            if (claim != null && allowed.contains(claim.trim())
+                    && claim.trim().split("\\s+").length == 1) {
+                return OAuth2TokenValidatorResult.success();
+            }
+            return OAuth2TokenValidatorResult.failure(
+                    error("invalid_token", "The token scope is not an admitted exact domain scope."));
         };
     }
 

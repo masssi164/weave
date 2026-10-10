@@ -5,6 +5,11 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
+import com.massimotter.weave.backend.agentruntime.domain.ExchangedWorkloadToken;
+import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.*;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
@@ -15,12 +20,14 @@ import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.domain.*;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.service.*;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.time.Instant;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -63,6 +70,139 @@ class CalendarUserApiServiceTest {
                 rights, capabilities, bindings, List.of(provider), audit);
         calendar = service.calendars(member).calendars().getFirst().id();
         clearInvocations(provider, bindings, audit);
+    }
+
+    @Test
+    void durableSpaceRevocationHidesCalendarsAndBlocksProviderQueryDespiteStaticGrant() {
+        SpaceAccessPort spaces = mock(SpaceAccessPort.class);
+        when(spaces.allows(eq("tenant-default"), eq("workspace-default"), anyString(),
+                eq(SpaceAccessPort.Permission.VIEW))).thenReturn(true, false);
+        var context = new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
+        service = new CalendarUserApiService(HumanJwtTestSupport.organizationAdmission(),
+                OrganizationIdentityContextResolver.configured(context), context, rights, spaces,
+                capabilities, bindings, List.of(provider), audit);
+        clearInvocations(rights);
+
+        assertThat(service.calendars(member).calendars()).hasSize(1);
+        assertThat(service.calendars(member).calendars()).isEmpty();
+        assertStatus(() -> service.agenda(member, calendar, Instant.parse("2026-01-01T00:00:00Z"),
+                Instant.parse("2026-01-02T00:00:00Z"), "UTC"), HttpStatus.FORBIDDEN);
+        verify(provider, never()).query(any(), any(), any(), any());
+        verify(rights, never()).check(any());
+    }
+
+    @Test
+    void currentCalendarWorkloadReadsThroughMemberSpaceAndAuditsWithoutMaterializing() {
+        CalendarUserApiService workload = workloadService();
+        when(provider.query(any(), any(), any(), any())).thenReturn(List.of());
+
+        assertThat(workload.calendars(workloadJwt()).calendars())
+                .singleElement().satisfies(visible -> {
+                    assertThat(visible.id()).isEqualTo(calendar);
+                    assertThat(visible.allowedActions()).containsExactly("read");
+                });
+        assertThat(workload.agenda(workloadJwt(), calendar,
+                Instant.parse("2026-10-07T00:00:00Z"), Instant.parse("2026-10-08T00:00:00Z"), "UTC")
+                .events()).isEmpty();
+        verify(provider).query(any(), any(), any(), any());
+        verify(bindings, never()).saveMapping(any());
+        verify(audit, times(2)).publish(any());
+    }
+
+    @Test
+    void revokedWorkloadSpaceFailsBeforeCalendarProviderQuery() {
+        CalendarUserApiService workload = workloadService();
+        when(rights.check(any())).thenReturn(ContextAuthorizationDecision.deny("revoked"));
+
+        assertStatus(() -> workload.agenda(workloadJwt(), calendar,
+                Instant.parse("2026-10-07T00:00:00Z"), Instant.parse("2026-10-08T00:00:00Z"), "UTC"),
+                HttpStatus.FORBIDDEN);
+        verify(provider, never()).query(any(), any(), any(), any());
+    }
+
+    @Test
+    void workloadCannotMaterializePreviewOrCreateAnEvent() {
+        CalendarUserApiService workload = workloadService();
+        assertStatus(() -> workload.create(workloadJwt(), calendar, content("Denied"),
+                "workload-create-key"), HttpStatus.FORBIDDEN);
+        verify(provider, never()).write(any());
+        verify(bindings, never()).saveMapping(any());
+    }
+
+    @Test
+    void authorizedCalendarWriteWorkloadUsesTheSameVersionedProviderMutationPath() {
+        CalendarUserApiService workload = workloadService("calendar.write");
+        Event created = workload.create(workloadJwt(), calendar, content("MCP planning"),
+                "mcp-calendar-create-key");
+        assertThat(service.read(member, calendar, created.id()).content().title())
+                .isEqualTo("MCP planning");
+        assertThat(workload.create(workloadJwt(), calendar, content("MCP planning"),
+                "mcp-calendar-create-key")).isEqualTo(created);
+
+        Event updated = workload.update(workloadJwt(), calendar, created.id(),
+                content("MCP updated"), created.version());
+        assertThat(updated.id()).isEqualTo(created.id());
+        assertThat(service.read(member, calendar, created.id()).content().title())
+                .isEqualTo("MCP updated");
+        assertStatus(() -> workload.delete(workloadJwt(), calendar, created.id(),
+                created.version()), HttpStatus.PRECONDITION_FAILED);
+        workload.delete(workloadJwt(), calendar, created.id(), updated.version());
+        verify(provider).delete(any(), any(), any(), any());
+    }
+
+    @Test
+    void workloadPreviewRemainsTransientEvenWhenExplicitMaterializationIsRequested() {
+        service.create(member, calendar, content("External planning"), "calendar-fixture-key-2");
+        mappings.clear();
+        clearInvocations(bindings, audit);
+        when(provider.query(any(), any(), any(), any())).thenAnswer(call -> List.copyOf(events.values()));
+        CalendarUserApiService workload = workloadService();
+        EventPreview preview = workload.agenda(workloadJwt(), calendar,
+                Instant.parse("2026-03-28T00:00:00Z"),
+                Instant.parse("2026-03-29T00:00:00Z"), "UTC").previews().getFirst();
+        clearInvocations(provider);
+
+        assertStatus(() -> workload.materializePreview(workloadJwt(), calendar, preview.handle()),
+                HttpStatus.FORBIDDEN);
+        assertThat(mappings).isEmpty();
+        verify(bindings, never()).saveMapping(any());
+        verifyNoInteractions(provider);
+    }
+
+    @SuppressWarnings("unchecked")
+    private CalendarUserApiService workloadService() {
+        return workloadService("calendar.read");
+    }
+
+    @SuppressWarnings("unchecked")
+    private CalendarUserApiService workloadService(String scope) {
+        var authorization = mock(McpWorkloadAuthorizationService.class);
+        var tokenPolicy = mock(McpExchangedTokenPolicy.class);
+        ObjectProvider<McpWorkloadAuthorizationService> authorizationProvider = mock(ObjectProvider.class);
+        ObjectProvider<McpExchangedTokenPolicy> tokenProvider = mock(ObjectProvider.class);
+        when(authorizationProvider.getIfAvailable()).thenReturn(authorization);
+        when(tokenProvider.getIfAvailable()).thenReturn(tokenPolicy);
+        Instant now = Instant.now();
+        var exchanged = new ExchangedWorkloadToken(
+                "https://auth.weave.test/realms/weave", "workload-subject", "weave-mcp-server",
+                Set.of(scope), now, now.plusSeconds(60), "exchange-calendar-1");
+        var principal = new WeaverWorkloadPrincipal(
+                exchanged.issuer(), exchanged.subject(), "weaver-cell-1", "weave-mcp-server",
+                "tenant-default", "person-1", new RuntimeMemberBinding(exchanged.issuer(), "member"),
+                "member", "cell-1", "profile-1", "sha256:profile", "entitlement-1",
+                now.plusSeconds(60), Set.of(scope), Set.of(scope));
+        when(tokenPolicy.resolve(any())).thenReturn(exchanged);
+        when(authorization.authorize(exchanged)).thenReturn(principal);
+        var context = new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
+        return new CalendarUserApiService(HumanJwtTestSupport.organizationAdmission(),
+                OrganizationIdentityContextResolver.configured(context), context, rights, null,
+                capabilities, bindings, List.of(provider), audit, authorizationProvider, tokenProvider);
+    }
+
+    private Jwt workloadJwt() {
+        return Jwt.withTokenValue("workload-token").header("typ", "at+jwt")
+                .issuer("https://auth.weave.test/realms/weave").subject("workload-subject")
+                .claim("azp", "weave-mcp-server").build();
     }
 
     @Test
@@ -113,6 +253,23 @@ class CalendarUserApiServiceTest {
         service.delete(member, calendar, created.id(), updated.version());
         verify(provider).delete(any(), eq(CalendarScope.workspace()), any(), eq(new EventVersion("\"private-etag-2\"")));
         assertThat(mappings.values()).allSatisfy(mapping -> assertThat(mapping.providerObjectRef()).doesNotContain("\0"));
+    }
+
+    @Test
+    void spaceEventCandidatesComeOnlyFromConfirmedMappingsAndCurrentScopeRights() {
+        Event created = service.create(member, calendar, content("Planning"), "calendar-create-key-relations");
+        when(bindings.mappedByProviderRefPrefix(eq("tenant-default"), eq("calendar"), eq(1L),
+                anyString(), eq(""), eq(10))).thenAnswer(call -> mappings.values().stream()
+                        .filter(mapping -> mapping.providerObjectRef().startsWith(call.getArgument(3)))
+                        .toList());
+        clearInvocations(provider);
+        assertThat(service.materializedEventRefsInSpace(member, "workspace-default", "", 10))
+                .containsExactly(created.id());
+        verify(provider, never()).query(any(), any(), any(), any());
+        verify(provider, never()).read(any(), any(), any());
+        assertThat(service.materializedEventRefsInSpace(member, "team-missing", "", 10)).isEmpty();
+        when(rights.check(any())).thenReturn(ContextAuthorizationDecision.deny("revoked"));
+        assertThat(service.materializedEventRefsInSpace(member, "workspace-default", "", 10)).isEmpty();
     }
 
     @Test

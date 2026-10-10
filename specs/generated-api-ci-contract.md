@@ -18,6 +18,16 @@ No Home-core, dogfood, production service or deployment credential is involved.
    `openApiContractExport` test context and export separate User/Admin artifacts.
    Compare the deterministic exports with the checked-in documents. Explicit operation
    IDs, partitioning, ordered examples, errors, headers and schema semantics remain checked.
+   The Profile User operations declare `application/json` for their actual success
+   and `ApiErrorResponse` failures, including validation, authentication and
+   authorization errors. Profile PATCH also declares its actual JSON-envelope
+   `415` for unsupported request media types; a wildcard response media type or
+   omitted failure status is not an accurate projection of its HTTP behavior.
+   Across User and Admin controllers, a response annotated with a JSON transport
+   DTO or `ApiErrorResponse` declares `application/json` in server code. The
+   generated artifacts must not turn these object envelopes into `*/*` merely
+   because the controller annotation omitted the media type. Binary and empty
+   responses retain their distinct explicit contracts.
    Files HTTP probes assert support-safe `ApiErrorResponse` failures before service/provider
    access: invalid folder DTOs and missing required upload query parameters return 400;
    an unsupported upload media type returns 415. A raced absent-name folder precondition
@@ -34,6 +44,11 @@ No Home-core, dogfood, production service or deployment credential is involved.
 4. Require this real job in the existing protected `Gradle CI` aggregate alongside all
    current foundation jobs. A skipped, failed or cancelled required job must not pass
    the aggregate. No branch-protection check is removed or replaced with unconditional success.
+   Label-only PR events may rerun the release-notes check without rerunning the full
+   foundation chain, but their skipped aggregate must use a different check name.
+   The protected `Gradle CI` context is emitted only by a full exact-head run that
+   requires every foundation job. A label change must never turn a skipped aggregate
+   into a passing required context.
 
 The seven hosted foundation jobs are scheduled in a dependency chain on the same
 candidate: architecture, canonical data, PostgreSQL persistence, server
@@ -69,10 +84,11 @@ failure. These contain public transport metadata and fixture assertions, not bea
 tokens or private provider data. Tool and dependency versions are in setup/build logs.
 
 Passing this gate proves deterministic code-first generation and the current generated
-consumers on one source candidate. MCP Files uses the generated JVM User module and the
-current member/context authorization bridge described in `mcp-generated-user-files.md`.
-Generated freshness alone does not prove workload authorization or real file retrieval.
-Real browser/OIDC, User/Admin/MCP, Matrix interoperability,
+consumers on one source candidate. MCP Files and Calendar use the generated JVM User module and the
+current member/context authorization bridge described in `mcp-generated-user-files.md` and
+`mcp-generated-user-calendar.md`. Generated freshness alone does not prove workload
+authorization or real provider content retrieval.
+Real browser/OIDC, User/Admin/MCP, Weave-owned Matrix Client-Server behavior,
 Files/Calendar and session recovery journeys remain independently required by #1480.
 The disposable Compose lane provides runtime evidence; provider migration remains #1498.
 
@@ -87,6 +103,16 @@ after the isolated Server/PostgreSQL restart. The suite independently compares e
 bytes and revision changes instead of treating generated models as the behavioral
 oracle. Its only cleanup requirement is teardown of the disposable Compose namespace
 and exact volumes because the User Files API does not yet offer deletion or sharing.
+The same disposable journey provisions a durable Space through the generated Admin
+client, grants the member through the versioned Admin operation and verifies the
+generated User Space list, read and direct materialized File relation. It revokes
+that grant, checks that Space relations and Files fail closed for the still-valid
+member token, rejects replay of the stale grant version, then regrants with the
+revoked member's tombstone ETag. The original stable File relation and Files read
+must return after regrant. The relation's Files owner lookup uses the same configured
+Context principal claim as the Files User API, while immutable issuer and subject
+continue to identify the member account. Support-safe product evidence records the
+revocation and regrant result without exposing account IDs, tokens or File content.
 The native Files adapter may advertise identity-bound conditional content update only
 when its metadata authority atomically compares the same organization, Space, object
 ID, path and strong provider version before activating replacement bytes. A stale or
@@ -126,8 +152,9 @@ errors; and the owner-bootstrap route declares its distinct bootstrap-credential
 401 and unavailable 503 responses. Documenting an existing migration preflight
 does not make provider adoption, cutover or rollback part of #1470 acceptance;
 #1498 owns those outcomes. Matrix
-remains the explicit protocol exception and has its own
-independent-client qualification gate.
+remains the explicit protocol exception and has its own Weave-owned client
+compatibility gate. Independent third-party Matrix-client interoperability is
+deferred by #1475.
 Member Home may project a completed User Files write from the support-safe audit
 envelope only for its actor while User Files objects have owner-only access. It must
 not expose that object's activity to an ungranted member of the same organization.

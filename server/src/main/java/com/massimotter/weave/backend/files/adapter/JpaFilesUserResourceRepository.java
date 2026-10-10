@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.files.domain.FilesUserResource;
 import com.massimotter.weave.backend.files.port.FilesUserResourceRepository;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,20 @@ public class JpaFilesUserResourceRepository implements FilesUserResourceReposito
     @Override public List<FilesUserResource> activeChildren(String organizationRef, String parentFileId) {
         return records.findByIdOrganizationRefAndParentFileIdAndStateOrderByPath(
                         organizationRef, parentFileId, FilesUserResource.State.ACTIVE)
+                .stream().map(FilesUserResourceJpaEntity::toDomain).toList();
+    }
+
+    @Override public List<FilesUserResource> activeInSpace(
+            String organizationRef, String spaceRef, String ownerPrincipalRef,
+            String afterFileId, int limit) {
+        if (organizationRef == null || organizationRef.isBlank() || spaceRef == null || spaceRef.isBlank()
+                || ownerPrincipalRef == null || ownerPrincipalRef.isBlank()
+                || limit < 1 || limit > 100) {
+            throw new IllegalArgumentException("Space Files projection requires organization, Space and limit 1..100");
+        }
+        return records.activeInSpace(organizationRef, spaceRef, ownerPrincipalRef,
+                FilesUserResource.State.ACTIVE,
+                afterFileId == null ? "" : afterFileId, PageRequest.of(0, limit))
                 .stream().map(FilesUserResourceJpaEntity::toDomain).toList();
     }
 

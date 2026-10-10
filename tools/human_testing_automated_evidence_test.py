@@ -108,9 +108,13 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
             "sameJpaCellAfterRestart": True,
             "sameMcpCellAfterRestart": True,
             "revocationDenied": True,
+            "calendarMcpAgenda": True,
+            "calendarMcpWrongScopeDenied": True,
+            "calendarMcpRevocationDenied": True,
             "regrantRestored": True,
             "sameHumanSubjectAfterRegrant": True,
             "samePersonRefAfterRegrant": True,
+            "spaceRevocationRestored": True,
             "credentialsIncluded": False,
             "actionLinksIncluded": False,
             "collaboration": {

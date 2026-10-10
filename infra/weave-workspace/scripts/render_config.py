@@ -145,12 +145,12 @@ def _runtime_policy(context: ComposeContext) -> dict[str, object]:
                     "serverRef": "weave-mcp",
                     "endpoint": f"{context.env['WEAVE_API_ORIGIN']}/mcp",
                     "requestedResource": f"{context.env['WEAVE_API_ORIGIN']}/mcp",
-                    "requiredScopes": ["files.read", "mcp.tools"],
+                    "requiredScopes": ["calendar.read", "calendar.write", "files.read", "mcp.tools"],
                     "credentialRefTemplate": "credentialref://weave/runtime/{cellRef}/{workloadClientId}/mcp",
-                    "allowedToolClasses": ["files.read"],
+                    "allowedToolClasses": ["calendar.read", "calendar.write", "files.read"],
                 }
             ],
-            "visibleToolClasses": ["files.read"],
+            "visibleToolClasses": ["calendar.read", "calendar.write", "files.read"],
         },
         "approvals": {
             "pluginRouting": {"enabled": True, "mode": "same-chat", "targetRefs": []},

@@ -25,6 +25,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.security.oauth2.jwt.Jwt;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -136,6 +137,67 @@ class HttpMcpAuthorizationAdaptersTest {
             failure -> assertThat(failure.kind()).isEqualTo(McpAdmissionException.Kind.FORBIDDEN));
   }
 
+  @Test
+  void admitsOnlyAConstrainedReleaseWorkloadNamespaceAtTheEdge() {
+    var policy = new McpWorkloadTokenPolicy(properties("/token"));
+    assertThat(policy.resolve(releaseJwt("weaver-mcp-member-test")).clientId())
+        .isEqualTo("weaver-mcp-member-test");
+    assertThatThrownBy(() -> policy.resolve(releaseJwt("ordinary-member")))
+        .isInstanceOf(McpAdmissionException.class);
+  }
+
+  private Jwt releaseJwt(String clientId) {
+    return Jwt.withTokenValue("test-only-workload")
+        .header("alg", "RS256")
+        .header("typ", "at+jwt")
+        .issuer(ISSUER)
+        .subject(SUBJECT)
+        .audience(List.of(MCP_RESOURCE, EDGE))
+        .claim("client_id", clientId)
+        .claim("azp", clientId)
+        .claim("scope", "mcp.tools files.read")
+        .claim("realm_access", Map.of("roles", List.of("weaver-runtime")))
+        .claim("resource_access", Map.of())
+        .jti("release-workload-jti")
+        .issuedAt(now)
+        .expiresAt(now.plusSeconds(45))
+        .build();
+  }
+
+  @Test
+  void exchangesOnlyTheCalendarScopeHeldByTheCell() throws Exception {
+    AtomicReference<Map<String, String>> form = new AtomicReference<>();
+    server.createContext(
+        "/token",
+        exchange -> {
+          form.set(
+              form(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+          byte[] response =
+              mapper.writeValueAsBytes(
+                  Map.of(
+                      "access_token", "calendar.backend.token",
+                      "issued_token_type", "urn:ietf:params:oauth:token-type:access_token",
+                      "token_type", "Bearer",
+                      "scope", "calendar.read",
+                      "expires_in", 30));
+          exchange.getResponseHeaders().set("Content-Type", "application/json");
+          exchange.sendResponseHeaders(200, response.length);
+          exchange.getResponseBody().write(response);
+          exchange.close();
+        });
+    server.start();
+
+    var cell = new McpCellWorkloadPrincipal(
+        ISSUER, SUBJECT, CLIENT, Set.of("mcp.tools", "calendar.read"), now,
+        now.plusSeconds(45), "calendar-cell-jti");
+    ExchangedAccessToken result = tokenExchange(
+        properties("/token", List.of("files.read", "calendar.read")))
+        .exchange(cell, "incoming.calendar.cell.token", Set.of("calendar.read"));
+
+    assertThat(form.get()).containsEntry("scope", "calendar.read");
+    assertThat(result.scopes()).containsExactly("calendar.read");
+  }
+
   private SpringSecurityMcpBackendTokenExchange tokenExchange(
       McpWorkloadProperties properties) {
     McpAuthorizationConfiguration configuration = new McpAuthorizationConfiguration();
@@ -146,18 +208,24 @@ class HttpMcpAuthorizationAdaptersTest {
   }
 
   private McpWorkloadProperties properties(String tokenPath) {
+    return properties(tokenPath, List.of("files.read"));
+  }
+
+  private McpWorkloadProperties properties(String tokenPath, List<String> domains) {
     String base = "http://127.0.0.1:" + server.getAddress().getPort();
+    List<String> requiredScopes = new java.util.ArrayList<>(domains);
+    requiredScopes.add("mcp.tools");
     return new McpWorkloadProperties(
         URI.create(MCP_RESOURCE),
         URI.create("https://api.weave.test/.well-known/oauth-protected-resource/mcp"),
         URI.create(ISSUER),
-        List.of("mcp.tools", "files.read"),
+        requiredScopes,
         URI.create(base + tokenPath),
         EDGE,
         jwkFile.toAbsolutePath(),
         URI.create(API_RESOURCE),
         URI.create(base + "/api"),
-        List.of("files.read"),
+        domains,
         Duration.ofSeconds(2),
         Duration.ofSeconds(60),
         8192);

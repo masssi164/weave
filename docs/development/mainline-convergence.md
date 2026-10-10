@@ -1,6 +1,10 @@
 # Mainline convergence
 
-Status: historical one-time source-line convergence for issue #1299 and pull request #1413. The current #1470 delivery and pinned `steering/devops-conformance.md` supersede its main-promotion assumptions.
+Status: historical proposal for superseded issue #1299 and pull request #1413. This file is
+retained as source-line history, not an active promotion procedure. The current protected
+integration and mainline rules are in [Gitflow PR workflow](../gitflow-pr-workflow.md),
+with #1481 owning final #1470 delivery. Do not use the sequence below to promote an
+unqualified `dev` tree or restore the old Core scope.
 
 ## Purpose
 
@@ -28,7 +32,7 @@ Textual equivalent: the convergence commit has the current `dev` head as its fir
 
 ## Main promotion gate
 
-The protected compatibility context remains named `Verify dev → dogfood evidence before main`. The current rule also requires protected `dogfood` ancestry and an identical tree, exact dogfood E2E/deployment success, and a separately reported human result for the deployed commit. See `specs/main-promotion-evidence-contract.md`.
+The protected compatibility context is still named `Verify dev → dogfood evidence before main`, but its executable rule is already different: a normal promotion candidate must contain the current protected `dev` head and be tree-identical to it.
 
 After #1413 merges, branch protection can rename that context to an explicit current name such as `Verify exact dev tree before main` or retire the two-branch promotion model entirely.
 

@@ -38,6 +38,8 @@ import java.util.Set;
 public final class KeycloakRuntimeIdentityAuthority
         implements RuntimeEntitlementAuthority, RuntimePersonDirectory {
     public static final String WEAVER_CAPABILITY_GROUP_PATH = "/capabilities/weaver";
+    private static final Set<String> MEMBER_READ_ROLE_GROUP_PATHS =
+            Set.of("/owners", "/admins", "/members");
     private static final int PAGE_SIZE = 100;
     private static final int MAX_ORGANIZATIONS = 1_000;
     private static final int MAX_ORGANIZATION_GROUPS = 10_000;
@@ -97,7 +99,12 @@ public final class KeycloakRuntimeIdentityAuthority
                     "The authoritative identity is not a current enabled organization member");
         }
 
-        List<Group> eligible = organizationGroups(command.memberBinding().subject()).stream()
+        List<Group> currentGroups = organizationGroups(command.memberBinding().subject());
+        if (currentGroups.stream().noneMatch(group -> MEMBER_READ_ROLE_GROUP_PATHS.contains(group.path()))) {
+            throw new RuntimeEntitlementDeniedException(
+                    "The member has no current organization role for Weave domain reads");
+        }
+        List<Group> eligible = currentGroups.stream()
                 .filter(group -> WEAVER_CAPABILITY_GROUP_PATH.equals(group.path()))
                 .sorted(Comparator.comparing(Group::path).thenComparing(Group::id))
                 .toList();
@@ -122,6 +129,35 @@ public final class KeycloakRuntimeIdentityAuthority
                 command.organizationRef(), command.personRef(), command.memberBinding(),
                 text(organizationMember, "username"), SOURCE_PROVIDER,
                 sourceGroupRef, capabilityRevision, observedAt, observedAt.plus(settings.observationTtl()));
+    }
+
+    @Override
+    public Set<String> currentWeaveRoles(ObserveEntitlementCommand command) {
+        Objects.requireNonNull(command, "command");
+        if (!settings.enabled()
+                || !settings.issuer().toString().equals(command.memberBinding().issuer())
+                || !settings.organizationRef().equals(command.organizationRef())) {
+            throw new RuntimeEntitlementDeniedException("The member role lookup is outside this authority");
+        }
+        String subject = command.memberBinding().subject();
+        JsonNode member = get(
+                "/organizations/" + path(organizationId()) + "/members/" + path(subject),
+                Set.of(200, 404));
+        if (member == null || !subject.equals(text(member, "id"))
+                || !member.path("enabled").asBoolean(false)) {
+            throw new RuntimeEntitlementDeniedException("The member is not currently enabled in the organization");
+        }
+        Set<String> roles = new LinkedHashSet<>();
+        for (Group group : organizationGroups(subject)) {
+            switch (group.path()) {
+                case "/owners" -> roles.add("owner");
+                case "/admins" -> roles.add("admin");
+                case "/members" -> roles.add("member");
+                case "/guests" -> roles.add("guest");
+                default -> { }
+            }
+        }
+        return Set.copyOf(roles);
     }
 
     @Override

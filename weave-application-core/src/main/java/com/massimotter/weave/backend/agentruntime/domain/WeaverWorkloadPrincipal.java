@@ -49,6 +49,24 @@ public record WeaverWorkloadPrincipal(
         }
     }
 
+    public String bindingRef() {
+        return cellRef;
+    }
+
+    public String bindingAuditKey() {
+        return cellRef.startsWith("mcp-binding:") ? "workloadBindingRef" : "cellRef";
+    }
+
+    public String policyRevision() {
+        return (cellRef.startsWith("mcp-binding:") ? "mcp-binding:" : "runtime-profile:")
+                + runtimeProfileHash;
+    }
+
+    public String memberEntitlementRevision() {
+        return (cellRef.startsWith("mcp-binding:") ? "mcp-entitlement:" : "runtime-entitlement:")
+                + entitlementRevision;
+    }
+
     private static void requireText(String value, String field) {
         if (value == null || value.isBlank() || value.length() > 500) {
             throw new IllegalArgumentException(field + " is required and bounded");

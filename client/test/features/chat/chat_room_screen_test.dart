@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/chat/data/services/archived_message_store.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
+import 'package:weave/features/chat/presentation/chat_admission_gate.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 
 import '../../helpers/fake_chat_repository.dart';
@@ -23,6 +27,53 @@ void main() {
     isInvite: false,
     isDirectMessage: false,
   );
+
+  testWidgets('direct room route does not read a revoked timeline', (
+    tester,
+  ) async {
+    final repository = FakeChatRepository();
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatAdmissionGate(
+          child: ChatRoomScreen(conversation: conversation),
+        ),
+        overrides: [
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            const AsyncData(
+              WorkspaceCapabilitySnapshot(
+                shellAccess: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.shellAccess,
+                  readiness: WorkspaceCapabilityReadiness.ready,
+                ),
+                chat: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.chat,
+                  readiness: WorkspaceCapabilityReadiness.blocked,
+                  policyState: WorkspaceCapabilityPolicyState.policyBlocked,
+                ),
+                files: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.files,
+                  readiness: WorkspaceCapabilityReadiness.ready,
+                ),
+                calendar: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.calendar,
+                  readiness: WorkspaceCapabilityReadiness.ready,
+                ),
+                boards: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.boards,
+                  readiness: WorkspaceCapabilityReadiness.unavailable,
+                ),
+              ),
+            ),
+          ),
+          chatRepositoryProvider.overrideWithValue(repository),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.loadRoomTimelineCalls, 0);
+    expect(find.byType(ChatRoomScreen), findsNothing);
+  });
 
   ChatRoomTimeline buildTimeline({
     bool canSendMessages = true,

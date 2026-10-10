@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
@@ -30,6 +30,11 @@ abstract interface class WeaveApiClient {
   });
 
   Future<WorkspaceCapabilitySnapshot> fetchWorkspaceCapabilities({
+    required Uri baseUrl,
+    required String accessToken,
+  });
+
+  Future<MemberSpaceAccessSnapshot> fetchMemberSpaces({
     required Uri baseUrl,
     required String accessToken,
   });
@@ -174,6 +179,81 @@ class HttpWeaveApiClient implements WeaveApiClient {
   }
 
   @override
+  Future<MemberSpaceAccessSnapshot> fetchMemberSpaces({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    final api = user_api.SpacesUserApi(_client(baseUrl, accessToken));
+    final refs = <String>{};
+    String? cursor;
+    // A malformed or cycling cursor must not turn a partial list into access.
+    for (var page = 0; page < 100; page++) {
+      final response = await _read(
+        () => api.listSpaces(afterSpaceRef: cursor, limit: 100),
+        failureMessage: 'The Weave backend failed to list member Spaces.',
+        invalidPayloadMessage: 'The Weave backend returned no member Spaces.',
+      );
+      for (final space in response.spaces) {
+        if (space.spaceRef.trim().isEmpty) {
+          throw const AppFailure.unknown(
+            'The Weave backend returned an invalid Space reference.',
+          );
+        }
+        refs.add(space.spaceRef);
+      }
+      final next = response.nextAfterSpaceRef;
+      if (next == null) {
+        break;
+      }
+      if (next.isEmpty || next == cursor || page == 99) {
+        throw const AppFailure.unknown(
+          'The Weave backend returned an invalid Spaces cursor.',
+        );
+      }
+      cursor = next;
+    }
+
+    var defaultReadable = false;
+    if (refs.contains(MemberSpaceAccessSnapshot.defaultSpaceRef)) {
+      try {
+        final response = await api
+            .getSpace(MemberSpaceAccessSnapshot.defaultSpaceRef)
+            .timeout(const Duration(seconds: 5));
+        defaultReadable =
+            response?.spaceRef == MemberSpaceAccessSnapshot.defaultSpaceRef;
+        if (!defaultReadable) {
+          throw const AppFailure.unknown(
+            'The Weave backend returned an invalid default Space.',
+          );
+        }
+      } on user_api.ApiException catch (error) {
+        if (error.code == 401 || error.code == 403) {
+          throw AppFailure.unknown(
+            'The Weave backend rejected the current session.',
+            cause: error.code,
+          );
+        }
+        if (error.code != 404) {
+          throw AppFailure.unknown(
+            'The Weave backend failed to read the default Space.',
+            cause: error.code,
+          );
+        }
+        // A grant may be revoked between list and read.
+        refs.remove(MemberSpaceAccessSnapshot.defaultSpaceRef);
+      } on TimeoutException {
+        throw const AppFailure.unknown(
+          'Unable to reach the Weave backend right now.',
+        );
+      }
+    }
+    return MemberSpaceAccessSnapshot(
+      visibleSpaceRefs: Set.unmodifiable(refs),
+      defaultSpaceReadable: defaultReadable,
+    );
+  }
+
+  @override
   Future<WorkspaceHomeSnapshot> fetchWorkspaceHome({
     required Uri baseUrl,
     required String accessToken,
@@ -243,16 +323,16 @@ class HttpWeaveApiClient implements WeaveApiClient {
     required String fileId,
     required String requestedMode,
   }) async {
+    final apiClient = _client(baseUrl, accessToken);
     try {
-      final response =
-          await user_api.OfficeFacadeApi(_client(baseUrl, accessToken))
-              .launch(
-                user_api.OfficeLaunchRequest(
-                  fileId: fileId,
-                  requestedMode: requestedMode,
-                ),
-              )
-              .timeout(const Duration(seconds: 5));
+      final response = await user_api.OfficeFacadeApi(apiClient)
+          .launch(
+            user_api.OfficeLaunchRequest(
+              fileId: fileId,
+              requestedMode: requestedMode,
+            ),
+          )
+          .timeout(const Duration(seconds: 5));
       if (response == null) {
         throw const AppFailure.unknown(
           'The Weave backend returned an invalid Office launch payload.',
@@ -261,15 +341,19 @@ class HttpWeaveApiClient implements WeaveApiClient {
       return response.toSnapshot();
     } on user_api.ApiException catch (error) {
       if (error.code == 503) {
-        Object? decoded;
+        user_api.ApiErrorResponse? errorResponse;
         try {
-          decoded = jsonDecode(error.message ?? '');
-        } on FormatException {
-          decoded = null;
+          final decoded = await apiClient.deserializeAsync(
+            error.message ?? '',
+            'ApiErrorResponse',
+          );
+          if (decoded is user_api.ApiErrorResponse) {
+            errorResponse = decoded;
+          }
+        } catch (_) {
+          // A malformed error body still leaves the Office launch fail-closed.
         }
-        return officeLaunchFailClosedSnapshot(
-          decoded is Map<String, dynamic> ? decoded : <String, dynamic>{},
-        );
+        return officeLaunchFailClosedSnapshot(errorResponse);
       }
       if (error.code == 401 || error.code == 403) {
         throw AppFailure.unknown(

@@ -108,11 +108,11 @@ A large native adapter that owns application policy, persistence, protocol, and 
 
 ## MCP and Weaver
 
-The Weave MCP Server is a separate process. Its current curated Files tool reaches Weave Server through the same generated JVM User API client and transport models used by product E2E, with a distinct workload identity and current member/resource authorization. Calendar MCP tools remain gated. The earlier typed WebDAV/CalDAV transport is historical.
+The Weave MCP Server is a separate process. Its curated Files read and Calendar read/write tools reach Weave Server through the same generated JVM User API client and transport models used by product E2E, with a distinct workload identity and current member/resource authorization. Calendar writes require the current owner/admin capability and Space EDIT permission; Chat tools remain gated. The earlier typed WebDAV/CalDAV transport is historical.
 
 It contains no Chat catalog, DataSource, Flyway migration, JPA repository, BlobStore mount, provider adapter, Keycloak administration authority, or independent domain/approval workflow.
 
-Weaver/OpenClaw converses through Matrix. The current Files read slice uses MCP; Calendar MCP operations remain gated.
+Weaver/OpenClaw converses through Matrix. Curated Files and Calendar tools use MCP; Calendar write acceptance still requires live supported OpenClaw invocation and provider readback.
 
 ## Forbidden dependencies
 

@@ -44,6 +44,7 @@ class KeycloakRuntimeIdentityAuthorityTest {
     void setUp() throws IOException {
         mapper = new ObjectMapper();
         keycloak = new FakeKeycloak(mapper);
+        keycloak.groups.add(group("role-member", "members", "/members"));
         tokens = new RotatingTokenProvider();
         authority = new KeycloakRuntimeIdentityAuthority(
                 settings(true), tokens, mapper, HttpClient.newHttpClient(),
@@ -98,7 +99,7 @@ class KeycloakRuntimeIdentityAuthorityTest {
 
         assertThat(authority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
 
-        keycloak.groups.clear();
+        keycloak.groups.removeIf(group -> "/capabilities/weaver".equals(group.path("path").asString()));
         assertThatThrownBy(() -> authority.observe(command(ISSUER)))
                 .isInstanceOf(RuntimeEntitlementDeniedException.class)
                 .hasMessageContaining("no unambiguous native Weaver capability");
@@ -111,6 +112,35 @@ class KeycloakRuntimeIdentityAuthorityTest {
         assertThat(keycloak.requestPaths)
                 .filteredOn(path -> path.endsWith("/groups"))
                 .hasSize(3);
+    }
+
+    @Test
+    void guestRoleCannotRetainMcpDomainReadAfterRoleRevocation() {
+        keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
+        assertThat(authority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
+
+        keycloak.groups.removeIf(group -> "/members".equals(group.path("path").asString()));
+        keycloak.groups.add(group("role-guest", "guests", "/guests"));
+
+        assertThatThrownBy(() -> authority.observe(command(ISSUER)))
+                .isInstanceOf(RuntimeEntitlementDeniedException.class)
+                .hasMessageContaining("no current organization role for Weave domain reads");
+    }
+
+    @Test
+    void currentMemberRolesComeFromNativeOrganizationGroupsWithoutUserRoleAdminApis() {
+        assertThat(authority.currentWeaveRoles(command(ISSUER))).containsExactly("member");
+
+        keycloak.groups.removeIf(group -> "/members".equals(group.path("path").asString()));
+        keycloak.groups.add(group("role-admin", "admins", "/admins"));
+        assertThat(authority.currentWeaveRoles(command(ISSUER))).containsExactly("admin");
+
+        keycloak.groups.removeIf(group -> "/admins".equals(group.path("path").asString()));
+        keycloak.groups.add(group("role-guest", "guests", "/guests"));
+        assertThat(authority.currentWeaveRoles(command(ISSUER))).containsExactly("guest");
+        assertThat(keycloak.requestPaths)
+                .allMatch(path -> path.startsWith("/admin/realms/weave/organizations/"))
+                .noneMatch(path -> path.contains("/users/") || path.contains("/role-mappings"));
     }
 
     @Test

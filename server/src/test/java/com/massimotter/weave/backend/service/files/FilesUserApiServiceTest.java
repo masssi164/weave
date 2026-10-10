@@ -78,6 +78,28 @@ class FilesUserApiServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void durableSpaceRevocationDeniesFilesBeforeProviderAccessDespiteStaticGrant() {
+        var spaces = mock(com.massimotter.weave.backend.spaces.port.SpaceAccessPort.class);
+        var workloadProvider = mock(ObjectProvider.class);
+        var tokenProvider = mock(ObjectProvider.class);
+        var durableService = new FilesUserApiService(
+                OrganizationIdentityContextResolver.configured(contextProperties), contextProperties,
+                authorization, capabilities, bindings, resolver, resources, intents, transactions,
+                auditEvents, workloadProvider, tokenProvider, spaces);
+
+        assertThatThrownBy(() -> durableService.list(jwt("org-a", "alice"), null))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.code()).isEqualTo("files-forbidden"));
+        verify(spaces).allows(eq("org-a"), eq("workspace-default"),
+                eq(com.massimotter.weave.backend.identity.IdentityReferences.accountId(
+                        "https://auth.weave.test/realms/weave", "alice")),
+                eq(com.massimotter.weave.backend.spaces.port.SpaceAccessPort.Permission.VIEW));
+        verifyNoInteractions(resolver, resources, provider);
+        verify(authorization, never()).check(any());
+    }
+
+    @Test
     void currentWorkloadMayListOnlyTheOwnersGeneratedUserResources() {
         FilesUserApiService workloadService = workloadService();
         when(resources.activeChildren("org-a", FilesUserApiService.ROOT_ID)).thenReturn(List.of());

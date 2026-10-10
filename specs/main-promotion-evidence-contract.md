@@ -1,8 +1,9 @@
 # Main promotion evidence contract
 
 Status: implementation conformance for the pinned Weave Specification Corpus
-`71a2093d91ad300bc733ede66080bddc90f97e60`, especially
-`steering/devops-conformance.md` and
+`c726993168651f1109259f9a80cc23117d24a37f`, especially
+`steering/release-2026-10-product-consolidation.md` and the compatible
+delivery requirements in `steering/devops-conformance.md` and
 `acceptance/features/delivery-lane-validation.feature`. This packet does not
 define product or release policy independently.
 

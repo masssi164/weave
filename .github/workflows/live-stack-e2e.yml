@@ -29,6 +29,7 @@ jobs:
       WEAVE_CANDIDATE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
       WEAVE_IMAGE_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
       WEAVE_TEST_APP_RUN_ID: e2e-${{ github.run_id }}-${{ github.run_attempt }}
+      WEAVE_TEST_APP_RELEASE_MCP: "true"
       WEAVE_TEST_APP_OUTPUT_ROOT: ${{ github.workspace }}/weave/build/test-app
 
     steps:
@@ -100,8 +101,20 @@ jobs:
         working-directory: weave
         run: ./gradlew --no-daemon specCorpusConformance testApp
 
-      - name: Upload support-safe E2E evidence
+      - name: Verify support-safe E2E diagnostics
         if: always()
+        id: evidence_safety
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          if [[ -d build/test-app ]]; then
+            while IFS= read -r -d '' diagnostics_dir; do
+              bash infra/weave-workspace/live-stack-failure-diagnostics.sh --verify "${diagnostics_dir}"
+            done < <(find build/test-app -type d -name failure-diagnostics -print0)
+          fi
+
+      - name: Upload support-safe E2E evidence
+        if: always() && steps.evidence_safety.outcome == 'success'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: full-compose-e2e-${{ env.WEAVE_CANDIDATE_COMMIT }}

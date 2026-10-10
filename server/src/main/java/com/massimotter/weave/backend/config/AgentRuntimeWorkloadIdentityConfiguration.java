@@ -33,7 +33,7 @@ import org.springframework.context.annotation.Configuration;
   AgentRuntimeWorkloadIdentityProperties.class,
   AgentRuntimeEntitlementProperties.class
 })
-@ConditionalOnExpression("'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'")
+@ConditionalOnExpression("'${weave.agent-runtime.workload-identity.enabled:false}' == 'true' && '${weave.mcp.release-binding-file:}' == ''")
 public class AgentRuntimeWorkloadIdentityConfiguration {
 
   @Bean

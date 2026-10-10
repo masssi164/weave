@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 @Entity
 @Table(name = "weave_files_user_resources")
@@ -121,6 +124,23 @@ class FilesUserResourceId implements Serializable {
 }
 
 interface FilesUserResourceJpaRepository extends JpaRepository<FilesUserResourceJpaEntity, FilesUserResourceId> {
+    @Query("""
+            select resource from FilesUserResourceJpaEntity resource
+            where resource.id.organizationRef = :organizationRef
+              and resource.spaceRef = :spaceRef
+              and resource.ownerPrincipalRef = :ownerPrincipalRef
+              and resource.state = :state
+              and resource.id.fileId > :afterFileId
+            order by resource.id.fileId
+            """)
+    List<FilesUserResourceJpaEntity> activeInSpace(
+            @Param("organizationRef") String organizationRef,
+            @Param("spaceRef") String spaceRef,
+            @Param("ownerPrincipalRef") String ownerPrincipalRef,
+            @Param("state") FilesUserResource.State state,
+            @Param("afterFileId") String afterFileId,
+            Pageable page);
+
     Optional<FilesUserResourceJpaEntity> findByIdOrganizationRefAndBindingRevisionAndActivePathKey(
             String organizationRef, long bindingRevision, String path);
 

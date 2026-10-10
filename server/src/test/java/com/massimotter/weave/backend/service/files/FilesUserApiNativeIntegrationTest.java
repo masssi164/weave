@@ -8,8 +8,13 @@ import static org.mockito.Mockito.when;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort.Permission;
+import com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort;
+import com.massimotter.weave.backend.spaces.port.SpaceProvisioningPort;
 import java.nio.file.Path;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.io.TempDir;
@@ -52,6 +57,8 @@ class FilesUserApiNativeIntegrationTest {
     }
 
     @Autowired private FilesUserApiService files;
+    @Autowired private SpaceProvisioningPort spaces;
+    @Autowired private SpaceMembershipAdministrationPort memberships;
     @MockitoBean private JwtDecoder jwtDecoder;
     @MockitoBean private ContextAuthorizationPort authorization;
     @MockitoBean private WorkspaceCapabilityService capabilities;
@@ -59,6 +66,15 @@ class FilesUserApiNativeIntegrationTest {
     @Test
     void uploadPublishesStableIdentityAndReplaysWithExactBinaryContent() {
         when(authorization.check(any())).thenReturn(ContextAuthorizationDecision.allow("member"));
+        String organization = "org:files-user-integration";
+        String owner = account("owner");
+        String alice = account("alice");
+        // The outsider may view the Space, but never Alice's owner-only File.
+        spaces.provision(organization, "workspace-default", owner,
+                Set.of(alice, account("outsider")));
+        var view = memberships.get(organization, "workspace-default", owner, alice);
+        memberships.grant(organization, "workspace-default", owner, alice,
+                Set.of(Permission.VIEW, Permission.EDIT), view.strongEtag(), false);
         Jwt member = member("alice");
         byte[] bytes = {0, 10, (byte) 255, 34, 92, 127};
 
@@ -83,5 +99,9 @@ class FilesUserApiNativeIntegrationTest {
                 .issuer("https://auth.weave.test/realms/weave").subject(subject)
                 .claim("weave_tenant_id", "org:files-user-integration")
                 .claim("azp", "weave-app").build();
+    }
+
+    private String account(String subject) {
+        return IdentityReferences.accountId("https://auth.weave.test/realms/weave", subject);
     }
 }

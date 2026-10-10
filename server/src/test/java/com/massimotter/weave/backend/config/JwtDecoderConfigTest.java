@@ -60,6 +60,26 @@ class JwtDecoderConfigTest {
     }
 
     @Test
+    void humanDecodersRejectSignedTokensWithoutAnImmutableSubject() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
+            JwtDecoder userDecoder = jwtDecoder(jwksServer.jwkSetUri());
+            JwtDecoder adminDecoder = productAdminJwtDecoder(jwksServer.jwkSetUri());
+            JwtDecoder runtimeAdminDecoder = adminJwtDecoder(jwksServer.jwkSetUri());
+
+            for (String subject : new String[] {null, "", "   "}) {
+                assertThrows(JwtValidationException.class, () -> userDecoder.decode(signedToken(
+                        signingKey, ISSUER_URI, List.of("https://api.weave.test/api"), "weave-app", null, subject)));
+                assertThrows(JwtValidationException.class, () -> adminDecoder.decode(signedToken(
+                        signingKey, ISSUER_URI, List.of("https://api.weave.test/api"), "weave-admin-console", null, subject)));
+                assertThrows(JwtValidationException.class, () -> runtimeAdminDecoder.decode(signedToken(
+                        signingKey, ISSUER_URI, List.of("https://api.weave.test/api"),
+                        AgentRuntimeAdminSecurityConfiguration.CLIENT_ID, null, subject)));
+            }
+        }
+    }
+
+    @Test
     void nativeUserDecoderRejectsExtraAudienceAndAdminClient() throws Exception {
         RSAKey signingKey = rsaSigningKey();
         try (JwksServer jwksServer = JwksServer.start(signingKey)) {
@@ -142,6 +162,36 @@ class JwtDecoderConfigTest {
         assertThat(validator.validate(genericType).hasErrors()).isTrue();
         assertThat(validator.validate(wrongScope).hasErrors()).isTrue();
         assertThat(validator.validate(humanToken).hasErrors()).isTrue();
+    }
+
+    @Test
+    void calendarWorkloadDecoderAcceptsOneExactSignedCalendarScope() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
+            OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+            properties.getJwt().setIssuerUri(ISSUER_URI);
+            properties.getJwt().setJwkSetUri(jwksServer.jwkSetUri());
+            JwtDecoder decoder = new JwtDecoderConfig().calendarMcpWorkloadJwtDecoder(
+                    properties, new WeaveSecurityProperties("https://api.weave.test/api", "weave-app"));
+
+            assertThat(decoder.decode(signedToken(signingKey, ISSUER_URI,
+                    List.of("https://api.weave.test/api"), "weave-mcp-server",
+                    new JOSEObjectType("at+jwt"), "cell-subject", "calendar.read"))
+                    .getClaimAsString("scope")).isEqualTo("calendar.read");
+            assertThat(decoder.decode(signedToken(signingKey, ISSUER_URI,
+                    List.of("https://api.weave.test/api"), "weave-mcp-server",
+                    new JOSEObjectType("at+jwt"), "cell-subject", "calendar.write"))
+                    .getClaimAsString("scope")).isEqualTo("calendar.write");
+            for (String scope : List.of("files.read", "files.read calendar.read",
+                    "calendar.read calendar.write", "calendar.write calendar.write")) {
+                assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(signingKey,
+                        ISSUER_URI, List.of("https://api.weave.test/api"), "weave-mcp-server",
+                        new JOSEObjectType("at+jwt"), "cell-subject", scope)));
+            }
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(signingKey,
+                    ISSUER_URI, List.of("https://api.weave.test/api"), "weave-app",
+                    new JOSEObjectType("at+jwt"), "member", "calendar.read")));
+        }
     }
 
     @Test
@@ -249,6 +299,15 @@ class JwtDecoderConfigTest {
                 new WeaveSecurityProperties("https://api.weave.test/api", "weave-app"));
     }
 
+    private JwtDecoder productAdminJwtDecoder(String jwkSetUri) {
+        OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+        properties.getJwt().setIssuerUri(ISSUER_URI);
+        properties.getJwt().setJwkSetUri(jwkSetUri);
+        return new JwtDecoderConfig().adminApiJwtDecoder(
+                properties,
+                new WeaveSecurityProperties("https://api.weave.test/api", "weave-app"));
+    }
+
     private static RSAKey rsaSigningKey() throws Exception {
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
         keyPairGenerator.initialize(2048);
@@ -281,13 +340,35 @@ class JwtDecoderConfigTest {
             List<String> audiences,
             String authorizedParty,
             JOSEObjectType type) throws Exception {
+        return signedToken(signingKey, issuerUri, audiences, authorizedParty, type, "user-123");
+    }
+
+    private static String signedToken(
+            RSAKey signingKey,
+            String issuerUri,
+            List<String> audiences,
+            String authorizedParty,
+            JOSEObjectType type,
+            String subject) throws Exception {
+        return signedToken(signingKey, issuerUri, audiences, authorizedParty, type, subject,
+                "weave:workspace");
+    }
+
+    private static String signedToken(
+            RSAKey signingKey,
+            String issuerUri,
+            List<String> audiences,
+            String authorizedParty,
+            JOSEObjectType type,
+            String subject,
+            String scope) throws Exception {
         Instant now = Instant.now();
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .issuer(issuerUri)
-                .subject("user-123")
+                .subject(subject)
                 .audience(audiences)
                 .claim("azp", authorizedParty)
-                .claim("scope", "weave:workspace")
+                .claim("scope", scope)
                 .issueTime(Date.from(now))
                 .notBeforeTime(Date.from(now.minusSeconds(30)))
                 .expirationTime(Date.from(now.plusSeconds(300)))

@@ -69,7 +69,7 @@ public class FilesUserItemsController {
     @GetMapping(value = "/api/files/items", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(operationId = "listFilesItems", summary = "List Weave-authorized Files children")
     @ApiResponse(responseCode = "200", description = "Visible children.",
-            content = @Content(schema = @Schema(implementation = FilesUserListResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = FilesUserListResponse.class)))
     public FilesUserListResponse list(@AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) String parentId) {
         return files.list(jwt, parentId);
@@ -78,7 +78,7 @@ public class FilesUserItemsController {
     @GetMapping(value = "/api/files/items/{fileId}", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(operationId = "getFilesItem", summary = "Inspect a Weave Files item")
     @ApiResponse(responseCode = "200", description = "Visible item metadata.",
-            content = @Content(schema = @Schema(implementation = FilesUserItemResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = FilesUserItemResponse.class)))
     public FilesUserItemResponse inspect(@AuthenticationPrincipal Jwt jwt, @PathVariable String fileId) {
         return files.inspect(jwt, fileId);
     }
@@ -90,7 +90,7 @@ public class FilesUserItemsController {
                     + "can be bound atomically by the selected provider.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Created folder, or the same completed idempotent result.",
-                    content = @Content(schema = @Schema(implementation = FilesUserItemResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = FilesUserItemResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid folder name, parent or idempotency key.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ApiErrorResponse.class))),
@@ -128,7 +128,7 @@ public class FilesUserItemsController {
                     schema = @Schema(type = "string", format = "binary")))
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Created file, or the same completed idempotent result.",
-                    content = @Content(schema = @Schema(implementation = FilesUserItemResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = FilesUserItemResponse.class))),
             @ApiResponse(responseCode = "400", description = "Missing or invalid upload parameters or idempotency key.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ApiErrorResponse.class))),
@@ -173,7 +173,7 @@ public class FilesUserItemsController {
                     schema = @Schema(type = "string", format = "binary")))
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated file metadata.",
-                    content = @Content(schema = @Schema(implementation = FilesUserItemResponse.class))),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = FilesUserItemResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid content parameters or idempotency key.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ApiErrorResponse.class))),

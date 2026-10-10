@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -42,11 +43,11 @@ import org.springframework.web.bind.annotation.RestController;
   @ApiResponse(
       responseCode = "401",
       description = "Missing or invalid bearer token.",
-      content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
   @ApiResponse(
       responseCode = "403",
       description = "The caller cannot administer the configured organization.",
-      content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
 })
 public class OrganizationMemberAdministrationController {
   private final OrganizationMemberAdministrationService service;
@@ -61,7 +62,7 @@ public class OrganizationMemberAdministrationController {
   @ApiResponse(
       responseCode = "200",
       description = "Paged organization members visible to the administrator.",
-      content = @Content(schema = @Schema(implementation = OrganizationMemberPageResponse.class)))
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = OrganizationMemberPageResponse.class)))
   public OrganizationMemberPageResponse list(
       @PathVariable String organizationId,
       @RequestParam(required = false) String cursor,
@@ -75,7 +76,7 @@ public class OrganizationMemberAdministrationController {
   @ApiResponse(
       responseCode = "200",
       description = "Current organization member and version.",
-      content = @Content(schema = @Schema(implementation = OrganizationMemberResponse.class)))
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = OrganizationMemberResponse.class)))
   public OrganizationMemberResponse get(
       @PathVariable String organizationId,
       @PathVariable String memberHandle,
@@ -88,7 +89,7 @@ public class OrganizationMemberAdministrationController {
   @ApiResponse(
       responseCode = "200",
       description = "Updated organization member and version.",
-      content = @Content(schema = @Schema(implementation = OrganizationMemberResponse.class)))
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = OrganizationMemberResponse.class)))
   public OrganizationMemberResponse update(
       @PathVariable String organizationId,
       @PathVariable String memberHandle,
@@ -105,7 +106,7 @@ public class OrganizationMemberAdministrationController {
   @ApiResponse(
       responseCode = "200",
       description = "Organization member after Weaver entitlement update.",
-      content = @Content(schema = @Schema(implementation = OrganizationMemberResponse.class)))
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = OrganizationMemberResponse.class)))
   public OrganizationMemberResponse updateWeaverEntitlement(
       @PathVariable String organizationId,
       @PathVariable String memberHandle,
@@ -122,7 +123,7 @@ public class OrganizationMemberAdministrationController {
   @ApiResponse(
       responseCode = "200",
       description = "Support-safe session revocation result.",
-      content = @Content(schema = @Schema(implementation = MemberLifecycleOperationResponse.class)))
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MemberLifecycleOperationResponse.class)))
   public MemberLifecycleOperationResponse revokeSessions(
       @PathVariable String organizationId,
       @PathVariable String memberHandle,
@@ -138,7 +139,7 @@ public class OrganizationMemberAdministrationController {
   @ApiResponse(
       responseCode = "200",
       description = "Support-safe member offboarding result.",
-      content = @Content(schema = @Schema(implementation = MemberLifecycleOperationResponse.class)))
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MemberLifecycleOperationResponse.class)))
   public MemberLifecycleOperationResponse offboard(
       @PathVariable String organizationId,
       @PathVariable String memberHandle,

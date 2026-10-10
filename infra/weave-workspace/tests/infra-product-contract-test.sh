@@ -165,7 +165,7 @@ reject "${ROOT_DIR}/scripts/render_config.py" '_mcp_env'
 reject "${ROOT_DIR}/scripts/render_config.py" 'backend/public.env'
 reject "${ROOT_DIR}/scripts/render_config.py" 'mcp/public.env'
 
-require "${ROOT_DIR}/scripts/render_config.py" '"requiredScopes": ["files.read", "mcp.tools"]'
+require "${ROOT_DIR}/scripts/render_config.py" '"requiredScopes": ["calendar.read", "calendar.write", "files.read", "mcp.tools"]'
 require "${ROOT_DIR}/scripts/render_config.py" '"credentialRefTemplate": "credentialref://weave/runtime/{cellRef}/{workloadClientId}/mcp"'
 
 require "${ROOT_DIR}/compose.yaml" \

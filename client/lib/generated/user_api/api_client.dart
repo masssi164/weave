@@ -420,6 +420,14 @@ class ApiClient {
           return SlackStatusResponse.fromJson(value);
         case 'SourceRepositoryResponse':
           return SourceRepositoryResponse.fromJson(value);
+        case 'SpaceRelationshipListResponse':
+          return SpaceRelationshipListResponse.fromJson(value);
+        case 'SpaceRelationshipResponse':
+          return SpaceRelationshipResponse.fromJson(value);
+        case 'SpaceUserListResponse':
+          return SpaceUserListResponse.fromJson(value);
+        case 'SpaceUserResponse':
+          return SpaceUserResponse.fromJson(value);
         case 'SupportBundlePolicyResponse':
           return SupportBundlePolicyResponse.fromJson(value);
         case 'TaskItem':

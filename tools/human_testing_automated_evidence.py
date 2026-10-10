@@ -415,9 +415,13 @@ def build_live(
         "sameJpaCellAfterRestart",
         "sameMcpCellAfterRestart",
         "revocationDenied",
+        "calendarMcpAgenda",
+        "calendarMcpWrongScopeDenied",
+        "calendarMcpRevocationDenied",
         "regrantRestored",
         "sameHumanSubjectAfterRegrant",
         "samePersonRefAfterRegrant",
+        "spaceRevocationRestored",
     ):
         if product.get(key) is not True:
             raise EvidenceError(f"product evidence does not prove {key}")

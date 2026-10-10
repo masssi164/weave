@@ -299,8 +299,7 @@ AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
       ),
       chat: IntegrationConnectionState(
         integration: WorkspaceIntegration.chat,
-        status: IntegrationConnectionStatus.degraded,
-        recoveryRequirement: IntegrationRecoveryRequirement.reauthenticate,
+        status: IntegrationConnectionStatus.connected,
       ),
       files: IntegrationConnectionState(
         integration: WorkspaceIntegration.files,
@@ -320,9 +319,8 @@ AsyncValue<WorkspaceCapabilitySnapshot> _workspaceCapabilitySnapshot() {
       ),
       chat: WorkspaceCapabilityState(
         capability: WorkspaceCapability.chat,
-        readiness: WorkspaceCapabilityReadiness.degraded,
-        connectionStatus: IntegrationConnectionStatus.degraded,
-        recoveryRequirement: IntegrationRecoveryRequirement.reauthenticate,
+        readiness: WorkspaceCapabilityReadiness.ready,
+        connectionStatus: IntegrationConnectionStatus.connected,
       ),
       files: WorkspaceCapabilityState(
         capability: WorkspaceCapability.files,

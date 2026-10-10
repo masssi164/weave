@@ -36,6 +36,18 @@ obsoleteLocalMeanings:
     obsolete: Handwritten HTTP transport DTOs and routes for Weave product operations
     canonicalReplacement: Generated User API client and transport models within the existing MCP runtime
 artifacts:
+  - path: specs/admin-current-release-generated-boundary.md
+    status: implementation-evidence
+    action: keep-as-generated-admin-ui-and-deferred-arc-boundary-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - steering/product-constitution.md
+  - path: specs/chat-provider-binding-contract.md
+    status: implementation-evidence
+    action: keep-as-organization-scoped-chat-admission-and-postgres-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/chat/spec.md
   - path: specs/calendar-user-api-contract.md
     status: implementation-evidence
     action: keep-as-generated-calendar-user-api-conformance-evidence
@@ -178,6 +190,13 @@ artifacts:
     corpusCandidates:
       - steering/release-2026-10-product-consolidation.md
       - domains/files/spec.md
+  - path: specs/mcp-generated-user-calendar.md
+    status: implementation-evidence
+    action: retain-as-mcp-calendar-generated-user-consumer-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/calendar/spec.md
+      - acceptance/features/workload-identity-token-exchange.feature
 cleanupSequence:
   - Add or update corpus files for any remaining product/domain meaning.
   - Update repo tests/gates to consume corpus contracts or generated projections.

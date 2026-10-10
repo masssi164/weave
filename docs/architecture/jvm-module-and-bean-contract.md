@@ -49,7 +49,7 @@ only their deployed public protocols.
 | `weave-runtime-provider-adapters` | Application Core and Jackson for provider payload normalization | no component scanning; Server configuration creates the selected port implementations explicitly | controllers, persistence entities, MCP annotations, provider DTOs crossing a port |
 | `weave-runtime-security-adapters` | Application Core, Spring Security JOSE, canonical JSON and Jackson | no security filter chains; Server configuration creates cryptographic/policy port implementations explicitly | HTTP endpoints, JPA, provider administration and MCP transport |
 | `server` | Spring Boot WebMVC/RestClient, Security Resource Server and OAuth2 Client, Validation, Data JPA, Actuator, OpenAPI plus the adapter modules | the application composition root: security chains, use-case services, transaction/JPA composition, provider selection, one qualified Keycloak admin `RestClient`, and the one-shot code-first schema initializer | Spring AI MCP transport/tools, MCP token-exchange admission, provider-shaped northbound contracts |
-| `weave-mcp-server` | Spring Boot RestClient, generated JVM User client, Security Resource Server and OAuth2 Client, Spring AI MCP WebMVC, Actuator and PEM/JWK support | one MCP security chain, one JWT decoder, one token-exchange boundary, one request-scoped exchanged credential, one Files User client, one Files tool/resource projection, framework transport customizers | DataSource, JPA, Hibernate, schema initialization, Server entities/use cases and every southbound provider |
+| `weave-mcp-server` | Spring Boot RestClient, generated JVM User client, Security Resource Server and OAuth2 Client, Spring AI MCP WebMVC, Actuator and PEM/JWK support | one MCP security chain, one JWT decoder, one token-exchange boundary, one request-scoped exchanged credential, generated Files and Calendar User clients, curated read projections, framework transport customizers | DataSource, JPA, Hibernate, schema initialization, Server entities/use cases and every southbound provider |
 | `weave-product-e2e` | Plain Java, Playwright, Jackson, Nimbus JOSE/JWT, JUnit, AssertJ and ArchUnit | no Spring beans; one bounded process drives invitation, browser activation, PKCE, ARC, WebDAV and MCP | Spring, JPA/Hibernate, Server/MCP implementation dependencies, provider adapters, credential/evidence persistence |
 
 Only the two deployable Spring processes apply the Spring Boot plugin. All JVM modules use Java 21 and resolve
@@ -64,7 +64,7 @@ The normal API is a stateless OAuth2 Resource Server. Its shared JWT decoder val
 issuer, timestamps, exact audience and first-party client binding. Purpose-specific chains are
 ordered before the general API chain only where their token profile is materially different:
 Agent Runtime administration, RuntimeProfile delivery, isolated Chat proof, Matrix application
-service callback, and Files read-only workload access. A chain owns one exact path family and cannot
+service callback, and Files/Calendar read-only workload access. A chain owns one exact path family and cannot
 act as a fallback for another.
 
 Server-to-Keycloak invitation administration is the single OAuth2 Client integration for that
