@@ -1,17 +1,26 @@
 # Native Flutter integration acceptance for #1533
 
-Status: **local native and cross-organization journeys passed; exact-head CI
-for the combined candidate and mainline release gates open**.
-This record separates executable test code from observed native product
-evidence. A disposable local `testApp` run at source commit
-`6b7006425cfa3e58504fceeca6ffaa99604add58` completed the real AppAuth
-callback, generated Files and Calendar operations, native Rust Matrix business
-room send/read, refresh, a restart of Server, Keycloak and PostgreSQL, and a
-second native Flutter process restoring the same session and references. It
-also proved logout denial and supported OpenClaw Matrix readback.
-Both Flutter test processes and the overall Gradle task exited zero. This is local
-macOS evidence; the #1475, #1479, and #1480 integrated closure gates still
-require the exact CI candidate and the lifecycle gaps below.
+Status: **automated local native and unattended CI journeys passed on recorded
+source; integrated dev/dogfood/main acceptance is tracked in #1475, #1479,
+#1480 and #1481**.
+
+[Full Compose E2E 38062852255](https://github.com/masssi164/weave/actions/runs/38062852255)
+passed on source `7e3cbb7a1f338fbb45ee6742198720412f2ee4b4` with accepted specs
+`c726993168651f1109259f9a80cc23117d24a37f`. It executed two native macOS
+Flutter processes, real system-browser OIDC/PKCE, generated Files/Calendar,
+native Rust Matrix business rooms, refresh, service/process restart, room
+access removal, logout/revocation and real second-organization denial. Real
+OpenClaw `2026.9.8` exercised Matrix and Files/Calendar MCP, including writes,
+permission denial and stale-version rejection. No skipped native test counted
+as a pass. The exact artifact and bounded claims are recorded in the
+[Matrix evidence](evidence/matrix/release-business-room-v3.md).
+
+Core CI on that source failed the Dart formatting gate; the two-line correction
+and every later source's required CI are recorded in [#1533](https://github.com/masssi164/weave/pull/1533).
+Recorded earlier passes retain their original source SHA. Final integration,
+platform-specific acceptance and human dogfood remain separately gated.
+The following diagnosis entries preserve the observed failures and fixes;
+later qualification records supersede earlier pending-gate snapshots.
 
 ## macOS launch diagnosis
 
@@ -508,7 +517,7 @@ denial, logout denial, two zero-exit Flutter harness processes and
 were cleaned up. This is local evidence; the exact-head unattended CI rerun is
 still required.
 
-## Remaining gates
+## Gate snapshot before combined CI qualification
 
 - Repeat the native and cross-consumer journey on the final combined source in
   unattended CI. The new local foreign-organization fixture passed against a

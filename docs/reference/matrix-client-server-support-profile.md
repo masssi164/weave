@@ -2,7 +2,7 @@
 
 Profile version: `weave.matrix-client-server/v3`
 
-Status: bounded Weave-owned business-room profile qualified locally; release CI pending
+Status: bounded Weave-owned business-room profile qualified in local native and unattended CI runs; integrated delivery acceptance tracked in #1475/#1480/#1481
 
 Authority: `steering/release-2026-10-product-consolidation.md`, Weave #1475
 
@@ -55,4 +55,4 @@ The selected `ChatProviderPort` is southbound. Changing its one active organizat
 
 Promote one row to Supported only after its named protocol assertion, a Weave-owned Flutter or Weaver/OpenClaw client assertion, and sanitized integrated evidence run on the same exact build. The gate must include an authenticated negative route, non-member credentials, revoked device, wrong account and cross-organization denial where relevant. Sync, transaction send and to-device delivery additionally require committed PostgreSQL concurrency, ordering and restart evidence. The support profile version changes when a previously guarded public promise is promoted or removed. Independent third-party compatibility requires a future profile revision with separate OAuth and interoperability evidence.
 
-The current-release active Chat binding is immutable until the separate #1498 provider-replacement qualification. Room-send idempotency in this profile is scoped by organization, actor, device, method, room/event endpoint and transaction under concurrent replay. Binding-revision replay across a provider replacement remains a #1498 gate; this profile does not claim it. Live second-organization black-box denial and unattended native CI remain #1480 release gates, as recorded in the evidence file.
+The current-release active Chat binding is immutable until the separate #1498 provider-replacement qualification. Room-send idempotency in this profile is scoped by organization, actor, device, method, room/event endpoint and transaction under concurrent replay. Binding-revision replay across a provider replacement remains a #1498 gate; this profile does not claim it. Live second-organization black-box denial and unattended native CI have executed in the recorded qualification. Every later integrated candidate still requires its own #1480 checks, and protected delivery remains a #1481 gate, as recorded in the evidence file.
