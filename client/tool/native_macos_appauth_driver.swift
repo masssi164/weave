@@ -376,11 +376,14 @@ func enterUsername(_ input: AXUIElement, in surface: AuthSurface, expected: Stri
   return false
 }
 
-func waitForPasswordFormToLeave() -> Bool {
+func waitForAuthWindowToClose(_ surface: AuthSurface) -> Bool {
   let deadline = Date().addingTimeInterval(5)
+  let root = AXUIElementCreateApplication(surface.safariPID)
   while Date() < deadline {
-    guard let surface = issuerWindow() else { return true }
-    if field(in: surface.elements, stage: "password") == nil { return true }
+    // Only a successful window-list read can prove this exact AppAuth window
+    // closed. Missing fields or an unreadable AX tree are indeterminate.
+    if let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement],
+       !windows.contains(where: { CFEqual($0, surface.window) }) { return true }
     _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.1))
   }
   return false
@@ -394,7 +397,7 @@ func submitPassword(_ input: AXUIElement, in surface: AuthSurface) {
     fail("password-press")
   }
   var method = "accessibility"
-  if !waitForPasswordFormToLeave() {
+  if !waitForAuthWindowToClose(surface) {
     // Safari can acknowledge AXPress without submitting an unfocused form.
     // Re-resolve the exact disposable IdP window, focus its password field,
     // and send Return only to that Safari process. Never treat AX success as
@@ -414,7 +417,7 @@ func submitPassword(_ input: AXUIElement, in surface: AuthSurface) {
           CFEqual(focused, password),
           postKey(to: current.safariPID, code: 36) else { fail("password-targeted-submit") }
     method = "targeted-keyboard"
-    guard waitForPasswordFormToLeave() else { fail("password-navigation") }
+    guard waitForAuthWindowToClose(current) else { fail("password-navigation") }
   }
   print("NATIVE_PASSWORD_SUBMISSION_RESULT status=passed method=\(method)")
   print("NATIVE_AUTH_STAGE phase=password-submitted")
@@ -452,7 +455,7 @@ while Date() < deadline {
      focusFieldViaKeyboard(surface, stage: "password") != nil {
     guard typeTargeted(fixture.password, to: surface.safariPID),
           postKey(to: surface.safariPID, code: 36) else { fail("password-targeted-input") }
-    guard waitForPasswordFormToLeave() else { fail("password-navigation") }
+    guard waitForAuthWindowToClose(surface) else { fail("password-navigation") }
     print("NATIVE_PASSWORD_SUBMISSION_RESULT status=passed method=targeted-keyboard")
     print("NATIVE_AUTH_STAGE phase=password-submitted")
     print("NATIVE_APP_AUTH_DRIVER_RESULT status=passed stage=form-submitted")

@@ -47,10 +47,12 @@ already removed the stack, this diagnostic action reached an unavailable page.
 It is not a successful authentication test.
 
 Safari had acknowledged the driver's `AXPress` without navigating. The driver
-now requires the password form to leave before reporting submission. If it
-remains, the driver re-resolves the exact disposable issuer authority, activates
+now requires a readable window-list observation that the exact AppAuth browser
+window closed before reporting submission. Missing fields or unreadable
+Accessibility state are indeterminate. If the window remains, the driver
+re-resolves the exact disposable issuer authority, activates
 that Safari process, verifies the focused window and password field, and sends
-Return to that process. Failure to leave the form fails the driver. Only the
+Return to that process. Failure to close the authentication window fails the driver. Only the
 separate Flutter assertions can prove the actual PKCE callback, member session
 and authorized product journey. Neither a button-action return code nor browser
 navigation alone establishes native acceptance. No credentials or callback
