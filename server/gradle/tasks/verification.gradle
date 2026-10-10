@@ -98,6 +98,7 @@ tasks.register('postgresJpaTest', Test) {
         includeTestsMatching '*JpaCanonicalChatStoreTest'
         includeTestsMatching '*MatrixE2eeStateServicePersistenceTest'
         includeTestsMatching '*MatrixDeviceProofPostgresTest'
+        includeTestsMatching '*MatrixBackupVersionPostgresTest'
         includeTestsMatching '*MatrixFacadeClientStateServicePersistenceTest'
         includeTestsMatching '*JpaProviderSelectionRepositoryTest'
         includeTestsMatching '*JpaDeviceCredentialRepositoryTest'

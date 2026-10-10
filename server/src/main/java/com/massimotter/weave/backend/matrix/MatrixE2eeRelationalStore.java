@@ -440,7 +440,11 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
     @Override
     @Transactional
     public String createBackupVersion(String tenantId, String userId, String algorithm, Map<String, Object> authData) {
-        Long next = jdbc.query("select coalesce(max(version_id),0)+1 from weave_matrix_key_backup_versions where tenant_id=? and user_id=? for update", rs -> rs.next() ? rs.getLong(1) : 1L, tenantId, userId);
+        // PostgreSQL cannot lock an aggregate result. Serialize even the first
+        // version for this tenant and user, when no backup row exists to lock.
+        jdbc.query("select pg_advisory_xact_lock(hashtext(?), hashtext(?))",
+                rs -> { rs.next(); return null; }, tenantId, userId);
+        Long next = jdbc.query("select coalesce(max(version_id),0)+1 from weave_matrix_key_backup_versions where tenant_id=? and user_id=?", rs -> rs.next() ? rs.getLong(1) : 1L, tenantId, userId);
         long version = next == null ? 1 : next;
         jdbc.update("update weave_matrix_key_backup_versions set current_version=false where tenant_id=? and user_id=?", tenantId, userId);
         jdbc.update("insert into weave_matrix_key_backup_versions(tenant_id,user_id,version_id,algorithm,auth_data_json,current_version,revision) values (?,?,?,?,?,true,1)", tenantId, userId, version, algorithm, writeJson(authData));
