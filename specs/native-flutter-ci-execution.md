@@ -152,3 +152,17 @@ the actual ApiErrorResponse statuses 400, 404, 409, 412, 428 and 502, plus
 503 for durable revocation persistence failure. Regenerate the server-owned
 Admin contract and consumed SDKs with the existing generation chain; no route
 or schema is introduced by these error metadata corrections.
+
+## Native process readiness and failure diagnostics
+
+A running checkout executable alone is insufficient evidence of macOS
+application registration. The logout-consent driver waits for the exact
+bundle identifier and executable in `NSWorkspace` for at most ten seconds
+before monitoring consent; it never operates another application. A missing
+registration remains a hard failure with a support-safe stage. Driver failures
+retain their bounded stage in output rather than losing it during shutdown.
+The runner owns each Flutter command's process group and stops its children
+before closing private diagnostic streams. Cleanup must not create an output
+reader exception that masks the original failure. These harness changes do not
+replace Flutter's product assertions, relax required tests, or qualify a
+skipped or terminated process as successful integration evidence.
