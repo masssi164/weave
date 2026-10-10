@@ -49,6 +49,92 @@ func fail(_ stage: String) -> Never {
   exit(1)
 }
 
+func acceptWeaveConsent(issuerHost: String) -> Bool {
+  for app in NSWorkspace.shared.runningApplications
+    where app.bundleIdentifier == "com.apple.UserNotificationCenter" {
+    let root = AXUIElementCreateApplication(app.processIdentifier)
+    for window in attribute(root, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
+      let elements = descendants(window, limit: 100)
+      guard elements.contains(where: {
+        textValues($0).contains { text in
+          text.contains(issuerHost) && text.localizedCaseInsensitiveContains("weave")
+        }
+      }) else { continue }
+      let buttons = elements.filter {
+        (attribute($0, kAXRoleAttribute) as? String) == kAXButtonRole as String &&
+          ["Fortfahren", "Continue"].contains(label($0) ?? "")
+      }
+      guard buttons.count == 1 else { fail("consent-ambiguous") }
+      guard AXUIElementPerformAction(buttons[0], kAXPressAction as CFString) == .success else {
+        fail("consent-press")
+      }
+      return true
+    }
+  }
+  return false
+}
+
+func dismissSafariPasswordPrompt(issuerAuthority: String) -> Bool {
+  for app in NSWorkspace.shared.runningApplications where app.bundleIdentifier == "com.apple.Safari" {
+    let root = AXUIElementCreateApplication(app.processIdentifier)
+    for window in attribute(root, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
+      let elements = descendants(window)
+      guard elements.contains(where: {
+        textValues($0).contains { $0.contains(issuerAuthority) }
+      }) else { continue }
+      let later = elements.filter {
+        (attribute($0, kAXRoleAttribute) as? String) == kAXButtonRole as String &&
+          ["Später", "Later"].contains(label($0) ?? "")
+      }
+      guard later.count <= 1 else { fail("password-prompt-ambiguous") }
+      guard let button = later.first else { return false }
+      guard AXUIElementPerformAction(button, kAXPressAction as CFString) == .success else {
+        fail("password-prompt-dismiss")
+      }
+      return true
+    }
+  }
+  return false
+}
+
+if CommandLine.arguments.count == 5 && CommandLine.arguments[1] == "--dismiss-password-prompt" {
+  guard AXIsProcessTrusted() else { fail("accessibility-permission") }
+  let bundleId = CommandLine.arguments[2]
+  let issuerAuthority = CommandLine.arguments[3]
+  let executable = CommandLine.arguments[4]
+  guard bundleId.contains("."), issuerAuthority.hasPrefix("auth.weave.localhost:"),
+        !executable.isEmpty,
+        NSWorkspace.shared.runningApplications.contains(where: {
+          $0.bundleIdentifier == bundleId &&
+            $0.executableURL?.resolvingSymlinksInPath().path == executable
+        }) else { fail("password-prompt-fixture") }
+  let dismissed = dismissSafariPasswordPrompt(issuerAuthority: issuerAuthority)
+  print("NATIVE_SAFARI_PASSWORD_PROMPT_RESULT status=\(dismissed ? "dismissed" : "absent")")
+  exit(0)
+}
+
+if CommandLine.arguments.count == 5 && CommandLine.arguments[1] == "--accept-next-consent" {
+  guard AXIsProcessTrusted() else { fail("accessibility-permission") }
+  let bundleId = CommandLine.arguments[2]
+  let issuerAuthority = CommandLine.arguments[3]
+  let executable = CommandLine.arguments[4]
+  guard bundleId.contains("."), issuerAuthority.hasPrefix("auth.weave.localhost:"),
+        !executable.isEmpty else { fail("logout-fixture") }
+  let deadline = Date().addingTimeInterval(720)
+  while Date() < deadline {
+    guard NSWorkspace.shared.runningApplications.contains(where: {
+      $0.bundleIdentifier == bundleId &&
+        $0.executableURL?.resolvingSymlinksInPath().path == executable
+    }) else { fail("app-stopped-before-logout-consent") }
+    if acceptWeaveConsent(issuerHost: "auth.weave.localhost") {
+      print("NATIVE_LOGOUT_CONSENT_RESULT status=accepted")
+      exit(0)
+    }
+    _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.5))
+  }
+  fail("logout-consent-timeout")
+}
+
 if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--clear-stale-consent" {
   guard AXIsProcessTrusted() else { fail("accessibility-permission") }
   let bundleId = CommandLine.arguments[2]
@@ -119,29 +205,9 @@ func expectedNativeAppIsRunning() -> Bool {
 }
 
 func acceptSystemConsent() -> Bool {
-  for app in NSWorkspace.shared.runningApplications
-    where app.bundleIdentifier == "com.apple.UserNotificationCenter" {
-    let root = AXUIElementCreateApplication(app.processIdentifier)
-    for window in attribute(root, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
-      let elements = descendants(window, limit: 100)
-      guard elements.contains(where: {
-        textValues($0).contains { text in
-          text.contains(fixture.issuerHost) && text.localizedCaseInsensitiveContains("weave")
-        }
-      }) else { continue }
-      let buttons = elements.filter {
-        (attribute($0, kAXRoleAttribute) as? String) == kAXButtonRole as String &&
-          ["Fortfahren", "Continue"].contains(label($0) ?? "")
-      }
-      guard buttons.count == 1 else { fail("consent-ambiguous") }
-      guard AXUIElementPerformAction(buttons[0], kAXPressAction as CFString) == .success else {
-        fail("consent-press")
-      }
-      print("NATIVE_MACOS_CONSENT_RESULT status=accepted")
-      return true
-    }
-  }
-  return false
+  guard acceptWeaveConsent(issuerHost: fixture.issuerHost) else { return false }
+  print("NATIVE_MACOS_CONSENT_RESULT status=accepted")
+  return true
 }
 
 struct AuthSurface {

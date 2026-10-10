@@ -249,11 +249,6 @@ public final class FreshProductFlow {
       spaces.verifyOwnerOnlyFileRelation(memberSession.accessToken(), ownerSession.accessToken(),
           generatedFilesProof.fileId());
 
-      // Calendar mutation requires calendar.manage_events; the ordinary member
-      // remains read-only. Use the owner's normal weave-app User session here,
-      // never the separately acquired Admin-console token.
-      runNativeAuthorizedJourney(ownerEmail, ownerPassword);
-
       String openClawMatrixMemberToken = null;
       if (Boolean.getBoolean("weave.e2e.release-mcp")) {
         OidcBrowserJourney.TokenSet openClawMatrixSession = browser.authorize(
@@ -408,6 +403,9 @@ public final class FreshProductFlow {
             memberSession.accessToken(), personRef, generatedFilesProof.fileId());
         spaceRevocationRestored = true;
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
+        // Native Calendar writes use the owner's normal User session. Run its
+        // real logout after all JVM journeys that need that owner's SSO state.
+        runNativeAuthorizedJourney(ownerEmail, ownerPassword);
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
             release.bindingRef(), mcpProof, restartProof, revocationDenied,
             calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
@@ -498,6 +496,7 @@ public final class FreshProductFlow {
             memberSession.accessToken(), personRef, generatedFilesProof.fileId());
         spaceRevocationRestored = true;
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
+        runNativeAuthorizedJourney(ownerEmail, ownerPassword);
 
         writeEvidence(
             startedAt,

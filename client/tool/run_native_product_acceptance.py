@@ -237,6 +237,7 @@ def main() -> int:
         markers: queue.Queue[str] = queue.Queue()
         flutter: subprocess.Popen[str] | None = None
         driver: subprocess.Popen[str] | None = None
+        logout_consent: subprocess.Popen[str] | None = None
         try:
             flutter = subprocess.Popen(
                 ["make", "physical-device-product-e2e"], cwd=CLIENT, env=env,
@@ -280,7 +281,39 @@ def main() -> int:
             if driver.returncode or not driver_ok:
                 report_flutter_markers(markers)
                 raise RuntimeError("native AppAuth browser driver failed")
-            flutter_status = flutter.wait(timeout=900)
+            executable = str((APP / "Contents/MacOS/weave").resolve())
+            issuer_authority = urlparse(issuer).netloc
+            password_prompt = subprocess.run(
+                ["swift", str(DRIVER), "--dismiss-password-prompt",
+                 signing_bundle, issuer_authority, executable],
+                cwd=CLIENT, capture_output=True, text=True, timeout=30,
+            )
+            prompt_marker = re.search(
+                r"NATIVE_SAFARI_PASSWORD_PROMPT_RESULT status=(dismissed|absent)",
+                password_prompt.stdout,
+            )
+            if password_prompt.returncode or not prompt_marker:
+                raise RuntimeError("native Safari password prompt could not be handled safely")
+            print(prompt_marker.group(0), flush=True)
+            logout_consent = subprocess.Popen(
+                ["swift", str(DRIVER), "--accept-next-consent",
+                 signing_bundle, issuer_authority, executable],
+                cwd=CLIENT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+            flutter_deadline = time.monotonic() + 900
+            while flutter.poll() is None and time.monotonic() < flutter_deadline:
+                if logout_consent is not None and logout_consent.poll() is not None:
+                    consent_output, _ = logout_consent.communicate(timeout=10)
+                    if logout_consent.returncode:
+                        raise RuntimeError("native logout consent driver failed")
+                    if "NATIVE_LOGOUT_CONSENT_RESULT status=accepted" not in consent_output:
+                        raise RuntimeError("native logout consent result was not verified")
+                    print("NATIVE_LOGOUT_CONSENT_RESULT status=accepted", flush=True)
+                    logout_consent = None
+                time.sleep(0.5)
+            if flutter.poll() is None:
+                raise RuntimeError("Flutter native product assertions timed out")
+            flutter_status = flutter.returncode
             reader.join(timeout=2)
             observed = report_flutter_markers(markers)
             if flutter_status or not any(
@@ -290,6 +323,9 @@ def main() -> int:
                 raise RuntimeError("Flutter native product assertions failed")
             print("NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed", flush=True)
         finally:
+            if logout_consent is not None and logout_consent.poll() is None:
+                logout_consent.terminate()
+                logout_consent.wait(timeout=10)
             if driver is not None and driver.poll() is None:
                 driver.terminate()
                 driver.wait(timeout=10)
