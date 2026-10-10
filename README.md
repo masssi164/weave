@@ -6,7 +6,7 @@ Weave is building a modular collaboration platform for files, calendars, and con
 
 [Start developing](#develop-and-test) · [Roadmap](#ordered-roadmap) · [Architecture](#core-architecture) · [Meet Weaver](https://github.com/masssi164/weaver)
 
-> **In development:** Weave is not a finished production collaboration platform. `dev` is the current implementation lane; `main` still represents the older architecture line.
+> **Bounded standalone profile:** Files, Calendar, and authorized non-E2EE Matrix business rooms have integrated release evidence. Weave is not a finished production collaboration platform. Provider migration and general Matrix interoperability remain outside this release profile. Protected branch status is tracked in [#1481](https://github.com/masssi164/weave/issues/1481).
 
 ## What Weave is
 
@@ -24,11 +24,11 @@ A collaboration platform should let you choose its building blocks, not require 
 
 Weaver is an upstream-first OpenClaw distribution for a personal agent assigned to an entitled member. It is intended to work within organization-approved capabilities and current domain permissions — not become a second identity system or an unrestricted shortcut to provider credentials.
 
-Weave does not require an agent to be useful. Weaver adds another way to work with it. Matrix supplies the conversational channel; workload-scoped MCP is a separately gated integration. **Managed MCP is currently disabled in Weaver**, and Chat is not duplicated as MCP tools.
+Weave does not require an agent to be useful. Weaver adds another way to work with it. Matrix supplies the conversational channel; workload-scoped MCP is a separately gated integration. The Weave release suite exercises its curated Files and Calendar MCP tools with OpenClaw `2026.9.8`; **managed MCP remains disabled in Weaver's optional cell runtime**. Chat is not duplicated as MCP tools.
 
 ## Current status
 
-This is an existing codebase with substantial implementation, tests, and infrastructure, undergoing architectural consolidation. A passing component test or build is not evidence that every planned integration is ready for daily use.
+The bounded standalone profile has real integrated Files, Calendar, Chat, Admin, and OpenClaw evidence. A passing component test or build alone is not evidence that a wider capability is ready for daily use.
 
 The approved [product consolidation epic #1470](https://github.com/masssi164/weave/issues/1470) and [pinned specification policy](docs/specification-source-of-truth.md) define the current standalone-product delivery contract. Its stories are #1471–#1476 and #1479–#1481; #1477–#1478 belong to [provider portability epic #1498](https://github.com/masssi164/weave/issues/1498). #1470 acceptance requires integrated user, admin, MCP, Matrix, Files, and Calendar journeys, not compilation alone. Provider adoption, migration, cutover, and rollback are #1498 acceptance. Older Core and gateway work remains historical or reusable only as classified in the epics.
 
@@ -68,7 +68,7 @@ Server controllers, transport models and validation generate the separate User a
 ```
 
 Do not edit generated artifacts manually. Flutter consumes the User API; the Admin UI uses the generated Admin client for authorized operations and a separate generated User client for public pre-login configuration. The curated MCP Files and Calendar tools use the generated JVM User client, and product E2E uses generated User and separately credentialed Admin clients. Calendar mutations remain subject to current organization and resource authorization.
-Remaining consumer and integrated acceptance work is tracked in the linked consolidation stories.
+The [native acceptance instructions and evidence](docs/native-flutter-integration.md) describe the automated macOS journey and its platform limits. Exact integrated acceptance is tracked in the linked consolidation stories.
 
 ## Core architecture
 
@@ -89,11 +89,11 @@ People and their interfaces       Optional Weaver assistant
 
 In words: Weave connects collaboration capabilities through its own product concepts and stable references. Provider-specific identifiers and behavior stay at adapter boundaries. Weaver remains an optional runtime integration; it does not define the collaboration platform or replace its authorization.
 
-The current release boundary is a server-owned code-first User/Admin API with generated consumers, a Weave Matrix Client-Server northbound facade for Weave-owned Flutter and Weaver/OpenClaw clients, and provider-neutral Files and Calendar operations. Rust/Ruma/JNI handles Matrix wire parsing and projection; the Weave Chat domain owns canonical persistence, current authorization and southbound routing through `ChatProviderPort`. Exactly one provider is active per organization and module. One member-facing Weave OIDC/PKCE login makes authorized capabilities ready; Flutter uses that member session at the Weave Matrix facade. Chat E2EE is governed by organization and room policy, with client-owned cryptographic device state for encrypted rooms. Independent third-party Matrix-client interoperability and its separate OAuth profile, public northbound WebDAV/CalDAV, private Runners, Calls, and broad orchestration are outside this release. Detailed contracts belong to the [pinned specification policy](docs/specification-source-of-truth.md), [Matrix support profile](docs/reference/matrix-client-server-support-profile.md), and [epic #1470](https://github.com/masssi164/weave/issues/1470).
+The current release boundary is a server-owned code-first User/Admin API with generated consumers, a Weave Matrix Client-Server northbound facade for Weave-owned Flutter and Weaver/OpenClaw clients, and provider-neutral Files and Calendar operations. Rust/Ruma/JNI handles Matrix wire parsing and projection; the Weave Chat domain owns canonical persistence, current authorization and southbound routing through `ChatProviderPort`. Exactly one provider is active per organization and module. One member-facing Weave OIDC/PKCE login makes authorized capabilities ready; Flutter uses that member session at the Weave Matrix facade. Chat E2EE is governed by organization and room policy, with client-owned cryptographic device state for encrypted rooms. E2EE remains Guarded pending its complete device, verification and recovery qualification; explicitly encrypted rooms fail closed when that capability is unavailable. Independent third-party Matrix-client interoperability and its separate OAuth profile, public northbound WebDAV/CalDAV, private Runners, Calls, and broad orchestration are outside this release. Detailed contracts belong to the [pinned specification policy](docs/specification-source-of-truth.md), [Matrix support profile](docs/reference/matrix-client-server-support-profile.md), and [epic #1470](https://github.com/masssi164/weave/issues/1470).
 
 ## Ordered roadmap
 
-[Epic #1470](https://github.com/masssi164/weave/issues/1470) owns the standalone product: scope alignment (#1471), the code-first API and generated consumers (#1472–#1473), identity and authorization (#1474), Matrix interoperability (#1475), durable resources and one active binding (#1476), product flows (#1479), integrated E2E (#1480), and mainline closure (#1481). [Epic #1498](https://github.com/masssi164/weave/issues/1498) owns provider adoption and migration, including Files profiles (#1477), cutover, recovery, and rollback (#1478). Delivery status is tracked by those issues and protected branch checks; a roadmap entry is not a shipped capability.
+[Epic #1470](https://github.com/masssi164/weave/issues/1470) owns the standalone product: scope alignment (#1471), the code-first API and generated consumers (#1472–#1473), identity and authorization (#1474), bounded Matrix Chat (#1475), durable resources and one active binding (#1476), product flows (#1479), integrated E2E (#1480), and mainline closure (#1481). [Epic #1498](https://github.com/masssi164/weave/issues/1498) owns provider adoption and migration, including Files profiles (#1477), cutover, recovery, and rollback (#1478). Delivery status is tracked by those issues and protected branch checks; a roadmap entry is not a shipped capability.
 
 ## Documentation
 

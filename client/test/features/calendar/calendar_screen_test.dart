@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
@@ -15,11 +18,13 @@ import '../../helpers/test_app.dart';
 class _FakeCalendarRepository implements CalendarRepository {
   _FakeCalendarRepository({
     required List<CalendarEvent> events,
+    this.eventLoadGate,
     this.failCreates = false,
     this.failUpdates = false,
   }) : events = List<CalendarEvent>.of(events);
 
   final List<CalendarEvent> events;
+  final Future<void>? eventLoadGate;
   final bool failCreates;
   final bool failUpdates;
   final List<CalendarEventDraft> createdDrafts = <CalendarEventDraft>[];
@@ -56,6 +61,7 @@ class _FakeCalendarRepository implements CalendarRepository {
     DateTime? to,
   }) async {
     eventLoads++;
+    if (eventLoadGate != null) await eventLoadGate;
     return CalendarEventList(
       scope: scope ?? CalendarScope.workspace,
       events: List<CalendarEvent>.of(events),
@@ -178,6 +184,96 @@ class _CalendarCapabilityController
 
 void main() {
   group('CalendarScreen', () {
+    testWidgets(
+      'moves from a readable loading state to an actionable empty state',
+      (tester) async {
+        final gate = Completer<void>();
+        final repository = _FakeCalendarRepository(
+          events: [],
+          eventLoadGate: gate.future,
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            const CalendarScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWithValue(
+                const AsyncData(_readySnapshot),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+              calendarEvaluationTimeZoneProvider.overrideWith(
+                (ref) async => 'Europe/Berlin',
+              ),
+            ],
+          ),
+        );
+        await tester.pump();
+        expect(repository.eventLoads, greaterThan(0));
+        expect(find.text('Loading event details…'), findsOneWidget);
+        expect(find.text('No events yet'), findsNothing);
+
+        gate.complete();
+        await tester.pumpAndSettle();
+        expect(find.text('Loading event details…'), findsNothing);
+        expect(find.text('No events yet'), findsOneWidget);
+        await tester.tap(find.byTooltip('Create event'));
+        await tester.pumpAndSettle();
+        expect(find.text('Create calendar event'), findsOneWidget);
+      },
+    );
+
+    testWidgets('tabs through event fields and returns focus after dismissal', (
+      tester,
+    ) async {
+      final repository = _FakeCalendarRepository(events: []);
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              const AsyncData(_readySnapshot),
+            ),
+            calendarRepositoryProvider.overrideWithValue(repository),
+            calendarEvaluationTimeZoneProvider.overrideWith(
+              (ref) async => 'Europe/Berlin',
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final trigger = find.widgetWithIcon(IconButton, Icons.add);
+      Finder focused() => find.byElementPredicate(
+        (element) =>
+            identical(element, FocusManager.instance.primaryFocus?.context),
+      );
+      for (
+        var i = 0;
+        i < 30 &&
+            find.ancestor(of: focused(), matching: trigger).evaluate().isEmpty;
+        i++
+      ) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      expect(find.ancestor(of: focused(), matching: trigger), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      final fields = find.byType(TextField);
+      expect(
+        find.ancestor(of: focused(), matching: fields.first),
+        findsOneWidget,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(
+        find.ancestor(of: focused(), matching: fields.at(1)),
+        findsOneWidget,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Create calendar event'), findsNothing);
+      expect(find.ancestor(of: focused(), matching: trigger), findsOneWidget);
+    });
     testWidgets(
       'waits for access, loads agenda automatically, and hides revoked events',
       (tester) async {

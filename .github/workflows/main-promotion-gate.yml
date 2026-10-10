@@ -15,9 +15,15 @@ on:
       candidate_sha:
         description: "Commit SHA that should be eligible for main promotion"
         required: true
+      pr_number:
+        description: "Main promotion pull request carrying the human result"
+        required: false
 
 permissions:
+  actions: read
   contents: read
+  issues: read
+  pull-requests: read
 
 jobs:
   verify-current-dev-tree:
@@ -34,8 +40,13 @@ jobs:
         id: candidate
         env:
           EVENT_NAME: ${{ github.event_name }}
+          GITHUB_TOKEN: ${{ github.token }}
+          MERGE_GROUP_BASE: ${{ github.event.merge_group.base_ref || '' }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref || '' }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number || '' }}
           DISPATCH_SHA: ${{ inputs.candidate_sha || '' }}
         run: |
           set -euo pipefail
@@ -50,16 +61,39 @@ jobs:
             echo "::error::Candidate must be one full lowercase commit SHA." >&2
             exit 1
           fi
+          evidence_sha="$candidate"
+          if [[ "$EVENT_NAME" == "merge_group" ]]; then
+            [[ "$MERGE_GROUP_BASE" == "refs/heads/main" ]] || {
+              echo "::error::Merge group must target main." >&2
+              exit 1
+            }
+            resolved="$(python3 tools/verify_main_promotion_evidence.py \
+              --repository "$REPOSITORY" --candidate-sha "$candidate" --resolve-merge-group)"
+            IFS=$'\t' read -r PR_NUMBER evidence_sha PR_HEAD_REF <<< "$resolved"
+            PR_HEAD_REPOSITORY="$REPOSITORY"
+          fi
           lane="promotion"
-          if [[ "$PR_HEAD_REF" == hotfix/* ]]; then
+          if [[ "$PR_HEAD_REF" == hotfix/* && "$PR_HEAD_REPOSITORY" == "$REPOSITORY" ]]; then
             lane="hotfix"
           fi
-          printf 'sha=%s\nlane=%s\n' "$candidate" "$lane" >> "$GITHUB_OUTPUT"
+          printf 'sha=%s\nevidence_sha=%s\nlane=%s\npr_number=%s\n' "$candidate" "$evidence_sha" "$lane" "$PR_NUMBER" >> "$GITHUB_OUTPUT"
 
-      - name: Fetch protected branch heads
-        run: git fetch origin dev main --prune
+      - name: Fetch protected branch heads and candidate
+        env:
+          CANDIDATE: ${{ steps.candidate.outputs.sha }}
+          EVIDENCE_SHA: ${{ steps.candidate.outputs.evidence_sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin dev dogfood main --prune
+          git fetch origin "$CANDIDATE"
+          git fetch origin "$EVIDENCE_SHA"
+          if ! git merge-base --is-ancestor "$EVIDENCE_SHA" "$CANDIDATE" || \
+            ! git diff --quiet "$EVIDENCE_SHA" "$CANDIDATE" --; then
+              echo "::error::Tested candidate must contain the exact promotion PR tree." >&2
+              exit 1
+          fi
 
-      - name: Verify exact current dev tree
+      - name: Verify exact current dev and dogfood tree
         if: steps.candidate.outputs.lane == 'promotion'
         env:
           CANDIDATE: ${{ steps.candidate.outputs.sha }}
@@ -74,15 +108,46 @@ jobs:
             git diff --stat origin/dev "$CANDIDATE" --
             exit 1
           fi
-          echo "Candidate contains protected dev and is tree-identical to it."
+          if ! git merge-base --is-ancestor origin/dogfood "$CANDIDATE"; then
+            echo "::error::Main promotion must contain the current protected dogfood head." >&2
+            exit 1
+          fi
+          if ! git diff --quiet origin/dogfood "$CANDIDATE" --; then
+            echo "::error::Main promotion must use the exact deployed dogfood tree." >&2
+            git diff --stat origin/dogfood "$CANDIDATE" --
+            exit 1
+          fi
+          echo "Candidate contains protected dev and dogfood and is tree-identical to both."
+
+      - name: Verify exact dogfood and separate human result
+        if: steps.candidate.outputs.lane == 'promotion'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.candidate.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::A main promotion PR is required for human evidence." >&2
+            exit 1
+          }
+          python3 tools/verify_main_promotion_evidence.py \
+            --repository "$REPOSITORY" \
+            --owner "$OWNER" \
+            --candidate-sha "${{ steps.candidate.outputs.evidence_sha }}" \
+            --dogfood-sha "$(git rev-parse origin/dogfood)" \
+            --pr-number "$PR_NUMBER"
 
       - name: Verify hotfix ancestry
         if: steps.candidate.outputs.lane == 'hotfix'
         env:
           CANDIDATE: ${{ steps.candidate.outputs.sha }}
+          EVIDENCE_SHA: ${{ steps.candidate.outputs.evidence_sha }}
         run: |
           set -euo pipefail
-          if ! git merge-base --is-ancestor origin/main "$CANDIDATE"; then
+          if ! git merge-base --is-ancestor origin/main "$CANDIDATE" || \
+            ! git merge-base --is-ancestor origin/main "$EVIDENCE_SHA"; then
             echo "::error::Hotfix must be based on the current protected main head." >&2
             exit 1
           fi
@@ -92,4 +157,5 @@ jobs:
         run: |
           set -euo pipefail
           echo "Main promotion uses the direct-Compose native-core contract from #1403 and #1407."
-          echo "Candidate Cut, Fresh Start, persistent dogfood promotion and TestFlight are not prerequisites for this development lane."
+          echo "Dogfood E2E, exact deployment and separately reported human results precede main."
+          echo "Candidate Cut, Fresh Start and TestFlight are not prerequisites for this development lane."

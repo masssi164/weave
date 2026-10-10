@@ -27,7 +27,7 @@ LABEL org.opencontainers.image.title="Weave Server" \
       org.opencontainers.image.revision="${WEAVE_IMAGE_REVISION}" \
       org.opencontainers.image.version="${WEAVE_IMAGE_VERSION}" \
       org.opencontainers.image.created="${WEAVE_IMAGE_CREATED}" \
-      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.licenses="EUPL-1.2-or-later" \
       org.opencontainers.image.vendor="Weave" \
       com.massimotter.weave.spec-digest="${WEAVE_SPEC_DIGEST}" \
       com.massimotter.weave.module="server" \
@@ -36,6 +36,9 @@ LABEL org.opencontainers.image.title="Weave Server" \
       com.massimotter.weave.sbom-reference="${WEAVE_SBOM_REFERENCE}" \
       com.massimotter.weave.provenance-reference="${WEAVE_PROVENANCE_REFERENCE}"
 
+COPY LICENSE NOTICE.md THIRD_PARTY_NOTICES.md /app/legal/
+COPY rust/vendor/matrix-sdk/LICENSE /app/legal/matrix-sdk-LICENSE
+COPY rust/vendor/matrix-sdk-crypto/LICENSE /app/legal/matrix-sdk-crypto-LICENSE
 ARG JAR_FILE=server/build/libs/*.jar
 COPY --chown=10001:10001 ${JAR_FILE} /app/app.jar
 COPY --chown=10001:10001 --from=matrix-protocol /source/target/release/libweave_matrix_protocol.so /app/lib/libweave_matrix_protocol.so

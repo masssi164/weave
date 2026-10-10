@@ -114,6 +114,7 @@ jobs:
           python-version: '3.13'
       - run: python3 tools/core_docs_check.py
       - run: python3 tools/readme_release_notes_test.py
+      - run: python3 -m unittest tools.test_verify_main_promotion_evidence -v
 
   generated_api:
     name: Generated API consumers
