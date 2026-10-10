@@ -425,7 +425,8 @@ final class OidcBrowserJourney implements AutoCloseable {
       waitForPage(page);
       if (hasVisibleError(page)) {
         throw new ProductFlowException(
-            "OIDC login rejected the credentials at " + evidenceStage);
+            "OIDC login rejected the credentials at " + evidenceStage
+                + " category=" + loginErrorCategory(page));
       }
       if (passwordSubmitted) {
         return awaitCallback(page, redirectUri, observedCallback);
@@ -668,6 +669,19 @@ final class OidcBrowserJourney implements AutoCloseable {
             page.locator(
                 ".alert-error, .pf-m-danger, [aria-invalid='true']"))
         != null;
+  }
+
+  private static String loginErrorCategory(Page page) {
+    Locator alert = firstVisible(page.locator(".alert-error, .pf-m-danger"));
+    if (alert == null) {
+      return "invalid-field";
+    }
+    String message = alert.innerText().toLowerCase(java.util.Locale.ROOT);
+    if (message.contains("invalid username or password")) return "invalid-credentials";
+    if (message.contains("verify") && message.contains("email")) return "email-verification";
+    if (message.contains("disabled")) return "account-disabled";
+    if (message.contains("expired")) return "expired-action";
+    return "other-issuer-error";
   }
 
   private String randomUrlSafe(int bytes) {

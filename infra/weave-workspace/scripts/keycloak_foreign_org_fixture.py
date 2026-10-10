@@ -133,7 +133,7 @@ def _provision_with_administrator(context, base: str, token: str) -> Path:
     organization_id = _location_id(organization_location)
     suffix = hashlib.sha256(context.env["WEAVE_E2E_RUN_ID"].encode()).hexdigest()[:20]
     email = f"weave-foreign-{suffix}@example.invalid"
-    password = secrets.token_urlsafe(36)
+    password = "Aa9!" + secrets.token_urlsafe(36)
     _, user_location = _request(
         base, "POST", admin + "/users", token=token,
         payload={"username": email.split("@", 1)[0], "email": email,
@@ -143,6 +143,21 @@ def _provision_with_administrator(context, base: str, token: str) -> Path:
         expected=201,
     )
     user_id = _location_id(user_location)
+    _request(base, "PUT", admin + f"/users/{user_id}/reset-password",
+             token=token,
+             payload={"type": "password", "value": password, "temporary": False},
+             expected=204)
+    user, _ = _request(base, "GET", admin + f"/users/{user_id}", token=token)
+    if (not isinstance(user, dict) or user.get("enabled") is not True
+            or user.get("emailVerified") is not True
+            or user.get("email") != email or user.get("requiredActions")):
+        raise ContractError("foreign organization fixture user is not ready for browser login")
+    credentials, _ = _request(
+        base, "GET", admin + f"/users/{user_id}/credentials", token=token)
+    if (not isinstance(credentials, list)
+            or not any(isinstance(item, dict) and item.get("type") == "password"
+                       for item in credentials)):
+        raise ContractError("foreign organization fixture password credential was not stored")
     _request(base, "POST", admin + f"/organizations/{organization_id}/members",
              token=token, payload=user_id, expected=201)
     _, group_location = _request(
