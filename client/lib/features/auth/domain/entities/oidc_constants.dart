@@ -4,8 +4,4 @@ const oidcPostLogoutRedirectUri = '$oidcRedirectScheme:/logout';
 const oidcDefaultClientId = 'weave-app';
 const oidcWorkspaceScope = 'weave:workspace';
 
-const oidcDefaultScopes = <String>[
-  'openid',
-  'profile',
-  'email',
-];
+const oidcDefaultScopes = <String>['openid', 'profile', 'email'];
