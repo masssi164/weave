@@ -65,13 +65,17 @@ def run_quiet(command: list[str], *, timeout: int, env: dict[str, str] | None = 
         raise RuntimeError(f"{command[0]} exited {result.returncode}")
 
 
-def collect_flutter_output(process: subprocess.Popen[str], sink: queue.Queue[str]) -> None:
+def collect_flutter_output(
+    process: subprocess.Popen[str], sink: queue.Queue[str], diagnostic,
+) -> None:
     assert process.stdout is not None
     def record(marker: str) -> None:
         sink.put(marker)
         print(marker, flush=True)
 
     for line in process.stdout:
+        diagnostic.write(line)
+        diagnostic.flush()
         marker = next(
             (item for item in (
                 "NATIVE_PRODUCT_SIGN_IN_RESULT", "NATIVE_PRODUCT_INITIAL_RESULT",
@@ -323,13 +327,27 @@ def main() -> int:
         flutter: subprocess.Popen[str] | None = None
         driver: subprocess.Popen[str] | None = None
         logout_consent: subprocess.Popen[str] | None = None
+        reader: threading.Thread | None = None
+        diagnostics = []
+        accepted = False
         try:
+            private_dir = CLIENT / "build/private-native-acceptance"
+            private_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+            if private_dir.is_symlink():
+                raise RuntimeError("native private diagnostic directory is a symlink")
+            private_dir.chmod(0o700)
+            diagnostic = tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", prefix="flutter-test-", suffix=".log",
+                dir=private_dir, delete=False,
+            )
+            diagnostics.append(diagnostic)
             flutter = subprocess.Popen(
                 ["make", "physical-device-product-e2e"], cwd=CLIENT, env=env,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
             )
             reader = threading.Thread(
-                target=collect_flutter_output, args=(flutter, markers), daemon=True
+                target=collect_flutter_output,
+                args=(flutter, markers, diagnostic), daemon=True,
             )
             reader.start()
             app_deadline = time.monotonic() + 120
@@ -398,12 +416,18 @@ def main() -> int:
             restart_disposable_services(env)
             env["WEAVE_DEVICE_PRODUCT_PHASE"] = "restore"
             markers = queue.Queue()
+            diagnostic = tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", prefix="flutter-test-", suffix=".log",
+                dir=private_dir, delete=False,
+            )
+            diagnostics.append(diagnostic)
             flutter = subprocess.Popen(
                 ["make", "physical-device-product-e2e"], cwd=CLIENT, env=env,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
             )
             reader = threading.Thread(
-                target=collect_flutter_output, args=(flutter, markers), daemon=True
+                target=collect_flutter_output,
+                args=(flutter, markers, diagnostic), daemon=True,
             )
             reader.start()
             app_deadline = time.monotonic() + 120
@@ -443,6 +467,7 @@ def main() -> int:
                 raise RuntimeError("Flutter native product assertions failed")
             print("NATIVE_PROCESS_RESTART_RESULT status=passed", flush=True)
             print("NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed", flush=True)
+            accepted = True
         finally:
             if logout_consent is not None and logout_consent.poll() is None:
                 logout_consent.terminate()
@@ -457,6 +482,14 @@ def main() -> int:
                 except subprocess.TimeoutExpired:
                     flutter.kill()
                     flutter.wait(timeout=10)
+            if reader is not None:
+                reader.join(timeout=2)
+            for diagnostic in diagnostics:
+                diagnostic.close()
+                if accepted:
+                    Path(diagnostic.name).unlink()
+            if diagnostics and not accepted:
+                print("NATIVE_FLUTTER_DIAGNOSTIC status=retainedPrivate", flush=True)
             stop_checkout_app()
     return 0
 

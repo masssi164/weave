@@ -20,8 +20,8 @@ The native runner builds a signed macOS app, drives the actual system-browser
 OIDC/PKCE callback, checks Files/Calendar/Matrix behavior and denial, restarts
 the app and core services, checks restoration and revocation, and fails if a
 required phase cannot run. The stack is torn down by the existing `testApp`
-cleanup. CI uploads only support-safe evidence; native build logs remain local
-and private when they may contain sensitive diagnostics.
+cleanup. CI uploads only support-safe evidence; native build and Flutter test
+logs remain local and private when they may contain sensitive diagnostics.
 
 An exact candidate is accepted only when the required `Full Compose E2E` job
 and the two Flutter processes finish successfully, with source, spec, client,
