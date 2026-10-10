@@ -15,6 +15,11 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.chat.adapter.WeaveCanonicalChatAdapter;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
+import com.massimotter.weave.backend.chat.domain.ChatChange;
+import com.massimotter.weave.backend.chat.domain.ChatChangeSet;
+import com.massimotter.weave.backend.chat.domain.ChatEventContent;
+import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
+import com.massimotter.weave.backend.chat.domain.ConversationId;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightRequest;
@@ -54,6 +59,106 @@ import org.springframework.security.oauth2.jwt.Jwt;
 class ChatDomainFacadeServiceTest {
 
     private static final Clock FIXED = Clock.fixed(Instant.parse("2026-05-25T08:00:00Z"), ZoneOffset.UTC);
+
+    @Test
+    void matrixSyncPagesCommittedChangesWithoutSkippingMoreThanOneTimelineWindow() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "in-memory-test", false, List.of()));
+        ChatDomainFacadeService service = service(selections, true, capability());
+        String room = service.createConversation("sync-room", "Business", "channel", List.of(), memberJwt())
+                .conversationId();
+        for (int index = 0; index < 105; index++) {
+            service.sendEvent(room, "sync-message-" + index,
+                    ChatEventContent.text("message-" + index), memberJwt());
+        }
+        ChatDomainFacadeService.ChatTimelineWindow coldWindow =
+                service.timelineWindow(room, memberJwt(), 100);
+        assertThat(coldWindow.timeline().events()).hasSize(100);
+        assertThat(coldWindow.limited()).isTrue();
+
+        ChatDomainFacadeService.ChatSyncDelta first = service.syncDelta(memberJwt(), "chat-revision-0", 100);
+        ChatDomainFacadeService.ChatSyncDelta second = service.syncDelta(memberJwt(), first.cursor(), 100);
+        assertThat(first.cursor()).isEqualTo("chat-revision-101");
+        assertThat(second.cursor()).isEqualTo("chat-revision-107");
+        assertThat(first.events().get(room)).hasSize(99);
+        assertThat(second.events().get(room)).hasSize(6);
+        assertThat(first.events().get(room).stream().map(event -> event.content().body()).toList())
+                .contains("message-0", "message-98")
+                .doesNotContain("message-99");
+        assertThat(second.events().get(room).stream().map(event -> event.content().body()).toList())
+                .containsExactly("message-99", "message-100", "message-101",
+                        "message-102", "message-103", "message-104");
+    }
+
+    @Test
+    void matrixSyncDoesNotAdvancePastAChangeCommittedAfterItsHighWaterRead() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
+        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+                capability(), capability(), capability(), capability(), capability(), capability());
+        when(capabilities.snapshot()).thenReturn(snapshot);
+        when(capabilities.snapshot(any())).thenReturn(snapshot);
+        ChatProviderPort provider = Mockito.mock(ChatProviderPort.class);
+        when(provider.configured()).thenReturn(true);
+        when(provider.providerSelectionKeys()).thenReturn(Set.of("synapse-homeserver"));
+        when(provider.readiness()).thenReturn(ProviderReadiness.ready("chat-provider-ready"));
+        when(provider.currentCursor(any(ChatRequestContext.class)))
+                .thenReturn(new ChatCursor("chat-revision-2"), new ChatCursor("chat-revision-3"));
+        var late = new ChatChange(3, "message.created", new ConversationId("room-late"),
+                "event-late", FIXED.instant());
+        when(provider.changes(any(ChatRequestContext.class), any(ChatCursor.class), eq(100)))
+                .thenReturn(new ChatChangeSet(new ChatCursor("chat-revision-3"), List.of(late)));
+        when(provider.event(any(ChatRequestContext.class), eq(late.conversationId()), eq("event-late")))
+                .thenReturn(new ChatTimelineEvent("event-late", "room-late", "user:member-123",
+                        FIXED.instant(), ChatEventContent.text("late"), "committed", false));
+        ChatDomainFacadeService service = new ChatDomainFacadeService(
+                new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections),
+                selections, capabilities, new InMemoryAuditEventPublisher(), provider,
+                allowAllContexts(), contextProperties(), FIXED);
+
+        ChatDomainFacadeService.ChatSyncDelta first = service.syncDelta(memberJwt(), "chat-revision-0", 100);
+        assertThat(first.cursor()).isEqualTo("chat-revision-2");
+        assertThat(first.events()).isEmpty();
+        ChatDomainFacadeService.ChatSyncDelta second = service.syncDelta(memberJwt(), first.cursor(), 100);
+        assertThat(second.cursor()).isEqualTo("chat-revision-3");
+        assertThat(second.events().get("room-late").getFirst().content().body()).isEqualTo("late");
+    }
+
+    @Test
+    void matrixSyncCarriesOwnDepartureWithoutReadingRevokedRoomContent() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
+        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+                capability(), capability(), capability(), capability(), capability(), capability());
+        when(capabilities.snapshot()).thenReturn(snapshot);
+        when(capabilities.snapshot(any())).thenReturn(snapshot);
+        ChatProviderPort provider = Mockito.mock(ChatProviderPort.class);
+        when(provider.configured()).thenReturn(true);
+        when(provider.providerSelectionKeys()).thenReturn(Set.of("synapse-homeserver"));
+        when(provider.readiness()).thenReturn(ProviderReadiness.ready("chat-provider-ready"));
+        when(provider.currentCursor(any(ChatRequestContext.class)))
+                .thenReturn(new ChatCursor("chat-revision-8"));
+        when(provider.changes(any(ChatRequestContext.class), any(ChatCursor.class), eq(100)))
+                .thenAnswer(call -> {
+                    ChatRequestContext context = call.getArgument(0);
+                    return new ChatChangeSet(new ChatCursor("chat-revision-8"), List.of(
+                            new ChatChange(8, "membership.left", new ConversationId("room-left"),
+                                    context.actorRef().value(), FIXED.instant())));
+                });
+        ChatDomainFacadeService service = new ChatDomainFacadeService(
+                new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections),
+                selections, capabilities, new InMemoryAuditEventPublisher(), provider,
+                allowAllContexts(), contextProperties(), FIXED);
+
+        ChatDomainFacadeService.ChatSyncDelta delta = service.syncDelta(memberJwt(),
+                "chat-revision-7", 100);
+        assertThat(delta.cursor()).isEqualTo("chat-revision-8");
+        assertThat(delta.leftRooms()).containsExactly("room-left");
+        assertThat(delta.events()).isEmpty();
+        verify(provider, never()).event(any(ChatRequestContext.class), any(ConversationId.class), any());
+    }
 
     @Test
     void aHealthyLegacySelectionCannotAdmitChatWithoutTheOrganizationBinding() {
@@ -325,6 +430,32 @@ class ChatDomainFacadeServiceTest {
         assertThat(service.conversations(memberJwt()).conversations())
                 .extracting(value -> value.conversationId()).containsExactly("room-alpha");
         assertThat(service.syncCursor(memberJwt())).isEqualTo("chat-revision-2");
+
+        when(spaces.allows("weave-dogfood", "beta", account, SpaceAccessPort.Permission.VIEW))
+                .thenReturn(true);
+        when(provider.currentCursor(any(ChatRequestContext.class)))
+                .thenAnswer(call -> new ChatCursor("chat-revision-"
+                        + ("beta".equals(((ChatRequestContext) call.getArgument(0)).contextId()) ? 120 : 60)));
+        when(provider.changes(any(ChatRequestContext.class), any(ChatCursor.class), eq(100)))
+                .thenAnswer(call -> {
+                    ChatRequestContext context = call.getArgument(0);
+                    String afterText = ((ChatCursor) call.getArgument(1)).value();
+                    long after = Long.parseLong(afterText.substring("chat-revision-".length()));
+                    boolean beta = "beta".equals(context.contextId());
+                    List<ChatChange> page = java.util.stream.LongStream
+                            .rangeClosed(beta ? 61 : 1, beta ? 120 : 60)
+                            .filter(sequence -> sequence > after)
+                            .mapToObj(sequence -> new ChatChange(sequence, "membership.joined",
+                                    new ConversationId(beta ? "room-beta" : "room-alpha"),
+                                    null, FIXED.instant()))
+                            .toList();
+                    return new ChatChangeSet(new ChatCursor("chat-revision-"
+                            + (page.isEmpty() ? after : page.getLast().sequence())), page);
+                });
+        ChatDomainFacadeService.ChatSyncDelta firstPage = service.syncDelta(memberJwt(), "chat-revision-0", 100);
+        ChatDomainFacadeService.ChatSyncDelta secondPage = service.syncDelta(memberJwt(), firstPage.cursor(), 100);
+        assertThat(firstPage.cursor()).isEqualTo("chat-revision-100");
+        assertThat(secondPage.cursor()).isEqualTo("chat-revision-120");
     }
 
     @Test

@@ -358,9 +358,10 @@ class FilesCalendarFacadeControllerTest {
         mockMvc.perform(get("/api/files/readiness").with(httpBasic(credentialId, secret)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("unauthorized"));
-        mockMvc.perform(get("/_matrix/client/versions").with(httpBasic(credentialId, secret)))
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami").with(httpBasic(credentialId, secret)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("unauthorized"));
+                .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"))
+                .andExpect(jsonPath("$.code").doesNotExist());
 
         mockMvc.perform(get("/api/files/client-setup/credentials")
                         .with(workspaceJwt()))

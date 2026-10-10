@@ -26,6 +26,7 @@ public final class CanonicalChatJpaAuthority {
     private final ChatQuarantineJpaRepository quarantines;
     private final ChatReadReceiptJpaRepository receipts;
     private final ChatChangeJpaRepository changes;
+    private final ChatChangeCommitFenceJpaRepository changeCommitFence;
     private final PlatformTransactionManager transactionManager;
     private final TransactionTemplate callbackClaimTransactions;
 
@@ -41,6 +42,7 @@ public final class CanonicalChatJpaAuthority {
             ChatQuarantineJpaRepository quarantines,
             ChatReadReceiptJpaRepository receipts,
             ChatChangeJpaRepository changes,
+            ChatChangeCommitFenceJpaRepository changeCommitFence,
             PlatformTransactionManager transactionManager) {
         this.conversations = requireNonNull(conversations, "conversations");
         this.memberships = requireNonNull(memberships, "memberships");
@@ -53,6 +55,7 @@ public final class CanonicalChatJpaAuthority {
         this.quarantines = requireNonNull(quarantines, "quarantines");
         this.receipts = requireNonNull(receipts, "receipts");
         this.changes = requireNonNull(changes, "changes");
+        this.changeCommitFence = requireNonNull(changeCommitFence, "changeCommitFence");
         this.transactionManager = requireNonNull(transactionManager, "transactionManager");
         this.callbackClaimTransactions = new TransactionTemplate(transactionManager);
         this.callbackClaimTransactions.setPropagationBehavior(
@@ -70,6 +73,7 @@ public final class CanonicalChatJpaAuthority {
     ChatQuarantineJpaRepository quarantines() { return quarantines; }
     ChatReadReceiptJpaRepository receipts() { return receipts; }
     ChatChangeJpaRepository changes() { return changes; }
+    ChatChangeCommitFenceJpaRepository changeCommitFence() { return changeCommitFence; }
     PlatformTransactionManager transactionManager() { return transactionManager; }
 
     /**

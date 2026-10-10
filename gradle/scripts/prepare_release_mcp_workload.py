@@ -41,7 +41,7 @@ def run(args: argparse.Namespace) -> None:
     parts = urlsplit(issuer)
     if (
         parts.scheme != "https"
-        or parts.hostname != "auth.weave.test"
+        or parts.hostname not in {"auth.weave.test", "auth.weave.localhost"}
         or parts.path != "/realms/weave"
         or parts.query or parts.fragment
         or not re.fullmatch(r"weaver-cell-[0-9a-f]{16}", args.client_id)

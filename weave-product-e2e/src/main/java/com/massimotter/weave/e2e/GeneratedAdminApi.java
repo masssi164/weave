@@ -190,6 +190,18 @@ final class GeneratedAdminApi {
     }
   }
 
+  void requireForeignOrganizationDenied(String bearer) {
+    try {
+      controlPlane.getAdminControlPlane(authHeaders(bearer));
+      throw new ProductFlowException("foreign organization reached the primary Admin control plane");
+    } catch (ApiException denial) {
+      if (denial.getCode() != 403 && denial.getCode() != 404) {
+        throw new ProductFlowException(
+            "foreign organization Admin denial returned HTTP " + denial.getCode());
+      }
+    }
+  }
+
   private String supportSafeErrorCode(ApiException failure) {
     String body = failure.getResponseBody();
     if (body == null || body.length() > 8192) {

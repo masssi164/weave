@@ -1,6 +1,6 @@
 # Chat Feature Instructions
 
-`chat` owns the product boundary to the native Rust Matrix SDK. Map Matrix events returned by the chat repository before presentation consumes them. OrgManifest v2 advertises the Weave Matrix Client-Server northbound endpoint independently of the User API. Its audience-bound OAuth session is separate from Weave OIDC credentials and is established automatically after the one member sign-in.
+`chat` owns the product boundary to the native Rust Matrix SDK. Map Matrix events returned by the chat repository before presentation consumes them. OrgManifest v2 advertises the Weave Matrix Client-Server northbound endpoint independently of the User API. For this release, the Weave-owned Flutter Matrix path uses the authorized member OIDC/PKCE session after one Weave sign-in; a distinct Matrix OAuth client and audience belong to the deferred independent-client profile.
 
 Rules:
 - keep Matrix event mapping in `data/` and chat-facing entities/view models in `domain/` or presentation-facing adapters

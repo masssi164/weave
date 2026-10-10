@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 @Service
 public class MatrixProtocolCoreService implements MatrixProtocolCodec {
@@ -25,13 +26,16 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
 
     private final ObjectMapper objectMapper;
     private final String serverName;
+    private final String identityIssuer;
 
     @Autowired
     public MatrixProtocolCoreService(
             ObjectMapper objectMapper,
-            @Value("${weave.matrix.facade.server-name:api.weave.test}") String serverName) {
+            @Value("${weave.matrix.facade.server-name:api.weave.test}") String serverName,
+            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}") String identityIssuer) {
         this.objectMapper = objectMapper;
         this.serverName = requireText(serverName, "Matrix facade server name");
+        this.identityIssuer = identityIssuer == null ? "" : identityIssuer;
     }
 
     @PostConstruct
@@ -70,10 +74,21 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             List<CanonicalConversation> conversations,
             Map<String, Map<String, Object>> accountData,
             MatrixSyncCrypto crypto) {
+        return sync(subject, cursor, since, conversations, accountData, crypto, List.of());
+    }
+
+    public Map<String, Object> sync(
+            String subject,
+            String cursor,
+            String since,
+            List<CanonicalConversation> conversations,
+            Map<String, Map<String, Object>> accountData,
+            MatrixSyncCrypto crypto,
+            List<String> leftRooms) {
         return project(MatrixProtocolOperation.SYNC, new CanonicalProjection(
                 subject, cursor, since, conversations, accountData,
                 crypto.toDeviceEvents(), crypto.deviceListsChanged(), crypto.deviceListsLeft(),
-                crypto.oneTimeKeyCounts(), crypto.unusedFallbackKeyTypes()));
+                crypto.oneTimeKeyCounts(), crypto.unusedFallbackKeyTypes(), leftRooms));
     }
 
     public void validateSyncToken(String since) {
@@ -207,7 +222,24 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
     private Map<String, Object> project(MatrixProtocolOperation operation, String inputJson, boolean rejectMatrixError) {
         if (operation == null) throw new IllegalArgumentException("Matrix protocol operation is required.");
         NativeMatrixCore.ensureLoaded();
-        return readOutput(NativeMatrixCore.projectJson(operation.wireName(), inputJson, serverName), rejectMatrixError);
+        String projectionInput = switch (operation) {
+            case WHOAMI, SYNC, MESSAGES, MEMBERS, USER_ID -> withIdentityIssuer(inputJson);
+            default -> inputJson;
+        };
+        return readOutput(NativeMatrixCore.projectJson(operation.wireName(), projectionInput, serverName), rejectMatrixError);
+    }
+
+    private String withIdentityIssuer(String inputJson) {
+        try {
+            var input = objectMapper.readTree(inputJson);
+            if (input instanceof ObjectNode object) {
+                object.put("identityIssuer", identityIssuer);
+                return objectMapper.writeValueAsString(object);
+            }
+            return inputJson;
+        } catch (JacksonException exception) {
+            return inputJson;
+        }
     }
 
     private Map<String, Object> readOutput(String output, boolean rejectMatrixError) {
@@ -240,14 +272,15 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             List<String> deviceListsChanged,
             List<String> deviceListsLeft,
             Map<String, Long> deviceOneTimeKeysCount,
-            List<String> deviceUnusedFallbackKeyTypes) {
+            List<String> deviceUnusedFallbackKeyTypes,
+            List<String> leftRooms) {
         public CanonicalProjection(
                 String subject,
                 String cursor,
                 String since,
                 List<CanonicalConversation> conversations,
                 Map<String, Map<String, Object>> accountData) {
-            this(subject, cursor, since, conversations, accountData, List.of(), List.of(), List.of(), Map.of(), List.of());
+            this(subject, cursor, since, conversations, accountData, List.of(), List.of(), List.of(), Map.of(), List.of(), List.of());
         }
     }
 
@@ -258,7 +291,22 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             int unreadCount,
             String encryptionAlgorithm,
             List<CanonicalMembership> memberships,
-            List<CanonicalMessage> messages) {}
+            List<CanonicalMessage> messages,
+            boolean timelineLimited,
+            String timelineBeforeCursor) {
+        public CanonicalConversation(String conversationId, String title, long updatedAtEpochMillis,
+                int unreadCount, String encryptionAlgorithm, List<CanonicalMembership> memberships,
+                List<CanonicalMessage> messages) {
+            this(conversationId, title, updatedAtEpochMillis, unreadCount, encryptionAlgorithm,
+                    memberships, messages, false, null);
+        }
+        public CanonicalConversation(String conversationId, String title, long updatedAtEpochMillis,
+                int unreadCount, String encryptionAlgorithm, List<CanonicalMembership> memberships,
+                List<CanonicalMessage> messages, boolean timelineLimited) {
+            this(conversationId, title, updatedAtEpochMillis, unreadCount, encryptionAlgorithm,
+                    memberships, messages, timelineLimited, null);
+        }
+    }
 
     public record CanonicalMembership(String memberRef, String state) {}
 

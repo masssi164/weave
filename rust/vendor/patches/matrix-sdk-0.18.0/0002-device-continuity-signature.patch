@@ -1,0 +1,34 @@
+diff --git a/src/encryption/mod.rs b/src/encryption/mod.rs
+index 5cd1eac28c..a9ba301638 100644
+--- a/src/encryption/mod.rs
++++ b/src/encryption/mod.rs
+@@ -56,7 +56,8 @@ use matrix_sdk_base::{
+ };
+ use matrix_sdk_common::{executor::spawn, locks::Mutex as StdMutex};
+ use ruma::{
+-    DeviceId, MilliSecondsSinceUnixEpoch, OwnedDeviceId, OwnedUserId, TransactionId, UserId,
++    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, OwnedDeviceId,
++    OwnedUserId, TransactionId, UserId,
+     api::{
+         client::{
+             keys::{
+@@ -910,6 +911,19 @@ impl Encryption {
+         self.client.olm_machine().await.as_ref().map(|o| o.identity_keys().ed25519.to_base64())
+     }
+ 
++    /// Sign a Weave device-continuity challenge with this installed Matrix
++    /// device's Ed25519 key. The private key remains inside the crypto store.
++    pub async fn sign_device_continuity_challenge(&self, challenge: &str) -> Result<String> {
++        let machine = self.client.olm_machine().await;
++        let machine = machine.as_ref().ok_or(Error::NoOlmMachine)?;
++        let signatures = machine.sign(challenge).await?;
++        let key_id = DeviceKeyId::from_parts(DeviceKeyAlgorithm::Ed25519, machine.device_id());
++        let signature = signatures
++            .get_signature(machine.user_id(), &key_id)
++            .ok_or(Error::NoOlmMachine)?;
++        Ok(signature.to_base64())
++    }
++
+     /// Get the public Curve25519 key of our own device.
+     pub async fn curve25519_key(&self) -> Option<Curve25519PublicKey> {
+         self.client.olm_machine().await.as_ref().map(|o| o.identity_keys().curve25519)

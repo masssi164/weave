@@ -2,6 +2,10 @@ package com.massimotter.weave.backend.matrix;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -9,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Repository;
@@ -322,8 +327,124 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
 
     @Override
     @Transactional
+    public boolean bindDeviceProof(String tenantId, String userId, String deviceId, String proofHash) {
+        jdbc.update("""
+                insert into weave_matrix_device_proofs(tenant_id,user_id,device_id,proof_hash)
+                select ?,?,?,?
+                where not exists (
+                    select 1 from weave_matrix_devices
+                    where tenant_id=? and user_id=? and device_id=?
+                      and (revoked=true or device_keys_json is not null)
+                )
+                on conflict (tenant_id,user_id,device_id) do nothing
+                """, tenantId, userId, deviceId, proofHash, tenantId, userId, deviceId);
+        List<String> bound = jdbc.query("select proof_hash from weave_matrix_device_proofs where tenant_id=? and user_id=? and device_id=?",
+                (rs, ignored) -> rs.getString(1), tenantId, userId, deviceId);
+        return device(tenantId, userId, deviceId).map(record -> !record.revoked()).orElse(true)
+                && bound.size() == 1 && MessageDigest.isEqual(
+                bound.getFirst().getBytes(StandardCharsets.US_ASCII),
+                proofHash.getBytes(StandardCharsets.US_ASCII));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> deviceProofHash(String tenantId, String userId, String deviceId) {
+        return jdbc.query("select proof_hash from weave_matrix_device_proofs where tenant_id=? and user_id=? and device_id=?",
+                (rs, ignored) -> rs.getString(1), tenantId, userId, deviceId).stream().findFirst();
+    }
+
+    @Override
+    @Transactional
+    public boolean issueDeviceRecoveryChallenge(
+            String tenantId, String userId, String deviceId, String challengeId,
+            String challengeText, String proofHash, Instant expiresAt) {
+        return jdbc.update("""
+                insert into weave_matrix_device_recovery_challenges
+                  (tenant_id,user_id,device_id,challenge_id,challenge_text,proof_hash,expires_at_utc)
+                select ?,?,?,?,?,?,?
+                where exists (
+                    select 1 from weave_matrix_devices
+                    where tenant_id=? and user_id=? and device_id=?
+                      and revoked=false and device_keys_json is not null and device_keys_json<>'{}'
+                ) and not exists (
+                    select 1 from weave_matrix_device_proofs
+                    where tenant_id=? and user_id=? and device_id=?
+                )
+                on conflict (tenant_id,user_id,device_id) do update
+                  set challenge_id=excluded.challenge_id,
+                      challenge_text=excluded.challenge_text,
+                      proof_hash=excluded.proof_hash,
+                      expires_at_utc=excluded.expires_at_utc,
+                      consumed_at_utc=null
+                  where weave_matrix_device_recovery_challenges.expires_at_utc<=now()
+                     or weave_matrix_device_recovery_challenges.consumed_at_utc is not null
+                     or weave_matrix_device_recovery_challenges.proof_hash=excluded.proof_hash
+                """, tenantId, userId, deviceId, UUID.fromString(challengeId), challengeText,
+                proofHash, Timestamp.from(expiresAt), tenantId, userId, deviceId,
+                tenantId, userId, deviceId) == 1;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<DeviceRecoveryChallenge> deviceRecoveryChallenge(
+            String tenantId, String userId, String deviceId, String challengeId) {
+        return jdbc.query("""
+                select challenge_id,challenge_text,proof_hash,expires_at_utc
+                from weave_matrix_device_recovery_challenges
+                where tenant_id=? and user_id=? and device_id=? and challenge_id=?
+                  and consumed_at_utc is null and expires_at_utc>now()
+                """, (rs, ignored) -> new DeviceRecoveryChallenge(
+                    rs.getObject(1, UUID.class).toString(), rs.getString(2), rs.getString(3),
+                    rs.getTimestamp(4).toInstant()), tenantId, userId, deviceId,
+                UUID.fromString(challengeId)).stream().findFirst();
+    }
+
+    @Override
+    @Transactional
+    public boolean completeDeviceRecoveryChallenge(
+            String tenantId, String userId, String deviceId, String challengeId,
+            String proofHash, String expectedPublicKey) {
+        List<DeviceRecoveryChallenge> challenges = jdbc.query("""
+                select challenge_id,challenge_text,proof_hash,expires_at_utc
+                from weave_matrix_device_recovery_challenges
+                where tenant_id=? and user_id=? and device_id=? and challenge_id=?
+                  and consumed_at_utc is null and expires_at_utc>now()
+                for update
+                """, (rs, ignored) -> new DeviceRecoveryChallenge(
+                    rs.getObject(1, UUID.class).toString(), rs.getString(2), rs.getString(3),
+                    rs.getTimestamp(4).toInstant()), tenantId, userId, deviceId,
+                UUID.fromString(challengeId));
+        if (challenges.size() != 1 || !MessageDigest.isEqual(
+                challenges.getFirst().proofHash().getBytes(StandardCharsets.US_ASCII),
+                proofHash.getBytes(StandardCharsets.US_ASCII))) return false;
+        List<DeviceRecord> devices = jdbc.query("""
+                select user_id,device_id,device_keys_json,changed_revision,revoked
+                from weave_matrix_devices
+                where tenant_id=? and user_id=? and device_id=? for update
+                """, (rs, ignored) -> deviceRecord(rs), tenantId, userId, deviceId);
+        if (devices.size() != 1 || devices.getFirst().revoked()) return false;
+        Object currentKey = objectMap(devices.getFirst().deviceKeys().get("keys")).get("ed25519:" + deviceId);
+        if (!expectedPublicKey.equals(currentKey)) return false;
+        jdbc.update("""
+                update weave_matrix_device_recovery_challenges set consumed_at_utc=now()
+                where tenant_id=? and user_id=? and device_id=? and challenge_id=?
+                """, tenantId, userId, deviceId, UUID.fromString(challengeId));
+        jdbc.update("""
+                insert into weave_matrix_device_proofs(tenant_id,user_id,device_id,proof_hash)
+                values (?,?,?,?) on conflict (tenant_id,user_id,device_id) do nothing
+                """, tenantId, userId, deviceId, proofHash);
+        return deviceProofHash(tenantId, userId, deviceId).filter(bound -> MessageDigest.isEqual(
+                bound.getBytes(StandardCharsets.US_ASCII), proofHash.getBytes(StandardCharsets.US_ASCII))).isPresent();
+    }
+
+    @Override
+    @Transactional
     public String createBackupVersion(String tenantId, String userId, String algorithm, Map<String, Object> authData) {
-        Long next = jdbc.query("select coalesce(max(version_id),0)+1 from weave_matrix_key_backup_versions where tenant_id=? and user_id=? for update", rs -> rs.next() ? rs.getLong(1) : 1L, tenantId, userId);
+        // PostgreSQL cannot lock an aggregate result. Serialize even the first
+        // version for this tenant and user, when no backup row exists to lock.
+        jdbc.query("select pg_advisory_xact_lock(hashtext(?), hashtext(?))",
+                rs -> { rs.next(); return null; }, tenantId, userId);
+        Long next = jdbc.query("select coalesce(max(version_id),0)+1 from weave_matrix_key_backup_versions where tenant_id=? and user_id=?", rs -> rs.next() ? rs.getLong(1) : 1L, tenantId, userId);
         long version = next == null ? 1 : next;
         jdbc.update("update weave_matrix_key_backup_versions set current_version=false where tenant_id=? and user_id=?", tenantId, userId);
         jdbc.update("insert into weave_matrix_key_backup_versions(tenant_id,user_id,version_id,algorithm,auth_data_json,current_version,revision) values (?,?,?,?,?,true,1)", tenantId, userId, version, algorithm, writeJson(authData));

@@ -38,6 +38,12 @@ void main() {
       expect(surfaces[0].path, '/api/me');
       expect(surfaces[1].path, '/_matrix/client/versions');
       expect(config.matrixHomeserverUrl.path, anyOf('', '/'));
+      if (const String.fromEnvironment('WEAVE_MATRIX_HOMESERVER_URL').isEmpty) {
+        expect(
+          config.matrixHomeserverUrl.origin,
+          config.backendApiBaseUrl.origin,
+        );
+      }
       for (final surface in surfaces) {
         expect(surface.scheme, anyOf('http', 'https'));
         expect(surface.userInfo, isEmpty);

@@ -101,6 +101,21 @@ final class GeneratedCalendarJourney {
     }
   }
 
+  void verifyForeignOrganizationDenied(Proof proof, String foreignToken, String ownerToken) {
+    CalendarUserEvent event = proof.events().get(0).event();
+    expectForeignAdmissionDenied("foreign organization Calendar read", () ->
+        calendar.getCalendarEvent(proof.calendarId(), event.getId(), bearer(foreignToken)));
+    expectForeignAdmissionDenied("foreign organization Calendar write", () ->
+        calendar.updateCalendarEvent(proof.calendarId(), event.getId(), event.getVersion(),
+            event.getContent(), bearer(foreignToken)));
+    try {
+      requireSame(event, calendar.getCalendarEvent(
+          proof.calendarId(), event.getId(), bearer(ownerToken)));
+    } catch (ApiException failure) {
+      throw failure("primary Calendar readback failed after foreign denial");
+    }
+  }
+
   void verify(Proof proof, String author, String collaborator, String outsider) {
     try {
       for (EventProof expected : proof.events()) {
@@ -178,6 +193,41 @@ final class GeneratedCalendarJourney {
     } catch (ApiException failure) {
       throw failure("cleanup failed with HTTP " + failure.getCode());
     }
+  }
+
+  CalendarUserEvent readMcpEvent(String calendarId, String title, String author) {
+    try {
+      var agenda = calendar.queryCalendarAgenda(calendarId, FROM, TO, ZONE, bearer(author));
+      var matches = agenda.getEvents().stream()
+          .filter(event -> title.equals(event.getContent().getTitle())).toList();
+      if (matches.size() != 1) {
+        throw failure("MCP Calendar write did not produce one visible event");
+      }
+      CalendarUserEvent event = calendar.getCalendarEvent(
+          calendarId, matches.getFirst().getId(), bearer(author));
+      if (!title.equals(event.getContent().getTitle())
+          || !calendarId.equals(event.getCalendarId())
+          || !event.getId().matches("event:[0-9a-f]{64}")) {
+        throw failure("MCP Calendar write changed the generated User readback");
+      }
+      return event;
+    } catch (ApiException failure) {
+      throw failure("MCP Calendar readback failed with HTTP " + failure.getCode());
+    }
+  }
+
+  void verifyMcpEventUnchanged(String calendarId, CalendarUserEvent expected, String author) {
+    try {
+      requireSame(expected, calendar.getCalendarEvent(
+          calendarId, expected.getId(), bearer(author)));
+    } catch (ApiException failure) {
+      throw failure("MCP Calendar conflict changed the event or denied readback");
+    }
+  }
+
+  void verifyMcpEventDeleted(String calendarId, String eventId, String author) {
+    expectStatus(Set.of(404), "MCP-deleted Calendar event", () ->
+        calendar.getCalendarEvent(calendarId, eventId, bearer(author)));
   }
 
   private static List<CalendarEventWriteRequest> fixtures(String runId) {
@@ -288,6 +338,26 @@ final class GeneratedCalendarJourney {
     } catch (ApiException failure) {
       if (statuses.contains(failure.getCode())) return;
       throw failure(stage + " returned HTTP " + failure.getCode());
+    }
+    throw failure(stage + " unexpectedly succeeded");
+  }
+
+  private static void expectForeignAdmissionDenied(String stage, Request request) {
+    try {
+      request.invoke();
+    } catch (ApiException denial) {
+      String body = denial.getResponseBody();
+      if (denial.getCode() == 401 && body != null && body.length() <= 8192) {
+        try {
+          if ("unauthorized".equals(WIRE_MAPPER.readTree(body).path("code").asText())) {
+            return;
+          }
+        } catch (Exception ignored) {
+          // A malformed error envelope fails the assertion without exposing its body.
+        }
+      }
+      throw failure(stage + " returned HTTP " + denial.getCode()
+          + " without the expected unauthorized error contract");
     }
     throw failure(stage + " unexpectedly succeeded");
   }

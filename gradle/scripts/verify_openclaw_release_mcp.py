@@ -160,7 +160,9 @@ def run(args: argparse.Namespace) -> None:
             or args.private_root.stat().st_mode & 0o077):
         raise ProofError("OpenClaw proof workspace is not private")
     expected = json.loads(args.expected.read_text(encoding="utf-8"))
-    if (expected.get("tool") not in ("files.search", "calendar.agenda")
+    if (expected.get("tool") not in (
+            "files.search", "calendar.agenda", "calendar.create",
+            "calendar.update", "calendar.delete")
             or not isinstance(expected.get("arguments"), dict)
             or not isinstance(expected.get("contains"), list)
             or not expected["contains"]

@@ -13,6 +13,7 @@ import com.massimotter.weave.backend.chat.domain.ChatRedactionReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
+import com.massimotter.weave.backend.chat.domain.ChatTimelinePage;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
 import com.massimotter.weave.backend.chat.domain.ChatTypingIndicator;
@@ -75,6 +76,12 @@ public interface ChatProviderPort {
     }
 
     ChatTimeline timelineEvents(ChatRequestContext context, ConversationId conversationId, ChatCursor cursor, int limit);
+
+    ChatTimelinePage timelinePage(ChatRequestContext context, ConversationId conversationId, ChatCursor before, int limit);
+
+    /** Resolves a committed canonical event after current room authorization. */
+    ChatTimelineEvent event(ChatRequestContext context, ConversationId conversationId, String eventId);
+
 
     default ChatTimeline timelineEvents(
             ChatActorRef actorRef,

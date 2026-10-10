@@ -91,6 +91,7 @@ public final class FreshProductFlow {
     boolean sameHumanSubjectAfterRegrant = false;
     boolean samePersonRefAfterRegrant = false;
     boolean spaceRevocationRestored = false;
+    boolean foreignOrganizationDenied = false;
     List<CollaborationJourney.PassProof> collaborationPasses = new java.util.ArrayList<>();
 
     try (OidcBrowserJourney browser = new OidcBrowserJourney(environment, http)) {
@@ -144,6 +145,7 @@ public final class FreshProductFlow {
       validateAdminToken(browser.jwtPayload(adminSession.accessToken()));
       assertSeparatedApiSessions(ownerSession.accessToken(), adminSession.accessToken());
       assertGeneratedAdminControlPlane(adminSession.accessToken(), organizationId);
+      new ForeignOrganizationJourney(environment, http).provision();
       GeneratedSpacesJourney spaces = new GeneratedSpacesJourney(environment);
       spaces.provisionDefault(adminSession.accessToken(), ownerSession.accessToken());
       configureRequiredProviders(adminSession.accessToken());
@@ -187,6 +189,11 @@ public final class FreshProductFlow {
               browser, memberSession, "member", memberEmail, memberPassword);
       setWeaverEntitlement(
           organizationId, memberEmail, adminSession.accessToken(), true, "initial");
+      setWeaverEntitlement(
+          organizationId, ownerEmail, adminSession.accessToken(), true, "owner-calendar-write");
+      ownerSession =
+          awaitAuthority(
+              browser, ownerSession, "/capabilities/weaver", "agent-runtime.entitled");
       memberSession =
           awaitAuthority(
               browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
@@ -249,6 +256,35 @@ public final class FreshProductFlow {
       spaces.verifyOwnerOnlyFileRelation(memberSession.accessToken(), ownerSession.accessToken(),
           generatedFilesProof.fileId());
 
+      String openClawMatrixMemberToken = null;
+      if (Boolean.getBoolean("weave.e2e.release-mcp")) {
+        OidcBrowserJourney.TokenSet openClawMatrixSession = browser.authorize(
+            "weave-app",
+            URI.create("com.massimotter.weave:/oauthredirect"),
+            List.of("openid", "profile", "email"),
+            memberEmail,
+            memberPassword,
+            "member-openclaw-matrix-device");
+        JsonNode openClawClaims = browser.jwtPayload(openClawMatrixSession.accessToken());
+        validateHumanWorkspaceToken(openClawClaims, "weave-app");
+        JsonNode primaryClaims = browser.jwtPayload(memberSession.accessToken());
+        String primarySessionId = primaryClaims.path("sid").asString();
+        if (primarySessionId.isBlank()) {
+          primarySessionId = primaryClaims.path("session_state").asString();
+        }
+        String openClawSessionId = openClawClaims.path("sid").asString();
+        if (openClawSessionId.isBlank()) {
+          openClawSessionId = openClawClaims.path("session_state").asString();
+        }
+        if (!memberSession.subject().equals(openClawMatrixSession.subject())
+            || primarySessionId.isBlank() || openClawSessionId.isBlank()
+            || primarySessionId.equals(openClawSessionId)) {
+          throw new ProductFlowException(
+              "OpenClaw Matrix needs a distinct normal member OIDC device session");
+        }
+        openClawMatrixMemberToken = openClawMatrixSession.accessToken();
+      }
+
       CollaborationJourney collaboration = new CollaborationJourney(environment, http);
       collaborationPasses.add(
           collaboration.runPass(
@@ -258,7 +294,8 @@ public final class FreshProductFlow {
               outsiderSession,
               browser.jwtPayload(ownerSession.accessToken()),
               browser.jwtPayload(memberSession.accessToken()),
-              browser.jwtPayload(outsiderSession.accessToken())));
+              browser.jwtPayload(outsiderSession.accessToken()),
+              openClawMatrixMemberToken));
       collaboration.restartCollaborationServices();
       browser.awaitIssuerTransportAfterRestart();
       ownerSession =
@@ -296,7 +333,8 @@ public final class FreshProductFlow {
               outsiderSession,
               browser.jwtPayload(ownerSession.accessToken()),
               browser.jwtPayload(memberSession.accessToken()),
-              browser.jwtPayload(outsiderSession.accessToken())));
+              browser.jwtPayload(outsiderSession.accessToken()),
+              null));
 
       adminSession =
           browser.authorize(
@@ -314,6 +352,12 @@ public final class FreshProductFlow {
       GeneratedCalendarJourney.Proof mcpCalendarProof = generatedCalendar.createAndVerify(
           ownerSession.accessToken(), memberSession.accessToken(),
           outsiderSession.accessToken(), environment.runId() + "-mcp");
+      new ForeignOrganizationJourney(environment, http).prove(
+          browser, organizationId, generatedFiles, generatedFilesProof,
+          memberSession.accessToken(), generatedCalendar, mcpCalendarProof,
+          ownerSession, adminSession.accessToken(),
+          new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate()));
+      foreignOrganizationDenied = true;
       GeneratedFilesJourney.Proof mcpTextProof =
           generatedFiles.createMcpTextFile(memberSession.accessToken(), environment.runId());
       if (Boolean.getBoolean("weave.e2e.release-mcp")) {
@@ -322,10 +366,29 @@ public final class FreshProductFlow {
         mcpProof = release.files(mcpTextProof);
         release.calendar(mcpCalendarProof);
         release.verifyCalendarWriteDenied(mcpCalendarProof.calendarId());
+        release.proveOpenClawCalendarWriteDenied(mcpCalendarProof.calendarId());
+        release.bind(ownerSession.subject(),
+            accountId(environment.issuer().toString(), ownerSession.subject()), true);
+        String openClawWriteVersion;
+        try {
+          release.verifyCalendarWriteParity(generatedCalendar,
+              mcpCalendarProof.calendarId(), ownerSession.accessToken());
+          openClawWriteVersion = release.proveOpenClawCalendarWriteParity(
+              generatedCalendar, mcpCalendarProof.calendarId(), ownerSession.accessToken());
+        } finally {
+          release.bind(memberSession.subject(), personRef, true);
+        }
+        System.out.println("WEAVE_CALENDAR_MCP_WRITE_PARITY_RESULT status=passed "
+            + "create=true replay=true update=true conflict=true delete=true "
+            + "generatedReadback=true supportSafe=true");
         String openClawVersion = release.proveOpenClawFiles(mcpTextProof);
-        if (!openClawVersion.equals(release.proveOpenClawCalendar(mcpCalendarProof))) {
+        if (!openClawVersion.equals(release.proveOpenClawCalendar(mcpCalendarProof))
+            || !openClawVersion.equals(openClawWriteVersion)) {
           throw new ProductFlowException("OpenClaw client version changed within one proof");
         }
+        System.out.println("WEAVE_OPENCLAW_CALENDAR_WRITE_PARITY_RESULT status=passed "
+            + "client=real create=true replay=true update=true staleDenied=true "
+            + "delete=true memberDenied=true generatedReadback=true supportSafe=true");
 
         restartProof = new PersistenceRestartJourney(environment, http).restart();
         WorkloadMcpJourney.McpProof afterRestart = release.files(mcpTextProof);
@@ -372,10 +435,14 @@ public final class FreshProductFlow {
             memberSession.accessToken(), personRef, generatedFilesProof.fileId());
         spaceRevocationRestored = true;
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
+        // Native Calendar writes use the owner's normal User session. Run its
+        // real logout after all JVM journeys that need that owner's SSO state.
+        runNativeAuthorizedJourney(ownerEmail, ownerPassword);
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
             release.bindingRef(), mcpProof, restartProof, revocationDenied,
             calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
-            samePersonRefAfterRegrant, spaceRevocationRestored, collaborationPasses,
+            samePersonRefAfterRegrant, spaceRevocationRestored, foreignOrganizationDenied,
+            collaborationPasses,
             true, openClawVersion);
       } else {
         JsonNode provisioned = provisionRuntime(personRef, adminSession.accessToken());
@@ -462,6 +529,7 @@ public final class FreshProductFlow {
             memberSession.accessToken(), personRef, generatedFilesProof.fileId());
         spaceRevocationRestored = true;
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
+        runNativeAuthorizedJourney(ownerEmail, ownerPassword);
 
         writeEvidence(
             startedAt,
@@ -477,6 +545,7 @@ public final class FreshProductFlow {
             sameHumanSubjectAfterRegrant,
             samePersonRefAfterRegrant,
             spaceRevocationRestored,
+            foreignOrganizationDenied,
             collaborationPasses,
             false,
             "");
@@ -493,6 +562,34 @@ public final class FreshProductFlow {
       startedRuntime = null;
       mcpProof = null;
       restartProof = null;
+    }
+  }
+
+  private void runNativeAuthorizedJourney(String memberEmail, String memberPassword) {
+    String runner = System.getProperty("weave.e2e.native-runner", "");
+    if (runner.isBlank()) {
+      return;
+    }
+    ProcessBuilder process = new ProcessBuilder("python3", runner);
+    process.environment().put("WEAVE_NATIVE_MEMBER_EMAIL", memberEmail);
+    process.environment().put("WEAVE_NATIVE_MEMBER_PASSWORD", memberPassword);
+    process.environment().put("WEAVE_NATIVE_ISSUER", environment.issuer().toString());
+    process.environment().put("WEAVE_NATIVE_API_BASE_URL", environment.apiOrigin() + "/api");
+    process.environment().put("WEAVE_NATIVE_MATRIX_URL", environment.apiOrigin().toString());
+    process.environment().put("WEAVE_NATIVE_CA", environment.caCertificate().toString());
+    process.inheritIO();
+    try {
+      int status = process.start().waitFor();
+      if (status != 0) {
+        throw new ProductFlowException("native Flutter acceptance failed");
+      }
+    } catch (IOException failure) {
+      throw new ProductFlowException("native Flutter acceptance could not start");
+    } catch (InterruptedException failure) {
+      Thread.currentThread().interrupt();
+      throw new ProductFlowException("native Flutter acceptance was interrupted");
+    } finally {
+      process.environment().remove("WEAVE_NATIVE_MEMBER_PASSWORD");
     }
   }
 
@@ -1043,6 +1140,7 @@ public final class FreshProductFlow {
       boolean sameHumanSubjectAfterRegrant,
       boolean samePersonRefAfterRegrant,
       boolean spaceRevocationRestored,
+      boolean foreignOrganizationDenied,
       List<CollaborationJourney.PassProof> collaborationPasses,
       boolean releaseMcp,
       String openClawVersion) {
@@ -1067,6 +1165,8 @@ public final class FreshProductFlow {
       evidence.put("openClawClientVersion", openClawVersion);
       evidence.put("openClawFilesInvoked", true);
       evidence.put("openClawCalendarInvoked", true);
+      evidence.put("calendarMcpWriteParity", true);
+      evidence.put("openClawCalendarWriteParity", true);
     } else {
       evidence.put("cellRefSha256", Hashing.sha256(cellRef));
     }
@@ -1096,6 +1196,7 @@ public final class FreshProductFlow {
     evidence.put("sameHumanSubjectAfterRegrant", sameHumanSubjectAfterRegrant);
     evidence.put("samePersonRefAfterRegrant", samePersonRefAfterRegrant);
     evidence.put("spaceRevocationRestored", spaceRevocationRestored);
+    evidence.put("foreignOrganizationDenied", foreignOrganizationDenied);
     if (collaborationPasses.size() != 2
         || collaborationPasses.get(0).pass() != 1
         || collaborationPasses.get(1).pass() != 2

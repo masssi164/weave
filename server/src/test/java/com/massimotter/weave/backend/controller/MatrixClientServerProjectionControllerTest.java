@@ -5,6 +5,7 @@ import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
+import com.massimotter.weave.backend.chat.domain.ChatCursor;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
@@ -18,6 +19,7 @@ import com.massimotter.weave.backend.chat.domain.ChatReadiness;
 import com.massimotter.weave.backend.chat.domain.ChatRedactionReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRelation;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
+import com.massimotter.weave.backend.chat.domain.ChatTimelinePage;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
@@ -27,13 +29,20 @@ import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateStore;
 import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
+import com.massimotter.weave.backend.matrix.MatrixDeviceProofService;
 import com.massimotter.weave.backend.matrix.InMemoryMatrixE2eeRelationalStore;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.testing.InMemoryMatrixFacadeClientStateStore;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyPairGenerator;
+import java.security.Signature;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -54,7 +63,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -85,6 +98,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         OrganizationIdentityContextResolver.class,
         InMemoryMatrixFacadeClientStateStore.class,
         InMemoryMatrixE2eeRelationalStore.class,
+        MatrixDeviceProofService.class,
         MatrixE2eeStateService.class
 })
 @TestPropertySource(properties = {
@@ -101,6 +115,15 @@ class MatrixClientServerProjectionControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private InMemoryMatrixE2eeRelationalStore e2eeStore;
+
+    @Autowired
+    private OrganizationIdentityContextResolver identityContextResolver;
+
+    @Autowired
+    private MatrixProtocolCoreService matrixProtocolCoreService;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -135,11 +158,20 @@ class MatrixClientServerProjectionControllerTest {
         mockMvc.perform(get("/.well-known/matrix/client"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$['m.homeserver'].base_url").value("https://api.weave.test"));
+        mockMvc.perform(get("/_matrix/client/versions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.versions[0]").value("v1.18"));
+        mockMvc.perform(get("/_matrix/client/v3/login"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.flows").isEmpty())
+                .andExpect(jsonPath("$.weaveOidcGatekeeper").value(true));
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
     void versionsIsSerializedByTheLinkedRustRumaCore() throws Exception {
-        mockMvc.perform(get("/_matrix/client/versions").with(workspaceJwt()))
+        mockMvc.perform(get("/_matrix/client/versions"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.versions[0]").value("v1.18"))
                 .andExpect(jsonPath("$.matrixCore.protocolSurface").value("matrix-client-server-facade"))
@@ -156,17 +188,126 @@ class MatrixClientServerProjectionControllerTest {
     void whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject() throws Exception {
         mockMvc.perform(get("/_matrix/client/v3/account/whoami")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVE0123456789abcdef0123456789abcdef0123")
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("WEAVE0123456789abcdef0123456789abcdef0123"))
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.user_id").value("@user_example.com:api.weave.test"))
+                .andExpect(jsonPath("$.user_id").value("@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test"))
                 .andExpect(jsonPath("$.device_id").value("WEAVE0123456789abcdef0123456789abcdef0123"))
                 .andExpect(jsonPath("$.is_guest").value(false));
     }
 
     @Test
+    void explicitDeviceNeedsPossessionProofAcrossMemberSessions() throws Exception {
+        String device = "WEAVEDEVICEPOSSESSIONPROOF";
+        String proof = deviceProof(device);
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("device-proof-first-login")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .with(workspaceJwt("device-proof-second-login")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("another-device"))
+                        .with(workspaceJwt("device-proof-second-login")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("device-proof-second-login")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void legacyKeyedDeviceNeedsExistingPrivateKeySignatureBeforeProofBinding() throws Exception {
+        String device = "WEAVELEGACYDEVICEPROOF";
+        String user = "@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test";
+        String proof = deviceProof(device);
+        String tenant = identityContextResolver.configuredOrganizationId();
+        var keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        String publicKey = Base64.getEncoder().withoutPadding().encodeToString(
+                Arrays.copyOfRange(keyPair.getPublic().getEncoded(),
+                        keyPair.getPublic().getEncoded().length - 32,
+                        keyPair.getPublic().getEncoded().length));
+        e2eeStore.upsertDevice(tenant, user, device,
+                Map.of("keys", Map.of("ed25519:" + device, publicKey)),
+                e2eeStore.nextRevision(tenant));
+
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("legacy-device-member")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errcode").value("M_WEAVE_DEVICE_RECOVERY_REQUIRED"));
+
+        mockMvc.perform(post("/_matrix/client/unstable/org.weave.device_continuity/challenge")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
+
+        String challengeResponse = mockMvc.perform(post("/_matrix/client/unstable/org.weave.device_continuity/challenge")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("legacy-device-member")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var challengeJson = objectMapper.readTree(challengeResponse);
+        String challengeId = challengeJson.get("challenge_id").asText();
+        String challenge = challengeJson.get("challenge").asText();
+        Signature signer = Signature.getInstance("Ed25519");
+        signer.initSign(keyPair.getPrivate());
+        signer.update(challenge.getBytes(StandardCharsets.UTF_8));
+        String signature = Base64.getEncoder().withoutPadding().encodeToString(signer.sign());
+
+        String completePath = "/_matrix/client/unstable/org.weave.device_continuity/complete";
+        mockMvc.perform(post(completePath)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("wrong-proof"))
+                        .with(workspaceJwt("legacy-device-member"))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of("challenge_id", challengeId, "signature", signature))))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post(completePath)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("legacy-device-member"))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of("challenge_id", challengeId,
+                                "signature", Base64.getEncoder().withoutPadding().encodeToString(new byte[64])))))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post(completePath)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("legacy-device-member"))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of("challenge_id", challengeId, "signature", signature))))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("legacy-device-member")))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(completePath)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, device)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, proof)
+                        .with(workspaceJwt("legacy-device-member"))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of("challenge_id", challengeId, "signature", signature))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void malformedOidcIdentityRemainsAStableMatrixAuthorizationFailure() throws Exception {
         var endpoint = get("/_matrix/client/v3/account/whoami")
-                .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEINVALIDIDENTITY");
+                .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEINVALIDIDENTITY")
+                .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("WEAVEDEVICEINVALIDIDENTITY"));
 
         mockMvc.perform(endpoint.with(workspaceJwtWithoutIssuer()))
                 .andExpect(status().isForbidden())
@@ -175,6 +316,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/account/whoami")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEINVALIDSUBJECT")
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("WEAVEDEVICEINVALIDSUBJECT"))
                         .with(workspaceJwtWithSubject("invalid subject")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errcode").value("M_FORBIDDEN"))
@@ -187,11 +329,13 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/account/whoami")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEBOUNDONE")
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("WEAVEDEVICEBOUNDONE"))
                         .with(workspaceJwt(token)))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/_matrix/client/v3/account/whoami")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEBOUNDOTHER")
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof("WEAVEDEVICEBOUNDOTHER"))
                         .with(workspaceJwt(token)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
@@ -216,11 +360,99 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void coldSyncMarksTruncatedCanonicalHistoryAsLimited() throws Exception {
+        stubConversation();
+        when(chatDomainFacadeService.timelineWindow(eq("channel-general"), any(), eq(100)))
+                .thenReturn(new ChatDomainFacadeService.ChatTimelineWindow(timeline(), true));
+
+        mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.limited")
+                        .value(true));
+    }
+
+    @Test
+    void coldSyncHistoryCursorBackfillsThroughAuthorizedMessages() throws Exception {
+        stubConversation();
+        when(chatDomainFacadeService.timelineWindow(eq("channel-general"), any(), eq(100)))
+                .thenReturn(new ChatDomainFacadeService.ChatTimelineWindow(
+                        timeline(), true, "timeline-revision-6"));
+        when(chatDomainFacadeService.timelinePage(eq("channel-general"), any(),
+                eq(new ChatCursor("timeline-revision-6")), eq(100)))
+                .thenReturn(new ChatTimelinePage(
+                        new ChatTimeline("channel-general", List.of(event("msg-older",
+                                ChatEventContent.text("Earlier message")))),
+                        "timeline-revision-1", false));
+
+        String initial = mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String from = objectMapper.readTree(initial).path("rooms").path("join")
+                .path("!channel-general:api.weave.test").path("timeline").path("prev_batch").asString();
+        assertThat(matrixProtocolCoreService.decodeSyncCursor(from)).isEqualTo("timeline-revision-6");
+        mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/messages")
+                        .queryParam("from", from).queryParam("dir", "b").with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.chunk[0].content.body").value("Earlier message"))
+                .andExpect(jsonPath("$.start").value(from));
+        mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/messages")
+                        .queryParam("from", "invalid-cursor").with(workspaceJwt()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void incrementalSyncProjectsOwnDepartureAsRoomLeave() throws Exception {
+        stubConversation();
+        String initial = mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String since = objectMapper.readTree(initial).path("next_batch").asString();
+        when(chatDomainFacadeService.syncDelta(any(), eq("chat-revision-7"), eq(100)))
+                .thenReturn(new ChatDomainFacadeService.ChatSyncDelta(
+                        "chat-revision-8", Map.of(), Set.of("channel-general")));
+        when(chatDomainFacadeService.conversations(any()))
+                .thenReturn(new ChatConversations(readiness(), List.of()));
+
+        mockMvc.perform(get("/_matrix/client/v3/sync").queryParam("since", since)
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.leave['!channel-general:api.weave.test']").isMap())
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test']").doesNotExist());
+    }
+
+    @Test
+    void incrementalSyncProjectsOnlyTheCommittedJournalPageAndRetainsItsCursor() throws Exception {
+        stubConversation();
+        String initial = mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String since = objectMapper.readTree(initial).path("next_batch").asString();
+        when(chatDomainFacadeService.syncDelta(any(), eq("chat-revision-7"), eq(100)))
+                .thenReturn(new ChatDomainFacadeService.ChatSyncDelta(
+                        "chat-revision-8",
+                        Map.of("channel-general", List.of(event("msg-2", ChatEventContent.text("After cursor"))))));
+
+        String incremental = mockMvc.perform(get("/_matrix/client/v3/sync")
+                        .queryParam("since", since).with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.events.length()")
+                        .value(1))
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.events[0].content.body")
+                        .value("After cursor"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(objectMapper.readTree(incremental).path("rooms").path("join")
+                .path("!channel-general:api.weave.test").path("timeline")
+                .has("prev_batch")).isFalse();
+        String decoded = matrixProtocolCoreService.decodeSyncCursor(
+                objectMapper.readTree(incremental).path("next_batch").asString());
+        assertThat(decoded).startsWith("chat-revision-8|e2ee:");
+    }
+
+    @Test
     void syncProjectsCanonicalEncryptionStateForColdClients() throws Exception {
         ChatConversations encrypted = conversations(ChatEncryptionState.matrixMegolm());
         when(chatDomainFacadeService.conversations(any())).thenReturn(encrypted);
         when(chatDomainFacadeService.timeline(eq("channel-general"), any(), anyInt()))
                 .thenReturn(timeline());
+        stubTimelineWindow();
         when(chatDomainFacadeService.syncCursor(any())).thenReturn("chat-revision-7");
 
         mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
@@ -241,7 +473,7 @@ class MatrixClientServerProjectionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.global.override").isArray());
 
-        String filterResponse = mockMvc.perform(post("/_matrix/client/v3/user/@user_example.com:api.weave.test/filter")
+        String filterResponse = mockMvc.perform(post("/_matrix/client/v3/user/@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test/filter")
                         .with(workspaceJwt())
                         .contentType("application/json")
                         .content("""
@@ -253,12 +485,12 @@ class MatrixClientServerProjectionControllerTest {
                 .getContentAsString();
         String filterId = objectMapper.readTree(filterResponse).path("filter_id").asString();
 
-        mockMvc.perform(get("/_matrix/client/v3/user/@user_example.com:api.weave.test/filter/" + filterId)
+        mockMvc.perform(get("/_matrix/client/v3/user/@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test/filter/" + filterId)
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.room.timeline.limit").value(20));
 
-        mockMvc.perform(put("/_matrix/client/v3/user/@user_example.com:api.weave.test/account_data/m.direct")
+        mockMvc.perform(put("/_matrix/client/v3/user/@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test/account_data/m.direct")
                         .with(workspaceJwt())
                         .contentType("application/json")
                         .content("""
@@ -266,7 +498,7 @@ class MatrixClientServerProjectionControllerTest {
                                 """))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/_matrix/client/v3/user/@user_example.com:api.weave.test/account_data/m.direct")
+        mockMvc.perform(get("/_matrix/client/v3/user/@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test/account_data/m.direct")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$['@assistant:api.weave.test'][0]")
@@ -289,7 +521,7 @@ class MatrixClientServerProjectionControllerTest {
     void sendParsesInRustAndForwardsTransactionForCanonicalIdempotency() throws Exception {
         when(chatDomainFacadeService.sendEvent(
                 eq("channel-general"),
-                eq("txn-1"),
+                anyString(),
                 any(ChatEventContent.class),
                 any()))
                 .thenReturn(event("msg-sent", ChatEventContent.text("Sent through Matrix")));
@@ -303,13 +535,64 @@ class MatrixClientServerProjectionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.event_id").value("$msg-sent:api.weave.test"));
 
+        ArgumentCaptor<String> transaction = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<ChatEventContent> content = ArgumentCaptor.forClass(ChatEventContent.class);
         verify(chatDomainFacadeService).sendEvent(
                 eq("channel-general"),
-                eq("txn-1"),
+                transaction.capture(),
                 content.capture(),
                 any());
+        assertThat(transaction.getValue()).startsWith("matrix-send-").hasSize(76);
         assertThat(content.getValue().body()).isEqualTo("Sent through Matrix");
+    }
+
+    @Test
+    void sendScopesTransactionToDeviceMethodAndEndpoint() throws Exception {
+        when(chatDomainFacadeService.sendEvent(eq("channel-general"), anyString(), any(), any()))
+                .thenReturn(event("msg-scoped", ChatEventContent.text("Scoped send")));
+        String deviceA = "WEAVETRANSACTIONDEVICEA";
+        String deviceB = "WEAVETRANSACTIONDEVICEB";
+        String messagePath = "/_matrix/client/v3/rooms/!channel-general:api.weave.test/send/m.room.message/shared-txn";
+        for (int replay = 0; replay < 2; replay++) {
+            mockMvc.perform(put(messagePath)
+                            .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceA)
+                            .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceA))
+                            .with(workspaceJwt("send-device-a"))
+                            .contentType("application/json")
+                            .content("{\"msgtype\":\"m.text\",\"body\":\"Scoped send\"}"))
+                    .andExpect(status().isOk());
+        }
+        mockMvc.perform(put(messagePath)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceB)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceB))
+                        .with(workspaceJwt("send-device-b"))
+                        .contentType("application/json")
+                        .content("{\"msgtype\":\"m.text\",\"body\":\"Scoped send\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(messagePath)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceA)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceA))
+                        .with(workspaceJwt("send-device-a"))
+                        .contentType("application/json")
+                        .content("{\"msgtype\":\"m.text\",\"body\":\"Scoped send\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/_matrix/client/v3/rooms/!channel-general:api.weave.test/send/m.reaction/shared-txn")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceA)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceA))
+                        .with(workspaceJwt("send-device-a"))
+                        .contentType("application/json")
+                        .content("{\"m.relates_to\":{\"rel_type\":\"m.annotation\",\"event_id\":\"$msg-scoped:api.weave.test\",\"key\":\"+1\"}}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<String> transactions = ArgumentCaptor.forClass(String.class);
+        verify(chatDomainFacadeService, times(5))
+                .sendEvent(eq("channel-general"), transactions.capture(), any(), any());
+        assertThat(transactions.getAllValues()).allSatisfy(value ->
+                assertThat(value).startsWith("matrix-send-").hasSize(76));
+        assertThat(transactions.getAllValues().get(0)).isEqualTo(transactions.getAllValues().get(1));
+        assertThat(transactions.getAllValues().get(2)).isNotEqualTo(transactions.getAllValues().get(0));
+        assertThat(transactions.getAllValues().get(3)).isNotEqualTo(transactions.getAllValues().get(0));
+        assertThat(transactions.getAllValues().get(4)).isNotEqualTo(transactions.getAllValues().get(0));
     }
 
     @Test
@@ -340,7 +623,7 @@ class MatrixClientServerProjectionControllerTest {
     void providerThrottleBecomesAStableMatrixRetryWithoutLeakingDownstreamDetails() throws Exception {
         when(chatDomainFacadeService.sendEvent(
                 eq("channel-general"),
-                eq("txn-throttled"),
+                anyString(),
                 any(ChatEventContent.class),
                 any()))
                 .thenThrow(new ChatProviderUnavailableException(
@@ -372,7 +655,7 @@ class MatrixClientServerProjectionControllerTest {
                 .thenReturn(encryptedConversation());
         when(chatDomainFacadeService.sendEvent(
                 eq("channel-general"),
-                eq("txn-encrypted"),
+                anyString(),
                 any(ChatEventContent.class),
                 any()))
                 .thenAnswer(invocation -> event("msg-encrypted", invocation.getArgument(2)));
@@ -404,7 +687,7 @@ class MatrixClientServerProjectionControllerTest {
         ArgumentCaptor<ChatEventContent> content = ArgumentCaptor.forClass(ChatEventContent.class);
         verify(chatDomainFacadeService).sendEvent(
                 eq("channel-general"),
-                eq("txn-encrypted"),
+                anyString(),
                 content.capture(),
                 any());
         assertThat(content.getValue().body()).isNull();
@@ -440,7 +723,7 @@ class MatrixClientServerProjectionControllerTest {
     @Test
     void keyLifecycleToDeviceSyncAndLostDeviceRevocationAreDeviceScoped() throws Exception {
         stubConversation();
-        String userId = "@user_example.com:api.weave.test";
+        String userId = "@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test";
         String trustedDevice = "WEAVETRUSTEDDEVICE";
         String secondDevice = "WEAVESECONDDEVICE";
 
@@ -449,6 +732,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/query")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(trustedDevice))
                         .with(workspaceJwt("trusted-session"))
                         .contentType("application/json")
                         .content("""
@@ -461,6 +745,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/claim")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(trustedDevice))
                         .with(workspaceJwt("trusted-session"))
                         .contentType("application/json")
                         .content("""
@@ -473,6 +758,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(put("/_matrix/client/v3/sendToDevice/m.room_key_request/txn-device-1")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(trustedDevice))
                         .with(workspaceJwt("trusted-session"))
                         .contentType("application/json")
                         .content("""
@@ -482,6 +768,7 @@ class MatrixClientServerProjectionControllerTest {
 
         String firstSync = mockMvc.perform(get("/_matrix/client/v3/sync")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(secondDevice))
                         .with(workspaceJwt("second-session")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.to_device.events[0].type").value("m.room_key_request"))
@@ -494,12 +781,14 @@ class MatrixClientServerProjectionControllerTest {
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .queryParam("since", nextBatch)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(secondDevice))
                         .with(workspaceJwt("second-session")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.to_device.events").isEmpty());
 
         mockMvc.perform(delete("/_matrix/client/v3/devices/{deviceId}", secondDevice)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(trustedDevice))
                         .with(workspaceJwt("trusted-session"))
                         .contentType("application/json")
                         .content("{}"))
@@ -508,6 +797,7 @@ class MatrixClientServerProjectionControllerTest {
         // MATRIX_E2EE_LOST_DEVICE_REVOKED
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(secondDevice))
                         .with(workspaceJwt("second-session")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
@@ -515,12 +805,13 @@ class MatrixClientServerProjectionControllerTest {
 
     @Test
     void signatureUploadPreservesDeviceSelfSignatureAndIdentityKeys() throws Exception {
-        String userId = "@user_example.com:api.weave.test";
+        String userId = "@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test";
         String deviceId = "WEAVESIGNEDDEVICE";
         String sessionId = "signed-device-session";
 
         mockMvc.perform(post("/_matrix/client/v3/keys/upload")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt(sessionId))
                         .contentType("application/json")
                         .content("""
@@ -546,6 +837,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/signatures/upload")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt(sessionId))
                         .contentType("application/json")
                         .content("""
@@ -581,6 +873,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/query")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt(sessionId))
                         .contentType("application/json")
                         .content("""
@@ -604,12 +897,13 @@ class MatrixClientServerProjectionControllerTest {
     @Test
     void fallbackKeyBootstrapsOlmWhenOneTimeKeyPoolIsEmpty() throws Exception {
         stubConversation();
-        String userId = "@user_example.com:api.weave.test";
+        String userId = "@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test";
         String targetDevice = "WEAVEFALLBACKDEVICE";
         String claimantDevice = "WEAVEFALLBACKCLAIMANT";
 
         mockMvc.perform(post("/_matrix/client/v3/keys/upload")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(targetDevice))
                         .with(workspaceJwt("fallback-target-session"))
                         .contentType("application/json")
                         .content("""
@@ -635,6 +929,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(targetDevice))
                         .with(workspaceJwt("fallback-target-session")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.device_unused_fallback_key_types[0]")
@@ -643,6 +938,7 @@ class MatrixClientServerProjectionControllerTest {
         for (int attempt = 0; attempt < 2; attempt++) {
             mockMvc.perform(post("/_matrix/client/v3/keys/claim")
                             .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, claimantDevice)
+                            .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(claimantDevice))
                             .with(workspaceJwt("fallback-claimant-session"))
                             .contentType("application/json")
                             .content("""
@@ -656,6 +952,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(targetDevice))
                         .with(workspaceJwt("fallback-target-session")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.device_unused_fallback_key_types").isEmpty());
@@ -666,6 +963,7 @@ class MatrixClientServerProjectionControllerTest {
         String deviceId = "WEAVEBACKUPDEVICE";
         String created = mockMvc.perform(post("/_matrix/client/v3/room_keys/version")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt("backup-session"))
                         .contentType("application/json")
                         .content("""
@@ -684,6 +982,7 @@ class MatrixClientServerProjectionControllerTest {
                         "!channel-general:api.weave.test", "session-1")
                         .queryParam("version", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt("backup-session"))
                         .contentType("application/json")
                         .content("""
@@ -701,6 +1000,7 @@ class MatrixClientServerProjectionControllerTest {
                         "!channel-general:api.weave.test", "session-1")
                         .queryParam("version", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt("backup-session")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.session_data.ciphertext").value("opaque-backup"))
@@ -709,6 +1009,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/room_keys/version/{version}", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt("backup-session")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(1))
@@ -716,19 +1017,22 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(delete("/_matrix/client/v3/room_keys/version/{version}", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt("backup-session")))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/_matrix/client/v3/room_keys/version/{version}", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt("backup-session")))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void approvalMetadataAndReactionUseCanonicalTimelineEvents() throws Exception {
-        when(chatDomainFacadeService.sendEvent(eq("channel-general"), eq("approval-1"), any(), any()))
+        when(chatDomainFacadeService.sendEvent(eq("channel-general"), anyString(), any(), any()))
                 .thenReturn(event("approval-event", ChatEventContent.text("Approve calendar creation")));
-        when(chatDomainFacadeService.sendEvent(eq("channel-general"), eq("reaction-1"), any(), any()))
+        when(chatDomainFacadeService.sendEvent(eq("channel-general"), anyString(),
+                argThat(content -> content != null && content.kind() == ChatEventKind.REACTION), any()))
                 .thenReturn(event("reaction-event", new ChatEventContent(
                         ChatEventKind.REACTION,
                         null,
@@ -820,7 +1124,7 @@ class MatrixClientServerProjectionControllerTest {
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.chunk[0].type").value("m.room.member"))
-                .andExpect(jsonPath("$.chunk[0].state_key").value("@alice:api.weave.test"))
+                .andExpect(jsonPath("$.chunk[0].state_key").value("@acct_3b46d7c8589dfad60e9e8f2156df0700:api.weave.test"))
                 .andExpect(jsonPath("$.chunk[0].room_id").value("!channel-general:api.weave.test"))
                 .andExpect(jsonPath("$.chunk[0].content.membership").value("join"))
                 .andExpect(jsonPath("$.chunk[0].unsigned").isMap())
@@ -849,7 +1153,7 @@ class MatrixClientServerProjectionControllerTest {
         mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/joined_members")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.joined['@alice:api.weave.test'].display_name").value("alice"));
+                .andExpect(jsonPath("$.joined['@acct_3b46d7c8589dfad60e9e8f2156df0700:api.weave.test'].display_name").value("alice"));
 
         mockMvc.perform(post("/_matrix/client/v3/rooms/!channel-general:api.weave.test/receipt/m.read/$msg-1:api.weave.test")
                         .with(workspaceJwt())
@@ -857,7 +1161,7 @@ class MatrixClientServerProjectionControllerTest {
                         .content("{}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(put("/_matrix/client/v3/rooms/!channel-general:api.weave.test/typing/@user_example.com:api.weave.test")
+        mockMvc.perform(put("/_matrix/client/v3/rooms/!channel-general:api.weave.test/typing/@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test")
                         .with(workspaceJwt())
                         .contentType("application/json")
                         .content("""
@@ -902,10 +1206,10 @@ class MatrixClientServerProjectionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("General"));
 
-        mockMvc.perform(get("/_matrix/client/v3/profile/@user_example.com:api.weave.test")
+        mockMvc.perform(get("/_matrix/client/v3/profile/@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.displayname").value("user_example.com"));
+                .andExpect(jsonPath("$.displayname").value("user@example.com"));
 
         mockMvc.perform(post("/_matrix/client/v3/rooms/!channel-general:api.weave.test/leave")
                         .with(workspaceJwt())
@@ -957,6 +1261,14 @@ class MatrixClientServerProjectionControllerTest {
     @Test
     void logoutRevokesThePresentedMatrixToken() throws Exception {
         // MATRIX_TOKEN_REVOCATION_FACADE
+        InMemoryMatrixFacadeClientStateStore durableState = new InMemoryMatrixFacadeClientStateStore();
+        doAnswer(invocation -> {
+            durableState.revokeSession(
+                    invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2));
+            return null;
+        }).when(stateStore).revokeSession(any(), any(), any());
+        when(stateStore.isSessionRevoked(any(), any())).thenAnswer(invocation ->
+                durableState.isSessionRevoked(invocation.getArgument(0), invocation.getArgument(1)));
         var token = workspaceJwt("runtime-token-to-revoke");
 
         mockMvc.perform(post("/_matrix/client/v3/logout").with(token))
@@ -972,7 +1284,17 @@ class MatrixClientServerProjectionControllerTest {
                 .thenReturn(conversations().conversations().getFirst());
         when(chatDomainFacadeService.timeline(eq("channel-general"), any(), anyInt()))
                 .thenReturn(timeline());
+        when(chatDomainFacadeService.timelinePage(eq("channel-general"), any(), isNull(), anyInt()))
+                .thenReturn(new ChatTimelinePage(timeline(), "timeline-revision-1", false));
+        stubTimelineWindow();
         when(chatDomainFacadeService.syncCursor(any())).thenReturn("chat-revision-7");
+    }
+
+    private void stubTimelineWindow() {
+        when(chatDomainFacadeService.timelineWindow(eq("channel-general"), any(), anyInt()))
+                .thenAnswer(call -> new ChatDomainFacadeService.ChatTimelineWindow(
+                        chatDomainFacadeService.timeline(call.getArgument(0), call.getArgument(1),
+                                call.getArgument(2)), false));
     }
 
     private ChatConversations conversations() {
@@ -1050,7 +1372,7 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     private void uploadDeviceKeys(String deviceId, String signingKey, String oneTimeKey) throws Exception {
-        String userId = "@user_example.com:api.weave.test";
+        String userId = "@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test";
         String oneTimeKeys = oneTimeKey == null
                 ? "{}"
                 : """
@@ -1058,6 +1380,7 @@ class MatrixClientServerProjectionControllerTest {
                   """.formatted(oneTimeKey).trim();
         mockMvc.perform(post("/_matrix/client/v3/keys/upload")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceId))
                         .with(workspaceJwt(deviceId + "-session"))
                         .contentType("application/json")
                         .content("""
@@ -1114,5 +1437,15 @@ class MatrixClientServerProjectionControllerTest {
                             }
                         }))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
+    }
+
+    private static String deviceProof(String deviceId) {
+        try {
+            byte[] bytes = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(("weave-test-device-proof:" + deviceId).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        } catch (java.security.NoSuchAlgorithmException unavailable) {
+            throw new IllegalStateException(unavailable);
+        }
     }
 }

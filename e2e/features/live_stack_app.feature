@@ -11,3 +11,14 @@ Feature: Physical client authentication acceptance
     Then the Flutter client returns to the normal Weave workspace
     And the client refreshes the OIDC session through the production AppAuth integration
     And no human credential is written to source, evidence, or Flutter build arguments
+
+  @weave-live-native-product
+  Scenario: One native sign-in opens Files Calendar and Chat
+    Given an admitted member has Files Calendar and Chat access in a fresh Weave installation
+    When the member signs in once through the native app and system browser
+    Then the member can write and read a file through Weave
+    And the member can create update and delete a calendar event through Weave
+    And the member can send and read a message in an authorized business room
+    And those capabilities remain usable after session refresh and recoverable app and service restarts
+    And leaving that room removes it from the native client and denies its history
+    And explicit sign-out revokes earlier and refreshed Matrix bearers and removes access to those capabilities

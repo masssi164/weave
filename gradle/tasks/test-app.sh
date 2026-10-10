@@ -8,6 +8,7 @@ readonly REPOSITORY_ROOT
 readonly WORKSPACE_ROOT="${REPOSITORY_ROOT}/infra/weave-workspace"
 readonly CONTEXT_HELPER="${REPOSITORY_ROOT}/gradle/scripts/prepare_test_app_context.py"
 readonly RUNTIME_CLEANUP="${REPOSITORY_ROOT}/gradle/scripts/cleanup_test_app_runtime.py"
+readonly NATIVE_TLS_PREPARER="${REPOSITORY_ROOT}/gradle/scripts/prepare_native_test_app_tls.py"
 readonly EMPTY_NAMESPACE_WRITER="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_empty_namespace_evidence.py"
 readonly COMPOSE="${WORKSPACE_ROOT}/compose.sh"
 readonly TEARDOWN="${WORKSPACE_ROOT}/teardown.sh"
@@ -306,6 +307,17 @@ python3 "${EMPTY_NAMESPACE_WRITER}" \
   --output "${empty_namespace_proof}"
 export WEAVE_E2E_EMPTY_NAMESPACE_PROOF="${empty_namespace_proof}"
 
+if [[ -n "${WEAVE_TEST_APP_NATIVE_RUNNER:-}" ]]; then
+  [[ "${WEAVE_TEST_APP_PUBLIC_DOMAIN:-}" == "weave.localhost" ]] ||
+    fail "native macOS acceptance requires the weave.localhost disposable profile"
+  [[ -n "${WEAVE_TEST_APP_NATIVE_CA_ROOT:-}" ]] ||
+    fail "WEAVE_TEST_APP_NATIVE_CA_ROOT is required for trusted native HTTPS"
+  python3 "${NATIVE_TLS_PREPARER}" \
+    --ca-root "${WEAVE_TEST_APP_NATIVE_CA_ROOT}" \
+    --tls-root "${WEAVE_TEST_APP_TLS_ROOT}" \
+    --domain "weave.localhost"
+fi
+
 log "Starting one exact, import-initialized disposable Compose test stack."
 STACK_PREPARED=true
 bash "${COMPOSE}" e2e keycloak-migration-apply
@@ -397,13 +409,17 @@ log "Running invitation, real Chromium activation, PKCE, generated User Files/Ca
   "-Dweave.e2e.mcp-endpoint=${WEAVE_TEST_APP_MCP_ENDPOINT}" \
   "-Dweave.e2e.mcp-local-port=${WEAVE_MCP_HOST_PORT}" \
   "-Dweave.e2e.openclaw-script=${REPOSITORY_ROOT}/gradle/scripts/verify_openclaw_release_mcp.py" \
+  "-Dweave.e2e.openclaw-matrix-script=${REPOSITORY_ROOT}/gradle/scripts/verify_openclaw_matrix_business_room.py" \
   "-Dweave.e2e.release-mcp=${RELEASE_MCP}" \
   "-Dweave.e2e.chat-proof-origin=${WEAVE_TEST_APP_CHAT_PROOF_ORIGIN}" \
   "-Dweave.e2e.ca-certificate=${WEAVE_TEST_APP_TLS_ROOT}/ca.pem" \
   "-Dweave.e2e.tls-leaf-certificate=${WEAVE_TEST_APP_TLS_ROOT}/cert.pem" \
   "-Dweave.e2e.hosts-file=${WEAVE_TEST_APP_HOSTS_FILE}" \
+  "-Dweave.e2e.native-runner=${WEAVE_TEST_APP_NATIVE_RUNNER:-}" \
   "-Dweave.e2e.bootstrap-owner-token=${WEAVE_TEST_APP_SECRET_ROOT}/identity-bootstrap-owner-token" \
   "-Dweave.e2e.chat-proof-token=${WEAVE_TEST_APP_SECRET_ROOT}/chat-e2e-proof-token" \
+  "-Dweave.e2e.foreign-organization-identity=${WEAVE_TEST_APP_SECRET_ROOT}/foreign-organization-e2e-identity.json" \
+  "-Dweave.e2e.foreign-organization-fixture-command=${COMPOSE}" \
   "-Dweave.e2e.workload-credential-root=${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads" \
   "-Dweave.e2e.evidence-file=${WEAVE_TEST_APP_EVIDENCE_PATH}" \
   "-Dweave.e2e.persistence-restart-command=${COMPOSE}" \
@@ -425,6 +441,8 @@ jq -e \
     .sameReleaseBindingAfterRestart == true and
     .openClawFilesInvoked == true and
     .openClawCalendarInvoked == true and
+    .calendarMcpWriteParity == true and
+    .openClawCalendarWriteParity == true and
     (.openClawClientVersion | test("^20[0-9]{2}\\.[0-9]+\\.[0-9]+$")) and
     (.releaseBindingRefSha256 | test("^[0-9a-f]{64}$")) and
     (.cellRefSha256 == null) and
@@ -457,6 +475,7 @@ jq -e \
   .sameHumanSubjectAfterRegrant == true and
   .samePersonRefAfterRegrant == true and
   .spaceRevocationRestored == true and
+  .foreignOrganizationDenied == true and
   .collaboration.repeatCount == 2 and
   .collaboration.selectedProviders == {"chat":"weave-native","files":"weave-native","calendar":"weave-native"} and
   .collaboration.northboundContracts == {"matrix":"matrix-client-server","files":"weave-user-api","calendar":"weave-user-api"} and

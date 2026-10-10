@@ -72,7 +72,8 @@ class CalendarFacadeClient {
     CalendarScope? selectedScope,
   }) async {
     final context = await _context();
-    final zone = await _zone();
+    final evaluationZoneName = await _evaluationTimeZone();
+    final zone = _location(evaluationZoneName);
     final scopes = await _discover(context);
     if (scopes.scopes.isEmpty) return const CalendarEventList();
     final scope = _selected(scopes, selectedScope);
@@ -83,12 +84,12 @@ class CalendarFacadeClient {
         scope.id,
         from ?? now.subtract(const Duration(days: 30)),
         to ?? now.add(const Duration(days: 180)),
-        zone.name,
+        evaluationZoneName,
       ),
     );
     if (result == null ||
         result.calendarId != scope.id ||
-        result.evaluationTimeZone != zone.name) {
+        result.evaluationTimeZone != evaluationZoneName) {
       throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
     final masters = <String, api.CalendarUserEvent>{};
@@ -114,7 +115,7 @@ class CalendarFacadeClient {
           scope,
           start: _wallClock(tz.TZDateTime.from(occurrence.startsAt, zone)),
           end: _wallClock(tz.TZDateTime.from(occurrence.endsAt, zone)),
-          displayZone: zone.name,
+          displayZone: evaluationZoneName,
         ),
       );
     }
@@ -129,7 +130,7 @@ class CalendarFacadeClient {
           scope,
           start: _wallClock(tz.TZDateTime.from(occurrence.startsAt, zone)),
           end: _wallClock(tz.TZDateTime.from(occurrence.endsAt, zone)),
-          displayZone: zone.name,
+          displayZone: evaluationZoneName,
         ),
       );
     }
@@ -554,11 +555,11 @@ class CalendarFacadeClient {
     date.minute,
     date.second,
   );
-  Future<tz.Location> _zone() async => _location(await _evaluationTimeZone());
   tz.Location _location(String name) {
     if (!_zonesReady) {
       throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
+    if (name == 'UTC') return tz.UTC;
     try {
       return tz.getLocation(name);
     } catch (_) {

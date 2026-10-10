@@ -21,7 +21,7 @@ class NativeMatrixChatRepository implements ChatRepository {
   Future<List<ChatConversation>> loadConversations() async {
     try {
       final session = await _matrixCryptoSessionCoordinator.open();
-      final rooms = await _rustMatrixCoreBridge.loadEncryptedRooms(
+      final rooms = await _rustMatrixCoreBridge.loadRooms(
         profileKey: session.profileKey,
       );
       final conversations = rooms
@@ -33,7 +33,7 @@ class NativeMatrixChatRepository implements ChatRepository {
                   : room.title,
               previewType: room.encrypted
                   ? ChatConversationPreviewType.encrypted
-                  : ChatConversationPreviewType.unsupported,
+                  : ChatConversationPreviewType.none,
               unreadCount: room.unreadCount,
               isInvite: false,
               isDirectMessage: false,
@@ -48,14 +48,15 @@ class NativeMatrixChatRepository implements ChatRepository {
       });
       return conversations;
     } on RustMatrixCoreBridgeException catch (error) {
-      if (isMatrixSessionExpiredCode(error.code)) {
+      if (isMatrixSessionExpiredCode(error.code) ||
+          error.code == 'M_FORBIDDEN') {
         throw ChatFailure.sessionRequired(
-          'Chat authorization expired. Retry with your Weave sign-in.',
+          'Chat access is no longer current. Retry with your Weave sign-in.',
           cause: error,
         );
       }
       throw ChatFailure.protocol(
-        'Weave Chat could not establish the encrypted timeline.',
+        'Weave Chat could not load conversations.',
         cause: error,
       );
     }
@@ -66,26 +67,26 @@ class NativeMatrixChatRepository implements ChatRepository {
     final normalizedTitle = title.trim();
     if (normalizedTitle.isEmpty || normalizedTitle.runes.length > 200) {
       throw const ChatFailure.configuration(
-        'Give the encrypted conversation a name between 1 and 200 characters.',
+        'Give the conversation a name between 1 and 200 characters.',
       );
     }
     try {
       final session = await _matrixCryptoSessionCoordinator.open(
         synchronize: false,
       );
-      final room = await _rustMatrixCoreBridge.createEncryptedRoom(
+      final room = await _rustMatrixCoreBridge.createBusinessRoom(
         profileKey: session.profileKey,
         title: normalizedTitle,
       );
-      if (room.roomId.isEmpty || !room.encrypted) {
+      if (room.roomId.isEmpty || room.encrypted) {
         throw const RustMatrixCoreBridgeException(
-          'M_WEAVE_E2EE_CREATE_ROOM_INVALID',
+          'M_WEAVE_CHAT_CREATE_ROOM_INVALID',
         );
       }
       return ChatConversation(
         id: room.roomId,
         title: room.title.isEmpty ? normalizedTitle : room.title,
-        previewType: ChatConversationPreviewType.encrypted,
+        previewType: ChatConversationPreviewType.none,
         unreadCount: room.unreadCount,
         isInvite: false,
         isDirectMessage: false,
@@ -99,11 +100,11 @@ class NativeMatrixChatRepository implements ChatRepository {
       }
       if (error.code == 'M_INVALID_PARAM') {
         throw const ChatFailure.configuration(
-          'Give the encrypted conversation a name between 1 and 200 characters.',
+          'Give the conversation a name between 1 and 200 characters.',
         );
       }
       throw ChatFailure.protocol(
-        'Weave Chat could not create this encrypted conversation.',
+        'Weave Chat could not create this conversation.',
         cause: error,
       );
     }
@@ -117,7 +118,7 @@ class NativeMatrixChatRepository implements ChatRepository {
       final session = await _matrixCryptoSessionCoordinator.open(
         synchronize: false,
       );
-      final projection = await _rustMatrixCoreBridge.loadEncryptedRoomMessages(
+      final projection = await _rustMatrixCoreBridge.loadRoomMessages(
         profileKey: session.profileKey,
         roomId: roomId,
       );
@@ -139,14 +140,16 @@ class NativeMatrixChatRepository implements ChatRepository {
             .toList(growable: false),
       );
     } on RustMatrixCoreBridgeException catch (error) {
-      if (isMatrixSessionExpiredCode(error.code)) {
+      if (isMatrixSessionExpiredCode(error.code) ||
+          error.code == 'M_FORBIDDEN' ||
+          error.code == 'M_NOT_FOUND') {
         throw ChatFailure.sessionRequired(
-          'Chat authorization expired. Retry with your Weave sign-in.',
+          'Chat room access is no longer current. Retry with your Weave sign-in.',
           cause: error,
         );
       }
       throw ChatFailure.protocol(
-        'Weave Chat could not decrypt this timeline.',
+        'Weave Chat could not load this timeline.',
         cause: error,
       );
     }
@@ -161,15 +164,16 @@ class NativeMatrixChatRepository implements ChatRepository {
       final session = await _matrixCryptoSessionCoordinator.open(
         synchronize: false,
       );
-      await _rustMatrixCoreBridge.sendEncryptedText(
+      await _rustMatrixCoreBridge.sendText(
         profileKey: session.profileKey,
         roomId: roomId,
         body: message,
       );
     } on RustMatrixCoreBridgeException catch (error) {
-      if (isMatrixSessionExpiredCode(error.code)) {
+      if (isMatrixSessionExpiredCode(error.code) ||
+          error.code == 'M_FORBIDDEN') {
         throw ChatFailure.sessionRequired(
-          'Chat authorization expired. Retry with your Weave sign-in.',
+          'Chat room access is no longer current. Retry with your Weave sign-in.',
           cause: error,
         );
       }
@@ -185,7 +189,7 @@ class NativeMatrixChatRepository implements ChatRepository {
         );
       }
       throw ChatFailure.protocol(
-        'Weave Chat could not send this encrypted message.',
+        'Weave Chat could not send this message.',
         cause: error,
       );
     }
@@ -243,7 +247,9 @@ class NativeMatrixChatRepository implements ChatRepository {
     RustMatrixMessageProjection projection, {
     required String currentUserId,
   }) {
-    final isDecrypted = projection.contentType == 'encryptedText';
+    final isText =
+        projection.contentType == 'encryptedText' ||
+        projection.contentType == 'text';
     return ChatMessage(
       id: projection.eventId,
       senderId: projection.sender,
@@ -254,10 +260,10 @@ class NativeMatrixChatRepository implements ChatRepository {
       ),
       isMine: projection.sender == currentUserId,
       deliveryState: ChatMessageDeliveryState.sent,
-      contentType: isDecrypted
+      contentType: isText
           ? ChatMessageContentType.text
           : ChatMessageContentType.unsupported,
-      text: isDecrypted ? projection.body : null,
+      text: isText ? projection.body : null,
     );
   }
 

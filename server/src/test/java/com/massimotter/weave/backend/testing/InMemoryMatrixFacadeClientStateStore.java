@@ -52,13 +52,7 @@ public final class InMemoryMatrixFacadeClientStateStore implements MatrixFacadeC
     revokedSessions.merge(
         sessionHash,
         requested,
-        (existing, replacement) -> {
-          if (!existing.expiresAt().equals(replacement.expiresAt())) {
-            throw new IllegalArgumentException(
-                "Matrix revocation digest is already bound to another session window.");
-          }
-          return existing;
-        });
+        (existing, replacement) -> existing);
   }
 
   @Override

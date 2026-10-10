@@ -105,13 +105,16 @@ void main() {
   });
 
   test(
-    'Chat uses native Matrix SDK without Weave token reuse; Files stays in data',
+    'Chat uses the member session through native Matrix SDK; Files stays in data',
     () async {
       final chatRepository = await File(
         'lib/features/chat/data/repositories/native_matrix_chat_repository.dart',
       ).readAsString();
       final matrixCoordinator = await File(
-        'lib/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart',
+        'lib/integrations/rust_matrix_core/data/services/weave_member_matrix_session_coordinator.dart',
+      ).readAsString();
+      final matrixProvider = await File(
+        'lib/integrations/rust_matrix_core/presentation/providers/matrix_crypto_session_provider.dart',
       ).readAsString();
       final matrixBridge = await File(
         'lib/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart',
@@ -120,26 +123,22 @@ void main() {
         'lib/features/files/data/repositories/backend_files_repository.dart',
       ).readAsString();
       expect(chatRepository, contains('RustMatrixCoreBridge'));
-      expect(chatRepository, contains('loadEncryptedRooms'));
-      expect(chatRepository, contains('loadEncryptedRoomMessages'));
-      expect(chatRepository, contains('sendEncryptedText'));
+      expect(chatRepository, contains('loadRooms'));
+      expect(chatRepository, contains('loadRoomMessages'));
+      expect(chatRepository, contains('sendText'));
       expect(chatRepository, isNot(contains('http.Client')));
       expect(chatRepository, isNot(contains('/_matrix/client/')));
       expect(chatRepository, isNot(contains('/api/chat/conversations')));
       expect(chatRepository, isNot(contains('BackendChatRepository')));
-      expect(matrixCoordinator, contains('startOAuth('));
-      expect(matrixCoordinator, contains('restoreOAuth('));
-      // The Weave bearer authorizes current member access through the User API
-      // only; the Rust boundary has no token-import argument for Matrix OAuth.
-      expect(
-        matrixCoordinator,
-        contains('weaveAccessToken: authSession.accessToken'),
-      );
-      expect(
-        'authSession.accessToken'.allMatches(matrixCoordinator),
-        hasLength(1),
-      );
-      expect(matrixBridge, isNot(contains('accessToken')));
+      expect(matrixProvider, contains('WeaveMemberMatrixSessionCoordinator('));
+      expect(matrixCoordinator, isNot(contains('startOAuth(')));
+      expect(matrixCoordinator, isNot(contains('restoreOAuth(')));
+      // The same current member bearer authorizes generated User API admission
+      // and the native Matrix facade; the device proof remains client-held.
+      expect(matrixCoordinator, contains('session.accessToken'));
+      expect(matrixCoordinator, contains('deviceProof: deviceProof'));
+      expect(matrixBridge, contains('activateMemberSession('));
+      expect(matrixBridge, contains('deviceProof: deviceProof'));
       expect(
         matrixCoordinator,
         isNot(contains('/_matrix/client/v3/account/whoami')),

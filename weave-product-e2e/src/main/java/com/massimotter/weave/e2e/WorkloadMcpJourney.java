@@ -7,6 +7,7 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.massimotter.weave.userapi.model.CalendarUserEvent;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -18,6 +19,7 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Date;
@@ -200,6 +202,146 @@ final class WorkloadMcpJourney {
         || !result.contains("Calendar User API rejected request: HTTP 403")
         || result.contains("providerId") || result.contains("access_token")) {
       throw new ProductFlowException("a member without calendar.manage_events could write over MCP");
+    }
+  }
+
+  void verifyCalendarWriteParity(
+      String clientId, RSAKey key, GeneratedCalendarJourney userCalendar,
+      String calendarId, String authorToken, String runId) {
+    String token = clientCredentials(clientId, key, CALENDAR_WRITE_SCOPES);
+    validateWorkloadToken(token, clientId, CALENDAR_WRITE_SCOPES);
+    String sessionId = initializeSession(token);
+    for (String tool : List.of("calendar.create", "calendar.update", "calendar.delete")) {
+      requireTool(token, sessionId, tool);
+    }
+
+    String title = "MCP Calendar parity " + Hashing.sha256(runId).substring(0, 16);
+    String idempotencyKey = "calendar-mcp-parity-" + Hashing.sha256(runId);
+    ObjectNode create = calendarWriteCall(3, "calendar.create", calendarId);
+    ObjectNode createArguments = (ObjectNode) create.path("params").path("arguments");
+    createArguments.put("idempotencyKey", idempotencyKey);
+    createArguments.set("event", calendarWriteContent(title));
+    JsonNode createdResult = protocolBody(mcp(token, sessionId, create, Set.of(200)));
+    requireNoError(createdResult, "MCP calendar.create");
+    CalendarUserEvent created = userCalendar.readMcpEvent(calendarId, title, authorToken);
+    requireCalendarDateContent(created, title);
+    requireCalendarResult(createdResult, created, "MCP calendar.create");
+
+    JsonNode replay = protocolBody(mcp(token, sessionId, create, Set.of(200)));
+    requireNoError(replay, "MCP calendar.create replay");
+    requireCalendarResult(replay, created, "MCP calendar.create replay");
+    userCalendar.verifyMcpEventUnchanged(calendarId, created, authorToken);
+
+    ObjectNode changedReplay = calendarWriteCall(4, "calendar.create", calendarId);
+    ObjectNode changedArguments = (ObjectNode) changedReplay.path("params").path("arguments");
+    changedArguments.put("idempotencyKey", idempotencyKey);
+    changedArguments.set("event", calendarWriteContent(title + " changed replay"));
+    requireCalendarConflict(protocolBody(mcp(token, sessionId, changedReplay, Set.of(200))),
+        409, "MCP changed create replay");
+    userCalendar.verifyMcpEventUnchanged(calendarId, created, authorToken);
+
+    String updatedTitle = title + " updated";
+    ObjectNode update = calendarWriteCall(5, "calendar.update", calendarId);
+    ObjectNode updateArguments = (ObjectNode) update.path("params").path("arguments");
+    updateArguments.put("eventId", created.getId());
+    updateArguments.put("ifMatch", created.getVersion());
+    updateArguments.set("event", calendarWriteContent(updatedTitle));
+    JsonNode updatedResult = protocolBody(mcp(token, sessionId, update, Set.of(200)));
+    requireNoError(updatedResult, "MCP calendar.update");
+    CalendarUserEvent updated = userCalendar.readMcpEvent(calendarId, updatedTitle, authorToken);
+    requireCalendarDateContent(updated, updatedTitle);
+    if (!created.getId().equals(updated.getId())
+        || created.getVersion().equals(updated.getVersion())) {
+      throw new ProductFlowException("MCP Calendar update changed identity or did not advance version");
+    }
+    requireCalendarResult(updatedResult, updated, "MCP calendar.update");
+    requireCalendarConflict(protocolBody(mcp(token, sessionId, update, Set.of(200))),
+        412, "MCP stale calendar.update");
+    userCalendar.verifyMcpEventUnchanged(calendarId, updated, authorToken);
+
+    ObjectNode delete = calendarWriteCall(7, "calendar.delete", calendarId);
+    ObjectNode deleteArguments = (ObjectNode) delete.path("params").path("arguments");
+    deleteArguments.put("eventId", updated.getId());
+    deleteArguments.put("ifMatch", updated.getVersion());
+    JsonNode deletedResult = protocolBody(mcp(token, sessionId, delete, Set.of(200)));
+    requireNoError(deletedResult, "MCP calendar.delete");
+    JsonNode deletedProjection = toolPayload(deletedResult, "eventId", "MCP calendar.delete");
+    if (!updated.getId().equals(deletedProjection.path("eventId").asString())
+        || !deletedProjection.path("deleted").asBoolean(false)) {
+      throw new ProductFlowException("MCP Calendar delete omitted its canonical result");
+    }
+    userCalendar.verifyMcpEventDeleted(calendarId, updated.getId(), authorToken);
+  }
+
+  private ObjectNode calendarWriteCall(int id, String tool, String calendarId) {
+    ObjectNode call = request(id, "tools/call");
+    call.putObject("params").put("name", tool)
+        .putObject("arguments").put("calendarId", calendarId);
+    return call;
+  }
+
+  private ObjectNode calendarWriteContent(String title) {
+    ObjectNode event = http.mapper().createObjectNode();
+    event.put("title", title);
+    event.putObject("start").put("kind", "DATE").put("date", "2026-10-25");
+    event.putObject("end").put("kind", "DATE").put("date", "2026-10-26");
+    event.putArray("attendees");
+    event.putArray("overrides");
+    return event;
+  }
+
+  private static void requireCalendarDateContent(CalendarUserEvent event, String title) {
+    if (!title.equals(event.getContent().getTitle())
+        || event.getContent().getStart().getKind()
+            != com.massimotter.weave.userapi.model.CalendarTimeValue.KindEnum.DATE
+        || !LocalDate.parse("2026-10-25").equals(event.getContent().getStart().getDate())
+        || event.getContent().getEnd().getKind()
+            != com.massimotter.weave.userapi.model.CalendarTimeValue.KindEnum.DATE
+        || !LocalDate.parse("2026-10-26").equals(event.getContent().getEnd().getDate())) {
+      throw new ProductFlowException("MCP Calendar write lost DATE temporal intent");
+    }
+  }
+
+  private void requireCalendarResult(
+      JsonNode result, CalendarUserEvent event, String operation) {
+    JsonNode projection = toolPayload(result, "id", operation);
+    String serialized = projection.toString();
+    if (!event.getId().equals(projection.path("id").asString())
+        || !event.getVersion().equals(projection.path("version").asString())
+        || !event.getContent().getTitle().equals(
+            projection.path("content").path("title").asString())
+        || serialized.contains("providerId")
+        || serialized.toLowerCase(java.util.Locale.ROOT).contains("nextcloud")) {
+      throw new ProductFlowException(operation + " differed from generated User readback");
+    }
+  }
+
+  private JsonNode toolPayload(JsonNode response, String requiredField, String operation) {
+    JsonNode result = response.path("result");
+    JsonNode structured = result.path("structuredContent");
+    if (structured.isObject() && !structured.path(requiredField).isMissingNode()) {
+      return structured;
+    }
+    for (JsonNode entry : result.path("content")) {
+      if (!"text".equals(entry.path("type").asString())) continue;
+      try {
+        JsonNode parsed = http.mapper().readTree(entry.path("text").asString());
+        if (parsed != null && parsed.isObject()
+            && !parsed.path(requiredField).isMissingNode()) {
+          return parsed;
+        }
+      } catch (JacksonException malformed) {
+        // A text rendering is not authoritative unless it parses as a result object.
+      }
+    }
+    throw new ProductFlowException(operation + " omitted structured tool content");
+  }
+
+  private static void requireCalendarConflict(JsonNode result, int code, String operation) {
+    if (!result.path("result").path("isError").asBoolean(false)
+        || !("calendar-user-http-" + code).equals(supportSafeErrorClass(result))
+        || result.toString().contains("providerId")) {
+      throw new ProductFlowException(operation + " did not preserve its version conflict");
     }
   }
 

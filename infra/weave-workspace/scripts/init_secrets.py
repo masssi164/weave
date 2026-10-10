@@ -632,6 +632,25 @@ def _validate_existing(context: ComposeContext) -> None:
             _assert_private_file(context.tls_root / name)
 
 
+def _own_isolated_private_roots(context: ComposeContext) -> None:
+    """Normalize macOS inherited group ownership before protected mounts.
+
+    A checkout under a group-owned directory can create private files with
+    that directory's group, even when the E2E runtime uses the caller's group.
+    Only the disposable generation's private roots are touched.
+    """
+    if context.environment != "e2e" or context.isolated_namespace is None:
+        return
+    owner = (int(context.env["WEAVE_RUNTIME_UID"]), int(context.env["WEAVE_RUNTIME_GID"]))
+    for root in (context.secret_root, context.tls_root):
+        for path in (root, *root.rglob("*")):
+            metadata = path.lstat()
+            if not (stat.S_ISREG(metadata.st_mode) or stat.S_ISDIR(metadata.st_mode)):
+                raise ContractError("isolated private generation contains a non-regular path")
+            if (metadata.st_uid, metadata.st_gid) != owner:
+                os.chown(path, *owner)
+
+
 def initialize(context: ComposeContext) -> None:
     context.secret_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(context.secret_root, 0o700)
@@ -723,6 +742,7 @@ def initialize(context: ComposeContext) -> None:
                     "runtime-admin private JWK ownership is invalid"
                 ) from error
     _generate_tls(context)
+    _own_isolated_private_roots(context)
     _validate_existing(context)
     _project_machine_public_jwks(context)
     manifest = {
