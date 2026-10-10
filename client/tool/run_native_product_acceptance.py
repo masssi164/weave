@@ -25,6 +25,7 @@ from urllib.parse import urlparse
 CLIENT = Path(__file__).resolve().parents[1]
 DRIVER = CLIENT / "tool/native_macos_appauth_driver.swift"
 APP = CLIENT / "build/macos/Build/Products/Debug/weave.app"
+COMPOSE = CLIENT.parent / "infra/weave-workspace/compose.sh"
 
 
 def require(name: str) -> str:
@@ -165,6 +166,27 @@ def report_flutter_markers(markers: queue.Queue[str]) -> list[str]:
     while not markers.empty():
         observed.append(markers.get_nowait())
     return observed
+
+
+def restart_disposable_services(env: dict[str, str]) -> None:
+    namespace = env.get("WEAVE_E2E_RUN_NAMESPACE", "")
+    env_file = Path(env.get("WEAVE_ENV_FILE", ""))
+    if not re.fullmatch(r"weave-e2e-[a-f0-9]{16}", namespace):
+        raise RuntimeError("native service restart requires the isolated E2E namespace")
+    if not env_file.is_file() or env_file.is_symlink():
+        raise RuntimeError("native service restart requires the isolated E2E env file")
+    result = subprocess.run(
+        ["bash", str(COMPOSE), "e2e", "collaboration-restart-proof"],
+        cwd=CLIENT.parent, env=env, capture_output=True, text=True, timeout=300,
+    )
+    marker = (
+        "WEAVE_COLLABORATION_RESTART_RESULT backend=healthy "
+        "keycloak=healthy postgres=healthy providerDependency=false supportSafe=true"
+    )
+    if result.returncode or marker not in result.stdout:
+        raise RuntimeError("isolated collaboration services did not recover")
+    print("NATIVE_SERVICE_RESTART_RESULT status=passed backend=healthy "
+          "keycloak=healthy postgres=healthy supportSafe=true", flush=True)
 
 
 def main() -> int:
@@ -325,6 +347,7 @@ def main() -> int:
                 raise RuntimeError("initial Flutter native product assertions failed")
             print("NATIVE_PROCESS_RESTART_STAGE phase=first-process-exited", flush=True)
             stop_checkout_app()
+            restart_disposable_services(env)
             env["WEAVE_DEVICE_PRODUCT_PHASE"] = "restore"
             markers = queue.Queue()
             flutter = subprocess.Popen(

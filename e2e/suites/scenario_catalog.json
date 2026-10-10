@@ -309,7 +309,7 @@
         "authorized Files upload and readback",
         "authorized Calendar create update and delete",
         "native Matrix business-room send and readback",
-        "session refresh and native process restart",
+        "session refresh and native process and service restart",
         "sign-out removes capability access"
       ]
     },

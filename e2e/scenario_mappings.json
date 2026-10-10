@@ -20,7 +20,16 @@
       "evidenceMarkers": [
         "NATIVE_PRODUCT_SIGN_IN_RESULT"
       ],
-      "evidenceMode": "live-runtime"
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "client/tool/run_native_product_acceptance.py",
+          "fragments": [
+            "restart_disposable_services(env)",
+            "NATIVE_SERVICE_RESTART_RESULT status=passed"
+          ]
+        }
+      ]
     },
     {
       "tag": "@files-webdav-read-list-download",

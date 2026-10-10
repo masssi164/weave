@@ -3,10 +3,11 @@
 Status: **local native journey passed; CI and remaining lifecycle gates open**.
 This record separates executable test code from observed native product
 evidence. A disposable local `testApp` run at source commit
-`8f13cde956a03375f4f5da25db02e3041b170e1d` completed the real AppAuth
+`d6395ab177bbce08f535da4f65a7880771b7d05f` completed the real AppAuth
 callback, generated Files and Calendar operations, native Rust Matrix business
-room send/read, refresh, app-state restoration, logout denial, and supported
-OpenClaw Matrix readback. The overall Gradle task exited zero. This is local
+room send/read, refresh, a second native Flutter process restoring the same
+session and references, logout denial, and supported OpenClaw Matrix readback.
+Both Flutter test processes and the overall Gradle task exited zero. This is local
 macOS evidence; the #1475, #1479, and #1480 integrated closure gates still
 require the exact CI candidate and the lifecycle gaps below.
 
@@ -357,6 +358,29 @@ passed the isolated stack and OpenClaw Matrix proof but failed before the
 native app build in the stale-consent driver. That run discarded the driver's
 specific failure stage. The next candidate reports that bounded stage and
 checks Accessibility trust in the runner process before starting the stack.
+The subsequent local run at `d6395ab177` emitted
+`NATIVE_PRODUCT_INITIAL_RESULT status=passed`, two successful Flutter harness
+exits, `NATIVE_PROCESS_RESTART_RESULT status=passed`, and
+`NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed`. `testApp` exited zero in
+10m 41s. Its support-safe evidence records specification commit
+`c726993168651f1109259f9a80cc23117d24a37f`, OpenClaw client 2026.9.8,
+real Files/Calendar invocation, PostgreSQL restart, and revocation denial.
+The first CI run on that same commit
+([workflow 38012031290](https://github.com/masssi164/weave/actions/runs/38012031290))
+failed in the new preflight with `NATIVE_ACCESSIBILITY_RESULT status=denied`;
+the disposable stack was not started. macOS TCC attributes the denied
+`kTCCServiceAccessibility` request to the runner's Node executable at
+`actions-runners/weave-live-mac-mini/externals.2.337.0/node20/bin/node`.
+The Xcode authorization given to its UI test runner does not cover this
+separate CI process. Accessibility for that exact runner executable is the
+current host prerequisite; Screen Recording and Apple Events are not required
+by the test driver. The CI run remains failed until a fresh unattended run
+completes the native app assertions.
+The next candidate reuses the existing isolated collaboration-service restart
+control between the two Flutter processes. This is intended to exercise native
+session restoration after Server, Keycloak and PostgreSQL restart; it is not
+evidence until the full local and CI runs pass, and it does not replace a
+separate active southbound provider-session outage proof.
 The signing team, development certificate, and provisioning profile must be
 available to the logged-in macOS test user. CI reads the nonsecret signing team
 and bundle ID from repository variables `WEAVE_NATIVE_SIGNING_TEAM` and
@@ -398,9 +422,9 @@ PATH="$PWD/tool/native_macos_open:$PATH" \
   result; the product journey unmounts its app before the harness finishes and
   passed locally. Fixture stability remains a separate diagnostic concern.
 - Exercise server-side revocation, wrong-account and cross-organization denial,
-  recoverable downstream-session loss, and a real process restart in that native
-  lane. Logout denial alone does not prove revocation; rebuilding `WeaveApp` in
-  the same process does not prove process restart.
+  and recoverable downstream-session loss in the native lane. The local
+  two-process result proves native process restart; it does not establish those
+  separate denial and recovery cases. Logout denial does not prove revocation.
 - Keep iOS and Android acceptance unclaimed. No iOS simulator is provisioned on
   the current host, and the Android SDK is absent; macOS evidence cannot replace
   platform-specific tests.
