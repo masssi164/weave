@@ -435,7 +435,9 @@ String _matrixUserId(String subject, Uri homeserver) {
   if (localpart.isEmpty) {
     throw const ChatFailure.sessionRequired('M_WEAVE_MATRIX_IDENTITY_INVALID');
   }
-  return '@$localpart:${homeserver.authority}';
+  // A local HTTPS port identifies the transport endpoint, not the Matrix
+  // server name used in user IDs. The facade projects IDs from its host.
+  return '@$localpart:${homeserver.host}';
 }
 
 String _verifiedSubject(AuthSession session, AuthConfiguration configuration) {

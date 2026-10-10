@@ -163,6 +163,24 @@ void main() {
     },
   );
 
+  test('does not include a local HTTPS port in the Matrix user ID', () async {
+    configuration.configuration = buildTestConfiguration(
+      matrixHomeserverUrl: 'https://api.weave.test:44443',
+    );
+    access.advertisedMatrixUrl = Uri.parse('https://api.weave.test:44443');
+
+    final session = await coordinator().open(
+      synchronize: false,
+      allowInteractiveSignIn: false,
+    );
+
+    expect(session.userId, '@person-1:api.weave.test');
+    expect(
+      bridge.memberActivations.single['homeserverUrl'],
+      'https://api.weave.test:44443',
+    );
+  });
+
   test('rejects an insecure Matrix URL before member admission', () async {
     configuration.configuration = buildTestConfiguration(
       matrixHomeserverUrl: 'http://api.weave.test',
