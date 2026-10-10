@@ -28,7 +28,7 @@ REQUIRED_ROWS = {
     "unknown-client-route",
 }
 STATUSES = {"Supported", "Guarded", "Unsupported"}
-REFERENCE = re.compile(r"^`([^#`]+)#([A-Za-z_][A-Za-z_0-9]*)`$")
+REFERENCE = re.compile(r"^`([^#`]+)#([^#`]+)`$")
 EVIDENCE = re.compile(r"^evidence: `([^\s`]+)`$")
 VERSION = re.compile(r"^Profile version: `weave\.matrix-client-server/v[1-9][0-9]*`$", re.MULTILINE)
 
@@ -43,9 +43,32 @@ def _assertion(reference: str, root: Path, expected_prefix: str) -> str | None:
     source = root / relative
     if not source.is_file():
         return f"assertion source is absent: {relative}"
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", name):
+        return f"assertion name is invalid: {relative}#{name}"
     if re.search(rf"\b(?:void|def)\s+{re.escape(name)}\s*\(", source.read_text()) is None:
         return f"assertion is absent: {relative}#{name}"
     return None
+
+
+def _client_assertion(reference: str, root: Path) -> str | None:
+    match = REFERENCE.fullmatch(reference)
+    if match is None:
+        return f"expected path#assertion reference, got {reference!r}"
+    relative, name = match.groups()
+    path = Path(relative)
+    if ".." in path.parts:
+        return f"client assertion path is invalid: {relative}"
+    if relative.startswith("client/integration_test/") and path.suffix == ".dart":
+        source = root / path
+        if not source.is_file():
+            return f"assertion source is absent: {relative}"
+        if not re.search(
+            rf"\btestWidgets\s*\(\s*['\"]{re.escape(name)}['\"]\s*,",
+            source.read_text(),
+        ):
+            return f"assertion is absent: {relative}#{name}"
+        return None
+    return _assertion(reference, root, "weave-product-e2e/src/test/")
 
 
 def check_profile(profile: str, root: Path) -> list[str]:
@@ -80,7 +103,7 @@ def check_profile(profile: str, root: Path) -> list[str]:
             if owned_client == "pending":
                 errors.append(f"{row_id}: Supported requires a Weave-owned client assertion")
             else:
-                problem = _assertion(owned_client, root, "weave-product-e2e/")
+                problem = _client_assertion(owned_client, root)
                 if problem:
                     errors.append(f"{row_id}: {problem}")
             proof = EVIDENCE.fullmatch(evidence)
