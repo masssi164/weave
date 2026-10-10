@@ -310,7 +310,12 @@ final class WorkloadMcpJourney {
         || !serialized.contains(event.getContent().getTitle())
         || serialized.contains("providerId")
         || serialized.toLowerCase(java.util.Locale.ROOT).contains("nextcloud")) {
-      throw new ProductFlowException(operation + " differed from generated User readback");
+      throw new ProductFlowException(operation + " differed from generated User readback"
+          + " idPresent=" + serialized.contains(event.getId())
+          + " versionPresent=" + serialized.contains(event.getVersion())
+          + " titlePresent=" + serialized.contains(event.getContent().getTitle())
+          + " providerReferencePresent=" + (serialized.contains("providerId")
+              || serialized.toLowerCase(java.util.Locale.ROOT).contains("nextcloud")));
     }
   }
 
