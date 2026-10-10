@@ -90,7 +90,8 @@ def collect_flutter_output(
             if auth_completion is not None and observed == "NATIVE_PRODUCT_STAGE phase=workspace-ready":
                 # No token or callback is injected. This one-use private signal
                 # follows the real Flutter workspace assertion after PKCE.
-                with auth_completion.open("x", opener=lambda path, flags: os.open(path, flags, 0o600)) as ready:
+                with open(auth_completion, "x", encoding="utf-8",
+                          opener=lambda path, flags: os.open(path, flags, 0o600)) as ready:
                     ready.write("workspace-ready\n")
                 auth_completion = None
         elif match := re.search(
