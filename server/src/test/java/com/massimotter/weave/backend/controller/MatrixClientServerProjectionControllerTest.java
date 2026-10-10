@@ -63,6 +63,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
@@ -518,7 +520,7 @@ class MatrixClientServerProjectionControllerTest {
     void sendParsesInRustAndForwardsTransactionForCanonicalIdempotency() throws Exception {
         when(chatDomainFacadeService.sendEvent(
                 eq("channel-general"),
-                eq("txn-1"),
+                anyString(),
                 any(ChatEventContent.class),
                 any()))
                 .thenReturn(event("msg-sent", ChatEventContent.text("Sent through Matrix")));
@@ -532,13 +534,64 @@ class MatrixClientServerProjectionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.event_id").value("$msg-sent:api.weave.test"));
 
+        ArgumentCaptor<String> transaction = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<ChatEventContent> content = ArgumentCaptor.forClass(ChatEventContent.class);
         verify(chatDomainFacadeService).sendEvent(
                 eq("channel-general"),
-                eq("txn-1"),
+                transaction.capture(),
                 content.capture(),
                 any());
+        assertThat(transaction.getValue()).startsWith("matrix-send-").hasSize(76);
         assertThat(content.getValue().body()).isEqualTo("Sent through Matrix");
+    }
+
+    @Test
+    void sendScopesTransactionToDeviceMethodAndEndpoint() throws Exception {
+        when(chatDomainFacadeService.sendEvent(eq("channel-general"), anyString(), any(), any()))
+                .thenReturn(event("msg-scoped", ChatEventContent.text("Scoped send")));
+        String deviceA = "WEAVETRANSACTIONDEVICEA";
+        String deviceB = "WEAVETRANSACTIONDEVICEB";
+        String messagePath = "/_matrix/client/v3/rooms/!channel-general:api.weave.test/send/m.room.message/shared-txn";
+        for (int replay = 0; replay < 2; replay++) {
+            mockMvc.perform(put(messagePath)
+                            .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceA)
+                            .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceA))
+                            .with(workspaceJwt("send-device-a"))
+                            .contentType("application/json")
+                            .content("{\"msgtype\":\"m.text\",\"body\":\"Scoped send\"}"))
+                    .andExpect(status().isOk());
+        }
+        mockMvc.perform(put(messagePath)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceB)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceB))
+                        .with(workspaceJwt("send-device-b"))
+                        .contentType("application/json")
+                        .content("{\"msgtype\":\"m.text\",\"body\":\"Scoped send\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(messagePath)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceA)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceA))
+                        .with(workspaceJwt("send-device-a"))
+                        .contentType("application/json")
+                        .content("{\"msgtype\":\"m.text\",\"body\":\"Scoped send\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/_matrix/client/v3/rooms/!channel-general:api.weave.test/send/m.reaction/shared-txn")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceA)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(deviceA))
+                        .with(workspaceJwt("send-device-a"))
+                        .contentType("application/json")
+                        .content("{\"m.relates_to\":{\"rel_type\":\"m.annotation\",\"event_id\":\"$msg-scoped:api.weave.test\",\"key\":\"+1\"}}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<String> transactions = ArgumentCaptor.forClass(String.class);
+        verify(chatDomainFacadeService, times(5))
+                .sendEvent(eq("channel-general"), transactions.capture(), any(), any());
+        assertThat(transactions.getAllValues()).allSatisfy(value ->
+                assertThat(value).startsWith("matrix-send-").hasSize(76));
+        assertThat(transactions.getAllValues().get(0)).isEqualTo(transactions.getAllValues().get(1));
+        assertThat(transactions.getAllValues().get(2)).isNotEqualTo(transactions.getAllValues().get(0));
+        assertThat(transactions.getAllValues().get(3)).isNotEqualTo(transactions.getAllValues().get(0));
+        assertThat(transactions.getAllValues().get(4)).isNotEqualTo(transactions.getAllValues().get(0));
     }
 
     @Test
@@ -569,7 +622,7 @@ class MatrixClientServerProjectionControllerTest {
     void providerThrottleBecomesAStableMatrixRetryWithoutLeakingDownstreamDetails() throws Exception {
         when(chatDomainFacadeService.sendEvent(
                 eq("channel-general"),
-                eq("txn-throttled"),
+                anyString(),
                 any(ChatEventContent.class),
                 any()))
                 .thenThrow(new ChatProviderUnavailableException(
@@ -601,7 +654,7 @@ class MatrixClientServerProjectionControllerTest {
                 .thenReturn(encryptedConversation());
         when(chatDomainFacadeService.sendEvent(
                 eq("channel-general"),
-                eq("txn-encrypted"),
+                anyString(),
                 any(ChatEventContent.class),
                 any()))
                 .thenAnswer(invocation -> event("msg-encrypted", invocation.getArgument(2)));
@@ -633,7 +686,7 @@ class MatrixClientServerProjectionControllerTest {
         ArgumentCaptor<ChatEventContent> content = ArgumentCaptor.forClass(ChatEventContent.class);
         verify(chatDomainFacadeService).sendEvent(
                 eq("channel-general"),
-                eq("txn-encrypted"),
+                anyString(),
                 content.capture(),
                 any());
         assertThat(content.getValue().body()).isNull();
@@ -975,9 +1028,10 @@ class MatrixClientServerProjectionControllerTest {
 
     @Test
     void approvalMetadataAndReactionUseCanonicalTimelineEvents() throws Exception {
-        when(chatDomainFacadeService.sendEvent(eq("channel-general"), eq("approval-1"), any(), any()))
+        when(chatDomainFacadeService.sendEvent(eq("channel-general"), anyString(), any(), any()))
                 .thenReturn(event("approval-event", ChatEventContent.text("Approve calendar creation")));
-        when(chatDomainFacadeService.sendEvent(eq("channel-general"), eq("reaction-1"), any(), any()))
+        when(chatDomainFacadeService.sendEvent(eq("channel-general"), anyString(),
+                argThat(content -> content != null && content.kind() == ChatEventKind.REACTION), any()))
                 .thenReturn(event("reaction-event", new ChatEventContent(
                         ChatEventKind.REACTION,
                         null,

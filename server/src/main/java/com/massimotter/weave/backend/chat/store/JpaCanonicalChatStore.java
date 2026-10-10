@@ -576,34 +576,52 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
         String eventId = "event-" + UUID.nameUUIDFromBytes(operationId.getBytes(StandardCharsets.UTF_8));
         String contentJson = json(content);
         String digest = sha256(contentJson);
-        return transactions.execute(status -> {
-            Optional<OperationRow> existing = operation(context.tenantId(), operationId);
-            if (existing.isPresent()) {
-                requireSameDigest(existing.get(), digest);
-                ChatTimelineEvent event = requireEvent(context.tenantId(), conversationId, existing.get().canonicalObjectId());
-                return new PreparedEvent(operationId, event, existing.get().providerTransactionId(),
-                        COMMITTED.equals(existing.get().state()));
+        try {
+            return transactions.execute(status -> {
+                Optional<OperationRow> existing = operation(context.tenantId(), operationId);
+                if (existing.isPresent()) {
+                    requireSameDigest(existing.get(), digest);
+                    ChatTimelineEvent event = requireEvent(context.tenantId(), conversationId,
+                            existing.get().canonicalObjectId());
+                    return new PreparedEvent(operationId, event, existing.get().providerTransactionId(),
+                            COMMITTED.equals(existing.get().state()));
+                }
+                Instant now = clock.instant();
+                ChatTimelineEvent event = new ChatTimelineEvent(eventId, conversationId.value(),
+                        context.actorRef().value(), now, content, "pending", false);
+                jpa.events().save(ChatEventJpaEntity.create(
+                        context.tenantId(),
+                        conversationId.value(),
+                        eventId,
+                        allocateEventSequence(context.tenantId(), conversationId),
+                        context.identityIssuer(),
+                        context.actorRef().value(),
+                        content.kind().value(),
+                        contentJson,
+                        now,
+                        "pending"));
+                String providerTxn = providerTransaction(operationId);
+                insertOperation(context, operationId, "send-event", conversationId.value(), eventId,
+                        transactionId.value(), providerTxn, null, digest,
+                        json(Map.of("eventId", eventId, "eventKind", content.kind().value(), "content", content)), now);
+                return new PreparedEvent(operationId, event, providerTxn, false);
+            });
+        } catch (RuntimeException collision) {
+            if (!uniqueConstraintViolation(collision)) {
+                throw collision;
             }
-            Instant now = clock.instant();
-            ChatTimelineEvent event = new ChatTimelineEvent(eventId, conversationId.value(),
-                    context.actorRef().value(), now, content, "pending", false);
-            jpa.events().save(ChatEventJpaEntity.create(
-                    context.tenantId(),
-                    conversationId.value(),
-                    eventId,
-                    allocateEventSequence(context.tenantId(), conversationId),
-                    context.identityIssuer(),
-                    context.actorRef().value(),
-                    content.kind().value(),
-                    contentJson,
-                    now,
-                    "pending"));
-            String providerTxn = providerTransaction(operationId);
-            insertOperation(context, operationId, "send-event", conversationId.value(), eventId,
-                    transactionId.value(), providerTxn, null, digest,
-                    json(Map.of("eventId", eventId, "eventKind", content.kind().value(), "content", content)), now);
-            return new PreparedEvent(operationId, event, providerTxn, false);
-        });
+            // The losing instance must read the committed winner in a fresh
+            // transaction; the failed insert has already rolled back.
+            return transactions.execute(status -> {
+                OperationRow winner = operation(context.tenantId(), operationId)
+                        .orElseThrow(() -> collision);
+                requireSameDigest(winner, digest);
+                ChatTimelineEvent event = requireEvent(context.tenantId(), conversationId,
+                        winner.canonicalObjectId());
+                return new PreparedEvent(operationId, event, winner.providerTransactionId(),
+                        COMMITTED.equals(winner.state()));
+            });
+        }
     }
 
     @Override
@@ -1924,6 +1942,17 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
                 digest.getBytes(StandardCharsets.UTF_8))) {
             throw new IllegalArgumentException("A Chat transaction was replayed with different content.");
         }
+    }
+
+    private boolean uniqueConstraintViolation(RuntimeException failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof org.hibernate.exception.ConstraintViolationException constraint
+                    && constraint.getKind()
+                    == org.hibernate.exception.ConstraintViolationException.ConstraintKind.UNIQUE) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void insertMembership(

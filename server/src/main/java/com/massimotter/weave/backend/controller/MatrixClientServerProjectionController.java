@@ -17,6 +17,7 @@ import com.massimotter.weave.backend.chat.domain.ChatRelation;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
 import com.massimotter.weave.backend.chat.domain.ChatTimelinePage;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
+import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
 import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
@@ -211,7 +212,7 @@ public class MatrixClientServerProjectionController {
             Matcher profile = PROFILE_PATH.matcher(path);
             if ("GET".equals(method) && profile.matches()) return matrixOk(profile(identity, decode(profile.group(1))));
             Matcher send = SEND_PATH.matcher(path);
-            if (List.of("POST", "PUT").contains(method) && send.matches()) return matrixOk(sendEvent(jwt, decodeRoomId(send.group(1)), decode(send.group(2)), decode(send.group(3)), requestBody(request)));
+            if (List.of("POST", "PUT").contains(method) && send.matches()) return matrixOk(sendEvent(jwt, identity, method, decodeRoomId(send.group(1)), decode(send.group(2)), decode(send.group(3)), requestBody(request)));
             Matcher redact = REDACT_PATH.matcher(path);
             if (List.of("POST", "PUT").contains(method) && redact.matches()) return matrixOk(redactEvent(jwt, decodeRoomId(redact.group(1)), matrixProtocolCoreService.decodeEventId(decode(redact.group(2))), decode(redact.group(3))));
             return matrixError(HttpStatus.NOT_FOUND, "M_NOT_FOUND", "This Matrix Client-Server projection route is not implemented by the current Weave Chat facade profile.");
@@ -274,7 +275,17 @@ public class MatrixClientServerProjectionController {
         return matrixProtocolCoreService.messages(page.nextBackwardCursor(), from,
                 projectConversation(conversation, page.timeline(), page.hasEarlier(), page.nextBackwardCursor()));
     }
-    private Map<String, Object> sendEvent(Jwt jwt, String conversationId, String eventType, String transactionId, String requestJson) { MatrixProtocolCoreService.ParsedEventContent parsed = matrixProtocolCoreService.parseEvent(eventType, requestJson); ChatTimelineEvent event = chatDomainFacadeService.sendEvent(conversationId, transactionId, canonicalContent(parsed), jwt); return matrixProtocolCoreService.sendResponse(event.eventId()); }
+    private Map<String, Object> sendEvent(Jwt jwt, MatrixFacadeClientStateService.MatrixIdentity identity, String method, String conversationId, String eventType, String transactionId, String requestJson) {
+        try { new ChatTransactionId(transactionId); }
+        catch (IllegalArgumentException invalid) { throw new MatrixProtocolException("M_INVALID_PARAM", "The Matrix transaction ID is invalid."); }
+        MatrixProtocolCoreService.ParsedEventContent parsed = matrixProtocolCoreService.parseEvent(eventType, requestJson);
+        String scope = String.join("\u0000", identity.tenantId(), identity.identityIssuer(),
+                identity.actorRef().value(), identity.deviceId(), method, conversationId,
+                eventType, transactionId);
+        ChatTimelineEvent event = chatDomainFacadeService.sendEvent(conversationId,
+                "matrix-send-" + sha256(scope), canonicalContent(parsed), jwt);
+        return matrixProtocolCoreService.sendResponse(event.eventId());
+    }
     private Map<String, Object> redactEvent(Jwt jwt, String conversationId, String eventId, String transactionId) { ChatRedactionReceipt receipt = chatDomainFacadeService.redactEvent(conversationId, eventId, transactionId, jwt); return matrixProtocolCoreService.sendResponse(receipt.redactionEventId()); }
     private Map<String, Object> createRoom(Jwt jwt, MatrixFacadeClientStateService.MatrixIdentity identity, Map<String, Object> body, String idempotencyKey) { String title = firstText(body.get("name"), body.get("room_alias_name"), "Conversation"); String kind = Boolean.TRUE.equals(body.get("is_direct")) ? "direct" : "channel"; List<ChatResolvedIdentity> invitedIdentities = new ArrayList<>(); Object rawInvite = body.get("invite"); if (rawInvite instanceof List<?> invite) for (Object value : invite) { if (!(value instanceof String matrixUserId)) throw new MatrixProtocolException("M_BAD_JSON", "Matrix invite identities are invalid."); invitedIdentities.add(matrixClientStateService.identityForMatrixUserId(matrixUserId, identity.tenantId(), identity.identityIssuer()).orElseThrow(() -> new MatrixProtocolException("M_NOT_FOUND", "The invited Matrix identity is not registered with Weave."))); } String transactionId = createRoomTransactionId(identity, idempotencyKey, contextId(jwt)); ChatEncryptionState initialEncryption = initialEncryption(body); ChatConversation conversation = chatDomainFacadeService.createConversation(transactionId, title, kind, invitedIdentities, initialEncryption, jwt); return Map.of("room_id", matrixProtocolCoreService.roomId(conversation.conversationId())); }
     private List<Map<String, Object>> roomState(Jwt jwt, String conversationId) { ChatConversation conversation = chatDomainFacadeService.conversation(conversationId, jwt); List<Map<String, Object>> events = new ArrayList<>(); events.add(Map.of("type", "m.room.name", "state_key", "", "content", Map.of("name", conversation.title()))); if (conversation.encryptionState().encrypted()) events.add(Map.of("type", "m.room.encryption", "state_key", "", "content", Map.of("algorithm", conversation.encryptionState().mode()))); for (ChatMembership membership : conversation.memberships()) events.add(Map.of("type", "m.room.member", "state_key", matrixProtocolCoreService.userId(membership.memberRef()), "content", Map.of("membership", matrixMembershipState(membership.state())))); return List.copyOf(events); }

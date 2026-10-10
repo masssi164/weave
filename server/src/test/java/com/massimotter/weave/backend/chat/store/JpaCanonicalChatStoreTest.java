@@ -105,6 +105,7 @@ class JpaCanonicalChatStoreTest {
         DriverManagerDataSource dataSource = dataSource();
         JpaCanonicalChatStore store = store(dataSource);
         NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        NativeChatProviderAdapter secondInstance = new NativeChatProviderAdapter(store(dataSource), FIXED);
         ChatRequestContext author = context("sync-commit-order");
         String firstRoom = adapter.createConversation(author, new ChatTransactionId("sync-first-room"),
                 "First", "channel", List.of(), ChatEncryptionState.unencrypted()).conversationId();
@@ -135,7 +136,7 @@ class JpaCanonicalChatStoreTest {
             var second = executor.submit(() -> {
                 secondStarted.countDown();
                 try {
-                    return transaction.execute(status -> adapter.sendEvent(author,
+                    return transaction.execute(status -> secondInstance.sendEvent(author,
                             new ConversationId(secondRoom), new ChatTransactionId("sync-second-event"),
                             ChatEventContent.text("second")));
                 } finally {
@@ -151,6 +152,61 @@ class JpaCanonicalChatStoreTest {
             assertThat(committed).hasSize(2);
             assertThat(committed.get(0).messageId()).isEqualTo(firstEvent.eventId());
             assertThat(committed.get(1).messageId()).isEqualTo(secondEvent.eventId());
+        } finally {
+            releaseFirst.countDown();
+        }
+    }
+
+    @Test
+    void concurrentSameTransactionAcrossInstancesCreatesOneNativeEvent() throws Exception {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore firstStore = store(dataSource);
+        NativeChatProviderAdapter firstAdapter = new NativeChatProviderAdapter(firstStore, FIXED);
+        NativeChatProviderAdapter secondAdapter = new NativeChatProviderAdapter(store(dataSource), FIXED);
+        ChatRequestContext author = context("native-idempotent-send");
+        ConversationId room = new ConversationId(firstAdapter.createConversation(author,
+                new ChatTransactionId("native-idempotent-room"), "Idempotent", "channel", List.of(),
+                ChatEncryptionState.unencrypted()).conversationId());
+        TransactionTemplate transaction = new TransactionTemplate(JpaTestDatabase.transactionManager(dataSource));
+        CountDownLatch firstStored = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch secondStarted = new CountDownLatch(1);
+        CountDownLatch secondFinished = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> transaction.execute(status -> {
+                var event = firstAdapter.sendEvent(author, room, new ChatTransactionId("same-native-txn"),
+                        ChatEventContent.text("sent once"));
+                firstStored.countDown();
+                try {
+                    if (!releaseFirst.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("test transaction was not released");
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(interrupted);
+                }
+                return event;
+            }));
+            assertThat(firstStored.await(10, TimeUnit.SECONDS)).isTrue();
+            var second = executor.submit(() -> {
+                secondStarted.countDown();
+                try {
+                    return secondAdapter.sendEvent(author, room, new ChatTransactionId("same-native-txn"),
+                            ChatEventContent.text("sent once"));
+                } finally {
+                    secondFinished.countDown();
+                }
+            });
+            assertThat(secondStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(secondFinished.await(200, TimeUnit.MILLISECONDS)).isFalse();
+            releaseFirst.countDown();
+            assertThat(second.get().eventId()).isEqualTo(first.get().eventId());
+            assertThat(firstStore.timelineEvents(author, room, null, 10).events())
+                    .singleElement().satisfies(event ->
+                            assertThat(event.content().body()).isEqualTo("sent once"));
+            assertThatThrownBy(() -> secondAdapter.sendEvent(author, room,
+                    new ChatTransactionId("same-native-txn"), ChatEventContent.text("different payload")))
+                    .isInstanceOf(IllegalArgumentException.class);
         } finally {
             releaseFirst.countDown();
         }
