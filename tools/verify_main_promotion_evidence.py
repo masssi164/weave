@@ -61,9 +61,11 @@ def deployed_run(runs: list[dict], dogfood_sha: str) -> dict | None:
 
 
 def required_jobs_passed(jobs: list[dict]) -> bool:
-    return REQUIRED_JOBS <= {
-        job.get("name") for job in jobs if job.get("conclusion") == "success"
-    }
+    for name in REQUIRED_JOBS:
+        matching = [job for job in jobs if job.get("name") == name]
+        if len(matching) != 1 or matching[0].get("conclusion") != "success":
+            return False
+    return True
 
 
 def matches_promotion_pr(pr: dict, repository: str, candidate_sha: str) -> bool:

@@ -91,6 +91,18 @@ class MainPromotionEvidenceTest(unittest.TestCase):
             {"name": "Deploy dogfood with Compose", "conclusion": "success"},
         ]))
 
+    def test_duplicate_job_cannot_shadow_a_required_failure_or_skip(self) -> None:
+        jobs = [
+            {"name": "Full Compose E2E", "conclusion": "success"},
+            {"name": "Deploy dogfood with Compose", "conclusion": "success"},
+        ]
+        for conclusion in ("failure", "skipped", "success"):
+            with self.subTest(conclusion=conclusion):
+                self.assertFalse(required_jobs_passed([
+                    *jobs,
+                    {"name": "Full Compose E2E", "conclusion": conclusion},
+                ]))
+
 
 if __name__ == "__main__":
     unittest.main()
