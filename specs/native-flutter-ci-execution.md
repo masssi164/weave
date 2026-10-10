@@ -29,6 +29,13 @@ provider, and IdP versions recorded. A local pass, build-only run, skipped
 integration test, or unavailable signing identity does not count as CI proof.
 The macOS lane does not assert iOS or Android device compatibility.
 
+The native Flutter test binding enables semantics before each widget test's
+handle baseline is recorded. macOS Accessibility may activate the platform's
+semantics owner after a test starts; that owner must not be mistaken for an
+application leak. Semantics remain enabled for the entire journey, and the
+normal Flutter handle-leak assertion still catches additional undisposed
+handles.
+
 For the cross-organization release denial, the disposable Keycloak fixture
 creates one additional organization and a dedicated owner only inside the
 isolated E2E namespace. The normal realm import and production bootstrap still

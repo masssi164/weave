@@ -56,7 +56,11 @@ import 'package:weave/main.dart';
 import 'helpers/test_config.dart';
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  // The macOS accessibility service can activate after testWidgets records
+  // its semantics-handle baseline. Keep semantics enabled from the outset so
+  // the platform-owned handle is included without masking later leaks.
+  binding.platformDispatcher.semanticsEnabledTestValue = true;
 
   const enabled = bool.fromEnvironment('WEAVE_SYSTEM_BROWSER_AUTH_E2E');
   const matrixEnabled = bool.fromEnvironment('WEAVE_MEMBER_MATRIX_E2E');
@@ -389,8 +393,7 @@ void main() {
           await restoredCoordinator.disposePreservingCryptoState();
         }
 
-        // Release the native app's semantics owner before Flutter's test
-        // harness checks for leaked handles at the end of the journey.
+        // Unmount the app before Flutter checks for leaked test-owned handles.
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pumpAndSettle();
 
