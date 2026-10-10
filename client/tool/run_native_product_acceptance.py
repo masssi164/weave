@@ -89,7 +89,9 @@ def collect_flutter_output(
             r"system_browser_auth_e2e_test\.dart[: ]+(\d+):(\d+)", line
         ):
             record(f"NATIVE_FLUTTER_FAILURE_SOURCE line={match.group(1)}")
-        elif "All tests passed" in line:
+        elif "All tests passed" in line or re.search(
+            r"^\s*(?:🎉\s*)?[1-9]\d* tests? passed\.\s*$", line
+        ):
             record("FLUTTER_NATIVE_TEST_RUN status=passed")
         elif "A SemanticsHandle was active" in line:
             record("NATIVE_FLUTTER_HARNESS_FAILURE category=semantics-handle")
