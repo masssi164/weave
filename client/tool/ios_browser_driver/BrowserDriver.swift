@@ -1,6 +1,42 @@
 import XCTest
 
 final class BrowserDriver: XCTestCase {
+  static func waitForRunningApplication(
+    state: () -> XCUIApplication.State,
+    deadline: Date,
+    now: () -> Date = { Date() },
+    pause: () -> Void = { Thread.sleep(forTimeInterval: 0.25) }
+  ) -> Bool {
+    while now() < deadline {
+      let current = state()
+      if current == .runningForeground || current == .runningBackground { return true }
+      pause()
+    }
+    return false
+  }
+
+  func testStartupWaitAllowsDelayedFlutterLaunch() {
+    var states: [XCUIApplication.State] = [.notRunning, .unknown, .runningForeground]
+    var clock = Date(timeIntervalSince1970: 0)
+    let ready = Self.waitForRunningApplication(
+      state: { states.removeFirst() }, deadline: clock.addingTimeInterval(3),
+      now: { clock }, pause: { clock.addTimeInterval(1) }
+    )
+    XCTAssertTrue(ready)
+    XCTAssertTrue(states.isEmpty)
+  }
+
+  func testUnavailableTargetHasBoundedStartupWait() {
+    var clock = Date(timeIntervalSince1970: 0)
+    var reads = 0
+    let ready = Self.waitForRunningApplication(
+      state: { reads += 1; return .notRunning }, deadline: clock.addingTimeInterval(3),
+      now: { clock }, pause: { clock.addTimeInterval(1) }
+    )
+    XCTAssertFalse(ready)
+    XCTAssertEqual(reads, 3)
+  }
+
   struct Fixture: Decodable {
     let email: String
     let password: String
@@ -21,9 +57,23 @@ final class BrowserDriver: XCTestCase {
     let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
     let browser = XCUIApplication(bundleIdentifier: "com.apple.SafariViewService")
     let deadline = Date().addingTimeInterval(360)
+    // Flutter may still be compiling or installing its integration app when
+    // XCTest starts. A snapshot of an unavailable app fails immediately.
+    print("NATIVE_IOS_BROWSER_STAGE phase=app-wait-started")
+    guard Self.waitForRunningApplication(state: { app.state }, deadline: deadline) else {
+      XCTFail("Target application did not start within its bounded deadline")
+      return
+    }
+    print("NATIVE_IOS_BROWSER_STAGE phase=app-observed")
     var usernameSubmitted = false
     while Date() < deadline {
-      if app.state == .runningBackground { app.activate() }
+      // Do not steal foreground focus from the production authentication
+      // browser. Also tolerate Flutter replacing the app during test startup.
+      let state = app.state
+      guard state == .runningForeground || state == .runningBackground else {
+        Thread.sleep(forTimeInterval: 0.25)
+        continue
+      }
       for surface in [app, springboard] {
         let consent = surface.alerts.buttons["Continue"]
         if consent.exists && consent.isHittable { consent.tap() }
@@ -37,6 +87,8 @@ final class BrowserDriver: XCTestCase {
         }
       } else {
         for surface in [app, browser] {
+          let surfaceState = surface.state
+          guard surfaceState == .runningForeground || surfaceState == .runningBackground else { continue }
           let host = surface.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", fixture.issuerHost, fixture.issuerHost))
           guard host.count > 0 else { continue }
           print("NATIVE_IOS_BROWSER_STAGE phase=issuer-observed")
