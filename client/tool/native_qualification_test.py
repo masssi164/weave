@@ -28,13 +28,16 @@ class NativeQualificationTest(unittest.TestCase):
         self.assertIn('XCTAssertTrue(signIn.isHittable', driver)
         self.assertNotIn('label CONTAINS', driver.split('if fixture.phase == "initial" {', 1)[1].split('var usernameSubmitted', 1)[0])
 
-    def test_consent_uses_exact_localized_alert_controls_and_rejects_ambiguity(self):
+    def test_consent_requires_global_uniqueness_before_any_native_tap(self):
         driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
-        consent = driver.split('for surface in [app, springboard] {', 1)[1].split('if fixture.phase == "restore"', 1)[0]
+        consent = driver.split('let appConsent = ', 1)[1].split('if fixture.phase == "restore"', 1)[0]
         self.assertIn('static let consentLabels = ["Continue", "Fortfahren"]', driver)
-        self.assertIn('surface.alerts.buttons.matching(NSPredicate(format: "label IN %@", Self.consentLabels))', consent)
-        self.assertIn('XCTAssertLessThanOrEqual(consent.count, 1', consent)
-        self.assertIn('consent.count == 1 && consent.element.isHittable', consent)
+        for surface in ('app', 'springboard'):
+            self.assertIn(f'{surface}.alerts.buttons.matching(NSPredicate(format: "label IN %@", Self.consentLabels))', consent)
+        self.assertIn('Self.uniqueConsentSurface(appCount: appCount, springboardCount: systemCount)', consent)
+        self.assertLess(consent.index('guard let surface'), consent.index('consent.tap()'))
+        self.assertIn('XCTFail("Expected one native authentication consent control across both surfaces")', consent)
+        self.assertIn('if consent.isHittable', consent)
         self.assertNotIn('CONTAINS', consent)
         self.assertNotIn('surface.buttons', consent)
 
