@@ -183,17 +183,21 @@ if sys.argv[1] == 'devices':
 elif sys.argv[1] == 'test':
     arg = next(item for item in sys.argv if item.startswith('--dart-define-from-file='))
     with open(arg.split('=', 1)[1]) as source, open(os.environ['HANDOFF_PROBE_OUTPUT'], 'w') as output:
-        json.dump(json.load(source), output)
+        values=json.load(source)
+        values['_probe_reporter']=sys.argv[sys.argv.index('--reporter')+1] if '--reporter' in sys.argv else 'default-buffered-github'
+        json.dump(values, output)
 else:
     sys.exit(2)
 """)
             flutter.chmod(0o755)
-            for target, device, expected in [('physical-device-product-e2e', 'phone', 'false'),
+            for target, device, expected in [('physical-device-auth-e2e', 'phone', 'false'),
+                                             ('physical-device-product-e2e', 'phone', 'false'),
                                              ('physical-device-product-e2e', 'macos', 'false'),
                                              ('ios-simulator-product-e2e', 'owned-sim', 'true')]:
                 with self.subTest(target=target, device=device):
                     env = os.environ.copy()
                     env.update({'PATH': str(temporary) + os.pathsep + env['PATH'],
+                                'CI': 'true', 'GITHUB_ACTIONS': 'true', 'TERM': 'dumb',
                                 'WEAVE_PHYSICAL_DEVICE_ID': device, 'WEAVE_IOS_SIMULATOR_ID': 'owned-sim',
                                 'WEAVE_NATIVE_EXPECT_SIMULATOR': 'true', 'WEAVE_NATIVE_TEST_RUN_ID': 'existing-run-id',
                                 'WEAVE_DEVICE_DISPOSABLE_STACK': 'true',
@@ -206,6 +210,7 @@ else:
                     defines = json.loads((temporary / 'defines.json').read_text())
                     self.assertEqual(defines['WEAVE_NATIVE_EXPECT_SIMULATOR'], expected)
                     self.assertEqual(defines['WEAVE_NATIVE_TEST_RUN_ID'], 'existing-run-id')
+                    self.assertEqual(defines['_probe_reporter'], 'expanded')
 
     def test_exact_executable_identity_excludes_other_apps_devices_and_arguments(self):
         app = Path('/Users/runner/Library/Developer/CoreSimulator/Devices/owned/data/Containers/Bundle/Application/app/Runner.app')
@@ -325,6 +330,19 @@ else:
         self.assertIn('line=57 category=xctest-assertion', output.getvalue())
         self.assertNotIn('raw-secret-password', output.getvalue())
         self.assertNotIn('raw-private-email', output.getvalue())
+
+    def test_flutter_failure_diagnostic_keeps_static_timeout_and_frames_only(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial',
+                'The isolated simulator driver did not attach before authentication.\n'
+                'private-member-email private-password private-token\n'
+                'package:weave/system_browser_auth_e2e_test.dart:936:3\n'
+                'package:private/private_account.dart:42:8\n', '')
+        self.assertIn('category=driver-attachment-timeout', output.getvalue())
+        self.assertIn('file=system_browser_auth_e2e_test.dart line=936', output.getvalue())
+        for value in ('private-member-email', 'private-password', 'private-token', 'private_account.dart'):
+            self.assertNotIn(value, output.getvalue())
 
     def test_browser_surface_is_guarded_without_foreground_stealing(self):
         driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()

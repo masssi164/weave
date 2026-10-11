@@ -30,6 +30,8 @@ integration-test: acceptance-feature-mapping release-spine-contract integration-
 physical-device-auth-e2e:
 	@WEAVE_NATIVE_EXPECT_SIMULATOR=false $(MAKE) native-browser-e2e
 
+# GitHub's default reporter buffers test messages until completion. Native
+# browser coordination needs live readiness markers in the private transcript.
 native-browser-e2e:
 	@set -e; \
 	device_id="$${WEAVE_PHYSICAL_DEVICE_ID:-}"; \
@@ -67,11 +69,11 @@ native-browser-e2e:
 	    product_test='one fresh sign-in makes Files Calendar and native Matrix usable'; \
 	  fi; \
 	  flutter test integration_test/system_browser_auth_e2e_test.dart \
-	    -d "$$device_id" --dart-define-from-file="$$dart_defines_file" \
+	    -d "$$device_id" --reporter expanded --dart-define-from-file="$$dart_defines_file" \
 	    --plain-name "$$product_test"; \
 	else \
 	  flutter test integration_test/system_browser_auth_e2e_test.dart \
-	    -d "$$device_id" --dart-define-from-file="$$dart_defines_file"; \
+	    -d "$$device_id" --reporter expanded --dart-define-from-file="$$dart_defines_file"; \
 	fi
 
 # This journey must start from a fresh app install against a disposable stack.

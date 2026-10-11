@@ -76,6 +76,25 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
                 print(f'IOS_DIAGNOSTIC journey={phase} {marker} supportSafe=true', flush=True)
             if len(seen) >= 40:
                 return
+    # Preserve fixed Flutter failure categories/static frames as well. Raw
+    # messages can include endpoint, account or bearer data and stay private.
+    flutter_category = None
+    if 'The isolated simulator driver did not attach before authentication.' in flutter_output:
+        flutter_category = 'driver-attachment-timeout'
+    elif 'EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK' in flutter_output:
+        flutter_category = 'flutter-test-assertion'
+    if flutter_category is not None:
+        print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} category={flutter_category} supportSafe=true', flush=True)
+        allowed_sources = {'system_browser_auth_e2e_test.dart', 'flutter_secure_store.dart',
+                           'path_provider_foundation_real.dart', 'test_config.dart'}
+        locations = set()
+        for match in re.finditer(r'([A-Za-z0-9_]+\.dart)[: ]([1-9][0-9]{0,5})', flutter_output):
+            location = (match.group(1), match.group(2))
+            if location[0] in allowed_sources and location not in locations:
+                locations.add(location)
+                print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} file={location[0]} line={location[1]} supportSafe=true', flush=True)
+            if len(locations) >= 5:
+                break
     # XCTest failure text may include typed values. Retain only the fixed
     # source filename/line and a category chosen here; never copy the message.
     failures = set()
