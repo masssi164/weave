@@ -902,6 +902,40 @@ Future<File> _nativeCheckpoint(String runId) async {
   return File('${support.path}/weave-native-acceptance-$runId.json');
 }
 
+bool _simulatorDriverAttached = false;
+
+const _simulatorBrowserDriver = bool.fromEnvironment(
+  'WEAVE_NATIVE_EXPECT_SIMULATOR',
+);
+
+bool _usesSimulatorDriver(String runId) =>
+    Platform.isIOS &&
+    _simulatorBrowserDriver &&
+    const bool.fromEnvironment('WEAVE_DEVICE_DISPOSABLE_STACK') &&
+    runId.isNotEmpty;
+
+Future<void> _waitForSimulatorDriver(WidgetTester tester, String runId) async {
+  if (!_usesSimulatorDriver(runId) || _simulatorDriverAttached) {
+    return;
+  }
+  final checkpoint = await _nativeCheckpoint(runId);
+  final barrier = File(
+    '${checkpoint.parent.path}/weave-native-driver-$runId.ready',
+  );
+  final deadline = DateTime.now().add(const Duration(minutes: 2));
+  while (DateTime.now().isBefore(deadline)) {
+    if (await barrier.exists()) {
+      await barrier.delete();
+      _simulatorDriverAttached = true;
+      debugPrint('NATIVE_PRODUCT_STAGE phase=driver-attached');
+      return;
+    }
+    await tester.pump(const Duration(milliseconds: 250));
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+  }
+  fail('The isolated simulator driver did not attach before authentication.');
+}
+
 String _expiryProbeKey(String runId) => 'native_acceptance_expiry_probe_$runId';
 
 DateTime _bearerExpiry(String token) {
@@ -1124,9 +1158,6 @@ Future<ProviderContainer> _openWeaveSession(
     ValueKey('weave.auth.sign-in'),
     ValueKey('weave.workspace.home'),
   ], timeout: const Duration(minutes: 1));
-  debugPrint(
-    'NATIVE_PRODUCT_STAGE phase=shell-ready issuerPort=${config.issuerUrl.port}',
-  );
   if (requireFreshSignIn) {
     expect(
       find.byKey(const ValueKey('weave.auth.sign-in')),
@@ -1143,15 +1174,27 @@ Future<ProviderContainer> _openWeaveSession(
           'The member session must restore without another browser sign-in.',
     );
   }
-  if (find.byKey(const ValueKey('weave.auth.sign-in')).evaluate().isNotEmpty) {
-    final signIn = find.byKey(const ValueKey('weave.auth.sign-in'));
+  final signIn = find.byKey(const ValueKey('weave.auth.sign-in'));
+  final needsSignIn = signIn.evaluate().isNotEmpty;
+  final authContainer = ProviderScope.containerOf(
+    tester.element(find.byType(WeaveApp)),
+  );
+  if (needsSignIn) {
     await tester.ensureVisible(signIn);
     await tester.pump();
     expect(tester.widget<AccessibleButton>(signIn).onPressed, isNotNull);
-    final authContainer = ProviderScope.containerOf(
-      tester.element(find.byType(WeaveApp)),
-    );
-    await tester.tap(signIn);
+  }
+  debugPrint(
+    'NATIVE_PRODUCT_STAGE phase=shell-ready issuerPort=${config.issuerUrl.port}',
+  );
+  await _waitForSimulatorDriver(tester, nativeTestRunId);
+  if (needsSignIn) {
+    // Simulator qualification delegates the real accessible control tap to
+    // XCTest after attaching to this existing process. Physical HIL and macOS
+    // retain their existing interaction; production AppAuth remains unchanged.
+    if (!_usesSimulatorDriver(nativeTestRunId)) {
+      await tester.tap(signIn);
+    }
     await tester.pump();
     final started = authContainer.read(authFlowControllerProvider);
     debugPrint(

@@ -15,6 +15,7 @@ import signal
 import re
 import subprocess
 import tempfile
+import time
 import tomllib
 from pathlib import Path
 from urllib.parse import urlparse
@@ -32,7 +33,7 @@ XCODE_VERSION = '26.5'
 XCODE_BUILD = '17F42'
 IOS_SIMULATOR_SDK_VERSION = '26.5'
 SAFE_PRODUCT_STAGES = {
-    'shell-ready', 'sign-in-tapped', 'appauth-requested', 'auth-failed',
+    'shell-ready', 'driver-attached', 'sign-in-tapped', 'appauth-requested', 'auth-failed',
     'appauth-pending', 'workspace-ready', 'files-start', 'files-passed',
     'calendar-start', 'calendar-agenda-failed', 'calendar-passed',
     'matrix-start', 'matrix-open-failed', 'matrix-admission',
@@ -42,7 +43,7 @@ SAFE_PRODUCT_STAGES = {
     'own-room-leave-denied', 'logout-denial-passed',
 }
 SAFE_BROWSER_STAGES = {
-    'driver-started', 'app-wait-started', 'app-observed', 'issuer-observed',
+    'driver-started', 'sign-in-tapped', 'app-wait-started', 'app-observed', 'issuer-observed',
     'username-submitted', 'password-submitted',
 }
 
@@ -213,6 +214,69 @@ def select_runtime() -> tuple[str, str]:
     return runtime, device
 
 
+def wait_for_flutter_shell(process, log_path: Path, phase: str, timeout: float = 900) -> None:
+    deadline = time.monotonic() + timeout
+    # A separate descriptor keeps this observer's read offset independent of
+    # the subprocess stdout offset. Seeking its shared writer would corrupt it.
+    with log_path.open() as observer:
+        tail = ''
+        while time.monotonic() < deadline:
+            observed = tail + observer.read(65536)
+            if process.poll() is not None:
+                raise NativeFailure('infrastructure', phase + '-app-start', 'integration-app-exited-before-readiness')
+            if 'NATIVE_PRODUCT_STAGE phase=shell-ready' in observed:
+                print(f'NATIVE_IOS_APP_START_RESULT status=ready phase={phase} supportSafe=true', flush=True)
+                return
+            tail = observed[-4096:]
+            time.sleep(0.25)
+    raise NativeFailure('infrastructure', phase + '-app-start', 'integration-app-ready-timeout')
+
+
+def simulator_driver_barrier(udid: str, run_id: str) -> Path:
+    if not re.fullmatch(r'[A-Za-z0-9-]+', run_id):
+        raise NativeFailure('infrastructure', 'driver-attach', 'invalid-isolated-run-id')
+    container = Path(run(['xcrun', 'simctl', 'get_app_container', udid, BUNDLE, 'data']).strip()).resolve(strict=True)
+    support = container / 'Library' / 'Application Support'
+    for directory in (support.parent, support):
+        if directory.is_symlink():
+            raise NativeFailure('infrastructure', 'driver-attach', 'unsafe-app-container-path')
+        directory.mkdir(exist_ok=True)
+    barrier = support / f'weave-native-driver-{run_id}.ready'
+    if barrier.is_symlink():
+        raise NativeFailure('infrastructure', 'driver-attach', 'unsafe-readiness-path')
+    barrier.unlink(missing_ok=True)
+    return barrier
+
+
+def simulator_app_pid(udid: str) -> str:
+    listing = run(['xcrun', 'simctl', 'spawn', udid, 'launchctl', 'list'])
+    pids = [line.split()[0] for line in listing.splitlines()
+            if f'UIKitApplication:{BUNDLE}[' in line]
+    if len(pids) != 1 or not pids[0].isdigit():
+        raise NativeFailure('infrastructure', 'driver-attach', 'integration-process-unavailable')
+    return pids[0]
+
+
+def release_driver_barrier(flutter, driver, log_path: Path, udid: str, pid: str, barrier: Path, phase: str, timeout: float = 90) -> None:
+    deadline = time.monotonic() + timeout
+    with log_path.open() as observer:
+        tail = ''
+        while time.monotonic() < deadline:
+            observed = tail + observer.read(65536)
+            if flutter.poll() is not None or driver.poll() is not None:
+                raise NativeFailure('infrastructure', phase + '-driver-attach', 'process-exited-before-attachment')
+            if 'NATIVE_IOS_BROWSER_STAGE phase=app-observed' in observed:
+                if simulator_app_pid(udid) != pid:
+                    raise NativeFailure('infrastructure', phase + '-driver-attach', 'integration-process-replaced')
+                descriptor = os.open(barrier, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                os.close(descriptor)
+                print(f'NATIVE_IOS_DRIVER_ATTACH_RESULT phase={phase} existingProcessRetained=true supportSafe=true', flush=True)
+                return
+            tail = observed[-4096:]
+            time.sleep(0.25)
+    raise NativeFailure('infrastructure', phase + '-driver-attach', 'driver-attachment-timeout')
+
+
 def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: dict[str, str], fixture: dict) -> None:
     plans = list((derived / 'Build/Products').glob('*.xctestrun'))
     bundles = list((derived / 'Build/Products').glob('**/BrowserDriver.xctest'))
@@ -226,9 +290,22 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
     with open(temporary / f'flutter-{phase}.log', 'w+') as flutter_log, open(temporary / f'browser-{phase}.log', 'w+') as browser_log:
         flutter = None
         driver = None
+        barrier = None
         try:
+            barrier = simulator_driver_barrier(udid, env['WEAVE_NATIVE_TEST_RUN_ID'])
             flutter = subprocess.Popen(['make', 'ios-simulator-product-e2e'], cwd=CLIENT, env=env, stdout=flutter_log, stderr=subprocess.STDOUT, start_new_session=True)
+            # This is a different target from the preflight app. Its compile,
+            # install and launch must complete before the authentication clock.
+            wait_for_flutter_shell(flutter, temporary / f'flutter-{phase}.log', phase)
+            # Flutter can replace its app container during installation. Resolve
+            # the actual running app after readiness, keeping stale IPC cleared.
+            actual_barrier = simulator_driver_barrier(udid, env['WEAVE_NATIVE_TEST_RUN_ID'])
+            if actual_barrier != barrier:
+                barrier.unlink(missing_ok=True)
+                barrier = actual_barrier
+            pid = simulator_app_pid(udid)
             driver = subprocess.Popen(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]), '-destination', f'platform=iOS Simulator,id={udid}', '-resultBundlePath', str(temporary / f'{phase}.xcresult'), '-parallel-testing-enabled', 'NO', '-maximum-concurrent-test-simulator-destinations', '1'], cwd=CLIENT, env=env, stdout=browser_log, stderr=subprocess.STDOUT, start_new_session=True)
+            release_driver_barrier(flutter, driver, temporary / f'browser-{phase}.log', udid, pid, barrier, phase)
             driver_status = driver.wait(timeout=420)
             if driver_status:
                 browser_log.seek(0)
@@ -283,6 +360,8 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
                 browser_log.seek(0)
                 emit_phase_stages(phase, flutter_log.read(), browser_log.read())
                 private_fixture.unlink(missing_ok=True)
+                if barrier is not None:
+                    barrier.unlink(missing_ok=True)
 
 
 def main() -> int:

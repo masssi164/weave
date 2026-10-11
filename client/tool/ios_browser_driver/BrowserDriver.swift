@@ -57,14 +57,24 @@ final class BrowserDriver: XCTestCase {
     let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
     let browser = XCUIApplication(bundleIdentifier: "com.apple.SafariViewService")
     let deadline = Date().addingTimeInterval(360)
-    // Flutter may still be compiling or installing its integration app when
-    // XCTest starts. A snapshot of an unavailable app fails immediately.
+    // The runner has observed Flutter shell readiness. Standalone XCTest must
+    // attach once to that existing process before any AppAuth UI interaction.
+    // Never launch a replacement app or activate it again during authentication.
     print("NATIVE_IOS_BROWSER_STAGE phase=app-wait-started")
+    app.activate()
     guard Self.waitForRunningApplication(state: { app.state }, deadline: deadline) else {
       XCTFail("Target application did not start within its bounded deadline")
       return
     }
     print("NATIVE_IOS_BROWSER_STAGE phase=app-observed")
+    if fixture.phase == "initial" {
+      let signIn = app.buttons["Sign in"]
+      XCTAssertTrue(signIn.waitForExistence(timeout: 30), "Expected native Sign in control")
+      XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == 'Sign in'")).count, 1)
+      XCTAssertTrue(signIn.isHittable, "Native Sign in control must be accessible")
+      signIn.tap()
+      print("NATIVE_IOS_BROWSER_STAGE phase=sign-in-tapped")
+    }
     var usernameSubmitted = false
     while Date() < deadline {
       // Do not steal foreground focus from the production authentication
