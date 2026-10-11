@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -62,6 +63,12 @@ void main() {
   // its semantics-handle baseline. Keep semantics enabled from the outset so
   // the platform-owned handle is included without masking later leaks.
   binding.platformDispatcher.semanticsEnabledTestValue = true;
+  // Flutter's test dispatcher does not forward setSemanticsTreeEnabled. Enable
+  // the real engine publication as well so native accessibility sees the tree.
+  ui.PlatformDispatcher.instance.setSemanticsTreeEnabled(true);
+  // Native XCTest and physical-device interactions must reach the production
+  // controls instead of being dropped by the widget test binding.
+  binding.shouldPropagateDevicePointerEvents = true;
 
   const enabled = bool.fromEnvironment('WEAVE_SYSTEM_BROWSER_AUTH_E2E');
   const matrixEnabled = bool.fromEnvironment('WEAVE_MEMBER_MATRIX_E2E');

@@ -17,6 +17,30 @@ import run_native_qualification as qualification
 
 
 class NativeQualificationTest(unittest.TestCase):
+    def test_native_sign_in_selector_matches_supported_product_resources(self):
+        client = Path(__file__).resolve().parents[1]
+        labels = [json.loads((client / f'lib/l10n/app_{locale}.arb').read_text())['signInButton']
+                  for locale in ('en', 'de')]
+        driver = (client / 'tool/ios_browser_driver/BrowserDriver.swift').read_text()
+        self.assertIn('static let signInLabels = ' + json.dumps(labels), driver)
+        self.assertIn('NSPredicate(format: "label IN %@", Self.signInLabels)', driver)
+        self.assertIn('XCTAssertEqual(signInControls.count, 1)', driver)
+        self.assertIn('XCTAssertTrue(signIn.isHittable', driver)
+        self.assertNotIn('label CONTAINS', driver.split('if fixture.phase == "initial" {', 1)[1].split('var usernameSubmitted', 1)[0])
+
+    def test_consent_requires_global_uniqueness_before_any_native_tap(self):
+        driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
+        consent = driver.split('let appConsent = ', 1)[1].split('if fixture.phase == "restore"', 1)[0]
+        self.assertIn('static let consentLabels = ["Continue", "Fortfahren"]', driver)
+        for surface in ('app', 'springboard'):
+            self.assertIn(f'{surface}.alerts.buttons.matching(NSPredicate(format: "label IN %@", Self.consentLabels))', consent)
+        self.assertIn('Self.uniqueConsentSurface(appCount: appCount, springboardCount: systemCount)', consent)
+        self.assertLess(consent.index('guard let surface'), consent.index('consent.tap()'))
+        self.assertIn('XCTFail("Expected one native authentication consent control across both surfaces")', consent)
+        self.assertIn('if consent.isHittable', consent)
+        self.assertNotIn('CONTAINS', consent)
+        self.assertNotIn('surface.buttons', consent)
+
     def test_runtime_must_be_available_and_apple_silicon(self):
         for entry in [
             {'identifier': ios.RUNTIME, 'isAvailable': False, 'supportedArchitectures': ['arm64']},

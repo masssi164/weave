@@ -16,6 +16,26 @@ void main() {
     }
   });
 
+  test('native accessibility publication precedes live widget tests', () {
+    final source = File(
+      'integration_test/system_browser_auth_e2e_test.dart',
+    ).readAsStringSync();
+    final frameworkBaseline = source.indexOf(
+      'binding.platformDispatcher.semanticsEnabledTestValue = true;',
+    );
+    final enginePublication = source.indexOf(
+      'ui.PlatformDispatcher.instance.setSemanticsTreeEnabled(true);',
+    );
+    expect(frameworkBaseline, greaterThanOrEqualTo(0));
+    expect(enginePublication, greaterThan(frameworkBaseline));
+    expect(enginePublication, lessThan(source.indexOf('testWidgets(')));
+    final nativeInput = source.indexOf(
+      'binding.shouldPropagateDevicePointerEvents = true;',
+    );
+    expect(nativeInput, greaterThan(enginePublication));
+    expect(nativeInput, lessThan(source.indexOf('testWidgets(')));
+  });
+
   test('physical auth proof uses production AppAuth and no credentials', () {
     final testSource = File(
       'integration_test/system_browser_auth_e2e_test.dart',
