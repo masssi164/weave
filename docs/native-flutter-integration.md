@@ -128,6 +128,31 @@ a live or inaccessible group still fails cleanup. Focused protocol and real
 completed-parent/orphan-child cleanup probes do not replace a new full native
 and integrated qualification run.
 
+### Local lifecycle correction result, 2026-10-11
+
+Exact source `9d564ad98c9485e420c06e5a7c1ebecfb325a706` passed the documented
+`specCorpusConformance testApp` command in 17m 10s overall (14m 9s inner), with
+pinned specifications `c726993168651f1109259f9a80cc23117d24a37f` and the recorded
+macOS, Flutter, IdP and OpenClaw versions. Both native processes passed real
+browser PKCE, generated Files upload/read and Calendar CRUD, native Matrix
+business-room send/read, refresh, app-state restoration, Server/Keycloak/
+PostgreSQL and application restart, actual bearer expiry with fresh controls,
+room-access removal, explicit logout and retained User/Matrix bearer denial.
+Real Admin revocation, foreign-organization denial and OpenClaw MCP/Matrix
+assertions passed. No owner interaction was required.
+
+Product JSON SHA-256:
+`b17b15ada3f15e96c342fd65e9276309624ad4e9c2ec73435a3a45edb8d2fde4`;
+teardown SHA-256:
+`c54f81479af3a70fa9827dac74163a87deaf07297c9980469c39030adaf9233d`.
+Teardown verified zero remaining owned containers, networks, volumes or other
+resources. The normal Accessibility submission path and in-driver password
+prompt dismissal executed. This run did not exercise the early-sheet retry,
+targeted Return fallback or bounded fast-exit driver-drain branch. The earlier
+failed CI run exercised early-sheet dismissal, but remains failed overall.
+This successful local source is not evidence for a later source, unattended CI,
+iOS/Android, full E2EE or human dogfood acceptance.
+
 ### Password submission diagnosis on integrated dev
 
 [Full Compose run 38093547541](https://github.com/masssi164/weave/actions/runs/38093547541)
