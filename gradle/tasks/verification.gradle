@@ -106,10 +106,11 @@ tasks.register('devCiImpactTest', Exec) {
     group = 'verification'
     description = 'Verify fail-closed deterministic gate and consumer selection.'
     workingDir rootProject.projectDir
-    commandLine 'python3', '-m', 'unittest', 'tools.test_dev_ci_impact', '-v'
+    commandLine 'python3', '-m', 'unittest', 'tools.test_dev_ci_impact', 'tools.test_project_delivery_projection', '-v'
     inputs.files('tools/dev_ci_impact.py', 'tools/dev_ci_results.py',
             'tools/test_dev_ci_impact.py', '.github/workflows/ci.yml', 'gradle/tasks/verification.gradle',
-            'client/tool/acceptance_contract.dart')
+            'client/tool/acceptance_contract.dart', 'tools/sprint_bootstrap.py',
+            'tools/test_project_delivery_projection.py', 'tools/verify_main_promotion_evidence.py')
     inputs.property('pythonVersion', providers.exec {
         commandLine 'python3', '--version'
     }.standardOutput.asText)

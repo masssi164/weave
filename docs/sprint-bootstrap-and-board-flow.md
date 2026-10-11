@@ -127,3 +127,39 @@ If a PR is green but not merged, the issue is not done.
 3. All linked PRs are merged or blocked with exact evidence.
 4. `origin/main` contains the closure report.
 5. Final CI/evidence gates are green or a product-owner blocker is recorded.
+
+## Inspected Project #2 and evidence projection
+
+On 2026-10-11, authenticated API inspection found the private, open Weave Delivery Board, owned and created by `masssi164`, linked to `masssi164/weave`, with one view, 442 items and 13 original fields. The authenticated account can update the Project. Existing `Status` options are `Todo`, `In Progress`, and `Done`; their IDs and all existing item values were preserved. `Todo` is semantically To Do for issue planning; `Done` remains issue completion, never inferred candidate acceptance.
+
+Seven existing built-in workflows are enabled: Auto-add sub-issues to project (4), Auto-add to project (7), Auto-close issue (3), Item added to project (6), Item closed (1), Pull request linked to issue (5), and Pull request merged (2). GraphQL exposes their names/enabled state but not their filter/action configuration. No hidden settings or effects were assumed or modified.
+
+A separate single-select `Delivery stage` field was created after inspecting that model. It projects explicitly associated work, independently of coarse issue Status and those built-in automations. No bulk mapping was performed.
+
+| Logical stage | Delivery stage option ID | Evidence meaning |
+| --- | --- | --- |
+| Open | `391fa4c6` | Explicit planning projection on associated open work. |
+| To Do | `d3adbb25` | Explicit planned work; existing issue `Todo` remains unchanged. |
+| In Progress | `708a5be1` | Associated source is contained in the named candidate and its PR is open. |
+| Review | `2740f980` | Associated PR is open and no longer draft. |
+| E2E Testing | `6e788545` | Exact protected Dogfood automated testing started; this does not imply a pass. |
+| HIL | `b63d9800` | Existing verifier accepts mandatory automated qualification, exact deployment, and same-attempt physical preparation. |
+| Main | `20596cc0` | Explicit owner human acceptance and an actual merged promotion in protected Main, with matching qualified source tree/specification. |
+
+Field ID: `PVTSSF_lAHOBbjTms4BZPgzzhlMg6w`. IDs are inspection evidence, not hardcoded automation inputs. The existing `tools/sprint_bootstrap.py` resolves fields, options, membership and exact item values anew on every invocation. It reuses `verify_main_promotion_evidence.py` for qualification, deployment, physical preparation and human evidence; no second evidence manifest or deployment authority exists.
+
+Dry run is the default:
+
+```sh
+python3 tools/sprint_bootstrap.py --delivery-stage HIL \
+  --item-url https://github.com/masssi164/weave/issues/1564 \
+  --association-pr 1563 --candidate-sha <exact-protected-dogfood-sha>
+```
+
+Add `--apply` only to project that verified observation onto one existing item. Main additionally requires `--promotion-pr <merged-main-promotion-pr>`. Associations use PR closing references, or an explicit same-repository PR body reference plus the actual issue cross-reference timeline. They never add closing keywords merely to qualify an association. Source containment is verified. Missing credentials, permissions, membership, options, graph association, or mandatory evidence fails before mutation. Apply rechecks evidence at the write boundary, and repeated verified same-stage writes are idempotent.
+
+The output records the exact candidate/tree/spec and qualification/preparation identities as an operational audit result. A board value alone never proves current readiness; reverify the exact candidate when acting on it. This command does not deploy, install, accept human results, close issues, or merge PRs. It preserves both GitHub's protected gates and the explicit human action boundary.
+
+Regression gate: `python3 -m unittest tools.test_project_delivery_projection -v`.
+
+Executed on 2026-10-11: all eleven projection regressions and fourteen impact regressions passed; `devCiImpactTest`, `coreDocsCheck` and strict `docsCheck` passed. A live dry run verified #1564 ↔ PR #1563 for candidate `7ce75d78dc71f6448d6f8b8acb1b6c6ef5316ea1`, tree `28a819d746a41579bf38d164ee2133d3aabeeb2d`, corpus `b02bd60620b1a0a7585756798ba5330155fc0ee2`. Only #1564's new Delivery stage was then set to In Progress; repeating the exact operation read In Progress and reported `changed=false`. Existing Status remained Todo. No Review, E2E, HIL or Main success was inferred, and no other item was mapped.
