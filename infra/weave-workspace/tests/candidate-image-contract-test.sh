@@ -11,6 +11,7 @@ readonly MCP_IMAGE="${REPOSITORY_ROOT}/weave-mcp-server/Dockerfile"
 readonly KEYCLOAK_RUNTIME_IMAGE="${REPOSITORY_ROOT}/infra/weave-workspace/keycloak/Dockerfile.runtime"
 readonly WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
 readonly CI_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/ci.yml"
+readonly LABEL_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/release-notes-label.yml"
 readonly HUMAN_TESTING_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/human-testing-readiness.yml"
 readonly LIVE_STACK_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/live-stack-e2e.yml"
 readonly MAIN_PROMOTION_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/main-promotion-gate.yml"
@@ -123,15 +124,20 @@ contains "${REALM_EVIDENCE}" 'manifest.get("schemaVersion") != "weave.compose-re
 contains "${REALM_EVIDENCE}" 'manifest.get("deploymentArtifacts")'
 contains "${REALM_EVIDENCE}" '"realmArtifacts" in manifest'
 
-# Current Core CI separates label-only runs without shadowing protected checks,
-# and requires every real consumer job on the full candidate.
-# The retired monolithic 60-minute lane is recorded in workflow-disposition.md.
-contains "${CI_WORKFLOW}" 'group: core-ci-${{ github.event.pull_request.number || github.ref }}-'
-contains "${CI_WORKFLOW}" "&& 'labels' || 'core'"
+# Label events have their own sole authority and cannot replace the protected Core suite.
+# Every Core aggregate validates the real selected results under its constant check name.
+contains "${CI_WORKFLOW}" 'group: core-ci-${{ github.event.pull_request.number || github.ref }}'
 contains "${CI_WORKFLOW}" 'cancel-in-progress: true'
-contains "${CI_WORKFLOW}" "github.event.action != 'labeled'"
-contains "${CI_WORKFLOW}" "github.event.action != 'unlabeled'"
-contains "${CI_WORKFLOW}" "'Label-only aggregate (skipped)' || 'Gradle CI'"
+reject "${CI_WORKFLOW}" '- labeled'
+reject "${CI_WORKFLOW}" '- unlabeled'
+reject "${CI_WORKFLOW}" 'github.event.action'
+contains "${CI_WORKFLOW}" 'name: Gradle CI'
+contains "${CI_WORKFLOW}" 'if: always()'
+reject "${CI_WORKFLOW}" 'name: Release Notes Label Check'
+contains "${LABEL_WORKFLOW}" 'name: Release Notes Label Check'
+contains "${LABEL_WORKFLOW}" '- labeled'
+contains "${LABEL_WORKFLOW}" '- unlabeled'
+contains "${LABEL_WORKFLOW}" 'releaseNotesLabelCheck'
 contains "${CI_WORKFLOW}" '- ready_for_review'
 contains "${CI_WORKFLOW}" 'name: Generated User API consumers'
 contains "${CI_WORKFLOW}" 'name: Generated Admin API consumers'

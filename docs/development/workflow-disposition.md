@@ -28,7 +28,7 @@ The `Gradle CI` aggregate succeeds only when the real architecture, canonical da
 PostgreSQL persistence, Server regression, MCP foundation, documentation and generated API
 consumer jobs succeed. A cancelled or skipped required job fails the aggregate.
 
-The `Release Notes Label Check` remains required by the current protected workflow.
+The `Release Notes Label Check` remains required and is owned solely by `release-notes-label.yml`. Core CI does not subscribe to label events and always emits the constant `Gradle CI` aggregate. This repairs a verified Dogfood promotion failure: PR #1568 had a successful `Gradle CI` in check suite `103341680838` on commit `93e2bbd7fbd7d13838ca4f979df38b18bfe78182`, but a later label-only Core suite `103341681909` emitted a literal unevaluated dynamic aggregate name and omitted `Gradle CI`. The protected REST merge returned HTTP 405 with “Required status check Gradle CI expected” despite the completed full run. Separating event ownership preserves the existing validator and required-check identities without protection changes or a successful substitute for skipped verification. The label workflow retains the previous PR-only validation condition for merge-group events.
 
 ## Dated retirement records and historical optional-core classification
 
