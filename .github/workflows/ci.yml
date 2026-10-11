@@ -11,8 +11,6 @@ on:
       - synchronize
       - reopened
       - ready_for_review
-      - labeled
-      - unlabeled
   merge_group:
   workflow_dispatch:
 
@@ -21,14 +19,14 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: core-ci-${{ github.event.pull_request.number || github.ref }}-${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && 'labels' || 'core' }}
+  group: core-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   core_architecture:
     name: Core architecture
     needs: api_impact
-    if: needs.api_impact.outputs.backend == 'true' && (github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled'))
+    if: needs.api_impact.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -42,7 +40,7 @@ jobs:
   postgres_persistence:
     name: PostgreSQL persistence
     needs: api_impact
-    if: needs.api_impact.outputs.backend == 'true' && (github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled'))
+    if: needs.api_impact.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -56,7 +54,7 @@ jobs:
   protocol_foundation:
     name: Server protocol foundation
     needs: api_impact
-    if: needs.api_impact.outputs.backend == 'true' && (github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled'))
+    if: needs.api_impact.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -76,7 +74,6 @@ jobs:
 
   core_docs:
     name: Core documentation
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -95,7 +92,6 @@ jobs:
 
   api_contract:
     name: API contract freshness
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -121,7 +117,6 @@ jobs:
     name: Deterministic gate impact
     # Stale code-first exports fail before downstream impact selection.
     needs: api_contract
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -284,7 +279,6 @@ jobs:
 
   spec_acceptance:
     name: Specification and acceptance conformance
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -317,9 +311,9 @@ jobs:
           ./gradlew --no-daemon --stacktrace specCorpusConformance acceptanceContract devCiImpactTest workflowActionRuntimeCheck
 
   gradle_ci:
-    # Label events cannot overwrite the protected exact-head aggregate.
-    name: ${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && 'Label-only aggregate (skipped)' || 'Gradle CI' }}
-    if: always() && (github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled'))
+    # Every Core run emits the same protected check and validates its selected results.
+    name: Gradle CI
+    if: always()
     needs: [core_architecture, postgres_persistence, protocol_foundation, core_docs, api_contract, api_impact, spec_acceptance, generated_user_api, generated_admin_api, client_deterministic, admin_deterministic, infra_static, docs_deterministic, rust_deterministic]
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -329,22 +323,3 @@ jobs:
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
         run: python3 tools/dev_ci_results.py
-
-  release_notes_label_check:
-    name: Release Notes Label Check
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
-        with:
-          distribution: temurin
-          java-version: '21'
-      - name: Validate temporary release-notes label context
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          labels_json="$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name]')"
-          PR_LABELS_JSON="$labels_json" ./gradlew --no-daemon releaseNotesLabelCheck

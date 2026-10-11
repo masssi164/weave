@@ -108,9 +108,11 @@ tasks.register('devCiImpactTest', Exec) {
     workingDir rootProject.projectDir
     commandLine 'python3', '-m', 'unittest', 'tools.test_dev_ci_impact', 'tools.test_project_delivery_projection', '-v'
     inputs.files('tools/dev_ci_impact.py', 'tools/dev_ci_results.py',
-            'tools/test_dev_ci_impact.py', '.github/workflows/ci.yml', 'gradle/tasks/verification.gradle',
+            'tools/test_dev_ci_impact.py', 'gradle/tasks/verification.gradle',
             'client/tool/acceptance_contract.dart', 'tools/sprint_bootstrap.py',
             'tools/test_project_delivery_projection.py', 'tools/verify_main_promotion_evidence.py')
+    // Sole protected-check ownership scans every workflow, including future additions.
+    inputs.files(fileTree('.github/workflows') { include '*.yml', '*.yaml' })
     inputs.property('pythonVersion', providers.exec {
         commandLine 'python3', '--version'
     }.standardOutput.asText)

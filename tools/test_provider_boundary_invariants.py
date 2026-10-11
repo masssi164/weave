@@ -119,7 +119,7 @@ class ProviderBoundaryTest(unittest.TestCase):
         self.assertIn('name: Provider boundary invariants', block)
         self.assertIn('python3 tools/provider_boundary_invariants.py', block)
         self.assertNotIn('outputs.backend', block)
-        self.assertIn("github.event.action != 'labeled'", block)
+        self.assertNotIn("github.event.action", block)
 
 
 if __name__ == '__main__':

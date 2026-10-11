@@ -157,8 +157,39 @@ class ImpactTest(unittest.TestCase):
             block = re.search(rf'(?ms)^  {job}:\n.*?(?=^  [a-z_]+:|\Z)', workflow).group()
             self.assertIn('    needs: api_impact', block)
             self.assertIn("if: needs.api_impact.outputs.backend == 'true'", block)
-            self.assertIn("github.event.action != 'labeled'", block)
+            self.assertNotIn("github.event.action", block)
         self.assertIn('backend: ${{ steps.impact.outputs.backend }}', workflow)
+
+    def test_label_events_cannot_shadow_the_protected_core_suite(self):
+        root = Path(__file__).resolve().parents[1]
+        core = (root / '.github/workflows/ci.yml').read_text()
+        labels = (root / '.github/workflows/release-notes-label.yml').read_text()
+        core_events = core.split('on:\n', 1)[1].split('\npermissions:', 1)[0]
+        self.assertNotIn('- labeled', core_events)
+        self.assertNotIn('- unlabeled', core_events)
+        self.assertIn('merge_group:', core_events)
+        self.assertNotIn('github.event.action', core)
+        self.assertNotIn('Label-only', core)
+        aggregate = re.search(r'(?ms)^  gradle_ci:\n.*?(?=^  [a-z_]+:|\Z)', core).group()
+        self.assertIn('    name: Gradle CI\n', aggregate)
+        self.assertIn('    if: always()\n', aggregate)
+        self.assertIn('NEEDS_JSON: ${{ toJSON(needs) }}', aggregate)
+        self.assertIn('run: python3 tools/dev_ci_results.py', aggregate)
+        for job in (*results.REQUIRED, *results.BACKEND, *results.SELECTED.values()):
+            self.assertIn(job, aggregate)
+        owners = [path.name for path in (root / '.github/workflows').glob('*.y*ml')
+                  for _ in re.finditer(r'^    name: Release Notes Label Check$', path.read_text(), re.MULTILINE)]
+        self.assertEqual(owners, ['release-notes-label.yml'])
+        for event in ('opened', 'synchronize', 'reopened', 'ready_for_review', 'labeled', 'unlabeled'):
+            self.assertIn('      - ' + event + '\n', labels)
+        self.assertIn('  merge_group:\n', labels)
+        self.assertIn("    if: github.event_name == 'pull_request'\n", labels)
+        self.assertIn('PR_LABELS_JSON="$labels_json" ./gradlew --no-daemon releaseNotesLabelCheck', labels)
+        self.assertIn('release-notes-labels-${{', labels)
+        self.assertIn('group: core-ci-${{', core)
+        self.assertNotIn('pull_request_target', labels)
+        gradle = (root / 'gradle/tasks/verification.gradle').read_text()
+        self.assertIn("inputs.files(fileTree('.github/workflows') { include '*.yml', '*.yaml' })", gradle)
 
     def test_workflow_runs_freshness_before_selection_and_boundary_separately(self):
         root = Path(__file__).resolve().parents[1]
@@ -169,7 +200,7 @@ class ImpactTest(unittest.TestCase):
         self.assertIn("tasks.named('clientDeterministicCi') {\n    dependsOn 'clientOpenApiDriftPrevention', 'nativeQualificationContractTest'", gradle)
         self.assertNotIn('needs: core_architecture', workflow)
         self.assertNotIn('testApp', workflow)
-        self.assertIn("'Label-only aggregate (skipped)' || 'Gradle CI'", workflow)
+        self.assertIn("    name: Gradle CI\n    if: always()\n", workflow)
 
 
 if __name__ == '__main__':
