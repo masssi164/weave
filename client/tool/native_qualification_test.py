@@ -41,6 +41,39 @@ class NativeQualificationTest(unittest.TestCase):
         self.assertNotIn('CONTAINS', consent)
         self.assertNotIn('surface.buttons', consent)
 
+    def test_provider_fields_and_submit_share_verified_leaf_scope(self):
+        driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
+        provider = driver.split('for surface in [app, browser] {', 1)[1]
+        self.assertLess(provider.index('guard host.count > 0'), provider.index('let webViews'))
+        self.assertIn('guard leaves.count == 1 else', provider)
+        self.assertIn('let fields = provider.textFields', provider)
+        self.assertIn('let passwords = provider.secureTextFields', provider)
+        self.assertEqual(provider.count('let submit = provider.buttons.matching'), 2)
+        self.assertEqual(provider.count('XCTAssertEqual(submit.count, 1'), 2)
+        self.assertEqual(provider.count('XCTAssertTrue(submit.element.isHittable'), 2)
+        self.assertNotIn('let submit = surface.buttons', provider)
+        username_transition = provider.split('phase=username-submitted', 1)[1].split('let passwords', 1)[0]
+        self.assertIn('continue', username_transition)
+        self.assertIn('static let providerSubmitLabels = ["Sign In", "Anmelden"]', driver)
+
+    def test_provider_diagnostics_reject_private_or_unbounded_payloads(self):
+        safe = ('NATIVE_IOS_PROVIDER_CONTROLS phase=username leafWebViews=1 '
+                'usernameFields=1 passwordFields=0 submitButtons=2')
+        unsafe = [safe + ' account=private-account', safe.replace('phase=username', 'phase=private-account'),
+                  safe.replace('submitButtons=2', 'submitButtons=private-password'),
+                  safe.replace('leafWebViews=1', 'leafWebViews=1234')]
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', '', '\n'.join([safe, safe, *unsafe]))
+        self.assertEqual(output.getvalue().count('IOS_PROVIDER_DIAGNOSTIC'), 1)
+        self.assertIn('submitButtons=2 supportSafe=true', output.getvalue())
+        for private in ('private-account', 'private-password', '1234'):
+            self.assertNotIn(private, output.getvalue())
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('private-journey', '', safe)
+        self.assertEqual(output.getvalue(), '')
+
     def test_runtime_must_be_available_and_apple_silicon(self):
         for entry in [
             {'identifier': ios.RUNTIME, 'isAvailable': False, 'supportedArchitectures': ['arm64']},

@@ -4,6 +4,21 @@ final class BrowserDriver: XCTestCase {
   // Exact supported product labels; the owned simulator can inherit either locale.
   static let signInLabels = ["Sign In", "Anmelden"]
   static let consentLabels = ["Continue", "Fortfahren"]
+  // Pinned Keycloak 26.7.1 doLogIn labels, independent of product/OS labels.
+  static let providerSubmitLabels = ["Sign In", "Anmelden"]
+  static func providerLeafIndices(childWebViews: [Int], formFields: [Int]) -> [Int] {
+    guard childWebViews.count == formFields.count else { return [] }
+    return childWebViews.indices.filter { childWebViews[$0] == 0 && formFields[$0] > 0 }
+  }
+
+  func testProviderScopeRejectsMissingAndAmbiguousForms() {
+    // Three nested wrappers describe one provider form, not three providers.
+    XCTAssertEqual(Self.providerLeafIndices(childWebViews: [2, 1, 0], formFields: [1, 1, 1]), [2])
+    XCTAssertTrue(Self.providerLeafIndices(childWebViews: [], formFields: []).isEmpty)
+    XCTAssertTrue(Self.providerLeafIndices(childWebViews: [0], formFields: [0]).isEmpty)
+    XCTAssertEqual(Self.providerLeafIndices(childWebViews: [0, 0], formFields: [1, 1]).count, 2)
+    XCTAssertTrue(Self.providerLeafIndices(childWebViews: [0], formFields: []).isEmpty)
+  }
   static func uniqueConsentSurface(appCount: Int, springboardCount: Int) -> Int? {
     if appCount == 1 && springboardCount == 0 { return 0 }
     if appCount == 0 && springboardCount == 1 { return 1 }
@@ -129,22 +144,50 @@ final class BrowserDriver: XCTestCase {
           let host = surface.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", fixture.issuerHost, fixture.issuerHost))
           guard host.count > 0 else { continue }
           print("NATIVE_IOS_BROWSER_STAGE phase=issuer-observed")
-          let fields = surface.textFields.matching(NSPredicate(format: "label CONTAINS[c] 'email' OR label CONTAINS[c] 'username' OR identifier == 'username'"))
+          // AppAuth exposes nested web-view wrappers plus the underlying Weave
+          // controls on the app surface. Scope both fields and submit to one leaf
+          // form in this already issuer-verified surface; never choose a first match.
+          let webViews = surface.webViews
+          let leaves = Self.providerLeafIndices(
+            childWebViews: (0..<webViews.count).map { webViews.element(boundBy: $0).webViews.count },
+            formFields: (0..<webViews.count).map {
+              let web = webViews.element(boundBy: $0)
+              return web.textFields.count + web.secureTextFields.count
+            }
+          )
+          if leaves.isEmpty {
+            print("NATIVE_IOS_PROVIDER_CONTROLS phase=content leafWebViews=0 usernameFields=0 passwordFields=0 submitButtons=0")
+            continue
+          }
+          guard leaves.count == 1 else {
+            print("NATIVE_IOS_PROVIDER_CONTROLS phase=content leafWebViews=\(leaves.count) usernameFields=0 passwordFields=0 submitButtons=0")
+            XCTFail("Expected one identity-provider leaf form in the verified issuer surface")
+            return
+          }
+          let provider = webViews.element(boundBy: leaves[0])
+          let fields = provider.textFields.matching(NSPredicate(format: "label CONTAINS[c] 'email' OR label CONTAINS[c] 'username' OR identifier == 'username'"))
           if !usernameSubmitted && fields.count == 1 && fields.element.isHittable {
             fields.element.tap()
             fields.element.typeText(fixture.email)
-            let submit = surface.buttons.matching(NSPredicate(format: "label IN {'Sign In', 'Log in', 'Anmelden'}"))
+            let submit = provider.buttons.matching(NSPredicate(format: "label IN %@", Self.providerSubmitLabels))
+            print("NATIVE_IOS_PROVIDER_CONTROLS phase=username leafWebViews=\(leaves.count) usernameFields=\(fields.count) passwordFields=\(provider.secureTextFields.count) submitButtons=\(submit.count)")
             XCTAssertEqual(submit.count, 1, "Expected one identity-provider submit control")
+            XCTAssertTrue(submit.element.isHittable, "Identity-provider submit control must be accessible")
             submit.element.tap()
             usernameSubmitted = true
             print("NATIVE_IOS_BROWSER_STAGE phase=username-submitted")
+            // Keycloak can replace the form after its identity-first step.
+            // Re-verify the issuer and derive a fresh leaf before password input.
+            continue
           }
-          let passwords = surface.secureTextFields
+          let passwords = provider.secureTextFields
           if usernameSubmitted && passwords.count == 1 && passwords.element.isHittable {
             passwords.element.tap()
             passwords.element.typeText(fixture.password)
-            let submit = surface.buttons.matching(NSPredicate(format: "label IN {'Sign In', 'Log in', 'Anmelden'}"))
+            let submit = provider.buttons.matching(NSPredicate(format: "label IN %@", Self.providerSubmitLabels))
+            print("NATIVE_IOS_PROVIDER_CONTROLS phase=password leafWebViews=\(leaves.count) usernameFields=\(fields.count) passwordFields=\(passwords.count) submitButtons=\(submit.count)")
             XCTAssertEqual(submit.count, 1, "Expected one identity-provider submit control")
+            XCTAssertTrue(submit.element.isHittable, "Identity-provider submit control must be accessible")
             submit.element.tap()
             print("NATIVE_IOS_BROWSER_STAGE phase=password-submitted")
             print("NATIVE_IOS_BROWSER_RESULT status=passed phase=form-submitted")
