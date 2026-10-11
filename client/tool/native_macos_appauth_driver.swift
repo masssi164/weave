@@ -406,7 +406,13 @@ func submitPassword(_ input: AXUIElement, in surface: AuthSurface) {
     // Re-resolve the exact disposable IdP window, focus its password field,
     // and send Return only to that Safari process. Never treat AX success as
     // proof of navigation or of the native AppAuth callback.
-    if let current = issuerWindow(),
+    let promptDismissed = dismissSafariPasswordPrompt(issuerAuthority: fixture.issuerAuthority)
+    if promptDismissed {
+      // The password sheet can retain the old page in AX after submission.
+      // Dismiss it without saving credentials and await the real callback;
+      // do not send Return to the stale form behind that sheet.
+      print("NATIVE_SAFARI_PASSWORD_PROMPT_RESULT status=dismissed")
+    } else if let current = issuerWindow(),
        let password = field(in: current.elements, stage: "password") {
       guard let safari = NSRunningApplication(processIdentifier: current.safariPID),
           safari.bundleIdentifier == "com.apple.Safari",

@@ -94,6 +94,17 @@ acceptance evidence and window closure is not the completion oracle. Neither
 a button-action return code nor browser navigation alone establishes native
 acceptance. No credentials or callback values enter public diagnostics.
 
+A later exact-head CI attempt on `c1e54ccb530e15bd30ad1ad8a72998f3657f4b2b`
+([Full Compose attempt 2](https://github.com/masssi164/weave/actions/runs/38098117692))
+failed at `password-targeted-submit` and is excluded from acceptance. Signing,
+app launch, consent and username entry passed. Read-only inspection after the
+failure found Safari's password-saving sheet focused. The retained password
+form behind that sheet is not an actionable retry target. The driver now
+attempts the existing exact-issuer prompt dismissal before any targeted Return,
+never saves credentials, and still requires the actual Flutter workspace
+assertion. This correction requires its own native and integrated execution;
+the earlier local pass is not evidence for this newer source.
+
 The documented disposable `specCorpusConformance testApp` command, with
 `--max-workers=2`, passed in 14m 59s overall (12m 4s for the inner product
 task) on exact source `6f974dff7356bc78a9d1376e929988e9f86e8696` and
