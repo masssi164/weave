@@ -1,6 +1,8 @@
 import XCTest
 
 final class BrowserDriver: XCTestCase {
+  // Exact supported product labels; the owned simulator can inherit either locale.
+  static let signInLabels = ["Sign In", "Anmelden"]
   static func waitForRunningApplication(
     state: () -> XCUIApplication.State,
     deadline: Date,
@@ -68,9 +70,10 @@ final class BrowserDriver: XCTestCase {
     }
     print("NATIVE_IOS_BROWSER_STAGE phase=app-observed")
     if fixture.phase == "initial" {
-      let signIn = app.buttons["Sign in"]
+      let signInControls = app.buttons.matching(NSPredicate(format: "label IN %@", Self.signInLabels))
+      let signIn = signInControls.element
       XCTAssertTrue(signIn.waitForExistence(timeout: 30), "Expected native Sign in control")
-      XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == 'Sign in'")).count, 1)
+      XCTAssertEqual(signInControls.count, 1)
       XCTAssertTrue(signIn.isHittable, "Native Sign in control must be accessible")
       signIn.tap()
       print("NATIVE_IOS_BROWSER_STAGE phase=sign-in-tapped")
@@ -91,7 +94,7 @@ final class BrowserDriver: XCTestCase {
       if fixture.phase == "restore" {
         // Logout must return through the production session, without a token
         // or callback injected by this driver.
-        if app.staticTexts["Sign in"].exists || app.buttons["Sign in"].exists {
+        if app.buttons.matching(NSPredicate(format: "label IN %@", Self.signInLabels)).count == 1 {
           print("NATIVE_IOS_BROWSER_RESULT status=passed phase=logout")
           return
         }

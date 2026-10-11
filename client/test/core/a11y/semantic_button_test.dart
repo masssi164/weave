@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
@@ -19,6 +21,29 @@ void main() {
 
       final semantics = tester.getSemantics(find.byType(AccessibleButton));
       expect(semantics.label, 'Test Action');
+    });
+
+    testWidgets('exposes one enabled native Sign In action', (tester) async {
+      var activations = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AccessibleButton(
+              onPressed: () => activations++,
+              semanticLabel: 'Sign In',
+              child: const Text('Sign In'),
+            ),
+          ),
+        ),
+      );
+      final node = tester.getSemantics(find.byType(AccessibleButton));
+      expect(node.label, 'Sign In');
+      expect(node.flagsCollection.isButton, isTrue);
+      expect(node.flagsCollection.isEnabled, ui.Tristate.isTrue);
+      expect(node.getSemanticsData().hasAction(ui.SemanticsAction.tap), isTrue);
+      node.owner!.performAction(node.id, ui.SemanticsAction.tap);
+      await tester.pump();
+      expect(activations, 1);
     });
 
     testWidgets('enforces minimum tap target of 48x48', (tester) async {
