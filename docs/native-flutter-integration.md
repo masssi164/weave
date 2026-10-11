@@ -106,6 +106,28 @@ Focused safety tests cover absent runs, missing proof, unexpected resources,
 foreign image provenance and in-use images; these are cleanup tests, not native
 product acceptance evidence.
 
+### Prompt cleanup after fast native completion
+
+Full run [38102270888](https://github.com/masssi164/weave/actions/runs/38102270888)
+on `b6a533032fa7703d3d891aade5a3fa5803678a46` passed signing, launch, real PKCE,
+the first native Files/Calendar/Matrix journey, refresh and app-state restoration.
+It exercised early Safari password-sheet dismissal. The full run then failed:
+a second prompt-cleanup helper required the already-completed native app to
+remain running. Its `password-prompt-fixture` rejection is reproducible after
+app exit. The first process is partial evidence; the unexecuted restored-process
+journey is not accepted.
+
+Prompt handling now completes in the existing browser driver after the real
+workspace assertion, retaining any earlier exact-issuer dismissal. Its one
+safe prompt result is required alongside the callback and successful driver
+exit; no second app-registration-dependent cleanup process runs. Flutter's
+complete initial and restored product assertions remain mandatory. A secondary
+macOS process-group `PermissionError` may be tolerated only when the tracked
+command has completed and fresh process inventory proves its group is absent;
+a live or inaccessible group still fails cleanup. Focused protocol and real
+completed-parent/orphan-child cleanup probes do not replace a new full native
+and integrated qualification run.
+
 ### Password submission diagnosis on integrated dev
 
 [Full Compose run 38093547541](https://github.com/masssi164/weave/actions/runs/38093547541)

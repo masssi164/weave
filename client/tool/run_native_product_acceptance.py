@@ -112,20 +112,35 @@ def collect_flutter_output(
 
 def stop_flutter_process_group(process: subprocess.Popen[str]) -> None:
     """Stop only the session created for this Flutter command, including children."""
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
+    def signal_group(sig: int) -> None:
+        try:
+            os.killpg(process.pid, sig)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            # A completed macOS command can leave an inaccessible empty group.
+            # Suppress only that proven-absent state, never a live process or
+            # group we cannot stop. Do not replace the original test failure.
+            if process.poll() is None:
+                print("NATIVE_APP_PROCESS_GROUP_CLEANUP status=failed category=live-command", flush=True)
+                raise
+            groups = subprocess.run(
+                ["ps", "-axo", "pgid="], check=True, capture_output=True,
+                text=True, timeout=10,
+            ).stdout.split()
+            if str(process.pid) in groups:
+                print("NATIVE_APP_PROCESS_GROUP_CLEANUP status=failed category=inaccessible-group", flush=True)
+                raise
+            print("NATIVE_APP_PROCESS_GROUP_CLEANUP status=absent", flush=True)
+
+    signal_group(signal.SIGTERM)
     try:
         process.wait(timeout=10)
     except subprocess.TimeoutExpired:
         pass
     # make can exit before its Flutter child. Ensure inherited output handles
     # close even when the parent has already exited.
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
+    signal_group(signal.SIGKILL)
     process.wait(timeout=10)
 
 
@@ -242,10 +257,16 @@ def report_driver_output(output: str) -> bool:
     )
     status, stage = result[-1] if result else ("failed", "result-unavailable")
     callback_observed = output.count("NATIVE_AUTH_CALLBACK_RESULT status=observed") == 1
+    prompts = re.findall(
+        r"NATIVE_SAFARI_PASSWORD_PROMPT_RESULT status=(dismissed|absent)", output
+    )
+    prompt_handled = len(prompts) == 1
+    if prompt_handled:
+        print("NATIVE_SAFARI_PASSWORD_PROMPT_RESULT status=" + prompts[0], flush=True)
     if callback_observed:
         print("NATIVE_AUTH_CALLBACK_RESULT status=observed", flush=True)
     print(f"NATIVE_APP_AUTH_DRIVER_RESULT status={status} stage={stage}", flush=True)
-    return status == "passed" and stage == "form-submitted" and callback_observed
+    return status == "passed" and stage == "form-submitted" and callback_observed and prompt_handled
 
 
 def report_flutter_markers(markers: queue.Queue[str]) -> list[str]:
@@ -439,10 +460,19 @@ def main() -> int:
             deadline = time.monotonic() + 510
             while driver.poll() is None and time.monotonic() < deadline:
                 if flutter.poll() is not None:
-                    driver.terminate()
-                    driver.wait(timeout=10)
-                    report_flutter_markers(markers)
-                    raise RuntimeError("Flutter exited before native IdP form completed")
+                    if flutter.returncode:
+                        driver.terminate()
+                        driver.wait(timeout=10)
+                        report_flutter_markers(markers)
+                        raise RuntimeError("Flutter failed before native IdP form completed")
+                    # A fast passing initial journey can exit while the driver
+                    # finishes exact-issuer prompt cleanup. Allow only a bounded
+                    # drain; all driver and native assertions still must pass.
+                    try:
+                        driver.wait(timeout=10)
+                    except subprocess.TimeoutExpired as failure:
+                        raise RuntimeError("native driver did not finish after Flutter exit") from failure
+                    break
                 time.sleep(0.5)
             if driver.poll() is None:
                 raise RuntimeError("native IdP form driver timed out")
@@ -453,18 +483,6 @@ def main() -> int:
                 raise RuntimeError("native AppAuth browser driver failed")
             executable = str((APP / "Contents/MacOS/weave").resolve())
             issuer_authority = urlparse(issuer).netloc
-            password_prompt = subprocess.run(
-                ["swift", str(DRIVER), "--dismiss-password-prompt",
-                 signing_bundle, issuer_authority, executable],
-                cwd=CLIENT, capture_output=True, text=True, timeout=30,
-            )
-            prompt_marker = re.search(
-                r"NATIVE_SAFARI_PASSWORD_PROMPT_RESULT status=(dismissed|absent)",
-                password_prompt.stdout,
-            )
-            if password_prompt.returncode or not prompt_marker:
-                raise RuntimeError("native Safari password prompt could not be handled safely")
-            print(prompt_marker.group(0), flush=True)
             flutter_deadline = time.monotonic() + 900
             while flutter.poll() is None and time.monotonic() < flutter_deadline:
                 time.sleep(0.5)
@@ -572,6 +590,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (RuntimeError, subprocess.TimeoutExpired, subprocess.CalledProcessError) as failure:
+    except (RuntimeError, OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError) as failure:
         print(f"NATIVE_FLUTTER_ACCEPTANCE_RESULT status=failed reason={type(failure).__name__}")
         raise SystemExit(1)

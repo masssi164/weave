@@ -393,6 +393,18 @@ func waitForNativeSession(timeout: TimeInterval) -> Bool {
   return false
 }
 
+func finishPasswordSubmission(method: String, promptDismissed: Bool = false) {
+  // The native test may finish immediately after workspace bootstrap. Handle
+  // this browser-owned prompt in the same driver rather than requiring the
+  // app to remain registered for a second helper process after callback.
+  let dismissed = promptDismissed || dismissSafariPasswordPrompt(issuerAuthority: fixture.issuerAuthority)
+  print("NATIVE_SAFARI_PASSWORD_PROMPT_RESULT status=\(dismissed ? "dismissed" : "absent")")
+  print("NATIVE_PASSWORD_SUBMISSION_RESULT status=passed method=\(method)")
+  print("NATIVE_AUTH_CALLBACK_RESULT status=observed")
+  print("NATIVE_AUTH_STAGE phase=password-submitted")
+  print("NATIVE_APP_AUTH_DRIVER_RESULT status=passed stage=form-submitted")
+}
+
 func submitPassword(_ input: AXUIElement, in surface: AuthSurface) {
   guard fill(input, with: fixture.password) else { fail("password-field") }
   _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.5))
@@ -401,13 +413,14 @@ func submitPassword(_ input: AXUIElement, in surface: AuthSurface) {
     fail("password-press")
   }
   var method = "accessibility"
+  var passwordPromptDismissed = false
   if !waitForNativeSession(timeout: 5) {
     // Safari can acknowledge AXPress without submitting an unfocused form.
     // Re-resolve the exact disposable IdP window, focus its password field,
     // and send Return only to that Safari process. Never treat AX success as
     // proof of navigation or of the native AppAuth callback.
-    let promptDismissed = dismissSafariPasswordPrompt(issuerAuthority: fixture.issuerAuthority)
-    if promptDismissed {
+    passwordPromptDismissed = dismissSafariPasswordPrompt(issuerAuthority: fixture.issuerAuthority)
+    if passwordPromptDismissed {
       // The password sheet can retain the old page in AX after submission.
       // Dismiss it without saving credentials and await the real callback;
       // do not send Return to the stale form behind that sheet.
@@ -438,10 +451,7 @@ func submitPassword(_ input: AXUIElement, in surface: AuthSurface) {
     // Flutter allows five minutes for the real callback and workspace bootstrap.
     guard waitForNativeSession(timeout: 300) else { fail("native-callback") }
   }
-  print("NATIVE_PASSWORD_SUBMISSION_RESULT status=passed method=\(method)")
-  print("NATIVE_AUTH_CALLBACK_RESULT status=observed")
-  print("NATIVE_AUTH_STAGE phase=password-submitted")
-  print("NATIVE_APP_AUTH_DRIVER_RESULT status=passed stage=form-submitted")
+  finishPasswordSubmission(method: method, promptDismissed: passwordPromptDismissed)
 }
 
 let deadline = Date().addingTimeInterval(180)
@@ -476,10 +486,7 @@ while Date() < deadline {
     guard typeTargeted(fixture.password, to: surface.safariPID),
           postKey(to: surface.safariPID, code: 36) else { fail("password-targeted-input") }
     guard waitForNativeSession(timeout: 300) else { fail("native-callback") }
-    print("NATIVE_PASSWORD_SUBMISSION_RESULT status=passed method=targeted-keyboard")
-    print("NATIVE_AUTH_CALLBACK_RESULT status=observed")
-    print("NATIVE_AUTH_STAGE phase=password-submitted")
-    print("NATIVE_APP_AUTH_DRIVER_RESULT status=passed stage=form-submitted")
+    finishPasswordSubmission(method: "targeted-keyboard")
     exit(0)
   }
   if usernameSubmitted,
