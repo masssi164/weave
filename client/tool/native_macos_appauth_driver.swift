@@ -429,7 +429,8 @@ func submitPassword(_ input: AXUIElement, in surface: AuthSurface) {
       }
       method = "targeted-keyboard"
     }
-    guard waitForNativeSession(timeout: 30) else { fail("native-callback") }
+    // Flutter allows five minutes for the real callback and workspace bootstrap.
+    guard waitForNativeSession(timeout: 300) else { fail("native-callback") }
   }
   print("NATIVE_PASSWORD_SUBMISSION_RESULT status=passed method=\(method)")
   print("NATIVE_AUTH_CALLBACK_RESULT status=observed")
@@ -468,7 +469,7 @@ while Date() < deadline {
      focusFieldViaKeyboard(surface, stage: "password") != nil {
     guard typeTargeted(fixture.password, to: surface.safariPID),
           postKey(to: surface.safariPID, code: 36) else { fail("password-targeted-input") }
-    guard waitForNativeSession(timeout: 30) else { fail("native-callback") }
+    guard waitForNativeSession(timeout: 300) else { fail("native-callback") }
     print("NATIVE_PASSWORD_SUBMISSION_RESULT status=passed method=targeted-keyboard")
     print("NATIVE_AUTH_CALLBACK_RESULT status=observed")
     print("NATIVE_AUTH_STAGE phase=password-submitted")

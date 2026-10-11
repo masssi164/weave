@@ -432,7 +432,9 @@ def main() -> int:
             ).start()
             if not transferred.wait(timeout=30):
                 raise RuntimeError("native browser driver did not receive private fixture")
-            deadline = time.monotonic() + 210
+            # Allow the bounded 180s form phase plus Flutter's 300s workspace
+            # budget and startup margin. Flutter's own deadline still applies.
+            deadline = time.monotonic() + 510
             while driver.poll() is None and time.monotonic() < deadline:
                 if flutter.poll() is not None:
                     driver.terminate()

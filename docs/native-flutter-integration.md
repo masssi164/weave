@@ -34,6 +34,36 @@ rooms fail closed. Human dogfood is separate from automated acceptance.
 
 ## Current local acceptance result, 2026-10-10
 
+### Corrected completion run, 2026-10-11
+
+Exact source `9bc860dfa3ce2846a62e12a9f72ff8c5014f2925` passed the documented
+local `specCorpusConformance testApp` command in 15m 1s overall (12m 7s inner),
+using the pinned corpus and native tool/dependency versions recorded below.
+Both native processes passed: real system-browser PKCE, workspace authorization,
+generated Files upload/read and Calendar CRUD, native Matrix business-room
+send/read, refresh, service/process restart and session restoration, actual
+bearer expiry with fresh controls, room-access removal, explicit logout and
+retained User/Matrix bearer denial. Real Admin revocation, foreign-organization
+denial and real OpenClaw MCP/Matrix assertions also passed without owner input.
+
+Product JSON SHA-256:
+`8cde21d61a89129a7b2b82c303b037f790f260882e7c96b9f6fb431b92b1c8ca`;
+teardown SHA-256:
+`d550bad2a3eba61454f0a0ac879bd9cf294d05dc1fc2977376e7416ce7c73299`.
+Teardown verified zero remaining owned containers, networks, volumes or resources.
+The successful password path used Accessibility; the targeted Return fallback
+was not exercised by this pass. The driver observed the real Flutter workspace
+assertion and automatically dismissed Safari's password-saving prompt.
+
+The later timeout correction preserves Flutter's five-minute workspace budget:
+both native completion waits allow 300 seconds, and the Python driver watchdog
+allows the 180-second form phase plus that budget and startup margin. Flutter's
+own test deadlines and all required product assertions remain authoritative.
+This is local evidence on the named source; newer heads still require their own
+CI/integrated evidence. macOS does not qualify iOS/Android, E2EE remains Guarded,
+and human dogfood remains separate. Current results are linked from
+[PR #1561](https://github.com/masssi164/weave/pull/1561).
+
 ### Password submission diagnosis on integrated dev
 
 [Full Compose run 38093547541](https://github.com/masssi164/weave/actions/runs/38093547541)
