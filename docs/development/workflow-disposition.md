@@ -8,11 +8,13 @@ Matrix, user/admin/MCP, and integrated E2E evidence. Physical-device preparation
 is an active #1475/#1480 validation path, not a retired client concern; provider
 migration and rollback are #1498 evidence.
 
-Every GitHub Actions workflow has one current disposition. This document describes whether a workflow proves the data-sovereignty core, supports a temporary transition, is manual release/client work, or must be retired. The classification does not make a historical workflow architecture authority.
+Except for the dated retirement records below, this document preserves the historical #1307 classifications and their provenance. They are not current instructions to select checks, remove workflows, or promote branches. Use [Current workflow ownership](current-workflow-ownership.md), the pinned delivery specification and actual protected-check configuration for current decisions. Dated retirement records document completed replacement evidence; they do not create another delivery authority.
 
-## Required core
+## Historical required-core classification
 
-### `ci.yml`
+### `ci.yml` (historical classification)
+
+The following describes the former combined consumer chain and unconditional foundation aggregate. Current Core CI separates export freshness from independently selected consumers and validates its complete impact plan; this historical description does not require the old combined job or forbid valid unselected skips.
 
 Runs the focused Java/Server/Data/MCP foundation gates and the `Generated API consumers`
 job. The latter uses pinned Flutter and Node tooling to regenerate the code-first User/Admin
@@ -28,7 +30,7 @@ consumer jobs succeed. A cancelled or skipped required job fails the aggregate.
 
 The `Release Notes Label Check` remains required by the current protected workflow.
 
-## Transitional optional core
+## Dated retirement records and historical optional-core classification
 
 ### `native-persistence-closure.yml`
 
@@ -38,7 +40,9 @@ Retired after the strengthened Core documentation source guard, Server protocol 
 
 Retired after the replacement checks passed in [Core CI run 38128850305](https://github.com/masssi164/weave/actions/runs/38128850305) for exact commit `1a9da0b38a8db8be67f34c9b82da613b653ad13e`: Server protocol foundation runs the former focused server tests, Rust module verification runs both former Cargo suites plus vendor provenance, and Core documentation runs the inherited provider boundary invariants on every ordinary PR. The former workflow was supplemental and absent from the actual Dev, Dogfood and Main required-check lists; branch protection was not modified. Historical evidence links remain valid. Its earlier #1326/#1301/#1302 transition purpose does not define the target architecture.
 
-### `live-stack-e2e.yml`
+### `live-stack-e2e.yml` (historical classification)
+
+This records the former coverage assessment, not the current mandatory Dogfood qualification catalog.
 
 Provides isolated real-runtime regression, including generated User Files calls and
 browser/OIDC member access. Its historical DAV/native collaboration portions do not prove
@@ -47,25 +51,31 @@ Flutter/Weaver Matrix clients still require their own runtime evidence. Independ
 third-party Matrix-client interoperability is deferred by the current support profile. Provider migration
 and cutover proof belongs to #1498.
 
-## Manual release or client
+## Historical manual-release/client classification
 
-### `ios-dogfood.yml`
+### `ios-dogfood.yml` (historical classification)
+
+The removal recommendation below is superseded. Physical preparation is an active exact-candidate HIL prerequisite in the pinned delivery contract.
 
 Manual/future client distribution only. It must not run as a prerequisite for Server/Data/MCP changes or mainline convergence. Remove or move to a later release lane after the core workflow transition is complete.
 
-### `dogfood-owner-bootstrap.yml`
+### `dogfood-owner-bootstrap.yml` (historical classification)
 
 Historical/manual dogfood identity preparation. It is not ordinary core CI. The minimum standalone IAM bootstrap is owned by #1304 and #1306.
 
 ## Historical retirement
 
-### `main-promotion-gate.yml`
+### `main-promotion-gate.yml` (historical classification)
+
+The deletion recommendation below is superseded. The active Main gate verifies existing exact-candidate automated, deployment, preparation and human evidence.
 
 Superseded by protected exact-head checks on PR #1413. It must be disabled and deleted after the current mainline convergence, rather than preserved as a parallel Candidate/dogfood promotion authority.
 
-## Root Gradle task transition
+## Historical root Gradle task transition
 
-Required current foundation commands:
+The former task plan below is provenance only; supported current gates are documented in the developer handbook and active Core workflow.
+
+Former required foundation commands:
 
 ```text
 coreArchitectureCi
@@ -78,7 +88,7 @@ coreCheck
 generatedApiCi
 ```
 
-Future required commands are introduced only when their tests exist:
+The historical plan proposed these future commands only when their tests existed:
 
 ```text
 protocolFacadeCi
