@@ -411,7 +411,7 @@ func submitPassword(_ input: AXUIElement, in surface: AuthSurface) {
       // The password sheet can retain the old page in AX after submission.
       // Dismiss it without saving credentials and await the real callback;
       // do not send Return to the stale form behind that sheet.
-      print("NATIVE_SAFARI_PASSWORD_PROMPT_RESULT status=dismissed")
+      print("NATIVE_PASSWORD_PROMPT_BEFORE_CALLBACK status=dismissed")
     } else if let current = issuerWindow(),
        let password = field(in: current.elements, stage: "password") {
       guard let safari = NSRunningApplication(processIdentifier: current.safariPID),

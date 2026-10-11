@@ -59,6 +59,7 @@ jobs:
           }
 
       - name: Check out exact source
+        id: exact_source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ env.WEAVE_CANDIDATE_COMMIT }}
@@ -135,6 +136,13 @@ jobs:
       - name: Run full isolated product flow
         working-directory: weave
         run: ./gradlew --no-daemon specCorpusConformance testApp
+
+      - name: Finish exact isolated teardown
+        if: always() && steps.exact_source.outcome == 'success'
+        working-directory: weave
+        run: |
+          python3 -m unittest gradle/scripts/finalize_test_app_ci_test.py
+          python3 gradle/scripts/finalize_test_app_ci.py
 
       - name: Verify support-safe E2E diagnostics
         if: always()

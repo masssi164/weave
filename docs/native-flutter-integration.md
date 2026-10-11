@@ -64,6 +64,35 @@ CI/integrated evidence. macOS does not qualify iOS/Android, E2EE remains Guarded
 and human dogfood remains separate. Current results are linked from
 [PR #1561](https://github.com/masssi164/weave/pull/1561).
 
+### Password-sheet correction and CI cancellation cleanup
+
+Exact local source `acefa7a396fe8c8cb4f95a4024a99988a49359a5` passed
+`specCorpusConformance testApp` in 18m 25s overall (15m 18s inner). Both native
+processes completed real PKCE, Files/Calendar/Matrix, refresh, service/process
+restart, restoration, actual expiry, room-access removal, explicit logout and
+retained User/Matrix denial. Real Admin and OpenClaw assertions also passed.
+Product JSON SHA-256:
+`25e8ac3e20c142ed2b4db49704638c4a5212ac5ffe97614c6c5ee1bbe20b1190`;
+teardown SHA-256:
+`5c9a02ccc85e9e88c6cb816aab98815ed8680b423feb561ce50bd4d3207c1b2d`.
+Teardown verified zero remaining owned resources. The normal Accessibility path
+completed; this pass did not reproduce the early password-sheet retry branch.
+The combined CI head still needs its own qualification.
+
+Cancelled Full run `38097756871` left its exact disposable namespace running
+because cancellation interrupted the shell trap. Its source/run/ownership
+record was recovered and the existing bounded teardown removed only those
+resources, with zero remaining containers, networks and volumes. Full CI now
+has an `always()` finalizer after successful same-repository source checkout.
+It validates the exact run ID, namespace, source and ownership digest, reuses
+the existing isolated teardown, verifies zero resources, then removes generated
+private inputs. A failed/cancelled product step stays failed/cancelled. Stale
+ownership, symlinked inputs and incomplete teardown fail the finalizer. Its
+safety tests run in that step. This fallback adds no deployment or provider
+cleanup authority outside the disposable run. Forced runner loss can prevent
+the finalizer from executing; such a run is never accepted, and recovery must
+use the recorded exact ownership context.
+
 ### Password submission diagnosis on integrated dev
 
 [Full Compose run 38093547541](https://github.com/masssi164/weave/actions/runs/38093547541)

@@ -225,6 +225,8 @@ def report_driver_output(output: str) -> bool:
     )
     if consent:
         print("NATIVE_MACOS_CONSENT_RESULT status=accepted", flush=True)
+    if "NATIVE_PASSWORD_PROMPT_BEFORE_CALLBACK status=dismissed" in output:
+        print("NATIVE_PASSWORD_PROMPT_BEFORE_CALLBACK status=dismissed", flush=True)
     for method in re.findall(
         r"NATIVE_PASSWORD_SUBMISSION_RESULT status=passed "
         r"method=(accessibility|targeted-keyboard)", output
