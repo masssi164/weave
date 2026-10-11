@@ -4,6 +4,7 @@ import json
 import io
 from contextlib import redirect_stdout
 import os
+import plistlib
 import sys
 import tempfile
 import unittest
@@ -205,6 +206,50 @@ else:
                     defines = json.loads((temporary / 'defines.json').read_text())
                     self.assertEqual(defines['WEAVE_NATIVE_EXPECT_SIMULATOR'], expected)
                     self.assertEqual(defines['WEAVE_NATIVE_TEST_RUN_ID'], 'existing-run-id')
+
+    def test_exact_executable_identity_excludes_other_apps_devices_and_arguments(self):
+        app = Path('/Users/runner/Library/Developer/CoreSimulator/Devices/owned/data/Containers/Bundle/Application/app/Runner.app')
+        snapshot = '\n'.join([
+            f'101 {app}/Runner',
+            f'102 {str(app).replace("/owned/", "/other/")}/Runner',
+            f'103 {app.parent}/Other.app/Runner',
+            f'104 {app}/Runner --private-input',
+            f'invalid {app}/Runner',
+        ])
+        self.assertEqual(ios.exact_simulator_app_pids(snapshot, app / 'Runner'), {'101'})
+
+    def test_simulator_pid_requires_one_exact_installed_executable(self):
+        for count in (0, 1, 2):
+            with self.subTest(count=count), tempfile.TemporaryDirectory() as name:
+                app = Path(name) / 'CoreSimulator/Devices/owned/data/Containers/Bundle/Application/app/Runner.app'
+                app.mkdir(parents=True)
+                (app / 'Runner').touch()
+                (app / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier': ios.BUNDLE, 'CFBundleExecutable': 'Runner'}))
+                app = app.resolve()
+                snapshot = '\n'.join(f'{101 + index} {app}/Runner' for index in range(count))
+                output = io.StringIO()
+                with patch.object(ios, 'run', side_effect=[str(app), snapshot]), redirect_stdout(output):
+                    if count == 1:
+                        self.assertEqual(ios.simulator_app_pid('owned'), '101')
+                    else:
+                        with self.assertRaises(ios.NativeFailure) as raised:
+                            ios.simulator_app_pid('owned')
+                        self.assertEqual(raised.exception.reason, 'integration-process-unavailable' if count == 0 else 'integration-process-ambiguous')
+                self.assertIn(f'matchingCount={count}', output.getvalue())
+                self.assertNotIn(str(app), output.getvalue())
+
+    def test_other_device_or_bundle_identity_is_rejected_before_process_read(self):
+        for other_device in (True, False):
+            with self.subTest(other_device=other_device), tempfile.TemporaryDirectory() as name:
+                device = 'other' if other_device else 'owned'
+                app = Path(name) / f'CoreSimulator/Devices/{device}/data/Runner.app'
+                app.mkdir(parents=True)
+                (app / 'Runner').touch()
+                (app / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier': 'other.bundle', 'CFBundleExecutable': 'Runner'}))
+                with patch.object(ios, 'run', return_value=str(app)) as command:
+                    with self.assertRaises(ios.NativeFailure):
+                        ios.simulator_app_pid('owned')
+                command.assert_called_once()
 
     def test_attachment_requires_live_unchanged_process_before_readiness(self):
         for exited, retained, reason in [(True, True, 'process-exited-before-attachment'),
