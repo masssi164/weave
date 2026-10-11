@@ -14,7 +14,7 @@ This page is the compact working contract for Weave delivery. It keeps sprint, r
 ## Branch and release model
 
 - `dev` is the protected integration lane. Normal feature, bugfix, documentation, and spec-integration branches are cut from `dev` and PR back to `dev` with review/refactor loops, feature tests, acceptance/Gherkin/Cucumber mappings, docs/evidence, and PR-safe gates.
-- `dogfood` is the persistent LAN candidate and human-validation lane. Promotion PRs from `dev` to `dogfood` run full or feature-relevant E2E/live validation; missing feature-relevant scenarios or deterministic mappings must be added by this stage at the latest. Merges deploy/update the persistent dogfood stack.
+- `dogfood` establishes the exact protected automated candidate after deterministic PR checks. Mandatory Compose, native macOS and iOS Simulator qualification precede deployment of that same commit and physical preparation. HIL is a distinct stage with explicit human acceptance. Main reuses unchanged candidate evidence; a changed source tree requires new qualification.
 - `main` is protected stable and release-capable truth after green dogfood E2E/live evidence and required human-test signoff; documented emergency `hotfix/*` exceptions are allowed.
 - `future/*` lanes hold larger not-yet-release-ready product lines and periodically reconcile back to `dev`.
 - `rc/<version>` lanes are optional later release hardening for named releases; they are not the ordinary human dogfood path and must not bypass `dev` -> `dogfood` -> `main`.
@@ -30,7 +30,7 @@ This page is the compact working contract for Weave delivery. It keeps sprint, r
 ## Environments
 
 - Local developer machines and disposable worktrees remain temporary environments. The durable `dev` branch is an integration lane, not a deployed environment.
-- `dogfood` is the persistent LAN test/human-validation stack. Its enrollment handoff links are non-secret handoff links; real access control is account and membership provisioning plus the identity-provider session.
+- `dogfood` is the resettable LAN test stack; ordinary updates preserve its three session volumes and operator-owned TLS. Explicit reset is separate from normal startup. Its enrollment handoff links are non-secret handoff links; real access control is account and membership provisioning plus the identity-provider session.
 - `testing`/`staging` is a GitHub Environment or workflow target for dogfood candidate validation, optional release-candidate verification, and Live Stack E2E evidence.
 - `production` is a GitHub Environment guarded by manual approval and release evidence.
 - Live Stack E2E is release evidence, not a replacement for local or PR-safe gates.

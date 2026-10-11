@@ -74,7 +74,7 @@ Use Java 21.
 ./gradlew generatedApiCi
 ```
 
-`coreCheck` retains focused foundation coverage. `generatedApiCi` verifies the shared
+`generatedApiContractCi` verifies code-first export freshness before consumer impact selection. User and Admin consumers are independently selected using complete contract/generator/configuration/toolchain/build/output/verification inputs; unknown impact runs the stronger gate. `generatedApiCi` remains the full compatibility aggregate. `coreCheck` retains focused foundation coverage. `generatedApiCi` verifies the shared
 code-first generation chain and actual JVM/Flutter/Admin consumers with pinned tools;
 see its [execution contract](https://github.com/masssi164/weave/blob/dev/specs/generated-api-ci-contract.md). Its metadata export
 requires no native Matrix runtime. Full Server protocol tests still build the required

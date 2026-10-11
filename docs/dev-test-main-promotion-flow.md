@@ -1,4 +1,4 @@
-# Dev → Dogfood development loop
+# Feature → Dev → Dogfood E2E → HIL → Main
 
 Status: active development policy.
 
@@ -7,14 +7,16 @@ Weave is still in active development with one human developer. `dev` and `dogfoo
 ## Branches
 
 - `dev` is the normal integration branch. Feature branches return here through ordinary PR CI.
-- `dogfood` is the current LAN test branch. A normal `dev` → `dogfood` PR runs the same complete isolated E2E flow, and a successful push starts the reviewed local Compose stack.
+- `dogfood` is the protected exact automated candidate and resettable LAN branch. Its promotion PR runs deterministic checks; mandatory integrated suites run on the protected Dogfood commit before deployment/HIL readiness.
 - `main` is release-capable source truth after a protected promotion. Production publication remains a separate explicit decision. A future production-hardening ADR must define backup, migration, immutable release-image, approval, and rollback controls before an externally supported production launch.
 
-## One automated gate
+## Deterministic Dev and exact qualification
 
-`Full Compose E2E` is the only automated prerequisite for human testing. It runs on PRs and pushes for both `dev` and `dogfood` and executes the authoritative isolated `./gradlew testApp` product flow. That flow proves availability and integrated behavior, then removes its run-owned resources.
+Apply pinned `steering/devops-conformance.md` and ADR 0022. Ordinary Dev PRs run compilation, formatting/static analysis, relevant unit/module and architecture/security checks, specification/acceptance conformance, code-first export freshness, independently selected consumer drift, and relevant static infrastructure/docs checks. Complete dependency inputs govern impact selection; unknown impact runs the stronger gate.
 
-The workflow does not consume a Candidate Cut, deployment manifest, prebuilt release image, Fresh Start plan, or persistent dogfood state. Smoke checks remain useful diagnostics but are not substitutes for this E2E result.
+The protected Dogfood commit must pass Full Compose E2E plus independent native macOS and Apple Silicon iOS Simulator integration against that same candidate. Each records the exact source/tree/spec identity and cleanup outcome. Infrastructure/preflight failure and product assertion failure both block readiness, with distinct diagnostics. macOS proof cannot substitute for iOS proof.
+
+The workflow does not consume a Candidate Cut, deployment manifest, prebuilt release image, Fresh Start plan, or persistent dogfood state. Smoke checks remain diagnostics rather than integrated behavior proof. Deterministic gates may use complete Gradle inputs/outputs; live and human evidence stays non-cacheable.
 
 ## Direct Compose lifecycle
 
@@ -36,7 +38,7 @@ The supported local commands are:
 - native Files blobs;
 - Mailpit messages.
 
-The local CA and leaf certificates live outside Docker at `/Users/flotterotter/.weave/dogfood/generated/tls`. Reset must never remove or rotate them. Reviewed secrets and the reviewed environment file are also outside the reset boundary. Caddy runtime data, Keycloak container data, and optional provider state are not default persistent dogfood volumes.
+The local CA and leaf certificates live outside Docker in the private operator-owned host TLS directory outside Docker. Reset must never remove or rotate them. Reviewed secrets and the reviewed environment file are also outside the reset boundary. Caddy runtime data, Keycloak container data, and optional provider state are not default persistent dogfood volumes.
 
 Native Files, Calendar, and Chat are the default product providers. MinIO, Matrix, Nextcloud, ARC, Weaver, and other provider labs are explicit profiles and are not required for a normal `devUp` or `dogfoodUp`. The full isolated E2E profile may still enable the dependencies required by the journey it tests.
 
@@ -44,15 +46,15 @@ OpenTofu is not part of the active `dev` or `dogfood` lifecycle. Production infr
 
 ## Dogfood deployment
 
-The `deploy-dogfood` job in `.github/workflows/live-stack-e2e.yml` runs only after its exact-SHA `Full Compose E2E` job succeeds on a `dogfood` push. It verifies protected ancestry and runs `./gradlew dogfoodUp` on `weave-live-mac-mini`. Keeping E2E and deployment in one workflow avoids a second default-branch workflow-dispatch dependency.
+The `deploy-dogfood` job in `.github/workflows/live-stack-e2e.yml` runs only after all mandatory exact-SHA Compose/macOS/iOS qualification succeeds on a `dogfood` push. It verifies protected ancestry and runs `./gradlew dogfoodUp` on `weave-live-mac-mini`. Keeping E2E and deployment in one workflow avoids a second default-branch workflow-dispatch dependency.
 
 There is no environment approval, destructive token, candidate-image resolver, or backup rehearsal in routine development dogfood.
 
 ## Prepare the physical iPhone
 
-After dogfood E2E is green, manually run `Prepare Human Test` with the exact dogfood SHA. It:
+After all mandatory dogfood automated qualification is green, manually run `Prepare Human Test` with the exact dogfood SHA. It:
 
-1. verifies the exact successful E2E run;
+1. verifies all mandatory exact successful qualification and deployment evidence;
 2. starts dogfood twice and checks unchanged TLS fingerprints;
 3. optionally creates the first-owner invitation in private Mailpit;
 4. builds the exact SHA with the stable development identity;
@@ -60,17 +62,19 @@ After dogfood E2E is green, manually run `Prepare Human Test` with the exact dog
 
 The stable Apple team and bundle preserve Developer App trust and app storage. Deinstallation is not part of this workflow. The local CA should need full trust on the iPhone only once.
 
-The invitation activation link remains only at `https://mail.weave.test:44443`. The human tester performs activation and reports the real outcomes for sign-in/session, navigation, Chat, Files, Calendar, Weaver/MCP when available, accessibility, revoke/regrant, and identity continuity. A missing surface is `blocked`, not passed.
+The invitation activation link remains only at `https://mail.weave.test:44443`. The human tester performs activation and reports the real outcomes for sign-in/session, navigation, Chat, Files, Calendar, Weaver/MCP when available, accessibility, revoke/regrant, and identity continuity. Human outcomes are `passed`, `failed`, or `not-available`; absent mandatory surfaces block promotion.
 
 ## Promotion discipline during development
 
 Before merging `dev` to `dogfood`:
 
 - normal PR CI is green;
-- `Full Compose E2E` is green on the latest PR head;
+- acceptance/scenario mappings and review are complete;
 - the promotion tree matches the intended `dev` tree;
 - no unrelated release-hardening work is mixed into the promotion.
 
 Before making a future production release, write and accept the production-hardening ADR and add only the controls that the chosen deployment target actually needs.
 
-For the current #1470 mainline delivery, promote the exact deployed and human-tested `dogfood` tree to `main` by PR. The protected Main Promotion Gate checks current `dev` and `dogfood` ancestry/tree equality, the exact dogfood-head E2E and deployment jobs, and the separately reported owner human result described in `docs/gitflow-pr-workflow.md`. A green disposable E2E alone is insufficient for this promotion. The merge itself does not publish a production release.
+For the current #1470 mainline delivery, promote the exact deployed and human-tested `dogfood` tree to `main` by PR. The protected Main Promotion Gate checks qualified Dogfood ancestry and proposed tree/spec equality, the exact dogfood-head Compose/macOS/iOS, deployment and physical preparation evidence, and the separately reported owner human result described in `docs/gitflow-pr-workflow.md`. A green disposable E2E alone is insufficient for this promotion. The merge itself does not publish a production release.
+
+An unchanged candidate reuses qualification for Main. A changed candidate source/tree invalidates its evidence; newer Dev commits alone do not. No equivalent integration reruns solely because the candidate advances to Main.

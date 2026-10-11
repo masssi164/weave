@@ -2,7 +2,7 @@
 
 This handbook is the practical entry point for contributing to the Weave monorepo, especially the Flutter client. It complements the repo README and links to deeper docs instead of repeating every contract.
 
-For #1470 delivery, apply the pinned corpus release profile at `steering/release-2026-10-product-consolidation.md` before older Core workflow or gateway instructions. Server code generates separate User and Admin API artifacts; product HTTP consumers use generated clients and transport models. Chat uses Weave's Matrix Client-Server facade, the narrowly scoped Rust/Ruma/JNI wire boundary, canonical Chat persistence, native Flutter and Weaver Matrix integrations, and `ChatProviderPort` routing. Flutter uses the normal member OIDC/PKCE session at that facade; independent third-party Matrix clients and their separate OAuth profile are deferred. E2EE is a per-room policy whose cryptographic state stays client-owned when enabled. Public northbound DAV is outside this release. Run independent authorization and real Weave-owned Matrix/user/admin/MCP journeys in addition to generation freshness. Provider adoption, migration, permission equivalence, cutover, and rollback are #1498 evidence.
+For #1470 delivery, apply the pinned corpus release profile at `steering/release-2026-10-product-consolidation.md` before older Core workflow or gateway instructions. Delivery follows pinned `steering/devops-conformance.md` and ADR 0022. Ordinary Dev PRs run deterministic checks; the protected Dogfood commit runs mandatory Compose, native macOS and iOS Simulator qualification before deployment/HIL. Main verifies existing exact-candidate evidence rather than repeating equivalent integration. Server code generates separate User and Admin API artifacts; product HTTP consumers use generated clients and transport models. Chat uses Weave's Matrix Client-Server facade, the narrowly scoped Rust/Ruma/JNI wire boundary, canonical Chat persistence, native Flutter and Weaver Matrix integrations, and `ChatProviderPort` routing. Flutter uses the normal member OIDC/PKCE session at that facade; independent third-party Matrix clients and their separate OAuth profile are deferred. E2EE is a per-room policy whose cryptographic state stays client-owned when enabled. Public northbound DAV is outside this release. Run independent authorization and real Weave-owned Matrix/user/admin/MCP journeys in addition to generation freshness. Provider adoption, migration, permission equivalence, cutover, and rollback are #1498 evidence.
 
 ## Repository role
 
@@ -66,6 +66,9 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `acceptanceContract` | Gherkin mapping and acceptance contract guard. |
 | `clientCi` | Flutter generated-code, format, analysis, tests, screenshot drift, and offline contract path. |
 | `serverCi` | Existing server Gradle test path. |
+| `generatedApiContractCi` | Code-first User/Admin export and freshness, before consumer impact selection. |
+| `generatedUserApiConsumerCi`, `generatedAdminApiConsumerCi` | Independently selected consumer regeneration and verification using complete dependency inputs. |
+| `generatedApiCi` | Compatibility aggregate for contract and all consumer verification. |
 | `mcpCi` | Separate MCP process, security, schema, and architecture checks. |
 | `testAppContract` | Compile/unit/ArchUnit checks for the framework-free Fresh product-flow driver. |
 | `testApp` | Disposable invitation, browser activation, PKCE, generated User API Files/Calendar, Weave Matrix facade, MCP, revocation, restart, and exact-cleanup proof. It does not exercise the native Flutter UI or provider migration. |
@@ -113,7 +116,7 @@ contract.
 
 ## Lane-based PR and release workflow
 
-Use the lane-based DevOps flow: protected `dev` for integration and normal feature PRs, protected `dogfood` for resettable LAN Compose and human validation, and protected `main` only after a later production-hardening decision. `future/*`, optional `rc/*`, and `hotfix/*` remain available when those release lanes are actually needed. See [Weave DevOps branching model](devops/branching-model.md), [release flow](devops/release-flow.md), [release notes policy](devops/release-notes.md), and [spec governance](devops/spec-governance.md). Every PR must deliberately choose exactly one release-notes label before review/merge:
+Use the lane-based DevOps flow: protected `dev` for integration and normal feature PRs, protected `dogfood` for exact automated integration followed by resettable LAN Compose and distinct human validation, and protected `main` for qualified stable source. Production publication requires its separate accepted launch contract and authorization. `future/*`, optional `rc/*`, and `hotfix/*` remain available when those release lanes are actually needed. See [Weave DevOps branching model](devops/branching-model.md), [release flow](devops/release-flow.md), [release notes policy](devops/release-notes.md), and [spec governance](devops/spec-governance.md). Every PR must deliberately choose exactly one release-notes label before review/merge:
 
 - `release-notes-feature`
 - `release-notes-bugfix`
@@ -129,12 +132,12 @@ Required sprint shape:
 
 Sprint bootstrap and audit are file-backed by `tools/sprint_bootstrap.py`; see `docs/sprint-bootstrap-and-board-flow.md`. This is the bridge from the pinned spec corpus to GitHub milestones, issues, the Weave Delivery Board, and CI/evidence gates.
 
-1. Recover fachliche truth from the pinned spec corpus first, then implementation truth from `main`, transitional `specs/`, GitHub issues/PRs, and CI artifacts.
+1. Recover fachliche truth from the pinned spec corpus first, then implementation truth from current `dev` and `main`, transitional `specs/`, GitHub issues/PRs, and CI artifacts.
 2. Select or create the governing spec-corpus contract; keep product-core ambiguity in `draft`/`proposed` with explicit `[NEEDS CLARIFICATION: ...]` markers.
 3. Break the spec plan/tasks into a GitHub issue DAG with `parallel`/`sequential` labels where ordering matters.
 4. For each implementation slice, open a short-lived branch and one reviewable PR with exactly one release-notes label.
 5. Merge PRs in dependency order after green CI, required local gates, and fallback human/agent review evidence. Copilot review is optional while premium review requests are exhausted.
-6. After each merge, update local `main` before cutting the next dependent branch.
+6. After each Dev merge, update local `dev` before cutting the next dependent branch. Qualify and human-test the exact Dogfood candidate before Main promotion.
 7. Finish with a sprint closure report that lists the spec, issue DAG, merged PRs in order, gates/CI evidence, unresolved decisions, release/RC follow-up, and next safe action.
 
 The `weave-co-leader` is expected to drive this loop autonomously when given a sprint goal. It should ask Massimo only for product-core decisions, destructive/live-infra approval, or merge/release decisions not already authorized by the sprint brief.
@@ -156,7 +159,7 @@ make docs-check
 
 ## Release notes workflow
 
-Release-affecting changes must choose exactly one release-notes label in the PR. Use the fixed page categories `Added`, `Changed`, `Fixed`, `Security`, `Accessibility`, `Migration/Operator Notes`, and `Known Issues` when drafting checked-in notes. Put provider setup, SecretRef, OpenTofu/bootstrap, backup/restore, support-bundle, readiness, audit, and policy/whitelist impacts under `Migration/Operator Notes`.
+Release-affecting changes must choose exactly one release-notes label in the PR. Use the fixed page categories `Added`, `Changed`, `Fixed`, `Security`, `Accessibility`, `Migration/Operator Notes`, and `Known Issues` when drafting checked-in notes. Put provider setup, SecretRef, Compose/bootstrap, backup/restore, support-bundle, readiness, audit, and policy/whitelist impacts under `Migration/Operator Notes`.
 
 Generated release notes come from merged PR metadata and labels. The local generator writes review artifacts under `build/release-notes/**` by default; checked-in README or docs mutations are explicit update steps:
 

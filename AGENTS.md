@@ -6,6 +6,8 @@ Old `weave-backend` and `weave-infra` checkouts are stale. Ignore them.
 
 Truth split: the canonical fachliche specification truth is the pinned Weave Specification Corpus in `specs/weave-specs.lock.json` (local default `../weave-specs`). This repo is implementation/evidence truth: code, tests, CI, release evidence, GitHub issues/PRs/milestones, and generated or transitional spec projections. Use `docs/specification-source-of-truth.md` and `specs/spec-inventory.yaml` before citing, editing, deleting, or migrating repo-local specs. If corpus and repo reality disagree, create an explicit spec-change or conformance-fix task; never let implementation state silently redefine product/domain meaning.
 
+Delivery authority is the pinned corpus `steering/devops-conformance.md`, ADR 0022, and delivery/human-testing acceptance features. Apply Feature → Dev → Dogfood E2E → HIL → Main: deterministic Dev gates, mandatory exact-commit Compose/macOS/iOS qualification, exact deployment and physical preparation, explicit human acceptance, then evidence reuse for an unchanged Main tree. A Dogfood merge alone is not HIL readiness. Unknown impact runs the stronger deterministic gate; externally stateful evidence is not cacheable.
+
 The approved consolidation contract is corpus file `steering/release-2026-10-product-consolidation.md` and [epic #1470](https://github.com/masssi164/weave/issues/1470). It takes precedence for this release over older Core plans and repo-local instructions where they conflict. Preserve their substantive security, integrity, permission, and recovery requirements. #1470 delivery acceptance is #1471–#1476 and #1479–#1481; [#1498](https://github.com/masssi164/weave/issues/1498) owns provider adoption and migration through #1477–#1478. Keep the Weave Matrix Client-Server northbound facade and its narrowly scoped Rust/Ruma/JNI boundary. Do not expand #1470 with deferred Runner, Calls, northbound DAV, or orchestration work.
 
 Language policy: every `AGENTS.md`, agent prompt, checked-in project instruction, PR body, issue body, code comment, and documentation change must be written in English unless a user-facing localization file explicitly requires another language.
@@ -56,7 +58,7 @@ Do not stop after one PR. Do not report success from local git state, a green br
 - `client/`: Flutter UX, accessibility, l10n.
 - `server/`: facades, authz, audit, provider boundaries.
 - `admin-console/`: admin UX, readiness, policy preview, setup flows.
-- `infra/`: OpenTofu, deploy, backup/restore, support bundles.
+- `infra/`: Compose lifecycle, deploy, readiness, TLS and support bundles. OpenTofu is retired from the active Weave Core path; historical production recovery fixtures do not govern Dev/Dogfood.
 - `e2e/`: Gherkin contracts and evidence mapping.
 - `docs/`: implementation-facing product projections, release notes, handbooks, closure reports.
 
