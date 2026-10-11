@@ -32,7 +32,10 @@ def main() -> int:
 
     require("name: Prepare Human Test" in workflow, "physical iPhone workflow must be the one-click human-test preparation")
     require("workflow_dispatch:" in workflow and "candidate_sha:" in workflow, "human-test preparation must select one exact dogfood SHA")
-    require("Full Compose E2E" in workflow and ".github/workflows/live-stack-e2e.yml" in workflow, "physical install is not gated by exact green E2E")
+    require("verify_main_promotion_evidence.py" in workflow and "--qualification-only" in workflow,
+            "physical install is not gated by exact Compose native and deployment evidence")
+    require("preparation-result.json" in workflow and "qualificationRunId" in workflow,
+            "physical preparation must bind installed source to qualification")
     require("./gradlew --no-daemon dogfoodUp" in workflow, "physical preparation does not start Compose dogfood")
     require("tools/dogfood_cert_persistence_smoke.py" in workflow, "TLS identity stability is not checked")
     require("tools/dogfood_iphone_entry.sh" in workflow, "physical-device installation entrypoint is missing")

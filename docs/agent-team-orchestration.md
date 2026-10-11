@@ -10,14 +10,14 @@ A delivery lead owns issue/PR orchestration, merge sequencing, integration, and 
 
 Use this loop until the issue DAG is integrated or a real blocker stops safe progress:
 
-1. Recover truth from the pinned spec corpus, then `main`, repo conformance specs/docs/tasks, GitHub issues/PRs, and CI/evidence.
+1. Recover truth from the pinned spec corpus, then current `dev` and `main`, repo conformance specs/docs/tasks, GitHub issues/PRs, and CI/evidence.
 2. Identify the governing corpus spec and decide whether it is ready for implementation. Keep unresolved product-core questions in `draft`/`proposed`.
 3. Convert the spec plan/tasks into a GitHub issue DAG. Label independent work `parallel`; label ordered work `sequential`; link issues/PRs back to the spec.
-4. Cut short-lived branches from updated `main` and open reviewable PRs in dependency order.
+4. Cut normal short-lived branches from updated `dev` (urgent stable-line hotfixes start from `main`) and open reviewable PRs in dependency order.
 5. Assign scoped implementation or review work only for narrow issue slices, each with exact files, inputs, stop conditions, and a required gate.
 6. Integrate only from returned evidence and inspected diffs, then run an adversarial Integration-Gate review.
 7. Merge dependency-free PRs once CI/gates/review evidence pass and branch protection permits; otherwise surface the exact missing approval or check.
-8. After every merge, update `main`, re-evaluate the remaining DAG, and continue the next slice.
+8. After every Dev merge, update `dev`, re-evaluate the remaining DAG, and continue the next slice.
 9. Stop only when all sprint issues/PRs are merged or when a product-core clarification, live-infra/destructive approval, or failed gate blocks safe progress.
 10. Produce the sprint closure report from repo/GitHub/CI evidence.
 

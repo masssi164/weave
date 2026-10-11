@@ -17,11 +17,11 @@ Weave uses a lane-based flow. The goal is a stable basis where the pinned specif
   - They must keep spec reconciliation explicit.
   - They periodically PR back into `dev` in reviewable slices.
   - They are not a shortcut around release notes, linked issues, or acceptance evidence.
-- `dogfood` is the persistent LAN test-stack and human dogfood lane.
-  - Promote `dev` to `dogfood` by PR when a candidate is ready for live validation.
-  - Full or feature-relevant Live Stack E2E, dogfood evidence, and missing scenario/mapping updates belong on this promotion by the latest.
-  - Merging to `dogfood` deploys or updates the persistent LAN stack for human/iPhone/accessibility validation.
-  - A green and signed-off `dogfood` candidate promotes to `main` by PR.
+- `dogfood` is the exact protected automated integration candidate and resettable LAN lane.
+  - Promote `dev` by PR after deterministic checks and review; the protected Dogfood commit is the qualification source.
+  - Mandatory Full Compose, native macOS and Apple Silicon iOS Simulator integration run on that exact commit before deployment/HIL readiness.
+  - Successful qualification permits deployment of the same commit and physical iPhone preparation. A merge alone does not imply readiness.
+  - HIL is a distinct human acceptance stage, not a branch. Explicit passing human outcomes permit Main promotion with existing exact-candidate evidence.
 - `rc/<version>` lanes are optional later release-hardening lanes.
   - Cut them from `main` or `dogfood` only when a named release needs extra stabilization, release notes, packaging, or publication evidence beyond ordinary dogfood validation.
   - `rc/*` is not the normal human dogfood path and must not bypass `dev` -> `dogfood` -> `main`.

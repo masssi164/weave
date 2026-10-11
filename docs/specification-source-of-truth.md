@@ -45,3 +45,9 @@ Do not mass-delete repo-local specs just because the corpus is canonical. Cleanu
 4. Remove duplicate transitional packets in focused PRs with local gate evidence.
 
 This policy also applies to AI-assisted work: agents must cite file paths, spec IDs, issues/PRs, and gate results instead of copying product truth into prompts or inventing acceptance from memory.
+
+## Delivery authority and retained history
+
+The pinned corpus `steering/devops-conformance.md`, ADR 0022 and delivery/human-testing acceptance features govern Feature → Dev → Dogfood E2E → HIL → Main. Repository workflows and evidence prove conformance; GitHub branch protection and Project fields must be inspected rather than inferred from docs. Project status is a projection, not release authority.
+
+ADR 0022 supersedes ADR 0019's Candidate Cut/Fresh Start deployment chain. Historical enterprise release packets, generated projections and compatibility fixtures remain where consumers require them; their old gates cannot control ordinary Dev or resettable Dogfood. Compose is the only active Weave Core runtime authority. Production launch controls require their separately accepted contract.

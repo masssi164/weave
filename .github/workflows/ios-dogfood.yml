@@ -2,26 +2,6 @@ name: Prepare Human Test
 run-name: Prepare Human Test ${{ inputs.candidate_sha }}
 
 on:
-  workflow_call:
-    inputs:
-      candidate_sha:
-        required: true
-        type: string
-      bootstrap_owner:
-        required: false
-        default: false
-        type: boolean
-      full_compose_e2e_run_id:
-        required: false
-        default: ""
-        type: string
-    secrets:
-      WEAVE_IOS_DEVICE_ID:
-        required: true
-      WEAVE_DOGFOOD_MEMBER_EMAIL:
-        required: false
-      WEAVE_SPECS_DEPLOY_KEY:
-        required: true
   workflow_dispatch:
     inputs:
       candidate_sha:
@@ -62,7 +42,6 @@ jobs:
       WEAVE_IOS_INSTALL_TRANSPORT: wifi
       WEAVE_IOS_LOCAL_CA_TRUST_STATUS: trusted
       WEAVE_DOGFOOD_EVIDENCE_DIR: ${{ github.workspace }}/weave/build/evidence/prepare-human-test
-      CALLER_E2E_RUN_ID: ${{ inputs.full_compose_e2e_run_id || '' }}
 
     steps:
       - name: Verify bounded request
@@ -90,28 +69,15 @@ jobs:
 
       - name: Verify successful Full Compose E2E for the exact commit
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
         working-directory: weave
         run: |
           set -euo pipefail
-          if [[ -n "$CALLER_E2E_RUN_ID" ]]; then
-            [[ "$CALLER_E2E_RUN_ID" =~ ^[1-9][0-9]*$ ]]
-            e2e_run_id="$CALLER_E2E_RUN_ID"
-            # The reusable workflow is reachable only through the caller's
-            # successful full-compose-e2e -> deploy-dogfood needs chain. The
-            # caller run itself cannot have a conclusion until this job ends.
-          else
-            runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/live-stack-e2e.yml/runs?status=completed&per_page=100")"
-            e2e_run_id="$(jq -r --arg sha "$DOGFOOD_COMMIT" '[.workflow_runs[] | select(.head_sha == $sha and .conclusion == "success")][0].id // empty' <<<"$runs")"
-            [[ "$e2e_run_id" =~ ^[1-9][0-9]*$ ]] || {
-              echo "::error::No successful Full Compose E2E run exists for ${DOGFOOD_COMMIT}."
-              exit 1
-            }
-            run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${e2e_run_id}")"
-            [[ "$(jq -r .path <<<"$run")" == ".github/workflows/live-stack-e2e.yml" ]]
-            [[ "$(jq -r .head_sha <<<"$run")" == "$DOGFOOD_COMMIT" ]]
-            [[ "$(jq -r .conclusion <<<"$run")" == success ]]
-          fi
+          e2e_run_id="$(python3 tools/verify_main_promotion_evidence.py \
+            --repository "$GITHUB_REPOSITORY" --candidate-sha "$DOGFOOD_COMMIT" \
+            --qualification-only)"
+          read -r e2e_run_id e2e_run_attempt <<< "$e2e_run_id"
+          echo "FULL_COMPOSE_E2E_RUN_ATTEMPT=$e2e_run_attempt" >> "$GITHUB_ENV"
           echo "FULL_COMPOSE_E2E_RUN_ID=$e2e_run_id" >> "$GITHUB_ENV"
 
       - name: Resolve pinned specification corpus
@@ -214,12 +180,35 @@ jobs:
           --handoff-ref "dogfood-${DOGFOOD_COMMIT}"
           --evidence-dir "$WEAVE_DOGFOOD_EVIDENCE_DIR"
 
+      - name: Record exact physical preparation
+        working-directory: weave
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          if sha != os.environ["DOGFOOD_COMMIT"]:
+              raise SystemExit("Physical preparation source mismatch")
+          spec = json.loads(Path("specs/weave-specs.lock.json").read_text())["specCorpus"]["gitCommit"]
+          tree = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], text=True).strip()
+          output = Path("build/evidence/prepare-human-test/preparation-result.json")
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(json.dumps({
+              "schemaVersion": "weave.hil-preparation/v1", "candidateCommit": sha,
+              "sourceTree": tree, "specificationCommit": spec,
+              "qualificationRunId": int(os.environ["FULL_COMPOSE_E2E_RUN_ID"]),
+              "qualificationRunAttempt": int(os.environ["FULL_COMPOSE_E2E_RUN_ATTEMPT"]),
+              "status": "passed", "install": "update_in_place",
+              "supportSafe": True, "containsSecretValues": False,
+          }, indent=2) + "\n")
+          PY
+
       - name: Summarize tester handoff
         run: |
           {
             echo "## Human test is ready"
             echo
-            echo "- Full Compose E2E: passed for ${DOGFOOD_COMMIT} (run ${FULL_COMPOSE_E2E_RUN_ID})"
+            echo "- Compose, macOS and iOS qualification: passed for ${DOGFOOD_COMMIT} (run ${FULL_COMPOSE_E2E_RUN_ID})"
             echo "- Dogfood Compose: running"
             echo "- iPhone: updated in place with the development-signed build"
             echo "- Invitation inbox: https://mail.weave.test:44443"
@@ -235,7 +224,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: prepare-human-test-${{ env.DOGFOOD_COMMIT }}
+          name: prepare-human-test-${{ env.DOGFOOD_COMMIT }}-attempt-${{ github.run_attempt }}
           path: weave/build/evidence/prepare-human-test
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14

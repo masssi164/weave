@@ -1,8 +1,8 @@
 # iOS dogfood for active development
 
-Dogfood is a fast development loop, not a release-distribution system. A commit is ready for human testing when `Full Compose E2E` succeeded for that exact `dogfood` SHA. There is no Candidate Cut, Fresh Start, TestFlight upload, environment approval, or release manifest in this loop.
+Dogfood is a fast development loop, not a release-distribution system. Human testing requires successful Full Compose E2E, native macOS and Apple Silicon iOS Simulator qualification, successful Dogfood deployment, and a prepared physical iPhone build for the same exact protected `dogfood` SHA and pinned specification. There is no Candidate Cut, Fresh Start, TestFlight upload, environment approval, or release manifest in this loop.
 
-The protected dogfood push deploys Compose after Full Compose E2E but does not automatically start
+The protected dogfood push deploys Compose after all mandatory automated qualification but does not automatically start
 an iPhone signing job. This keeps the branch green independently of the macOS background runner's
 login-Keychain access. Run the manual GitHub workflow `Prepare Human Test` only when its runner
 process can access the Apple Development private key. With the current Personal Team setup, use
@@ -11,7 +11,7 @@ installation without changing app identity or device trust.
 
 The preparation sequence is:
 
-1. verify the successful exact-SHA `Full Compose E2E` run;
+1. verify successful exact-SHA Compose/macOS/iOS qualification and Dogfood deployment;
 2. start the dogfood stack through `./gradlew dogfoodUp`;
 3. start it a second time and prove that the CA and leaf certificate fingerprints did not change;
 4. optionally create or resend the first-owner invitation and leave its activation link only in private Mailpit at `https://mail.weave.test:44443`;

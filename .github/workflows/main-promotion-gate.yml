@@ -93,31 +93,18 @@ jobs:
               exit 1
           fi
 
-      - name: Verify exact current dev and dogfood tree
+      - name: Verify exact qualified dogfood tree
         if: steps.candidate.outputs.lane == 'promotion'
         env:
           CANDIDATE: ${{ steps.candidate.outputs.sha }}
         run: |
           set -euo pipefail
-          if ! git merge-base --is-ancestor origin/dev "$CANDIDATE"; then
-            echo "::error::Main promotion must contain the current protected dev head." >&2
+          if ! git merge-base --is-ancestor origin/dogfood "$CANDIDATE" || \
+            ! git diff --quiet origin/dogfood "$CANDIDATE" --; then
+            echo "::error::Main promotion must preserve the exact protected Dogfood tree." >&2
             exit 1
           fi
-          if ! git diff --quiet origin/dev "$CANDIDATE" --; then
-            echo "::error::Main promotion must use the exact current dev tree. Put source changes on dev first." >&2
-            git diff --stat origin/dev "$CANDIDATE" --
-            exit 1
-          fi
-          if ! git merge-base --is-ancestor origin/dogfood "$CANDIDATE"; then
-            echo "::error::Main promotion must contain the current protected dogfood head." >&2
-            exit 1
-          fi
-          if ! git diff --quiet origin/dogfood "$CANDIDATE" --; then
-            echo "::error::Main promotion must use the exact deployed dogfood tree." >&2
-            git diff --stat origin/dogfood "$CANDIDATE" --
-            exit 1
-          fi
-          echo "Candidate contains protected dev and dogfood and is tree-identical to both."
+          echo "Candidate preserves qualified Dogfood; newer Dev work is independent."
 
       - name: Verify exact dogfood and separate human result
         if: steps.candidate.outputs.lane == 'promotion'
@@ -157,5 +144,5 @@ jobs:
         run: |
           set -euo pipefail
           echo "Main promotion uses the direct-Compose native-core contract from #1403 and #1407."
-          echo "Dogfood E2E, exact deployment and separately reported human results precede main."
+          echo "Dogfood Compose/macOS/iOS qualification, exact deployment/preparation and explicit human results precede main."
           echo "Candidate Cut, Fresh Start and TestFlight are not prerequisites for this development lane."

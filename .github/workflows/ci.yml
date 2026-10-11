@@ -27,7 +27,8 @@ concurrency:
 jobs:
   core_architecture:
     name: Core architecture
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+    needs: api_impact
+    if: needs.api_impact.outputs.backend == 'true' && (github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -36,26 +37,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - run: ./gradlew --no-daemon --stacktrace coreArchitectureCi
-
-  canonical_data:
-    name: Canonical data
-    needs: core_architecture
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
-        with:
-          distribution: temurin
-          java-version: '21'
-      - run: ./gradlew --no-daemon --stacktrace canonicalDataCi
+      - run: ./gradlew --no-daemon --stacktrace coreArchitectureCi canonicalDataCi mcpFoundationCi
 
   postgres_persistence:
     name: PostgreSQL persistence
-    needs: canonical_data
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+    needs: api_impact
+    if: needs.api_impact.outputs.backend == 'true' && (github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled'))
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -68,8 +55,8 @@ jobs:
 
   protocol_foundation:
     name: Server protocol foundation
-    needs: postgres_persistence
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+    needs: api_impact
+    if: needs.api_impact.outputs.backend == 'true' && (github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled'))
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -87,23 +74,8 @@ jobs:
           echo 'WEAVE_MINIO_TEST_IMAGE=weave-runtime-state:ci-s3' >> "$GITHUB_ENV"
       - run: ./gradlew --no-daemon --stacktrace protocolFacadeFoundationCi
 
-  mcp_foundation:
-    name: MCP foundation
-    needs: protocol_foundation
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
-        with:
-          distribution: temurin
-          java-version: '21'
-      - run: ./gradlew --no-daemon --stacktrace mcpFoundationCi
-
   core_docs:
     name: Core documentation
-    needs: mcp_foundation
     if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -118,7 +90,6 @@ jobs:
 
   api_contract:
     name: API contract freshness
-    needs: core_docs
     if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -142,17 +113,26 @@ jobs:
           retention-days: 7
 
   api_impact:
-    name: API consumer impact
+    name: Deterministic gate impact
+    # Stale code-first exports fail before downstream impact selection.
+    needs: api_contract
     if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      consumers: ${{ steps.impact.outputs.consumers }}
+      backend: ${{ steps.impact.outputs.backend }}
+      user: ${{ steps.impact.outputs.user }}
+      admin: ${{ steps.impact.outputs.admin }}
+      client: ${{ steps.impact.outputs.client }}
+      admin_console: ${{ steps.impact.outputs.admin_console }}
+      infra: ${{ steps.impact.outputs.infra }}
+      docs: ${{ steps.impact.outputs.docs }}
+      rust: ${{ steps.impact.outputs.rust }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
-      - name: Resolve contract/generator impact
+      - name: Resolve complete deterministic inputs
         id: impact
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -163,28 +143,15 @@ jobs:
           case "$EVENT_NAME" in
             pull_request) base="$PR_BASE_SHA" ;;
             push) base="$PUSH_BEFORE_SHA" ;;
-            *)
-              echo "consumers=true" >> "$GITHUB_OUTPUT"
-              exit 0
-              ;;
+            *) base='' ;;
           esac
-          if [[ ! "$base" =~ ^[0-9a-f]{40}$ || "$base" == "0000000000000000000000000000000000000000" ]]; then
-            echo "consumers=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git fetch --no-tags origin "$base"
-          if git diff --quiet "$base" HEAD --             contracts/openapi             tools/generate_admin_api_client.py             tools/generate_client_user_api.py             tools/openapi_codegen_test.py             tools/normalize_openapi_contracts.py             gradle/tasks/verification.gradle             gradle/libs.versions.toml; then
-            echo "consumers=false" >> "$GITHUB_OUTPUT"
-            echo "Generated API consumer inputs are unchanged."
-          else
-            echo "consumers=true" >> "$GITHUB_OUTPUT"
-            echo "Generated API consumer inputs changed."
-          fi
+          # Missing/unresolvable bases, merge groups and unknown inputs run all gates.
+          python3 tools/dev_ci_impact.py --base "$base"
 
-  generated_api:
-    name: Generated API consumers
-    needs: [api_contract, api_impact]
-    if: needs.api_contract.result == 'success' && needs.api_impact.outputs.consumers == 'true'
+  generated_user_api:
+    name: Generated User API consumers
+    needs: api_impact
+    if: needs.api_impact.outputs.user == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -197,56 +164,169 @@ jobs:
         with:
           flutter-version: '3.41.6'
           channel: stable
-      - name: Resolve locked Flutter dependencies
-        run: |
+      - run: |
           cd client
           flutter pub get --enforce-lockfile
-      - name: Verify only generated consumers
-        run: ./gradlew --no-daemon --stacktrace generatedApiConsumerCi
+          cd ..
+          ./gradlew --no-daemon --stacktrace generatedUserApiConsumerCi
+
+  generated_admin_api:
+    name: Generated Admin API consumers
+    needs: api_impact
+    if: needs.api_impact.outputs.admin == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: ./gradlew --no-daemon --stacktrace generatedAdminApiConsumerCi
+
+  client_deterministic:
+    name: Flutter deterministic verification
+    needs: api_impact
+    if: needs.api_impact.outputs.client == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+      - run: |
+          rustup toolchain install 1.95.0 --profile minimal
+          export RUSTUP_TOOLCHAIN=1.95.0
+          cd client
+          flutter pub get --enforce-lockfile
+          cd ..
+          ./gradlew --no-daemon --stacktrace clientDeterministicCi
+
+  admin_deterministic:
+    name: Admin deterministic verification
+    needs: api_impact
+    if: needs.api_impact.outputs.admin_console == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '24'
+      - run: |
+          npm ci --prefix admin-console
+          ./gradlew --no-daemon --stacktrace adminDeterministicCi adminDependencyPolicyCheck
+
+  infra_static:
+    name: Infrastructure static verification
+    needs: api_impact
+    if: needs.api_impact.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: ./gradlew --no-daemon --stacktrace infraStatic
+
+  docs_deterministic:
+    name: Documentation verification
+    needs: api_impact
+    if: needs.api_impact.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.13'
+      - run: |
+          python3 -m pip install -r docs/requirements.txt
+          ./gradlew --no-daemon --stacktrace docsCheck
+
+  rust_deterministic:
+    name: Rust module verification
+    needs: api_impact
+    if: needs.api_impact.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: |
+          rustup toolchain install 1.95.0 --profile minimal
+          export RUSTUP_TOOLCHAIN=1.95.0
+          ./gradlew --no-daemon --stacktrace matrixRustCoreTest
+
+  spec_acceptance:
+    name: Specification and acceptance conformance
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+      - name: Read immutable corpus pin
+        id: spec
+        run: |
+          commit="$(jq -er '.specCorpus.gitCommit | select(test("^[0-9a-f]{40}$"))' specs/weave-specs.lock.json)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec.outputs.commit }}
+          path: .spec-corpus
+          ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
+          persist-credentials: false
+      - name: Verify pinned specification, acceptance and CI policy
+        env:
+          WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/.spec-corpus
+        run: |
+          python3 -m pip install --disable-pip-version-check 'uv==0.9.29'
+          cd client
+          flutter pub get --enforce-lockfile
+          cd ..
+          ./gradlew --no-daemon --stacktrace specCorpusConformance acceptanceContract devCiImpactTest workflowActionRuntimeCheck
 
   gradle_ci:
-    # A label-only run must not publish a skipped result under the protected check name.
+    # Label events cannot overwrite the protected exact-head aggregate.
     name: ${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && 'Label-only aggregate (skipped)' || 'Gradle CI' }}
     if: always() && (github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled'))
-    needs:
-      - core_architecture
-      - canonical_data
-      - postgres_persistence
-      - protocol_foundation
-      - mcp_foundation
-      - core_docs
-      - api_contract
-      - api_impact
-      - generated_api
+    needs: [core_architecture, postgres_persistence, protocol_foundation, core_docs, api_contract, api_impact, spec_acceptance, generated_user_api, generated_admin_api, client_deterministic, admin_deterministic, infra_static, docs_deterministic, rust_deterministic]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require every real core foundation job
-        run: |
-          for result in \
-            '${{ needs.core_architecture.result }}' \
-            '${{ needs.canonical_data.result }}' \
-            '${{ needs.postgres_persistence.result }}' \
-            '${{ needs.protocol_foundation.result }}' \
-            '${{ needs.mcp_foundation.result }}' \
-            '${{ needs.core_docs.result }}' \
-            '${{ needs.api_contract.result }}' \
-            '${{ needs.api_impact.result }}'; do
-            if [ "$result" != 'success' ]; then
-              echo "A required core foundation job finished as: $result" >&2
-              exit 1
-            fi
-          done
-          consumer_result='${{ needs.generated_api.result }}'
-          consumer_impact='${{ needs.api_impact.outputs.consumers }}'
-          if [[ "$consumer_impact" == 'true' && "$consumer_result" != 'success' ]]; then
-            echo "Generated API consumers were impacted but finished as: $consumer_result" >&2
-            exit 1
-          fi
-          if [[ "$consumer_impact" != 'true' && "$consumer_result" != 'skipped' ]]; then
-            echo "Generated API consumers were not impacted but unexpectedly finished as: $consumer_result" >&2
-            exit 1
-          fi
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Fail closed on required results and malformed impact
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 tools/dev_ci_results.py
 
   release_notes_label_check:
     name: Release Notes Label Check

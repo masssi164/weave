@@ -108,6 +108,10 @@ Every issue should include:
 
 ## Board status rules
 
+The pinned delivery contract projects Open → To Do → In Progress → Review → E2E Testing → HIL → Main onto actual Project #2 fields/options. Inspect those fields before changing configuration; reuse semantically equivalent options. Issue progress, branch names and candidate readiness are distinct. Advance only explicitly associated items using verified evidence. Dogfood merge alone cannot imply successful E2E or HIL readiness; human acceptance is explicit. Missing permissions or evidence fails closed, and repeat transitions are idempotent.
+
+The legacy bootstrap fixture below uses coarse statuses for setup/audit only; it is not release-candidate or HIL authority.
+
 - `Todo`: planned and not started.
 - `In Progress`: active branch/worktree or delegated worker exists.
 - `Done`: issue closed and linked PR/evidence is merged or explicitly not required.
