@@ -34,7 +34,28 @@ void main() {
     expect(appAuthSource, contains('issuer:'));
     expect(appAuthSource, contains('nonce:'));
     expect(makefile, contains('physical-device-auth-e2e'));
-    expect(makefile, contains('.emulator == false'));
+    final physicalTarget = makefile.substring(
+      makefile.indexOf('physical-device-auth-e2e:\n'),
+      makefile.indexOf('\nnative-browser-e2e:\n'),
+    );
+    final simulatorTarget = makefile.substring(
+      makefile.indexOf('\nios-simulator-product-e2e:\n'),
+    );
+    expect(physicalTarget, contains('WEAVE_NATIVE_EXPECT_SIMULATOR=false'));
+    expect(
+      physicalTarget,
+      isNot(contains('WEAVE_NATIVE_EXPECT_SIMULATOR=true')),
+    );
+    expect(simulatorTarget, contains('WEAVE_NATIVE_EXPECT_SIMULATOR=true'));
+    expect(simulatorTarget, contains('WEAVE_IOS_SIMULATOR_ID'));
+    expect(simulatorTarget, contains('WEAVE_DEVICE_DISPOSABLE_STACK'));
+    expect(
+      makefile,
+      contains(
+        r'--argjson simulator "$${WEAVE_NATIVE_EXPECT_SIMULATOR:-false}"',
+      ),
+    );
+    expect(makefile, contains(r'.id == $$id and .emulator == $$simulator'));
     for (final forbidden in const <String>[
       'WEAVE_TEST_USERNAME',
       'WEAVE_TEST_PASSWORD',
