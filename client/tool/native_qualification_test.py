@@ -73,8 +73,12 @@ class NativeQualificationTest(unittest.TestCase):
         self.assertNotIn('WEAVE_NATIVE_MEMBER_PASSWORD', environment)
 
     def test_failed_browser_retains_safe_stages_and_distinguishes_launch_from_ui_failure(self):
-        for started, expected_category in [(False, 'infrastructure'), (True, 'integration')]:
-            with self.subTest(started=started), tempfile.TemporaryDirectory() as name:
+        for started, waiting, expected_category, expected_reason in [
+            (False, False, 'infrastructure', 'browser-runner-start-failed'),
+            (False, True, 'infrastructure', 'target-app-start-failed'),
+            (True, False, 'integration', 'browser-ui-failed'),
+        ]:
+            with self.subTest(started=started, waiting=waiting), tempfile.TemporaryDirectory() as name:
                 temporary = Path(name)
                 derived = temporary / 'derived'
                 products = derived / 'Build/Products'
@@ -86,8 +90,12 @@ class NativeQualificationTest(unittest.TestCase):
                     result.wait.return_value = 1 if arguments[0] == 'xcodebuild' else 0
                     log = kwargs['stdout']
                     if arguments[0] == 'xcodebuild':
+                        if waiting:
+                            log.write('NATIVE_IOS_BROWSER_STAGE phase=driver-started\n')
+                            log.write('NATIVE_IOS_BROWSER_STAGE phase=app-wait-started\n')
                         if started:
                             log.write('NATIVE_IOS_BROWSER_STAGE phase=driver-started\n')
+                            log.write('NATIVE_IOS_BROWSER_STAGE phase=app-observed\n')
                             log.write('NATIVE_IOS_BROWSER_STAGE phase=issuer-observed\n')
                         log.write('raw-secret-password raw-private-email\n')
                     else:
@@ -100,11 +108,37 @@ class NativeQualificationTest(unittest.TestCase):
                     with self.assertRaises(ios.NativeFailure) as raised:
                         ios.execute_phase('initial', 'owned-simulator', derived, temporary, {}, {'email': 'raw-private-email', 'password': 'raw-secret-password'})
                 self.assertEqual(raised.exception.category, expected_category)
+                self.assertEqual(raised.exception.reason, expected_reason)
                 self.assertIn('category=' + expected_category, output.getvalue())
                 self.assertIn('NATIVE_PRODUCT_STAGE phase=sign-in-tapped', output.getvalue())
                 self.assertNotIn('raw-secret-password', output.getvalue())
                 self.assertNotIn('raw-private-email', output.getvalue())
                 self.assertFalse((bundle / 'private-member.json').exists())
+
+    def test_driver_start_without_target_is_not_a_product_regression(self):
+        self.assertFalse(ios.browser_product_started(
+            'NATIVE_IOS_BROWSER_STAGE phase=driver-started\n'
+            'NATIVE_IOS_BROWSER_STAGE phase=app-wait-started\n'))
+        self.assertTrue(ios.browser_product_started(
+            'NATIVE_IOS_BROWSER_STAGE phase=app-observed\n'))
+
+    def test_xctest_diagnostic_retains_location_without_typed_values(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', '',
+                'BrowserDriver.swift:41: error: Application not running raw-secret-password\n'
+                'BrowserDriver.swift:57: error: assertion raw-private-email\n')
+        self.assertIn('line=41 category=target-not-running', output.getvalue())
+        self.assertIn('line=57 category=xctest-assertion', output.getvalue())
+        self.assertNotIn('raw-secret-password', output.getvalue())
+        self.assertNotIn('raw-private-email', output.getvalue())
+
+    def test_browser_surface_is_guarded_without_foreground_stealing(self):
+        driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
+        browser_loop = driver.split('for surface in [app, browser] {', 1)[1]
+        self.assertLess(browser_loop.index('guard surfaceState == .runningForeground || surfaceState == .runningBackground'),
+                        browser_loop.index('surface.descendants'))
+        self.assertNotIn('.activate()', driver)
 
     def test_ios_failure_cannot_be_presented_as_macos_or_combined_success(self):
         with tempfile.TemporaryDirectory() as name:
