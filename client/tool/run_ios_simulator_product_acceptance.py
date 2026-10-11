@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import platform
+import plistlib
 import shutil
 import signal
 import re
@@ -248,13 +249,32 @@ def simulator_driver_barrier(udid: str, run_id: str) -> Path:
     return barrier
 
 
+def exact_simulator_app_pids(processes: str, executable: Path) -> set[str]:
+    # comm contains only executable identity, excluding argument values. The
+    # installed bundle path binds this executable to one exact owned simulator.
+    matches = set()
+    for line in processes.splitlines():
+        fields = line.strip().split(maxsplit=1)
+        if len(fields) == 2 and fields[0].isdigit() and fields[1] == str(executable):
+            matches.add(fields[0])
+    return matches
+
+
 def simulator_app_pid(udid: str) -> str:
-    listing = run(['xcrun', 'simctl', 'spawn', udid, 'launchctl', 'list'])
-    pids = [line.split()[0] for line in listing.splitlines()
-            if f'UIKitApplication:{BUNDLE}[' in line]
-    if len(pids) != 1 or not pids[0].isdigit():
-        raise NativeFailure('infrastructure', 'driver-attach', 'integration-process-unavailable')
-    return pids[0]
+    app = Path(run(['xcrun', 'simctl', 'get_app_container', udid, BUNDLE, 'app']).strip()).resolve(strict=True)
+    if f'/CoreSimulator/Devices/{udid}/' not in str(app):
+        raise NativeFailure('infrastructure', 'driver-attach', 'integration-app-container-mismatch')
+    metadata = plistlib.loads((app / 'Info.plist').read_bytes())
+    executable = metadata.get('CFBundleExecutable')
+    if (metadata.get('CFBundleIdentifier') != BUNDLE or not isinstance(executable, str)
+            or not re.fullmatch(r'[A-Za-z0-9_-]+', executable) or not (app / executable).is_file()):
+        raise NativeFailure('infrastructure', 'driver-attach', 'integration-executable-identity-invalid')
+    pids = exact_simulator_app_pids(run(['/bin/ps', '-axo', 'pid=,comm=']), app / executable)
+    print(f'NATIVE_IOS_PROCESS_IDENTITY matchingCount={min(len(pids), 9)} unique={str(len(pids) == 1).lower()} supportSafe=true', flush=True)
+    if len(pids) != 1:
+        reason = 'integration-process-unavailable' if not pids else 'integration-process-ambiguous'
+        raise NativeFailure('infrastructure', 'driver-attach', reason)
+    return next(iter(pids))
 
 
 def release_driver_barrier(flutter, driver, log_path: Path, udid: str, pid: str, barrier: Path, phase: str, timeout: float = 90) -> None:
