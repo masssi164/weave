@@ -1,4 +1,4 @@
-registerRootCommandTask('acceptanceContract', ['bash', '-lc', 'cd client && dart run tool/acceptance_contract.dart guard --root .. --features e2e/features --mapping e2e/scenario_mappings.json && cd .. && python3 tools/e2e_structure_check.py && python3 tools/files_webdav_facade_acceptance_check.py && python3 tools/enterprise_target_architecture_spine_check.py && python3 tools/spring_ai_mcp_facade_acceptance_check.py && python3 tools/open_standards_gateway_archive_gap_check.py'], 'Verify Gherkin scenario mappings, acceptance contracts, and professional E2E suite coverage.')
+registerRootCommandTask('acceptanceContract', ['bash', '-lc', 'dart client/tool/acceptance_contract.dart guard --root . --features e2e/features --mapping e2e/scenario_mappings.json && python3 tools/e2e_structure_check.py && python3 tools/files_webdav_facade_acceptance_check.py && python3 tools/enterprise_target_architecture_spine_check.py && python3 tools/spring_ai_mcp_facade_acceptance_check.py && python3 tools/open_standards_gateway_archive_gap_check.py'], 'Verify Gherkin scenario mappings, acceptance contracts, and professional E2E suite coverage.')
 registerRootCommandTask('e2eStructureCheck', ['python3', 'tools/e2e_structure_check.py'], 'Validate the professional E2E suite catalog covers every mapped scenario by suite, persona, domain, and evidence lane.')
 registerRootCommandTask('filesWebDavFacadeAcceptanceCheck', ['python3', 'tools/files_webdav_facade_acceptance_check.py'], 'Verify the Files WebDAV facade Cucumber scenarios against deterministic implementation evidence.')
 registerRootCommandTask('enterpriseTargetArchitectureSpineCheck', ['python3', 'tools/enterprise_target_architecture_spine_check.py'], 'Validate the Enterprise Target Architecture E2E evidence spine.')
@@ -108,7 +108,8 @@ tasks.register('devCiImpactTest', Exec) {
     workingDir rootProject.projectDir
     commandLine 'python3', '-m', 'unittest', 'tools.test_dev_ci_impact', '-v'
     inputs.files('tools/dev_ci_impact.py', 'tools/dev_ci_results.py',
-            'tools/test_dev_ci_impact.py', '.github/workflows/ci.yml', 'gradle/tasks/verification.gradle')
+            'tools/test_dev_ci_impact.py', '.github/workflows/ci.yml', 'gradle/tasks/verification.gradle',
+            'client/tool/acceptance_contract.dart')
     inputs.property('pythonVersion', providers.exec {
         commandLine 'python3', '--version'
     }.standardOutput.asText)

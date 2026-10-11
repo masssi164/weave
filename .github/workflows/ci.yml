@@ -309,9 +309,6 @@ jobs:
           WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/.spec-corpus
         run: |
           python3 -m pip install --disable-pip-version-check 'uv==0.9.29'
-          cd client
-          flutter pub get --enforce-lockfile
-          cd ..
           ./gradlew --no-daemon --stacktrace specCorpusConformance acceptanceContract devCiImpactTest workflowActionRuntimeCheck
 
   gradle_ci:

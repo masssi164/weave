@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Regressions for evidence attribution and native qualification failure paths."""
 import json
+import io
+from contextlib import redirect_stdout
 import os
 import sys
 import tempfile
@@ -20,13 +22,13 @@ class NativeQualificationTest(unittest.TestCase):
             {'identifier': ios.RUNTIME, 'isAvailable': True, 'supportedArchitectures': ['x86_64']},
         ]:
             with self.subTest(entry=entry), patch.object(ios, 'run', return_value=json.dumps({'runtimes': [entry]})), patch.dict(os.environ, {}, clear=True):
-                with self.assertRaisesRegex(RuntimeError, 'Apple Silicon'):
+                with self.assertRaisesRegex(ios.NativeFailure, 'apple-silicon-runtime-unavailable'):
                     ios.select_runtime()
 
     def test_runtime_does_not_silently_select_another_device(self):
         entry = {'identifier': ios.RUNTIME, 'isAvailable': True, 'supportedArchitectures': ['arm64'], 'supportedDeviceTypes': [{'identifier': 'other'}]}
         with patch.object(ios, 'run', return_value=json.dumps({'runtimes': [entry]})), patch.dict(os.environ, {}, clear=True):
-            with self.assertRaisesRegex(RuntimeError, 'device type'):
+            with self.assertRaisesRegex(ios.NativeFailure, 'pinned-device-type-unsupported'):
                 ios.select_runtime()
 
     def test_build_tools_never_receive_disposable_credentials(self):
@@ -38,6 +40,40 @@ class NativeQualificationTest(unittest.TestCase):
         environment = execute.call_args.kwargs['env']
         self.assertNotIn('WEAVE_NATIVE_MEMBER_EMAIL', environment)
         self.assertNotIn('WEAVE_NATIVE_MEMBER_PASSWORD', environment)
+
+    def test_failed_browser_retains_safe_stages_and_distinguishes_launch_from_ui_failure(self):
+        for started, expected_category in [(False, 'infrastructure'), (True, 'integration')]:
+            with self.subTest(started=started), tempfile.TemporaryDirectory() as name:
+                temporary = Path(name)
+                derived = temporary / 'derived'
+                products = derived / 'Build/Products'
+                bundle = products / 'BrowserDriver.xctest'
+                bundle.mkdir(parents=True)
+                (products / 'BrowserDriver.xctestrun').write_text('plan')
+                def launch(arguments, **kwargs):
+                    result = unittest.mock.Mock()
+                    result.wait.return_value = 1 if arguments[0] == 'xcodebuild' else 0
+                    log = kwargs['stdout']
+                    if arguments[0] == 'xcodebuild':
+                        if started:
+                            log.write('NATIVE_IOS_BROWSER_STAGE phase=driver-started\n')
+                            log.write('NATIVE_IOS_BROWSER_STAGE phase=issuer-observed\n')
+                        log.write('raw-secret-password raw-private-email\n')
+                    else:
+                        log.write('NATIVE_PRODUCT_STAGE phase=sign-in-tapped token=raw-secret-password\n')
+                        log.write('NATIVE_PRODUCT_STAGE phase=raw-secret-password\n')
+                    log.flush()
+                    return result
+                output = io.StringIO()
+                with redirect_stdout(output), patch.object(ios.subprocess, 'Popen', side_effect=launch), patch.object(ios, 'stop_flutter_process_group'):
+                    with self.assertRaises(ios.NativeFailure) as raised:
+                        ios.execute_phase('initial', 'owned-simulator', derived, temporary, {}, {'email': 'raw-private-email', 'password': 'raw-secret-password'})
+                self.assertEqual(raised.exception.category, expected_category)
+                self.assertIn('category=' + expected_category, output.getvalue())
+                self.assertIn('NATIVE_PRODUCT_STAGE phase=sign-in-tapped', output.getvalue())
+                self.assertNotIn('raw-secret-password', output.getvalue())
+                self.assertNotIn('raw-private-email', output.getvalue())
+                self.assertFalse((bundle / 'private-member.json').exists())
 
     def test_ios_failure_cannot_be_presented_as_macos_or_combined_success(self):
         with tempfile.TemporaryDirectory() as name:

@@ -139,6 +139,18 @@ class ImpactTest(unittest.TestCase):
         del needs['api_contract']
         with self.assertRaises(ValueError): results.validate(needs)
 
+    def test_acceptance_text_guard_does_not_build_native_app(self):
+        root = Path(__file__).resolve().parents[1]
+        gradle = (root / 'gradle/tasks/verification.gradle').read_text()
+        script = (root / 'client/tool/acceptance_contract.dart').read_text()
+        self.assertIn('dart client/tool/acceptance_contract.dart guard --root .', gradle)
+        imports = re.findall(r"^import ['\"]([^'\"]+)", script, re.MULTILINE)
+        self.assertTrue(imports)
+        self.assertTrue(all(import_name.startswith('dart:') for import_name in imports))
+        workflow = (root / '.github/workflows/ci.yml').read_text()
+        block = re.search(r'(?ms)^  spec_acceptance:\n.*?(?=^  [a-z_]+:|\Z)', workflow).group()
+        self.assertNotIn('flutter pub get', block)
+
     def test_every_backend_job_is_linked_to_validated_impact(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/ci.yml').read_text()
         for job in results.BACKEND:
