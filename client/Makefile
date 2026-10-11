@@ -57,6 +57,7 @@ native-browser-e2e:
 	  --arg WEAVE_DISPOSABLE_MATRIX_MESSAGE_E2E "$${WEAVE_DEVICE_MATRIX_RECOVERY_E2E:-false}" \
 	  --arg WEAVE_TWO_DEVICE_MATRIX_RECOVERY_E2E "$${WEAVE_DEVICE_MATRIX_RECOVERY_E2E:-false}" \
 	  --arg WEAVE_DEVICE_DISPOSABLE_STACK "$${WEAVE_DEVICE_DISPOSABLE_STACK:-false}" \
+	  --arg WEAVE_NATIVE_EXPECT_SIMULATOR "$${WEAVE_NATIVE_EXPECT_SIMULATOR:-false}" \
 	  --arg WEAVE_NATIVE_TEST_RUN_ID "$${WEAVE_NATIVE_TEST_RUN_ID:-}" \
 	  '$$ARGS.named' > "$$dart_defines_file"; \
 	if [ "$${WEAVE_DEVICE_PRODUCT_E2E:-false}" = "true" ]; then \
@@ -90,6 +91,8 @@ physical-device-matrix-recovery-e2e:
 marketing-screenshots:
 	@python3 tool/generate_marketing_screenshots.py
 
+# WEAVE_NATIVE_EXPECT_SIMULATOR is a private test-only compile define for
+# owned-simulator XCTest synchronization, default false on physical/macOS paths.
 # Simulator qualification retains the physical-device guard above.
 ios-simulator-product-e2e:
 	@test "$${WEAVE_DEVICE_DISPOSABLE_STACK:-}" = "true" || \
