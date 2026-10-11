@@ -72,17 +72,30 @@ registerCommandTask('clientOpenApiDriftPrevention', file('client'), ['bash', '-l
 tasks.named('clientCi') {
     dependsOn 'checkClientUserApiFresh', 'clientOpenApiDriftPrevention', 'clientGeneratedCalendarTemporalWire'
 }
-tasks.register('generatedApiCi') {
+tasks.register('generatedApiContractCi') {
     group = 'verification'
-    description = 'Verify code-first User/Admin exports and all generated HTTP consumers on one candidate.'
+    description = 'Verify code-first OpenAPI exports and normalization without rebuilding downstream consumers.'
     dependsOn 'checkOpenApiContractFresh',
             'openApiProjectionContractTest',
-            ':weave-user-api-client:check',
+            'openApiNormalizationContractTest'
+}
+
+tasks.register('generatedApiConsumerCi') {
+    group = 'verification'
+    description = 'Verify generated HTTP consumers only when their contract or generator inputs changed.'
+    dependsOn ':weave-user-api-client:check',
             ':weave-admin-api-client:check',
-            ':weave-mcp-server:test',
-            ':weave-product-e2e:test',
-            'clientCi',
-            'adminCi'
+            'checkAdminApiClientFresh',
+            'checkAdminPublicUserApiClientFresh',
+            'checkClientUserApiFresh',
+            'clientGeneratedCalendarTemporalWire',
+            'clientOpenApiDriftPrevention'
+}
+
+tasks.register('generatedApiCi') {
+    group = 'verification'
+    description = 'Compatibility aggregate for explicit full generated-API verification.'
+    dependsOn 'generatedApiContractCi', 'generatedApiConsumerCi'
 }
 tasks.register('javaMcpServerCi') {
     group = 'verification'
