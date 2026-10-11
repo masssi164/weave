@@ -28,6 +28,16 @@ class NativeQualificationTest(unittest.TestCase):
         self.assertIn('XCTAssertTrue(signIn.isHittable', driver)
         self.assertNotIn('label CONTAINS', driver.split('if fixture.phase == "initial" {', 1)[1].split('var usernameSubmitted', 1)[0])
 
+    def test_consent_uses_exact_localized_alert_controls_and_rejects_ambiguity(self):
+        driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
+        consent = driver.split('for surface in [app, springboard] {', 1)[1].split('if fixture.phase == "restore"', 1)[0]
+        self.assertIn('static let consentLabels = ["Continue", "Fortfahren"]', driver)
+        self.assertIn('surface.alerts.buttons.matching(NSPredicate(format: "label IN %@", Self.consentLabels))', consent)
+        self.assertIn('XCTAssertLessThanOrEqual(consent.count, 1', consent)
+        self.assertIn('consent.count == 1 && consent.element.isHittable', consent)
+        self.assertNotIn('CONTAINS', consent)
+        self.assertNotIn('surface.buttons', consent)
+
     def test_runtime_must_be_available_and_apple_silicon(self):
         for entry in [
             {'identifier': ios.RUNTIME, 'isAvailable': False, 'supportedArchitectures': ['arm64']},

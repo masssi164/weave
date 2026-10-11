@@ -3,6 +3,7 @@ import XCTest
 final class BrowserDriver: XCTestCase {
   // Exact supported product labels; the owned simulator can inherit either locale.
   static let signInLabels = ["Sign In", "Anmelden"]
+  static let consentLabels = ["Continue", "Fortfahren"]
   static func waitForRunningApplication(
     state: () -> XCUIApplication.State,
     deadline: Date,
@@ -88,8 +89,9 @@ final class BrowserDriver: XCTestCase {
         continue
       }
       for surface in [app, springboard] {
-        let consent = surface.alerts.buttons["Continue"]
-        if consent.exists && consent.isHittable { consent.tap() }
+        let consent = surface.alerts.buttons.matching(NSPredicate(format: "label IN %@", Self.consentLabels))
+        XCTAssertLessThanOrEqual(consent.count, 1, "Expected at most one native authentication consent control")
+        if consent.count == 1 && consent.element.isHittable { consent.element.tap() }
       }
       if fixture.phase == "restore" {
         // Logout must return through the production session, without a token
