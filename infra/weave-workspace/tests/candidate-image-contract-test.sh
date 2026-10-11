@@ -133,9 +133,12 @@ contains "${CI_WORKFLOW}" "github.event.action != 'labeled'"
 contains "${CI_WORKFLOW}" "github.event.action != 'unlabeled'"
 contains "${CI_WORKFLOW}" "'Label-only aggregate (skipped)' || 'Gradle CI'"
 contains "${CI_WORKFLOW}" '- ready_for_review'
-contains "${CI_WORKFLOW}" 'name: Generated API consumers'
-contains "${CI_WORKFLOW}" '${{ needs.generated_api.result }}'
-contains "${CI_WORKFLOW}" "if [ \"\$result\" != 'success' ]; then"
+contains "${CI_WORKFLOW}" 'name: Generated User API consumers'
+contains "${CI_WORKFLOW}" 'name: Generated Admin API consumers'
+contains "${CI_WORKFLOW}" 'NEEDS_JSON: ${{ toJSON(needs) }}'
+contains "${CI_WORKFLOW}" 'run: python3 tools/dev_ci_results.py'
+# Exact selected/skipped result expectations are covered by executable negatives.
+python3 -m unittest tools.test_dev_ci_impact
 
 if [[ -f "${WORKFLOW}" ]]; then
   reject "${WORKFLOW}" 'opentofu/setup-opentofu'

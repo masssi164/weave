@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +14,29 @@ from tools.normalize_openapi_contracts import normalize
 
 
 class NormalizeOpenApiContractsTest(unittest.TestCase):
+    def test_freshness_comparison_never_rewrites_tracked_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "build/openapi").mkdir(parents=True)
+            (root / "tools").mkdir()
+            self.write_raw(root, "weave-openapi", self.document("/api/files", "files"))
+            self.write_raw(root, "weave-user-openapi", self.document("/api/files", "files"))
+            self.write_raw(root, "weave-admin-openapi", self.document("/api/admin/files", "adminFiles"))
+            normalize(root)
+            for name in ("check_openapi_contract_fresh.sh", "normalize_openapi_contracts.py"):
+                shutil.copyfile(Path(__file__).parent / name, root / "tools" / name)
+            command = ["bash", str(root / "tools/check_openapi_contract_fresh.sh")]
+            environment = {**os.environ, "WEAVE_OPENAPI_SKIP_EXPORT": "true"}
+            fresh = subprocess.run(command, env=environment, capture_output=True)
+            self.assertEqual(fresh.returncode, 0, fresh.stderr.decode())
+            stale = root / "contracts/openapi/weave-user-openapi.json"
+            stale.write_text('{"stale":true}\n')
+            before = {path.name: path.read_bytes() for path in stale.parent.glob("*.json")}
+            failed = subprocess.run(command, env=environment, capture_output=True)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn("artifact is stale", failed.stderr.decode())
+            self.assertEqual(before, {path.name: path.read_bytes() for path in stale.parent.glob("*.json")})
+
     def test_preserves_schema_security_headers_and_failure_responses(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -45,17 +45,25 @@ def main() -> int:
         require(not (ROOT / obsolete).exists(), f"retired workflow remains active: {obsolete}")
 
     require("name: Full Compose E2E" in e2e, "the E2E workflow has no stable check name")
-    require("branches: [dev, dogfood]" in e2e, "E2E must run for dev and dogfood")
+    require("branches: [dogfood]" in e2e and "  pull_request:" not in e2e
+            and "  merge_group:" not in e2e and "  workflow_dispatch:" not in e2e, "integrated E2E must qualify protected Dogfood only")
+    require("run_native_qualification.py" in e2e, "mandatory independent native qualification is missing")
+    require("--qualification-only" in prepare and "verify_main_promotion_evidence.py" in prepare,
+            "physical preparation must verify exact deployment and both native results")
+    verifier = read("tools/verify_main_promotion_evidence.py")
+    for marker in ("native-qualification.json", "aarch64-apple-ios-sim", "teardown-evidence.json",
+                   "preparation-result.json", "specificationCommit", "sourceTree"):
+        require(marker in verifier, f"promotion evidence misses {marker}")
     require("name: Full Compose E2E" in e2e, "the required E2E check context is missing")
-    exact_source = "${{ github.event.pull_request.head.sha || github.sha }}"
+    exact_source = "${{ github.sha }}"
     require(
         e2e.count(exact_source) >= 3
         and "ref: ${{ env.WEAVE_CANDIDATE_COMMIT }}" in e2e,
-        "PR E2E must run against the exact head SHA instead of the synthetic merge commit",
+        "Dogfood qualification must run against the exact protected commit",
     )
     require(
         "permissions:\n  actions: read\n  contents: read" in e2e,
-        "the reusable iPhone workflow cannot start without inherited actions:read",
+        "qualification must read exact GitHub workflow evidence",
     )
     node_setup = "actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444"
     require(
@@ -76,6 +84,7 @@ def main() -> int:
     )
     require("Candidate Cut" not in e2e and "candidate-manifest" not in e2e, "E2E still depends on an image candidate")
 
+    require("workflow_call:" not in prepare, "physical preparation must be explicitly dispatched")
     require("needs: full-compose-e2e" in e2e, "dogfood deployment is not downstream of E2E")
     require("github.ref == 'refs/heads/dogfood'" in e2e, "automatic deployment is not dogfood-only")
     require("./gradlew --no-daemon dogfoodUp" in e2e, "dogfood is not started through the root Compose lifecycle")
@@ -119,7 +128,7 @@ def main() -> int:
     )
     require("tools/runner_capacity_preflight.py" in test_app, "testApp bypasses the shared capacity preflight")
 
-    print("candidate-pipeline-check: passed delivery=direct-compose e2e=single-gate")
+    print("candidate-pipeline-check: passed delivery=direct-compose qualification=compose-macos-ios hil=explicit")
     return 0
 
 

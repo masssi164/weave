@@ -62,9 +62,9 @@ not require human credentials.
 
 ## Full Compose E2E and dogfood evidence
 
-The live-stack path is expensive and runs on a dedicated self-hosted macOS ARM64 runner. Use it when a change affects sign-in, backend facade contracts, Matrix/files/calendar live behavior, acceptance scenarios, or integration boundaries.
+The live-stack path is expensive and runs on a dedicated self-hosted macOS ARM64 runner. Mandatory qualification runs on the exact protected Dogfood candidate; ordinary Dev PRs use deterministic checks.
 
-There are four deliberately separated steps:
+Automated qualification, deployment, physical preparation and HIL remain separate:
 
 - `Full Compose E2E` (`.github/workflows/live-stack-e2e.yml`) runs
   `./gradlew testApp`. The bounded Java process creates owner/collaborator/outsider invitations,
@@ -74,9 +74,12 @@ There are four deliberately separated steps:
   twice, proves canonical JPA/PostgreSQL and direct Synapse state plus restart,
   outage/retry, callback-replay and outsider-denial behavior, proves workload-only
   MCP `files.search` revoke/regrant, writes allowlisted support-safe evidence, and
-  tears down only its namespace. This one exact-SHA run is the only automated
-  prerequisite for beginning the development human test.
-- The successful `dogfood` push starts that same source through `dogfoodUp`. The
+  tears down only its namespace. This Compose outcome is required alongside independent native macOS and Apple Silicon
+  iOS Simulator results from the same source/tree/spec. Native runs execute the real
+  Flutter app and Rust bridge against the candidate, including system-browser
+  OIDC/PKCE and mandatory product/session/authorization journeys. Missing or failed
+  native qualification blocks readiness.
+- After all mandatory automated qualification succeeds, the `dogfood` workflow starts that same source through `dogfoodUp`. The
   stack is deliberately resettable and keeps only PostgreSQL, native Files, and
   Mailpit session volumes; Caddy and Keycloak state are ephemeral.
 - `Prepare Human Test` proves the external TLS identity is unchanged, optionally
@@ -87,8 +90,10 @@ There are four deliberately separated steps:
   sign-in, normal session continuity, Chat/Files/Calendar behavior, and VoiceOver
   outcomes; installation evidence cannot manufacture those results.
 
-Production promotion is intentionally deferred until a production-hardening ADR
-selects the actual target and controls. See [Dev/Dogfood development loop](dev-test-main-promotion-flow.md).
+Main promotion verifies existing exact-candidate automated, deployment, preparation
+and explicit human evidence without repeating equivalent integration. Changed source
+invalidates evidence; newer Dev work alone does not. Production publication remains
+separate until a production-hardening ADR selects the actual target and controls. See [Dev/Dogfood development loop](dev-test-main-promotion-flow.md).
 
 The disposable workflow uploads the product result and exact teardown result.
 Each binds the exact implementation commit, pinned specification commit, and

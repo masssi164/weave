@@ -1,4 +1,4 @@
-.PHONY: offline-contract-test acceptance-feature-mapping release-spine-contract integration-contract-test integration-test physical-device-auth-e2e physical-device-product-e2e physical-device-matrix-recovery-e2e marketing-screenshots
+.PHONY: native-browser-e2e ios-simulator-product-e2e offline-contract-test acceptance-feature-mapping release-spine-contract integration-contract-test integration-test physical-device-auth-e2e physical-device-product-e2e physical-device-matrix-recovery-e2e marketing-screenshots
 
 offline-contract-test: acceptance-feature-mapping integration-contract-test
 
@@ -28,14 +28,18 @@ integration-test: acceptance-feature-mapping release-spine-contract integration-
 # The production flutter_appauth implementation opens the operating-system
 # browser and Keycloak owns activation and authentication.
 physical-device-auth-e2e:
+	@WEAVE_NATIVE_EXPECT_SIMULATOR=false $(MAKE) native-browser-e2e
+
+native-browser-e2e:
 	@set -e; \
 	device_id="$${WEAVE_PHYSICAL_DEVICE_ID:-}"; \
 	if [ -z "$$device_id" ]; then \
 	  echo "WEAVE_PHYSICAL_DEVICE_ID is required." >&2; exit 2; \
 	fi; \
 	if ! flutter devices --machine | jq -e --arg id "$$device_id" \
-	  '.[] | select(.id == $$id and .emulator == false)' >/dev/null; then \
-	  echo "WEAVE_PHYSICAL_DEVICE_ID must identify a connected physical device." >&2; exit 2; \
+	  --argjson simulator "$${WEAVE_NATIVE_EXPECT_SIMULATOR:-false}" \
+	  '.[] | select(.id == $$id and .emulator == $$simulator)' >/dev/null; then \
+	  echo "Native device identity must match the explicitly selected physical or simulator target." >&2; exit 2; \
 	fi; \
 	if [ "$$device_id" = "macos" ]; then \
 	  PATH="$(CURDIR)/tool/native_macos_open:$$PATH"; export PATH; \
@@ -85,3 +89,13 @@ physical-device-matrix-recovery-e2e:
 
 marketing-screenshots:
 	@python3 tool/generate_marketing_screenshots.py
+
+# Simulator qualification retains the physical-device guard above.
+ios-simulator-product-e2e:
+	@test "$${WEAVE_DEVICE_DISPOSABLE_STACK:-}" = "true" || \
+	  { echo "An isolated disposable stack is required." >&2; exit 2; }
+	@test -n "$${WEAVE_IOS_SIMULATOR_ID:-}" || \
+	  { echo "An exact run-owned simulator identity is required." >&2; exit 2; }
+	@WEAVE_NATIVE_EXPECT_SIMULATOR=true \
+	  WEAVE_PHYSICAL_DEVICE_ID="$${WEAVE_IOS_SIMULATOR_ID}" \
+	  WEAVE_DEVICE_PRODUCT_E2E=true $(MAKE) native-browser-e2e

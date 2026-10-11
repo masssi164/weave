@@ -1,4 +1,4 @@
-registerRootCommandTask('acceptanceContract', ['bash', '-lc', 'cd client && dart run tool/acceptance_contract.dart guard --root .. --features e2e/features --mapping e2e/scenario_mappings.json && cd .. && python3 tools/e2e_structure_check.py && python3 tools/files_webdav_facade_acceptance_check.py && python3 tools/enterprise_target_architecture_spine_check.py && python3 tools/spring_ai_mcp_facade_acceptance_check.py && python3 tools/open_standards_gateway_archive_gap_check.py'], 'Verify Gherkin scenario mappings, acceptance contracts, and professional E2E suite coverage.')
+registerRootCommandTask('acceptanceContract', ['bash', '-lc', 'dart client/tool/acceptance_contract.dart guard --root . --features e2e/features --mapping e2e/scenario_mappings.json && python3 tools/e2e_structure_check.py && python3 tools/files_webdav_facade_acceptance_check.py && python3 tools/enterprise_target_architecture_spine_check.py && python3 tools/spring_ai_mcp_facade_acceptance_check.py && python3 tools/open_standards_gateway_archive_gap_check.py'], 'Verify Gherkin scenario mappings, acceptance contracts, and professional E2E suite coverage.')
 registerRootCommandTask('e2eStructureCheck', ['python3', 'tools/e2e_structure_check.py'], 'Validate the professional E2E suite catalog covers every mapped scenario by suite, persona, domain, and evidence lane.')
 registerRootCommandTask('filesWebDavFacadeAcceptanceCheck', ['python3', 'tools/files_webdav_facade_acceptance_check.py'], 'Verify the Files WebDAV facade Cucumber scenarios against deterministic implementation evidence.')
 registerRootCommandTask('enterpriseTargetArchitectureSpineCheck', ['python3', 'tools/enterprise_target_architecture_spine_check.py'], 'Validate the Enterprise Target Architecture E2E evidence spine.')
@@ -8,7 +8,7 @@ registerRootCommandTask('synapseCompatibilityProbeTest', ['python3', 'tools/syna
 tasks.named('matrixRustCoreTest') {
     dependsOn 'matrixSdkVendorProvenanceCheck'
 }
-registerCommandTask('clientCi', file('client'), ['bash', '-lc', 'flutter gen-l10n && dart run build_runner build --delete-conflicting-outputs && dart format --output=none --set-exit-if-changed . && flutter analyze --fatal-infos && flutter test && make marketing-screenshots && git -C .. diff --exit-code -- client/lib client/test docs/assets/marketing docs/assets/roadmap && make offline-contract-test'], 'Run Flutter generated-code, format, analysis, tests, screenshots, and offline contract checks.')
+registerCommandTask('clientDeterministicCi', file('client'), ['bash', '-lc', 'flutter gen-l10n && dart run build_runner build --delete-conflicting-outputs && dart format --output=none --set-exit-if-changed . && flutter analyze --fatal-infos && flutter test && make marketing-screenshots && git -C .. diff --exit-code -- client/lib client/test docs/assets/marketing docs/assets/roadmap && make offline-contract-test'], 'Run Flutter generated-code, format, analysis, tests, screenshots, and offline contract checks.')
 tasks.register('serverCi') {
     group = 'verification'
     description = 'Run core and adapter architecture tests plus the authoritative PostgreSQL JPA contract gate.'
@@ -18,7 +18,7 @@ tasks.register('serverCi') {
             ':server:test',
             ':server:postgresJpaTest'
 }
-registerCommandTask('adminCi', file('admin-console'), ['npm', 'run', 'ci'], 'Run admin console npm CI checks.')
+registerCommandTask('adminDeterministicCi', file('admin-console'), ['npm', 'run', 'ci'], 'Run admin console npm CI checks.')
 registerRootCommandTask('generateOpenApiContract', ['bash', 'tools/generate_openapi_contract.sh'], 'Generate the server-owned OpenAPI artifact used by typed consumers.')
 registerRootCommandTask('checkOpenApiContractFresh', ['bash', 'tools/check_openapi_contract_fresh.sh'], 'Fail when the checked-in server OpenAPI artifact is stale.')
 registerRootCommandTask('openApiProjectionContractTest', ['python3', 'tools/openapi_codegen_test.py'], 'Verify generated type semantics and fail-closed freshness checks.')
@@ -59,8 +59,9 @@ tasks.register('checkAdminPublicUserApiClientFresh', Exec) {
             '--jar', configurations.adminOpenApiGenerator.singleFile.absolutePath,
             '--audience', 'user', '--check'
 }
-tasks.named('adminCi') {
-    dependsOn 'checkAdminApiClientFresh', 'checkAdminPublicUserApiClientFresh'
+tasks.register('adminCi') {
+    group = 'verification'
+    dependsOn 'adminDeterministicCi', 'checkAdminApiClientFresh', 'checkAdminPublicUserApiClientFresh'
 }
 registerRootCommandTask('generateClientUserApi', ['python3', 'tools/generate_client_user_api.py'], 'Generate the pinned Dart User HTTP SDK from the server-owned User OpenAPI artifact.')
 registerRootCommandTask('checkClientUserApiFresh', ['python3', 'tools/generate_client_user_api.py', '--check'], 'Fail when the checked-in Dart User HTTP SDK differs from the server-owned User OpenAPI artifact.')
@@ -69,20 +70,74 @@ tasks.named('clientGeneratedCalendarTemporalWire') {
     dependsOn 'checkClientUserApiFresh'
 }
 registerCommandTask('clientOpenApiDriftPrevention', file('client'), ['bash', '-lc', 'FLUTTER_BIN="${FLUTTER_BIN:-$(command -v flutter || true)}"; if [ -z "$FLUTTER_BIN" ] && [ -x "$HOME/flutter/bin/flutter" ]; then FLUTTER_BIN="$HOME/flutter/bin/flutter"; fi; if [ -z "$FLUTTER_BIN" ]; then echo "flutter not found; install Flutter or set FLUTTER_BIN" >&2; exit 127; fi; "$FLUTTER_BIN" test test/architecture/openapi_drift_prevention_contract_test.dart'], 'Block client OpenAPI facade drift for DTOs, raw JSON parsing, provider reachability, and hardcoded copy.')
-tasks.named('clientCi') {
-    dependsOn 'checkClientUserApiFresh', 'clientOpenApiDriftPrevention', 'clientGeneratedCalendarTemporalWire'
+registerRootCommandTask('nativeQualificationContractTest', ['python3', 'client/tool/native_qualification_test.py'], 'Verify native qualification command/evidence semantics without a live runtime.')
+tasks.named('clientDeterministicCi') {
+    dependsOn 'clientOpenApiDriftPrevention', 'nativeQualificationContractTest'
 }
-tasks.register('generatedApiCi') {
+tasks.register('clientCi') {
     group = 'verification'
-    description = 'Verify code-first User/Admin exports and all generated HTTP consumers on one candidate.'
+    dependsOn 'clientDeterministicCi', 'checkClientUserApiFresh', 'clientGeneratedCalendarTemporalWire'
+}
+tasks.register('generatedApiContractCi') {
+    group = 'verification'
+    description = 'Verify code-first OpenAPI exports and normalization without rebuilding downstream consumers.'
     dependsOn 'checkOpenApiContractFresh',
             'openApiProjectionContractTest',
-            ':weave-user-api-client:check',
-            ':weave-admin-api-client:check',
-            ':weave-mcp-server:test',
-            ':weave-product-e2e:test',
-            'clientCi',
-            'adminCi'
+            'openApiNormalizationContractTest'
+}
+
+tasks.register('generatedUserApiConsumerCi') {
+    group = 'verification'
+    description = 'Verify only User consumers; production boundary tests run independently.'
+    dependsOn ':weave-user-api-client:check', 'checkAdminPublicUserApiClientFresh',
+            'checkClientUserApiFresh', 'clientGeneratedCalendarTemporalWire'
+}
+tasks.register('generatedAdminApiConsumerCi') {
+    group = 'verification'
+    description = 'Verify only Admin consumers.'
+    dependsOn ':weave-admin-api-client:check', 'checkAdminApiClientFresh'
+}
+tasks.register('generatedApiConsumerCi') {
+    group = 'verification'
+    description = 'Compatibility aggregate for every generated HTTP consumer.'
+    dependsOn 'generatedUserApiConsumerCi', 'generatedAdminApiConsumerCi'
+}
+tasks.register('devCiImpactTest', Exec) {
+    group = 'verification'
+    description = 'Verify fail-closed deterministic gate and consumer selection.'
+    workingDir rootProject.projectDir
+    commandLine 'python3', '-m', 'unittest', 'tools.test_dev_ci_impact', 'tools.test_project_delivery_projection', '-v'
+    inputs.files('tools/dev_ci_impact.py', 'tools/dev_ci_results.py',
+            'tools/test_dev_ci_impact.py', '.github/workflows/ci.yml', 'gradle/tasks/verification.gradle',
+            'client/tool/acceptance_contract.dart', 'tools/sprint_bootstrap.py',
+            'tools/test_project_delivery_projection.py', 'tools/verify_main_promotion_evidence.py')
+    inputs.property('pythonVersion', providers.exec {
+        commandLine 'python3', '--version'
+    }.standardOutput.asText)
+    inputs.property('gitVersion', providers.exec {
+        commandLine 'git', '--version'
+    }.standardOutput.asText)
+    def report = layout.buildDirectory.file('reports/dev-ci-impact.txt')
+    outputs.file(report)
+    def captured = new ByteArrayOutputStream()
+    standardOutput = captured
+    errorOutput = captured
+    ignoreExitValue = true
+    doLast {
+        report.get().asFile.parentFile.mkdirs()
+        report.get().asFile.text = captured.toString('UTF-8')
+        logger.lifecycle(captured.toString('UTF-8'))
+        if (executionResult.get().exitValue != 0) {
+            throw new GradleException('Deterministic CI impact regression tests failed; see ' + report.get().asFile)
+        }
+    }
+}
+
+
+tasks.register('generatedApiCi') {
+    group = 'verification'
+    description = 'Compatibility aggregate for explicit full generated-API verification.'
+    dependsOn 'generatedApiContractCi', 'generatedApiConsumerCi'
 }
 tasks.register('javaMcpServerCi') {
     group = 'verification'
@@ -159,6 +214,6 @@ tasks.register('liveStackHelp') {
     group = 'help'
     description = 'Explain the active-development Full Compose E2E lane.'
     doLast {
-        println 'Full Compose E2E runs ./gradlew testApp for dev and dogfood on the dedicated self-hosted runner. A green exact-SHA run is the only automated prerequisite for Prepare Human Test.'
+        println 'Dogfood qualification runs ./gradlew testApp with Full Compose, native macOS and iOS Simulator suites for the exact protected candidate. Successful qualification, deployment and physical preparation permit explicit HIL; ordinary Dev PRs use deterministic gates.'
     }
 }

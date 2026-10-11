@@ -2,23 +2,21 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BEFORE_DIR="$(mktemp -d)"
-trap 'rm -rf "$BEFORE_DIR"' EXIT
+COMPARISON_DIR="$(mktemp -d)"
+trap 'rm -rf "$COMPARISON_DIR"' EXIT
+if [[ "${WEAVE_OPENAPI_SKIP_EXPORT:-false}" != "true" ]]; then
+  "$ROOT_DIR/gradlew" -q :server:openApiContractExport
+fi
+python3 "$ROOT_DIR/tools/normalize_openapi_contracts.py" --root "$ROOT_DIR" --output-dir "$COMPARISON_DIR"
 for name in weave-openapi weave-user-openapi weave-admin-openapi; do
   target="$ROOT_DIR/contracts/openapi/$name.json"
   if [[ ! -f "$target" ]]; then
     echo "Missing $target. Run ./gradlew generateOpenApiContract." >&2
     exit 1
   fi
-  cp "$target" "$BEFORE_DIR/$name.json"
-done
-
-"$ROOT_DIR/tools/generate_openapi_contract.sh" >/dev/null
-for name in weave-openapi weave-user-openapi weave-admin-openapi; do
-  target="$ROOT_DIR/contracts/openapi/$name.json"
-  if ! cmp -s "$BEFORE_DIR/$name.json" "$target"; then
+  if ! cmp -s "$target" "$COMPARISON_DIR/$name.json"; then
     echo "OpenAPI contract artifact is stale: $target. Run ./gradlew generateOpenApiContract." >&2
-    git --no-pager diff -- "$target" >&2 || true
+    diff -u "$target" "$COMPARISON_DIR/$name.json" >&2 || true
     exit 1
   fi
 done

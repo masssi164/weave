@@ -1,6 +1,6 @@
 # Lane-based PR and release workflow
 
-Weave uses clear DevOps lanes instead of heavy classic GitFlow: `dev` for integration, feature branches cut from and returned to `dev`, `dogfood` for persistent LAN candidate/human validation, `main` for stable release-capable truth, `future/*` for larger not-yet-release-ready lines, optional `rc/*` for later release hardening, and `hotfix/*` for urgent stable-line fixes. Keep changes spec-driven: intent -> issue/spec note -> acceptance/evidence -> implementation -> review. For the full delivery contract, see [Weave operating model](weave-operating-model.md) and the DevOps docs under `docs/devops/`.
+Weave uses clear DevOps lanes instead of heavy classic GitFlow: `dev` for integration, feature branches cut from and returned to `dev`, `dogfood` for exact automated qualification and resettable LAN deployment before distinct HIL, `main` for stable release-capable truth, `future/*` for larger not-yet-release-ready lines, optional `rc/*` for later release hardening, and `hotfix/*` for urgent stable-line fixes. Keep changes spec-driven: intent -> issue/spec note -> acceptance/evidence -> implementation -> review. For the full delivery contract, see [Weave operating model](weave-operating-model.md) and the DevOps docs under `docs/devops/`.
 
 ## Branch and PR rules
 
@@ -18,12 +18,14 @@ Weave uses clear DevOps lanes instead of heavy classic GitFlow: `dev` for integr
 
 - `dev` is a branch lane for integration; it is not a deployed environment.
 - Local development and temporary previews still use developer machines or disposable worktrees.
-- `dogfood` is the persistent LAN test/human-validation stack. Promotion PRs from `dev` to `dogfood` run full or feature-relevant E2E/live validation; merges to `dogfood` deploy or update the persistent stack.
+- `dogfood` is the protected automated candidate and resettable LAN stack. The promotion PR carries deterministic checks; mandatory Compose, native macOS and iOS Simulator integration execute on its protected Dogfood commit. Only successful qualification permits deployment and exact physical preparation for distinct HIL.
 - `main` promotion follows dogfood validation and required human signoff.
-- The protected main gate verifies the current `dev` and `dogfood` ancestry and
-  exact tree, the dogfood-head push run's successful Full Compose E2E and
-  deployment jobs, and a separate owner-reported human result for that same
-  deployed commit. The main PR must contain this one comment after deployment:
+- The protected Main gate verifies the qualified Dogfood candidate ancestry,
+  equality of the proposed source tree and pinned spec to that candidate, successful
+  Compose/macOS/iOS qualification, exact deployment and physical preparation, and
+  a separate owner-reported human result for that same deployed commit. Newer Dev
+  work does not invalidate an unchanged Dogfood candidate. Main reuses its evidence
+  without rerunning equivalent integration. The main PR must contain this one comment after deployment:
 
   ```text
   Weave human test v1
