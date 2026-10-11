@@ -34,6 +34,166 @@ rooms fail closed. Human dogfood is separate from automated acceptance.
 
 ## Current local acceptance result, 2026-10-10
 
+### Corrected completion run, 2026-10-11
+
+Exact source `9bc860dfa3ce2846a62e12a9f72ff8c5014f2925` passed the documented
+local `specCorpusConformance testApp` command in 15m 1s overall (12m 7s inner),
+using the pinned corpus and native tool/dependency versions recorded below.
+Both native processes passed: real system-browser PKCE, workspace authorization,
+generated Files upload/read and Calendar CRUD, native Matrix business-room
+send/read, refresh, service/process restart and session restoration, actual
+bearer expiry with fresh controls, room-access removal, explicit logout and
+retained User/Matrix bearer denial. Real Admin revocation, foreign-organization
+denial and real OpenClaw MCP/Matrix assertions also passed without owner input.
+
+Product JSON SHA-256:
+`8cde21d61a89129a7b2b82c303b037f790f260882e7c96b9f6fb431b92b1c8ca`;
+teardown SHA-256:
+`d550bad2a3eba61454f0a0ac879bd9cf294d05dc1fc2977376e7416ce7c73299`.
+Teardown verified zero remaining owned containers, networks, volumes or resources.
+The successful password path used Accessibility; the targeted Return fallback
+was not exercised by this pass. The driver observed the real Flutter workspace
+assertion and automatically dismissed Safari's password-saving prompt.
+
+The later timeout correction preserves Flutter's five-minute workspace budget:
+both native completion waits allow 300 seconds, and the Python driver watchdog
+allows the 180-second form phase plus that budget and startup margin. Flutter's
+own test deadlines and all required product assertions remain authoritative.
+This is local evidence on the named source; newer heads still require their own
+CI/integrated evidence. macOS does not qualify iOS/Android, E2EE remains Guarded,
+and human dogfood remains separate. Current results are linked from
+[PR #1561](https://github.com/masssi164/weave/pull/1561).
+
+### Password-sheet correction and CI cancellation cleanup
+
+Exact local source `acefa7a396fe8c8cb4f95a4024a99988a49359a5` passed
+`specCorpusConformance testApp` in 18m 25s overall (15m 18s inner). Both native
+processes completed real PKCE, Files/Calendar/Matrix, refresh, service/process
+restart, restoration, actual expiry, room-access removal, explicit logout and
+retained User/Matrix denial. Real Admin and OpenClaw assertions also passed.
+Product JSON SHA-256:
+`25e8ac3e20c142ed2b4db49704638c4a5212ac5ffe97614c6c5ee1bbe20b1190`;
+teardown SHA-256:
+`5c9a02ccc85e9e88c6cb816aab98815ed8680b423feb561ce50bd4d3207c1b2d`.
+Teardown verified zero remaining owned resources. The normal Accessibility path
+completed; this pass did not reproduce the early password-sheet retry branch.
+The combined CI head still needs its own qualification.
+
+Cancelled Full run `38097756871` left its exact disposable namespace running
+because cancellation interrupted the shell trap. Its source/run/ownership
+record was recovered and the existing bounded teardown removed only those
+resources, with zero remaining containers, networks and volumes. Full CI now
+has an `always()` finalizer after successful same-repository source checkout.
+It validates the exact run ID, namespace, source and ownership digest, reuses
+the existing isolated teardown, verifies zero resources, then removes generated
+private inputs. A failed/cancelled product step stays failed/cancelled. Stale
+ownership, symlinked inputs and incomplete teardown fail the finalizer. Its
+safety tests run in that step. This fallback adds no deployment or provider
+cleanup authority outside the disposable run. Forced runner loss can prevent
+the finalizer from executing; such a run is never accepted, and recovery must
+use the recorded exact ownership context.
+
+Cancellation during image building can precede the empty-namespace proof. The
+finalizer handles that state only after Docker reports no resources with the
+exact namespace label; it performs no Compose teardown without the proof.
+Both cleanup paths remove only the run's backend/MCP image tags after checking
+the exact source, repository, image title and unpublished-test provenance, and
+reject images referenced by any container. No global pruning or force removal
+is used. An absent run directory still triggers those checks because interrupted
+shell cleanup can remove inputs before image tags. Each Docker call has a
+30-second timeout; failure preserves the remaining inputs and fails the step.
+Focused safety tests cover absent runs, missing proof, unexpected resources,
+foreign image provenance and in-use images; these are cleanup tests, not native
+product acceptance evidence.
+
+### Prompt cleanup after fast native completion
+
+Full run [38102270888](https://github.com/masssi164/weave/actions/runs/38102270888)
+on `b6a533032fa7703d3d891aade5a3fa5803678a46` passed signing, launch, real PKCE,
+the first native Files/Calendar/Matrix journey, refresh and app-state restoration.
+It exercised early Safari password-sheet dismissal. The full run then failed:
+a second prompt-cleanup helper required the already-completed native app to
+remain running. Its `password-prompt-fixture` rejection is reproducible after
+app exit. The first process is partial evidence; the unexecuted restored-process
+journey is not accepted.
+
+Prompt handling now completes in the existing browser driver after the real
+workspace assertion, retaining any earlier exact-issuer dismissal. Its one
+safe prompt result is required alongside the callback and successful driver
+exit; no second app-registration-dependent cleanup process runs. Flutter's
+complete initial and restored product assertions remain mandatory. A secondary
+macOS process-group `PermissionError` may be tolerated only when the tracked
+command has completed and fresh process inventory proves its group is absent;
+a live or inaccessible group still fails cleanup. Focused protocol and real
+completed-parent/orphan-child cleanup probes do not replace a new full native
+and integrated qualification run.
+
+### Local lifecycle correction result, 2026-10-11
+
+Exact source `9d564ad98c9485e420c06e5a7c1ebecfb325a706` passed the documented
+`specCorpusConformance testApp` command in 17m 10s overall (14m 9s inner), with
+pinned specifications `c726993168651f1109259f9a80cc23117d24a37f` and the recorded
+macOS, Flutter, IdP and OpenClaw versions. Both native processes passed real
+browser PKCE, generated Files upload/read and Calendar CRUD, native Matrix
+business-room send/read, refresh, app-state restoration, Server/Keycloak/
+PostgreSQL and application restart, actual bearer expiry with fresh controls,
+room-access removal, explicit logout and retained User/Matrix bearer denial.
+Real Admin revocation, foreign-organization denial and OpenClaw MCP/Matrix
+assertions passed. No owner interaction was required.
+
+Product JSON SHA-256:
+`b17b15ada3f15e96c342fd65e9276309624ad4e9c2ec73435a3a45edb8d2fde4`;
+teardown SHA-256:
+`c54f81479af3a70fa9827dac74163a87deaf07297c9980469c39030adaf9233d`.
+Teardown verified zero remaining owned containers, networks, volumes or other
+resources. The normal Accessibility submission path and in-driver password
+prompt dismissal executed. This run did not exercise the early-sheet retry,
+targeted Return fallback or bounded fast-exit driver-drain branch. The earlier
+failed CI run exercised early-sheet dismissal, but remains failed overall.
+This successful local source is not evidence for a later source, unattended CI,
+iOS/Android, full E2EE or human dogfood acceptance.
+
+### Password submission diagnosis on integrated dev
+
+[Full Compose run 38093547541](https://github.com/masssi164/weave/actions/runs/38093547541)
+on `5adb95069dd93fd57a28e3318b85fe74ceb4e4f2` failed and is excluded from
+acceptance. Signing, Accessibility, app launch, consent and username submission
+passed. The browser driver reported password submission, but Flutter never
+received authentication completion and failed at its 12-minute test deadline.
+The retained Safari window still showed the exact disposable IdP password form
+with a filled password. A native click submitted that form; because teardown had
+already removed the stack, this diagnostic action reached an unavailable page.
+It is not a successful authentication test.
+
+Safari had acknowledged the driver's `AXPress` without navigating. The driver
+now waits for a one-use private completion signal written only after Flutter's
+real workspace assertion following system-browser PKCE. No token or callback
+is supplied to Flutter. If completion is still pending and the exact IdP
+password form is observable, the driver activates that Safari process, verifies
+the focused window and password field, and sends Return only to that process.
+Missing fields are indeterminate; the driver still waits for the real assertion.
+Failure to observe completion fails the driver. Flutter must additionally pass
+the full product and session-lifecycle assertions.
+
+A diagnostic local run on `2d5ab400a4e93f2b76389248698af83b4fc4ef6f`
+authenticated in Flutter and passed Files, Calendar and Matrix assertions, but
+failed the driver's attempted window-closure requirement. Safari can retain
+that window after a successful native callback. This failed run is not full
+acceptance evidence and window closure is not the completion oracle. Neither
+a button-action return code nor browser navigation alone establishes native
+acceptance. No credentials or callback values enter public diagnostics.
+
+A later exact-head CI attempt on `c1e54ccb530e15bd30ad1ad8a72998f3657f4b2b`
+([Full Compose attempt 2](https://github.com/masssi164/weave/actions/runs/38098117692))
+failed at `password-targeted-submit` and is excluded from acceptance. Signing,
+app launch, consent and username entry passed. Read-only inspection after the
+failure found Safari's password-saving sheet focused. The retained password
+form behind that sheet is not an actionable retry target. The driver now
+attempts the existing exact-issuer prompt dismissal before any targeted Return,
+never saves credentials, and still requires the actual Flutter workspace
+assertion. This correction requires its own native and integrated execution;
+the earlier local pass is not evidence for this newer source.
+
 The documented disposable `specCorpusConformance testApp` command, with
 `--max-workers=2`, passed in 14m 59s overall (12m 4s for the inner product
 task) on exact source `6f974dff7356bc78a9d1376e929988e9f86e8696` and
