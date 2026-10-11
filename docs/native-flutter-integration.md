@@ -93,6 +93,19 @@ cleanup authority outside the disposable run. Forced runner loss can prevent
 the finalizer from executing; such a run is never accepted, and recovery must
 use the recorded exact ownership context.
 
+Cancellation during image building can precede the empty-namespace proof. The
+finalizer handles that state only after Docker reports no resources with the
+exact namespace label; it performs no Compose teardown without the proof.
+Both cleanup paths remove only the run's backend/MCP image tags after checking
+the exact source, repository, image title and unpublished-test provenance, and
+reject images referenced by any container. No global pruning or force removal
+is used. An absent run directory still triggers those checks because interrupted
+shell cleanup can remove inputs before image tags. Each Docker call has a
+30-second timeout; failure preserves the remaining inputs and fails the step.
+Focused safety tests cover absent runs, missing proof, unexpected resources,
+foreign image provenance and in-use images; these are cleanup tests, not native
+product acceptance evidence.
+
 ### Password submission diagnosis on integrated dev
 
 [Full Compose run 38093547541](https://github.com/masssi164/weave/actions/runs/38093547541)
