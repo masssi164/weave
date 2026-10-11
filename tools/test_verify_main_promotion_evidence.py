@@ -86,6 +86,7 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         valid = {"schemaVersion": "weave.hil-preparation/v1", "candidateCommit": SHA,
                  "sourceTree": OTHER, "specificationCommit": "c" * 40,
                  "qualificationRunId": 123, "qualificationRunAttempt": 1, "status": "passed", "install": "update_in_place",
+                 "toolchain": {**TOOLCHAIN, "iosDeviceSdkVersion": "26.5"},
                  "supportSafe": True, "containsSecretValues": False}
         self.assertTrue(preparation_passed(valid, SHA, OTHER, "c" * 40, 123, 1))
         self.assertFalse(preparation_passed(valid, SHA, OTHER, "c" * 40, 124, 1))
@@ -93,6 +94,10 @@ class MainPromotionEvidenceTest(unittest.TestCase):
             broken = {name: value for name, value in valid.items() if name != key}
             self.assertFalse(preparation_passed(broken, SHA, OTHER, "c" * 40, 123, 1), key)
         self.assertFalse(preparation_passed({**valid, "status": "failed"}, SHA, OTHER, "c" * 40, 123, 1))
+        for toolchain in (None, {}, TOOLCHAIN,
+                          {**TOOLCHAIN, "iosDeviceSdkVersion": "26.4"},
+                          {**TOOLCHAIN, "iosDeviceSdkVersion": True}):
+            self.assertFalse(preparation_passed({**valid, "toolchain": toolchain}, SHA, OTHER, "c" * 40, 123, 1))
 
     def test_preparation_cannot_reuse_an_earlier_qualification_attempt(self) -> None:
         qualification = {"id": 123, "run_attempt": 2, "updated_at": "2026-10-07T13:00:00Z"}
@@ -107,7 +112,9 @@ class MainPromotionEvidenceTest(unittest.TestCase):
                  "sourceTree": OTHER, "specificationCommit": "c" * 40,
                  "qualificationRunId": 123, "qualificationRunAttempt": 1,
                  "status": "passed", "install": "update_in_place",
+                 "toolchain": {**TOOLCHAIN, "iosDeviceSdkVersion": "26.5"},
                  "supportSafe": True, "containsSecretValues": False}
+        self.assertTrue(preparation_passed(valid, SHA, OTHER, "c" * 40, 123, 1))
         self.assertFalse(preparation_passed(valid, SHA, OTHER, "c" * 40, 123, 2))
 
     def test_rerun_selects_only_its_attempt_artifact(self) -> None:

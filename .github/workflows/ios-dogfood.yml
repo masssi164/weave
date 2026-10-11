@@ -105,6 +105,38 @@ jobs:
           --minimum-free-gib 20
           --require-docker
 
+      - name: Verify physical preparation toolchain
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          FLUTTER_BIN="${FLUTTER_BIN:-${HOME}/flutter/bin/flutter}"
+          [[ -x "$FLUTTER_BIN" ]] || FLUTTER_BIN="$(command -v flutter || true)"
+          [[ -n "$FLUTTER_BIN" && -x "$FLUTTER_BIN" ]]
+          export FLUTTER_BIN
+          flutter_directory="$(dirname "$FLUTTER_BIN")"
+          PATH="$flutter_directory:$PATH"
+          export PATH
+          python3 - <<'PY'
+          import json, os, shutil, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path("client/tool").resolve()))
+          from run_ios_simulator_product_acceptance import inspect_toolchain, run
+          if Path(shutil.which("flutter") or "").resolve() != Path(os.environ["FLUTTER_BIN"]).resolve():
+              raise SystemExit("Toolchain inspection must use the selected physical Flutter executable")
+          metadata = inspect_toolchain()
+          sdk = run(["xcrun", "--sdk", "iphoneos", "--show-sdk-version"]).strip()
+          if sdk != metadata["iosSimulatorSdkVersion"]:
+              raise SystemExit("Unsupported physical iPhone SDK for the pinned Xcode toolchain")
+          metadata["iosDeviceSdkVersion"] = sdk
+          rustup_directory = str(Path(shutil.which("rustup")).resolve().parent)
+          with Path(os.environ["GITHUB_PATH"]).open("a") as output:
+              output.write(rustup_directory + "\n")
+          with Path(os.environ["GITHUB_ENV"]).open("a") as output:
+              output.write("PHYSICAL_TOOLCHAIN_JSON=" + json.dumps(metadata, separators=(",", ":")) + "\n")
+              output.write("FLUTTER_BIN=" + os.environ["FLUTTER_BIN"] + "\n")
+              output.write("RUSTUP_TOOLCHAIN=" + metadata["rustToolchain"] + "\n")
+          PY
+
       - name: Set up Node 24
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
@@ -198,6 +230,7 @@ jobs:
               "sourceTree": tree, "specificationCommit": spec,
               "qualificationRunId": int(os.environ["FULL_COMPOSE_E2E_RUN_ID"]),
               "qualificationRunAttempt": int(os.environ["FULL_COMPOSE_E2E_RUN_ATTEMPT"]),
+              "toolchain": json.loads(os.environ["PHYSICAL_TOOLCHAIN_JSON"]),
               "status": "passed", "install": "update_in_place",
               "supportSafe": True, "containsSecretValues": False,
           }, indent=2) + "\n")

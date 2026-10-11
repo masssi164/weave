@@ -231,6 +231,11 @@ def native_qualification_passed(value: dict, sha: str, tree: str, spec: str) -> 
 
 
 def preparation_passed(value: dict, sha: str, tree: str, spec: str, run_id: int, run_attempt: int) -> bool:
+    toolchain = value.get("toolchain")
+    if not native_toolchain_recorded(toolchain):
+        return False
+    if toolchain.get("iosDeviceSdkVersion") != toolchain["iosSimulatorSdkVersion"]:
+        return False
     return all(value.get(key) == expected for key, expected in {
         "schemaVersion": "weave.hil-preparation/v1", "candidateCommit": sha,
         "sourceTree": tree, "specificationCommit": spec,
