@@ -1,6 +1,24 @@
 import XCTest
 
 final class BrowserDriver: XCTestCase {
+  // Exact supported product labels; the owned simulator can inherit either locale.
+  static let signInLabels = ["Sign In", "Anmelden"]
+  static let consentLabels = ["Continue", "Fortfahren"]
+  static func uniqueConsentSurface(appCount: Int, springboardCount: Int) -> Int? {
+    if appCount == 1 && springboardCount == 0 { return 0 }
+    if appCount == 0 && springboardCount == 1 { return 1 }
+    return nil
+  }
+
+  func testConsentSelectionRejectsAmbiguousSurfaces() {
+    XCTAssertNil(Self.uniqueConsentSurface(appCount: 0, springboardCount: 0))
+    XCTAssertEqual(Self.uniqueConsentSurface(appCount: 1, springboardCount: 0), 0)
+    XCTAssertEqual(Self.uniqueConsentSurface(appCount: 0, springboardCount: 1), 1)
+    for counts in [(1, 1), (2, 0), (0, 2), (2, 2)] {
+      XCTAssertNil(Self.uniqueConsentSurface(appCount: counts.0, springboardCount: counts.1))
+    }
+  }
+
   static func waitForRunningApplication(
     state: () -> XCUIApplication.State,
     deadline: Date,
@@ -68,9 +86,10 @@ final class BrowserDriver: XCTestCase {
     }
     print("NATIVE_IOS_BROWSER_STAGE phase=app-observed")
     if fixture.phase == "initial" {
-      let signIn = app.buttons["Sign in"]
+      let signInControls = app.buttons.matching(NSPredicate(format: "label IN %@", Self.signInLabels))
+      let signIn = signInControls.element
       XCTAssertTrue(signIn.waitForExistence(timeout: 30), "Expected native Sign in control")
-      XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == 'Sign in'")).count, 1)
+      XCTAssertEqual(signInControls.count, 1)
       XCTAssertTrue(signIn.isHittable, "Native Sign in control must be accessible")
       signIn.tap()
       print("NATIVE_IOS_BROWSER_STAGE phase=sign-in-tapped")
@@ -84,14 +103,22 @@ final class BrowserDriver: XCTestCase {
         Thread.sleep(forTimeInterval: 0.25)
         continue
       }
-      for surface in [app, springboard] {
-        let consent = surface.alerts.buttons["Continue"]
-        if consent.exists && consent.isHittable { consent.tap() }
+      let appConsent = app.alerts.buttons.matching(NSPredicate(format: "label IN %@", Self.consentLabels))
+      let systemConsent = springboard.alerts.buttons.matching(NSPredicate(format: "label IN %@", Self.consentLabels))
+      let appCount = appConsent.count
+      let systemCount = systemConsent.count
+      if appCount != 0 || systemCount != 0 {
+        guard let surface = Self.uniqueConsentSurface(appCount: appCount, springboardCount: systemCount) else {
+          XCTFail("Expected one native authentication consent control across both surfaces")
+          return
+        }
+        let consent = surface == 0 ? appConsent.element : systemConsent.element
+        if consent.isHittable { consent.tap() }
       }
       if fixture.phase == "restore" {
         // Logout must return through the production session, without a token
         // or callback injected by this driver.
-        if app.staticTexts["Sign in"].exists || app.buttons["Sign in"].exists {
+        if app.buttons.matching(NSPredicate(format: "label IN %@", Self.signInLabels)).count == 1 {
           print("NATIVE_IOS_BROWSER_RESULT status=passed phase=logout")
           return
         }
