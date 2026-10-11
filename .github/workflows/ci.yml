@@ -84,6 +84,10 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.13'
+      - name: Provider boundary invariants
+        run: |
+          python3 -m unittest tools.test_provider_boundary_invariants -v
+          python3 tools/provider_boundary_invariants.py
       - run: python3 tools/core_docs_check.py
       - run: python3 tools/readme_release_notes_test.py
       - run: python3 -m unittest tools.test_verify_main_promotion_evidence -v
