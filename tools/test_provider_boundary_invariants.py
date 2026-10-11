@@ -11,6 +11,11 @@ class ProviderBoundaryTest(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.write(guard.FILESYSTEM_STORE, 'import org.apache.opendal.Operator;')
+        for migration in guard.MIGRATIONS:
+            contents = ('drop table if exists weave_matrix_e2ee_snapshots;'
+                        if migration == guard.MIGRATIONS[2] else '-- historical migration')
+            self.write(guard.MIGRATION_ROOT + '/' + migration, contents)
+        self.write('server/src/main/resources/application.yml', 'ddl-auto: validate')
 
     def write(self, relative, contents):
         target = self.root / relative
@@ -26,6 +31,8 @@ class ProviderBoundaryTest(unittest.TestCase):
         for rule, expression, roots in guard.FORBIDDEN_CONTENT:
             # Cover every branch of each inherited regular expression.
             tokens = {
+                'migration-public-schema': ('public.',),
+                'unsafe-flyway-authority': ('baselineOnMigrate(true)', 'cleanDisabled(false)'),
                 'protocol-sdk-coupling': ('matrix-sdk', 'matrix_sdk'),
                 'snapshot-persistence-authority': ('MatrixE2eeSnapshotStore', 'MatrixE2eeSnapshotJpaEntity', 'MatrixE2eeSnapshotJpaRepository'),
                 'retired-matrix-coupling': ('weave.chat.matrix-facade.enabled', 'facadeEnabled', 'weave_matrix_core'),
@@ -68,6 +75,42 @@ class ProviderBoundaryTest(unittest.TestCase):
         link.symlink_to(target, target_is_directory=True)
         (target / 'cycle').symlink_to(target, target_is_directory=True)
         self.assertTrue(any('protocol-sdk-coupling' in error for error in guard.violations(self.root)))
+
+    def test_every_historical_migration_must_exist_and_be_nonempty(self):
+        for migration in guard.MIGRATIONS:
+            path = self.root / guard.MIGRATION_ROOT / migration
+            original = path.read_text()
+            for contents in (None, '', '  \n'):
+                with self.subTest(migration=migration, contents=contents):
+                    if contents is None:
+                        path.unlink()
+                    else:
+                        path.write_text(contents)
+                    self.assertTrue(any('migration-required:' in error and migration in error
+                                        for error in guard.violations(self.root)))
+                    path.write_text(original)
+
+    def test_snapshot_drop_and_validate_are_real_positive_requirements(self):
+        self.write(guard.MIGRATION_ROOT + '/' + guard.MIGRATIONS[2], '-- no snapshot drop')
+        self.assertTrue(any('migration-snapshot-drop-required' in error
+                            for error in guard.violations(self.root)))
+        self.write('server/src/main/resources/application.yml', 'ddl-auto: none')
+        self.write('server/src/main/resources/application-dev-h2.yml', 'ddl-auto: validate')
+        self.assertTrue(any('production-ddl-validate-required' in error
+                            for error in guard.violations(self.root)))
+
+    def test_unsafe_production_ddl_fails_but_dev_h2_remains_explicit_exception(self):
+        self.write('server/src/main/resources/application-dev-h2.yml', 'ddl-auto: update')
+        self.assertEqual(guard.violations(self.root), [])
+        for profile in ('application.yml', 'application-dev-postgres.yml', 'application-prod.yml'):
+            for value in ('update', 'create', 'create-drop'):
+                for separator in (': ', '='):
+                    with self.subTest(profile=profile, value=value, separator=separator):
+                        self.write('server/src/main/resources/' + profile,
+                                   'ddl-auto' + separator + value)
+                        self.assertTrue(any('unsafe-production-ddl:' in error
+                                            for error in guard.violations(self.root)))
+                        self.write('server/src/main/resources/' + profile, 'ddl-auto: validate')
 
     def test_docs_only_ci_still_executes_guard(self):
         root = Path(__file__).resolve().parents[1]

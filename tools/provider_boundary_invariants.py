@@ -14,7 +14,19 @@ FORBIDDEN_FILES = (
     'server/src/main/java/com/massimotter/weave/backend/service/files/S3BlobStore.java',
     'server/src/test/java/com/massimotter/weave/backend/service/files/S3BlobStoreTest.java',
 )
+MIGRATIONS = (
+    'V1__native_schema_baseline.sql',
+    'V2__normalize_native_calendar_chat_state.sql',
+    'V3__complete_native_provider_authority.sql',
+    'V4__relax_legacy_calendar_timezone_projection.sql',
+    'V5__matrix_shared_user_change_journal.sql',
+    'V6__canonical_transfer_runs.sql',
+)
+MIGRATION_ROOT = 'server/src/main/resources/db/migration'
 FORBIDDEN_CONTENT = (
+    ('migration-public-schema', r'public\.', (MIGRATION_ROOT,)),
+    ('unsafe-flyway-authority', r'baselineOnMigrate\(true\)|cleanDisabled\(false\)',
+     ('server/src/main/java',)),
     ('protocol-sdk-coupling', r'matrix-sdk|matrix_sdk', ('rust/matrix-protocol',)),
     ('snapshot-persistence-authority', r'MatrixE2eeSnapshot(Store|JpaEntity|JpaRepository)',
      ('server/src/main', 'weave-persistence-jpa/src/main')),
@@ -52,6 +64,30 @@ def violations(root: Path) -> list[str]:
     for relative in FORBIDDEN_FILES:
         if (root / relative).exists():
             failures.append(f'retired-s3-source: {relative} must not exist')
+    for migration in MIGRATIONS:
+        path = root / MIGRATION_ROOT / migration
+        if not path.is_file() or not path.read_bytes().strip():
+            failures.append(f'migration-required: {MIGRATION_ROOT}/{migration}')
+    snapshot_drop = root / MIGRATION_ROOT / MIGRATIONS[2]
+    if (not snapshot_drop.is_file() or
+            b'drop table if exists weave_matrix_e2ee_snapshots' not in snapshot_drop.read_bytes()):
+        failures.append(f'migration-snapshot-drop-required: {MIGRATION_ROOT}/{MIGRATIONS[2]}')
+    resources = root / 'server/src/main/resources'
+    configs = [resources / 'application.yml', *sorted(resources.glob('application-*.yml'))]
+    production_configs = [path for path in configs
+                          if path.is_file() and path.name != 'application-dev-h2.yml']
+    validate_found = False
+    for path in production_configs:
+        contents = path.read_bytes()
+        if re.search(rb'ddl-auto:[ \t]*validate', contents):
+            validate_found = True
+        for line_number, line in enumerate(contents.splitlines(), 1):
+            match = re.search(rb'ddl-auto[=:][ \t]*(update|create-drop|create)', line)
+            if match:
+                failures.append(f'unsafe-production-ddl: {path.relative_to(root)}:{line_number}: '
+                                f'{match.group().decode("ascii")}')
+    if not validate_found:
+        failures.append('production-ddl-validate-required: server/src/main/resources/application*.yml')
     store = root / FILESYSTEM_STORE
     if not store.is_file() or b'org.apache.opendal' not in store.read_bytes():
         failures.append(f'filesystem-opendal-required: {FILESYSTEM_STORE}')

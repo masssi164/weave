@@ -32,11 +32,11 @@ The `Release Notes Label Check` remains required by the current protected workfl
 
 ### `native-persistence-closure.yml`
 
-Retain temporarily as an additional PostgreSQL/native-persistence regression lane while #1320 moves all schema and repository contracts under `postgresPersistenceCi`. Delete or reduce it after parity.
+Retain temporarily as an additional PostgreSQL/native-persistence regression lane. Its selected server and PostgreSQL tests are covered by `protocolFacadeFoundationCi` and `postgresPersistenceCi`. The intended migration source rules now also run fail closed in Core documentation: historical migrations must exist, SQL/schema authority must remain scoped, unsafe Flyway/production DDL settings are rejected, and snapshot removal and Hibernate validation are positive requirements. This corrects intermediate shell negation and ignored positive-check semantics in the supplemental lane. Retirement requires the strengthened source guard and replacement Server/PostgreSQL checks to pass remotely for the same commit; the workflow remains active meanwhile.
 
 ### `native-provider-gate.yml`
 
-Retain temporarily as an additional native-composition regression lane while #1326/#1301/#1302 remove duplicate provider-shaped application implementations. Its name is historical and must not define the target architecture.
+Retired after the replacement checks passed in [Core CI run 38128850305](https://github.com/masssi164/weave/actions/runs/38128850305) for exact commit `1a9da0b38a8db8be67f34c9b82da613b653ad13e`: Server protocol foundation runs the former focused server tests, Rust module verification runs both former Cargo suites plus vendor provenance, and Core documentation runs the inherited provider boundary invariants on every ordinary PR. The former workflow was supplemental and absent from the actual Dev, Dogfood and Main required-check lists; branch protection was not modified. Historical evidence links remain valid. Its earlier #1326/#1301/#1302 transition purpose does not define the target architecture.
 
 ### `live-stack-e2e.yml`
 

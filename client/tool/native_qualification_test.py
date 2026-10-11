@@ -31,6 +31,37 @@ class NativeQualificationTest(unittest.TestCase):
             with self.assertRaisesRegex(ios.NativeFailure, 'pinned-device-type-unsupported'):
                 ios.select_runtime()
 
+    def test_conflicting_ci_flutter_pins_fail_closed(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / '.github/workflows').mkdir(parents=True)
+            (root / '.github/workflows/ci.yml').write_text("  flutter-version: '3.41.6'\n  flutter-version: '3.41.7'\n")
+            with patch.object(ios, 'ROOT', root):
+                with self.assertRaisesRegex(ios.NativeFailure, 'ci-version-pins-missing-or-inconsistent'):
+                    ios.configured_toolchain_pins()
+
+    def test_toolchain_rejects_framework_engine_xcode_and_sdk_mismatch(self):
+        supported = {
+            'frameworkVersion': '3.41.6',
+            'channel': 'stable',
+            'frameworkRevision': 'a' * 40,
+            'engineRevision': 'b' * 40,
+            'dartSdkVersion': '3.11.4',
+        }
+        xcode = f'Xcode {ios.XCODE_VERSION}\nBuild version {ios.XCODE_BUILD}\n'
+        for case in ['framework', 'engine', 'xcode', 'sdk']:
+            with self.subTest(case=case):
+                flutter = supported.copy()
+                if case == 'framework':
+                    flutter['frameworkVersion'] = '0.0.0'
+                if case == 'engine':
+                    flutter['engineRevision'] = '0' * 40
+                outputs = [json.dumps(flutter), 'Xcode 0.0\nBuild version unsupported' if case == 'xcode' else xcode, '0.0' if case == 'sdk' else ios.IOS_SIMULATOR_SDK_VERSION]
+                with patch.object(ios, 'run', side_effect=outputs), patch.object(ios, 'configured_toolchain_pins', return_value=('3.41.6', '1.95.0')), patch.object(ios, 'installed_flutter_revisions', return_value=('a' * 40, 'b' * 40)):
+                    with self.assertRaises(ios.NativeFailure) as raised:
+                        ios.inspect_toolchain()
+                self.assertEqual(raised.exception.category, 'infrastructure')
+
     def test_build_tools_never_receive_disposable_credentials(self):
         process = unittest.mock.Mock()
         process.communicate.return_value = ('built', '')
@@ -85,7 +116,7 @@ class NativeQualificationTest(unittest.TestCase):
                 result = unittest.mock.Mock()
                 result.wait.return_value = code
                 results.append(result)
-            with patch.object(qualification, 'ROOT', root), patch.dict(os.environ, {'WEAVE_TEST_APP_RUN_ROOT': name, 'WEAVE_CANDIDATE_COMMIT': 'a' * 40}), patch.object(qualification.subprocess, 'check_output', side_effect=['a' * 40, '', 'c' * 40]), patch.object(qualification.subprocess, 'Popen', side_effect=results):
+            with patch.object(qualification, 'ROOT', root), patch.dict(os.environ, {'WEAVE_TEST_APP_RUN_ROOT': name, 'WEAVE_CANDIDATE_COMMIT': 'a' * 40}), patch.object(qualification.subprocess, 'check_output', side_effect=['a' * 40, '', 'c' * 40]), patch.object(qualification.subprocess, 'Popen', side_effect=results), patch.object(qualification, 'inspect_toolchain', return_value={'frameworkVersion': '3.41.6', 'rustToolchain': '1.95.0'}), patch.object(qualification.shutil, 'which', return_value='/private/rustup/bin/rustup'):
                 self.assertEqual(qualification.main(), 7)
             evidence = json.loads((root / 'native-qualification.json').read_text())
             self.assertEqual(evidence['macos']['status'], 'passed')

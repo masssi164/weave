@@ -15,6 +15,7 @@ import signal
 import re
 import subprocess
 import tempfile
+import tomllib
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -25,6 +26,11 @@ ROOT = CLIENT.parent
 RUNTIME = 'com.apple.CoreSimulator.SimRuntime.iOS-26-5'
 DEVICE = 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro'
 BUNDLE = 'com.massimotter.weave'
+# Xcode/build/SDK are the supported runtime pair already used to build
+# and launch qualification. Flutter and Rust pins retain their existing owners.
+XCODE_VERSION = '26.5'
+XCODE_BUILD = '17F42'
+IOS_SIMULATOR_SDK_VERSION = '26.5'
 SAFE_PRODUCT_STAGES = {
     'shell-ready', 'sign-in-tapped', 'appauth-requested', 'auth-failed',
     'appauth-pending', 'workspace-ready', 'files-start', 'files-passed',
@@ -112,6 +118,62 @@ def run(arguments: list[str], *, env=None, timeout=900) -> str:
         failure_marker('infrastructure', stage, 'command-exit-failed')
         raise NativeFailure('infrastructure', stage, 'command-exit-failed')
     return stdout
+
+
+def configured_toolchain_pins() -> tuple[str, str]:
+    workflow = (ROOT / '.github/workflows/ci.yml').read_text()
+    versions = set(re.findall(r"^\s+flutter-version:\s*['\"]?([^\s'\"#]+)", workflow, re.MULTILINE))
+    if len(versions) != 1 or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', next(iter(versions), '')):
+        raise NativeFailure('infrastructure', 'flutter-pin', 'ci-version-pins-missing-or-inconsistent')
+    rust = tomllib.loads((ROOT / 'rust/matrix-client/rust-toolchain.toml').read_text())['toolchain']
+    rust_channel = rust['channel']
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', rust_channel) or 'aarch64-apple-ios-sim' not in rust['targets']:
+        raise NativeFailure('infrastructure', 'rust-pin', 'exact-simulator-toolchain-pin-required')
+    return next(iter(versions)), rust_channel
+
+
+def installed_flutter_revisions(flutter: dict, pinned_version: str) -> tuple[str, str]:
+    sdk = Path(flutter['flutterRoot'])
+    revision = run(['git', '-C', str(sdk), 'rev-parse', 'HEAD']).strip()
+    tag = run(['git', '-C', str(sdk), 'describe', '--tags', '--exact-match']).strip()
+    engine = (sdk / 'bin/internal/engine.version').read_text().strip()
+    if tag != pinned_version:
+        raise NativeFailure('infrastructure', 'flutter-toolchain', 'sdk-source-not-pinned-release')
+    return revision, engine
+
+
+def inspect_toolchain() -> dict[str, str]:
+    flutter_pin, rust_pin = configured_toolchain_pins()
+    flutter = json.loads(run(['flutter', '--version', '--machine']))
+    if flutter.get('frameworkVersion') != flutter_pin or flutter.get('channel') != 'stable':
+        raise NativeFailure('infrastructure', 'flutter-toolchain', 'unsupported-framework-or-channel')
+    framework_revision, engine_revision = installed_flutter_revisions(flutter, flutter_pin)
+    for key, expected in [('frameworkRevision', framework_revision), ('engineRevision', engine_revision)]:
+        if not re.fullmatch(r'[0-9a-f]{40}', expected) or flutter.get(key) != expected:
+            raise NativeFailure('infrastructure', 'flutter-toolchain', 'framework-or-engine-source-mismatch')
+    xcode = run(['xcodebuild', '-version']).strip()
+    if xcode != f'Xcode {XCODE_VERSION}\nBuild version {XCODE_BUILD}':
+        raise NativeFailure('infrastructure', 'xcode-toolchain', 'unsupported-xcode-version-or-build')
+    sdk = run(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-version']).strip()
+    if sdk != IOS_SIMULATOR_SDK_VERSION:
+        raise NativeFailure('infrastructure', 'simulator-sdk', 'unsupported-ios-simulator-sdk')
+    rust = run(['rustup', 'run', rust_pin, 'rustc', '--version']).strip()
+    if not re.fullmatch(r'rustc ' + re.escape(rust_pin) + r' \([0-9a-f]{7,40} [0-9]{4}-[0-9]{2}-[0-9]{2}\)', rust):
+        raise NativeFailure('infrastructure', 'rust-toolchain', 'unsupported-rust-compiler')
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', flutter.get('dartSdkVersion', '')):
+        raise NativeFailure('infrastructure', 'dart-toolchain', 'invalid-dart-sdk-identity')
+    return {
+        'frameworkVersion': flutter_pin,
+        'channel': 'stable',
+        'frameworkRevision': framework_revision,
+        'engineRevision': engine_revision,
+        'dartSdkVersion': flutter['dartSdkVersion'],
+        'xcodeVersion': XCODE_VERSION,
+        'xcodeBuild': XCODE_BUILD,
+        'iosSimulatorSdkVersion': sdk,
+        'rustToolchain': rust_pin,
+        'rustCompilerVersion': rust,
+    }
 
 
 def select_runtime() -> tuple[str, str]:
@@ -204,6 +266,7 @@ def main() -> int:
     signal.signal(signal.SIGINT, interrupted)
     if platform.system() != 'Darwin' or platform.machine() != 'arm64':
         raise NativeFailure('infrastructure', 'host-preflight', 'apple-silicon-macos-required')
+    toolchain = inspect_toolchain()
     runtime, device = select_runtime()
     env = os.environ.copy()
     for name in ('WEAVE_NATIVE_MEMBER_EMAIL', 'WEAVE_NATIVE_MEMBER_PASSWORD'):
@@ -211,7 +274,7 @@ def main() -> int:
     rustup = shutil.which('rustup')
     if rustup is None:
         raise NativeFailure('infrastructure', 'rust-toolchain', 'rustup-unavailable')
-    env['RUSTUP_TOOLCHAIN'] = '1.95.0'
+    env['RUSTUP_TOOLCHAIN'] = toolchain['rustToolchain']
     env['PATH'] = os.pathsep.join([str(ROOT / 'tools/ios-simulator-xcrun'), str(Path(rustup).parent), env['PATH']])
     udid = None
     cleanup_complete = False

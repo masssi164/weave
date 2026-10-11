@@ -193,12 +193,34 @@ def artifact_json(archive: bytes, basename: str) -> dict:
     return value
 
 
+def native_toolchain_recorded(value: object) -> bool:
+    """Require identities enforced by the exact candidate's native producer."""
+    if not isinstance(value, dict):
+        return False
+    patterns = {
+        "frameworkVersion": r"[0-9]+\.[0-9]+\.[0-9]+",
+        "channel": r"stable",
+        "frameworkRevision": r"[0-9a-f]{40}",
+        "engineRevision": r"[0-9a-f]{40}",
+        "dartSdkVersion": r"[0-9]+\.[0-9]+\.[0-9]+",
+        "xcodeVersion": r"[0-9]+\.[0-9]+(?:\.[0-9]+)?",
+        "xcodeBuild": r"[0-9]+[A-Z][0-9]+[a-z]?",
+        "iosSimulatorSdkVersion": r"[0-9]+\.[0-9]+(?:\.[0-9]+)?",
+        "rustToolchain": r"[0-9]+\.[0-9]+\.[0-9]+",
+        "rustCompilerVersion": r"rustc [0-9]+\.[0-9]+\.[0-9]+ \([0-9a-f]{7,40} [0-9]{4}-[0-9]{2}-[0-9]{2}\)",
+    }
+    return all(isinstance(value.get(key), str) and re.fullmatch(pattern, value[key])
+               for key, pattern in patterns.items()) and value["rustCompilerVersion"].startswith(
+                   "rustc " + value["rustToolchain"] + " (")
+
+
 def native_qualification_passed(value: dict, sha: str, tree: str, spec: str) -> bool:
     return (
         value.get("schemaVersion") == "weave.native-qualification/v1"
         and value.get("candidateCommit") == sha
         and value.get("sourceTree") == tree
         and value.get("specificationCommit") == spec
+        and native_toolchain_recorded(value.get("toolchain"))
         and value.get("macos", {}).get("status") == "passed"
         and value.get("iosSimulator", {}).get("status") == "passed"
         and value.get("iosSimulator", {}).get("rustTarget") == "aarch64-apple-ios-sim"

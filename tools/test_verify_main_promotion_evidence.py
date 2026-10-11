@@ -29,6 +29,12 @@ from tools.verify_main_promotion_evidence import (
 
 SHA = "a" * 40
 OTHER = "b" * 40
+TOOLCHAIN = {
+    "frameworkVersion": "3.41.6", "channel": "stable", "frameworkRevision": "d" * 40,
+    "engineRevision": "e" * 40, "dartSdkVersion": "3.11.4", "xcodeVersion": "26.5",
+    "xcodeBuild": "17F42", "iosSimulatorSdkVersion": "26.5", "rustToolchain": "1.95.0",
+    "rustCompilerVersion": "rustc 1.95.0 (1234567 2026-01-01)",
+}
 HUMAN = "\n".join(
     [
         "Weave human test v1",
@@ -50,7 +56,7 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         valid = {
             "schemaVersion": "weave.native-qualification/v1", "candidateCommit": SHA,
             "sourceTree": OTHER, "specificationCommit": "c" * 40,
-            "macos": {"status": "passed"},
+            "macos": {"status": "passed"}, "toolchain": TOOLCHAIN,
             "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim"},
             "cleanupComplete": True, "supportSafe": True, "containsSecretValues": False,
         }
@@ -65,6 +71,16 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         for outcome in ("failed", "not-available", "skipped"):
             self.assertFalse(native_qualification_passed({**valid, "iosSimulator": {
                 "status": outcome, "rustTarget": "aarch64-apple-ios-sim"}}, SHA, OTHER, "c" * 40))
+
+    def test_native_toolchain_missing_malformed_or_inconsistent_fails_closed(self) -> None:
+        from tools.verify_main_promotion_evidence import native_toolchain_recorded
+        self.assertTrue(native_toolchain_recorded(TOOLCHAIN))
+        for key in TOOLCHAIN:
+            self.assertFalse(native_toolchain_recorded({k: v for k, v in TOOLCHAIN.items() if k != key}), key)
+            self.assertFalse(native_toolchain_recorded({**TOOLCHAIN, key: True}), key)
+        for invalid in (None, [], {**TOOLCHAIN, "engineRevision": "unknown"},
+                        {**TOOLCHAIN, "rustCompilerVersion": "rustc 1.94.0 (1234567 2026-01-01)"}):
+            self.assertFalse(native_toolchain_recorded(invalid))
 
     def test_preparation_requires_current_qualification_and_exact_installed_identity(self) -> None:
         valid = {"schemaVersion": "weave.hil-preparation/v1", "candidateCommit": SHA,
@@ -122,7 +138,7 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         jobs = [{"name": name, "conclusion": "success"} for name in
                 ("Full Compose E2E", "Deploy dogfood with Compose")]
         native = {"schemaVersion": "weave.native-qualification/v1", "candidateCommit": SHA,
-                  "sourceTree": tree, "specificationCommit": spec, "macos": {"status": "passed"},
+                  "sourceTree": tree, "specificationCommit": spec, "macos": {"status": "passed"}, "toolchain": TOOLCHAIN,
                   "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim"},
                   "cleanupComplete": True, "supportSafe": True, "containsSecretValues": False}
         teardown = {"candidateCommit": SHA, "dryRun": False, "ownershipLabelsVerified": True,

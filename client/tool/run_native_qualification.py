@@ -6,7 +6,10 @@ import json
 import os
 import subprocess
 import signal
+import shutil
 from pathlib import Path
+
+from run_ios_simulator_product_acceptance import inspect_toolchain
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -19,6 +22,13 @@ def main() -> int:
         raise RuntimeError('Native source differs from the exact candidate')
     if subprocess.check_output(['git', 'status', '--porcelain=v1', '--untracked-files=all'], cwd=ROOT, text=True).strip():
         raise RuntimeError('Native qualification requires a clean exact source checkout')
+    toolchain = inspect_toolchain()
+    rustup = shutil.which('rustup')
+    if rustup is None:
+        raise RuntimeError('Native qualification requires the pinned rustup toolchain')
+    native_env = os.environ.copy()
+    native_env['RUSTUP_TOOLCHAIN'] = toolchain['rustToolchain']
+    native_env['PATH'] = str(Path(rustup).parent) + os.pathsep + native_env['PATH']
     evidence = {
         'schemaVersion': 'weave.native-qualification/v1',
         'candidateCommit': commit,
@@ -29,10 +39,11 @@ def main() -> int:
         'cleanupComplete': False,
         'supportSafe': True,
         'containsSecretValues': False,
+        'toolchain': toolchain,
     }
     try:
         for platform, script in [('macos', 'run_native_product_acceptance.py'), ('iosSimulator', 'run_ios_simulator_product_acceptance.py')]:
-            process = subprocess.Popen(['python3', str(ROOT / 'client/tool' / script)], start_new_session=True)
+            process = subprocess.Popen(['python3', str(ROOT / 'client/tool' / script)], start_new_session=True, env=native_env)
             def interrupted(number, _frame):
                 # Python SIGINT invokes each runner's finally cleanup, including
                 # the iOS run-owned simulator and macOS checkout app.
