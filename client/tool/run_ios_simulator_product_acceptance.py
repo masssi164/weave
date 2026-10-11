@@ -42,7 +42,8 @@ SAFE_PRODUCT_STAGES = {
     'own-room-leave-denied', 'logout-denial-passed',
 }
 SAFE_BROWSER_STAGES = {
-    'driver-started', 'issuer-observed', 'username-submitted', 'password-submitted',
+    'driver-started', 'app-wait-started', 'app-observed', 'issuer-observed',
+    'username-submitted', 'password-submitted',
 }
 
 
@@ -73,6 +74,30 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
                 print(f'IOS_DIAGNOSTIC journey={phase} {marker} supportSafe=true', flush=True)
             if len(seen) >= 40:
                 return
+    # XCTest failure text may include typed values. Retain only the fixed
+    # source filename/line and a category chosen here; never copy the message.
+    failures = set()
+    for line in browser_output.splitlines():
+        location = re.search(r'BrowserDriver\.swift:([1-9][0-9]{0,4})', line)
+        if location is None or 'error:' not in line:
+            continue
+        category = 'xctest-assertion'
+        if 'not running' in line.lower() or 'not installed' in line.lower():
+            category = 'target-not-running'
+        elif 'Target application did not start' in line:
+            category = 'target-start-timeout'
+        elif 'Production browser did not complete' in line:
+            category = 'browser-timeout'
+        marker = (location.group(1), category)
+        if marker not in failures:
+            failures.add(marker)
+            print(f'IOS_XCTEST_DIAGNOSTIC journey={phase} file=BrowserDriver.swift line={marker[0]} category={category} supportSafe=true', flush=True)
+        if len(failures) >= 5:
+            break
+
+
+def browser_product_started(output: str) -> bool:
+    return 'NATIVE_IOS_BROWSER_STAGE phase=app-observed' in output
 
 
 def command_stage(arguments: list[str]) -> str:
@@ -207,9 +232,13 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
             driver_status = driver.wait(timeout=420)
             if driver_status:
                 browser_log.seek(0)
-                started = 'NATIVE_IOS_BROWSER_STAGE phase=driver-started' in browser_log.read()
+                browser_observed = browser_log.read()
+                started = browser_product_started(browser_observed)
                 category = 'integration' if started else 'infrastructure'
-                raise NativeFailure(category, phase + '-browser', 'browser-ui-failed' if started else 'browser-runner-start-failed')
+                reason = 'browser-ui-failed' if started else 'browser-runner-start-failed'
+                if not started and 'NATIVE_IOS_BROWSER_STAGE phase=app-wait-started' in browser_observed:
+                    reason = 'target-app-start-failed'
+                raise NativeFailure(category, phase + '-browser', reason)
             flutter_status = flutter.wait(timeout=900)
             flutter_log.seek(0)
             observed = flutter_log.read()
@@ -225,7 +254,7 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
         except subprocess.TimeoutExpired as failure:
             if failure.cmd and failure.cmd[0] == 'xcodebuild':
                 browser_log.seek(0)
-                started = 'NATIVE_IOS_BROWSER_STAGE phase=driver-started' in browser_log.read()
+                started = browser_product_started(browser_log.read())
                 category, stage = ('integration' if started else 'infrastructure'), phase + '-browser'
             else:
                 flutter_log.seek(0)
