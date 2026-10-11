@@ -57,7 +57,9 @@ public class ProviderRegistry {
                 DomainAdapterRegistryMapper.fromCategories(categories, generatedAt),
                 selections,
                 categories,
-                statuses);
+                statuses,
+                null,
+                null);
     }
 
     private ProviderStatusResponse applyAdminSelection(ProviderStatusResponse status, List<ProviderSelection> selections) {

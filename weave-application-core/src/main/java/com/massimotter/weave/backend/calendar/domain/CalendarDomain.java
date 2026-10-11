@@ -256,11 +256,20 @@ public final class CalendarDomain {
         }
 
         public String rrule() {
+            return rrule(TemporalKind.UTC);
+        }
+
+        /** UNTIL has DTSTART's value type, except zoned DTSTART requires UTC UNTIL. */
+        public String rrule(TemporalKind startKind) {
             StringBuilder value = new StringBuilder("FREQ=").append(frequency.name());
             if (interval != 1) value.append(";INTERVAL=").append(interval);
             if (count != null) value.append(";COUNT=").append(count);
-            if (until != null) value.append(";UNTIL=").append(until.withZoneSameInstant(ZoneOffset.UTC)
-                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")));
+            if (until != null) value.append(";UNTIL=").append(switch (startKind) {
+                case DATE -> until.toLocalDate().format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+                case FLOATING -> until.toLocalDateTime().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss"));
+                case UTC, ZONED -> until.withZoneSameInstant(ZoneOffset.UTC)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'"));
+            });
             if (!byDay.isEmpty()) value.append(";BYDAY=").append(String.join(",", byDay));
             if (!byMonthDay.isEmpty()) value.append(";BYMONTHDAY=").append(joinIntegers(byMonthDay));
             if (!byMonth.isEmpty()) value.append(";BYMONTH=").append(joinIntegers(byMonth));

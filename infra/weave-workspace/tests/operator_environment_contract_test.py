@@ -183,7 +183,7 @@ def main() -> int:
         in runtime_source
     )
     assert (
-        'if context.environment == "prod":\n'
+        'if context.environment in {"prod", "e2e"}:\n'
         '            require_completed_migration(context)'
         in runtime_source
     )

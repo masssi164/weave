@@ -422,6 +422,12 @@ abstract class AppLocalizations {
   /// **'Shared workspace activity'**
   String get homeRecentActivityWorkspaceVisibility;
 
+  /// Accessible visibility label for the current member's private Files activity
+  ///
+  /// In en, this message translates to:
+  /// **'Private activity'**
+  String get homeRecentActivityPrivateVisibility;
+
   /// Screen-reader summary for one generic support-safe Home activity
   ///
   /// In en, this message translates to:
@@ -597,7 +603,7 @@ abstract class AppLocalizations {
   /// Provider-neutral guidance after chat sign-in cancellation
   ///
   /// In en, this message translates to:
-  /// **'Chat sign-in was cancelled. Connect chat to try again.'**
+  /// **'Chat sign-in did not finish. Retry with your current Weave sign-in.'**
   String get chatErrorCancelledGuidance;
 
   /// Provider-neutral guidance when chat setup or configuration is not member-actionable
@@ -609,7 +615,7 @@ abstract class AppLocalizations {
   /// Provider-neutral guidance when a chat session is required
   ///
   /// In en, this message translates to:
-  /// **'Chat is not connected for this workspace session. Connect chat to continue.'**
+  /// **'Chat access could not be established with your current Weave sign-in. Retry, or ask an admin to review your access.'**
   String get chatErrorSessionRequiredGuidance;
 
   /// Provider-neutral guidance when chat cannot run on the current platform
@@ -809,24 +815,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Gathering your latest rooms and recent conversation state.'**
   String get chatLoadingHint;
-
-  /// Message shown while Matrix OAuth sign-in is in progress
-  ///
-  /// In en, this message translates to:
-  /// **'Connecting to chat…'**
-  String get chatConnectingLabel;
-
-  /// Supporting copy shown while Matrix sign-in is connecting
-  ///
-  /// In en, this message translates to:
-  /// **'We are opening your secure Weave chat session and syncing the first conversation list.'**
-  String get chatConnectingHint;
-
-  /// Button label to start or retry Matrix sign-in
-  ///
-  /// In en, this message translates to:
-  /// **'Connect chat'**
-  String get chatConnectButton;
 
   /// Accessibility label for the progress indicator shown while the existing chat room list is refreshing
   ///
@@ -1167,34 +1155,16 @@ abstract class AppLocalizations {
   /// Body for a Files card explaining the product/provider boundary
   ///
   /// In en, this message translates to:
-  /// **'Files actions use the Weave workspace service facade. File storage stays behind the admin/fallback surface; raw service paths and credentials are not part of the normal Files UX.'**
+  /// **'Files actions use the Weave User API. File storage stays behind the server\'s provider boundary; raw provider paths and credentials are not part of the normal Files experience.'**
   String get filesProductBoundaryBody;
 
-  /// Button label used to start the Files connection flow
-  ///
-  /// In en, this message translates to:
-  /// **'Connect Files'**
-  String get filesConnectButton;
-
-  /// Button label used to reconnect an invalid Files session
-  ///
-  /// In en, this message translates to:
-  /// **'Reconnect Files'**
-  String get filesReconnectButton;
-
-  /// Button label used to disconnect the saved Files session
-  ///
-  /// In en, this message translates to:
-  /// **'Disconnect'**
-  String get filesDisconnectButton;
-
-  /// Button label used to refresh the current Nextcloud directory
+  /// Button label used to refresh the current Weave Files directory
   ///
   /// In en, this message translates to:
   /// **'Refresh'**
   String get filesRefreshButton;
 
-  /// Button label used to open the parent Nextcloud directory
+  /// Button label used to open the parent Weave Files directory
   ///
   /// In en, this message translates to:
   /// **'Up'**
@@ -1227,19 +1197,19 @@ abstract class AppLocalizations {
   /// Message shown when the Files screen is disconnected
   ///
   /// In en, this message translates to:
-  /// **'Connect Weave Files to browse workspace files.'**
+  /// **'Sign in to Weave to browse workspace files.'**
   String get filesDisconnectedMessage;
 
   /// Message shown when the saved Files session is no longer valid
   ///
   /// In en, this message translates to:
-  /// **'Reconnect Files because the Weave session is no longer valid.'**
+  /// **'Your Weave session has expired. Sign in to Weave again to restore Files.'**
   String get filesInvalidSessionMessage;
 
   /// Message shown when the Files feature is missing required server setup
   ///
   /// In en, this message translates to:
-  /// **'Finish Weave server setup before connecting files.'**
+  /// **'Finish Weave server setup before using Files.'**
   String get filesMisconfiguredMessage;
 
   /// Status message shown when the Files feature is connected through Weave
@@ -1251,14 +1221,20 @@ abstract class AppLocalizations {
   /// Status message shown when Files are not connected
   ///
   /// In en, this message translates to:
-  /// **'Files are not connected for this Weave session.'**
+  /// **'Sign in to Weave to use Files.'**
   String get filesConnectionDisconnected;
 
   /// Status message shown when the Files session is invalid
   ///
   /// In en, this message translates to:
-  /// **'The Weave Files session needs attention.'**
+  /// **'Your Weave session needs to be renewed.'**
   String get filesConnectionInvalid;
+
+  /// Status message shown when Files readiness or authorization cannot be confirmed
+  ///
+  /// In en, this message translates to:
+  /// **'Files access is unavailable for this Weave session.'**
+  String get filesConnectionUnavailable;
 
   /// Status message shown when Weave Files server setup is incomplete
   ///
@@ -4004,7 +3980,7 @@ abstract class AppLocalizations {
   /// Friendly empty-state title shown when files require a connection
   ///
   /// In en, this message translates to:
-  /// **'Files are not connected'**
+  /// **'Sign in to use Files'**
   String get filesDisconnectedTitle;
 
   /// Friendly empty-state title shown when files are misconfigured
@@ -4016,8 +3992,20 @@ abstract class AppLocalizations {
   /// Friendly error-state title shown when the files session is invalid
   ///
   /// In en, this message translates to:
-  /// **'Files need to reconnect'**
+  /// **'Weave session expired'**
   String get filesSessionExpiredTitle;
+
+  /// Title shown when Files readiness or authorization cannot be confirmed
+  ///
+  /// In en, this message translates to:
+  /// **'Files are unavailable'**
+  String get filesUnavailableTitle;
+
+  /// Recovery guidance when Files readiness or authorization is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Retry when Files access is available, or ask a workspace admin to review your access.'**
+  String get filesUnavailableGuidance;
 
   /// Friendly error-state title shown when files fail to load
   ///
@@ -4106,7 +4094,7 @@ abstract class AppLocalizations {
   /// Helper text for the service endpoints section
   ///
   /// In en, this message translates to:
-  /// **'The Matrix facade is fixed to the backend API origin. Files and backend product endpoints are derived from the issuer host.'**
+  /// **'Weave Matrix and backend defaults are derived from the issuer host. Use the Weave Matrix Client-Server origin from your organization profile if it differs. Chat authorization follows your Weave sign-in automatically.'**
   String get serverConfigurationServicesHelper;
 
   /// Helper text for backend API-only member handoff/recovery configuration
@@ -4127,10 +4115,10 @@ abstract class AppLocalizations {
   /// **'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.'**
   String get serverConfigurationIdentityEndpointHelper;
 
-  /// Label for the Weave-owned Matrix facade URL field
+  /// Label for the Weave Matrix northbound Client-Server origin
   ///
   /// In en, this message translates to:
-  /// **'Weave Matrix Facade URL'**
+  /// **'Weave Matrix Client-Server URL'**
   String get serverConfigurationMatrixLabel;
 
   /// Label for the Nextcloud base URL field
@@ -5846,6 +5834,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Error code: {code}'**
   String memberHandoffErrorCode(String code);
+
+  /// No description provided for @calendarScopesLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading your calendars…'**
+  String get calendarScopesLoading;
+
+  /// No description provided for @calendarScopesUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Your calendars could not be loaded. Retry to check your current access.'**
+  String get calendarScopesUnavailable;
+
+  /// No description provided for @calendarRecurringEditGuard.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeating event: editing or deleting a series or occurrence is not available in this editor. Your original schedule is preserved.'**
+  String get calendarRecurringEditGuard;
+
+  /// No description provided for @calendarVersionConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'This event changed. Refresh the calendar, review the latest event, and try again.'**
+  String get calendarVersionConflict;
+
+  /// No description provided for @calendarUnsupportedEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'This change cannot be saved without changing unsupported event details. Review the event and try again.'**
+  String get calendarUnsupportedEdit;
+
+  /// No description provided for @calendarEvaluationZone.
+  ///
+  /// In en, this message translates to:
+  /// **'Time zone: {zone}'**
+  String calendarEvaluationZone(String zone);
+
+  /// No description provided for @calendarAllDayExclusiveEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'For all-day events, the end date is the first day after the event.'**
+  String get calendarAllDayExclusiveEnd;
 }
 
 class _AppLocalizationsDelegate

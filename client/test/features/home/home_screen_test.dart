@@ -46,16 +46,15 @@ class _FakeCalendarRepository implements CalendarRepository {
   Future<CalendarScopeList> loadScopes() async => const CalendarScopeList();
 
   @override
-  Future<CalendarEventList> loadEvents({CalendarScope? scope}) async {
+  Future<CalendarEventList> loadEvents({
+    CalendarScope? scope,
+    DateTime? from,
+    DateTime? to,
+  }) async {
     return CalendarEventList(
       scope: scope ?? CalendarScope.workspace,
       events: events,
     );
-  }
-
-  @override
-  Future<CalendarClientSetup> loadClientSetup() {
-    throw UnimplementedError();
   }
 
   @override
@@ -78,7 +77,7 @@ class _FakeCalendarRepository implements CalendarRepository {
   }
 
   @override
-  Future<void> deleteEvent(String id) {
+  Future<void> deleteEvent(String id, {String? etag}) {
     throw UnimplementedError();
   }
 }
@@ -101,7 +100,7 @@ void main() {
         ],
       );
       final home = WorkspaceHomeSnapshot(
-        version: 2,
+        version: 3,
         readiness: WorkspaceCapabilityReadiness.ready,
         summary: 'Weave Home is ready.',
         sections: const [],
@@ -111,9 +110,9 @@ void main() {
             activityRef:
                 'activity:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
             domain: WorkspaceHomeActivityDomain.files,
-            action: WorkspaceHomeActivityAction.filesWebDavWriteCompleted,
+            action: WorkspaceHomeActivityAction.filesUserWriteCompleted,
             occurredAt: now.toUtc(),
-            visibility: WorkspaceHomeActivityVisibility.workspace,
+            visibility: WorkspaceHomeActivityVisibility.private,
             actorRefHash:
                 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
             actorIsCurrentUser: true,
@@ -156,6 +155,12 @@ void main() {
       expect(find.text('Continue'), findsOneWidget);
       expect(find.text('Planning sync'), findsOneWidget);
       expect(find.text('You completed a Files change'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          RegExp('You completed a Files change.*Private activity'),
+        ),
+        findsOneWidget,
+      );
       expect(
         find.text('A workspace member completed a Files change'),
         findsOneWidget,

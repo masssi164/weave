@@ -220,7 +220,12 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
                 String calendarData = firstText(response, "urn:ietf:params:xml:ns:caldav", "calendar-data");
                 if (href == null || calendarData == null || calendarData.isBlank()) continue;
                 String etag = firstText(response, "DAV:", "getetag");
-                events.add(mapper.parse(calendarId, scope, new EventVersion(etag), calendarData));
+                CalendarEvent event = mapper.parse(calendarId, scope, new EventVersion(etag), calendarData);
+                if (!event.id().equals(eventIdFromHref(href))) {
+                    throw new CalendarAdapterException(CalendarAdapterException.Type.INVALID_RESPONSE,
+                            "Calendar UID and object identity cannot be mapped losslessly.");
+                }
+                events.add(event);
             }
             return events;
         } catch (CalendarAdapterException exception) {

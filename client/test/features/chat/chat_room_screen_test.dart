@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/chat/data/services/archived_message_store.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
+import 'package:weave/features/chat/presentation/chat_admission_gate.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 
 import '../../helpers/fake_chat_repository.dart';
@@ -23,6 +28,53 @@ void main() {
     isInvite: false,
     isDirectMessage: false,
   );
+
+  testWidgets('direct room route does not read a revoked timeline', (
+    tester,
+  ) async {
+    final repository = FakeChatRepository();
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatAdmissionGate(
+          child: ChatRoomScreen(conversation: conversation),
+        ),
+        overrides: [
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            const AsyncData(
+              WorkspaceCapabilitySnapshot(
+                shellAccess: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.shellAccess,
+                  readiness: WorkspaceCapabilityReadiness.ready,
+                ),
+                chat: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.chat,
+                  readiness: WorkspaceCapabilityReadiness.blocked,
+                  policyState: WorkspaceCapabilityPolicyState.policyBlocked,
+                ),
+                files: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.files,
+                  readiness: WorkspaceCapabilityReadiness.ready,
+                ),
+                calendar: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.calendar,
+                  readiness: WorkspaceCapabilityReadiness.ready,
+                ),
+                boards: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.boards,
+                  readiness: WorkspaceCapabilityReadiness.unavailable,
+                ),
+              ),
+            ),
+          ),
+          chatRepositoryProvider.overrideWithValue(repository),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.loadRoomTimelineCalls, 0);
+    expect(find.byType(ChatRoomScreen), findsNothing);
+  });
 
   ChatRoomTimeline buildTimeline({
     bool canSendMessages = true,
@@ -480,8 +532,23 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'Reply sent');
-    await tester.tap(find.text('Send'));
+    final composer = find.byType(TextField);
+    await tester.enterText(composer, 'Reply sent');
+    Finder focused() => find.byElementPredicate(
+      (element) =>
+          identical(element, FocusManager.instance.primaryFocus?.context),
+    );
+    expect(find.ancestor(of: focused(), matching: composer), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    expect(
+      find.ancestor(
+        of: focused(),
+        matching: find.widgetWithText(FilledButton, 'Send'),
+      ),
+      findsOneWidget,
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 
     expect(repository.sendMessageCalls, 1);
@@ -606,6 +673,42 @@ void main() {
       findsNothing,
     );
     expect(find.text('Retry'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('clears a loaded timeline after authority is revoked', (
+    tester,
+  ) async {
+    var failureOnRefresh = false;
+    final repository = FakeChatRepository(
+      loadRoomTimelineHandler: (_) async {
+        if (failureOnRefresh) {
+          throw const ChatFailure.sessionRequired('M_FORBIDDEN');
+        }
+        return buildTimeline();
+      },
+    );
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatRoomScreen(conversation: conversation),
+        overrides: overridesFor(repository),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Hey there'), findsOneWidget);
+
+    failureOnRefresh = true;
+    await tester.tap(find.byTooltip('Retry').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hey there'), findsNothing);
+    expect(find.text('Alex'), findsNothing);
+    expect(find.text('Project'), findsNothing);
+    expect(
+      find.text('Raw room provider detail should not render.'),
+      findsNothing,
+    );
+    expect(find.text('Retry'), findsAtLeastNWidgets(1));
+    expect(find.byType(TextField), findsNothing);
   });
 
   testWidgets('keeps a failed outgoing message visible with retry actions', (

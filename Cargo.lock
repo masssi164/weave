@@ -1916,8 +1916,6 @@ dependencies = [
 [[package]]
 name = "matrix-sdk"
 version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7083d580527511ac5d9369e03b9f2b20902e76949f1b3964051f978e4d3756ae"
 dependencies = [
  "anymap2",
  "aquamarine",
@@ -2805,6 +2803,8 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "rustls-platform-verifier",
+ "serde",
+ "serde_json",
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
@@ -3459,6 +3459,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -4052,11 +4053,18 @@ dependencies = [
 name = "weave-matrix-client"
 version = "0.1.0"
 dependencies = [
+ "base64",
+ "ed25519-dalek",
  "flutter_rust_bridge",
  "matrix-sdk",
+ "matrix-sdk-store-encryption",
  "reqwest",
+ "serde",
  "serde_json",
+ "sha2",
+ "tempfile",
  "tokio",
+ "url",
  "weave-matrix-protocol",
 ]
 
@@ -4068,6 +4076,7 @@ dependencies = [
  "ruma",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror 2.0.18",
  "tracing",
 ]

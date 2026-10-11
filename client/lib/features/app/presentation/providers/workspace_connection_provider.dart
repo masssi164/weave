@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
@@ -128,17 +129,26 @@ final workspaceCapabilitySnapshotProvider =
       final appAuth = ref.watch(appAuthIntegrationConnectionProvider);
 
       if (backendCapabilities case AsyncData(value: final backendSnapshot?)) {
+        final memberSpaces = ref.watch(weaveApiMemberSpacesProvider);
         if (appAuth.hasError) {
           return AsyncError(appAuth.error!, appAuth.stackTrace!);
         }
-        if (appAuth.isLoading) {
+        if (memberSpaces.hasError) {
+          return AsyncError(memberSpaces.error!, memberSpaces.stackTrace!);
+        }
+        if (appAuth.isLoading || memberSpaces.isLoading) {
           return const AsyncLoading();
         }
 
         return AsyncData(
-          _mergeWorkspaceCapabilitySnapshots(
-            localSnapshot: _mapBackendFacadeLocalSnapshot(appAuth.requireValue),
-            backendSnapshot: backendSnapshot,
+          _applyMemberSpaceAccess(
+            _mergeWorkspaceCapabilitySnapshots(
+              localSnapshot: _mapBackendFacadeLocalSnapshot(
+                appAuth.requireValue,
+              ),
+              backendSnapshot: backendSnapshot,
+            ),
+            memberSpaces.asData?.value,
           ),
         );
       }
@@ -169,6 +179,47 @@ final workspaceCapabilitySnapshotProvider =
         ),
       };
     });
+
+WorkspaceCapabilitySnapshot _applyMemberSpaceAccess(
+  WorkspaceCapabilitySnapshot capabilities,
+  MemberSpaceAccessSnapshot? access,
+) {
+  WorkspaceCapabilityState requireSpace(
+    WorkspaceCapabilityState capability,
+    bool admitted,
+  ) {
+    if (admitted || !capability.isReady) return capability;
+    return WorkspaceCapabilityState(
+      capability: capability.capability,
+      readiness: WorkspaceCapabilityReadiness.blocked,
+      connectionStatus: capability.connectionStatus,
+      recoveryRequirement: capability.recoveryRequirement,
+      policyState: WorkspaceCapabilityPolicyState.policyBlocked,
+      profileKey: capability.profileKey,
+      memberImpact: capability.memberImpact,
+      supportRef: capability.supportRef,
+      grantedCapabilities: const <String>[],
+    );
+  }
+
+  return WorkspaceCapabilitySnapshot(
+    shellAccess: capabilities.shellAccess,
+    chat: requireSpace(capabilities.chat, access?.hasChatSpace == true),
+    files: requireSpace(capabilities.files, access?.hasDefaultSpace == true),
+    calendar: requireSpace(
+      capabilities.calendar,
+      access?.hasDefaultSpace == true,
+    ),
+    boards: capabilities.boards,
+    meetingsCalls: capabilities.meetingsCalls,
+    documentsCollaboration: capabilities.documentsCollaboration,
+    decisionsEvidence: capabilities.decisionsEvidence,
+    manualsHelp: capabilities.manualsHelp,
+    releaseEvidence: capabilities.releaseEvidence,
+    adminControlPlane: capabilities.adminControlPlane,
+    agentRuntimeControl: capabilities.agentRuntimeControl,
+  );
+}
 
 IntegrationConnectionState _mapAppAuthConnectionState(
   BootstrapState state,

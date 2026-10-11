@@ -21,21 +21,63 @@ policies:
   - If repo reality conflicts with the pinned corpus, open either a spec-corpus change or an implementation conformance fix.
   - Deletion or migration of transitional packets must preserve any fixture/evidence value that gates still consume.
   - Weaver/OpenClaw runtime specifications live in their own repository and are dependency/runtime evidence only for Weave product work.
-  - For PR #1043 and later, repo-local text that preserves member OpenAPI/REST data-plane access for Files, Calendar events, or Chat messages is obsolete unless explicitly scoped as admin/control/evidence only.
+  - The pinned 2026-10 consolidation release profile supersedes conflicting historical northbound DAV, proprietary Chat REST, and provider-specific Matrix gateway directions; preserve substantive security, integrity, permission, and recovery requirements from historical packets.
 obsoleteLocalMeanings:
   - scope: files
-    obsolete: OpenAPI or provider-shaped member file list/read/write data plane
-    canonicalReplacement: /dav/files/**
+    obsolete: Public northbound WebDAV as the member release boundary or direct provider calls from consumers
+    canonicalReplacement: Generated User API over server-owned Files routes; DAV may remain southbound in adapters
   - scope: calendar
-    obsolete: /api/calendar/events/** as normal member event data plane
-    canonicalReplacement: /caldav/**
+    obsolete: Public northbound CalDAV as the member release boundary
+    canonicalReplacement: Generated User API over server-owned Calendar routes; CalDAV may remain southbound in adapters
   - scope: chat
-    obsolete: /api/chat/conversations/** as normal member message data plane
-    canonicalReplacement: /_matrix/client/**
+    obsolete: Direct southbound homeserver as product northbound contract or proprietary Weave chat-message REST
+    canonicalReplacement: Weave Matrix Client-Server facade with narrowly scoped Rust/Ruma/JNI, ChatProviderPort routing, native Flutter Rust/Matrix SDK, and Weaver/OpenClaw Matrix integration
   - scope: weaver-mcp
-    obsolete: Python/FastMCP OpenAPI route maps or handwritten JSON-RPC as an active MCP runtime
-    canonicalReplacement: Spring AI 2.0 stateful Streamable HTTP over canonical domain use cases and form elicitation
+    obsolete: Handwritten HTTP transport DTOs and routes for Weave product operations
+    canonicalReplacement: Generated User API client and transport models within the existing MCP runtime
 artifacts:
+  - path: specs/admin-current-release-generated-boundary.md
+    status: implementation-evidence
+    action: keep-as-generated-admin-ui-and-deferred-arc-boundary-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - steering/product-constitution.md
+  - path: specs/chat-provider-binding-contract.md
+    status: implementation-evidence
+    action: keep-as-organization-scoped-chat-admission-and-postgres-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/chat/spec.md
+  - path: specs/calendar-user-api-contract.md
+    status: implementation-evidence
+    action: keep-as-generated-calendar-user-api-conformance-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/calendar/spec.md
+  - path: specs/readme-release-evidence-contract.md
+    status: implementation-evidence
+    action: keep-as-readme-release-pointer-and-claim-conformance
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+  - path: specs/generated-api-ci-contract.md
+    status: implementation-evidence
+    action: keep-as-repo-owned-generated-consumer-gate-contract
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+    notes: Defines exact-candidate generation, consumer checks, isolated export and failure evidence for #1472/#1473/#1480; no independent API ownership.
+  - path: specs/native-flutter-ci-execution.md
+    status: implementation-evidence
+    action: keep-as-native-acceptance-runner-and-failure-evidence-contract
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - releases/rc-gates/release-candidate-gate.md
+  - path: specs/admin-provider-organization-boundary.md
+    status: implementation-evidence
+    action: keep-as-scoped-admin-api-and-organization-admission-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - platform/identity-security/spec.md
+      - domains/admin-health-ops/spec.md
   - path: specs/0000-weave-spec-framework
     status: transitional-conformance
     action: keep-until-migrated-or-replaced-by-corpus-manifest
@@ -83,7 +125,7 @@ artifacts:
       - domains/chat/spec.md
       - domains/boards-tasks/spec.md
       - contracts/jsonschema/portability-report.schema.json
-    notes: JSON dry-run and negative fixtures are implementation evidence unless promoted to corpus contracts.
+    notes: JSON dry-run and negative fixtures are implementation evidence unless promoted to corpus contracts. The Files v2 dry-run fixture is a blocked, unmeasured conformance example for #1498 portability; archive/manual-review classifications never authorize Files activation.
   - path: specs/0007-governed-weaver-runtime
     status: obsolete-historical
     action: retain-only-as-implementation-conformance-evidence-until-scenario-mapping-is-pruned
@@ -124,6 +166,43 @@ artifacts:
       - steering/devops-conformance.md
       - releases/rc-gates/release-candidate-gate.md
     notes: Replaced by weave-specs commit 78f6c58fef0ebb53684c5c861c2453b8c4c577c9; Forgejo delivery/runtime evidence is not active.
+  - path: specs/main-promotion-evidence-contract.md
+    status: implementation-evidence
+    action: keep-as-repo-owned-protected-promotion-conformance
+    corpusCandidates:
+      - steering/devops-conformance.md
+      - acceptance/features/delivery-lane-validation.feature
+    notes: Exact protected refs, deployed dogfood check results, and owner-reported human outcomes are checked in the Weave delivery workflow.
+  - path: specs/calendar-generated-consumer-evidence.md
+    status: implementation-evidence
+    action: retain-as-generated-calendar-consumer-and-runtime-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/calendar/spec.md
+  - path: specs/calendar-flutter-generated-consumer.md
+    status: implementation-evidence
+    action: retain-as-flutter-calendar-generated-consumer-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/calendar/spec.md
+  - path: specs/home-flutter-generated-consumer.md
+    status: implementation-evidence
+    action: retain-as-flutter-home-generated-consumer-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+  - path: specs/mcp-generated-user-files.md
+    status: implementation-evidence
+    action: retain-as-mcp-files-generated-user-consumer-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/files/spec.md
+  - path: specs/mcp-generated-user-calendar.md
+    status: implementation-evidence
+    action: retain-as-mcp-calendar-generated-user-consumer-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - domains/calendar/spec.md
+      - acceptance/features/workload-identity-token-exchange.feature
 cleanupSequence:
   - Add or update corpus files for any remaining product/domain meaning.
   - Update repo tests/gates to consume corpus contracts or generated projections.

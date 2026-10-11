@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -15,23 +16,23 @@ EVIDENCE_START = "<!-- WEAVE_RELEASE_NOTES:START -->"
 EVIDENCE_END = "<!-- WEAVE_RELEASE_NOTES:END -->"
 DEFAULT_SOURCE = ROOT / "docs" / "release-notes" / "unreleased.md"
 RELEASE_POINTER_BLOCK = f"""{START}
-- Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
-- Latest release index: [Release notes](docs/release-notes/index.md)
+- Historical change draft: [Unreleased](docs/release-notes/unreleased.md)
+- Release-note history and process: [Release notes](docs/release-notes/index.md)
 {END}"""
 EVIDENCE_BLOCK = f"""{EVIDENCE_START}
-- Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
 - Offline release-note fixture review artifact: `build/release-notes/unreleased.md`
-- Release evidence check: deterministic CI/local gate for README markers, release-note structure, label policy, and release evidence fixtures.
+- README pointer check: deterministic structure and generated-link validation; it does not establish product acceptance or release readiness.
 {EVIDENCE_END}"""
 REQUIRED_TOP_LEVEL_SECTIONS = [
-    "Product Screenshots",
-    "What Works Today",
-    "What Is Guarded",
-    "For Members",
-    "For Admins And Operators",
-    "For Developers",
-    "Release Notes",
-    "Release Evidence",
+    "What Weave is",
+    "Current status",
+    "Develop and test",
+    "Core architecture",
+    "Ordered roadmap",
+    "Documentation",
+    "Release notes",
+    "Release evidence",
+    "License",
 ]
 
 
@@ -93,11 +94,17 @@ def check_readme_structure(content: str) -> None:
     if repeated:
         fail("README.md required top-level sections must appear exactly once: " + ", ".join(repeated))
 
-    release_section = content.index("## Release Notes")
-    evidence_section = content.index("## Release Evidence")
-    if not (release_section < generated_start < generated_end < evidence_section):
+    def section_bounds(heading: str) -> tuple[int, int]:
+        start = content.index("## " + heading + "\n")
+        following = re.search(r"^## ", content[start + 3:], re.MULTILINE)
+        end = start + 3 + following.start() if following else len(content)
+        return start, end
+
+    release_section, release_end = section_bounds("Release notes")
+    evidence_section, evidence_section_end = section_bounds("Release evidence")
+    if not (release_section < generated_start < generated_end < release_end):
         fail("README.md release-note draft markers must stay inside the Release notes section")
-    if not (evidence_section < evidence_start < evidence_end):
+    if not (evidence_section < evidence_start < evidence_end < evidence_section_end):
         fail("README.md release-evidence markers must stay inside the Release evidence section")
 
 

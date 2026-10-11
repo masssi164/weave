@@ -3,9 +3,11 @@ import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 abstract interface class CalendarRepository {
   Future<CalendarScopeList> loadScopes();
 
-  Future<CalendarEventList> loadEvents({CalendarScope? scope});
-
-  Future<CalendarClientSetup> loadClientSetup();
+  Future<CalendarEventList> loadEvents({
+    CalendarScope? scope,
+    DateTime? from,
+    DateTime? to,
+  });
 
   Future<CalendarEvent> readEvent(String id);
 
@@ -17,5 +19,5 @@ abstract interface class CalendarRepository {
     String? etag,
   });
 
-  Future<void> deleteEvent(String id);
+  Future<void> deleteEvent(String id, {String? etag});
 }

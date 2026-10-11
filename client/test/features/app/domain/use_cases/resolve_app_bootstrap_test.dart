@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
+import 'package:weave/features/app/domain/ports/chat_session_port.dart';
 import 'package:weave/features/app/domain/ports/identity_session_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
 import 'package:weave/features/app/domain/use_cases/reconcile_identity_session.dart';
@@ -9,6 +12,7 @@ import 'package:weave/features/app/domain/use_cases/resolve_app_bootstrap.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
+import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 
 import '../../../../helpers/auth_test_data.dart';
@@ -93,14 +97,35 @@ class _FakeServerConfigurationPort implements ServerConfigurationPort {
   }
 }
 
+class _FakeChatSessionPort implements ChatSessionPort {
+  int ensureCalls = 0;
+  ChatFailure? failure;
+  Completer<void>? pending;
+
+  @override
+  Future<void> ensureSession() async {
+    ensureCalls++;
+    await pending?.future;
+    if (failure case final failure?) throw failure;
+  }
+
+  @override
+  Future<void> clearSession() async {}
+
+  @override
+  Future<void> signOut() async {}
+}
+
 ResolveAppBootstrap _buildUseCase({
   required _FakeAppAuthPort authPort,
   required _FakeServerConfigurationPort serverConfigurationPort,
   _FakeIdentitySessionPort? identitySessionPort,
+  _FakeChatSessionPort? chatSessionPort,
 }) {
   final sessionPort = identitySessionPort ?? _FakeIdentitySessionPort();
   return ResolveAppBootstrap(
     authPort: authPort,
+    chatSessionPort: chatSessionPort ?? _FakeChatSessionPort(),
     reconcileIdentitySession: ReconcileIdentitySession(
       identitySessionPort: sessionPort,
     ),
@@ -144,9 +169,11 @@ void main() {
         ..restoreSessionHandler = (_) async =>
             AuthState.authenticated(buildTestAuthSession());
       final identitySessionPort = _FakeIdentitySessionPort();
+      final chatSessionPort = _FakeChatSessionPort();
       final useCase = _buildUseCase(
         authPort: authPort,
         identitySessionPort: identitySessionPort,
+        chatSessionPort: chatSessionPort,
         serverConfigurationPort: _FakeServerConfigurationPort(
           configuration: buildTestConfiguration(),
         ),
@@ -157,7 +184,52 @@ void main() {
       expect(state.phase, BootstrapPhase.ready);
       expect(identitySessionPort.calls, 1);
       expect(identitySessionPort.lastAccessToken, 'access-token');
+      expect(chatSessionPort.ensureCalls, 1);
     });
+
+    test('keeps Weave ready when authorized Chat needs recovery', () async {
+      final authPort = _FakeAppAuthPort()
+        ..restoreSessionHandler = (_) async =>
+            AuthState.authenticated(buildTestAuthSession());
+      final chatSessionPort = _FakeChatSessionPort()
+        ..failure = const ChatFailure.sessionRequired('Chat unavailable.');
+      final useCase = _buildUseCase(
+        authPort: authPort,
+        chatSessionPort: chatSessionPort,
+        serverConfigurationPort: _FakeServerConfigurationPort(
+          configuration: buildTestConfiguration(),
+        ),
+      );
+
+      expect((await useCase.call()).phase, BootstrapPhase.ready);
+      expect(chatSessionPort.ensureCalls, 1);
+    });
+
+    test(
+      'slow Chat preparation never blocks the shell and late failures stay contained',
+      () async {
+        final authPort = _FakeAppAuthPort()
+          ..restoreSessionHandler = (_) async =>
+              AuthState.authenticated(buildTestAuthSession());
+        final pending = Completer<void>();
+        final chatPort = _FakeChatSessionPort()..pending = pending;
+        final useCase = _buildUseCase(
+          authPort: authPort,
+          chatSessionPort: chatPort,
+          serverConfigurationPort: _FakeServerConfigurationPort(
+            configuration: buildTestConfiguration(),
+          ),
+        );
+        final ready = await useCase.call().timeout(const Duration(seconds: 1));
+        expect(ready.phase, BootstrapPhase.ready);
+        expect(pending.isCompleted, isFalse);
+        expect(chatPort.ensureCalls, 1);
+        pending.completeError(StateError('Chat transport failed later'));
+        await Future<void>.delayed(Duration.zero);
+        expect(ready.phase, BootstrapPhase.ready);
+        expect(authPort.clearCalls, 0);
+      },
+    );
 
     test(
       'requires sign-in when restored access needs reauthorization',

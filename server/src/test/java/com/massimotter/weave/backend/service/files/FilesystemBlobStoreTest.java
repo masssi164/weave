@@ -66,6 +66,26 @@ class FilesystemBlobStoreTest {
     }
 
     @Test
+    void boundedReadRejectsOversizeSourceBeforeWritingAnyBytes() {
+        var scope = new BlobScope("org:alpha", "space:streaming");
+        var reference = new BlobReference("v1/file/abababababababababababababababababababababababababababababababab");
+        var store = store(1024);
+        byte[] content = {1, 2, 3};
+        store.put(scope, reference, content, FilesystemBlobStore.digest(content));
+        ByteArrayOutputStream rejected = new ByteArrayOutputStream();
+
+        assertThatThrownBy(() -> store.readStreamBounded(scope, reference, rejected, 2))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status().value()).isEqualTo(413);
+                    assertThat(error.code()).isEqualTo("files-native-blob-too-large");
+                });
+        assertThat(rejected.size()).isZero();
+        ByteArrayOutputStream allowed = new ByteArrayOutputStream();
+        store.readStreamBounded(scope, reference, allowed, 3);
+        assertThat(allowed.toByteArray()).containsExactly(content);
+    }
+
+    @Test
     void rejectsStreamingSizeDigestAndBoundViolations() {
         var scope = new BlobScope("org:alpha", "space:streaming");
         var store = store(1024);

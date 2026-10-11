@@ -76,8 +76,8 @@ void main() {
         isEmpty,
         reason:
             'Normal member providers/screens must depend on Weave facades, not '
-            'Nextcloud, provider status, or platform diagnostic seams. Matrix '
-            'Client-Server projection wiring is allowed for the Chat data plane. '
+            'Nextcloud, provider status, or platform diagnostic seams. Native '
+            'Rust Matrix SDK wiring is allowed for the Chat data plane. '
             'Diagnostic/admin exceptions require an allowlist expiry issue.',
       );
     });
@@ -107,6 +107,22 @@ void main() {
             'Member-visible copy must flow through l10n or typed error/state '
             'codes. Current hardcoded-copy debt is fenced by _hardcodedCopyAllowlist '
             'and expires through #908.',
+      );
+    });
+
+    test('interpolated HTTP bearer header is protocol data, not UI copy', () {
+      expect(
+        _looksLikeUserFacingString(
+          "'Authorization': 'Bearer \${session.accessToken}',",
+        ),
+        isFalse,
+      );
+      expect(_looksLikeUserFacingString("Text('Unable to sign in')"), isTrue);
+      expect(
+        _looksLikeUserFacingString(
+          "'Authorization': 'Bearer static credential',",
+        ),
+        isTrue,
       );
     });
   });
@@ -218,13 +234,6 @@ const _memberProviderGraphAllowlist = <LegacyFence>[
         'handoff and setup copy are provider-neutralized.',
   ),
   LegacyFence(
-    path: 'lib/features/settings/presentation/settings_screen.dart',
-    issue: '#906',
-    reason:
-        'Settings still renders provider-stack status while diagnostic/admin '
-        'reachability is being split from normal member paths.',
-  ),
-  LegacyFence(
     path: 'lib/features/shell/presentation/shell_workspace_status.dart',
     issue: '#906',
     reason:
@@ -323,10 +332,10 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
   ),
   LegacyFence(
     path:
-        'lib/features/chat/data/repositories/weave_matrix_facade_chat_repository.dart',
+        'lib/features/chat/data/repositories/native_matrix_chat_repository.dart',
     issue: '#908',
     reason:
-        'Matrix facade repository failure text is fenced until member-visible '
+        'Native Matrix repository failure text is fenced until member-visible '
         'recovery copy is localized from typed failure codes.',
   ),
   LegacyFence(
@@ -531,6 +540,7 @@ bool _isLocalizationApprovedPath(String path) {
 
 bool _looksLikeUserFacingString(String line) {
   if (!line.contains("'") && !line.contains('"')) return false;
+  if (_interpolatedBearerHeader.hasMatch(line)) return false;
   if (line.contains('l10n.')) return false;
   if (line.contains('AppLocalizations')) return false;
   if (line.trimLeft().startsWith('import ')) return false;
@@ -551,6 +561,10 @@ bool _looksLikeUserFacingString(String line) {
   }
   return false;
 }
+
+final _interpolatedBearerHeader = RegExp(
+  r'''^\s*['"]Authorization['"]\s*:\s*['"]Bearer \$\{[A-Za-z_][A-Za-z_0-9.]*\}['"],?\s*$''',
+);
 
 final _stringLiteralPattern = RegExp(r'''(r)?'([^']*)'|"(.*?)"''');
 final _userFacingWords = RegExp(

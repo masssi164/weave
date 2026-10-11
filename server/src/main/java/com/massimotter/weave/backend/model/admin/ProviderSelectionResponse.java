@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
 
-@Schema(description = "Support-safe selected provider mapping owned by the Admin Console/backend control plane.")
+@Schema(description = "Support-safe category-selection metadata; this response is not active organization binding or cutover evidence.")
 public record ProviderSelectionResponse(
         String category,
         String providerKey,
@@ -12,6 +12,7 @@ public record ProviderSelectionResponse(
         String secretRef,
         String selectedBy,
         Instant selectedAt,
+        @Schema(description = "Category metadata was recorded; this does not mean the active organization binding changed.")
         boolean applied,
         boolean dryRun,
         boolean supportSafe,

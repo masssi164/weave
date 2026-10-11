@@ -1,0 +1,35 @@
+tasks.register('postgresPersistenceCi') {
+    group = 'verification'
+    description = 'Run the current PostgreSQL/Flyway/JPA foundation tests, including authoritative server repository contracts.'
+    dependsOn ':weave-persistence-jpa:test', ':server:postgresJpaTest'
+}
+
+tasks.register('protocolFacadeFoundationCi') {
+    group = 'verification'
+    description = 'Run the current Server protocol regression suite while focused WebDAV, CalDAV, and Matrix gates are split by their owning issues.'
+    dependsOn ':server:test'
+}
+
+tasks.register('mcpFoundationCi') {
+    group = 'verification'
+    description = 'Run the current separate MCP process tests and architecture checks. Calendar MCP remains an explicit follow-up under issue #1263.'
+    dependsOn ':weave-mcp-server:test'
+}
+
+tasks.register('coreDocsCheck', Exec) {
+    group = 'verification'
+    description = 'Validate the concise README, active documentation links, task names, and workflow disposition inventory.'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'tools/core_docs_check.py'
+}
+
+tasks.register('coreCheck') {
+    group = 'verification'
+    description = 'Run every currently truthful non-system-E2E Server/Data/MCP foundation gate.'
+    dependsOn 'coreArchitectureCi',
+            'canonicalDataCi',
+            'postgresPersistenceCi',
+            'protocolFacadeFoundationCi',
+            'mcpFoundationCi',
+            'coreDocsCheck'
+}

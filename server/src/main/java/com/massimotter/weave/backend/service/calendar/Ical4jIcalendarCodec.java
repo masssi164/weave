@@ -55,6 +55,16 @@ public final class Ical4jIcalendarCodec implements IcalendarCodec {
             EventVersion version,
             String calendarData) {
         var calendar = parseCalendar(calendarData);
+        for (var property : calendar.getProperties()) {
+            if (!java.util.Set.of("VERSION", "PRODID", "CALSCALE").contains(property.getName())
+                    || !property.getParameters().isEmpty()
+                    || "CALSCALE".equals(property.getName()) && !"GREGORIAN".equals(property.getValue())) {
+                throw invalid("Unsupported Calendar envelope property cannot be preserved.", null);
+            }
+        }
+        for (var component : calendar.getComponents()) {
+            if (!(component instanceof VEvent)) throw invalid("Unsupported Calendar component cannot be preserved.", null);
+        }
         List<VEvent> events = calendar.getComponents(Component.VEVENT);
         if (events.isEmpty()) {
             throw invalid("iCalendar payload does not contain a VEVENT.", null);
@@ -63,6 +73,10 @@ public final class Ical4jIcalendarCodec implements IcalendarCodec {
             throw invalid("iCalendar payload contains too many VEVENT components.", null);
         }
 
+        if (events.stream().filter(event -> property(event, Property.RECURRENCE_ID) == null).count() != 1) {
+            throw invalid("Exactly one master VEVENT is required.", null);
+        }
+        for (VEvent event : events) requireLosslessProperties(event);
         VEvent master = events.stream()
                 .filter(event -> property(event, Property.RECURRENCE_ID) == null)
                 .findFirst()
@@ -70,6 +84,9 @@ public final class Ical4jIcalendarCodec implements IcalendarCodec {
         requirePropertyBound(master);
 
         String uid = requiredValue(master, Property.UID, "UID");
+        if (events.stream().anyMatch(event -> !uid.equals(nullableValue(event, Property.UID)))) {
+            throw invalid("Recurrence overrides must retain the master UID.", null);
+        }
         TemporalValue start = temporal(requiredProperty(master, Property.DTSTART, "DTSTART"));
         TemporalValue end = temporal(requiredProperty(master, Property.DTEND, "DTEND"));
         String title = value(master, Property.SUMMARY, "Untitled event");
@@ -267,7 +284,7 @@ public final class Ical4jIcalendarCodec implements IcalendarCodec {
                 out.append(':').append(calendarAddressValue(attendee.address(), attendee.memberRef())).append("\r\n");
             }
             if (event.recurrence() != null) {
-                appendText(out, "RRULE", event.recurrence().rrule());
+                out.append("RRULE:").append(event.recurrence().rrule(event.startValue().kind())).append("\r\n");
                 appendRecurrenceValues(out, "RDATE", event.recurrence().additionalDates());
                 appendRecurrenceValues(out, "EXDATE", event.recurrence().excludedDates());
             }
@@ -325,6 +342,13 @@ public final class Ical4jIcalendarCodec implements IcalendarCodec {
     }
 
     private ZonedDateTime recurrenceUntil(String raw, TemporalValue masterStart) {
+        boolean date = raw.matches("[0-9]{8}");
+        boolean floating = raw.matches("[0-9]{8}T[0-9]{6}");
+        boolean utc = raw.matches("[0-9]{8}T[0-9]{6}Z");
+        if (!(masterStart.kind() == TemporalKind.DATE ? date
+                : masterStart.kind() == TemporalKind.FLOATING ? floating : utc)) {
+            throw invalid("UNTIL does not match DTSTART temporal semantics.", null);
+        }
         TemporalValue parsed = temporal(raw, raw.length() == 8 ? "DATE" : null,
                 masterStart.kind() == TemporalKind.ZONED ? masterStart.zoneId().getId() : null);
         return switch (parsed.kind()) {
@@ -333,6 +357,39 @@ public final class Ical4jIcalendarCodec implements IcalendarCodec {
             case UTC -> parsed.instant().atZone(ZoneOffset.UTC);
             case ZONED -> parsed.localDateTime().atZone(parsed.zoneId());
         };
+    }
+
+    private void requireLosslessProperties(VEvent event) {
+        if (!event.getComponents().isEmpty()) throw invalid("Nested Calendar components cannot be preserved.", null);
+        var supported = java.util.Set.of("UID", "DTSTAMP", "LAST-MODIFIED", "DTSTART", "DTEND", "SUMMARY",
+                "DESCRIPTION", "LOCATION", "ATTENDEE", "RRULE", "RDATE", "EXDATE", "RECURRENCE-ID", "STATUS",
+                "X-WEAVE-CONTEXT-ID", "X-WEAVE-CHANNEL-ID", "X-WEAVE-MEETING-THREAD-ID");
+        boolean override = property(event, Property.RECURRENCE_ID) != null;
+        var seen = new java.util.HashSet<String>();
+        for (Property property : event.getProperties()) {
+            if (!java.util.Set.of("ATTENDEE", "RDATE", "EXDATE").contains(property.getName()) && !seen.add(property.getName())) {
+                throw invalid("Duplicate Calendar property cannot be preserved.", null);
+            }
+            if (override && java.util.Set.of("ATTENDEE", "RRULE", "RDATE", "EXDATE").contains(property.getName())) {
+                throw invalid("Override-specific Calendar property cannot be preserved.", null);
+            }
+            if ("CANCELLED".equals(nullableValue(event, Property.STATUS))
+                    && java.util.Set.of("DTSTART", "DTEND", "SUMMARY", "DESCRIPTION", "LOCATION").contains(property.getName())) {
+                throw invalid("Cancelled override content cannot be preserved.", null);
+            }
+            if (!supported.contains(property.getName())) throw invalid("Unsupported Calendar property cannot be preserved.", null);
+            if ("STATUS".equals(property.getName()) && (property(event, Property.RECURRENCE_ID) == null
+                    || !"CANCELLED".equals(property.getValue()))) throw invalid("Unsupported Calendar status cannot be preserved.", null);
+            var parameters = switch (property.getName()) {
+                case "DTSTART", "DTEND", "RDATE", "EXDATE" -> java.util.Set.of("VALUE", "TZID");
+                case "RECURRENCE-ID" -> java.util.Set.of("VALUE", "TZID");
+                case "ATTENDEE" -> java.util.Set.of("CN", "ROLE", "PARTSTAT");
+                default -> java.util.Set.<String>of();
+            };
+            for (Parameter parameter : property.getParameters()) {
+                if (!parameters.contains(parameter.getName())) throw invalid("Unsupported Calendar parameter cannot be preserved.", null);
+            }
+        }
     }
 
     private Property requiredProperty(VEvent event, String name, String label) {

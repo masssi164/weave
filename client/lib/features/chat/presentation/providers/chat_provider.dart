@@ -5,7 +5,7 @@ import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 
-enum ChatViewPhase { loading, connecting, content, empty, error, unsupported }
+enum ChatViewPhase { loading, content, empty, error, unsupported }
 
 class ChatUiState {
   const ChatUiState._({
@@ -17,8 +17,6 @@ class ChatUiState {
   });
 
   const ChatUiState.loading() : this._(phase: ChatViewPhase.loading);
-
-  const ChatUiState.connecting() : this._(phase: ChatViewPhase.connecting);
 
   const ChatUiState.content(
     List<ChatConversation> conversations, {
@@ -48,7 +46,7 @@ class ChatUiState {
 
 class ChatController extends Notifier<ChatUiState> {
   int? _sessionGeneration;
-  bool _autoConnectAttempted = false;
+  int _requestSequence = 0;
 
   @override
   ChatUiState build() {
@@ -58,10 +56,12 @@ class ChatController extends Notifier<ChatUiState> {
     final sessionGeneration = invalidation?.sequence ?? 0;
     if (_sessionGeneration != sessionGeneration) {
       _sessionGeneration = sessionGeneration;
-      _autoConnectAttempted = false;
-      Future<void>.microtask(
-        () => _loadInitial(invalidationReason: invalidation?.reason),
-      );
+      final requestSequence = _requestSequence;
+      Future<void>.microtask(() async {
+        if (ref.mounted && requestSequence == _requestSequence) {
+          await _loadConversations();
+        }
+      });
     }
 
     return const ChatUiState.loading();
@@ -71,43 +71,36 @@ class ChatController extends Notifier<ChatUiState> {
     final cachedConversations = state.conversations;
     if (cachedConversations.isEmpty) {
       state = const ChatUiState.loading();
-      await _loadConversations(allowAutoConnect: false);
+      await _loadConversations();
       return;
     }
 
     state = ChatUiState.content(cachedConversations, isRefreshing: true);
-    await _loadConversations(
-      allowAutoConnect: false,
-      staleConversations: cachedConversations,
-    );
+    await _loadConversations(staleConversations: cachedConversations);
   }
 
-  Future<void> connect() async {
-    if (state.phase == ChatViewPhase.connecting) {
-      return;
-    }
+  /// Drop cached rooms when durable Space access is no longer current.
+  void clearForAccessLoss() {
+    _requestSequence++;
+    state = const ChatUiState.loading();
+  }
 
-    state = const ChatUiState.connecting();
-
-    try {
-      await ref.read(chatRepositoryProvider).connect();
-      await _loadConversations(allowAutoConnect: false);
-    } on ChatFailure catch (failure) {
-      state = _stateForFailure(failure);
-    } catch (error) {
-      state = ChatUiState.error(
-        ChatFailure.unknown(
-          'Unable to connect to chat right now.',
-          cause: error,
-        ),
-      );
-    }
+  /// Re-enter Chat with a fresh room list, never showing rooms from an old grant.
+  Future<void> reloadAfterAccessChange() async {
+    state = const ChatUiState.loading();
+    await _loadConversations();
   }
 
   Future<ChatConversation> createConversation({required String title}) async {
+    final requestSequence = _requestSequence;
     final conversation = await ref
         .read(chatRepositoryProvider)
         .createConversation(title: title);
+    if (requestSequence != _requestSequence) {
+      throw const ChatFailure.sessionRequired(
+        'Space access changed while creating this conversation.',
+      );
+    }
     final conversations = <ChatConversation>[
       conversation,
       ...state.conversations.where((item) => item.id != conversation.id),
@@ -116,36 +109,23 @@ class ChatController extends Notifier<ChatUiState> {
     return conversation;
   }
 
-  Future<void> _loadInitial({
-    IntegrationInvalidationReason? invalidationReason,
-  }) async {
-    await _loadConversations(
-      allowAutoConnect: _shouldAutoConnect(invalidationReason),
-    );
-  }
-
   Future<void> _loadConversations({
-    required bool allowAutoConnect,
     List<ChatConversation>? staleConversations,
   }) async {
+    final requestSequence = ++_requestSequence;
     final repository = ref.read(chatRepositoryProvider);
 
     try {
       final conversations = await repository.loadConversations();
+      if (requestSequence != _requestSequence || !ref.mounted) return;
       state = conversations.isEmpty
           ? const ChatUiState.empty()
           : ChatUiState.content(conversations);
     } on ChatFailure catch (failure) {
-      if (failure.type == ChatFailureType.sessionRequired &&
-          allowAutoConnect &&
-          !_autoConnectAttempted) {
-        _autoConnectAttempted = true;
-        await connect();
-        return;
-      }
-
+      if (requestSequence != _requestSequence || !ref.mounted) return;
       state = _stateForLoadFailure(failure, staleConversations);
     } catch (error) {
+      if (requestSequence != _requestSequence || !ref.mounted) return;
       state = _stateForLoadFailure(
         ChatFailure.unknown(
           'Unable to load conversations right now.',
@@ -160,7 +140,9 @@ class ChatController extends Notifier<ChatUiState> {
     ChatFailure failure,
     List<ChatConversation>? staleConversations,
   ) {
-    if (staleConversations != null && staleConversations.isNotEmpty) {
+    if (failure.type != ChatFailureType.sessionRequired &&
+        staleConversations != null &&
+        staleConversations.isNotEmpty) {
       return ChatUiState.content(staleConversations, staleFailure: failure);
     }
 
@@ -172,18 +154,6 @@ class ChatController extends Notifier<ChatUiState> {
       ChatFailureType.unsupportedConfiguration ||
       ChatFailureType.unsupportedPlatform => ChatUiState.unsupported(failure),
       _ => ChatUiState.error(failure),
-    };
-  }
-
-  bool _shouldAutoConnect(IntegrationInvalidationReason? invalidationReason) {
-    return switch (invalidationReason) {
-      null => true,
-      IntegrationInvalidationReason.chatConfigurationChanged ||
-      IntegrationInvalidationReason.explicitSignOut ||
-      IntegrationInvalidationReason.restartSetup => false,
-      IntegrationInvalidationReason.authConfigurationChanged ||
-      IntegrationInvalidationReason.filesConfigurationChanged ||
-      IntegrationInvalidationReason.backendApiBaseUrlChanged => true,
     };
   }
 }

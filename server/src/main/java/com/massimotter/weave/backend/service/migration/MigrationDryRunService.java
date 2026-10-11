@@ -8,6 +8,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -32,15 +33,18 @@ public class MigrationDryRunService {
         MigrationDryRunRequest.SourceInventory inventory = request.inventory();
         List<String> scopes = inventory.scopes() == null ? List.of() : inventory.scopes();
         String provider = normalizeProvider(request.sourceProvider());
+        String stable = provider + ":" + inventory.workspaces() + ":" + inventory.channels() + ":"
+                + inventory.users() + ":" + inventory.files() + ":" + inventory.messages() + ":" + String.join(",", scopes);
+        String jobId = idempotencyKeyService.key("migration:dry-run", stable);
+        if (isFilesProvider(provider)) {
+            return blockedFilesDryRun(jobId, provider);
+        }
         List<String> requiredScopes = requiredScopes(provider);
         List<String> missing = requiredScopes.stream().filter(scope -> !scopes.contains(scope)).toList();
         int estimatedRequests = Math.max(1,
                 inventory.workspaces() + inventory.channels() + inventory.users()
                         + ((inventory.files() + 99) / 100) + ((inventory.messages() + 199) / 200));
         int unmappable = Math.max(0, inventory.users() - inventory.channels() - inventory.workspaces());
-        String stable = provider + ":" + inventory.workspaces() + ":" + inventory.channels() + ":"
-                + inventory.users() + ":" + inventory.files() + ":" + inventory.messages() + ":" + String.join(",", scopes);
-        String jobId = idempotencyKeyService.key("migration:dry-run", stable);
         boolean matrixChatDryRun = isMatrixChatProvider(provider);
         var response = new MigrationDryRunResponse(
                 jobId,
@@ -64,16 +68,7 @@ public class MigrationDryRunService {
                         estimatedRequests,
                         estimatedRequests * 2,
                         List.of("rate_limited", "retry_after", "quota_exhausted")),
-                matrixChatDryRun
-                        ? List.of(
-                                "Sprint 15 Matrix Chat dry-run evidence is review-only; apply/cutover remains blocked by default.",
-                                "Encrypted-room history is unsupported until client-side key/export strategy evidence exists.",
-                                "Power-level parity, media retention, audit refs, and rollback archive refs require admin review before any later apply gate.",
-                                "Member clients continue to consume Weave domain DTOs; provider internals remain admin-only.")
-                        : List.of(
-                                "Admin reviews lossy/unmappable evidence before any apply phase.",
-                                "Capability, IDM identity mapping, export/import scopes, and rollback marker must be ready.",
-                                "Member clients continue to consume Weave domain DTOs; provider internals remain admin-only."),
+                cutoverGates(matrixChatDryRun),
                 true,
                 true,
                 true,
@@ -82,26 +77,33 @@ public class MigrationDryRunService {
         return response;
     }
 
+    private MigrationDryRunResponse blockedFilesDryRun(String jobId, String provider) {
+        return new MigrationDryRunResponse(
+                jobId,
+                "blocked",
+                "dry-run",
+                provider,
+                null,
+                null,
+                List.of(filesMapping(provider)),
+                List.of(),
+                null,
+                null,
+                null,
+                List.of("Files inventory and effective permissions are unmeasured; no transfer or rollback artifact was verified."),
+                true,
+                true,
+                true,
+                null);
+    }
+
     private List<MigrationDryRunResponse.DomainMappingEvidence> domainMappings(
             String sourceProvider,
             MigrationDryRunRequest.SourceInventory inventory,
             int unmappableUsers) {
         String provider = normalizeProvider(sourceProvider);
         return List.of(
-                new MigrationDryRunResponse.DomainMappingEvidence(
-                        "files",
-                        provider + ":files/folders/shares/versions",
-                        "weave:files:paths/folders/versions/shares/owners",
-                        "target-adapter:files:objects/shares/versions",
-                        inventory.files() > 0 ? "manual_review_required" : "no-source-objects",
-                        inventory.files() > 0 ? "archive_only" : "portable",
-                        inventory.files() > 0
-                                ? List.of("unsupported metadata, external links, missing versions, quota/rate limits may be lossy")
-                                : List.of(),
-                        List.of("path or ownership conflicts block apply until resolved"),
-                        List.of(
-                                "path conflicts receive deterministic conflict suffixes during dry-run evidence",
-                                "ACL and ownership imports require IDM identity mapping and admin consent scopes")),
+                filesMapping(provider),
                 new MigrationDryRunResponse.DomainMappingEvidence(
                         "calendar",
                         provider + ":calendars/events/organizers/resources",
@@ -140,6 +142,21 @@ public class MigrationDryRunService {
                                 "attachments re-link through Weave Files/attachment facades; raw media URLs are redacted")));
     }
 
+    private MigrationDryRunResponse.DomainMappingEvidence filesMapping(String provider) {
+        return new MigrationDryRunResponse.DomainMappingEvidence(
+                "files",
+                provider + ":files/folders/shares/versions",
+                "weave:files:paths/folders/versions/shares/owners",
+                "target-adapter:files:objects/shares/versions",
+                "blocked_unmeasured",
+                "blocked_nonportable",
+                List.of("source metadata, grants, versions, shares and effective access have not been inventoried"),
+                List.of("Files apply is blocked until real source inventory, target readback and permission parity exist"),
+                List.of(
+                        "The request's Files count is caller-supplied, not a measured source inventory.",
+                        "Object names here are a type catalog, not persisted transfer artifacts."));
+    }
+
     private List<MigrationDryRunResponse.ContinuityReport> continuityReports(
             String sourceProvider,
             MigrationDryRunRequest.SourceInventory inventory,
@@ -172,10 +189,18 @@ public class MigrationDryRunService {
     }
 
     private void persistServerEvidence(MigrationDryRunResponse response) {
+        if (isFilesProvider(response.sourceProvider())) {
+            // This path performed no provider inventory or verified transfer for any domain.
+            return;
+        }
         Instant now = Instant.now();
         Instant expiresAt = now.plus(EVIDENCE_TTL);
         for (MigrationDryRunResponse.DomainMappingEvidence mapping : response.domainMappings()) {
             String domain = mapping.domain();
+            if ("files".equals(domain)) {
+                // Caller estimates and planned artifact names cannot become Files migration evidence.
+                continue;
+            }
             evidenceRepository.save(new MigrationRunEvidence(
                     response.jobId(),
                     domain,
@@ -191,6 +216,21 @@ public class MigrationDryRunService {
                     now,
                     expiresAt));
         }
+    }
+
+    private List<String> cutoverGates(boolean matrixChatDryRun) {
+        List<String> gates = new ArrayList<>(matrixChatDryRun
+                ? List.of(
+                        "Sprint 15 Matrix Chat dry-run evidence is review-only; apply/cutover remains blocked by default.",
+                        "Encrypted-room history is unsupported until client-side key/export strategy evidence exists.",
+                        "Power-level parity, media retention, audit refs, and rollback archive refs require admin review before any later apply gate.",
+                        "Member clients continue to consume Weave domain DTOs; provider internals remain admin-only.")
+                : List.of(
+                        "Admin reviews lossy/unmappable evidence before any apply phase.",
+                        "Capability, IDM identity mapping, export/import scopes, and rollback marker must be ready.",
+                        "Member clients continue to consume Weave domain DTOs; provider internals remain admin-only."));
+        gates.add("Files counts are caller-supplied and unmeasured; no Files transfer artifacts or permission parity were verified.");
+        return List.copyOf(gates);
     }
 
     private Map<String, Integer> objectCountsFor(MigrationDryRunResponse.InventorySummary inventory, String domain) {
@@ -263,13 +303,21 @@ public class MigrationDryRunService {
         return normalized.contains("matrix") || normalized.contains("synapse");
     }
 
+    private boolean isFilesProvider(String provider) {
+        return switch (provider) {
+            case "nextcloud-webdav", "nextcloud-files", "weave-native" -> true;
+            default -> false;
+        };
+    }
+
     private String normalizeProvider(String provider) {
         if (provider == null || provider.isBlank()) {
             return "external-provider";
         }
         String candidate = provider.trim().toLowerCase(Locale.ROOT);
         return switch (candidate) {
-            case "slack", "teams", "matrix-synapse", "matrix-synapse-chat", "synapse-homeserver" -> candidate;
+            case "slack", "teams", "matrix-synapse", "matrix-synapse-chat", "synapse-homeserver",
+                    "nextcloud-webdav", "nextcloud-files", "weave-native" -> candidate;
             default -> "external-provider";
         };
     }

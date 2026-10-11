@@ -174,8 +174,8 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
             throw conflict("create-event");
         }
         if (write.intent() == WriteIntent.UPDATE && currentDomain == null) throw notFound("update-event");
-        if (currentDomain != null && sameEvent(currentDomain, incoming)) return currentDomain;
         if (write.intent() == WriteIntent.UPDATE) requireExpectedVersion(write.expectedVersion(), current.eventVersion(), "update-event");
+        if (currentDomain != null && sameEvent(currentDomain, incoming)) return currentDomain;
 
         Instant timestamp = clock.instant();
         long sequence = collection.nextSequence(timestamp);
@@ -197,11 +197,11 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
         requireCalendarAndScope(calendarId, scope);
         if (id == null) throw invalid("delete-event", "event id is required");
         String scopeKey = scopeKey(scope);
+        Instant timestamp = clock.instant();
+        CalendarCollectionJpaEntity collection = lockedCollection(calendarId, scope, timestamp);
         CalendarEventJpaEntity entity = events.findById(eventKey(calendarId, scope, id)).orElseThrow(() -> notFound("delete-event"));
         if (entity.deleted()) return;
         requireExpectedVersion(expectedVersion, entity.eventVersion(), "delete-event");
-        Instant timestamp = clock.instant();
-        CalendarCollectionJpaEntity collection = lockedCollection(calendarId, scope, timestamp);
         long sequence = collection.nextSequence(timestamp);
         String version = tombstoneVersion(calendarId, scope, id, sequence);
         entity.markDeleted(sequence, version, timestamp);

@@ -45,11 +45,88 @@ public interface FilesProviderPort {
 
     Optional<VersionedFile> find(FilePath path);
 
+    /** Stable, private object identity independent of the display path; absent means no User mapping. */
+    default Optional<String> providerObjectRef(FilePath path) {
+        return Optional.empty();
+    }
+
+    default boolean supportsStableObjectRefs() {
+        return false;
+    }
+
     FileContent read(FileId id);
+
+    /** The User HTTP plane must never allocate an unbounded provider response. */
+    default FileContent readBounded(FileId id, int maxBytes) {
+        throw new UnsupportedOperationException("bounded Files read is unsupported by this provider");
+    }
+
+    /** Bounded read that enforces the observed strong version; object identity is a separate capability. */
+    default FileContent readBoundedIfVersion(FileId id, int maxBytes, FileVersion expectedVersion) {
+        throw new UnsupportedOperationException("conditional bounded Files read is unsupported by this provider");
+    }
+
+    default boolean supportsBoundedRead() {
+        return false;
+    }
+
+    /** True only when bounded reads enforce the expected strong provider version. */
+    default boolean supportsConditionalBoundedRead() {
+        return false;
+    }
+
+    /** True only when the bounded version check also binds bytes to the requested object ID. */
+    default boolean supportsIdentityBoundConditionalRead() {
+        return false;
+    }
 
     FileObject write(FileWrite write);
 
+    /** Atomic absent-name creation; implementations must honor the provider precondition. */
+    default CreatedObject writeIfAbsent(FileWrite write) {
+        throw new UnsupportedOperationException("conditional Files create is unsupported by this provider");
+    }
+
+    /** Atomic replacement against the currently observed strong provider version. */
+    default FileObject writeIfVersion(FileWrite write, FileVersion expectedVersion) {
+        throw new UnsupportedOperationException("conditional Files update is unsupported by this provider");
+    }
+
+    /** Atomic replacement of the exact expected object and strong provider version. */
+    default FileObject writeIfIdAndVersion(
+            FileId expectedId, FileWrite write, FileVersion expectedVersion) {
+        throw new UnsupportedOperationException("identity-bound conditional Files update is unsupported");
+    }
+
+    default boolean supportsConditionalWrite() {
+        return false;
+    }
+
+    /** True only when a replacement atomically checks the expected object identity and version. */
+    default boolean supportsIdentityBoundConditionalWrite() {
+        return false;
+    }
+
     FileObject createCollection(FilePath path);
+
+    /** MKCOL-style atomic absent-name creation; a preflight lookup alone is insufficient. */
+    default CreatedObject createCollectionIfAbsent(FilePath path) {
+        throw new UnsupportedOperationException("atomic Files folder creation is unsupported by this provider");
+    }
+
+    default boolean supportsAtomicCollectionCreate() {
+        return false;
+    }
+
+    /** The provider's object identity captured in the atomic creation response. */
+    record CreatedObject(FileObject item, String providerObjectRef) {
+        public CreatedObject {
+            java.util.Objects.requireNonNull(item, "item");
+            if (providerObjectRef == null || providerObjectRef.isBlank()) {
+                throw new IllegalArgumentException("providerObjectRef is required");
+            }
+        }
+    }
 
     FileObject copy(FilePath source, FilePath destination, boolean overwrite);
 
@@ -57,13 +134,19 @@ public interface FilesProviderPort {
 
     void delete(FilePath path, FileVersion expectedVersion);
 
-    record FilesRequestScope(String organizationRef, String spaceRef, long providerBindingRevision) {
+    record FilesRequestScope(
+            String organizationRef, String spaceRef, long providerBindingRevision, String configurationRef) {
+        public FilesRequestScope(String organizationRef, String spaceRef, long providerBindingRevision) {
+            this(organizationRef, spaceRef, providerBindingRevision, null);
+        }
+
         public FilesRequestScope {
             organizationRef = required(organizationRef, "organizationRef");
             spaceRef = required(spaceRef, "spaceRef");
             if (providerBindingRevision < 1) {
                 throw new IllegalArgumentException("providerBindingRevision must be positive");
             }
+            configurationRef = configurationRef == null ? null : required(configurationRef, "configurationRef");
         }
 
         private static String required(String value, String field) {

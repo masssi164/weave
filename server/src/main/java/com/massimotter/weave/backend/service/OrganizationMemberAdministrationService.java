@@ -14,15 +14,20 @@ import com.massimotter.weave.backend.model.identity.OrganizationMemberPageRespon
 import com.massimotter.weave.backend.model.identity.OrganizationMemberResponse;
 import com.massimotter.weave.backend.model.identity.OrganizationMemberUpdateRequest;
 import com.massimotter.weave.backend.model.identity.WeaverEntitlementUpdateRequest;
+import com.massimotter.weave.backend.security.MemberSessionCutoffService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -40,6 +45,8 @@ public class OrganizationMemberAdministrationService {
   private final ObjectMapper objectMapper;
   private final OrganizationIdentityContextResolver identityContexts;
   private final Clock clock;
+  private final Supplier<MemberSessionCutoffService> memberCutoffs;
+  private final String trustedIssuer;
 
   @Autowired
   public OrganizationMemberAdministrationService(
@@ -48,7 +55,9 @@ public class OrganizationMemberAdministrationService {
       IdentityAdminOperationStore operations,
       AuditEventPublisher audit,
       ObjectMapper objectMapper,
-      OrganizationIdentityContextResolver identityContexts) {
+      OrganizationIdentityContextResolver identityContexts,
+      ObjectProvider<MemberSessionCutoffService> memberCutoffs,
+      OAuth2ResourceServerProperties resourceServerProperties) {
     this(
         keycloak,
         references,
@@ -56,7 +65,9 @@ public class OrganizationMemberAdministrationService {
         audit,
         objectMapper,
         identityContexts,
-        Clock.systemUTC());
+        Clock.systemUTC(),
+        memberCutoffs::getObject,
+        resourceServerProperties.getJwt().getIssuerUri());
   }
 
   OrganizationMemberAdministrationService(
@@ -65,7 +76,9 @@ public class OrganizationMemberAdministrationService {
       IdentityAdminOperationStore operations,
       AuditEventPublisher audit,
       ObjectMapper objectMapper,
-      Clock clock) {
+      Clock clock,
+      MemberSessionCutoffService memberCutoffs,
+      String trustedIssuer) {
     this(
         keycloak,
         references,
@@ -73,7 +86,9 @@ public class OrganizationMemberAdministrationService {
         audit,
         objectMapper,
         OrganizationIdentityContextResolver.defaults(),
-        clock);
+        clock,
+        () -> memberCutoffs,
+        trustedIssuer);
   }
 
   OrganizationMemberAdministrationService(
@@ -83,7 +98,9 @@ public class OrganizationMemberAdministrationService {
       AuditEventPublisher audit,
       ObjectMapper objectMapper,
       OrganizationIdentityContextResolver identityContexts,
-      Clock clock) {
+      Clock clock,
+      Supplier<MemberSessionCutoffService> memberCutoffs,
+      String trustedIssuer) {
     this.keycloak = keycloak;
     this.references = references;
     this.operations = operations;
@@ -91,6 +108,8 @@ public class OrganizationMemberAdministrationService {
     this.objectMapper = objectMapper;
     this.identityContexts = identityContexts;
     this.clock = clock;
+    this.memberCutoffs = memberCutoffs;
+    this.trustedIssuer = trustedIssuer;
   }
 
   public OrganizationMemberPageResponse list(
@@ -249,7 +268,9 @@ public class OrganizationMemberAdministrationService {
     if (replay.isPresent()) {
       return read(replay.get(), MemberLifecycleOperationResponse.class);
     }
-    keycloak.revokeSessions(keycloakOrganizationId, current.subject());
+    advanceMemberCutoff(organizationId, actor, current.subject());
+    Instant issuerNotBefore = keycloak.revokeSessions(keycloakOrganizationId, current.subject());
+    advanceMemberCutoff(organizationId, actor, current.subject(), issuerNotBefore);
     MemberLifecycleOperationResponse response =
         new MemberLifecycleOperationResponse(memberHandle, "sessions-revoked");
     publish(
@@ -282,7 +303,9 @@ public class OrganizationMemberAdministrationService {
     if (replay.isPresent()) {
       return read(replay.get(), MemberLifecycleOperationResponse.class);
     }
-    keycloak.offboard(keycloakOrganizationId, current.subject());
+    advanceMemberCutoff(organizationId, actor, current.subject());
+    Instant issuerNotBefore = keycloak.offboard(keycloakOrganizationId, current.subject());
+    advanceMemberCutoff(organizationId, actor, current.subject(), issuerNotBefore);
     MemberLifecycleOperationResponse response =
         new MemberLifecycleOperationResponse(memberHandle, "offboarded-and-disabled");
     publish(
@@ -307,6 +330,44 @@ public class OrganizationMemberAdministrationService {
           Map.of());
     }
     return actor;
+  }
+
+  private void advanceMemberCutoff(
+      String organizationId, OrganizationIdentityContext actor, String targetSubject) {
+    advanceMemberCutoffAt(organizationId, actor, targetSubject, clock.instant());
+  }
+
+  private void advanceMemberCutoff(
+      String organizationId, OrganizationIdentityContext actor, String targetSubject,
+      Instant issuerNotBefore) {
+    if (issuerNotBefore == null) {
+      throw memberRevocationUnavailable();
+    }
+    Instant localCutoff = clock.instant();
+    advanceMemberCutoffAt(organizationId, actor, targetSubject,
+        issuerNotBefore.isAfter(localCutoff) ? issuerNotBefore : localCutoff);
+  }
+
+  private void advanceMemberCutoffAt(
+      String organizationId, OrganizationIdentityContext actor, String targetSubject,
+      Instant cutoff) {
+    if (trustedIssuer == null || trustedIssuer.isBlank()
+        || !trustedIssuer.equals(actor.issuer())) {
+      throw memberRevocationUnavailable();
+    }
+    try {
+      memberCutoffs.get().advance(organizationId, trustedIssuer, targetSubject, cutoff);
+    } catch (RuntimeException unavailable) {
+      throw memberRevocationUnavailable();
+    }
+  }
+
+  private ApiErrorException memberRevocationUnavailable() {
+    return new ApiErrorException(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "member-session-revocation-unavailable",
+        "Member session revocation is temporarily unavailable.",
+        Map.of());
   }
 
   private ProviderMember resolveMember(

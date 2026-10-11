@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -32,11 +33,11 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "bearer-jwt")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(responseCode = "503", description = "Boards workspace runtime is disabled or provider capability is unavailable.",
-                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
 })
 public class BoardsController {
 
@@ -47,17 +48,17 @@ public class BoardsController {
     }
 
     @GetMapping("/api/boards/workspace")
-    @Operation(summary = "Read the Boards/Tasks workspace snapshot")
+    @Operation(operationId = "workspace", summary = "Read the Boards/Tasks workspace snapshot")
     @ApiResponse(responseCode = "200", description = "Provider-neutral Boards/Tasks workspace snapshot.",
-            content = @Content(schema = @Schema(implementation = BoardsWorkspaceResponse.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = BoardsWorkspaceResponse.class)))
     public BoardsWorkspaceResponse workspace(@AuthenticationPrincipal Jwt jwt) {
         return boardsFacadeService.workspace(jwt);
     }
 
     @PostMapping("/api/boards/{boardId}/tasks")
-    @Operation(summary = "Create a task in the Boards/Tasks workspace with user-write authorization")
+    @Operation(operationId = "createTask", summary = "Create a task in the Boards/Tasks workspace with user-write authorization")
     @ApiResponse(responseCode = "200", description = "Created provider-neutral task.",
-            content = @Content(schema = @Schema(implementation = TaskItem.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = TaskItem.class)))
     public TaskItem createTask(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String boardId,
@@ -66,9 +67,9 @@ public class BoardsController {
     }
 
     @PostMapping("/api/boards/tasks/{taskId}/move")
-    @Operation(summary = "Move a task without drag-and-drop in the Boards/Tasks workspace")
+    @Operation(operationId = "moveTask", summary = "Move a task without drag-and-drop in the Boards/Tasks workspace")
     @ApiResponse(responseCode = "200", description = "Moved provider-neutral task.",
-            content = @Content(schema = @Schema(implementation = TaskItem.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = TaskItem.class)))
     public TaskItem moveTask(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String taskId,
@@ -78,9 +79,9 @@ public class BoardsController {
 
 
     @PostMapping("/api/boards/tasks/{taskId}/status")
-    @Operation(summary = "Update task status in the Boards/Tasks workspace")
+    @Operation(operationId = "updateTaskStatus", summary = "Update task status in the Boards/Tasks workspace")
     @ApiResponse(responseCode = "200", description = "Updated provider-neutral task.",
-            content = @Content(schema = @Schema(implementation = TaskItem.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = TaskItem.class)))
     public TaskItem updateTaskStatus(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String taskId,
@@ -89,9 +90,9 @@ public class BoardsController {
     }
 
     @PostMapping("/api/boards/tasks/{taskId}/decision-links")
-    @Operation(summary = "Link a workspace decision to a task in the Boards/Tasks workspace")
+    @Operation(operationId = "linkDecision", summary = "Link a workspace decision to a task in the Boards/Tasks workspace")
     @ApiResponse(responseCode = "200", description = "Task with linked decision reference.",
-            content = @Content(schema = @Schema(implementation = TaskItem.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = TaskItem.class)))
     public TaskItem linkDecision(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String taskId,
@@ -100,9 +101,9 @@ public class BoardsController {
     }
 
     @PostMapping("/api/boards/tasks/{taskId}/complete")
-    @Operation(summary = "Complete a task without drag-and-drop in the Boards/Tasks workspace")
+    @Operation(operationId = "completeTask", summary = "Complete a task without drag-and-drop in the Boards/Tasks workspace")
     @ApiResponse(responseCode = "200", description = "Completed provider-neutral task.",
-            content = @Content(schema = @Schema(implementation = TaskItem.class)))
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = TaskItem.class)))
     public TaskItem completeTask(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String taskId) {

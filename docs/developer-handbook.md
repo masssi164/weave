@@ -2,6 +2,8 @@
 
 This handbook is the practical entry point for contributing to the Weave monorepo, especially the Flutter client. It complements the repo README and links to deeper docs instead of repeating every contract.
 
+For #1470 delivery, apply the pinned corpus release profile at `steering/release-2026-10-product-consolidation.md` before older Core workflow or gateway instructions. Server code generates separate User and Admin API artifacts; product HTTP consumers use generated clients and transport models. Chat uses Weave's Matrix Client-Server facade, the narrowly scoped Rust/Ruma/JNI wire boundary, canonical Chat persistence, native Flutter and Weaver Matrix integrations, and `ChatProviderPort` routing. Flutter uses the normal member OIDC/PKCE session at that facade; independent third-party Matrix clients and their separate OAuth profile are deferred. E2EE is a per-room policy whose cryptographic state stays client-owned when enabled. Public northbound DAV is outside this release. Run independent authorization and real Weave-owned Matrix/user/admin/MCP journeys in addition to generation freshness. Provider adoption, migration, permission equivalence, cutover, and rollback are #1498 evidence.
+
 ## Repository role
 
 Weave is now a monorepo product stack:
@@ -12,8 +14,8 @@ Weave is now a monorepo product stack:
 | `server/` | Product API/BFF, auth/profile facade, files/calendar/boards facades, authorization, audit, readiness, and backend contract tests. |
 | `weave-application-core/`, `weave-files-core/` | Framework-free canonical values, use cases, and ports. |
 | `weave-persistence-jpa/`, `weave-runtime-*-adapters/` | Portable entity persistence and explicitly composed provider/security adapters. |
-| `weave-mcp-server/` | Separate workload-only Spring AI MCP process over Weave open standards. |
-| `weave-product-e2e/` | Plain-Java real-browser/OIDC/WebDAV/MCP product proof; no runtime beans or implementation-module dependency. |
+| `weave-mcp-server/` | Separate workload-only Spring AI MCP process using the generated Weave User API client for product HTTP calls. |
+| `weave-product-e2e/` | Plain-Java real-browser/OIDC/User API/MCP product proof; no runtime beans or implementation-module dependency. |
 | `infra/` | Local/dev stack, Caddy, Keycloak, optional providers, Docker Compose orchestration, live-stack smoke and E2E environment. |
 | `e2e/` | Binding product-language Gherkin scenarios, scenario mapping, and sanitized evidence contract. |
 | `release/` | Stack manifests and release compatibility metadata. |
@@ -49,7 +51,7 @@ dart run build_runner build --delete-conflicting-outputs
 flutter run
 ```
 
-The app accepts local development product URLs such as `https://api.weave.test/api` and `https://auth.weave.test` when a live stack is available. Chat uses the Matrix Client-Server facade on `https://api.weave.test`; `https://matrix.weave.test` is the southbound provider/operator route and must not be configured in the member client. `https://files.weave.test` is likewise a technical Nextcloud route, while member Files and Calendar data use the WebDAV and CalDAV facades on the API origin.
+The app accepts local development product URLs such as `https://api.weave.test/api` and `https://auth.weave.test` when a live stack is available. The target public organization manifest supplies a credential-free Weave Matrix Client-Server URL, distinct from the User API URL; it must not advertise a concrete southbound Chat provider. The Weave-owned Flutter Matrix path uses the normal member OIDC/PKCE session at that facade. The current dev gateway/manifest and native session bridge still need #1475 conformance before this is a shipped claim. Member Files and Calendar use the generated Weave User API; Nextcloud WebDAV/OCS and CalDAV remain southbound provider-adapter mechanisms.
 
 Android debug/profile runs use the production package identity `com.massimotter.weave` and the same OIDC redirect scheme. Keep identity-provider clients configured for `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout`. Release artifact tasks require a local untracked `client/android/key.properties` file and keystore; they fail closed instead of using debug signing keys.
 
@@ -66,7 +68,7 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `serverCi` | Existing server Gradle test path. |
 | `mcpCi` | Separate MCP process, security, schema, and architecture checks. |
 | `testAppContract` | Compile/unit/ArchUnit checks for the framework-free Fresh product-flow driver. |
-| `testApp` | Full disposable invitation, activation, PKCE, ARC, WebDAV, MCP, revocation, and exact-cleanup proof. |
+| `testApp` | Disposable invitation, browser activation, PKCE, generated User API Files/Calendar, Weave Matrix facade, MCP, revocation, restart, and exact-cleanup proof. It does not exercise the native Flutter UI or provider migration. |
 | `adminCi` | Admin console npm CI path. |
 | `infraStatic` | Compose, renderer, lifecycle, secret, and infrastructure contract checks. |
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
@@ -117,7 +119,7 @@ Use the lane-based DevOps flow: protected `dev` for integration and normal featu
 - `release-notes-bugfix`
 - `release-notes-skip`
 
-Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` runs on every pull-request update and fails PRs with zero or multiple release-notes labels; label-only changes run that lightweight check without re-running the full Gradle CI job. See [Weave operating model](weave-operating-model.md) for the delivery contract and [Lane-based PR and release workflow](gitflow-pr-workflow.md) for label semantics and merge rules.
+Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` runs on every pull-request update and fails PRs with zero or multiple release-notes labels; label-only changes run that lightweight check without re-running the full foundation chain. The protected `Gradle CI` context comes only from a full exact-head run; the skipped label-only aggregate has a distinct name. See [Weave operating model](weave-operating-model.md) for the delivery contract and [Lane-based PR and release workflow](gitflow-pr-workflow.md) for label semantics and merge rules.
 
 ## Spec-driven sprint contract
 

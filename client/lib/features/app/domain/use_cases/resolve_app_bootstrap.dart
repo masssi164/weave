@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
+import 'package:weave/features/app/domain/ports/chat_session_port.dart';
 import 'package:weave/features/app/domain/ports/identity_session_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
 import 'package:weave/features/app/domain/use_cases/reconcile_identity_session.dart';
@@ -11,13 +14,16 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 class ResolveAppBootstrap {
   const ResolveAppBootstrap({
     required AppAuthPort authPort,
+    required ChatSessionPort chatSessionPort,
     required ReconcileIdentitySession reconcileIdentitySession,
     required ServerConfigurationPort serverConfigurationPort,
   }) : _authPort = authPort,
+       _chatSessionPort = chatSessionPort,
        _reconcileIdentitySession = reconcileIdentitySession,
        _serverConfigurationPort = serverConfigurationPort;
 
   final AppAuthPort _authPort;
+  final ChatSessionPort _chatSessionPort;
   final ReconcileIdentitySession _reconcileIdentitySession;
   final ServerConfigurationPort _serverConfigurationPort;
 
@@ -41,6 +47,10 @@ class ResolveAppBootstrap {
           await _authPort.clearLocalSession();
           return const BootstrapState.needsSignIn();
         }
+        // Prepare the separate Matrix session automatically. The coordinator
+        // shares an in-flight open with Chat; independent capabilities do not
+        // wait for its network or browser recovery.
+        unawaited(_prepareChat());
         return const BootstrapState.ready();
       }
 
@@ -60,6 +70,15 @@ class ResolveAppBootstrap {
           cause: error,
         ),
       );
+    }
+  }
+
+  Future<void> _prepareChat() async {
+    try {
+      await _chatSessionPort.ensureSession();
+    } on Object {
+      // Chat owns its error/retry state. A late capability failure must not
+      // escape this background preparation or invalidate the Weave login.
     }
   }
 

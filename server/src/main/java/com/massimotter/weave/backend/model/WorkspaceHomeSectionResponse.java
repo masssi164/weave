@@ -12,8 +12,9 @@ public record WorkspaceHomeSectionResponse(
         WorkspaceCapabilityReadiness readiness,
         @Schema(description = "Support-safe summary without provider identifiers or raw errors.")
         String summary,
-        @Schema(description = "Number of actionable items known to the Weave product layer.", example = "3")
-        int itemCount,
+        @Schema(description = "Measured number of currently authorized actionable items. Null means no count was measured; capability availability is not an item count.",
+                nullable = true, minimum = "0", example = "3")
+        Integer itemCount,
         @Schema(description = "Whether the section has a keyboard and screen-reader path.", example = "true")
         boolean accessible,
         @Schema(description = "Backend-owned product route/surface, not a raw provider URL.", example = "weave://home/tasks")

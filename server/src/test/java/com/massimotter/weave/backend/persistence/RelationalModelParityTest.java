@@ -2,20 +2,25 @@ package com.massimotter.weave.backend.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 /**
- * Proves parity between the pinned relational-model manifest and JPA.
+ * Proves the local Flyway/JPA persistence authority without depending on an
+ * external specification checkout or treating JPA as the canonical domain.
+ *
+ * <p>The complete schema/repository/upgrade/recovery contract remains owned by
+ * issue #1320. This foundation test prevents the retired code-first and external
+ * relational-manifest authorities from returning while those stronger tests are
+ * introduced.
  */
 class RelationalModelParityTest {
     private static final Pattern ENTITY_DECLARATION = Pattern.compile(
@@ -25,86 +30,76 @@ class RelationalModelParityTest {
     private static final Pattern JPA_REPOSITORY = Pattern.compile(
             "interface\\s+([A-Za-z0-9_]+)\\s+extends\\s+JpaRepository\\s*<",
             Pattern.MULTILINE);
+    private static final Pattern FLYWAY_MIGRATION = Pattern.compile(
+            "V([0-9]+(?:[._][0-9]+)*)__[A-Za-z0-9_]+\\.sql");
 
     @Test
-    void manifestEntitiesAndRepositoriesAreInExactParity()
+    void localFlywayAndJpaFoundationHasOneExplicitAuthority()
             throws IOException {
         Path repositoryRoot = repositoryRoot();
-        Path migrations = repositoryRoot.resolve(
-                "weave-persistence-jpa/src/main/resources/db/migration");
-        if (Files.exists(migrations)) {
-            try (var files = Files.walk(migrations)) {
-                assertThat(files
-                        .filter(Files::isRegularFile)
-                        .map(path -> migrations.relativize(path).toString())
-                        .toList())
-                        .as("code-first persistence has no parallel migration resource")
-                        .isEmpty();
-            }
-        }
-        JsonNode model = relationalModel(repositoryRoot);
-        Set<String> manifestTables = new LinkedHashSet<>();
-        Map<String, String> expectedEntityTables = new LinkedHashMap<>();
-        Set<String> expectedRepositories = new LinkedHashSet<>();
+        List<Path> migrations = migrationFiles(repositoryRoot);
 
-        for (JsonNode entity : model.path("entities")) {
-            String lifecycle = entity.path("lifecycle").asText();
-            JsonNode storage = entity.path("storage");
-            if ("jpa-table".equals(storage.path("kind").asText())) {
-                manifestTables.add(storage.path("name").asText());
-            }
-            JsonNode jpa = entity.path("jpa");
-            if (Set.of("active", "append-only").contains(lifecycle)) {
-                assertThat(jpa.isObject())
-                        .as(entity.path("id").asText()
-                                + " must declare its JPA mapping")
-                        .isTrue();
-            } else {
-                assertThat(jpa.isNull() || jpa.isMissingNode())
-                        .as(entity.path("id").asText()
-                                + " must not acquire a JPA repository")
-                        .isTrue();
-            }
-            if (jpa.isObject()) {
-                expectedEntityTables.put(
-                        jpa.path("entity").asText(),
-                        storage.path("name").asText());
-                expectedRepositories.add(jpa.path("repository").asText());
+        assertThat(migrations)
+                .as("the Server owns committed Flyway migrations")
+                .isNotEmpty();
+
+        Set<String> versions = new LinkedHashSet<>();
+        for (Path migration : migrations) {
+            String fileName = migration.getFileName().toString();
+            var matcher = FLYWAY_MIGRATION.matcher(fileName);
+            assertThat(matcher.matches())
+                    .as("migration uses a reviewable Flyway versioned filename: " + fileName)
+                    .isTrue();
+            assertThat(versions.add(matcher.group(1)))
+                    .as("Flyway migration versions are unique: " + matcher.group(1))
+                    .isTrue();
+            assertThat(Files.size(migration))
+                    .as("migration is not empty: " + fileName)
+                    .isGreaterThan(0L);
+        }
+        assertThat(versions)
+                .as("the accepted local baseline begins at Flyway V1")
+                .contains("1");
+
+        Path duplicateMigrationRoot = repositoryRoot.resolve(
+                "weave-persistence-jpa/src/main/resources/db/migration");
+        if (Files.exists(duplicateMigrationRoot)) {
+            try (var files = Files.walk(duplicateMigrationRoot)) {
+                assertThat(files.filter(Files::isRegularFile).toList())
+                        .as("Flyway migrations have one repository location")
+                        .isEmpty();
             }
         }
 
         String production = productionJava(repositoryRoot);
-        Map<String, String> actualEntityTables = entityTables(production);
-        Set<String> actualRepositories = matches(
-                JPA_REPOSITORY, production, 1);
+        Map<String, String> entityTables = entityTables(production);
+        Set<String> repositoryNames = matches(JPA_REPOSITORY, production, 1);
 
-        assertThat(actualEntityTables)
-                .as("every JPA entity and @Table mapping matches the canonical relational manifest")
-                .isEqualTo(expectedEntityTables);
-        assertThat(actualRepositories)
-                .as("every Spring Data repository is declared by the canonical relational manifest")
-                .isEqualTo(expectedRepositories);
-        assertThat(new LinkedHashSet<>(actualEntityTables.values()))
-                .as("the complete relational schema is owned by JPA and no retired table remains")
-                .isEqualTo(manifestTables)
+        assertThat(entityTables)
+                .as("the persistence adapters contain explicit JPA entity mappings")
+                .isNotEmpty();
+        assertThat(repositoryNames)
+                .as("the persistence adapters contain explicit Spring Data repositories")
+                .isNotEmpty();
+        assertThat(entityTables.values())
+                .as("JPA entities use explicit active table mappings")
+                .allMatch(table -> table != null && !table.isBlank())
                 .doesNotContain("weave_agent_runtime_state_chunks");
     }
 
-    private JsonNode relationalModel(Path repositoryRoot) throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode lock = mapper.readTree(Files.readString(
-                repositoryRoot.resolve("specs/weave-specs.lock.json")));
-        String configuredRoot = System.getenv("WEAVE_SPEC_CORPUS_ROOT");
-        Path corpusRoot = configuredRoot == null || configuredRoot.isBlank()
-                ? repositoryRoot.resolve(
-                        lock.at("/specCorpus/localPath").asText())
-                : Path.of(configuredRoot);
-        Path model = corpusRoot.toAbsolutePath().normalize().resolve(
-                "architecture/data-model/relational-core-model.json");
-        assertThat(model)
-                .as("the exact pinned specification corpus must be available")
-                .isRegularFile();
-        return mapper.readTree(Files.readString(model));
+    private List<Path> migrationFiles(Path repositoryRoot) throws IOException {
+        Path migrationRoot = repositoryRoot.resolve(
+                "server/src/main/resources/db/migration");
+        assertThat(migrationRoot)
+                .as("the local Flyway migration root must exist")
+                .isDirectory();
+        try (var files = Files.walk(migrationRoot)) {
+            return files
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".sql"))
+                    .sorted()
+                    .toList();
+        }
     }
 
     private String productionJava(Path repositoryRoot) throws IOException {

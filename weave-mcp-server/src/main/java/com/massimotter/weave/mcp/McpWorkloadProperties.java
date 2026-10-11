@@ -17,7 +17,7 @@ public record McpWorkloadProperties(
     String exchangeClientId,
     Path exchangeClientJwkFile,
     URI backendResourceUri,
-    URI backendFilesUri,
+    URI backendApiUri,
     List<String> exchangeScopes,
     Duration requestTimeout,
     Duration maximumTokenTtl,
@@ -40,17 +40,19 @@ public record McpWorkloadProperties(
           "exchangeClientJwkFile must be an absolute SecretRef path");
     }
     backendResourceUri = https(backendResourceUri, "backendResourceUri");
-    backendFilesUri = http(backendFilesUri, "backendFilesUri");
-    if (!backendFilesUri.getPath().endsWith("/dav/files")) {
+    backendApiUri = http(backendApiUri, "backendApiUri");
+    if (!"/api".equals(backendApiUri.getPath())) {
       throw new IllegalArgumentException(
-          "backendFilesUri must target the Weave Files WebDAV facade");
+          "backendApiUri must target the Weave User API base");
     }
     exchangeScopes = exactScopes(exchangeScopes, "exchangeScopes");
-    if (!requiredScopes.containsAll(exchangeScopes)
+    LinkedHashSet<String> expectedScopes = new LinkedHashSet<>(exchangeScopes);
+    expectedScopes.add("mcp.tools");
+    if (!new LinkedHashSet<>(requiredScopes).equals(expectedScopes)
         || exchangeScopes.contains("mcp.tools")
         || exchangeScopes.contains("agent-runtime.profile.read")) {
       throw new IllegalArgumentException(
-          "exchangeScopes must be a domain-only subset of requiredScopes");
+          "requiredScopes must contain mcp.tools and exactly the configured domain scope ceiling");
     }
     requestTimeout = requestTimeout == null ? Duration.ofSeconds(10) : requestTimeout;
     maximumTokenTtl = maximumTokenTtl == null ? Duration.ofSeconds(60) : maximumTokenTtl;

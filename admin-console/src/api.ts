@@ -1,13 +1,28 @@
-import type {
-  GeneratedAdminAuditEventResponse,
-  GeneratedAdminControlPlaneResponse,
-  GeneratedCapabilityWhitelistResponse,
-  GeneratedMemberInvitationRequest,
-  GeneratedMemberInvitationResponse,
-  GeneratedPlatformIdentityReadinessResponse,
-  GeneratedProviderReadinessTestRequest,
-  GeneratedProviderReadinessTestResponse,
-} from "./generated/openapi";
+import {
+  AdminControlPlaneApi as GeneratedAdminControlPlaneApi,
+  Configuration as GeneratedConfiguration,
+  OrganizationInvitationsApi as GeneratedOrganizationInvitationsApi,
+  type AdminControlPlaneResponse as GeneratedControlPlaneResponse,
+  type AdminAuditEventResponse as GeneratedAdminAuditEventResponse,
+  type CapabilityWhitelistResponse as GeneratedWhitelistResponse,
+  type GoLiveReadinessResponse as GeneratedGoLiveReadinessResponse,
+  type McpServerBindingResponse as GeneratedMcpServerBindingResponse,
+  type PlatformIdentityReadinessResponse as GeneratedIdentityReadinessResponse,
+  type ProviderCategoryStatusResponse as GeneratedProviderCategoryResponse,
+  type ProviderReplacementDryRunResponse as GeneratedReplacementDryRunResponse,
+  type ReleaseClaimControlResponse as GeneratedReleaseClaimControlResponse,
+  type SuiteDomainReadinessResponse as GeneratedSuiteDomainReadinessResponse,
+  type ProviderSelectionRequest as GeneratedProviderSelectionRequest,
+  type ProviderSelectionResponse as GeneratedProviderSelectionResponse,
+  type MemberInvitationRequest as GeneratedMemberInvitationRequest,
+  type MemberInvitationResponse as GeneratedMemberInvitationResponse,
+  type ProviderReadinessTestRequest as GeneratedProviderReadinessTestRequest,
+  ResponseError as GeneratedResponseError,
+} from "./generated/admin-client";
+import {
+  Configuration as GeneratedUserConfiguration,
+  PlatformApi as GeneratedPlatformApi,
+} from "./generated/user-client";
 
 export type CapabilityState =
   | "ready"
@@ -133,32 +148,6 @@ export interface McpServerBinding {
   auditRefs: string[];
   nextActions: string[];
 }
-
-export interface AgentRuntimeProjection {
-  personRef: string;
-  cellRef?: string;
-  runtimeProvider?: string;
-  entitlementState: "entitled" | "not_entitled" | "revoked";
-  entitlementRevision?: string;
-  desiredState: string;
-  observedState: string;
-  runtimeProfileRef?: string;
-  workspaceRevision?: string;
-  lastWakeAt?: string;
-  lastSyncAt?: string;
-  conflicts: number;
-  capabilityState: CapabilityState;
-  auditRef: string;
-}
-
-export type AgentRuntimeLifecycleAction =
-  | "provision"
-  | "start"
-  | "stop"
-  | "suspend"
-  | "reconcile"
-  | "revoke"
-  | "delete-runtime-state";
 
 export interface AuditEvent {
   id: string;
@@ -355,44 +344,6 @@ export interface ProviderReplacementDryRunReport {
   }>;
 }
 
-interface ServerProviderReplacementDryRunReport {
-  dryRunId?: string;
-  status?: string;
-  category?: string;
-  currentAdapter?: string;
-  targetAdapter?: string;
-  readinessState?: string;
-  migrationDryRunRequired?: boolean;
-  memberImpactStates?: string[];
-  supportSafe?: boolean;
-  providerDiagnosticsRedacted?: boolean;
-  cutoverGates?: string[];
-  auditRefs?: string[];
-  consequencePreview?: Partial<ProviderReplacementDryRunReport["consequencePreview"]>;
-  lossyMappingReport?: Partial<
-    ProviderReplacementDryRunReport["lossyMappingReport"]
-  >;
-  lifecycleExpectations?: Partial<
-    ProviderReplacementDryRunReport["lifecycleExpectations"]
-  >;
-  portableExportImportContract?: Partial<
-    ProviderReplacementDryRunReport["portableExportImportContract"]
-  >;
-  switchPlan?: Partial<ProviderReplacementDryRunReport["switchPlan"]>;
-  noUnaccountedDataLossReport?: Partial<
-    ProviderReplacementDryRunReport["noUnaccountedDataLossReport"]
-  >;
-  boundedProof?: Partial<ProviderReplacementDryRunReport["boundedProof"]>;
-  crossDomainImpact?: Array<{
-    domainKey?: string;
-    canonicalObjectRef?: string;
-    mappingClass?: string;
-    consequenceSummary?: string;
-    evidenceRefs?: string[];
-    applyBlockers?: string[];
-  }>;
-}
-
 export interface ControlPlaneResponse {
   organization: {
     id: string;
@@ -440,10 +391,6 @@ export const adminConsoleConfig: AdminConsoleConfig = {
     runtimeEnv.VITE_WEAVE_ADMIN_OIDC_CLIENT_ID ?? "weave-admin-console",
 };
 
-interface PlatformBootstrapConfig {
-  oidc?: { issuer?: string };
-}
-
 /**
  * A packaged console discovers only public coordinates from the same Server
  * process that served its immutable assets. The Vite host-development fallback
@@ -463,11 +410,14 @@ export async function resolveAdminConsoleConfig(
   }
 
   try {
-    const response = await fetchImpl(`${apiBaseUrl}/platform/config`, {
-      headers: { Accept: "application/json" },
-    });
-    if (!response.ok) return { ...adminConsoleConfig, apiBaseUrl };
-    const platform = (await response.json()) as PlatformBootstrapConfig;
+    const publicApi = new GeneratedPlatformApi(
+      new GeneratedUserConfiguration({
+        basePath: apiBaseUrl.slice(0, -4),
+        fetchApi: fetchImpl,
+        headers: { Accept: "application/json" },
+      }),
+    );
+    const platform = await publicApi.config();
     const issuer = platform.oidc?.issuer?.trim();
     if (!issuer) return { ...adminConsoleConfig, apiBaseUrl };
     return {
@@ -489,190 +439,49 @@ export class AdminApiError extends Error {
   }
 }
 
-interface ServerControlPlaneResponse {
-  organizationId?: string;
-  organizationName?: string;
-  providerConfigSource?: string;
-  bootstrapDefaultsAreSuggestionsOnly?: boolean;
-  generatedAt?: string;
-  categories?: ServerProviderCategory[];
-  selectedProviderMappings?: Array<{
-    category?: string;
-    providerKey?: string;
-    secretRef?: string;
-  }>;
-  whitelist?: ServerWhitelistPolicy;
-  platformIdentityReadiness?: ServerPlatformIdentityReadiness;
-  suiteDomainReadiness?: ServerSuiteDomainReadiness[];
-  goLiveReadiness?: ServerGoLiveReadiness;
-  secretRefs?: Array<{ ref?: string; providerKey?: string }>;
-  mcpServerBindings?: ServerMcpServerBinding[];
-}
-
-interface ServerMcpServerBinding {
-  serverKey?: string;
-  displayName?: string;
-  transport?: string;
-  endpointRef?: string;
-  authRef?: string;
-  allowedTools?: string[];
-  allowedCapabilities?: string[];
-  approvalRequiredForWrites?: boolean;
-  enabled?: boolean;
-  readinessState?: string;
-  supportSafe?: boolean;
-  rawEndpointExposed?: boolean;
-  rawServerConfigExposed?: boolean;
-  secretValuesExposed?: boolean;
-  auditRefs?: string[];
-  nextActions?: string[];
-}
-
-interface ServerSuiteDomainReadiness {
-  domain?: string;
-  label?: string;
-  adminReadiness?: string;
-  memberState?: string;
-  selectedAdapterPosture?: string;
-  sourceOfTruthMode?: string;
-  providerCategoryKeys?: string[];
-  canonicalObjectKinds?: string[];
-  capabilityStates?: string[];
-  supportSafeErrors?: string[];
-  portabilityNotes?: string[];
-  auditRefs?: string[];
-  nextAction?: string;
-  backendOwnedFacade?: boolean;
-  providerMappingOwnedByServer?: boolean;
-  rawProviderConfigExposedToMembers?: boolean;
-}
-
-interface ServerGoLiveReadiness {
-  state?: string;
-  memberPreviewState?: string;
-  blockers?: string[];
-  adminActions?: string[];
-  auditRefs?: string[];
-  supportSafe?: boolean;
-  normalMembersMayAccessSetupControls?: boolean;
-  rawProviderDiagnosticsExposed?: boolean;
-  releaseClaimControl?: ServerReleaseClaimControl;
-}
-
-interface ServerReleaseClaimControl {
-  claimState?: string;
-  candidateTag?: string;
-  pinnedSpecCorpusRef?: string;
-  releaseNotesSource?: string;
-  supportBundleRef?: string;
-  accessibilityEvidenceRef?: string;
-  unresolvedVetoes?: string[];
-  gates?: Array<{
-    key?: string;
-    label?: string;
-    state?: string;
-    evidenceFreshness?: string;
-    evidenceRefs?: string[];
-    nextAction?: string;
-    blocksReleaseClaim?: boolean;
-  }>;
-}
-
-interface ServerPlatformIdentityReadiness {
-  contractVersion?: string;
-  platformAuthority?: string;
-  overallState?: string;
-  supportSafe?: boolean;
-  diagnosticsRedacted?: boolean;
-  backendOwnedFacade?: boolean;
-  memberClientMayConfigurePlatformSecurity?: boolean;
-  requiredForMemberFlows?: boolean;
-  stableStates?: string[];
-  cards?: Array<{
-    key?: string;
-    label?: string;
-    state?: string;
-    summary?: string;
-    memberImpact?: string;
-    remediation?: string;
-    nextActions?: string[];
-    evidenceRefs?: string[];
-    diagnostics?: Record<string, unknown>;
-  }>;
-  nextActions?: string[];
-}
-
-interface ServerProviderCategory {
-  category?: string;
-  label?: string;
-  readiness?: string;
-  memberImpact?: string;
-  requiredNextAction?: string;
-  secretRefStatus?: ProviderCategory["secretRefStatus"];
-  policyState?: ProviderCategory["policyState"];
-  migrationState?: ProviderCategory["migrationState"];
-  evidenceRefs?: string[];
-  applyGates?: Partial<ProviderSwitchApplyGates>;
-  providerCandidates?: string[];
-  selectedProviderKey?: string;
-  choiceModel?: string;
-  selectedByAdmin?: boolean;
-  bootstrapSuggestionOnly?: boolean;
-  diagnostics?: Record<string, unknown>;
-  realityLevel?: string;
-  evidenceFreshness?: string;
-  safeNextAction?: string;
-  restartSurvivalEvidenceRef?: string;
-  dryRunEvidenceRef?: string;
-  dryRunEvidenceIssuedAt?: string;
-  dryRunEvidenceExpiresAt?: string;
-}
-
-interface ServerProviderSelectionResult {
-  category?: string;
-  providerKey?: string;
-  choiceModel?: string;
-  dryRun?: boolean;
-  evidenceRef?: string;
-  dryRunEvidenceRef?: string;
-  dryRunId?: string;
-  issuedAt?: string;
-  dryRunEvidenceIssuedAt?: string;
-  expiresAt?: string;
-  dryRunEvidenceExpiresAt?: string;
-  restartSurvivalEvidenceRef?: string;
-  supportSafe?: boolean;
-}
-
-interface ServerWhitelistPolicy {
-  denyByDefault?: boolean;
-  profileCapabilities?: Record<string, string[]>;
-  effectiveCapabilities?: string[];
-}
-
-interface ServerAuditEvent {
-  idempotencyKey?: string;
-  action?: string;
-  actorRef?: string;
-  occurredAt?: string;
-  sourceRef?: string;
-  payload?: Record<string, unknown>;
-}
-
 export class AdminControlPlaneApi {
+  private readonly generatedControlPlane: GeneratedAdminControlPlaneApi;
+  private readonly generatedInvitations: GeneratedOrganizationInvitationsApi;
+
   constructor(
     private readonly config: AdminConsoleConfig = adminConsoleConfig,
     private readonly fetchImpl: typeof fetch = fetch,
     private readonly tokenProvider: () => string | undefined = () => undefined,
-  ) {}
+  ) {
+    if (!config.apiBaseUrl.endsWith("/api")) {
+      throw new Error("Admin API base URL must end with /api");
+    }
+    const generatedConfig = new GeneratedConfiguration({
+      basePath: config.apiBaseUrl.slice(0, -4),
+      fetchApi: fetchImpl,
+      accessToken: () => tokenProvider() ?? "",
+      headers: { Accept: "application/json" },
+    });
+    this.generatedControlPlane = new GeneratedAdminControlPlaneApi(generatedConfig);
+    this.generatedInvitations = new GeneratedOrganizationInvitationsApi(generatedConfig);
+  }
+
+  private async generated<T>(operation: Promise<T>): Promise<T> {
+    try {
+      return await operation;
+    } catch (error) {
+      if (error instanceof GeneratedResponseError) {
+        throw new AdminApiError(
+          `Admin API request failed with HTTP ${error.response.status}`,
+          error.response.status,
+        );
+      }
+      throw error;
+    }
+  }
 
   async getControlPlane(): Promise<ControlPlaneResponse> {
-    const controlPlane = await this.request<GeneratedAdminControlPlaneResponse>(
-      "/admin/control-plane",
+    const controlPlane = await this.generated(
+      this.generatedControlPlane.getAdminControlPlane(),
     );
     const auditEvents = await this.listAuditEvents().catch(() => []);
     return normalizeControlPlane(
-      controlPlane as ServerControlPlaneResponse,
+      controlPlane,
       auditEvents,
       this.config.oidcIssuerUrl,
     );
@@ -682,64 +491,16 @@ export class AdminControlPlaneApi {
     allowedCapabilities: string[],
     profileKey = "workspace-admin",
   ): Promise<WhitelistPolicy> {
-    const response = await this.request<GeneratedCapabilityWhitelistResponse>(
-      "/admin/policies/capability-whitelist",
-      {
-        method: "PATCH",
-        body: JSON.stringify({
+    const response = await this.generated(
+      this.generatedControlPlane.updateCapabilityWhitelist({
+        capabilityWhitelistUpdateRequest: {
           profileKey,
           capabilityKeys: allowedCapabilities,
           reason: "Updated through Organization/Admin Console",
-        }),
-      },
+        },
+      }),
     );
-    return normalizeWhitelist(response as ServerWhitelistPolicy);
-  }
-
-  async getAgentRuntime(personRef: string): Promise<AgentRuntimeProjection> {
-    return this.request<AgentRuntimeProjection>(
-      `/admin/agent-runtimes/${encodeURIComponent(personRef)}`,
-    );
-  }
-
-  async changeAgentRuntime(
-    personRef: string,
-    action: AgentRuntimeLifecycleAction,
-    idempotencyKey: string,
-    options: { reason?: string; entitlementRevision?: string } = {},
-  ): Promise<AgentRuntimeProjection> {
-    const base = `/admin/agent-runtimes/${encodeURIComponent(personRef)}`;
-    const headers = { "Idempotency-Key": idempotencyKey };
-    if (action === "revoke" && !options.entitlementRevision) {
-      throw new Error("A current entitlement revision is required for revocation.");
-    }
-    if (action === "delete-runtime-state") {
-      return this.request<AgentRuntimeProjection>(`${base}/runtime-state`, {
-        method: "DELETE",
-        headers,
-        body: JSON.stringify({
-          reason: options.reason ?? "Deleted through Organization/Admin Console",
-          confirmation: "DELETE_RUNTIME_STATE_ONLY",
-        }),
-      });
-    }
-
-    const body =
-      action === "stop"
-        ? { mode: "graceful" }
-        : action === "suspend"
-          ? { reason: options.reason ?? "Suspended through Organization/Admin Console" }
-          : action === "revoke"
-            ? {
-                reason: options.reason ?? "Revoked through Organization/Admin Console",
-                entitlementRevision: options.entitlementRevision,
-              }
-            : undefined;
-    return this.request<AgentRuntimeProjection>(`${base}/${action}`, {
-      method: "POST",
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    return normalizeWhitelist(response);
   }
 
   async selectProvider(
@@ -747,27 +508,19 @@ export class AdminControlPlaneApi {
     providerKey: string,
     choiceModel = "recommended_self_hosted_default",
     dryRun = false,
-    dryRunEvidenceRef?: string,
   ): Promise<ProviderSelectionResult> {
-    const response = await this.request<ServerProviderSelectionResult>(
-      "/admin/providers/selections",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          category,
-          providerKey,
-          choiceModel,
-          dryRun,
-          secretRef: `secretref://weave/provider/${providerKey}`,
-          dryRunEvidenceRef,
-          consequenceConfirmation: dryRun
-            ? undefined
-            : "ADMIN_CONFIRMED_PROVIDER_SWITCH_CONSEQUENCES",
-          reason: dryRun
-            ? "Dry-run through Organization/Admin Console"
-            : "Selected through Organization/Admin Console after fresh dry-run evidence and consequence confirmation",
-        }),
-      },
+    const providerSelectionRequest: GeneratedProviderSelectionRequest = {
+      category,
+      providerKey,
+      choiceModel,
+      dryRun,
+      secretRef: `secretref://weave/provider/${providerKey}`,
+      reason: dryRun
+        ? "Dry-run of provider-selection metadata through Organization/Admin Console"
+        : "Provider-selection metadata requested through Organization/Admin Console",
+    };
+    const response = await this.generated(
+      this.generatedControlPlane.selectProvider({ providerSelectionRequest }),
     );
     return normalizeProviderSelectionResult(
       response,
@@ -783,11 +536,9 @@ export class AdminControlPlaneApi {
     targetAdapter: string,
     choiceModel = "external_existing_provider",
   ): Promise<ProviderReplacementDryRunReport> {
-    const response = await this.request<ServerProviderReplacementDryRunReport>(
-      "/admin/providers/replacements/dry-run",
-      {
-        method: "POST",
-        body: JSON.stringify({
+    const response = await this.generated(
+      this.generatedControlPlane.dryRunProviderReplacement({
+        providerReplacementDryRunRequest: {
           category: category.key,
           currentAdapter: category.selectedAdapter,
           targetAdapter,
@@ -807,8 +558,8 @@ export class AdminControlPlaneApi {
           },
           reason:
             "Evaluate provider replacement before activation through Organization/Admin Console",
-        }),
-      },
+        },
+      }),
     );
     return normalizeProviderReplacementDryRun(
       response,
@@ -818,11 +569,11 @@ export class AdminControlPlaneApi {
   }
 
   async getPlatformIdentityReadiness(): Promise<PlatformIdentityReadiness> {
-    const response = await this.request<GeneratedPlatformIdentityReadinessResponse>(
-      "/admin/platform/identity/readiness",
+    const response = await this.generated(
+      this.generatedControlPlane.getPlatformIdentityReadiness(),
     );
     return normalizePlatformIdentityReadiness(
-      response as ServerPlatformIdentityReadiness,
+      response,
     );
   }
 
@@ -830,12 +581,10 @@ export class AdminControlPlaneApi {
     providerKey: string,
   ): Promise<{ providerKey: string; state: CapabilityState; summary: string }> {
     const request: GeneratedProviderReadinessTestRequest = { providerKey };
-    const response = await this.request<GeneratedProviderReadinessTestResponse>(
-      "/admin/providers/readiness-tests",
-      {
-        method: "POST",
-        body: JSON.stringify(request),
-      },
+    const response = await this.generated(
+      this.generatedControlPlane.testProviderReadiness({
+        providerReadinessTestRequest: request,
+      }),
     );
     return {
       providerKey: response.providerKey ?? providerKey,
@@ -846,97 +595,74 @@ export class AdminControlPlaneApi {
   }
 
   async listAuditEvents(): Promise<AuditEvent[]> {
-    const events = await this.request<GeneratedAdminAuditEventResponse[]>(
-      "/admin/audit/events",
+    const events = await this.generated(
+      this.generatedControlPlane.listAdminAuditEvents(),
     );
-    return events.map((event) => ({
-      id:
-        event.idempotencyKey ??
-        `${event.action ?? "audit"}-${event.occurredAt ?? "unknown"}`,
-      action: event.action ?? "unknown",
-      actor: event.actorRef ?? "unknown-actor",
-      createdAt: event.occurredAt ?? "",
-      summary: supportSafeSummary(event),
-    }));
+    return events.map((event) => {
+      const occurredAt =
+        event.occurredAt && !Number.isNaN(event.occurredAt.getTime())
+          ? event.occurredAt.toISOString()
+          : undefined;
+      return {
+        id:
+          event.idempotencyKey ??
+          `${event.action ?? "audit"}-${occurredAt ?? "unknown"}`,
+        action: event.action ?? "unknown",
+        actor: event.actorRef ?? "unknown-actor",
+        createdAt: occurredAt ?? "",
+        summary: supportSafeSummary(event),
+      };
+    });
   }
 
   async listOrganizationInvitations(
     organizationId: string,
   ): Promise<OrganizationInvitation[]> {
-    return this.request<OrganizationInvitation[]>(
-      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations`,
-    );
+    return this.generated(
+      this.generatedInvitations.listOrganizationInvitations({ organizationId }),
+    ) as Promise<OrganizationInvitation[]>;
   }
 
   async createOrganizationInvitation(
     organizationId: string,
     invitation: CreateOrganizationInvitationRequest,
   ): Promise<OrganizationInvitation> {
-    return this.request<OrganizationInvitation>(
-      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations`,
-      {
-        method: "POST",
-        headers: {
-          "Idempotency-Key": invitationIdempotencyKey("create"),
-        },
-        body: JSON.stringify(invitation),
-      },
-    );
+    return this.generated(
+      this.generatedInvitations.createOrganizationInvitation({
+        organizationId,
+        idempotencyKey: invitationIdempotencyKey("create"),
+        memberInvitationRequest: invitation,
+      }),
+    ) as Promise<OrganizationInvitation>;
   }
 
   async resendOrganizationInvitation(
     organizationId: string,
     invitationHandle: string,
   ): Promise<OrganizationInvitation> {
-    return this.request<OrganizationInvitation>(
-      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(invitationHandle)}/resend`,
-      {
-        method: "POST",
-        headers: {
-          "Idempotency-Key": invitationIdempotencyKey("resend"),
-        },
-      },
-    );
+    return this.generated(
+      this.generatedInvitations.resendOrganizationInvitation({
+        organizationId,
+        invitationHandle,
+        idempotencyKey: invitationIdempotencyKey("resend"),
+      }),
+    ) as Promise<OrganizationInvitation>;
   }
 
   async revokeOrganizationInvitation(
     organizationId: string,
     invitationHandle: string,
   ): Promise<void> {
-    await this.request<void>(
-      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(invitationHandle)}`,
-      {
-        method: "DELETE",
-        headers: {
-          "Idempotency-Key": invitationIdempotencyKey("revoke"),
-        },
-      },
+    await this.generated(
+      this.generatedInvitations.revokeOrganizationInvitation({
+        organizationId,
+        invitationHandle,
+        idempotencyKey: invitationIdempotencyKey("revoke"),
+      }),
     );
   }
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    if (path !== "/admin" && !path.startsWith("/admin/")) {
-      throw new Error("Admin Console requests must stay under the Weave /api/admin boundary");
-    }
-    const token = this.tokenProvider();
-    const headers = new Headers(init.headers);
-    headers.set("Accept", "application/json");
-    if (init.body) headers.set("Content-Type", "application/json");
-    if (token) headers.set("Authorization", `Bearer ${token}`);
 
-    const response = await this.fetchImpl(`${this.config.apiBaseUrl}${path}`, {
-      ...init,
-      headers,
-    });
-    if (!response.ok) {
-      throw new AdminApiError(
-        `Admin API request failed with HTTP ${response.status}`,
-        response.status,
-      );
-    }
-    if (response.status === 204) return undefined as T;
-    return response.json() as Promise<T>;
-  }
 }
 
 function invitationIdempotencyKey(
@@ -951,7 +677,7 @@ function invitationIdempotencyKey(
 }
 
 function normalizeControlPlane(
-  controlPlane: ServerControlPlaneResponse,
+  controlPlane: GeneratedControlPlaneResponse,
   auditEvents: AuditEvent[],
   oidcIssuerUrl: string,
 ): ControlPlaneResponse {
@@ -960,7 +686,7 @@ function normalizeControlPlane(
   return {
     organization: {
       id: controlPlane.organizationId ?? "weave-dogfood",
-      displayName: controlPlane.organizationName ?? "Weave Dogfood",
+      displayName: controlPlane.displayName ?? "Weave Dogfood",
       manifestUrl: "/api/organization/manifest",
       authIssuerUrl: oidcIssuerUrl,
     },
@@ -974,7 +700,7 @@ function normalizeControlPlane(
         category,
         selections,
         secretRefs,
-        controlPlane.generatedAt,
+        controlPlane.generatedAt?.toISOString(),
       ),
     ),
     platformIdentityReadiness: normalizePlatformIdentityReadiness(
@@ -991,7 +717,7 @@ function normalizeControlPlane(
 }
 
 function normalizeMcpServerBindings(
-  bindings?: ServerMcpServerBinding[],
+  bindings?: GeneratedMcpServerBindingResponse[],
 ): McpServerBinding[] {
   const normalized = (bindings ?? []).map((binding) => ({
     serverKey: binding.serverKey ?? "weave-domain-tools",
@@ -1020,7 +746,7 @@ function normalizeMcpServerBindings(
 }
 
 function normalizeSuiteDomainReadiness(
-  readiness?: ServerSuiteDomainReadiness[],
+  readiness?: GeneratedSuiteDomainReadinessResponse[],
 ): SuiteDomainReadiness[] {
   const domains = (readiness ?? []).map((domain) => ({
     domain: domain.domain ?? "suite-domain",
@@ -1054,7 +780,7 @@ function normalizeSuiteDomainReadiness(
 }
 
 function normalizeGoLiveReadiness(
-  readiness?: ServerGoLiveReadiness,
+  readiness?: GeneratedGoLiveReadinessResponse,
 ): GoLiveReadiness {
   return {
     state: normalizeState(readiness?.state ?? "admin-action-required"),
@@ -1078,7 +804,7 @@ function normalizeGoLiveReadiness(
 }
 
 function normalizeReleaseClaimControl(
-  claim?: ServerReleaseClaimControl,
+  claim?: GeneratedReleaseClaimControlResponse,
 ): ReleaseClaimControl {
   const gates = (claim?.gates ?? []).map((gate, index) => ({
     key: gate.key ?? `rc-evidence-gate-${index + 1}`,
@@ -1111,7 +837,7 @@ function normalizeReleaseClaimControl(
 }
 
 function normalizePlatformIdentityReadiness(
-  readiness?: ServerPlatformIdentityReadiness,
+  readiness?: GeneratedIdentityReadinessResponse,
 ): PlatformIdentityReadiness {
   const cards = (readiness?.cards ?? []).map((card) => ({
     key: card.key ?? "identity-readiness-card",
@@ -1175,7 +901,7 @@ function normalizePlatformIdentityReadiness(
 }
 
 function normalizeCategory(
-  category: ServerProviderCategory,
+  category: GeneratedProviderCategoryResponse,
   selections: Array<{ category?: string; providerKey?: string }>,
   secretRefs: Array<{ ref?: string; providerKey?: string }>,
   generatedAt?: string,
@@ -1197,13 +923,21 @@ function normalizeCategory(
       normalizeMemberCapabilityState(category.memberImpact) ??
       memberStableStateFromCapability(state),
     requiredNextAction:
-      category.requiredNextAction ??
+      category.realityLevelRemediation ??
       "Review backend readiness evidence before exposing this domain.",
-    secretRefStatus: category.secretRefStatus ?? "sample_only",
-    policyState: category.policyState ?? "review_required",
-    migrationState: category.migrationState ?? "dry_run_required",
-    evidenceRefs: category.evidenceRefs ?? [],
-    applyGates: normalizeApplyGates(category.applyGates),
+    secretRefStatus: secretRefs.some((secretRef) =>
+      secretRef.providerKey === selectedAdapter && Boolean(secretRef.ref),
+    )
+      ? "present"
+      : "missing",
+    policyState: category.policyState === "allowed"
+      ? "allowed"
+      : category.policyState === "disabled"
+        ? "disabled"
+        : "blocked",
+    migrationState: "blocked",
+    evidenceRefs: [],
+    applyGates: normalizeApplyGates(),
     supportSafe:
       category.diagnostics?.secretsReturned === false &&
       category.diagnostics?.rawProviderErrorsReturned === false,
@@ -1212,19 +946,11 @@ function normalizeCategory(
     choiceModel: category.choiceModel ?? "not_selected",
     providerCandidates: category.providerCandidates ?? [],
     lastCheckedAt: generatedAt,
-    realityLevel: normalizeRealityLevel(category.realityLevel),
-    evidenceFreshness: normalizeEvidenceFreshness(
-      category.evidenceFreshness,
-      category.dryRunEvidenceExpiresAt,
-    ),
+    realityLevel: normalizeRealityLevel(category.providerRealityLevel),
+    evidenceFreshness: "missing",
     safeNextAction:
-      category.safeNextAction ??
-      category.requiredNextAction ??
+      category.realityLevelRemediation ??
       "Review backend readiness evidence before exposing this domain.",
-    restartSurvivalEvidenceRef: category.restartSurvivalEvidenceRef,
-    dryRunEvidenceRef: category.dryRunEvidenceRef,
-    dryRunEvidenceIssuedAt: category.dryRunEvidenceIssuedAt,
-    dryRunEvidenceExpiresAt: category.dryRunEvidenceExpiresAt,
     secretRefs: secretRefs
       .filter((secretRef) => secretRef.providerKey === selectedAdapter)
       .map((secretRef) => secretRef.ref ?? "")
@@ -1233,7 +959,7 @@ function normalizeCategory(
 }
 
 function normalizeProviderSelectionResult(
-  response: ServerProviderSelectionResult,
+  response: GeneratedProviderSelectionResponse,
   category: string,
   providerKey: string,
   choiceModel: string,
@@ -1244,11 +970,8 @@ function normalizeProviderSelectionResult(
     providerKey: response.providerKey ?? providerKey,
     choiceModel: response.choiceModel ?? choiceModel,
     dryRun: response.dryRun ?? dryRun,
-    evidenceRef: response.evidenceRef ?? response.dryRunEvidenceRef,
-    dryRunId: response.dryRunId,
-    issuedAt: response.issuedAt ?? response.dryRunEvidenceIssuedAt,
-    expiresAt: response.expiresAt ?? response.dryRunEvidenceExpiresAt,
-    restartSurvivalEvidenceRef: response.restartSurvivalEvidenceRef,
+    // Provider-selection metadata is not backend-owned adoption/cutover evidence.
+    // Its generated response cannot unlock the guarded apply flow.
     supportSafe: response.supportSafe ?? false,
   };
 }
@@ -1540,7 +1263,7 @@ const sampleSuiteDomainReadiness: SuiteDomainReadiness[] = [
 ];
 
 function normalizeWhitelist(
-  whitelist?: ServerWhitelistPolicy,
+  whitelist?: GeneratedWhitelistResponse,
 ): WhitelistPolicy {
   const profileCapabilities = whitelist?.profileCapabilities ?? {};
   const allowedCapabilities = Array.from(
@@ -1561,7 +1284,7 @@ function normalizeWhitelist(
 }
 
 function normalizeProviderReplacementDryRun(
-  response: ServerProviderReplacementDryRunReport,
+  response: GeneratedReplacementDryRunResponse,
   category: ProviderCategory,
   targetAdapter: string,
 ): ProviderReplacementDryRunReport {
@@ -1796,7 +1519,7 @@ function normalizeState(value?: string): CapabilityState {
   }
 }
 
-function supportSafeSummary(event: ServerAuditEvent): string {
+function supportSafeSummary(event: GeneratedAdminAuditEventResponse): string {
   const payload = event.payload ?? {};
   const providerKey =
     typeof payload.providerKey === "string" ? payload.providerKey : undefined;

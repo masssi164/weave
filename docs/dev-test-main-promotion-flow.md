@@ -2,13 +2,13 @@
 
 Status: active development policy.
 
-Weave is still in active development with one human developer. `dev` and `dogfood` therefore optimize for short, repeatable feedback rather than production rollout ceremony.
+Weave is still in active development with one human developer. `dev` and `dogfood` optimize for short, repeatable feedback. The current #1470 delivery also promotes a demonstrated dogfood tree to protected `main` without publishing production.
 
 ## Branches
 
 - `dev` is the normal integration branch. Feature branches return here through ordinary PR CI.
 - `dogfood` is the current LAN test branch. A normal `dev` → `dogfood` PR runs the same complete isolated E2E flow, and a successful push starts the reviewed local Compose stack.
-- `main` and production release automation are outside this development loop. A future production-hardening ADR must define backup, migration, immutable release-image, approval, and rollback controls before those controls become active again.
+- `main` is release-capable source truth after a protected promotion. Production publication remains a separate explicit decision. A future production-hardening ADR must define backup, migration, immutable release-image, approval, and rollback controls before an externally supported production launch.
 
 ## One automated gate
 
@@ -72,3 +72,5 @@ Before merging `dev` to `dogfood`:
 - no unrelated release-hardening work is mixed into the promotion.
 
 Before making a future production release, write and accept the production-hardening ADR and add only the controls that the chosen deployment target actually needs.
+
+For the current #1470 mainline delivery, promote the exact deployed and human-tested `dogfood` tree to `main` by PR. The protected Main Promotion Gate checks current `dev` and `dogfood` ancestry/tree equality, the exact dogfood-head E2E and deployment jobs, and the separately reported owner human result described in `docs/gitflow-pr-workflow.md`. A green disposable E2E alone is insufficient for this promotion. The merge itself does not publish a production release.

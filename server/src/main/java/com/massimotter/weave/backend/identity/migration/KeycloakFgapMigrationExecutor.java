@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
-/** Executes only the deferred organization-specific FGAP operation and retires its authority. */
+/** Executes the declared post-import operations and retires their temporary authority. */
 final class KeycloakFgapMigrationExecutor {
   private static final int PAGE_SIZE = 100;
   private static final int MAXIMUM_RESULTS = 1_000;
@@ -48,6 +48,9 @@ final class KeycloakFgapMigrationExecutor {
       KeycloakRealmMigrationBackupProofReader.BackupProof backupProof) {
     Anchors anchors = requireQualifiedAuthority(backupProof.environment());
 
+    KeycloakOrganizationMapperMigration organizationMapper =
+        new KeycloakOrganizationMapperMigration(transport);
+    KeycloakOrganizationMapperMigration.Plan mapperPlan = organizationMapper.plan();
     List<Mutation> firstRun = new ArrayList<>();
     Mutation policyMutation = planPolicy(anchors);
     if (policyMutation != null) {
@@ -66,20 +69,28 @@ final class KeycloakFgapMigrationExecutor {
       }
     }
 
+    boolean mapperChanged = organizationMapper.apply(mapperPlan);
     requireConverged(anchors);
+    organizationMapper.requireConverged(mapperPlan);
+    List<String> firstRunOperations = new ArrayList<>(
+        firstRun.stream().map(Mutation::operationCode).toList());
+    if (mapperChanged) {
+      firstRunOperations.add(KeycloakOrganizationMapperMigration.MUTATION_CODE);
+    }
     retireAndVerifyAuthority(anchors.migrationClientId());
     return new MigrationResult(
         KeycloakFgapMigrationContract.RESULT_SCHEMA,
         "complete",
         bundle.operationId(),
+        KeycloakFgapMigrationContract.COMPLETED_OPERATION_IDS,
         KeycloakFgapMigrationContract.KEYCLOAK_VERSION,
         bundle.manifestDigest(),
         bundle.bundleDigest(),
         bundle.baselineArtifactDigest(),
         bundle.targetBaselineRevision(),
         backupProof.digest(),
-        firstRun.stream().map(Mutation::operationCode).sorted().toList(),
-        firstRun.size(),
+        firstRunOperations.stream().sorted().toList(),
+        firstRunOperations.size(),
         true,
         true,
         KeycloakFgapMigrationContract.BOOTSTRAP_REALM,
@@ -607,6 +618,7 @@ final class KeycloakFgapMigrationExecutor {
       String schemaVersion,
       String status,
       String operationId,
+      List<String> completedOperationIds,
       String keycloakVersion,
       String manifestDigest,
       String bundleDigest,
@@ -624,6 +636,7 @@ final class KeycloakFgapMigrationExecutor {
       boolean supportSafe,
       boolean containsSecretValues) {
     MigrationResult {
+      completedOperationIds = List.copyOf(completedOperationIds);
       firstRunOperations =
           firstRunOperations == null
               ? List.of()

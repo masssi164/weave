@@ -1,6 +1,13 @@
 # ADR-008: No Transitional Compatibility as Architecture
 
-Status: accepted
+Status: superseded for the current release by the pinned
+`steering/release-2026-10-product-consolidation.md` profile and #1470. The
+historical target surfaces below are retained as design history. Files and
+Calendar now use the generated Weave User API northbound; DAV may be used
+southbound. Chat keeps the bounded Weave Matrix Client-Server facade, and MCP
+must use the generated JVM User API client. Provider adoption and migration are
+tracked under #1498. Preserve the security, integrity, permission and recovery
+requirements below where the related capability is enabled.
 
 Date: 2026-07-07
 

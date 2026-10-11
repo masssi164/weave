@@ -6,7 +6,7 @@
   "serverControlPlane": {
     "secretRefPrefix": "secretref://weave/provider/",
     "adminControlPlaneRoute": "/api/admin/control-plane",
-    "providerRegistryRoute": "/api/providers/status"
+    "providerRegistryRoute": "/api/admin/providers/status"
   },
   "platformIdentityAuthority": {
     "backbone": "keycloak",

@@ -50,8 +50,14 @@ public class ProviderCoreConfiguration {
     }
 
     @Bean
-    ProviderPort filesProviderRegistrySeam(ObjectProvider<FilesProviderPort> filesProviderPort) {
-        FilesProviderPort runtime = filesProviderPort.getIfAvailable();
+    ProviderPort filesProviderRegistrySeam(
+            ObjectProvider<FilesProviderPort> filesProviderPort,
+            FilesRuntimeProperties filesRuntimeProperties) {
+        FilesProviderPort runtime = filesProviderPort.orderedStream()
+                .filter(candidate -> filesRuntimeProperties.provider()
+                        .equals(candidate.conformanceProfile().adapterKey()))
+                .findFirst()
+                .orElse(null);
         if (runtime == null) {
             return StaticProviderPort.pending(
                     ProviderModule.FILES,
@@ -60,14 +66,14 @@ public class ProviderCoreConfiguration {
                     Set.of("list", "read", "write", "create-collection", "delete", "copy", "move"),
                     Set.of("direct-member-provider-api", "credential-exposure", "raw-provider-errors"),
                     List.of("weave-native", "nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"),
-                    Map.of("runtimeBindingObserved", false, "facade", "/dav/files"));
+                    Map.of("runtimeBindingObserved", false, "facade", "/api/files/items"));
         }
         return RuntimeProviderStatus.fromConformancePort(
                 ProviderModule.FILES,
                 runtime.conformanceProfile().adapterKey(),
                 runtime.configured(),
                 runtime.conformanceProfile(),
-                "The selected Files adapter is bound behind the canonical Files port and the /dav/files projection.",
+                "The selected Files adapter is bound behind the canonical Files port and the generated User Files API.",
                 List.of("weave-native", "nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"));
     }
 
@@ -82,14 +88,14 @@ public class ProviderCoreConfiguration {
                     Set.of("query", "read", "create", "update", "delete", "free-busy"),
                     Set.of("direct-member-provider-api", "credential-exposure", "raw-provider-errors"),
                     List.of("weave-native", "nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"),
-                    Map.of("runtimeBindingObserved", false, "facade", "/caldav"));
+                    Map.of("runtimeBindingObserved", false, "facade", "/api/calendar/calendars"));
         }
         return RuntimeProviderStatus.fromConformancePort(
                 ProviderModule.CALENDAR,
                 runtime.conformanceProfile().adapterKey(),
                 runtime.configured(),
                 runtime.conformanceProfile(),
-                "The selected Calendar adapter is bound behind the canonical Calendar port and the /caldav projection.",
+                "The selected Calendar adapter is bound behind the canonical Calendar port and the generated User Calendar API.",
                 List.of("weave-native", "nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"));
     }
 

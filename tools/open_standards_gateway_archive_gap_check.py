@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Validate the full open-standards gateway archive is tracked honestly.
+"""Validate that historical open-standards gateway evidence remains tracked.
 
-The July 2026 archive describes the final northbound target. This gate is
-deliberately stricter than the current MVP hard gate: it proves the required
-feature inventory is checked in and records which target slices are still not
-complete so PRs cannot close the umbrella by relying on partial WebDAV,
-CalDAV, Matrix, or Calls evidence.
+The July 2026 public DAV and Calls target was superseded for #1470. This
+archive check preserves its feature inventory and surviving server integrity
+tests. It does not qualify those routes, Flutter DAV consumption, or Calls as
+current product acceptance. Current Files and Calendar use generated User APIs.
 """
 
 from __future__ import annotations
@@ -22,7 +21,8 @@ REQUIRED_FEATURES = {
     "open_standards_gateway_manifest.feature": 3,
     "oidc_protocol_access.feature": 5,
     "files_webdav_full_facade.feature": 11,
-    "calendar_caldav_facade.feature": 10,
+    # The former Flutter DAV scenario is replaced by generated User API evidence.
+    "calendar_caldav_facade.feature": 9,
     "chat_matrix_facade.feature": 13,
     "calls_webrtc_join_grants.feature": 9,
     "mcp_domain_facade_boundary.feature": 9,
@@ -93,7 +93,8 @@ def require_current_evidence_boundaries() -> None:
     require(
         "server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCoreService.java",
         "implements MatrixProtocolCodec",
-        "NativeMatrixCore.projectJson(operation.wireName(), inputJson, serverName)",
+        "NativeMatrixCore.projectJson(operation.wireName(),",
+        ", serverName)",
         'public static final String SERVER_JNI_BOUNDARY = "server-jni-wrapper"',
         'public static final String RUST_PROTOCOL_CORE = "ruma-serde-serde_json-thiserror-tracing"',
     )
@@ -106,7 +107,7 @@ def require_current_evidence_boundaries() -> None:
         text = path.read_text(encoding="utf-8")
         if '"/api/calls' in text or "com.weave.call." in text:
             fail(f"legacy Calls contract remains in {path.relative_to(ROOT)}")
-    require("tools/spring_ai_mcp_facade_acceptance_check.py", "SPRING_AI_MCP_STATEFUL_TRANSPORT", "MCP_WORKLOAD_EDGE_BOUND_CELL_ONLY", "MCP_FILES_READ_SLICE_ACTIVE", "MCP_CALENDAR_CATALOG_GUARDED", "MCP_CHAT_CATALOG_GUARDED", "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED", "MCP_LEGACY_RUNTIME_REMOVED")
+    require("tools/spring_ai_mcp_facade_acceptance_check.py", "SPRING_AI_MCP_STATEFUL_TRANSPORT", "MCP_WORKLOAD_EDGE_BOUND_CELL_ONLY", "MCP_FILES_READ_SLICE_ACTIVE", "MCP_CALENDAR_READ_SLICE_ACTIVE", "MCP_CHAT_CATALOG_GUARDED", "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED", "MCP_LEGACY_RUNTIME_REMOVED")
 
 
 def main() -> int:

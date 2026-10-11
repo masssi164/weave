@@ -10,7 +10,6 @@ class TestConfig {
     required this.issuerUrl,
     required this.clientId,
     required this.matrixHomeserverUrl,
-    required this.nextcloudBaseUrl,
     required this.backendApiBaseUrl,
     required this.offlineContractOnly,
   });
@@ -44,17 +43,7 @@ class TestConfig {
       matrixHomeserverUrl: _configuredOrDefault(
         'WEAVE_MATRIX_HOMESERVER_URL',
         const String.fromEnvironment('WEAVE_MATRIX_HOMESERVER_URL'),
-        _apiOrigin(backendApiBaseUrl),
-      ),
-      nextcloudBaseUrl: _configuredOrDefault(
-        'WEAVE_NEXTCLOUD_BASE_URL',
-        const String.fromEnvironment('WEAVE_NEXTCLOUD_BASE_URL'),
-        backendApiBaseUrl.replace(
-          host: 'files.$workspaceHost',
-          pathSegments: const [],
-          query: null,
-          fragment: null,
-        ),
+        Uri.parse(backendApiBaseUrl.origin),
       ),
       backendApiBaseUrl: backendApiBaseUrl,
       offlineContractOnly:
@@ -68,7 +57,6 @@ class TestConfig {
   final Uri issuerUrl;
   final String clientId;
   final Uri matrixHomeserverUrl;
-  final Uri nextcloudBaseUrl;
   final Uri backendApiBaseUrl;
   final bool offlineContractOnly;
 
@@ -76,7 +64,6 @@ class TestConfig {
     issuerUrl: issuerUrl,
     clientId: clientId,
     matrixHomeserverUrl: matrixHomeserverUrl,
-    nextcloudBaseUrl: nextcloudBaseUrl,
     backendApiBaseUrl: backendApiBaseUrl ?? this.backendApiBaseUrl,
     offlineContractOnly: offlineContractOnly,
   );
@@ -120,16 +107,6 @@ class TestConfig {
       );
     }
     return parsed;
-  }
-
-  static Uri _apiOrigin(Uri uri) {
-    final segments = uri.pathSegments
-        .where((segment) => segment.isNotEmpty)
-        .toList(growable: true);
-    if (segments.isNotEmpty && segments.last == 'api') {
-      segments.removeLast();
-    }
-    return uri.replace(pathSegments: segments, query: null, fragment: null);
   }
 
   static String _workspaceHost(String host) {

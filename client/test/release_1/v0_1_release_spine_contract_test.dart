@@ -106,12 +106,16 @@ void main() {
       }
 
       for (final required in <String>[
-        'provider-neutral collaboration suite',
-        '## What Works Today',
-        '## What Is Guarded',
-        'Weave is in active dogfood',
-        'The portability promise is no unaccounted data loss',
-        'docs/v0.1-golden-path.md',
+        // The current release supersedes historical dogfood marketing claims.
+        '## Current status',
+        'product consolidation epic #1470',
+        'provider portability epic #1498',
+        'server-owned code-first User/Admin API with generated consumers',
+        'integrated user, admin, MCP, Matrix, Files, and Calendar journeys',
+        'not compilation alone',
+        'Activation must stop if a required source property or permission cannot be preserved',
+        'Weave is not a finished production collaboration platform',
+        'docs/reference/matrix-client-server-support-profile.md',
       ]) {
         expect(readme, contains(required));
       }
@@ -134,6 +138,9 @@ void main() {
       final firstUseText = firstUse.readAsStringSync();
       final planText = plan.readAsStringSync();
       final architectureText = architecture.readAsStringSync();
+      final coreArchitectureText = File(
+        '../docs/architecture/data-sovereignty-core.md',
+      ).readAsStringSync();
 
       for (final required in <String>[
         'fixed platform-identity boundary',
@@ -179,13 +186,25 @@ void main() {
         expect(planText, contains(required));
       }
 
+      // Preserve the old path as an explicit redirect, then verify the current
+      // authority and security boundaries instead of obsolete prose there.
       for (final required in <String>[
-        'The Organization/Admin Console remains the control plane',
-        'Workspace/Admin Health is organized around replaceable collaborative feature',
-        'Capability policy responses are support-safe',
-        'Agent Runtime Control consumes authoritative Keycloak Organization membership `/capabilities/weaver`',
+        'Superseded architecture overview',
+        'not current architecture authority',
+        'architecture/data-sovereignty-core.md',
       ]) {
         expect(architectureText, contains(required));
+      }
+      for (final required in <String>[
+        'steering/release-2026-10-product-consolidation.md',
+        '#1470 govern the product boundary',
+        '#1498 governs provider adoption and migration',
+        'Application services enforce authorization',
+        'Provider DTOs, URLs, credentials, raw errors, and private references remain inside adapters',
+        'distinct workload identity and current member/resource authorization',
+        'Northbound projections must not call JPA or providers directly',
+      ]) {
+        expect(coreArchitectureText, contains(required));
       }
 
       for (final marker in <String>[

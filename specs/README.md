@@ -9,12 +9,13 @@ Canonical specification truth lives in the pinned Weave Specification Corpus ref
 
 This implementation repository is the **conformance and evidence truth**. It contains code, tests, CI gates, release evidence, generated projections, and historical repo-local specs that must conform to the pinned spec corpus.
 
-For PR #1043 and later open-standards gateway work, repo-local packets that still describe OpenAPI/REST as a normal member data plane for Files, Calendar events, or Chat conversations/messages are obsolete. The canonical northbound collaboration data planes are:
+For the approved #1470 release, read corpus file `steering/release-2026-10-product-consolidation.md` first. Its release boundary supersedes the earlier PR #1043 gateway direction and conflicting repo-local packets:
 
-- Files: Weave WebDAV at `/dav/files/**`.
-- Calendar: Weave CalDAV/iCalendar at `/caldav/**`.
-- Chat: Weave Matrix Client-Server facade at `/_matrix/client/**`.
-- OpenAPI: control plane only for readiness, setup, credentials, revoke, admin/provider decisions, generated convenience models, and support-safe evidence.
+- The server-owned code-first User API is the Files and Calendar northbound HTTP boundary. User and Admin OpenAPI artifacts generate clients and transport models for Flutter, MCP, Admin UI, and product E2E.
+- Weave's Matrix Client-Server facade is the Chat northbound contract for Weave-owned Flutter and Weaver/OpenClaw clients in this release. Rust/Ruma/JNI owns Matrix wire parsing and projection; the Weave Chat domain owns canonical persistence, authorization and routing through `ChatProviderPort`. Independent third-party Matrix-client interoperability is deferred. The [support profile](../docs/reference/matrix-client-server-support-profile.md) defines the qualified protocol subset.
+- One Weave OIDC/PKCE sign-in makes authorized capabilities ready without another member-facing Connect or login action. Flutter uses its member session at the Weave Matrix facade; admin and workload identities remain separately bounded.
+- Public northbound WebDAV/CalDAV and proprietary Chat-message REST are outside this release. DAV remains appropriate inside provider adapters.
+- Exactly one provider is active per organization and module. #1470 proves the provider-neutral product boundary; [#1498](https://github.com/masssi164/weave/issues/1498) owns Files adoption, data and permission migration, cutover, recovery, and rollback.
 
 ## Truth boundary
 

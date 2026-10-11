@@ -292,6 +292,73 @@
       ]
     },
     {
+      "tag": "@weave-live-native-product",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "spaces"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "one native system-browser sign-in",
+        "authorized Files upload and readback",
+        "authorized Calendar create update and delete",
+        "native Matrix business-room send and readback",
+        "session refresh and native process and service restart",
+        "sign-out removes capability access"
+      ]
+    },
+    {
+      "tag": "@weave-live-member-session-revocation",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "chat",
+        "spaces",
+        "admin-health-ops"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "actual generated Admin session revocation",
+        "retained unexpired User Admin and Matrix bearer denial",
+        "revoked refresh credential denial",
+        "stable identity and unchanged permissions after PKCE reauthorization",
+        "idempotent replay preserves new sessions",
+        "logout before native Chat initialization"
+      ]
+    },
+    {
+      "tag": "@weave-live-foreign-organization-denial",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "admin-health-ops"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "two real organizations in one disposable Keycloak realm",
+        "foreign browser Authorization Code with PKCE",
+        "generated User and Admin denial",
+        "Matrix Client-Server denial",
+        "no primary resource mutation"
+      ]
+    },
+    {
       "tag": "@files-webdav-read-list-download",
       "suiteId": "product-e2e-scenario-layer",
       "personas": [
@@ -305,9 +372,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "WebDAV northbound data plane",
-        "OpenAPI control-plane boundary",
-        "support-safe file read/list/download"
+        "historical WebDAV server read and provider isolation evidence",
+        "not current #1470 Files northbound acceptance"
       ]
     },
     {
@@ -324,10 +390,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "PUT/MKCOL/DELETE WebDAV write behavior",
-        "ETag and conditional preconditions",
-        "support-safe mutation audit",
-        "no OpenAPI data-plane fallback"
+        "historical WebDAV server precondition and audit evidence",
+        "not current #1470 Files northbound acceptance"
       ]
     },
     {
@@ -344,9 +408,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "MCP Files facade projection",
-        "canonical file references",
-        "raw provider bypass rejection"
+        "historical MCP contract rejects raw provider inputs",
+        "#1474 current generated User API MCP proof remains open"
       ]
     },
     {
@@ -362,9 +425,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "WebDAV read/write evidence",
-        "Flutter WebDAV read/download path",
-        "remaining client/native cutover debt"
+        "historical WebDAV server read and write evidence",
+        "generated Files User API client requires independent evidence"
       ]
     },
     {
@@ -3211,18 +3273,17 @@
         "files",
         "calendar",
         "chat",
-        "meetings-calls",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "OpenAPI stays setup/readiness/revoke/manifest/admin/generated convenience",
-        "transitional Chat and Calendar REST data-plane routes are deprecated with cleanup issue evidence",
-        "Files REST data-plane routes remain absent"
+        "member manifest advertises generated User domain APIs",
+        "bounded Weave Matrix Client-Server compatibility remains guarded",
+        "deferred public DAV and Calls surfaces are absent from member discovery"
       ]
     },
     {
-      "tag": "@openapi-control-only",
+      "tag": "@openapi-domain-boundaries",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member",
@@ -3233,14 +3294,13 @@
         "files",
         "calendar",
         "chat",
-        "meetings-calls",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "OIDC bearer authentication gates the Matrix facade",
-        "versions and whoami are shaped by the shared Rust core",
-        "provider credentials and southbound URLs are absent"
+        "generated User OpenAPI contains Files, Calendar, and Chat domain entrypoints",
+        "public DAV is absent from the generated User API",
+        "conversation data uses the bounded Matrix protocol rather than proprietary Chat REST routes"
       ]
     },
     {
@@ -3286,7 +3346,7 @@
     },
     {
       "tag": "@matrix-openclaw-stock-channel",
-      "suiteId": "open-standards-gateway-archive-target",
+      "suiteId": "member-live-critical-path",
       "personas": [
         "weaver_user",
         "member"
@@ -3295,7 +3355,7 @@
         "chat",
         "agent-runtime-control"
       ],
-      "testLevel": "offline-contract",
+      "testLevel": "live-e2e",
       "assertionFocus": [
         "signed RuntimeProfile projects stock channels.matrix",
         "OpenClaw startup and approval calls are supported by the Weave facade",
@@ -3633,9 +3693,24 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "historical public DAV client scenario is superseded",
+        "current Flutter Files uses generated User API"
+      ]
+    },
+    {
+      "tag": "@files-user-api-generated-client",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "generated User API transport and opaque references",
+        "bounded binary integrity and denied action tests",
+        "live provider-backed E2E remains open"
       ]
     },
     {
@@ -3785,8 +3860,8 @@
       ]
     },
     {
-      "tag": "@calendar-flutter-caldav",
-      "suiteId": "open-standards-gateway-archive-target",
+      "tag": "@calendar-flutter-generated-user",
+      "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
         "member"
       ],
@@ -3795,9 +3870,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "generated User operations and opaque Calendar discovery",
+        "temporal and meeting-reference preservation",
+        "idempotent create, strong versions and current session boundaries"
       ]
     },
     {
@@ -4535,7 +4610,7 @@
       "testLevel": "live-e2e",
       "assertionFocus": [
         "weave-native provider selection",
-        "Matrix WebDAV and CalDAV northbound facades",
+        "Matrix northbound and generated Files and Calendar User APIs",
         "PostgreSQL and backend restart continuity",
         "no external provider runtime dependency"
       ]
@@ -4613,6 +4688,60 @@
         "exact dogfood source",
         "full Compose E2E prerequisite",
         "no automatic release publication"
+      ]
+    },
+    {
+      "tag": "@calendar-mcp-write-parity",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "weaver_user"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "bound workload uses generated User Calendar writes",
+        "independent generated User readback verifies stable identity and DATE intent",
+        "changed idempotency replay and stale version fail without mutation",
+        "read-only scope and unauthorized member writes fail closed"
+      ]
+    },
+    {
+      "tag": "@calendar-user-api-runtime",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "generated User client against the real active Calendar provider",
+        "independent time, version and Space access expectations",
+        "same references and exact content after provider restart",
+        "strong-version cleanup in the exact isolated namespace"
+      ]
+    },
+    {
+      "tag": "@generated-workspace-user-admin-runtime",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "spaces",
+        "admin-health-ops"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "separate generated User and Admin clients with distinct OIDC audiences",
+        "honest Home version and unknown counts without operator instructions",
+        "exact Admin policy/checks and opposite-audience denial",
+        "member Home remains valid after service restart"
       ]
     }
   ]

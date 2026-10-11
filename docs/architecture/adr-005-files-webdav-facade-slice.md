@@ -1,6 +1,13 @@
 # ADR-005: Files WebDAV facade slice
 
-Status: accepted for the first Files data-plane transition slice; WebDAV write MVP promoted by #1007
+Status: superseded for the current release by the pinned
+`steering/release-2026-10-product-consolidation.md` profile and #1470. This
+document records the historical northbound WebDAV implementation slice. Files
+member operations now use the generated Weave User API; WebDAV/OCS may remain
+southbound inside a provider adapter. Provider adoption and migration belong to
+#1498. The security, integrity, permission and recovery requirements below
+remain applicable where their capabilities are enabled. The historical decisions
+below are retained for traceability, not as an active client contract.
 
 ## Context
 

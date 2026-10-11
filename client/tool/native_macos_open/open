@@ -1,0 +1,27 @@
+#!/bin/bash
+# Flutter attaches to the macOS binary before asking LaunchServices to open its
+# bundle. A newly built app can briefly return procNotFound (-600) at that point.
+set -u
+
+if [[ "$#" -ne 1 || "$1" != *.app ]]; then
+  exec /usr/bin/open "$@"
+fi
+
+for attempt in {1..20}; do
+  output="$(/usr/bin/open "$1" 2>&1)"
+  result=$?
+  if ((result == 0)); then
+    if ((attempt > 1)); then
+      printf 'NATIVE_APP_FOREGROUND_RETRY_RESULT status=passed attempts=%s\n' "$attempt" >&2
+    fi
+    exit 0
+  fi
+  if [[ "$output" != *'_LSOpenURLsWithCompletionHandler() failed with error -600.'* ]]; then
+    printf '%s\n' "$output" >&2
+    exit "$result"
+  fi
+  sleep 0.1
+done
+
+printf 'NATIVE_APP_FOREGROUND_RETRY_RESULT status=failed reason=procNotFound\n' >&2
+exit 1

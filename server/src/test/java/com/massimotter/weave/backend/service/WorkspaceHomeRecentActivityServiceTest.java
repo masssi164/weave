@@ -9,19 +9,47 @@ import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.identity.IdentityReferences;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 class WorkspaceHomeRecentActivityServiceTest {
 
     private static final String TENANT = "tenant-a";
     private static final String SHARED_CONTEXT = "workspace-a";
+
+    @Test
+    void durableSpaceRevocationRemovesHomeActivityDespiteStaticGrant() {
+        SpaceAccessPort spaces = mock(SpaceAccessPort.class);
+        AtomicBoolean granted = new AtomicBoolean(true);
+        when(spaces.allows(any(), any(), any(), any())).thenAnswer(call ->
+                granted.get() && SHARED_CONTEXT.equals(call.getArgument(1)));
+        var staticRights = mock(com.massimotter.weave.backend.context.authz.ContextAuthorizationPort.class);
+        WorkspaceHomeRecentActivityService service = new WorkspaceHomeRecentActivityService(
+                auditFixture(), staticRights, properties(), identityContexts(), spaces);
+
+        assertThat(service.recentActivity(jwt("collaborator-sub", TENANT))).hasSize(2);
+        granted.set(false);
+        assertThat(service.recentActivity(jwt("collaborator-sub", TENANT))).isEmpty();
+        verify(spaces, atLeastOnce()).allows(TENANT, SHARED_CONTEXT,
+                IdentityReferences.accountId("https://auth.weave.test/realms/weave", "collaborator-sub"),
+                SpaceAccessPort.Permission.VIEW);
+        verifyNoInteractions(staticRights);
+    }
 
     @Test
     void projectsOnlyAuthorizedCompletedSupportSafeActivityWithoutPayloadOrIdentityLeakage() {
@@ -102,6 +130,29 @@ class WorkspaceHomeRecentActivityServiceTest {
             assertThat(request.principalRef()).isEqualTo("user:outsider-sub");
             assertThat(request.permission()).isEqualTo(ContextPermission.VIEW);
         });
+    }
+
+    @Test
+    void completedUserFilesActivityIsOwnerOnlyEvenWithSharedContextView() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        audit.publish(userFileEvent("files:user-http", "completed", "completed-user-write"));
+        audit.publish(userFileEvent("files:user-http", "ambiguous", "ambiguous-user-write"));
+        audit.publish(userFileEvent("files:other", "completed", "other-source-write"));
+        WorkspaceHomeRecentActivityService service = new WorkspaceHomeRecentActivityService(
+                audit,
+                request -> ContextAuthorizationDecision.allow("shared workspace membership"),
+                properties(),
+                identityContexts());
+
+        assertThat(service.recentActivity(jwt("author-sub", TENANT)))
+                .singleElement()
+                .satisfies(activity -> {
+                    assertThat(activity.action()).isEqualTo("files.user_write.completed");
+                    assertThat(activity.visibility()).isEqualTo("private");
+                    assertThat(activity.actorIsCurrentUser()).isTrue();
+                    assertThat(activity.supportSafe()).isTrue();
+                });
+        assertThat(service.recentActivity(jwt("collaborator-sub", TENANT))).isEmpty();
     }
 
     @Test
@@ -230,6 +281,15 @@ class WorkspaceHomeRecentActivityServiceTest {
                 "other-tenant-file-write",
                 "2026-07-12T10:07:00Z"));
         return audit;
+    }
+
+    private AuditEvent userFileEvent(String source, String result, String key) {
+        return new AuditEvent(
+                TENANT, SHARED_CONTEXT, "user:author-sub", source,
+                AuditAction.FILES_OPERATION_INTENT_RECORDED,
+                Instant.parse("2026-07-12T10:08:00Z"), key, AuditRedactionLevel.SUPPORT_SAFE,
+                Map.of("domain", "files", "operation", "updateFilesItemContent",
+                        "result", result, "fileId", "file:private"));
     }
 
     private AuditEvent event(

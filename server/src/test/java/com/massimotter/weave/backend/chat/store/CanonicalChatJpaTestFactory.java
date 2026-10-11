@@ -20,6 +20,7 @@ final class CanonicalChatJpaTestFactory {
                 JpaTestDatabase.repository(dataSource, ChatQuarantineJpaRepository.class),
                 JpaTestDatabase.repository(dataSource, ChatReadReceiptJpaRepository.class),
                 JpaTestDatabase.repository(dataSource, ChatChangeJpaRepository.class),
+                JpaTestDatabase.repository(dataSource, ChatChangeCommitFenceJpaRepository.class),
                 JpaTestDatabase.transactionManager(dataSource));
     }
 }

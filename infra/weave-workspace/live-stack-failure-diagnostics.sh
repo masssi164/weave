@@ -60,6 +60,7 @@ redact_stream() {
     s/\b(?:rpk|rsk)_[A-Za-z0-9_-]{20,64}\b/<redacted-key-ref>/g;
     s/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/<redacted-jwt>/g;
     s/(flag provided but not defined:\s*)\S+/${1}<redacted>/gi;
+    s/([A-Za-z0-9_]*(?:password|passwd|token|secret|private[_-]?key|signing[_-]?key|credential|authorization|cookie)[A-Za-z0-9_]*\s*[=:]\s*)[\x22\x27][^\x22\x27\r\n]*[\x22\x27]/${1}<redacted>/gi;
     s/(([A-Za-z0-9_]*(?:password|passwd|token|secret|private[_-]?key|signing[_-]?key|credential|authorization|cookie)[A-Za-z0-9_]*\s*[=:]\s*)([^\s\r\n"'"'"']+))/${2}<redacted>/gi;
   '
 }
@@ -344,5 +345,14 @@ MD
   scan_for_unredacted_secrets "${OUTPUT_DIR}"
   log "Support-safe live stack failure diagnostics written to ${OUTPUT_DIR}"
 }
+
+if [[ "${1:-}" == "--verify" ]]; then
+  [[ $# -eq 2 && -d "${2}" ]] || {
+    printf '%s\n' 'Failure diagnostics verification requires one existing directory.' >&2
+    exit 2
+  }
+  scan_for_unredacted_secrets "${2}"
+  exit
+fi
 
 main "$@"

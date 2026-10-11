@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/services/oidc_client.dart';
@@ -18,6 +20,7 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
 
   final SecureStore _secureStore;
   final OidcClient _oidcClient;
+  static final _storeWrites = Expando<Future<void>>();
 
   @override
   Future<AuthState> restoreSession(AuthConfiguration configuration) async {
@@ -27,7 +30,7 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
     }
 
     if (!session.matches(configuration)) {
-      await clearLocalSession();
+      await _clearIfCurrent(session);
       return const AuthState.signedOut();
     }
 
@@ -36,7 +39,7 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
     }
 
     if (!session.hasRefreshToken) {
-      await clearLocalSession();
+      await _clearIfCurrent(session);
       return const AuthState.signedOut();
     }
 
@@ -55,13 +58,12 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
   Future<AuthState> refreshSession(AuthConfiguration configuration) async {
     final currentSession = await _readSession();
     if (currentSession == null || !currentSession.matches(configuration)) {
-      await clearLocalSession();
       return const AuthState.signedOut();
     }
 
     final refreshToken = currentSession.refreshToken;
     if (refreshToken == null || refreshToken.isEmpty) {
-      await clearLocalSession();
+      await _clearIfCurrent(currentSession);
       return const AuthState.signedOut();
     }
 
@@ -77,14 +79,21 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
         fallbackIdToken: currentSession.idToken,
         fallbackScopes: currentSession.scopes,
       );
-      await _writeSession(refreshedSession);
+      final saved = await _withSessionWrite(() async {
+        if (!await _isCurrent(currentSession)) return false;
+        await _persistSession(refreshedSession);
+        return true;
+      });
+      if (!saved) {
+        throw const AuthFailure.cancelled('WEAVE_AUTH_SESSION_CHANGED');
+      }
       return AuthState.authenticated(refreshedSession);
     } on AuthFailure catch (failure) {
       if (failure.type == AuthFailureType.storage) {
         rethrow;
       }
       if (failure.invalidatesSavedSession) {
-        await clearLocalSession();
+        await _clearIfCurrent(currentSession);
         return const AuthState.signedOut();
       }
       rethrow;
@@ -111,12 +120,40 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
   @override
   Future<void> clearLocalSession() async {
     try {
-      await _secureStore.delete(authSessionStorageKey);
+      await _withSessionWrite(() => _secureStore.delete(authSessionStorageKey));
     } catch (error) {
       throw AuthFailure.storage(
         'Unable to clear the saved session.',
         cause: error,
       );
+    }
+  }
+
+  Future<bool> _isCurrent(AuthSession expected) async {
+    final current = await _readSession();
+    return current != null &&
+        AuthSessionDto.fromSession(current).encode() ==
+            AuthSessionDto.fromSession(expected).encode();
+  }
+
+  Future<void> _clearIfCurrent(AuthSession expected) =>
+      _withSessionWrite(() async {
+        if (await _isCurrent(expected)) {
+          await _secureStore.delete(authSessionStorageKey);
+        }
+      });
+
+  Future<T> _withSessionWrite<T>(Future<T> Function() operation) async {
+    // Serialize storage mutations, including refresh compare-and-write, across
+    // repository instances sharing this store. Network calls stay outside it.
+    final previous = _storeWrites[_secureStore] ?? Future<void>.value();
+    final completed = Completer<void>();
+    _storeWrites[_secureStore] = completed.future;
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      completed.complete();
     }
   }
 
@@ -157,7 +194,10 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
     }
   }
 
-  Future<void> _writeSession(AuthSession session) async {
+  Future<void> _writeSession(AuthSession session) =>
+      _withSessionWrite(() => _persistSession(session));
+
+  Future<void> _persistSession(AuthSession session) async {
     try {
       await _secureStore.write(
         authSessionStorageKey,

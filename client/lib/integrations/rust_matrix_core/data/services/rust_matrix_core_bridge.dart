@@ -24,6 +24,23 @@ class RustMatrixCoreBridgeException implements Exception {
   String toString() => code;
 }
 
+class RustMatrixOAuthAuthorization {
+  const RustMatrixOAuthAuthorization({
+    required this.authorizationUrl,
+    required this.state,
+  });
+
+  final Uri authorizationUrl;
+  final String state;
+}
+
+class RustMatrixOAuthIdentity {
+  const RustMatrixOAuthIdentity({required this.userId, required this.deviceId});
+
+  final String userId;
+  final String deviceId;
+}
+
 String decodeMatrixLiveTestExtraRootCertificate({
   required bool enabled,
   required String encodedCertificate,
@@ -85,12 +102,6 @@ class RustMatrixCoreBridgeDescriptor {
   final String serverName;
   final List<String> supportedMatrixVersions;
   final List<String> supportedEndpoints;
-
-  bool get isWeaveFacade =>
-      protocolSurface == 'matrix-client-server-facade' &&
-      oidcGatekeeper == 'spring-boot-resource-server' &&
-      northboundHomeserverDependency == false &&
-      nativeLinked;
 
   Map<String, Object?> toJson() => {
     'protocolSurface': protocolSurface,
@@ -433,30 +444,144 @@ class RustMatrixCoreBridge {
 
   static Future<void>? _initialization;
 
-  Future<void> initializeClient({
+  Future<RustMatrixOAuthIdentity> activateMemberSession({
     required String profileKey,
     required String homeserverUrl,
     required String userId,
     required String deviceId,
     required String accessToken,
+    required String deviceProof,
     required String storePath,
     required String storePassphrase,
-    String? extraRootCertificatePem,
   }) async {
-    final resolvedExtraRootCertificatePem =
-        extraRootCertificatePem ?? _loadExtraRootCertificatePem();
-    await _native(
-      () => initializeMatrixClient(
+    final result = await _native(
+      () => matrixMemberSessionActivate(
         profileKey: profileKey,
         homeserverUrl: homeserverUrl,
         userId: userId,
         deviceId: deviceId,
         accessToken: accessToken,
+        deviceProof: deviceProof,
         storePath: storePath,
         storePassphrase: storePassphrase,
-        extraRootCertificatePem: resolvedExtraRootCertificatePem,
+        extraRootCertificatePem: _loadExtraRootCertificatePem(),
       ),
     );
+    final actualUserId = _string(result['userId']);
+    final actualDeviceId = _string(result['deviceId']);
+    if (actualUserId != userId || actualDeviceId != deviceId) {
+      throw const RustMatrixCoreBridgeException(
+        'M_WEAVE_MATRIX_SESSION_MISMATCH',
+      );
+    }
+    return RustMatrixOAuthIdentity(
+      userId: actualUserId,
+      deviceId: actualDeviceId,
+    );
+  }
+
+  Future<RustMatrixOAuthAuthorization> startOAuth({
+    required String loginKey,
+    required String homeserverUrl,
+    required String expectedIssuer,
+    required String clientId,
+    required String deviceId,
+    required String redirectUri,
+  }) async {
+    final result = await _native(
+      () => matrixOauthStart(
+        loginKey: loginKey,
+        homeserverUrl: homeserverUrl,
+        expectedIssuer: expectedIssuer,
+        clientId: clientId,
+        deviceId: deviceId,
+        redirectUri: redirectUri,
+        extraRootCertificatePem: _loadExtraRootCertificatePem(),
+      ),
+    );
+    final authorizationUrl = Uri.tryParse(_string(result['authorizationUrl']));
+    final state = _string(result['state']);
+    if (authorizationUrl == null || state.isEmpty) {
+      throw const RustMatrixCoreBridgeException(
+        'M_WEAVE_MATRIX_OAUTH_RESPONSE',
+      );
+    }
+    return RustMatrixOAuthAuthorization(
+      authorizationUrl: authorizationUrl,
+      state: state,
+    );
+  }
+
+  Future<RustMatrixOAuthIdentity> finishOAuth({
+    required String loginKey,
+    required Uri callbackUrl,
+  }) async {
+    final result = await _native(
+      () => matrixOauthFinish(
+        loginKey: loginKey,
+        callbackUrl: callbackUrl.toString(),
+      ),
+    );
+    final userId = _string(result['userId']);
+    final deviceId = _string(result['deviceId']);
+    if (userId.isEmpty || deviceId.isEmpty) {
+      throw const RustMatrixCoreBridgeException('M_WEAVE_MATRIX_OAUTH_SESSION');
+    }
+    return RustMatrixOAuthIdentity(userId: userId, deviceId: deviceId);
+  }
+
+  Future<void> abortOAuth({required String loginKey}) async {
+    await _native(() async => matrixOauthAbort(loginKey: loginKey));
+  }
+
+  Future<void> activateOAuth({
+    required String loginKey,
+    required String profileKey,
+    required String storePath,
+    required String storePassphrase,
+  }) async {
+    await _native(
+      () => matrixOauthActivate(
+        loginKey: loginKey,
+        profileKey: profileKey,
+        storePath: storePath,
+        storePassphrase: storePassphrase,
+      ),
+    );
+  }
+
+  Future<void> restoreOAuth({
+    required String profileKey,
+    required String homeserverUrl,
+    required String userId,
+    required String deviceId,
+    required String storePath,
+    required String storePassphrase,
+  }) async {
+    await _native(
+      () => matrixOauthRestore(
+        profileKey: profileKey,
+        homeserverUrl: homeserverUrl,
+        userId: userId,
+        deviceId: deviceId,
+        storePath: storePath,
+        storePassphrase: storePassphrase,
+        extraRootCertificatePem: _loadExtraRootCertificatePem(),
+      ),
+    );
+  }
+
+  Future<bool> endOAuth({
+    required String profileKey,
+    required String storePath,
+  }) async {
+    final result = await _native(
+      () => matrixOauthEndSession(profileKey: profileKey, storePath: storePath),
+    );
+    if (result['localSessionCleared'] != true) {
+      throw const RustMatrixCoreBridgeException('M_WEAVE_MATRIX_SESSION_STORE');
+    }
+    return result['remoteRevocationConfirmed'] == true;
   }
 
   String _loadExtraRootCertificatePem() =>
@@ -469,7 +594,7 @@ class RustMatrixCoreBridge {
     await _native(() => syncMatrixClient(profileKey: profileKey));
   }
 
-  Future<List<RustMatrixEncryptedRoom>> loadEncryptedRooms({
+  Future<List<RustMatrixEncryptedRoom>> loadRooms({
     required String profileKey,
   }) async {
     final result = await _native(() => matrixRooms(profileKey: profileKey));
@@ -487,7 +612,18 @@ class RustMatrixCoreBridge {
     );
   }
 
-  Future<List<RustMatrixMessageProjection>> loadEncryptedRoomMessages({
+  Future<RustMatrixEncryptedRoom> createBusinessRoom({
+    required String profileKey,
+    required String title,
+  }) async {
+    return RustMatrixEncryptedRoom.fromJson(
+      await _native(
+        () => matrixCreateBusinessRoom(profileKey: profileKey, title: title),
+      ),
+    );
+  }
+
+  Future<List<RustMatrixMessageProjection>> loadRoomMessages({
     required String profileKey,
     required String roomId,
     int limit = 100,
@@ -536,7 +672,7 @@ class RustMatrixCoreBridge {
     );
   }
 
-  Future<String> sendEncryptedText({
+  Future<String> sendText({
     required String profileKey,
     required String roomId,
     required String body,

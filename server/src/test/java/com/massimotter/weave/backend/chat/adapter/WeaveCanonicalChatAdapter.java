@@ -21,6 +21,7 @@ import com.massimotter.weave.backend.chat.domain.ChatReadReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRedactionReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
+import com.massimotter.weave.backend.chat.domain.ChatTimelinePage;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
 import com.massimotter.weave.backend.chat.domain.ChatTypingIndicator;
@@ -149,6 +150,34 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
     }
 
     @Override
+    public List<String> joinedConversationRefs(ChatRequestContext context, String afterConversationId, int limit) {
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException("conversation page size is invalid");
+        }
+        String after = afterConversationId == null ? "" : afterConversationId;
+        return conversations.values().stream()
+                .filter(conversation -> conversation.contextId().equals(context.contextId()))
+                .filter(conversation -> "joined".equals(
+                        conversation.membershipStates().get(context.actorRef().value())))
+                .map(conversation -> conversation.conversationId())
+                .filter(id -> id.compareTo(after) > 0)
+                .sorted()
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public java.util.Optional<String> memberConversationContext(
+            ChatRequestContext context, ConversationId conversationId) {
+        var conversation = conversations.get(conversationId.value());
+        return conversation != null
+                && ("joined".equals(conversation.membershipStates().get(context.actorRef().value()))
+                        || "invited".equals(conversation.membershipStates().get(context.actorRef().value())))
+                ? java.util.Optional.of(conversation.contextId())
+                : java.util.Optional.empty();
+    }
+
+    @Override
     public ChatCursor currentCursor(ChatRequestContext context) {
         return new ChatCursor("chat-revision-" + revision.get());
     }
@@ -196,6 +225,39 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
                 .skip(Math.max(0, conversation.events().size() - boundedLimit))
                 .toList();
         return new ChatTimeline(conversation.conversationId(), events);
+    }
+
+    @Override
+    public ChatTimelinePage timelinePage(
+            ChatRequestContext context, ConversationId conversationId, ChatCursor before, int limit) {
+        ConversationState conversation = requireConversation(context, conversationId.value());
+        requireJoined(conversation, context.actorRef());
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException("canonical Chat timeline page size is invalid");
+        }
+        int boundary = conversation.events().size();
+        if (before != null) {
+            String value = before.value();
+            if (!value.matches("timeline-revision-[0-9]+")) {
+                throw new IllegalArgumentException("canonical Chat timeline cursor is invalid");
+            }
+            boundary = Math.min(boundary, Integer.parseInt(value.substring("timeline-revision-".length())) - 1);
+        }
+        boundary = Math.max(0, boundary);
+        int start = Math.max(0, boundary - limit);
+        return new ChatTimelinePage(new ChatTimeline(conversationId.value(),
+                List.copyOf(conversation.events().subList(start, boundary))),
+                "timeline-revision-" + (start + 1), start > 0);
+    }
+
+    @Override
+    public ChatTimelineEvent event(ChatRequestContext context, ConversationId conversationId, String eventId) {
+        ConversationState conversation = requireConversation(context, conversationId.value());
+        requireJoined(conversation, context.actorRef());
+        return conversation.events().stream()
+                .filter(event -> event.eventId().equals(eventId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("canonical chat event was not found"));
     }
 
     @Override

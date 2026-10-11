@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/l10n/shared_preferences_app_locale_preference_repository.dart';
@@ -11,6 +12,8 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
+import 'package:weave/features/chat/presentation/chat_screen.dart';
+import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
@@ -21,6 +24,7 @@ import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
+import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -90,6 +94,29 @@ const _memberProfile = UserProfile(
   groups: ['workspace-default'],
 );
 
+const _readyCapabilities = WorkspaceCapabilitySnapshot(
+  shellAccess: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.shellAccess,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  chat: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.chat,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  files: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.files,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  calendar: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.calendar,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  boards: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.boards,
+    readiness: WorkspaceCapabilityReadiness.unavailable,
+  ),
+);
+
 void main() {
   group('AppShell', () {
     ProviderScope buildApp({
@@ -97,6 +124,7 @@ void main() {
       FakeFilesRepository? filesRepository,
       InMemoryPreferencesStore? preferencesStore,
       WorkspaceHomeSnapshot? homeSnapshot,
+      WorkspaceCapabilitySnapshot? capabilitySnapshot,
     }) {
       final secureStore = InMemorySecureStore({
         authSessionStorageKey: AuthSessionDto.fromSession(
@@ -135,6 +163,10 @@ void main() {
           weaveApiWorkspaceHomeProvider.overrideWith(
             (ref) async => homeSnapshot,
           ),
+          if (capabilitySnapshot != null)
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              AsyncData(capabilitySnapshot),
+            ),
         ],
         child: const WeaveApp(),
       );
@@ -146,6 +178,7 @@ void main() {
       FakeFilesRepository? filesRepository,
       InMemoryPreferencesStore? preferencesStore,
       WorkspaceHomeSnapshot? homeSnapshot,
+      WorkspaceCapabilitySnapshot? capabilitySnapshot,
     }) async {
       await tester.pumpWidget(
         buildApp(
@@ -153,6 +186,7 @@ void main() {
           filesRepository: filesRepository,
           preferencesStore: preferencesStore,
           homeSnapshot: homeSnapshot,
+          capabilitySnapshot: capabilitySnapshot,
         ),
       );
       await tester.pumpAndSettle();
@@ -248,6 +282,35 @@ void main() {
           );
         }
         semantics.dispose();
+      },
+    );
+
+    testWidgets(
+      'keyboard activation opens Files Chat and Calendar navigation',
+      (tester) async {
+        await pumpReadyShell(tester);
+
+        final navigationBar = find.byType(NavigationBar);
+        Future<void> openWithKeyboard(IconData icon) async {
+          final iconElement = tester.element(
+            find.descendant(of: navigationBar, matching: find.byIcon(icon)),
+          );
+          final focus = Focus.of(iconElement);
+          focus.requestFocus();
+          await tester.pump();
+          expect(focus.hasPrimaryFocus, isTrue);
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+        }
+
+        await openWithKeyboard(Icons.folder_outlined);
+        expect(find.byType(FilesScreen), findsOneWidget);
+
+        await openWithKeyboard(Icons.chat_bubble_outline);
+        expect(find.byType(ChatScreen), findsOneWidget);
+
+        await openWithKeyboard(Icons.calendar_month_outlined);
+        expect(find.byType(CalendarScreen), findsOneWidget);
       },
     );
 
@@ -366,7 +429,11 @@ void main() {
         },
       );
 
-      await pumpReadyShell(tester, filesRepository: filesRepository);
+      await pumpReadyShell(
+        tester,
+        filesRepository: filesRepository,
+        capabilitySnapshot: _readyCapabilities,
+      );
 
       await tester.tap(find.byIcon(Icons.folder_outlined));
       await tester.pumpAndSettle();
@@ -520,7 +587,11 @@ void main() {
         expect(find.textContaining('sha256:'), findsNothing);
         expect(find.textContaining('Roadmap.md'), findsNothing);
         expect(find.textContaining('Standup notes'), findsNothing);
-        expect(chatRepository.connectCalls, 0);
+        // Shared sign-in prepares Chat once. Rendering the support-safe
+        // activity projection must not fetch any conversation content.
+        expect(chatRepository.connectCalls, 1);
+        expect(chatRepository.loadConversationsCalls, 0);
+        expect(chatRepository.loadRoomTimelineCalls, 0);
         expect(filesRepository.requestedPaths, isEmpty);
       },
     );

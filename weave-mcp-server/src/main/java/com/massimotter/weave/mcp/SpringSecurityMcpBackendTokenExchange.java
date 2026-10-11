@@ -39,7 +39,7 @@ final class SpringSecurityMcpBackendTokenExchange implements McpBackendTokenExch
         || scopes == null
         || scopes.isEmpty()
         || !workload.scopes().containsAll(scopes)
-        || !Set.copyOf(properties.exchangeScopes()).equals(scopes)) {
+        || !Set.copyOf(properties.exchangeScopes()).containsAll(scopes)) {
       throw forbidden();
     }
     try {
@@ -53,11 +53,15 @@ final class SpringSecurityMcpBackendTokenExchange implements McpBackendTokenExch
       var principal =
           UsernamePasswordAuthenticationToken.authenticated(
               workload.clientId(), "", java.util.List.of());
+      // Spring's token-exchange provider takes scope from ClientRegistration, not from
+      // OAuth2AuthorizationContext.REQUEST_SCOPE_ATTRIBUTE_NAME. Build a request-local copy so
+      // the configured ceiling can never become an implicit grant for a narrower cell token.
+      ClientRegistration scopedRegistration =
+          ClientRegistration.withClientRegistration(registration).scope(scopes).build();
       OAuth2AuthorizationContext context =
-          OAuth2AuthorizationContext.withClientRegistration(registration)
+          OAuth2AuthorizationContext.withClientRegistration(scopedRegistration)
               .principal(principal)
               .attribute(SUBJECT_TOKEN_ATTRIBUTE, incoming)
-              .attribute(OAuth2AuthorizationContext.REQUEST_SCOPE_ATTRIBUTE_NAME, scopes)
               .build();
       OAuth2AuthorizedClient authorized = provider.authorize(context);
       if (authorized == null || authorized.getRefreshToken() != null) {

@@ -4,19 +4,21 @@
 
 Own here:
 - app-facing descriptors for the Rust/Ruma Matrix protocol core
-- the future `flutter_rust_bridge` generated binding handoff
+- the generated `flutter_rust_bridge` binding handoff to Matrix SDK 0.18
 - support-safe bridge readiness states that features can consume without importing provider SDKs
 
 Do not own here:
 - Weave Chat presentation state
-- raw Matrix provider or homeserver credentials
-- direct Synapse/MAS/provider setup flows
-- generated bridge code until the native build is wired into the Flutter target
+- server-side Synapse/MAS/provider setup flows
+- persistence or independent refresh of the Weave member bearer outside auth
 
 Boundary rules:
-- Flutter continues to authenticate through the Weave OIDC session before calling the Weave Matrix facade.
-- The shared Rust core is a protocol helper, not a provider SDK escape hatch.
-- The legacy Dart Matrix SDK seam has been retired; future E2EE and device-state behavior must come through the Rust Matrix core Flutter bridge.
+- Flutter uses the normal Weave member OIDC/PKCE session at the Weave Matrix facade after one sign-in. Auth owns bearer refresh and persistence; the Rust SDK receives only the current authorized bearer in memory.
+- The Matrix SDK connects to the Weave Matrix Client-Server northbound endpoint from OrgManifest v2, never directly to the selected southbound Chat provider.
+- Current Weave member, organization and Chat capability checks gate Matrix session creation and recovery; an uncertain or revoked grant fails closed without deleting the client E2EE store.
+- The installed Matrix device identity and encrypted Rust crypto store survive member token refresh and app restart. A failed or revoked member grant drops live Matrix access without deleting recovery material.
+- Distinct Matrix OAuth clients, dynamic registration and independent third-party client authentication are deferred from the current release profile.
+- The native Rust Matrix SDK owns Matrix transport, sync and E2EE. The legacy Dart Matrix SDK seam remains retired.
 
 ## Global Weave agent baseline
 

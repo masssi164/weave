@@ -31,7 +31,6 @@ public class MatrixFacadeClientStateService {
     private final ConcurrentMap<ScopedMatrixUser, ChatResolvedIdentity> actorsByMatrixUserId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ConcurrentMap<String, Map<String, Object>>> filtersByUser =
             new ConcurrentHashMap<>();
-    private final java.util.Set<String> revokedTokenHashes = ConcurrentHashMap.newKeySet();
     private final MatrixFacadeClientStateStore stateStore;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final OrganizationIdentityContextResolver identityContextResolver;
@@ -158,12 +157,17 @@ public class MatrixFacadeClientStateService {
         String tokenIdentity = tokenIdentity(jwt);
         if (tokenIdentity != null) {
             String hash = tokenHash(tokenIdentity);
-            revokedTokenHashes.add(hash);
             Instant now = Instant.now();
+            // A refreshed bearer has a new jti but retains the OIDC session.
+            // Keep the session tombstone beyond ordinary access-token expiry
+            // so an older or concurrently issued bearer cannot regain Chat.
+            Instant minimumExpiry = now.plusSeconds(30L * 86_400L);
             Instant expires = jwt.getExpiresAt() == null
-                    ? now.plusSeconds(86_400)
-                    : jwt.getExpiresAt();
+                    ? minimumExpiry
+                    : jwt.getExpiresAt().isAfter(minimumExpiry)
+                            ? jwt.getExpiresAt() : minimumExpiry;
             try {
+                stateStore.deleteExpiredSessions(now);
                 stateStore.revokeSession(hash, now, expires);
             } catch (MatrixFacadeClientStateStore.ConcurrentWriteException conflict) {
                 throw new MatrixProtocolException(
@@ -178,9 +182,6 @@ public class MatrixFacadeClientStateService {
             return false;
         }
         String hash = tokenHash(tokenIdentity);
-        if (revokedTokenHashes.contains(hash)) {
-            return true;
-        }
         Instant now = Instant.now();
         stateStore.deleteExpiredSessions(now);
         return stateStore.isSessionRevoked(hash, now);
@@ -216,16 +217,19 @@ public class MatrixFacadeClientStateService {
         String tenant = identityContext.organizationId();
         String issuer = identityContext.issuer();
         String subject = identityContext.subject();
-        String tokenId = jwt.getClaimAsString("jti");
-        if (tokenId != null && !tokenId.isBlank()) {
-            return tenant + "\u0000" + issuer + "\u0000" + subject + "\u0000jti:" + tokenId;
-        }
         String session = jwt.getClaimAsString("sid");
         if (session == null || session.isBlank()) {
             session = jwt.getClaimAsString("session_state");
         }
+        if (session != null && !session.isBlank()) {
+            return tenant + "\u0000" + issuer + "\u0000" + subject
+                    + "\u0000session:" + session.trim();
+        }
+        String tokenId = jwt.getClaimAsString("jti");
+        if (tokenId != null && !tokenId.isBlank()) {
+            return tenant + "\u0000" + issuer + "\u0000" + subject + "\u0000jti:" + tokenId.trim();
+        }
         return tenant + "\u0000" + issuer + "\u0000" + subject
-                + "\u0000session:" + session
                 + "\u0000issued:" + jwt.getIssuedAt() + "\u0000expires:" + jwt.getExpiresAt();
     }
 

@@ -32,6 +32,8 @@ APPROVED_SCOPES = (
     "agent-runtime.profile.read",
     "mcp.tools",
     "files.read",
+    "calendar.read",
+    "calendar.write",
 )
 WORKLOAD_ROLE = "weaver-runtime"
 ALLOWED_KEYCLOAK_REALM_DEFAULT_ROLES = frozenset(

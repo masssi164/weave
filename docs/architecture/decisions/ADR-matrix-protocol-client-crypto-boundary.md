@@ -13,7 +13,7 @@ Server protocol and client cryptography are separate Rust crates:
 - `rust/matrix-protocol`: Ruma + jni-rs only. It validates/projects Matrix wire values across a closed, versioned JNI operation set. It owns no database, authorization, provider selection or client crypto state.
 - `rust/matrix-client`: Matrix SDK / matrix-sdk-crypto + Flutter Rust Bridge. It owns device-private identity/Olm/Megolm state, verification, recovery and the encrypted local crypto store.
 
-The server stores only canonical Chat state plus public/opaque Matrix routing metadata and ciphertext. It does not decrypt encrypted room events and does not persist private client keys.
+The server stores canonical Chat state. For E2EE-enabled rooms it retains ciphertext and non-secret routing state only; it does not decrypt encrypted events or persist private client keys. Authorized non-E2EE business rooms may retain server-readable content under organization policy.
 
 The old shared `rust/matrix-core` runtime is removed. The server JNI artifact is `weave_matrix_protocol`; old `weave_matrix_core`, `matrixCoreLibrary` and `weave.matrix.core.library.path` names are forbidden by CI.
 
@@ -23,4 +23,4 @@ Enabling or using the permanent Matrix northbound facade does not select Synapse
 
 ## Qualification
 
-Closure requires independent protocol/client Rust tests, native JNI startup/failure diagnostics, ciphertext-only server evidence and platform artifact provenance. Missing evidence remains a merge blocker rather than a compatibility fallback.
+Closure requires independent protocol/client Rust tests, native JNI startup/failure diagnostics, ciphertext-only server evidence for E2EE-enabled rooms and platform artifact provenance. Missing evidence remains a merge blocker rather than a compatibility fallback.

@@ -5,6 +5,8 @@ import com.massimotter.weave.backend.providerbinding.domain.ProviderObjectMappin
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.List;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,13 +63,31 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
                         domain,
                         ProviderBinding.State.ACTIVE)
                 .orElse(null);
-        long actual = current == null ? 0 : current.revision();
+        Long latestRevision = bindings.maxRevision(organizationRef, domain);
+        long actual = latestRevision == null ? 0 : latestRevision;
+        if (current != null && current.revision() != actual) {
+            throw new IllegalStateException("active provider binding is not the latest revision");
+        }
         if (actual != expectedRevision) {
             throw new StaleProviderBindingException(
                     organizationRef,
                     domain,
                     expectedRevision,
                     actual);
+        }
+        // A new Chat projection cannot receive member traffic until #1498 proves its
+        // canonical history and authorization have been reconciled with the new target.
+        if (current != null && "chat".equals(domain)) {
+            throw new ChatBindingTransitionBlockedException();
+        }
+        // Credential rotation and replacement need verified identity carry-forward before
+        // the active revision changes. Until then, keep mapped Files and Calendar identities
+        // on their current authority rather than making public IDs disappear.
+        if (current != null && ("files".equals(domain) || "calendar".equals(domain))
+                && mappings.existsByIdOrganizationRefAndIdDomainAndIdBindingRevision(
+                        organizationRef, domain, current.revision())) {
+            if ("files".equals(domain)) throw new FilesBindingIdentityTransitionBlockedException();
+            throw new CalendarBindingIdentityTransitionBlockedException();
         }
         if (current != null) {
             current.retire();
@@ -124,6 +144,19 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
                 .map(ProviderObjectMappingJpaEntity::toDomain);
     }
 
+    @Override
+    public List<ProviderObjectMapping> mappedByProviderRefPrefix(
+            String organizationRef, String domain, long bindingRevision,
+            String providerRefPrefix, String afterCanonicalId, int limit) {
+        if (limit < 1 || limit > 101 || providerRefPrefix == null || providerRefPrefix.isBlank()
+                || afterCanonicalId == null) {
+            throw new IllegalArgumentException("Mapped resource page is invalid");
+        }
+        return mappings.mappedByProviderRefPrefix(organizationRef, domain, bindingRevision,
+                providerRefPrefix, afterCanonicalId, PageRequest.of(0, limit))
+                .stream().map(ProviderObjectMappingJpaEntity::toDomain).toList();
+    }
+
     public static final class StaleProviderBindingException extends RuntimeException {
         public StaleProviderBindingException(
                 String organizationRef,
@@ -132,6 +165,24 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
                 long actual) {
             super("provider binding changed for " + organizationRef + "/" + domain
                     + ": expected revision " + expected + " but found " + actual);
+        }
+    }
+
+    public static final class FilesBindingIdentityTransitionBlockedException extends RuntimeException {
+        public FilesBindingIdentityTransitionBlockedException() {
+            super("Files binding transition requires verified mapping and resource identity carry-forward");
+        }
+    }
+
+    public static final class CalendarBindingIdentityTransitionBlockedException extends RuntimeException {
+        public CalendarBindingIdentityTransitionBlockedException() {
+            super("Calendar binding transition requires verified Event identity carry-forward");
+        }
+    }
+
+    public static final class ChatBindingTransitionBlockedException extends RuntimeException {
+        public ChatBindingTransitionBlockedException() {
+            super("Chat binding transition requires verified provider reconciliation");
         }
     }
 }

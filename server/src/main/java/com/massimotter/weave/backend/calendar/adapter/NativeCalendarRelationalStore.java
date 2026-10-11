@@ -183,7 +183,7 @@ public class NativeCalendarRelationalStore {
         add(result, masterStart, masterEnd);
         RecurrenceSet recurrence = event.recurrence();
         if (recurrence == null) return;
-        String rrule = recurrence.rrule();
+        String rrule = recurrence.rrule(event.startValue().kind());
         switch (event.startValue().kind()) {
             case DATE -> recurrenceEngine.dates(
                             rrule,

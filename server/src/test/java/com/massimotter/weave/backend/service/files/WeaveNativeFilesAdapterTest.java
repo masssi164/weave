@@ -6,15 +6,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.adapter.FilesAuthorityJpaTestFactory;
-import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -48,6 +50,17 @@ class WeaveNativeFilesAdapterTest {
     }
 
     @Test
+    void nativeCapabilityProfileBlocksUnimplementedResourceGrantsAndShareConditions() {
+        assertThat(adapter(authority).conformanceProfile().fieldMappings())
+                .containsEntry("sourceOwner", MappingClass.UNSUPPORTED)
+                .containsEntry("userGrant", MappingClass.UNSUPPORTED)
+                .containsEntry("groupGrant", MappingClass.UNSUPPORTED)
+                .containsEntry("inheritedGrant", MappingClass.UNSUPPORTED)
+                .containsEntry("shareCondition", MappingClass.UNSUPPORTED)
+                .containsEntry("effectiveAccess", MappingClass.UNSUPPORTED);
+    }
+
+    @Test
     void writeReadAndRestartKeepCanonicalMetadataAndBlobContent() {
         byte[] content = "native file".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         FilesProviderPort first = adapter(authority).scoped(ALPHA);
@@ -58,6 +71,46 @@ class WeaveNativeFilesAdapterTest {
         assertThat(restarted.read(written.id()).bytes()).isEqualTo(content);
         assertThat(restarted.find(new FilePath("/readme.txt"))).isPresent();
         assertThat(blobs.inventory(blobScope(ALPHA), 10)).hasSize(1);
+    }
+
+    @Test
+    void userPortCreatesDistinctStableObjectsAndBoundsVersionedReads() {
+        FilesProviderPort scoped = adapter(authority).scoped(ALPHA);
+        FilePath path = new FilePath("/owned.txt");
+        FileWrite firstWrite = new FileWrite(path, new byte[] {1, 2, 3}, "application/octet-stream");
+
+        assertThat(scoped.supportsStableObjectRefs()).isTrue();
+        assertThat(scoped.supportsConditionalWrite()).isTrue();
+        assertThat(scoped.supportsAtomicCollectionCreate()).isTrue();
+        assertThat(scoped.supportsConditionalBoundedRead()).isTrue();
+        assertThat(scoped.supportsIdentityBoundConditionalRead()).isTrue();
+        var first = scoped.writeIfAbsent(firstWrite);
+        var version = scoped.find(path).orElseThrow().version();
+        assertThat(scoped.providerObjectRef(path)).contains(first.providerObjectRef());
+        assertThat(first.providerObjectRef()).isEqualTo(first.item().id().value());
+        assertThat(scoped.readBoundedIfVersion(first.item().id(), 3, version).bytes())
+                .containsExactly(1, 2, 3);
+        assertThatThrownBy(() -> scoped.readBoundedIfVersion(first.item().id(), 2, version))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status().value()).isEqualTo(413));
+        assertThatThrownBy(() -> scoped.readBoundedIfVersion(
+                first.item().id(), 3, new FileVersion("stale")))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status().value()).isEqualTo(412));
+        assertThatThrownBy(() -> scoped.writeIfAbsent(firstWrite))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status().value()).isEqualTo(409));
+
+        scoped.delete(path, version);
+        var second = scoped.writeIfAbsent(firstWrite);
+        assertThat(second.providerObjectRef()).isNotEqualTo(first.providerObjectRef());
+        assertThat(scoped.providerObjectRef(path)).contains(second.providerObjectRef());
+        assertThatThrownBy(() -> scoped.readBounded(first.item().id(), 3))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status().value()).isEqualTo(404));
+        assertThatThrownBy(() -> adapter(authority).scoped(BETA).readBounded(second.item().id(), 3))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status().value()).isEqualTo(404));
     }
 
     @Test
@@ -73,7 +126,7 @@ class WeaveNativeFilesAdapterTest {
     void metadataFailureDoesNotActivateAnUncommittedFile() {
         byte[] content = "pending".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         FilesProviderPort failing = new WeaveNativeFilesAdapter(
-                new FailNextSaveAuthority(authority),
+                new FailNextMutationAuthority(authority, FailurePoint.SAVE),
                 blobs,
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 100).scoped(ALPHA);
@@ -82,6 +135,29 @@ class WeaveNativeFilesAdapterTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("injected metadata failure");
         assertThat(authority.findByPath(ALPHA.organizationRef(), ALPHA.spaceRef(), new FilePath("/pending.txt"))).isEmpty();
+    }
+
+    @Test
+    void reconciliationRemovesBlobPublishedBeforeFailedActivation() {
+        FilesProviderPort failing = new WeaveNativeFilesAdapter(
+                new FailNextMutationAuthority(authority, FailurePoint.ACTIVATE),
+                blobs,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                100).scoped(ALPHA);
+
+        assertThatThrownBy(() -> failing.write(new FileWrite(
+                new FilePath("/orphan.txt"),
+                new byte[] {7, 8, 9},
+                "application/octet-stream")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("injected metadata failure");
+        assertThat(blobs.inventory(blobScope(ALPHA), 10)).hasSize(1);
+
+        var report = adapter(authority).reconcile(ALPHA);
+
+        assertThat(report.orphanBlobsDeleted()).isEqualTo(1);
+        assertThat(report.inconsistentMetadataRecords()).isZero();
+        assertThat(blobs.inventory(blobScope(ALPHA), 10)).isEmpty();
     }
 
     @Test
@@ -132,28 +208,49 @@ class WeaveNativeFilesAdapterTest {
         return new BlobScope(scope.organizationRef(), scope.spaceRef());
     }
 
-    private static final class FailNextSaveAuthority implements FilesAuthorityRepository {
+    private enum FailurePoint {
+        SAVE,
+        ACTIVATE
+    }
+
+    private static final class FailNextMutationAuthority implements FilesAuthorityRepository {
         private final FilesAuthorityRepository delegate;
+        private final FailurePoint failurePoint;
         private boolean fail = true;
 
-        private FailNextSaveAuthority(FilesAuthorityRepository delegate) {
+        private FailNextMutationAuthority(
+                FilesAuthorityRepository delegate,
+                FailurePoint failurePoint) {
             this.delegate = delegate;
+            this.failurePoint = failurePoint;
         }
 
         @Override
-        public CanonicalFileRecord save(CanonicalFileRecord record) {
-            if (fail) {
+        public StoredFileRecord save(StoredFileRecord record) {
+            if (fail && failurePoint == FailurePoint.SAVE) {
                 fail = false;
                 throw new IllegalStateException("injected metadata failure before activation");
             }
             return delegate.save(record);
         }
 
-        @Override public Optional<CanonicalFileRecord> findByPath(String organizationRef, String spaceRef, FilePath path) { return delegate.findByPath(organizationRef, spaceRef, path); }
-        @Override public Optional<CanonicalFileRecord> findById(String organizationRef, String spaceRef, FileId id) { return delegate.findById(organizationRef, spaceRef, id); }
-        @Override public List<CanonicalFileRecord> activeFiles(String organizationRef, String spaceRef) { return delegate.activeFiles(organizationRef, spaceRef); }
-        @Override public List<CanonicalFileRecord> replace(List<CanonicalFileRecord> tombstones, List<CanonicalFileRecord> activations) { return delegate.replace(tombstones, activations); }
-        @Override public CanonicalFileRecord move(String organizationRef, String spaceRef, FileId id, FilePath expectedPath, FilePath destination, Instant movedAt) { return delegate.move(organizationRef, spaceRef, id, expectedPath, destination, movedAt); }
+        @Override
+        public StoredFileRecord activate(StoredFileRecord record) {
+            if (fail && failurePoint == FailurePoint.ACTIVATE) {
+                fail = false;
+                throw new IllegalStateException("injected metadata failure during activation");
+            }
+            if (failurePoint == FailurePoint.SAVE) {
+                return save(record);
+            }
+            return delegate.activate(record);
+        }
+
+        @Override public Optional<StoredFileRecord> findByPath(String organizationRef, String spaceRef, FilePath path) { return delegate.findByPath(organizationRef, spaceRef, path); }
+        @Override public Optional<StoredFileRecord> findById(String organizationRef, String spaceRef, FileId id) { return delegate.findById(organizationRef, spaceRef, id); }
+        @Override public List<StoredFileRecord> activeFiles(String organizationRef, String spaceRef) { return delegate.activeFiles(organizationRef, spaceRef); }
+        @Override public List<StoredFileRecord> replace(List<StoredFileRecord> tombstones, List<StoredFileRecord> activations) { return delegate.replace(tombstones, activations); }
+        @Override public StoredFileRecord move(String organizationRef, String spaceRef, FileId id, FilePath expectedPath, FilePath destination, Instant movedAt) { return delegate.move(organizationRef, spaceRef, id, expectedPath, destination, movedAt); }
         @Override public FileLockRecord acquireLock(FileLockRecord requested, Instant now) { return delegate.acquireLock(requested, now); }
         @Override public Optional<FileLockRecord> activeLock(String organizationRef, String spaceRef, FilePath path, Instant now) { return delegate.activeLock(organizationRef, spaceRef, path, now); }
         @Override public List<FileLockRecord> activeLocks(String organizationRef, String spaceRef, Instant now) { return delegate.activeLocks(organizationRef, spaceRef, now); }

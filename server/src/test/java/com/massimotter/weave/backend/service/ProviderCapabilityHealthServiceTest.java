@@ -1,8 +1,10 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.config.ProviderHealthProperties;
+import com.massimotter.weave.backend.chat.port.ChatProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.portability.ProviderCapabilityProbeResult;
+import com.massimotter.weave.backend.portability.ProviderReadiness;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
@@ -21,6 +23,26 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ProviderCapabilityHealthServiceTest {
+
+    @Test
+    void chatHealthUsesTheActiveCanonicalProvider() {
+        ChatProviderPort chat = mock(ChatProviderPort.class);
+        when(chat.configured()).thenReturn(true);
+        when(chat.readiness()).thenReturn(ProviderReadiness.ready("chat-native-canonical-jpa-ready"));
+        ProviderCapabilityHealthService service = new ProviderCapabilityHealthService(
+                null, null, chat,
+                new ProviderHealthProperties(Duration.ofSeconds(60), Duration.ZERO,
+                        Duration.ofMinutes(5), Duration.ofMinutes(15)),
+                new SimpleMeterRegistry(), clock(), () -> 0);
+
+        service.refreshDueProviders();
+
+        assertThat(service.cached("chat")).hasValueSatisfying(capability -> {
+            assertThat(capability.state()).isEqualTo("available");
+            assertThat(capability.supportSafeCode()).isEqualTo("chat-native-canonical-jpa-ready");
+        });
+        verify(chat).readiness();
+    }
 
     @Test
     void snapshotsUseOnlyTheCacheAndTheMinimumProbeIntervalIsSixtySeconds() {

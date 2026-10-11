@@ -1,38 +1,58 @@
 # Matrix Client-Server support profile
 
-This profile describes the permanent northbound Matrix facade. It does not describe a southbound Matrix provider and does not make Synapse or MAS canonical Chat authority.
+Profile version: `weave.matrix-client-server/v3`
+
+Status: bounded Weave-owned business-room profile qualified in local native and unattended CI runs; integrated delivery acceptance tracked in #1475/#1480/#1481
+
+Authority: `steering/release-2026-10-product-consolidation.md`, Weave #1475
+
+This is the normative compatibility boundary for the Weave-owned northbound Matrix Client-Server facade. The facade is the accepted product target; the table records what has actually qualified for a compatibility claim. It does not assert that the current gateway, identity session, provider routing, or third-party clients are ready. Weave does not claim general Matrix homeserver or federation support.
+
+`Supported` requires a protocol assertion and a real Weave-owned client journey against the public Weave endpoint on the same qualified build. `Guarded` means implementation or evidence is incomplete and the route must not be advertised as compatible. `Unsupported` means the request must fail explicitly without a Chat mutation. The checker at `tools/check_matrix_support_profile.py` rejects a Supported row without both named assertions and a checked-in integrated evidence reference; it does not replace running those assertions. Independent third-party Matrix-client conformance and its general OAuth/registration profile are deferred by the pinned release contract.
 
 ## Protocol boundary
 
-Server Matrix wire parsing/projection is owned by `rust/matrix-protocol` through the closed JNI operation set. Canonical Chat authorization, persistence, provider selection, idempotency and sync remain Java/Weave responsibilities. Client cryptography is owned only by `rust/matrix-client`.
+Server Matrix wire parsing and projection belong to `rust/matrix-protocol` through its closed JNI operation set. Java owns current identity, authorization, canonical Chat persistence, provider selection, idempotency and sync. `rust/matrix-client` alone owns Flutter client crypto. The facade projects the existing canonical Chat store; it must not build a second ledger or substitute a proprietary Chat REST API.
 
 ## Endpoint profile
 
-| Surface | Status | Persistence / rule |
-| --- | --- | --- |
-| `/versions` | Supported | Ruma/JNI projection. |
-| `/account/whoami` | Supported | OIDC-authenticated identity/device projection. |
-| `/sync` | Guarded until final concurrency evidence | Composite canonical Chat + Matrix routing high-waters; token must not expose provider cursors. |
-| joined rooms / members / state | Supported profile | Projected from canonical Chat. |
-| room send with txnId | Guarded until exact idempotency evidence | Key must bind tenant, user, authenticated device/client instance, method, normalized endpoint, txnId and provider-binding revision where applicable. |
-| redaction | Supported profile | Canonical mutation; no provider payload leakage. |
-| read receipt | Supported profile | Durable receipt state. |
-| typing | Supported ephemeral profile | May be lost across restart; never described as durable. |
-| account data | Supported | Per tenant/user/type relational state. |
-| keys upload/query/claim | Supported server routing profile | Public key metadata only; one-time-key claim must be atomic. |
-| device signing / signatures | Supported server routing profile | No private client key material. |
-| sendToDevice | Guarded until multi-instance ordering evidence | Per-device durable queue ordered by logical Matrix revision. |
-| room-key backup | Supported opaque server storage profile | Ciphertext/public auth metadata only. |
-| device revocation | Supported profile | OIDC/device binding must fail closed after revocation. |
+| ID | Surface | Status | Protocol assertion | Weave-owned client assertion | Integrated evidence or gap |
+| --- | --- | --- | --- | --- | --- |
+| discovery | `/.well-known/matrix/client`, `/versions`, `GET /login` | Supported | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#matrixDiscoveryIsPublicAndPointsAtTheWeaveFacade` | `client/integration_test/system_browser_auth_e2e_test.dart#one fresh sign-in makes Files Calendar and native Matrix usable` | evidence: `docs/evidence/matrix/release-business-room-v3.md` |
+| whoami | `/account/whoami` | Supported | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject` | `client/integration_test/system_browser_auth_e2e_test.dart#one fresh sign-in makes Files Calendar and native Matrix usable` | evidence: `docs/evidence/matrix/release-business-room-v3.md` |
+| sync | `/sync` | Supported | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#syncProjectsCanonicalChatThroughRustWithStableWeaveCursor` | `client/integration_test/system_browser_auth_e2e_test.dart#one fresh sign-in makes Files Calendar and native Matrix usable` | evidence: `docs/evidence/matrix/release-business-room-v3.md` |
+| room-state | Joined rooms, members, state and timeline reads | Supported | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#joinedRoomsAndMessagesUseCanonicalIdentifiers` | `client/integration_test/system_browser_auth_e2e_test.dart#one fresh sign-in makes Files Calendar and native Matrix usable` | evidence: `docs/evidence/matrix/release-business-room-v3.md` |
+| room-send | Room event send with `txnId` | Supported | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#sendParsesInRustAndForwardsTransactionForCanonicalIdempotency` | `client/integration_test/system_browser_auth_e2e_test.dart#one fresh sign-in makes Files Calendar and native Matrix usable` | evidence: `docs/evidence/matrix/release-business-room-v3.md` |
+| redaction | Room redaction | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#redactionProjectsItsOwnEventIdInsteadOfReusingTheTargetId` | pending | Canonical mutation, authorization and provider-neutral readback are not integrated proof. |
+| receipt | Read receipts | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat` | pending | Durable multi-instance receipt state and independent client are unproven. |
+| typing | Typing | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat` | pending | Typing is ephemeral; loss across restart is allowed, but authorization and client behavior need proof. |
+| account-data | Per-user account data | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#openClawStartupCanLoadPushRulesCreateAFilterAndSyncAccountData` | pending | Tenant/user isolation and Weave-owned client behavior need proof. |
+| keys | Key upload, query, claim and changes | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#keyLifecycleToDeviceSyncAndLostDeviceRevocationAreDeviceScoped` | pending | For E2EE-enabled rooms, atomic one-time-key claims, device-list changes and real two-device crypto need proof. |
+| device-signing | Device signing and signatures | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#signatureUploadPreservesDeviceSelfSignatureAndIdentityKeys` | pending | Current member/device admission, cross-signing and Weave-owned client behavior need proof. |
+| send-to-device | `/sendToDevice` | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#keyLifecycleToDeviceSyncAndLostDeviceRevocationAreDeviceScoped` | pending | Requires durable per-device ordering and acknowledgement across instances. |
+| room-key-backup | Room-key backup | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#roomKeyBackupStoresOnlyOpaqueRecoveryPayloads` | pending | For E2EE-enabled rooms, ciphertext-only storage, authorization and real recovery need proof. |
+| device-revoke | Device revocation | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#keyLifecycleToDeviceSyncAndLostDeviceRevocationAreDeviceScoped` | pending | Revocation must invalidate the affected member/device access across restart and instances. |
+| device-continuity | Weave legacy-device challenge extension | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#legacyKeyedDeviceNeedsExistingPrivateKeySignatureBeforeProofBinding` | pending | A previously keyed device must sign with its existing Ed25519 private key before a new possession verifier is installed; native restoration, expiry, concurrency and failure preservation still need integrated proof. |
+| unknown-client-route | Unimplemented Client-Server routes | Unsupported | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#unimplementedClientServerRouteFailsExplicitlyWithoutChatMutation` | pending | Current response is 404 `M_NOT_FOUND`; standard error compatibility still needs review. |
+
+The Supported rows are bounded to the Weave-owned Flutter and OpenClaw business-room journey on the selected native provider. The exact local `testApp` run used the public gateway, real IdP, native SDK and OpenClaw client; the named protocol and PostgreSQL tests supply independent wire and persistence assertions. The evidence file records what passed and which wider release gates remain open. Guarded rows are not a compatibility claim, even when implementation exists. In particular, no enabled E2EE room is downgraded to the supported plaintext business-room path.
 
 ## Encryption invariant
 
-The server never owns user private identity keys, Olm/Megolm private session state or plaintext derived by decrypting encrypted room events. Encrypted room payloads and to-device envelopes are opaque server data except for protocol metadata required for routing and validation.
+For an E2EE-enabled room, the canonical Chat store retains ciphertext and non-secret state only. The server must never own user private identity keys, Olm/Megolm private session state, client recovery secrets or plaintext derived by decrypting encrypted room events. A client without validated E2EE capability must not enter that room through downgrade or server-side decryption. For an authorized non-E2EE business room, canonical server-readable content may support retention, search and compliance under current organization policy.
 
-## Provider invariant
+## Identity and provider invariants
 
-The Matrix facade is permanent. Selecting `weave-native`, Synapse-backed or another future `ChatProviderPort` implementation changes only the southbound provider. It does not change the member Matrix URL or turn the Matrix facade on/off.
+The member endpoint must be the credential-free HTTPS Weave Matrix URL advertised by OrgManifest v2. For this release, the Weave-owned Flutter path uses the normal member Weave OIDC/PKCE session at that facade. The server still enforces current organization, membership, resource and device boundaries on Matrix operations; admin and workload identities do not become member Chat grants. Refresh, revocation, wrong-account and cross-organization requests must fail closed. A separate Matrix OAuth client/audience and dynamic registration belong to the deferred independent-client profile.
 
-## Closure marker
+The native Flutter SDK supplies an explicit device ID with a client-held possession secret on Matrix requests. Weave stores only an organization/member/device-scoped verifier. Missing or incorrect possession fails closed, including after member reauthentication. A previously keyed device without a verifier needs verified recovery before adoption. The guarded `/_matrix/client/unstable/org.weave.device_continuity/{challenge,complete}` extension binds a short-lived single-use challenge to the new verifier; the existing Matrix device Ed25519 key signs it, and Weave checks its canonical scoped public key before binding. This is device security plumbing, not a Chat-message REST transport or a general Matrix extension promise. A failed challenge leaves the client crypto store and older encrypted grant untouched. The secret is absent from generated User/Admin contracts, manifests, logs and support output. Clients that do not supply an explicit device ID use only the identity-provider-derived session device and cannot claim another device by header. Device possession is covered by the Supported business-room `whoami` and sync assertions. Legacy keyed-device adoption, the continuity extension and complete encrypted-device recovery remain Guarded; the verifier implementation alone does not qualify those capabilities.
 
-Rows marked Guarded may be promoted only by committed PostgreSQL/concurrency/idempotency evidence. Final closure must remove this marker text for capabilities actually qualified and must not hide unresolved behavior behind compatibility code.
+The server name in an authenticated Matrix user ID returned by `/account/whoami` must equal the authority of the advertised Weave Matrix endpoint. Before giving the member bearer to the native SDK, Flutter compares its configured Matrix origin with the current HTTPS endpoint fetched through the generated User platform-config operation. An insecure, malformed or changed endpoint fails closed as a configuration error. An enrolled client must not silently accept a provider URL or a different server name. This guard does not by itself qualify a Guarded row as Supported.
+
+The selected `ChatProviderPort` is southbound. Changing its one active organization/module binding must not change the member Matrix URL or stable Matrix references. A staged candidate must not receive member traffic. The current single-organization deployment must have a durable matching `(organization, chat)` binding before its configured adapter can admit Chat traffic. Startup refuses a conflicting binding, and replacement remains blocked until #1498 verifies provider reconciliation. This binding guard does not qualify any Guarded Matrix route or prove provider replacement.
+
+## Qualification gate
+
+Promote one row to Supported only after its named protocol assertion, a Weave-owned Flutter or Weaver/OpenClaw client assertion, and sanitized integrated evidence run on the same exact build. The gate must include an authenticated negative route, non-member credentials, revoked device, wrong account and cross-organization denial where relevant. Sync, transaction send and to-device delivery additionally require committed PostgreSQL concurrency, ordering and restart evidence. The support profile version changes when a previously guarded public promise is promoted or removed. Independent third-party compatibility requires a future profile revision with separate OAuth and interoperability evidence.
+
+The current-release active Chat binding is immutable until the separate #1498 provider-replacement qualification. Room-send idempotency in this profile is scoped by organization, actor, device, method, room/event endpoint and transaction under concurrent replay. Binding-revision replay across a provider replacement remains a #1498 gate; this profile does not claim it. Live second-organization black-box denial and unattended native CI have executed in the recorded qualification. Every later integrated candidate still requires its own #1480 checks, and protected delivery remains a #1481 gate, as recorded in the evidence file.

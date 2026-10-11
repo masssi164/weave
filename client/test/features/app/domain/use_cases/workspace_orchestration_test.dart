@@ -48,8 +48,12 @@ class _FakeAppAuthPort implements AppAuthPort {
 }
 
 class _FakeChatSessionPort implements ChatSessionPort {
+  @override
+  Future<void> ensureSession() async {}
+
   int signOutCalls = 0;
   int clearSessionCalls = 0;
+  bool failSignOut = false;
 
   @override
   Future<void> clearSession() async {
@@ -59,6 +63,7 @@ class _FakeChatSessionPort implements ChatSessionPort {
   @override
   Future<void> signOut() async {
     signOutCalls++;
+    if (failSignOut) throw StateError('Matrix sign-out failed');
   }
 }
 
@@ -181,6 +186,32 @@ void main() {
       expect(authPort.clearLocalSessionCalls, 1);
       expect(authPort.signOutCalls, 0);
     });
+
+    test('clears Weave and Files even if Matrix sign-out fails', () async {
+      final authPort = _FakeAppAuthPort();
+      final chatSessionPort = _FakeChatSessionPort()..failSignOut = true;
+      final filesSessionPort = _FakeFilesSessionPort();
+      final invalidationPort = _FakeWorkspaceInvalidationPort();
+      final useCase = SignOutWorkspace(
+        authPort: authPort,
+        chatSessionPort: chatSessionPort,
+        filesSessionPort: filesSessionPort,
+        serverConfigurationPort: _FakeServerConfigurationPort(
+          configuration: buildTestConfiguration(),
+        ),
+        workspaceInvalidationPort: invalidationPort,
+      );
+
+      await expectLater(useCase.call(), throwsStateError);
+
+      expect(chatSessionPort.signOutCalls, 1);
+      expect(authPort.signOutCalls, 1);
+      expect(filesSessionPort.disconnectCalls, 1);
+      expect(
+        invalidationPort.lastReasonFor(WorkspaceIntegration.chat),
+        IntegrationInvalidationReason.explicitSignOut,
+      );
+    });
   });
 
   group('RestartWorkspaceSetup', () {
@@ -248,7 +279,6 @@ void main() {
           configuration: buildTestConfiguration(),
           authConfigurationChanged: false,
           matrixHomeserverChanged: true,
-          nextcloudBaseUrlChanged: false,
           backendApiBaseUrlChanged: false,
         ),
       );
@@ -262,7 +292,7 @@ void main() {
       );
     });
 
-    test('clears only Nextcloud when the base URL changes', () async {
+    test('clears Files when the User API base URL changes', () async {
       final authPort = _FakeAppAuthPort();
       final chatSessionPort = _FakeChatSessionPort();
       final filesSessionPort = _FakeFilesSessionPort();
@@ -279,8 +309,7 @@ void main() {
           configuration: buildTestConfiguration(),
           authConfigurationChanged: false,
           matrixHomeserverChanged: false,
-          nextcloudBaseUrlChanged: true,
-          backendApiBaseUrlChanged: false,
+          backendApiBaseUrlChanged: true,
         ),
       );
 
@@ -308,7 +337,6 @@ void main() {
           configuration: buildTestConfiguration(),
           authConfigurationChanged: true,
           matrixHomeserverChanged: false,
-          nextcloudBaseUrlChanged: false,
           backendApiBaseUrlChanged: false,
         ),
       );
@@ -342,7 +370,6 @@ void main() {
             configuration: buildTestConfiguration(),
             authConfigurationChanged: false,
             matrixHomeserverChanged: false,
-            nextcloudBaseUrlChanged: false,
             backendApiBaseUrlChanged: true,
           ),
         );

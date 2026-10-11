@@ -12,8 +12,11 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import java.net.URI;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -268,6 +271,98 @@ class KeycloakIdentityAdminClientTest {
         .hasMessageContaining("sanitized status 503")
         .hasMessageNotContaining("provider-secret");
     provider.verify();
+  }
+
+  @Test
+  void readsIssuerRevocationEpochFromCurrentMemberAfterLogout() {
+    expectCurrentMember("{\"id\":\"subject-1\",\"username\":\"member\"}", true);
+    expectLogout();
+    expectCurrentMember(
+        "{\"id\":\"subject-1\",\"username\":\"member\",\"notBefore\":1791633605}", false);
+
+    assertThat(client.revokeSessions("organization-1", "subject-1"))
+        .isEqualTo(Instant.ofEpochSecond(1791633605));
+    provider.verify();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "", ",\"notBefore\":0", ",\"notBefore\":1.5",
+      ",\"notBefore\":\"1791633605\"",
+      ",\"notBefore\":9223372036854775808"
+  })
+  void rejectsMissingNonIntegralNonPositiveAndOutOfRangeIssuerEpochs(String metadata) {
+    expectCurrentMember("{\"id\":\"subject-1\",\"username\":\"member\"}", true);
+    expectLogout();
+    expectCurrentMember(
+        "{\"id\":\"subject-1\",\"username\":\"member\"" + metadata + "}", false);
+
+    assertThatThrownBy(() -> client.revokeSessions("organization-1", "subject-1"))
+        .isInstanceOf(KeycloakIdentityAdminClient.KeycloakAdminException.class)
+        .satisfies(failure -> assertThat(
+            ((KeycloakIdentityAdminClient.KeycloakAdminException) failure).operation())
+            .isEqualTo("member-session-revocation"));
+    provider.verify();
+  }
+
+  @Test
+  void rejectsPostLogoutProjectionForAnotherIdentity() {
+    expectCurrentMember("{\"id\":\"subject-1\",\"username\":\"member\"}", true);
+    expectLogout();
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/users/subject-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess(
+            "{\"id\":\"other-subject\",\"notBefore\":1791633605}", MediaType.APPLICATION_JSON));
+
+    assertThatThrownBy(() -> client.revokeSessions("organization-1", "subject-1"))
+        .isInstanceOf(KeycloakIdentityAdminClient.KeycloakAdminException.class);
+    provider.verify();
+  }
+
+  @Test
+  void offboardingCapturesIssuerEpochBeforeRemovingMembershipAndDisablingIdentity() {
+    String user = "{\"id\":\"subject-1\",\"username\":\"member\"}";
+    expectCurrentMember(user, true);
+    expectCurrentMember(user, true);
+    expectLogout();
+    expectCurrentMember(
+        "{\"id\":\"subject-1\",\"username\":\"member\",\"notBefore\":1791633605}", false);
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave"
+            + "/organizations/organization-1/members/subject-1"))
+        .andExpect(method(HttpMethod.DELETE))
+        .andRespond(withStatus(HttpStatus.NO_CONTENT));
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/users/subject-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess(user, MediaType.APPLICATION_JSON));
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/users/subject-1"))
+        .andExpect(method(HttpMethod.PUT))
+        .andRespond(withStatus(HttpStatus.NO_CONTENT));
+
+    assertThat(client.offboard("organization-1", "subject-1"))
+        .isEqualTo(Instant.ofEpochSecond(1791633605));
+    provider.verify();
+  }
+
+  private void expectCurrentMember(String userJson, boolean withGroups) {
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/users/subject-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess(userJson, MediaType.APPLICATION_JSON));
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave"
+            + "/organizations/organization-1/members/subject-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("{\"id\":\"subject-1\"}", MediaType.APPLICATION_JSON));
+    if (withGroups) {
+      provider.expect(requestTo("https://identity.internal/admin/realms/weave"
+              + "/organizations/organization-1/members/subject-1/groups?briefRepresentation=true"))
+          .andExpect(method(HttpMethod.GET))
+          .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+    }
+  }
+
+  private void expectLogout() {
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/users/subject-1/logout"))
+        .andExpect(method(HttpMethod.POST))
+        .andRespond(withStatus(HttpStatus.NO_CONTENT));
   }
 
 }

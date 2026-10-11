@@ -7,6 +7,7 @@ import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/presentation/chat_admission_gate.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -15,8 +16,16 @@ import 'package:weave/l10n/generated/app_localizations.dart';
 ///
 /// Uses [CustomScrollView] with a [SliverAppBar] and shows loading,
 /// empty, or error states via the shared core widgets.
-class ChatScreen extends ConsumerWidget {
+class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const ChatAdmissionGate(child: _AdmittedChatScreen());
+}
+
+class _AdmittedChatScreen extends ConsumerWidget {
+  const _AdmittedChatScreen();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -33,7 +42,9 @@ class ChatScreen extends ConsumerWidget {
       } else {
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (context) => ChatRoomScreen(conversation: conversation),
+            builder: (context) => ChatAdmissionGate(
+              child: ChatRoomScreen(conversation: conversation),
+            ),
           ),
         );
       }
@@ -99,14 +110,6 @@ class ChatScreen extends ConsumerWidget {
               icon: Icons.chat_bubble_outline,
             ),
           ),
-          ChatViewPhase.connecting => SliverFillRemaining(
-            hasScrollBody: true,
-            child: LoadingState(
-              message: l10n.chatConnectingLabel,
-              hint: l10n.chatConnectingHint,
-              icon: Icons.sync_outlined,
-            ),
-          ),
           ChatViewPhase.empty => SliverFillRemaining(
             hasScrollBody: true,
             child: EmptyState(
@@ -123,7 +126,6 @@ class ChatScreen extends ConsumerWidget {
             child: _ChatErrorState(
               failure: state.failure!,
               onRetry: () => ref.read(chatProvider.notifier).retry(),
-              onConnect: () => ref.read(chatProvider.notifier).connect(),
             ),
           ),
           ChatViewPhase.content => _ChatOverviewSliver(
@@ -332,32 +334,21 @@ class _ChatStaleNotice extends StatelessWidget {
 }
 
 class _ChatErrorState extends StatelessWidget {
-  const _ChatErrorState({
-    required this.failure,
-    required this.onRetry,
-    required this.onConnect,
-  });
+  const _ChatErrorState({required this.failure, required this.onRetry});
 
   final ChatFailure failure;
   final VoidCallback onRetry;
-  final VoidCallback onConnect;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final usesConnectAction =
-        failure.type == ChatFailureType.cancelled ||
-        failure.type == ChatFailureType.sessionRequired ||
-        failure.type == ChatFailureType.unsupportedConfiguration;
     final hasAction = failure.type != ChatFailureType.unsupportedPlatform;
 
     return ErrorState(
       message: l10n.chatErrorTitle,
       guidance: _guidanceForFailure(l10n, failure.type),
-      retryLabel: hasAction
-          ? (usesConnectAction ? l10n.chatConnectButton : l10n.retryButton)
-          : null,
-      onRetry: hasAction ? (usesConnectAction ? onConnect : onRetry) : null,
+      retryLabel: hasAction ? l10n.retryButton : null,
+      onRetry: hasAction ? onRetry : null,
     );
   }
 

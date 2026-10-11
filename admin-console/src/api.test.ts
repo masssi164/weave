@@ -3,6 +3,104 @@ import { AdminControlPlaneApi, sampleControlPlane } from "./api";
 
 // V01_ADMIN_CONSOLE_MVP: Admin Console may call only Weave backend admin APIs, not optional provider APIs.
 describe("AdminControlPlaneApi provider boundary", () => {
+  it("uses the generated Admin selection model without inventing cutover evidence", async () => {
+    let requestBody: Record<string, unknown> | undefined;
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          category: "chat",
+          providerKey: "weave-native",
+          choiceModel: "recommended_self_hosted_default",
+          dryRun: true,
+          supportSafe: true,
+          applied: false,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    const api = new AdminControlPlaneApi(
+      {
+        apiBaseUrl: "https://api.example.invalid/api",
+        oidcIssuerUrl: "https://auth.example.invalid",
+        oidcClientId: "weave-admin-console",
+      },
+      fetchImpl as typeof fetch,
+    );
+
+    const result = await api.selectProvider("chat", "weave-native", undefined, true);
+
+    expect(requestBody).toEqual({
+      category: "chat",
+      providerKey: "weave-native",
+      choiceModel: "recommended_self_hosted_default",
+      dryRun: true,
+      secretRef: "secretref://weave/provider/weave-native",
+      reason: "Dry-run of provider-selection metadata through Organization/Admin Console",
+    });
+    expect(result.evidenceRef).toBeUndefined();
+    expect(result.dryRun).toBe(true);
+    expect(result.supportSafe).toBe(true);
+  });
+
+  it("does not render an invalid generated audit timestamp", async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify([{ action: "provider-check", occurredAt: "not-a-date" }]),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const api = new AdminControlPlaneApi(
+      {
+        apiBaseUrl: "https://api.example.invalid/api",
+        oidcIssuerUrl: "https://auth.example.invalid",
+        oidcClientId: "weave-admin-console",
+      },
+      fetchImpl as typeof fetch,
+    );
+
+    const events = await api.listAuditEvents();
+    expect(events[0]?.createdAt).toBe("");
+    expect(events[0]?.id).toBe("provider-check-unknown");
+  });
+
+  it("reads the current Admin bearer for each generated request and preserves HTTP denial", async () => {
+    let token = "admin-session-one";
+    const received: Array<string | null> = [];
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const bearer = new Headers(init?.headers).get("Authorization");
+      received.push(bearer);
+      return bearer === "Bearer member-session"
+        ? new Response(null, { status: 403 })
+        : new Response("[]", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+    });
+    const api = new AdminControlPlaneApi(
+      {
+        apiBaseUrl: "https://api.example.invalid/api",
+        oidcIssuerUrl: "https://auth.example.invalid",
+        oidcClientId: "weave-admin-console",
+      },
+      fetchImpl as typeof fetch,
+      () => token,
+    );
+
+    await api.listOrganizationInvitations("acme");
+    token = "admin-session-two";
+    await api.listOrganizationInvitations("acme");
+    token = "member-session";
+    await expect(api.listOrganizationInvitations("acme")).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(received).toEqual([
+      "Bearer admin-session-one",
+      "Bearer admin-session-two",
+      "Bearer member-session",
+    ]);
+  });
+
   it("uses only Weave admin APIs for Keycloak invitation lifecycle", async () => {
     const calls: Array<{
       url: string;
@@ -417,6 +515,8 @@ describe("AdminControlPlaneApi provider boundary", () => {
               {
                 category: "chat-channels",
                 readiness: "ready",
+                providerRealityLevel: "live_read",
+                policyState: "allowed",
                 selectedProviderKey: "synapse-homeserver",
                 dryRunEvidenceExpiresAt: "not-a-date",
               },
@@ -440,95 +540,17 @@ describe("AdminControlPlaneApi provider boundary", () => {
     const controlPlane = await api.getControlPlane();
 
     expect(controlPlane.providerCategories[0]?.lastCheckedAt).toBe(
-      "2099-01-01T00:00:00Z",
+      "2099-01-01T00:00:00.000Z",
     );
     expect(controlPlane.providerCategories[0]?.evidenceFreshness).toBe(
       "missing",
     );
+    expect(controlPlane.providerCategories[0]?.realityLevel).toBe("live_read");
+    expect(controlPlane.providerCategories[0]?.policyState).toBe("allowed");
+    expect(controlPlane.providerCategories[0]?.applyGates.applySupported).toBe(false);
     expect(controlPlane.providerCategories).toHaveLength(1);
     expect(controlPlane.providerCategories[0]?.supportSafe).toBe(false);
   });
 
-  it("uses the exact Agent Runtime Control lifecycle endpoints", async () => {
-    const calls: Array<{
-      path: string;
-      method: string;
-      idempotencyKey?: string;
-      body?: Record<string, unknown>;
-    }> = [];
-    const fetchImpl = vi.fn(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        const path = String(input);
-        calls.push({
-          path,
-          method: init?.method ?? "GET",
-          idempotencyKey: new Headers(init?.headers).get("Idempotency-Key") ?? undefined,
-          body: init?.body ? JSON.parse(String(init.body)) : undefined,
-        });
-        const body = {
-          personRef: "acct_0123456789abcdef0123456789abcdef",
-          cellRef: "cell_01",
-          runtimeProvider: "weaver-openclaw",
-          entitlementState: path.endsWith("/revoke") ? "revoked" : "entitled",
-          entitlementRevision: "entitlement-rev-7",
-          desiredState: path.endsWith("/runtime-state") ? "deleted" : "ready",
-          observedState: path.endsWith("/runtime-state") ? "deleted" : "ready",
-          runtimeProfileRef: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          workspaceRevision: "workspace-rev-3",
-          conflicts: 0,
-          capabilityState: "ready",
-          auditRef: "audit://agent-runtime-control/test",
-        };
-        return new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      },
-    );
-    const api = new AdminControlPlaneApi(
-      {
-        apiBaseUrl: "https://api.example.invalid/api",
-        oidcIssuerUrl: "https://auth.example.invalid",
-        oidcClientId: "weave-admin-console",
-      },
-      fetchImpl as typeof fetch,
-    );
 
-    const personRef = "acct_0123456789abcdef0123456789abcdef";
-    const loaded = await api.getAgentRuntime(personRef);
-    await api.changeAgentRuntime(personRef, "provision", "idem-provision-0001");
-    const revoked = await api.changeAgentRuntime(
-      personRef,
-      "revoke",
-      "idem-revocation-0001",
-      { reason: "Entitlement removed", entitlementRevision: "entitlement-rev-7" },
-    );
-    await api.changeAgentRuntime(
-      personRef,
-      "delete-runtime-state",
-      "idem-delete-state-0001",
-      { reason: "Member requested runtime-state deletion" },
-    );
-
-    expect(loaded.runtimeProvider).toBe("weaver-openclaw");
-    expect(revoked.entitlementState).toBe("revoked");
-    expect(calls.map((call) => call.path)).toEqual([
-      `https://api.example.invalid/api/admin/agent-runtimes/${personRef}`,
-      `https://api.example.invalid/api/admin/agent-runtimes/${personRef}/provision`,
-      `https://api.example.invalid/api/admin/agent-runtimes/${personRef}/revoke`,
-      `https://api.example.invalid/api/admin/agent-runtimes/${personRef}/runtime-state`,
-    ]);
-    expect(calls[1]).toMatchObject({ method: "POST", idempotencyKey: "idem-provision-0001" });
-    expect(calls[2]?.body).toEqual({
-      reason: "Entitlement removed",
-      entitlementRevision: "entitlement-rev-7",
-    });
-    expect(calls[3]?.body).toEqual({
-      reason: "Member requested runtime-state deletion",
-      confirmation: "DELETE_RUNTIME_STATE_ONLY",
-    });
-    expect(calls.map((call) => call.path).join("\n")).not.toMatch(
-      /slack\.com|graph\.microsoft\.com|matrix|openclaw\.json/i,
-    );
-  });
 });

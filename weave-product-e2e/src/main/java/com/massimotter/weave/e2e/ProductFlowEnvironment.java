@@ -179,6 +179,12 @@ record ProductFlowEnvironment(
     return actorEmail("outsider");
   }
 
+  Path foreignOrganizationIdentity() {
+    return requirePrivateInput(
+        Path.of(required("foreign-organization-identity")),
+        "weave.e2e.foreign-organization-identity");
+  }
+
   private String actorEmail(String actor) {
     return "weave-e2e-" + Hashing.sha256(runId).substring(0, 20) + "-" + actor
         + "@example.invalid";

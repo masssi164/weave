@@ -9,6 +9,7 @@ java {
 
 dependencies {
     testImplementation platform(libs.spring.boot.bom)
+    testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation libs.archunit.junit5
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

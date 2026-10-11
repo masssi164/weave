@@ -30,9 +30,11 @@ class WeaveS3FilesAdapterMinioTest {
     private static final String SECRET_KEY = "weave-test-secret-key";
     private static final String BUCKET = "weave-files-test";
 
+    // Prepared from pinned upstream source and verified by the build script before CI starts it.
+    // Local Docker-backed runs prepare the same fixture and tag it weave-runtime-state:ci-s3.
     @Container
     private static final GenericContainer<?> MINIO = new GenericContainer<>(
-            "minio/minio:RELEASE.2025-02-18T16-25-55Z")
+            System.getenv().getOrDefault("WEAVE_MINIO_TEST_IMAGE", "weave-runtime-state:ci-s3"))
             .withEnv("MINIO_ROOT_USER", ACCESS_KEY)
             .withEnv("MINIO_ROOT_PASSWORD", SECRET_KEY)
             .withCommand("server", "/data")

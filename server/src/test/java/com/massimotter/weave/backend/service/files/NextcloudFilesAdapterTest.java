@@ -6,13 +6,17 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
+import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -25,6 +29,7 @@ import org.springframework.web.client.RestClient;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -37,6 +42,23 @@ class NextcloudFilesAdapterTest {
 
     private MockRestServiceServer server;
     private NextcloudFilesAdapter adapter;
+
+    private static final String ACCESS_DAV = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
+              <d:response><d:href>/remote.php/dav/files/weave-service/</d:href>
+                <d:propstat><d:prop><d:getetag>"revision-1"</d:getetag>
+                  <oc:fileid>42</oc:fileid><oc:owner-id>weave-service</oc:owner-id>
+                  <oc:permissions>RGDNVW</oc:permissions></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+            </d:multistatus>
+            """;
+
+    private static final String EMPTY_SHARES = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <ocs><meta><statuscode>100</statuscode></meta><data/></ocs>
+            """;
 
     @BeforeEach
     void setUp() {
@@ -58,6 +80,197 @@ class NextcloudFilesAdapterTest {
 
         assertThat(unconfigured.configured()).isFalse();
         assertThat(unconfigured.healthProbe().state().value()).isEqualTo("unavailable");
+    }
+
+    @Test
+    void accessInspectionReadsDavAndOcsSharesButBlocksUnsupportedNativeGrantParity() {
+        expectAccessDav(ACCESS_DAV);
+        server.expect(requestTo("https://files.example.test/ocs/v2.php/apps/files_sharing/api/v1/shares"
+                        + "?path=/&reshares=true&subfiles=true"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, AUTH_HEADER))
+                .andExpect(header("OCS-APIRequest", "true"))
+                .andRespond(withSuccess("""
+                        <ocs><meta><statuscode>100</statuscode></meta><data>
+                          <element><share_type>0</share_type><permissions>1</permissions></element>
+                          <element><share_type>1</share_type><permissions>31</permissions></element>
+                          <element><share_type>3</share_type><expiration>2026-10-30</expiration>
+                            <password>redacted-value</password></element>
+                        </data></ocs>
+                        """, MediaType.APPLICATION_XML));
+
+        FilesAccessInspection inspection = adapter.inspectAccessRoot(new FilePath("/"));
+
+        assertThat(inspection.davObserved()).isTrue();
+        assertThat(inspection.sharesObserved()).isTrue();
+        assertThat(inspection.ownerObserved()).isTrue();
+        assertThat(inspection.actorPermissionsObserved()).isTrue();
+        assertThat(inspection.versionObserved()).isTrue();
+        assertThat(inspection.providerFileIdObserved()).isTrue();
+        assertThat(inspection.observedShareCount()).isEqualTo(3);
+        assertThat(inspection.userShareCount()).isEqualTo(1);
+        assertThat(inspection.groupShareCount()).isEqualTo(1);
+        assertThat(inspection.linkShareCount()).isEqualTo(1);
+        assertThat(inspection.conditionedShareCount()).isEqualTo(1);
+        assertThat(inspection.blocked()).isTrue();
+        assertThat(inspection.blockingReasons()).contains(
+                "source-shares-require-target-enforcement",
+                "source-effective-access-unverified",
+                "source-full-inventory-unverified");
+        assertThat(inspection.toString()).doesNotContain("redacted-value", "weave-service", "2026-10-30");
+        server.verify();
+    }
+
+    @Test
+    void zeroSharesStillBlocksUntilEveryEffectiveRightIsProven() {
+        expectAccessDav(ACCESS_DAV);
+        server.expect(requestTo("https://files.example.test/ocs/v2.php/apps/files_sharing/api/v1/shares"
+                        + "?path=/&reshares=true&subfiles=true"))
+                .andRespond(withSuccess(EMPTY_SHARES, MediaType.APPLICATION_XML));
+
+        FilesAccessInspection inspection = adapter.inspectAccessRoot(new FilePath("/"));
+
+        assertThat(inspection.sharesObserved()).isTrue();
+        assertThat(inspection.observedShareCount()).isZero();
+        assertThat(inspection.blockingReasons()).contains("source-effective-access-unverified");
+        assertThat(inspection.blocked()).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void accessCapabilityProfileDoesNotClaimSharesOrGrantsArePortable() {
+        assertThat(adapter.conformanceProfile().fieldMappings())
+                .containsEntry("share", MappingClass.LOSSY)
+                .containsEntry("sourceOwner", MappingClass.MANUAL_REVIEW)
+                .containsEntry("userGrant", MappingClass.LOSSY)
+                .containsEntry("groupGrant", MappingClass.LOSSY)
+                .containsEntry("inheritedGrant", MappingClass.UNSUPPORTED)
+                .containsEntry("shareCondition", MappingClass.LOSSY)
+                .containsEntry("effectiveAccess", MappingClass.MANUAL_REVIEW);
+    }
+
+    @Test
+    void unavailableOcsInventoryCannotBeMistakenForNoShares() {
+        expectAccessDav(ACCESS_DAV);
+        server.expect(requestTo("https://files.example.test/ocs/v2.php/apps/files_sharing/api/v1/shares"
+                        + "?path=/&reshares=true&subfiles=true"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        FilesAccessInspection inspection = adapter.inspectAccessRoot(new FilePath("/"));
+
+        assertThat(inspection.sharesObserved()).isFalse();
+        assertThat(inspection.observedShareCount()).isNull();
+        assertThat(inspection.blockingReasons()).contains("source-share-inventory-unavailable");
+        assertThat(inspection.blocked()).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void davShareIndicatorCannotBeClearedByEmptyOcsResponse() {
+        expectAccessDav(ACCESS_DAV.replace(
+                "<oc:permissions>RGDNVW</oc:permissions>",
+                "<oc:permissions>RGDNVW</oc:permissions>"
+                        + "<oc:share-types><oc:share-type>3</oc:share-type></oc:share-types>"));
+        server.expect(requestTo("https://files.example.test/ocs/v2.php/apps/files_sharing/api/v1/shares"
+                        + "?path=/&reshares=true&subfiles=true"))
+                .andRespond(withSuccess(EMPTY_SHARES, MediaType.APPLICATION_XML));
+
+        FilesAccessInspection inspection = adapter.inspectAccessRoot(new FilePath("/"));
+
+        assertThat(inspection.davShareIndicatorObserved()).isTrue();
+        assertThat(inspection.blockingReasons()).contains("source-dav-share-indicator-unresolved");
+        assertThat(inspection.blocked()).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void malformedShareInventoryDoesNotReportObservedZeroShares() {
+        expectAccessDav(ACCESS_DAV);
+        server.expect(requestTo("https://files.example.test/ocs/v2.php/apps/files_sharing/api/v1/shares"
+                        + "?path=/&reshares=true&subfiles=true"))
+                .andRespond(withSuccess("""
+                        <ocs><meta><statuscode>100</statuscode></meta>
+                        <data><unexpected>unknown shape</unexpected></data></ocs>
+                        """, MediaType.APPLICATION_XML));
+
+        FilesAccessInspection inspection = adapter.inspectAccessRoot(new FilePath("/"));
+
+        assertThat(inspection.sharesObserved()).isFalse();
+        assertThat(inspection.observedShareCount()).isNull();
+        assertThat(inspection.blockingReasons()).contains("source-share-inventory-unavailable");
+        server.verify();
+    }
+
+    @Test
+    void failedDavPropstatIsNotTreatedAsOwnerOrPermissionEvidence() {
+        expectAccessDav(ACCESS_DAV.replace("HTTP/1.1 200 OK", "HTTP/1.1 403 Forbidden"));
+        server.expect(requestTo("https://files.example.test/ocs/v2.php/apps/files_sharing/api/v1/shares"
+                        + "?path=/&reshares=true&subfiles=true"))
+                .andRespond(withSuccess(EMPTY_SHARES, MediaType.APPLICATION_XML));
+
+        FilesAccessInspection inspection = adapter.inspectAccessRoot(new FilePath("/"));
+
+        assertThat(inspection.davObserved()).isFalse();
+        assertThat(inspection.ownerObserved()).isFalse();
+        assertThat(inspection.actorPermissionsObserved()).isFalse();
+        assertThat(inspection.blockingReasons()).contains("source-dav-access-unavailable");
+        server.verify();
+    }
+
+    private void expectAccessDav(String xml) {
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/"))
+                .andExpect(method(HttpMethod.valueOf("PROPFIND")))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, AUTH_HEADER))
+                .andExpect(header("Depth", "0"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<oc:owner-id")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<oc:permissions")))
+                .andRespond(withStatus(HttpStatus.MULTI_STATUS)
+                        .contentType(MediaType.APPLICATION_XML).body(xml));
+    }
+
+    @Test
+    void scopedRequestsUseOnlyTheirOrganizationAndConfigurationAccount() {
+        NextcloudFilesProperties accountA = configuredProperties();
+        NextcloudFilesProperties accountB = new NextcloudFilesProperties(
+                "https://files.example.test", "/remote.php/dav/files",
+                "backend-service-account", "service-b", "password-b");
+        Map<String, NextcloudFilesProperties> accounts = Map.of(
+                "org-a/profile:a", accountA,
+                "org-b/profile:b", accountB);
+        NextcloudFilesAccountResolver resolver = new NextcloudFilesAccountResolver() {
+            @Override
+            public Optional<NextcloudFilesProperties> resolve(String organizationRef, String configurationRef) {
+                return Optional.ofNullable(accounts.get(organizationRef + "/" + configurationRef));
+            }
+
+            @Override
+            public boolean available() {
+                return true;
+            }
+        };
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer scopedServer = MockRestServiceServer.bindTo(builder).build();
+        NextcloudFilesAdapter staged = new NextcloudFilesAdapter(accountA, resolver, builder.build());
+        scopedServer.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/report.md"))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, AUTH_HEADER))
+                .andRespond(withSuccess("a", MediaType.TEXT_PLAIN));
+        scopedServer.expect(requestTo("https://files.example.test/remote.php/dav/files/service-b/report.md"))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder()
+                        .encodeToString("service-b:password-b".getBytes(StandardCharsets.UTF_8))))
+                .andRespond(withSuccess("b", MediaType.TEXT_PLAIN));
+
+        var scopedA = staged.scoped(new FilesRequestScope("org-a", "workspace-default", 1, "profile:a"));
+        var scopedB = staged.scoped(new FilesRequestScope("org-b", "workspace-default", 2, "profile:b"));
+        assertThatThrownBy(() -> staged.inspectAccessRoot(new FilePath("/")))
+                .isInstanceOf(ApiErrorException.class);
+        assertThat(new String(scopedA.read(new FileId(FilePathCodec.toId("/report.md"))).bytes(), StandardCharsets.UTF_8))
+                .isEqualTo("a");
+        assertThat(new String(scopedB.read(new FileId(FilePathCodec.toId("/report.md"))).bytes(), StandardCharsets.UTF_8))
+                .isEqualTo("b");
+        assertThatThrownBy(() -> staged.scoped(
+                new FilesRequestScope("org-b", "workspace-default", 2, "profile:a")))
+                .isInstanceOf(ApiErrorException.class);
+        scopedServer.verify();
     }
 
     @Test
@@ -283,6 +496,123 @@ class NextcloudFilesAdapterTest {
         assertThat(download.bytes()).isEqualTo("hello".getBytes(StandardCharsets.UTF_8));
 
         adapter.delete(new FilePath("/Team/readme.md"), FileVersion.unknown());
+        server.verify();
+    }
+
+    @Test
+    void boundedDownloadRejectsOversizedBodyAfterAtMostLimitPlusOneBytes() {
+        String path = "https://files.example.test/remote.php/dav/files/weave-service/large.bin";
+        server.expect(requestTo(path))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(new byte[] {0, 1, 2, 3}, MediaType.APPLICATION_OCTET_STREAM));
+        assertThatThrownBy(() -> adapter.readBounded(new FileId(FilePathCodec.toId("/large.bin")), 3))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+                    assertThat(exception.code()).isEqualTo("files-download-too-large");
+                });
+        server.verify();
+    }
+
+    @Test
+    void conditionalBoundedDownloadRequiresTheObservedStrongProviderVersion() {
+        String path = "https://files.example.test/remote.php/dav/files/weave-service/locked.bin";
+        server.expect(requestTo(path))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header(HttpHeaders.IF_MATCH, "\"v1\""))
+                .andRespond(withSuccess(new byte[] {0, 1}, MediaType.APPLICATION_OCTET_STREAM)
+                        .header(HttpHeaders.ETAG, "\"v1\""));
+        server.expect(requestTo(path))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header(HttpHeaders.IF_MATCH, "\"v1\""))
+                .andRespond(withStatus(HttpStatus.PRECONDITION_FAILED));
+
+        FileId id = new FileId(FilePathCodec.toId("/locked.bin"));
+        assertThat(adapter.readBoundedIfVersion(id, 2, new FileVersion("\"v1\"")).bytes())
+                .containsExactly((byte) 0, (byte) 1);
+        assertThatThrownBy(() -> adapter.readBoundedIfVersion(id, 2, new FileVersion("\"v1\"")))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status()).isEqualTo(HttpStatus.PRECONDITION_FAILED));
+        server.verify();
+    }
+
+    @Test
+    void conditionalWritesSendAtomicProviderPreconditions() {
+        String target = "https://files.example.test/remote.php/dav/files/weave-service/new.txt";
+        server.expect(requestTo(target))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(header(HttpHeaders.IF_NONE_MATCH, "*"))
+                .andRespond(withStatus(HttpStatus.CREATED).header("OC-FileId", "00000042ocabc"));
+        server.expect(requestTo(target))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(header(HttpHeaders.IF_MATCH, "\"provider-v1\""))
+                .andRespond(withStatus(HttpStatus.PRECONDITION_FAILED));
+
+        FileWrite write = new FileWrite(new FilePath("/new.txt"), new byte[] {0, 1}, "text/plain");
+        var created = adapter.writeIfAbsent(write);
+        assertThat(created.item().path()).isEqualTo(write.path());
+        assertThat(created.providerObjectRef()).isEqualTo("nextcloud-object:00000042ocabc");
+        assertThatThrownBy(() -> adapter.writeIfVersion(write, new FileVersion("\"provider-v1\"")))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.PRECONDITION_FAILED);
+                    assertThat(exception.code()).isEqualTo("files-precondition-failed");
+                });
+        server.verify();
+    }
+
+    @Test
+    void atomicFolderCreateRequiresDavCreatedStatus() {
+        String target = "https://files.example.test/remote.php/dav/files/weave-service/new-folder";
+        server.expect(requestTo(target))
+                .andExpect(method(HttpMethod.valueOf("MKCOL")))
+                .andRespond(withStatus(HttpStatus.CREATED).header("OC-FileId", "00000042ocabc"));
+        server.expect(requestTo(target))
+                .andExpect(method(HttpMethod.valueOf("MKCOL")))
+                .andRespond(withStatus(HttpStatus.OK));
+
+        assertThat(adapter.createCollectionIfAbsent(new FilePath("/new-folder")).item().kind())
+                .isEqualTo(Kind.COLLECTION);
+        assertThatThrownBy(() -> adapter.createCollectionIfAbsent(new FilePath("/new-folder")))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.status()).isEqualTo(HttpStatus.CONFLICT));
+        server.verify();
+    }
+
+    @Test
+    void resolvesStableNextcloudFileIdInsteadOfPathDerivedAdapterId() {
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/Team/readme.md"))
+                .andExpect(method(HttpMethod.valueOf("PROPFIND")))
+                .andExpect(header("Depth", "0"))
+                .andRespond(withStatus(HttpStatus.MULTI_STATUS).contentType(MediaType.APPLICATION_XML).body("""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
+                          <d:response><d:href>/remote.php/dav/files/weave-service/Team/readme.md</d:href>
+                            <d:propstat><d:prop><oc:fileid>42</oc:fileid>
+                              <oc:id>00000042ocabc</oc:id></d:prop>
+                              <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+                          </d:response>
+                        </d:multistatus>
+                        """));
+        assertThat(adapter.providerObjectRef(new FilePath("/Team/readme.md")))
+                .contains("nextcloud-object:00000042ocabc");
+        server.verify();
+    }
+
+    @Test
+    void missingNextcloudFileIdBlocksStableUserIdentity() {
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/Team/readme.md"))
+                .andExpect(method(HttpMethod.valueOf("PROPFIND")))
+                .andRespond(withStatus(HttpStatus.MULTI_STATUS).contentType(MediaType.APPLICATION_XML).body("""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <d:multistatus xmlns:d="DAV:">
+                          <d:response><d:href>/remote.php/dav/files/weave-service/Team/readme.md</d:href>
+                            <d:propstat><d:prop></d:prop>
+                              <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+                          </d:response>
+                        </d:multistatus>
+                        """));
+        assertThatThrownBy(() -> adapter.providerObjectRef(new FilePath("/Team/readme.md")))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.code()).isEqualTo("nextcloud-access-response-invalid"));
         server.verify();
     }
 

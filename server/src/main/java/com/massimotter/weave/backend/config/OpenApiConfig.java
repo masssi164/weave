@@ -10,7 +10,7 @@ import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.responses.ApiResponse;
-import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -29,6 +29,25 @@ import org.springframework.context.annotation.Configuration;
 public class OpenApiConfig {
 
     @Bean
+    GroupedOpenApi userApi() {
+        return GroupedOpenApi.builder()
+                .group("user")
+                .pathsToMatch("/api/**")
+                .pathsToExclude("/api/admin/**", "/api/bootstrap/**", "/api/migration/**",
+                        "/api/v1/agent-runtime/**", "/api/connectors/**")
+                .build();
+    }
+
+    @Bean
+    GroupedOpenApi adminApi() {
+        return GroupedOpenApi.builder()
+                .group("admin")
+                .pathsToMatch("/api/admin/**", "/api/bootstrap/**", "/api/migration/**")
+                .pathsToExclude("/api/admin/agent-runtimes/**")
+                .build();
+    }
+
+    @Bean
     OpenAPI weaveOpenApi() {
         return new OpenAPI()
                 .components(new Components()
@@ -44,21 +63,5 @@ public class OpenApiConfig {
                         .title("Weave Backend API")
                         .version("v1")
                         .description("JWT-protected product API for workspace capabilities and orchestration."));
-    }
-
-    @Bean
-    OpenApiCustomizer stableOperationIds() {
-        return openApi -> openApi.getPaths().forEach((path, pathItem) -> pathItem.readOperations().forEach(operation -> {
-            String operationId = operation.getOperationId();
-            if (operationId == null || operationId.isBlank()) {
-                return;
-            }
-
-            String stableOperationId = operationId.replaceFirst("_\\d+$", "");
-            if (path.startsWith("/api/v1/") && !stableOperationId.endsWith("V1")) {
-                stableOperationId = stableOperationId + "V1";
-            }
-            operation.setOperationId(stableOperationId);
-        }));
     }
 }

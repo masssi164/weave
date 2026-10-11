@@ -47,6 +47,18 @@ class MatrixSdkVendorProvenanceTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("wrong checksum", result.stderr)
 
+    def test_accepts_upstream_pull_request_reference(self) -> None:
+        with self.fixture() as fixture:
+            manifest = json.loads(fixture["manifest"].read_text(encoding="utf-8"))
+            patch = manifest["patchSeries"][0]
+            patch.pop("upstreamIssues")
+            patch["upstreamPullRequests"] = [
+                "https://github.com/matrix-org/matrix-rust-sdk/pull/7134"
+            ]
+            fixture["manifest"].write_text(json.dumps(manifest), encoding="utf-8")
+            result = self.run_guard(fixture)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def fixture(self):
         temporary = tempfile.TemporaryDirectory()
         root = Path(temporary.name)

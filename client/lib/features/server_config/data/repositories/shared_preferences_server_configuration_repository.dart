@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:weave/features/server_config/data/dtos/server_configuration_dto.dart';
@@ -28,7 +30,16 @@ class SharedPreferencesServerConfigurationRepository
 
       // Re-validate persisted values on load so presentation never receives
       // malformed configuration from storage.
-      final dto = ServerConfigurationDto.decode(raw);
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Invalid saved configuration');
+      }
+      if (decoded['schemaVersion'] != 2) {
+        // A v1 Matrix URL could name a concrete provider. Keep the saved
+        // value intact for support, but require a new OrgManifest handoff.
+        return null;
+      }
+      final dto = ServerConfigurationDto.fromJson(decoded);
       final issuerUrl = _deriver.parseIssuerUrl(dto.oidcIssuerUrl);
       final configuration = dto.toConfiguration();
       final clientId = _requiredClientId(
@@ -38,24 +49,19 @@ class SharedPreferencesServerConfigurationRepository
         configuration.serviceEndpoints.backendApiBaseUrl.toString(),
         fieldName: 'the backend API URL',
       );
-      final matrixUrl = _deriver.matrixFacadeFromBackendApi(backendApiUrl);
-      final filesUrl = _deriver.filesFacadeFromBackendApi(backendApiUrl);
-      if (configuration.serviceEndpoints.matrixHomeserverUrl != matrixUrl ||
-          configuration.serviceEndpoints.nextcloudBaseUrl != filesUrl) {
-        throw const AppFailure.validation(
-          'The saved organization profile does not match the current Weave facade contract.',
-        );
-      }
-
-      return configuration.copyWith(
-        oidcIssuerUrl: issuerUrl,
-        oidcClientRegistration: configuration.oidcClientRegistration.copyWith(
-          clientId: clientId,
-        ),
-        serviceEndpoints: configuration.serviceEndpoints.copyWith(
-          matrixHomeserverUrl: matrixUrl,
-          nextcloudBaseUrl: filesUrl,
-          backendApiBaseUrl: backendApiUrl,
+      final matrixUrl = _deriver.parseMatrixHomeserverUrl(
+        configuration.serviceEndpoints.matrixHomeserverUrl.toString(),
+      );
+      return _validateMatrixOAuth(
+        configuration.copyWith(
+          oidcIssuerUrl: issuerUrl,
+          oidcClientRegistration: configuration.oidcClientRegistration.copyWith(
+            clientId: clientId,
+          ),
+          serviceEndpoints: configuration.serviceEndpoints.copyWith(
+            matrixHomeserverUrl: matrixUrl,
+            backendApiBaseUrl: backendApiUrl,
+          ),
         ),
       );
     } on AppFailure {
@@ -74,15 +80,14 @@ class SharedPreferencesServerConfigurationRepository
       final endpoints = configuration.serviceEndpoints;
       final normalized = configuration.copyWith(
         serviceEndpoints: endpoints.copyWith(
-          matrixHomeserverUrl: _deriver.matrixFacadeFromBackendApi(
-            endpoints.backendApiBaseUrl,
-          ),
-          nextcloudBaseUrl: _deriver.filesFacadeFromBackendApi(
-            endpoints.backendApiBaseUrl,
+          matrixHomeserverUrl: _deriver.parseMatrixHomeserverUrl(
+            endpoints.matrixHomeserverUrl.toString(),
           ),
         ),
       );
-      final dto = ServerConfigurationDto.fromConfiguration(normalized);
+      final dto = ServerConfigurationDto.fromConfiguration(
+        _validateMatrixOAuth(normalized),
+      );
       await _store.setString(serverConfigurationStorageKey, dto.encode());
     } on AppFailure {
       rethrow;
@@ -114,5 +119,34 @@ class SharedPreferencesServerConfigurationRepository
       );
     }
     return trimmed;
+  }
+
+  ServerConfiguration _validateMatrixOAuth(ServerConfiguration configuration) {
+    final issuer = configuration.matrixOAuthIssuer;
+    final clientId = configuration.matrixOAuthClientId;
+    if ((issuer == null) != (clientId == null)) {
+      throw const AppFailure.validation(
+        'The Matrix OAuth issuer and client ID must be configured together.',
+      );
+    }
+    if (issuer == null) return configuration;
+    if (issuer.scheme != 'https' ||
+        issuer.host.isEmpty ||
+        issuer.userInfo.isNotEmpty ||
+        issuer.hasQuery ||
+        issuer.hasFragment) {
+      throw const AppFailure.validation(
+        'The Matrix OAuth issuer must be a credential-free HTTPS URL.',
+      );
+    }
+    final normalizedClientId = clientId!.trim();
+    if (normalizedClientId.isEmpty ||
+        normalizedClientId ==
+            configuration.oidcClientRegistration.clientId.trim()) {
+      throw const AppFailure.validation(
+        'Matrix OAuth requires a separate registered client ID.',
+      );
+    }
+    return configuration.copyWith(matrixOAuthClientId: normalizedClientId);
   }
 }

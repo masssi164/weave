@@ -10,6 +10,7 @@ on:
       - 'weave-application-core/**'
       - 'docs/devops/database-migrations.md'
       - 'docs/architecture/database-schema-authority.md'
+      - 'docs/architecture/native-files.md'
       - 'docs/evidence/**'
 
 permissions:
@@ -18,7 +19,7 @@ permissions:
 jobs:
   postgres-flyway:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:16.9
@@ -45,7 +46,7 @@ jobs:
           java-version: '21'
       - name: Compile persistence closure tests
         run: ./gradlew :server:compileJava :server:compileTestJava
-      - name: PostgreSQL native-provider qualification
+      - name: PostgreSQL native composition qualification
         run: |
           set -euo pipefail
           ./gradlew :server:test \
@@ -56,11 +57,13 @@ jobs:
             --tests 'com.massimotter.weave.backend.matrix.MatrixE2eeStateServiceSyncSnapshotTest' \
             --tests 'com.massimotter.weave.backend.service.files.WeaveNativeFilesAdapterTest' \
             --tests 'com.massimotter.weave.backend.schema.*'
-      - name: PostgreSQL schema-authority qualification
+      - name: PostgreSQL schema-authority and canonical recovery qualification
         run: |
           set -euo pipefail
           ./gradlew :server:postgresJpaTest \
-            --tests 'com.massimotter.weave.backend.schema.SchemaAuthorityInitializerPostgresTest'
+            --tests 'com.massimotter.weave.backend.schema.SchemaAuthorityInitializerPostgresTest' \
+            --tests 'com.massimotter.weave.backend.schema.CanonicalPostgresBackupRestoreTest' \
+            --tests 'com.massimotter.weave.backend.service.files.CanonicalFilesBackupRestoreTest'
       - name: Migration authority invariants
         run: |
           set -euo pipefail
@@ -69,6 +72,7 @@ jobs:
           test -s server/src/main/resources/db/migration/V3__complete_native_provider_authority.sql
           test -s server/src/main/resources/db/migration/V4__relax_legacy_calendar_timezone_projection.sql
           test -s server/src/main/resources/db/migration/V5__matrix_shared_user_change_journal.sql
+          test -s server/src/main/resources/db/migration/V6__canonical_transfer_runs.sql
 
           ! grep -R --line-number 'public\.' server/src/main/resources/db/migration
 

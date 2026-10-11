@@ -1,0 +1,8 @@
+tasks.register('coreArchitectureCi') {
+    group = 'verification'
+    description = 'Enforce canonical core dependency boundaries for application/domain, Files, and MCP modules.'
+
+    dependsOn ':weave-application-core:test',
+            ':weave-files-core:test',
+            ':weave-mcp-server:test'
+}

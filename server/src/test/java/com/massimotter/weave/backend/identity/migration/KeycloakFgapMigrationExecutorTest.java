@@ -19,6 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.client.RestClient;
 
 class KeycloakFgapMigrationExecutorTest {
@@ -55,12 +57,18 @@ class KeycloakFgapMigrationExecutorTest {
         executor().execute(bundle(), backupProof());
 
     assertThat(result.status()).isEqualTo("complete");
-    assertThat(result.firstRunMutationCount()).isEqualTo(3);
+    assertThat(result.firstRunMutationCount()).isEqualTo(4);
     assertThat(result.firstRunOperations())
         .containsExactly(
             "create-identity-admin-subject-policy",
             "create-primary-organization-permission",
-            "create-users-lifecycle-permission");
+            "create-users-lifecycle-permission",
+            "update-native-organization-membership-mapper");
+    assertThat(result.completedOperationIds()).containsExactly(
+        "fgap-v2-primary-organization-post-import", "organization-membership-id-post-import");
+    assertThat(state.membership.path("config").path("addOrganizationId").asString()).isEqualTo("true");
+    assertThat(state.membership.path("config").path("unrelated.config").asString()).isEqualTo("preserved");
+    assertThat(state.mapperWrites).isEqualTo(1);
     assertThat(result.semanticReadbackVerified()).isTrue();
     assertThat(result.secondRunPlanEmpty()).isTrue();
     assertThat(result.bootstrapAuthorityDeleted()).isTrue();
@@ -173,7 +181,38 @@ class KeycloakFgapMigrationExecutorTest {
         .isInstanceOf(KeycloakRealmMigrationException.class)
         .hasMessage("migration-authority-still-present");
 
-    assertThat(state.mutationCount).isEqualTo(3);
+    assertThat(state.mutationCount).isEqualTo(4);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"wrong-scope", "missing-scope", "duplicate-scope", "wrong-scope-readback",
+      "missing-mapper", "duplicate-mapper", "wrong-mapper-name", "wrong-mapper-protocol"})
+  void rejectsAmbiguousOrMismatchedNativeMapperBeforeAnyMutation(String failure) {
+    state.mapperFailure = failure;
+    assertThatThrownBy(() -> executor().execute(bundle(), backupProof()))
+        .isInstanceOf(KeycloakRealmMigrationException.class);
+    assertThat(state.mutationCount).isZero();
+    assertThat(state.bootstrapPresent).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"ignore-write", "reject-write", "change-unrelated-config", "change-other-mapper"})
+  void deniesCompletionWithoutRetiringAuthorityWhenMapperReadbackFails(String failure) {
+    state.mapperFailure = failure;
+    assertThatThrownBy(() -> executor().execute(bundle(), backupProof()))
+        .isInstanceOf(KeycloakRealmMigrationException.class);
+    assertThat(state.mapperWrites).isEqualTo(1);
+    assertThat(state.bootstrapPresent).isTrue();
+  }
+
+  @Test
+  void convergedNativeMapperIsReadBackWithoutWritingItAgain() {
+    ObjectNode config = (ObjectNode) state.membership.path("config");
+    KeycloakOrganizationMapperMigration.REQUIRED_CONFIG.forEach(config::put);
+    KeycloakFgapMigrationExecutor.MigrationResult result = executor().execute(bundle(), backupProof());
+    assertThat(result.firstRunMutationCount()).isEqualTo(3);
+    assertThat(state.mapperWrites).isZero();
+    assertThat(state.bootstrapPresent).isFalse();
   }
 
   private KeycloakFgapMigrationExecutor executor() {
@@ -229,9 +268,19 @@ class KeycloakFgapMigrationExecutorTest {
     private int mutationCount;
     private ObjectNode policy;
     private ObjectNode unexpectedDependent;
+    private ObjectNode membership;
+    private ObjectNode otherMapper;
+    private String mapperFailure = "";
+    private int mapperWrites;
 
     private KeycloakState(ObjectMapper mapper) {
       this.mapper = mapper;
+      membership = object("id", "membership-id", "name", "organization", "protocol", "openid-connect",
+          "protocolMapper", "oidc-organization-membership-mapper", "config",
+          object("claim.name", "organization", "jsonType.label", "String", "addOrganizationId", "false",
+              "unrelated.config", "preserved"));
+      otherMapper = object("id", "unrelated-id", "name", "unrelated", "protocol", "openid-connect",
+          "protocolMapper", "unrelated-mapper", "config", object("retained", "true"));
     }
 
     private void handle(HttpExchange exchange) throws IOException {
@@ -245,6 +294,10 @@ class KeycloakFgapMigrationExecutorTest {
         String path = exchange.getRequestURI().getPath();
         String query = exchange.getRequestURI().getRawQuery();
 
+        if (path.startsWith("/admin/realms/weave/client-scopes")) {
+          nativeMapper(exchange, method, path);
+          return;
+        }
         if ("GET".equals(method) && "/admin/realms/weave".equals(path)) {
           respond(
               exchange,
@@ -407,6 +460,53 @@ class KeycloakFgapMigrationExecutorTest {
         reject(exchange);
       } catch (RuntimeException failure) {
         respond(exchange, 500, object("failure", "support-safe-test-handler"));
+      }
+    }
+
+    private void nativeMapper(HttpExchange exchange, String method, String path) throws IOException {
+      String base = "/admin/realms/weave/client-scopes";
+      ObjectNode scope = object("id", "native-scope-id", "name", "organization", "protocol", "openid-connect",
+          "attributes", object("include.in.token.scope", "true", "unrelated", "preserved"));
+      if (path.equals(base) && "GET".equals(method)) {
+        if (mapperFailure.equals("missing-scope")) {
+          respond(exchange, 200, array());
+        } else if (mapperFailure.equals("duplicate-scope")) {
+          respond(exchange, 200, array(scope, scope.deepCopy()));
+        } else {
+          if (mapperFailure.equals("wrong-scope")) scope.put("protocol", "saml");
+          respond(exchange, 200, array(scope, object("id", "other-scope", "name", "profile")));
+        }
+      } else if (path.equals(base + "/native-scope-id") && "GET".equals(method)) {
+        if (mapperFailure.equals("wrong-scope-readback")) scope.put("name", "other");
+        respond(exchange, 200, scope);
+      } else if (path.equals(base + "/native-scope-id/protocol-mappers/models") && "GET".equals(method)) {
+        if (mapperFailure.equals("wrong-mapper-name")) membership.put("name", "other");
+        if (mapperFailure.equals("wrong-mapper-protocol")) membership.put("protocol", "saml");
+        ArrayNode values = array(otherMapper);
+        if (!mapperFailure.equals("missing-mapper")) values.add(membership);
+        if (mapperFailure.equals("duplicate-mapper")) {
+          ObjectNode duplicate = membership.deepCopy();
+          duplicate.put("id", "duplicate-id");
+          values.add(duplicate);
+        }
+        respond(exchange, 200, values);
+      } else if (path.equals(base + "/native-scope-id/protocol-mappers/models/membership-id")
+          && "PUT".equals(method)) {
+        mapperWrites++;
+        if (mapperFailure.equals("reject-write")) {
+          respond(exchange, 403, object());
+          return;
+        }
+        if (!mapperFailure.equals("ignore-write")) membership = (ObjectNode) readBody(exchange);
+        if (mapperFailure.equals("change-unrelated-config")) {
+          ((ObjectNode) membership.path("config")).put("unrelated.config", "changed");
+        }
+        if (mapperFailure.equals("change-other-mapper")) otherMapper.put("name", "changed");
+        mutationCount++;
+        exchange.sendResponseHeaders(204, -1);
+        exchange.close();
+      } else {
+        reject(exchange);
       }
     }
 

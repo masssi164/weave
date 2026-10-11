@@ -36,6 +36,12 @@ public record NextcloudFilesProperties(
         return URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);
     }
 
+    @Override
+    public String toString() {
+        return "NextcloudFilesProperties[baseUrl=<redacted>, webdavRootPath=<redacted>, "
+                + "actorModel=" + actorModel + ", actorUsername=<redacted>, actorToken=<redacted>]";
+    }
+
     private boolean isAbsoluteHttpBaseUrl() {
         try {
             URI uri = URI.create(baseUrl);

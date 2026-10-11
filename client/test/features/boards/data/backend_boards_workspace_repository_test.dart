@@ -1,9 +1,21 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/boards/data/repositories/backend_boards_workspace_repository.dart';
 import 'package:weave/features/boards/domain/entities/board_workspace.dart';
+import 'package:weave/generated/user_api/api.dart' as user_api;
+
+String _errorBody(String code) => jsonEncode(
+  user_api.ApiErrorResponse(
+    code: code,
+    message: 'Support-safe failure',
+    requestId: 'test-request',
+    supportRef: 'test-support',
+  ).toJson(),
+);
 
 void main() {
   test('loads provider-neutral Boards workspace from backend facade', () async {
@@ -175,7 +187,7 @@ void main() {
     final repository = BackendBoardsWorkspaceRepository(
       httpClient: MockClient((request) async {
         return http.Response(
-          '{"code":"boards-conflict","message":"support-safe conflict"}',
+          _errorBody('boards-conflict'),
           409,
           headers: {'content-type': 'application/json'},
         );
@@ -208,7 +220,7 @@ void main() {
       final repository = BackendBoardsWorkspaceRepository(
         httpClient: MockClient((request) async {
           return http.Response(
-            '{"code":"boards-unsupported_capability","message":"unsupported"}',
+            _errorBody('boards-unsupported_capability'),
             503,
             headers: {'content-type': 'application/json'},
           );

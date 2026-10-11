@@ -22,7 +22,7 @@ weave:
     public-base-url: ${WEAVE_PUBLIC_BASE_URL}
     api-base-url: ${WEAVE_API_BASE_URL}
     auth-base-url: ${WEAVE_AUTH_BASE_URL}
-    release-posture: prod
+    release-posture: stable
   security:
     required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE}
   files:

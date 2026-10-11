@@ -227,5 +227,16 @@ void main() {
         expect(() => parser.parse(uri), throwsA(isA<AppFailure>()));
       }
     });
+
+    test('rejects a discovery URL outside the generated User operation', () {
+      expect(
+        () => const MemberHandoffParser().parse(
+          Uri.parse(
+            'weave:/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&product_base_url=https%3A%2F%2Fjoin.weave.example&platform_config_url=https%3A%2F%2Fapi.weave.example%2Fcustom%2Fmanifest',
+          ),
+        ),
+        throwsA(isA<AppFailure>()),
+      );
+    });
   });
 }

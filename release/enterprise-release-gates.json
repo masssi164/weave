@@ -78,6 +78,7 @@
             "mcpTool",
             "canonicalResourceSeen",
             "revocationDenied",
+            "spaceRevocationRestored",
             "credentialsIncluded",
             "actionLinksIncluded",
             "supportSafe"

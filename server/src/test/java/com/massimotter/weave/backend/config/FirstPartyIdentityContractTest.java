@@ -47,8 +47,14 @@ class FirstPartyIdentityContractTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService memberSessions;
+
     @MockitoBean
     private JwtDecoder jwtDecoder;
+
+    @MockitoBean(name = "adminApiJwtDecoder")
+    private JwtDecoder adminApiJwtDecoder;
 
     @MockitoBean
     private MemberInvitationService invitations;
@@ -56,6 +62,7 @@ class FirstPartyIdentityContractTest {
     @BeforeEach
     void configureJwtDecoder() {
         given(jwtDecoder.decode(anyString())).willAnswer(invocation -> decode(invocation.getArgument(0)));
+        given(adminApiJwtDecoder.decode(anyString())).willAnswer(invocation -> decodeAdmin(invocation.getArgument(0)));
     }
 
     @Test
@@ -63,6 +70,26 @@ class FirstPartyIdentityContractTest {
         mockMvc.perform(get(WORKSPACE_CAPABILITIES_PATH)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-contract"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void matrixLogoutRejectsRetainedMemberBearerOnUserApi() throws Exception {
+        Jwt session = jwt("logout-user-probe", List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                Map.of("azp", FIRST_PARTY_CLIENT_ID, "sid", "logout-user-probe-session",
+                        "organization", organizationWithRole("member")));
+        JwtDecoder sessionDecoder = JwtDecoderConfig.withMemberSessionRevocation(
+                ignored -> session, () -> memberSessions);
+        org.mockito.Mockito.doAnswer(invocation -> sessionDecoder.decode(invocation.getArgument(0)))
+                .when(jwtDecoder).decode("logout-user-probe");
+        mockMvc.perform(get(WORKSPACE_CAPABILITIES_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer logout-user-probe"))
+                .andExpect(status().isOk());
+        memberSessions.revoke(session);
+        org.assertj.core.api.Assertions.assertThat(memberSessions.revoked(session)).isTrue();
+        mockMvc.perform(get(WORKSPACE_CAPABILITIES_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer logout-user-probe"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("unauthorized"));
     }
 
     @Test
@@ -147,7 +174,7 @@ class FirstPartyIdentityContractTest {
     @Test
     void grantsMethodSecurityRolesFromSelectedOrganizationResourceAccess() throws Exception {
         mockMvc.perform(get("/api/admin/policies/effective")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer client-admin-role"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer admin-console-admin-role"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orgRoles[0]").value("admin"));
     }
@@ -155,9 +182,135 @@ class FirstPartyIdentityContractTest {
     @Test
     void rejectsTopLevelClientRoleWithoutSelectedOrganizationRole() throws Exception {
         mockMvc.perform(get("/api/admin/policies/effective")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer top-level-admin-role"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer admin-console-top-level-role"))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void rejectsNativeUserTokenOnAdminRouteEvenWithAdminRole() throws Exception {
+        mockMvc.perform(get("/api/admin/policies/effective")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer client-admin-role"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"admin-console-admin-role", "admin-console-owner-role"})
+    void providerRegistryUsesTheDedicatedAdminSessionForTheConfiguredOrganization(String token) throws Exception {
+        mockMvc.perform(get("/api/admin/providers/status")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.organizationId").value("tenant-default"))
+                .andExpect(jsonPath("$.filesBinding.bindingState").value("NO_ACTIVE_BINDING"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"client-admin-role", "valid-contract", "mcp-workload"})
+    void providerRegistryRejectsUserAndWorkloadBearers(String token) throws Exception {
+        mockMvc.perform(get("/api/admin/providers/status")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"admin-wrong-org-id", "admin-wrong-org-alias", "admin-multiple-orgs",
+            "admin-missing-org", "admin-conflicting-tenant", "admin-conflicting-fallback", "admin-console-member-role"})
+    void legacyAdminRegistryOverviewSelectionAndReadinessCannotCrossOrganizations(String token) throws Exception {
+        for (String path : List.of("/api/admin/providers/status", "/api/admin/control-plane")) {
+            mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                    .andExpect(status().isForbidden());
+        }
+        for (String path : List.of("/api/admin/providers/selections", "/api/admin/providers/readiness-tests")) {
+            mockMvc.perform(post(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"user-wrong-org-id", "user-wrong-org-alias", "user-conflicting-tenant"})
+    void humanUserAndReconciliationRoutesRejectConflictingOrganizationClaims(String token) throws Exception {
+        mockMvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post(IdentitySessionController.PATH).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void formerUserProviderRegistryRouteHasNoCompatibilityAlias() throws Exception {
+        mockMvc.perform(get("/api/providers/status")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer client-admin-role"))
+                .andExpect(status().isNotFound());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"admin-console-admin-role", "admin-console-owner-role"})
+    void workspaceDiagnosticsRequireDedicatedAdminSession(String token) throws Exception {
+        mockMvc.perform(get("/api/admin/workspace/capability-policy")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.denyByDefault").value(true))
+                .andExpect(jsonPath("$.supportSafe").value(true));
+        mockMvc.perform(get("/api/admin/workspace/release-readiness")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.checks[0].key").value("auth-contract"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"client-admin-role", "valid-contract", "mcp-workload"})
+    void workspaceDiagnosticsRejectUserAndWorkloadBearers(String token) throws Exception {
+        for (String path : WORKSPACE_DIAGNOSTIC_PATHS) {
+            mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"admin-wrong-org-id", "admin-wrong-org-alias", "admin-multiple-orgs",
+            "admin-missing-org", "admin-conflicting-tenant", "admin-conflicting-fallback", "admin-console-member-role",
+            "admin-console-top-level-role", "admin-console-missing-scope", "admin-malformed-org"})
+    void workspaceDiagnosticsRejectInvalidOrganizationRoleOrScope(String token) throws Exception {
+        for (String path : WORKSPACE_DIAGNOSTIC_PATHS) {
+            mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void workspaceDiagnosticsHaveNoAnonymousAccessOrUserCompatibilityAlias() throws Exception {
+        for (String path : WORKSPACE_DIAGNOSTIC_PATHS) {
+            mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+            mockMvc.perform(get(path.replace("/api/admin/", "/api/"))
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer client-admin-role"))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"valid-contract", "client-admin-role"})
+    void homeNeverReturnsOperatorSetupEvenForAdminRoleOnUserSession(String token) throws Exception {
+        mockMvc.perform(get("/api/workspace/home")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(3))
+                .andExpect(jsonPath("$.sections.length()").value(5))
+                .andExpect(jsonPath("$.sections[*].itemCount").value(org.hamcrest.Matchers.hasSize(5)))
+                .andExpect(jsonPath("$.sections[*].itemCount")
+                        .value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.nullValue())))
+                .andExpect(jsonPath("$.actions[*].reason")
+                        .value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.containsString("organization administrator"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("WEAVE_"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("operator-action-"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/api/admin/"))));
+    }
+
+    private static final List<String> WORKSPACE_DIAGNOSTIC_PATHS = List.of(
+            "/api/admin/workspace/capability-policy", "/api/admin/workspace/release-readiness");
 
     @Test
     void normalizesIssuedForFromClientIdWhenAzpIsAbsent() throws Exception {
@@ -188,6 +341,9 @@ class FirstPartyIdentityContractTest {
 
     private Jwt decode(String tokenValue) {
         Jwt jwt = switch (tokenValue) {
+            case "user-wrong-org-id", "user-wrong-org-alias", "user-conflicting-tenant" ->
+                    jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                            mismatchedOrganizationClaims(tokenValue, FIRST_PARTY_CLIENT_ID));
             case "valid-contract" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
                     Map.of(
                             "azp", FIRST_PARTY_CLIENT_ID,
@@ -260,13 +416,63 @@ class FirstPartyIdentityContractTest {
         return jwt;
     }
 
+    private Jwt decodeAdmin(String tokenValue) {
+        Jwt jwt = switch (tokenValue) {
+            case "admin-wrong-org-id", "admin-wrong-org-alias", "admin-multiple-orgs",
+                    "admin-missing-org", "admin-conflicting-tenant", "admin-conflicting-fallback", "admin-malformed-org" ->
+                    jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                            mismatchedOrganizationClaims(tokenValue, "weave-admin-console"));
+            case "admin-console-missing-scope" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "openid profile",
+                    Map.of("azp", "weave-admin-console", "organization", organizationWithRole("admin")));
+            case "admin-console-owner-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                    Map.of("azp", "weave-admin-console", "organization", organizationWithRole("owner")));
+            case "admin-console-member-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                    Map.of("azp", "weave-admin-console", "organization", organizationWithRole("member")));
+            case "client-admin-role" -> decode(tokenValue);
+            case "mcp-workload" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                    Map.of("azp", "weave-mcp-server", "organization", organizationWithRole("admin")));
+            case "admin-console-admin-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                    Map.of("azp", "weave-admin-console", "organization", organizationWithRole("admin")));
+            case "admin-console-top-level-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                    Map.of("azp", "weave-admin-console",
+                            "resource_access", Map.of(FIRST_PARTY_CLIENT_ID, Map.of("roles", List.of("admin")))));
+            default -> throw new org.springframework.security.oauth2.jwt.BadJwtException(
+                    "The Admin API requires an Admin Console token.");
+        };
+        var validator = new org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator<Jwt>(
+                JwtDecoderConfig.exactAudienceValidator(java.util.Set.of(REQUIRED_AUDIENCE)),
+                JwtDecoderConfig.requiredAuthorizedPartyValidator("weave-admin-console"));
+        OAuth2TokenValidatorResult validation = validator.validate(jwt);
+        if (validation.hasErrors()) {
+            throw new JwtValidationException("JWT does not satisfy the Admin API contract.", validation.getErrors());
+        }
+        return jwt;
+    }
+
     private Map<String, Object> organizationWithRole(String role) {
-        return Map.of(
-                "weave-dogfood",
-                Map.of(
-                        "groups", List.of("/" + role + "s"),
-                        "resource_access",
-                        Map.of(FIRST_PARTY_CLIENT_ID, Map.of("roles", List.of(role)))));
+        return com.massimotter.weave.backend.support.HumanJwtTestSupport.organizationWithRole(role);
+    }
+
+    private Map<String, Object> mismatchedOrganizationClaims(String token, String client) {
+        var claims = new java.util.HashMap<String, Object>();
+        claims.put("azp", client);
+        var organizations = new java.util.HashMap<>(organizationWithRole("admin"));
+        String alias = com.massimotter.weave.backend.support.HumanJwtTestSupport.ORGANIZATION_ALIAS;
+        if (token.endsWith("wrong-org-id")) {
+            @SuppressWarnings("unchecked")
+            var selected = new java.util.HashMap<>((Map<String, Object>) organizations.get(alias));
+            selected.put("id", "another-native-organization");
+            organizations.put(alias, selected);
+        } else if (token.endsWith("wrong-org-alias")) {
+            organizations.put("another-alias", organizations.remove(alias));
+        } else if (token.endsWith("multiple-orgs")) {
+            organizations.put("another-alias", organizations.get(alias));
+        }
+        if (!token.endsWith("missing-org")) claims.put("organization",
+                token.endsWith("malformed-org") ? "not-a-native-organization-map" : organizations);
+        if (token.endsWith("conflicting-tenant")) claims.put("weave_tenant_id", "other-tenant");
+        if (token.endsWith("conflicting-fallback")) claims.put("tenant_id", "other-tenant");
+        return claims;
     }
 
     private Jwt jwt(String tokenValue, List<String> audience, String scope, Map<String, Object> claims) {
