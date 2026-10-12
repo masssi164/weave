@@ -15,6 +15,32 @@ import run_ios_simulator_product_acceptance as ios
 
 
 class DualIosCollaborationTest(unittest.TestCase):
+    def test_private_json_publish_is_atomic_owner_only_and_never_overwrites(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'denial.json'
+            content = {'status': 'passed', 'denials': {'files': 'passed'}}
+            dual.publish_private_json(path, content)
+            self.assertEqual(json.loads(path.read_text()), content)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertFalse(path.with_suffix('.tmp').exists())
+            with self.assertRaises(FileExistsError): dual.publish_private_json(path, {'status': 'changed'})
+            self.assertEqual(json.loads(path.read_text()), content)
+            path.unlink(); path.symlink_to(Path(directory) / 'foreign')
+            with self.assertRaises(FileExistsError): dual.publish_private_json(path, content)
+            self.assertFalse((Path(directory) / 'foreign').exists())
+            path.unlink(); path.with_suffix('.tmp').symlink_to(Path(directory) / 'foreign')
+            with self.assertRaises(FileExistsError): dual.publish_private_json(path, content)
+
+    def test_picker_requests_bind_real_action_sequence_and_known_owned_file(self):
+        for action, mode, prefix in [('files-upload', 'import', 'initial'), ('files-replace', 'import', 'replacement'),
+                                     ('files-export', 'export', 'initial'), ('files-export-updated', 'export', 'initial')]:
+            request = {'sequence': 4, 'mode': mode, 'fileName': 'weave-dual-' + prefix + '-owned.txt'}
+            self.assertEqual(dual.require_picker_request(request, 4, action, 'owned'), (mode, request['fileName']))
+            for changed in [dict(request, sequence=5), dict(request, mode='foreign'),
+                            dict(request, fileName='../private.json'), dict(request, secret='private')]:
+                with self.assertRaises(ios.NativeFailure): dual.require_picker_request(changed, 4, action, 'owned')
+            with self.assertRaises(ios.NativeFailure): dual.require_picker_request(request, 4, 'files-open', 'owned')
+
     def test_result_path_cannot_overwrite_private_input_stale_or_foreign_output(self):
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory)

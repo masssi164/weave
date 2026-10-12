@@ -16,6 +16,7 @@ import 'package:weave/features/chat/data/repositories/matrix_device_identity_rep
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
+import 'package:weave/features/files/presentation/providers/files_provider.dart';
 import 'package:weave/features/onboarding/presentation/organization_access_screen.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -193,7 +194,7 @@ void main() {
               as Map<String, dynamic>;
       final subject = claims['sub'] as String;
       expect(subject, isNotEmpty);
-      final scenarios = <String, Map<String, String>>{
+      final scenarios = <String, Map<String, dynamic>>{
         'authentication': {'status': 'passed', 'evidence': 'flutter-ui'},
       };
       await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
@@ -222,12 +223,14 @@ void main() {
       device = await store.read(matrixDeviceIdentityStorageKey);
       expect(device, isNotNull);
       expect(device, isNotEmpty);
+      final resources = <String, Object>{};
       final result = {
         'role': role,
         'identityDigest': sha256.convert(utf8.encode(subject)).toString(),
         'matrixDeviceDigest': sha256.convert(utf8.encode(device!)).toString(),
         'storageDigest': fixture['storageDigest'],
         'scenarios': scenarios,
+        'resources': resources,
       };
       final resultFile = File('${support.path}/weave-dual-ios-result.json');
       await _writePrivateJson(resultFile, result);
@@ -239,6 +242,12 @@ void main() {
       const messageB = 'B UI $_runId';
       const eventTitle = 'Calendar UI $_runId';
       const updatedTitle = '$eventTitle updated';
+      final fileName = fixture['initialFileName'] as String;
+      final replacementName = fixture['replacementFileName'] as String;
+      final initialContent = fixture['initialContent'] as String;
+      final replacementContent = fixture['replacementContent'] as String;
+      String? fileId;
+      String? fileRevision;
       while (true) {
         await _wait(tester, () {
           if (!commandFile.existsSync()) return false;
@@ -305,12 +314,33 @@ void main() {
             await _tap(tester, find.text(conversation));
             await _wait(
               tester,
+              () =>
+                  find
+                      .byKey(const Key('chat-accept-invitation-button'))
+                      .evaluate()
+                      .length ==
+                  1,
+              const Duration(seconds: 60),
+            );
+            await _tap(
+              tester,
+              find.byKey(const Key('chat-accept-invitation-button')),
+            );
+            await _wait(
+              tester,
               () => _message(messageA).evaluate().length == 1,
               const Duration(seconds: 90),
             );
             await _send(tester, messageB);
             _orderedMessages(tester, messageA, messageB);
             result['encryption'] = await _observeRoomPolicy(tester, container);
+            resources.addAll({
+              'roomId': tester
+                  .widget<ChatRoomScreen>(find.byType(ChatRoomScreen))
+                  .conversation
+                  .id,
+              'roomTitle': conversation,
+            });
             scenarios['chat'] = {'status': 'passed', 'evidence': 'flutter-ui'};
           case 'chat-observe':
             expect(role, 'A');
@@ -321,6 +351,13 @@ void main() {
             );
             _orderedMessages(tester, messageA, messageB);
             result['encryption'] = await _observeRoomPolicy(tester, container);
+            resources.addAll({
+              'roomId': tester
+                  .widget<ChatRoomScreen>(find.byType(ChatRoomScreen))
+                  .conversation
+                  .id,
+              'roomTitle': conversation,
+            });
             scenarios['chat'] = {'status': 'passed', 'evidence': 'flutter-ui'};
           case 'calendar-create':
             expect(role, 'A');
@@ -421,16 +458,204 @@ void main() {
               'evidence': 'flutter-ui',
             };
           case 'files-upload':
+            expect(role, 'A');
+            await _selectSharedFiles(
+              tester,
+              container,
+              fixture['sharedSpaceRef'] as String,
+            );
+            await _writePrivateJson(
+              File('${support.path}/weave-dual-ios-native-request.json'),
+              {'sequence': next, 'mode': 'import', 'fileName': fileName},
+            );
+            await _tap(
+              tester,
+              find.widgetWithText(
+                AccessibleButton,
+                _copy(tester).filesUploadButton,
+              ),
+            );
+            await _wait(
+              tester,
+              () =>
+                  container
+                      .read(filesProvider)
+                      .asData
+                      ?.value
+                      .uploadStatus
+                      .phase ==
+                  FilesUploadPhase.completed,
+              const Duration(seconds: 90),
+            );
+            final uploaded = container
+                .read(filesProvider)
+                .requireValue
+                .directoryListing!
+                .entries
+                .where((entry) => entry.name == fileName)
+                .single;
+            fileId = uploaded.id;
+            fileRevision = uploaded.revision;
+            expect(fileId, isNotEmpty);
+            expect(fileRevision, isNotNull);
+            await _filePreview(tester, fileId, initialContent);
           case 'files-open':
+            expect(role, 'B');
+            await _selectSharedFiles(
+              tester,
+              container,
+              fixture['sharedSpaceRef'] as String,
+            );
+            await _wait(
+              tester,
+              () =>
+                  container
+                      .read(filesProvider)
+                      .asData
+                      ?.value
+                      .directoryListing
+                      ?.entries
+                      .where((entry) => entry.name == fileName)
+                      .length ==
+                  1,
+              const Duration(seconds: 90),
+            );
+            final shared = container
+                .read(filesProvider)
+                .requireValue
+                .directoryListing!
+                .entries
+                .where((entry) => entry.name == fileName)
+                .single;
+            fileId = shared.id;
+            fileRevision = shared.revision;
+            await _filePreview(tester, fileId, initialContent);
           case 'files-replace':
+            expect(role, 'A');
+            expect(fileId, isNotNull);
+            await _writePrivateJson(
+              File('${support.path}/weave-dual-ios-native-request.json'),
+              {'sequence': next, 'mode': 'import', 'fileName': replacementName},
+            );
+            await _tap(tester, find.byKey(Key('files-update-$fileId')));
+            await _wait(tester, () {
+              final state = container.read(filesProvider).asData?.value;
+              final entry = state?.directoryListing?.entries.where(
+                (entry) => entry.id == fileId,
+              );
+              return state?.entryActionStatus.phase ==
+                      FilesEntryActionPhase.replacedContent &&
+                  entry?.length == 1 &&
+                  entry!.single.revision != fileRevision;
+            }, const Duration(seconds: 90));
+            final replaced = container
+                .read(filesProvider)
+                .requireValue
+                .directoryListing!
+                .entries
+                .where((entry) => entry.id == fileId)
+                .single;
+            expect(replaced.name, fileName);
+            expect(replaced.revision, isNot(fileRevision));
+            fileRevision = replaced.revision;
+            await _filePreview(tester, fileId!, replacementContent);
           case 'files-open-updated':
-            throw TestFailure(
-              'Real shared Files picker and content UI proof is incomplete.',
+            expect(role, 'B');
+            await _navigate(tester, Icons.home_outlined);
+            await _selectSharedFiles(
+              tester,
+              container,
+              fixture['sharedSpaceRef'] as String,
             );
+            await _wait(
+              tester,
+              () =>
+                  container
+                      .read(filesProvider)
+                      .asData
+                      ?.value
+                      .directoryListing
+                      ?.entries
+                      .where(
+                        (entry) =>
+                            entry.id == fileId &&
+                            entry.revision != fileRevision,
+                      )
+                      .length ==
+                  1,
+              const Duration(seconds: 90),
+            );
+            fileRevision = container
+                .read(filesProvider)
+                .requireValue
+                .directoryListing!
+                .entries
+                .where((entry) => entry.id == fileId)
+                .single
+                .revision;
+            await _filePreview(tester, fileId!, replacementContent);
+          case 'files-export':
+          case 'files-export-updated':
+            expect(fileId, isNotNull);
+            final output = File(
+              '${(await getApplicationDocumentsDirectory()).path}/$fileName',
+            );
+            expect(
+              await output.exists(),
+              isFalse,
+              reason: 'An existing fixture cannot prove native export.',
+            );
+            await _writePrivateJson(
+              File('${support.path}/weave-dual-ios-native-request.json'),
+              {'sequence': next, 'mode': 'export', 'fileName': fileName},
+            );
+            await _tap(tester, find.byKey(Key('files-export-$fileId')));
+            await _wait(
+              tester,
+              () =>
+                  container
+                      .read(filesProvider)
+                      .asData
+                      ?.value
+                      .entryActionStatus
+                      .phase ==
+                  FilesEntryActionPhase.exportedEntry,
+              const Duration(seconds: 90),
+            );
+            expect(
+              await output.readAsString(),
+              action == 'files-export' ? initialContent : replacementContent,
+            );
+            if (action == 'files-export-updated') {
+              scenarios['files'] = {
+                'status': 'passed',
+                'evidence': 'flutter-ui',
+              };
+            }
           case 'authorization':
-            throw TestFailure(
-              'Actual unauthorized and current-grant Server denial proof is incomplete.',
+            final proofFile = File(
+              '${support.path}/weave-dual-ios-denial.json',
             );
+            await _wait(
+              tester,
+              () => proofFile.existsSync(),
+              const Duration(seconds: 90),
+            );
+            final proof =
+                jsonDecode(await proofFile.readAsString())
+                    as Map<String, dynamic>;
+            expect(proof['status'], 'passed');
+            expect(proof['evidence'], 'server-denial');
+            expect(proof['denials'], {
+              'chat': 'passed',
+              'files': 'passed',
+              'calendar': 'passed',
+            });
+            expect(
+              proof['deniedIdentityDigest'],
+              isNot(result['identityDigest']),
+            );
+            scenarios['authorization'] = proof;
           case 'recovery':
             throw TestFailure(
               'Independent actual transport and process recovery proof is incomplete.',
@@ -452,6 +677,24 @@ void main() {
             throw TestFailure('Unsupported private collaboration command.');
         }
         sequence = next;
+        if (fileId != null) {
+          resources.addAll({'fileId': fileId, 'fileName': fileName});
+        }
+        if (eventId != null) {
+          final event = container
+              .read(calendarProvider)
+              .asData
+              ?.value
+              .events
+              .where((event) => event.id == eventId);
+          if (event?.length == 1) {
+            resources.addAll({
+              'calendarId': event!.single.scope.id,
+              'eventId': eventId,
+              'eventTitle': event.single.title,
+            });
+          }
+        }
         await _writePrivateJson(resultFile, result);
         final ack = File('${support.path}/weave-dual-ios-ack.json');
         await _writePrivateJson(ack, {
@@ -463,6 +706,55 @@ void main() {
       }
     },
     timeout: const Timeout(Duration(minutes: 30)),
+  );
+}
+
+Future<void> _selectSharedFiles(
+  WidgetTester tester,
+  ProviderContainer container,
+  String spaceRef,
+) async {
+  await _navigate(tester, Icons.folder_outlined);
+  final selector = find.byKey(const Key('files-space-selector'));
+  await _wait(
+    tester,
+    () => selector.evaluate().length == 1,
+    const Duration(seconds: 90),
+  );
+  await _tap(tester, selector);
+  final choice = find
+      .text(_copy(tester).filesSharedOrganizationSpace)
+      .hitTestable();
+  expect(choice, findsOneWidget);
+  await _tap(tester, choice);
+  await _wait(tester, () {
+    final state = container.read(filesProvider).asData?.value;
+    return state?.rootSpaceRef == spaceRef &&
+        state?.directoryListing != null &&
+        !state!.isBusy &&
+        state.directoryFailure == null;
+  }, const Duration(seconds: 90));
+}
+
+Future<void> _filePreview(
+  WidgetTester tester,
+  String fileId,
+  String expected,
+) async {
+  await _tap(tester, find.byKey(Key('files-open-$fileId')));
+  final content = find.byKey(const Key('files-preview-content'));
+  await _wait(
+    tester,
+    () => content.evaluate().length == 1,
+    const Duration(seconds: 90),
+  );
+  expect(tester.widget<SelectableText>(content).data, expected);
+  await _tap(
+    tester,
+    find.widgetWithText(
+      TextButton,
+      MaterialLocalizations.of(tester.element(content)).closeButtonLabel,
+    ),
   );
 }
 

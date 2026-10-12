@@ -382,6 +382,63 @@ final class BrowserDriver: XCTestCase {
     return false
   }
 
+  func testNativeDocumentPicker() throws {
+    continueAfterFailure = false
+    let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "private-member", withExtension: "json"))
+    let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+    guard fixture["phase"] as? String == "document-picker" else {
+      throw XCTSkip("Document picker is a separate owned UI action")
+    }
+    let mode = try XCTUnwrap(fixture["pickerMode"] as? String)
+    let fileName = try XCTUnwrap(fixture["fileName"] as? String)
+    XCTAssertTrue(["import", "export"].contains(mode))
+    XCTAssertTrue(fileName.hasPrefix("weave-dual-"))
+    XCTAssertFalse(fileName.contains("/"))
+    let app = XCUIApplication(bundleIdentifier: "com.massimotter.weave")
+    // Authentication has completed. Attach once to the already running app;
+    // never launch a replacement process or activate during an AppAuth session.
+    app.activate()
+    let deadline = Date().addingTimeInterval(60)
+    var enteredDevice = false
+    var enteredWeave = false
+    while Date() < deadline {
+      let file = app.staticTexts.matching(NSPredicate(format: "label == %@", fileName))
+      if mode == "import" && file.count == 1 && file.element.isHittable {
+        file.element.tap()
+        print("NATIVE_IOS_FILES_STAGE phase=import-selected")
+        return
+      }
+      XCTAssertLessThanOrEqual(file.count, 1, "Owned document must be unique")
+      if mode == "export" && enteredWeave {
+        let save = app.buttons.matching(NSPredicate(format: "label IN %@", ["Save", "Sichern"]))
+        XCTAssertLessThanOrEqual(save.count, 1, "Native save action must be unique")
+        if save.count == 1 && save.element.isHittable {
+          save.element.tap()
+          print("NATIVE_IOS_FILES_STAGE phase=export-saved")
+          return
+        }
+      }
+      let weave = app.staticTexts.matching(NSPredicate(format: "label == %@", "Weave"))
+      if !enteredWeave && weave.count == 1 && weave.element.isHittable {
+        weave.element.tap()
+        enteredWeave = true
+        Thread.sleep(forTimeInterval: 0.25)
+        continue
+      }
+      let device = app.staticTexts.matching(NSPredicate(format: "label IN %@", ["On My iPhone", "Auf meinem iPhone"]))
+      if !enteredDevice && device.count == 1 && device.element.isHittable {
+        device.element.tap()
+        enteredDevice = true
+        Thread.sleep(forTimeInterval: 0.25)
+        continue
+      }
+      let browse = app.buttons.matching(NSPredicate(format: "label IN %@", ["Browse", "Durchsuchen"]))
+      if !enteredDevice && browse.count == 1 && browse.element.isHittable { browse.element.tap() }
+      Thread.sleep(forTimeInterval: 0.25)
+    }
+    XCTFail("Owned native document picker action did not complete")
+  }
+
   func testProductionBrowser() throws {
     continueAfterFailure = false
     print("NATIVE_IOS_BROWSER_STAGE phase=driver-started")
