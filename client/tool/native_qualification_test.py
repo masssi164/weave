@@ -520,7 +520,7 @@ class NativeQualificationTest(unittest.TestCase):
         self.assertNotIn('.firstMatch', handler)
         self.assertNotIn('app.activate()', handler)
         self.assertIn('static let passwordDeclineLabels = ["Später", "Not Now"]', driver)
-        wait = driver.split('func waitForNativeWorkspace', 1)[1].split('func testProductionBrowser', 1)[0]
+        wait = driver.split('func waitForNativeWorkspace', 1)[1].split('func testNativeDocumentPicker', 1)[0]
         self.assertLess(wait.index('Self.nativeWorkspaceObserved'), wait.index('declinePasswordSavePrompt'))
         output = io.StringIO()
         with redirect_stdout(output):
@@ -533,7 +533,7 @@ class NativeQualificationTest(unittest.TestCase):
         self.assertLess(submitted.index('guard waitForNativeWorkspace'), submitted.index('status=passed phase=form-submitted'))
         self.assertIn('if Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath)', driver)
         self.assertIn('phase=auth-completion-observed', driver)
-        self.assertNotIn('app.activate()', driver.split('func waitForNativeWorkspace', 1)[1].split('func testProductionBrowser', 1)[0])
+        self.assertNotIn('app.activate()', driver.split('func waitForNativeWorkspace', 1)[1].split('func testNativeDocumentPicker', 1)[0])
 
     def test_shell_observer_does_not_move_subprocess_writer_offset(self):
         with tempfile.TemporaryDirectory() as name:
@@ -1105,11 +1105,11 @@ void main() {
         browser_loop = driver.split('func testProductionBrowser', 1)[1].split('for surface in [app, browser] {', 1)[1]
         self.assertLess(browser_loop.index('guard surfaceState == .runningForeground || surfaceState == .runningBackground'),
                         browser_loop.index('surface.descendants'))
-        self.assertEqual(driver.count('.activate()'), 1)
+        self.assertEqual(driver.split('func testProductionBrowser', 1)[1].count('.activate()'), 1)
         production = driver.split('func testProductionBrowser', 1)[1]
         self.assertLess(production.index('.activate()'), production.index('while Date() < deadline'))
         self.assertNotIn('.activate()', browser_loop)
-        pending_loop = driver.split('func waitForNativeWorkspace', 1)[1].split('func testProductionBrowser', 1)[0]
+        pending_loop = driver.split('func waitForNativeWorkspace', 1)[1].split('func testNativeDocumentPicker', 1)[0]
         self.assertLess(pending_loop.index('guard state == .runningForeground || state == .runningBackground'), pending_loop.index('surface.descendants'))
 
     def test_ios_failure_cannot_be_presented_as_macos_or_combined_success(self):

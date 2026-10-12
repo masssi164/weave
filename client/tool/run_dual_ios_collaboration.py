@@ -187,9 +187,24 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
     if support.is_symlink():
         raise ios.NativeFailure('infrastructure', 'dual-storage', 'unsafe-app-support')
     storage_digest = hashlib.sha256(str(container).encode()).hexdigest()
+    documents = container / 'Documents'
+    documents.mkdir(exist_ok=True)
+    if documents.is_symlink():
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-documents-path')
+    initial_name = 'weave-dual-initial-' + input_data['runId'] + '.txt'
+    replacement_name = 'weave-dual-replacement-' + input_data['runId'] + '.txt'
+    initial_content = 'Weave actual UI initial ' + input_data['runId'] + '\n'
+    replacement_content = 'Weave actual UI replacement ' + input_data['runId'] + '\n'
+    if role == 'A':
+        for name, content in ((initial_name, initial_content), (replacement_name, replacement_content)):
+            (documents / name).write_text(content)
+    else:
+        (documents / '.weave-owned-fixture').write_text('Owned disposable document directory\n')
     runtime_fixture = {'role': role, 'entryUri': actor['entryUri'], 'runId': input_data['runId'],
                        'sharedSpaceRef': input_data['sharedSpaceRef'], 'storageDigest': storage_digest,
-                       'peerDisplayName': 'Weave E2E Member' if role == 'A' else 'Weave E2E Owner'}
+                       'peerDisplayName': 'Weave E2E Member' if role == 'A' else 'Weave E2E Owner',
+                       'initialFileName': initial_name, 'replacementFileName': replacement_name,
+                       'initialContent': initial_content, 'replacementContent': replacement_content}
     fixture_path = support / 'weave-dual-ios-input.json'
     fixture_path.write_text(json.dumps(runtime_fixture)); fixture_path.chmod(0o600)
     started_at = ios.simulator_vm.log_start_timestamp()
@@ -227,7 +242,7 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
                 raise ios.NativeFailure('integration', 'dual-authentication', 'workspace-not-observed')
             if driver.wait(timeout=420) != 0:
                 raise ios.NativeFailure('integration', 'dual-authentication', 'browser-failed')
-            ready.put((role, support, udid, pid))
+            ready.put((role, support, udid, pid, products))
             # Flutter keeps each real app alive through all concurrent UI steps;
             # its complete result is mandatory, not merely browser submission.
             if flutter.wait(timeout=1800) != 0:
@@ -262,24 +277,37 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
                         ios.emit_phase_stages('initial', (temporary / 'flutter-initial.log').read_text(), (temporary / 'browser-initial.log').read_text())
 
 
-def run_ui_commands(scopes: dict, tasks: list) -> None:
+def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict) -> None:
     # Existing Python runner coordinates actual Flutter gestures using only
     # owned private files. Commands cannot inject results/auth/session data.
     steps = [('A', 'chat-create-send'), ('B', 'chat-open-reply'), ('A', 'chat-observe'),
              ('A', 'calendar-create'), ('B', 'calendar-observe'),
              ('A', 'calendar-update'), ('B', 'calendar-observe-updated'),
-             ('A', 'calendar-delete'), ('B', 'calendar-observe-deleted'),
-             ('A', 'files-upload'), ('B', 'files-open'),
-             ('A', 'files-replace'), ('B', 'files-open-updated'),
+             ('A', 'files-upload'), ('A', 'files-export'), ('B', 'files-open'), ('B', 'files-export'),
+             ('A', 'files-replace'), ('A', 'files-export-updated'), ('B', 'files-open-updated'), ('B', 'files-export-updated'),
              ('A', 'authorization'), ('B', 'authorization'),
+             ('A', 'calendar-delete'), ('B', 'calendar-observe-deleted'),
              ('A', 'recovery'), ('B', 'recovery'), ('A', 'finish'), ('B', 'finish')]
     def verify_both_live():
-        for _, udid, pid in scopes.values():
+        for _, udid, pid, _products in scopes.values():
             if ios.simulator_app_pid(udid) != pid:
                 raise ios.NativeFailure('infrastructure', 'dual-process', 'owned-process-replaced')
     for sequence, (role, action) in enumerate(steps, 1):
         verify_both_live()
-        support, udid, pid = scopes[role]
+        support, udid, pid, products = scopes[role]
+        if action == 'authorization' and role == 'A':
+            authorize_ui_resources(scopes, input_data)
+        if action in {'files-export', 'files-export-updated'}:
+            # Remove only our own source/export fixture, with exact byte proof;
+            # otherwise an existing local file could fake a successful download.
+            destination = support.parent.parent / 'Documents' / ('weave-dual-initial-' + input_data['runId'] + '.txt')
+            if destination.is_symlink():
+                raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-export-path')
+            if destination.exists():
+                expected = 'Weave actual UI initial ' + input_data['runId'] + '\n'
+                if destination.read_text() != expected:
+                    raise ios.NativeFailure('integration', 'dual-files', 'prior-owned-document-mismatch')
+                destination.unlink()
         target = support / 'weave-dual-ios-command.json'
         staging = support / 'weave-dual-ios-command.tmp'
         if target.is_symlink() or staging.is_symlink():
@@ -287,9 +315,25 @@ def run_ui_commands(scopes: dict, tasks: list) -> None:
         staging.write_text(json.dumps({'sequence': sequence, 'action': action})); staging.chmod(0o600)
         staging.replace(target)
         deadline = time.monotonic() + 120
+        picker_executed = False
         while True:
             for task in tasks:
                 if task.done(): task.result()
+            native_request = support / 'weave-dual-ios-native-request.json'
+            if not picker_executed and native_request.is_file() and not native_request.is_symlink() and native_request.stat().st_size <= 1024:
+                request = json.loads(native_request.read_text())
+                if request.get('sequence') == sequence:
+                    mode, name = require_picker_request(request, sequence, action, input_data['runId'])
+                    plans = list(products.glob('*.xctestrun')); bundles = list(products.glob('**/BrowserDriver.xctest'))
+                    if len(plans) != 1 or len(bundles) != 1:
+                        raise ios.NativeFailure('infrastructure', 'dual-files', 'missing-owned-test-plan')
+                    fixture = bundles[0] / 'private-member.json'
+                    fixture.write_text(json.dumps({'phase': 'document-picker', 'pickerMode': mode, 'fileName': name})); fixture.chmod(0o600)
+                    ios.run(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
+                             '-destination', 'platform=iOS Simulator,id=' + udid, '-parallel-testing-enabled', 'NO',
+                             '-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker'], env=env, timeout=90)
+                    verify_both_live()
+                    picker_executed = True
             ack = support / 'weave-dual-ios-ack.json'
             if ack.is_file() and not ack.is_symlink() and ack.stat().st_size <= 1024:
                 proof = json.loads(ack.read_text())
@@ -300,6 +344,66 @@ def run_ui_commands(scopes: dict, tasks: list) -> None:
             if time.monotonic() >= deadline:
                 raise ios.NativeFailure('integration', 'dual-' + action.split('-')[0], 'actual-ui-command-proof-missing')
             time.sleep(0.25)
+
+
+def publish_private_json(path: Path, value: dict) -> None:
+    """Publish complete owner-only bytes without replacing any existing file."""
+    staging = path.with_suffix('.tmp')
+    descriptor = os.open(staging, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(descriptor, 'w') as output:
+            json.dump(value, output)
+            output.flush()
+            os.fsync(output.fileno())
+        os.link(staging, path, follow_symlinks=False)
+    finally:
+        staging.unlink()
+
+
+def require_picker_request(request: dict, sequence: int, action: str, run_id: str) -> tuple[str, str]:
+    if action not in {'files-upload', 'files-replace', 'files-export', 'files-export-updated'}:
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-native-picker-request')
+    mode = 'export' if action in {'files-export', 'files-export-updated'} else 'import'
+    name = ('weave-dual-replacement-' if action == 'files-replace' else 'weave-dual-initial-') + run_id + '.txt'
+    if request != {'sequence': sequence, 'mode': mode, 'fileName': name}:
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-native-picker-request')
+    return mode, name
+
+
+def authorize_ui_resources(scopes: dict, input_data: dict) -> None:
+    partial = [json.loads((scopes[role][0] / 'weave-dual-ios-result.json').read_text()) for role in ('A', 'B')]
+    for index, role in enumerate(('A', 'B')):
+        identity = hashlib.sha256(input_data['actors'][index]['identityRef'].encode()).hexdigest()
+        if partial[index].get('role') != role or partial[index].get('identityDigest') != identity:
+            raise ios.NativeFailure('integration', 'dual-authorization', 'owned-ui-identity-mismatch')
+    if partial[0]['resources'] != partial[1]['resources']:
+        raise ios.NativeFailure('integration', 'dual-authorization', 'shared-ui-resource-mismatch')
+    parent = ios.verified_private_parent()
+    request = parent / ('dual-ios-authorization-request-' + input_data['runId'] + '.json')
+    proof = parent / ('dual-ios-authorization-proof-' + input_data['runId'] + '.json')
+    if request.exists() or request.is_symlink() or proof.exists() or proof.is_symlink():
+        raise ios.NativeFailure('infrastructure', 'dual-authorization', 'stale-private-denial-exchange')
+    content = {'runId': input_data['runId'], 'spaceRef': input_data['sharedSpaceRef'],
+               'actorA': partial[0]['identityDigest'], 'actorB': partial[1]['identityDigest'], 'resources': partial[0]['resources']}
+    publish_private_json(request, content)
+    deadline = time.monotonic() + 120
+    while not proof.exists():
+        if time.monotonic() >= deadline:
+            raise ios.NativeFailure('integration', 'dual-authorization', 'actual-server-denial-proof-missing')
+        time.sleep(0.25)
+    if proof.is_symlink() or proof.stat().st_size > 1024 or proof.stat().st_mode & 0o777 != 0o600:
+        raise ios.NativeFailure('infrastructure', 'dual-authorization', 'unsafe-private-denial-proof')
+    denial = json.loads(proof.read_text())
+    expected = {'status': 'passed', 'evidence': 'server-denial',
+                'deniedIdentityDigest': hashlib.sha256(input_data['unauthorized']['identityRef'].encode()).hexdigest(),
+                'denials': {'chat': 'passed', 'files': 'passed', 'calendar': 'passed'}}
+    if denial != expected or denial['deniedIdentityDigest'] in {actor['identityDigest'] for actor in partial}:
+        raise ios.NativeFailure('integration', 'dual-authorization', 'third-identity-denial-proof-missing')
+    for support, udid, pid, _products in scopes.values():
+        if ios.simulator_app_pid(udid) != pid:
+            raise ios.NativeFailure('infrastructure', 'dual-authorization', 'owned-process-replaced')
+        destination = support / 'weave-dual-ios-denial.json'
+        publish_private_json(destination, denial)
 
 
 def qualify(input_path: Path, output_path: Path, env: dict) -> int:
@@ -349,11 +453,11 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
                             if task.done():
                                 task.result()
                         try:
-                            role, support, udid, pid = ready.get(timeout=0.25)
+                            role, support, udid, pid, products = ready.get(timeout=0.25)
                         except queue.Empty:
                             continue
-                        scopes[role] = (support, udid, pid)
-                    run_ui_commands(scopes, tasks)
+                        scopes[role] = (support, udid, pid, products)
+                    run_ui_commands(scopes, tasks, env, input_data)
                     evidence['actors'] = [task.result() for task in tasks]
                 except BaseException:
                     stop_owned_processes()

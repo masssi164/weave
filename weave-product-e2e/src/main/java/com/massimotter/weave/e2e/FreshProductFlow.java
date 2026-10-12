@@ -443,7 +443,7 @@ public final class FreshProductFlow {
             browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
             memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
-            outsiderEmail, outsiderPassword, outsiderSession.subject(), outsiderSession.accessToken());
+            browser, outsiderSession, organizationId);
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
             release.bindingRef(), mcpProof, restartProof, revocationDenied,
             calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
@@ -539,7 +539,7 @@ public final class FreshProductFlow {
             browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
             memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
-            outsiderEmail, outsiderPassword, outsiderSession.subject(), outsiderSession.accessToken());
+            browser, outsiderSession, organizationId);
 
         writeEvidence(
             startedAt,
@@ -578,7 +578,7 @@ public final class FreshProductFlow {
   private void runNativeAuthorizedJourney(
       String memberEmail, String memberPassword, String ownerSubject,
       String peerEmail, String peerPassword, String peerSubject, String invitationHandle,
-      String outsiderEmail, String outsiderPassword, String outsiderSubject, String outsiderAccessToken) {
+      OidcBrowserJourney browser, OidcBrowserJourney.TokenSet outsiderSession, String organizationId) {
     String runner = System.getProperty("weave.e2e.native-runner", "");
     if (runner.isBlank()) {
       return;
@@ -593,11 +593,15 @@ public final class FreshProductFlow {
     process.inheritIO();
     Path privateInput = Path.of("client", "build", "private-ios-qualification",
         "dual-ios-input-" + environment.runId() + ".json");
+    Path authorizationRequest = privateInput.resolveSibling("dual-ios-authorization-request-" + environment.runId() + ".json");
+    Path authorizationProof = privateInput.resolveSibling("dual-ios-authorization-proof-" + environment.runId() + ".json");
     boolean privateInputCreated = false;
+    Process nativeProcess = null;
     try {
       Path parent = privateInput.getParent();
       if (Files.isSymbolicLink(parent.getParent()) || Files.isSymbolicLink(parent)
-          || Files.isSymbolicLink(privateInput)) {
+          || Files.isSymbolicLink(privateInput) || Files.exists(authorizationRequest, LinkOption.NOFOLLOW_LINKS)
+          || Files.exists(authorizationProof, LinkOption.NOFOLLOW_LINKS)) {
         throw new ProductFlowException("native private input path is unsafe");
       }
       Files.createDirectories(parent);
@@ -613,14 +617,51 @@ public final class FreshProductFlow {
               Map.of("role", "B", "email", peerEmail, "password", peerPassword,
                   "identityRef", peerSubject, "invitationHandle", invitationHandle,
                   "entryUri", nativeCompletionLink())),
-          "unauthorized", Map.of("email", outsiderEmail, "password", outsiderPassword,
-              "identityRef", outsiderSubject, "accessToken", outsiderAccessToken));
+          "unauthorized", Map.of("identityRef", outsiderSession.subject()));
       // This fixture is private input, never qualification evidence or an upload artifact.
       Files.writeString(privateInput, http.mapper().writeValueAsString(input),
           StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.CREATE_NEW);
       privateInputCreated = true;
       setPrivatePermissions(privateInput);
-      int status = process.start().waitFor();
+      nativeProcess = process.start();
+      boolean authorizationCompleted = false;
+      while (!nativeProcess.waitFor(1, java.util.concurrent.TimeUnit.SECONDS)) {
+        if (Files.exists(authorizationRequest, LinkOption.NOFOLLOW_LINKS)) {
+          if (authorizationCompleted) {
+            throw new ProductFlowException("native authorization request was repeated");
+          }
+          JsonNode request = requireOwnedNativeAuthorizationRequest(authorizationRequest, environment.runId(), ownerSubject, peerSubject);
+          outsiderSession = browser.refresh(outsiderSession);
+          var deniedActor = new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
+              .authenticatedUser(outsiderSession.accessToken());
+          if (!outsiderSession.subject().equals(deniedActor.getSubject())
+              || !organizationId.equals(deniedActor.getOrganizationId())) {
+            throw new ProductFlowException("native denied identity authority changed");
+          }
+          Map<String, String> bearer = Map.of("Authorization", "Bearer " + outsiderSession.accessToken());
+          JsonNode resources = request.path("resources");
+          requireNativeDenial("chat", "/_matrix/client/v3/rooms/" + nativePath(resources.path("roomId").asString())
+              + "/messages?dir=b&limit=1", "errcode", "M_FORBIDDEN", bearer);
+          requireNativeDenial("files", "/api/files/items/" + nativePath(resources.path("fileId").asString())
+              + "/content", "code", "files-forbidden", bearer);
+          requireNativeDenial("calendar", "/api/calendar/calendars/" + nativePath(resources.path("calendarId").asString())
+              + "/events/" + nativePath(resources.path("eventId").asString()), "code", "calendar-forbidden", bearer);
+          Map<String, Object> proof = Map.of("status", "passed", "evidence", "server-denial",
+              "deniedIdentityDigest", Hashing.sha256(outsiderSession.subject()),
+              "denials", Map.of("chat", "passed", "files", "passed", "calendar", "passed"));
+          Path staging = Files.createTempFile(parent, "dual-ios-proof-", ".tmp");
+          try {
+            setPrivatePermissions(staging);
+            Files.writeString(staging, http.mapper().writeValueAsString(proof));
+            Files.move(staging, authorizationProof, StandardCopyOption.ATOMIC_MOVE);
+          } finally {
+            Files.deleteIfExists(staging);
+          }
+          Files.delete(authorizationRequest);
+          authorizationCompleted = true;
+        }
+      }
+      int status = nativeProcess.exitValue();
       if (status != 0) {
         throw new ProductFlowException("native Flutter acceptance failed");
       }
@@ -632,11 +673,36 @@ public final class FreshProductFlow {
     } finally {
       process.environment().remove("WEAVE_NATIVE_MEMBER_PASSWORD");
       try {
-        if (privateInputCreated) {
-          Files.deleteIfExists(privateInput);
+        if (nativeProcess != null && nativeProcess.isAlive()) {
+          nativeProcess.destroy();
+          try {
+            if (!nativeProcess.waitFor(90, java.util.concurrent.TimeUnit.SECONDS)) {
+              nativeProcess.destroyForcibly();
+              throw new ProductFlowException("native qualification process cleanup is unverified");
+            }
+          } catch (InterruptedException interrupted) {
+            nativeProcess.destroyForcibly();
+            Thread.currentThread().interrupt();
+            throw new ProductFlowException("native qualification cleanup was interrupted");
+          }
         }
-      } catch (IOException failure) {
-        throw new ProductFlowException("native private input cleanup failed", failure);
+      } finally {
+        try {
+          if (privateInputCreated) {
+            IOException cleanupFailure = null;
+            for (Path owned : List.of(privateInput, authorizationRequest, authorizationProof)) {
+              try {
+                Files.deleteIfExists(owned);
+              } catch (IOException failure) {
+                if (cleanupFailure == null) cleanupFailure = failure;
+                else cleanupFailure.addSuppressed(failure);
+              }
+            }
+            if (cleanupFailure != null) throw cleanupFailure;
+          }
+        } catch (IOException failure) {
+          throw new ProductFlowException("native private input cleanup failed", failure);
+        }
       }
     }
   }
@@ -644,6 +710,53 @@ public final class FreshProductFlow {
   private MemberInvitationResponse bootstrapOwner(String email) {
     return new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate())
         .bootstrapOwner(readBootstrapToken(), "test-app-owner-" + runHash(), email);
+  }
+
+  private void requireNativeDenial(String category, String path, String field, String code,
+      Map<String, String> bearer) {
+    JsonNode denial = http.json("native current third-identity " + category + " denial", "GET",
+        environment.apiOrigin().resolve(path), bearer, null, Set.of(403));
+    if (!code.equals(denial.path(field).asString())) {
+      throw new ProductFlowException("native " + category + " denial category was invalid");
+    }
+  }
+
+  private static String nativePath(String value) {
+    return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
+  }
+
+  static JsonNode requireOwnedNativeAuthorizationRequest(Path request, String runId,
+      String actorA, String actorB) throws IOException {
+    if (Files.isSymbolicLink(request.getParent())
+        || !Files.getPosixFilePermissions(request.getParent()).equals(PosixFilePermissions.fromString("rwx------"))
+        || Files.isSymbolicLink(request) || Files.size(request) > 4096
+        || !Files.getOwner(request).equals(Files.getOwner(request.getParent()))
+        || !Files.getPosixFilePermissions(request).equals(OWNER_FILE_PERMISSIONS)) {
+      throw new ProductFlowException("native authorization request ownership is invalid");
+    }
+    JsonNode value;
+    try {
+      value = tools.jackson.databind.json.JsonMapper.builder().build().readTree(Files.readString(request));
+    } catch (JacksonException invalid) {
+      throw new ProductFlowException("native authorization request encoding is invalid");
+    }
+    JsonNode resources = value.path("resources");
+    if (value.size() != 5 || !runId.equals(value.path("runId").asString())
+        || !"workspace-default".equals(value.path("spaceRef").asString())
+        || !Hashing.sha256(actorA).equals(value.path("actorA").asString())
+        || !Hashing.sha256(actorB).equals(value.path("actorB").asString())
+        || resources.size() != 7
+        || !("Weave UI " + runId).equals(resources.path("roomTitle").asString())
+        || !("weave-dual-initial-" + runId + ".txt").equals(resources.path("fileName").asString())
+        || !("Calendar UI " + runId + " updated").equals(resources.path("eventTitle").asString())) {
+      throw new ProductFlowException("native authorization request is not bound to owned UI resources");
+    }
+    for (String field : List.of("roomId", "fileId", "calendarId", "eventId")) {
+      if (!resources.path(field).asString().matches("[A-Za-z0-9!:_@.-]{1,512}")) {
+        throw new ProductFlowException("native UI resource identifier is invalid");
+      }
+    }
+    return value;
   }
 
   private String nativeCompletionLink() {
