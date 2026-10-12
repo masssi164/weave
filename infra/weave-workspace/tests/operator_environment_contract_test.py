@@ -73,7 +73,7 @@ def main() -> int:
             encoding="utf-8",
         )
         legacy_dogfood = load_context("dogfood", ROOT, str(legacy_dogfood_path))
-        assert legacy_dogfood.env["WEAVE_MAILPIT_URL"] == "https://mail.weave.test:44443"
+        assert legacy_dogfood.env["WEAVE_MAILPIT_URL"] == "https://mail.weave.test"
         previous_e2e_scope = os.environ.get("WEAVE_E2E_STACK_SCOPE")
         previous_e2e_run_id = os.environ.get("WEAVE_E2E_RUN_ID")
         try:
@@ -229,7 +229,7 @@ def main() -> int:
     dogfood_example = (ROOT / "environments/dogfood.env.example").read_text(encoding="utf-8")
     assert "WEAVE_MAILPIT_IMAGE=" in dogfood_example
     assert "WEAVE_MAILPIT_DATA_VOLUME=" in dogfood_example
-    assert "WEAVE_MAILPIT_URL=https://mail.weave.test:44443" in dogfood_example
+    assert "WEAVE_MAILPIT_URL=https://mail.weave.test" in dogfood_example
     assert "WEAVE_MAILPIT_REQUIRE_TLS=true" in dogfood_example
     assert "WEAVE_SMTP_" not in dogfood_example
 
