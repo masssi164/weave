@@ -15,32 +15,49 @@ class FilesUserCreateFolderRequest {
   FilesUserCreateFolderRequest({
     required this.name,
     required this.parentFileId,
+    this.spaceRef,
   });
 
   String name;
 
   String parentFileId;
 
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? spaceRef;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is FilesUserCreateFolderRequest &&
           other.name == name &&
-          other.parentFileId == parentFileId;
+          other.parentFileId == parentFileId &&
+          other.spaceRef == spaceRef;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (name.hashCode) + (parentFileId.hashCode);
+      (name.hashCode) +
+      (parentFileId.hashCode) +
+      (spaceRef == null ? 0 : spaceRef!.hashCode);
 
   @override
   String toString() =>
-      'FilesUserCreateFolderRequest[name=$name, parentFileId=$parentFileId]';
+      'FilesUserCreateFolderRequest[name=$name, parentFileId=$parentFileId, spaceRef=$spaceRef]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'name'] = this.name;
     json[r'parentFileId'] = this.parentFileId;
+    if (this.spaceRef != null) {
+      json[r'spaceRef'] = this.spaceRef;
+    } else {
+      json[r'spaceRef'] = null;
+    }
     return json;
   }
 
@@ -67,6 +84,7 @@ class FilesUserCreateFolderRequest {
       return FilesUserCreateFolderRequest(
         name: mapValueOfType<String>(json, r'name')!,
         parentFileId: mapValueOfType<String>(json, r'parentFileId')!,
+        spaceRef: mapValueOfType<String>(json, r'spaceRef'),
       );
     }
     return null;

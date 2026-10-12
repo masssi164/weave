@@ -404,7 +404,7 @@ class AppStartDiscoveryClient {
     // Exact field validation above rejects unknown public protocol surfaces;
     // the generated transport model then supplies the values consumed by the
     // client configuration. Its decoder alone tolerates unknown JSON fields.
-    final transport = user_api.PlatformConfigResponse.fromJson(json)!;
+    final transport = user_api.OrgManifestResponse.fromJson(json)!;
     final transportOidc = transport.oidc;
     final transportProtocols = transport.protocols;
 

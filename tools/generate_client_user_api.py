@@ -64,7 +64,6 @@ def generate(destination: Path) -> None:
         )
         shutil.copytree(work / "lib", destination)
     preserve_partial_profile_update(destination)
-    correct_enum_map_decoding(destination)
     propagate_binary_upload_errors(destination)
     avoid_implicit_text_body_for_empty_operations(destination)
     preserve_calendar_date_fields(destination)
@@ -101,22 +100,6 @@ def preserve_partial_profile_update(destination: Path) -> None:
     if omitted != 5:
         raise RuntimeError("OpenAPI Generator PATCH optional-field serialization changed")
     model.write_text(source)
-
-
-def correct_enum_map_decoding(destination: Path) -> None:
-    """Preserve typed enum values in the generated manifest map."""
-    model = destination / "model/organization_manifest_response.dart"
-    source = model.read_text()
-    before = "mapCastOfType<String, String>(json, r'memberCapabilityStates') ?? const {}"
-    after = (
-        "(mapCastOfType<String, String>(json, r'memberCapabilityStates') ?? "
-        "const <String, String>{}).map((key, value) => MapEntry(key, "
-        "OrganizationManifestResponseMemberCapabilityStatesEnum.fromJson(value) "
-        "?? (throw FormatException('Unknown member capability state: $value'))))"
-    )
-    if source.count(before) != 1:
-        raise RuntimeError("OpenAPI Generator manifest enum map projection changed")
-    model.write_text(source.replace(before, after, 1))
 
 
 def propagate_binary_upload_errors(destination: Path) -> None:

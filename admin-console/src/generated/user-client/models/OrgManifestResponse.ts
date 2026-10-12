@@ -45,63 +45,63 @@ import {
 /**
  * Provider-neutral organization manifest consumed by Weave clients.
  * @export
- * @interface PlatformConfigResponse
+ * @interface OrgManifestResponse
  */
-export interface PlatformConfigResponse {
+export interface OrgManifestResponse {
     /**
      *
      * @type {Array<DomainCapability>}
-     * @memberof PlatformConfigResponse
+     * @memberof OrgManifestResponse
      */
     domains: Array<DomainCapability>;
     /**
      *
      * @type {Oidc}
-     * @memberof PlatformConfigResponse
+     * @memberof OrgManifestResponse
      */
     oidc: Oidc;
     /**
      *
      * @type {string}
-     * @memberof PlatformConfigResponse
+     * @memberof OrgManifestResponse
      */
     organizationOrigin: string;
     /**
      *
      * @type {Protocols}
-     * @memberof PlatformConfigResponse
+     * @memberof OrgManifestResponse
      */
     protocols: Protocols;
     /**
      *
      * @type {Array<RecoveryAction>}
-     * @memberof PlatformConfigResponse
+     * @memberof OrgManifestResponse
      */
     recoveryActions?: Array<RecoveryAction>;
     /**
      *
      * @type {string}
-     * @memberof PlatformConfigResponse
+     * @memberof OrgManifestResponse
      */
     releasePosture: string;
     /**
      *
      * @type {number}
-     * @memberof PlatformConfigResponse
+     * @memberof OrgManifestResponse
      */
     schemaVersion: number;
     /**
      *
      * @type {string}
-     * @memberof PlatformConfigResponse
+     * @memberof OrgManifestResponse
      */
     userApiBaseUrl: string;
 }
 
 /**
- * Check if a given object implements the PlatformConfigResponse interface.
+ * Check if a given object implements the OrgManifestResponse interface.
  */
-export function instanceOfPlatformConfigResponse(value: object): value is PlatformConfigResponse {
+export function instanceOfOrgManifestResponse(value: object): value is OrgManifestResponse {
     if (!('domains' in value) || value['domains'] === undefined) return false;
     if (!('oidc' in value) || value['oidc'] === undefined) return false;
     if (!('organizationOrigin' in value) || value['organizationOrigin'] === undefined) return false;
@@ -112,11 +112,11 @@ export function instanceOfPlatformConfigResponse(value: object): value is Platfo
     return true;
 }
 
-export function PlatformConfigResponseFromJSON(json: any): PlatformConfigResponse {
-    return PlatformConfigResponseFromJSONTyped(json, false);
+export function OrgManifestResponseFromJSON(json: any): OrgManifestResponse {
+    return OrgManifestResponseFromJSONTyped(json, false);
 }
 
-export function PlatformConfigResponseFromJSONTyped(json: any, ignoreDiscriminator: boolean): PlatformConfigResponse {
+export function OrgManifestResponseFromJSONTyped(json: any, ignoreDiscriminator: boolean): OrgManifestResponse {
     if (json == null) {
         return json;
     }
@@ -133,11 +133,11 @@ export function PlatformConfigResponseFromJSONTyped(json: any, ignoreDiscriminat
     };
 }
 
-export function PlatformConfigResponseToJSON(json: any): PlatformConfigResponse {
-    return PlatformConfigResponseToJSONTyped(json, false);
+export function OrgManifestResponseToJSON(json: any): OrgManifestResponse {
+    return OrgManifestResponseToJSONTyped(json, false);
 }
 
-export function PlatformConfigResponseToJSONTyped(value?: PlatformConfigResponse | null, ignoreDiscriminator: boolean = false): any {
+export function OrgManifestResponseToJSONTyped(value?: OrgManifestResponse | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }

@@ -4359,17 +4359,16 @@
       "feature": "e2e/features/open_standards_gateway_manifest.feature",
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java",
       "evidenceMarkers": [
-        "SUPPORT_SAFE_CAPABILITY_STATES_CONTRACT"
+        "returnsConfiguredWorkspaceCapabilities"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/service/OrganizationManifestService.java",
+          "path": "server/src/main/java/com/massimotter/weave/backend/service/WorkspaceCapabilityService.java",
           "fragments": [
-            "CapabilityManifestState.DISABLED_BY_POLICY",
-            "CapabilityManifestState.NOT_CONFIGURED",
-            "CapabilityManifestState.DEGRADED",
-            "CapabilityManifestState.UNAVAILABLE"
+            "WorkspaceCapabilityPolicyState.DISABLED",
+            "WorkspaceCapabilityPolicyState.POLICY_BLOCKED",
+            "supportRef("
           ]
         }
       ]
