@@ -27,3 +27,7 @@ abstract interface class ChatParticipantRepository {
     required List<ChatParticipant> participants,
   });
 }
+
+abstract interface class ChatInvitationRepository {
+  Future<void> acceptInvitation(String roomId);
+}

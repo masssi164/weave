@@ -132,6 +132,10 @@ pub mod frb_api {
             .await
     }
     #[cfg(feature = "flutter")]
+    pub async fn matrix_accept_room_invitation(profile_key: String, room_id: String) -> String {
+        crate::flutter_crypto::accept_room_invitation(profile_key, room_id).await
+    }
+    #[cfg(feature = "flutter")]
     pub async fn matrix_room_messages(profile_key: String, room_id: String, limit: u32) -> String {
         crate::flutter_crypto::room_messages(profile_key, room_id, limit).await
     }

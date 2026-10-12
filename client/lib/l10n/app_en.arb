@@ -4498,5 +4498,9 @@
         "type": "String"
       }
     }
-  }
+  },
+  "chatInvitationDescription": "You have been invited to this conversation. Join to read and send messages.",
+  "chatInvitationAccept": "Accept invitation",
+  "chatInvitationJoining": "Joining…",
+  "chatInvitationFailed": "The invitation could not be accepted. Check your access and try again."
 }

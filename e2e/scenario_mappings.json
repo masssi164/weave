@@ -4890,11 +4890,11 @@
           ]
         },
         {
-          "path": "client/test/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator_test.dart",
+          "path": "client/test/integrations/rust_matrix_core/data/services/weave_member_matrix_session_coordinator_test.dart",
           "fragments": [
-            "ordinary Chat access establishes Matrix through the Weave SSO context",
-            "a different organization cannot reuse the saved Matrix session",
-            "wrong OIDC issuer or audience never starts Matrix sign-in"
+            "opens the native Matrix client with the current Weave member token",
+            "loss of current organization access drops the live Matrix client",
+            "a changed manifest endpoint drops live Matrix access"
           ]
         },
         {

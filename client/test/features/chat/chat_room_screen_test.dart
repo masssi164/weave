@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +20,23 @@ import 'package:weave/features/chat/presentation/providers/chat_repository_provi
 import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/test_app.dart';
+
+class _InvitationChatRepository extends FakeChatRepository
+    implements ChatInvitationRepository {
+  _InvitationChatRepository(this.join)
+    : super(
+        loadRoomTimelineHandler: (roomId) async => ChatRoomTimeline(
+          roomId: roomId,
+          roomTitle: 'Invitation',
+          isInvite: false,
+          canSendMessages: true,
+          messages: [],
+        ),
+      );
+  final Future<void> Function(String) join;
+  @override
+  Future<void> acceptInvitation(String roomId) => join(roomId);
+}
 
 void main() {
   const conversation = ChatConversation(
@@ -112,6 +131,60 @@ void main() {
         (ref) => store ?? InMemoryPreferencesStore(),
       ),
     ];
+  }
+
+  for (final denied in [false, true]) {
+    testWidgets('invited room requires confirmed acceptance; denied=$denied', (
+      tester,
+    ) async {
+      final pending = Completer<void>();
+      var joins = 0;
+      final repository = _InvitationChatRepository((roomId) {
+        expect(roomId, '!invited:api.weave.test');
+        joins++;
+        return pending.future;
+      });
+      const invitation = ChatConversation(
+        id: '!invited:api.weave.test',
+        title: 'Invitation',
+        previewType: ChatConversationPreviewType.none,
+        unreadCount: 0,
+        isInvite: true,
+        isDirectMessage: false,
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatRoomScreen(conversation: invitation),
+          overrides: overridesFor(repository),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(repository.loadRoomTimelineCalls, 0);
+      expect(find.byType(TextField), findsNothing);
+      await tester.tap(find.byKey(const Key('chat-accept-invitation-button')));
+      await tester.pump();
+      expect(joins, 1);
+      expect(repository.loadRoomTimelineCalls, 0);
+      expect(find.byType(TextField), findsNothing);
+      if (denied) {
+        pending.completeError(const ChatFailure.protocol('Denied.'));
+      } else {
+        pending.complete();
+      }
+      await tester.pumpAndSettle();
+      expect(repository.loadRoomTimelineCalls, denied ? 0 : 1);
+      expect(
+        find.byKey(const Key('chat-accept-invitation-button')),
+        denied ? findsOneWidget : findsNothing,
+      );
+      expect(find.byType(TextField), denied ? findsNothing : findsOneWidget);
+      if (denied) {
+        expect(
+          find.textContaining('invitation could not be accepted'),
+          findsOneWidget,
+        );
+      }
+    });
   }
 
   testWidgets('loads and renders a room timeline', (tester) async {

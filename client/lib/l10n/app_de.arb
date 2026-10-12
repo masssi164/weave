@@ -1234,5 +1234,9 @@
         "type": "String"
       }
     }
-  }
+  },
+  "chatInvitationDescription": "Du wurdest zu dieser Unterhaltung eingeladen. Tritt bei, um Nachrichten zu lesen und zu senden.",
+  "chatInvitationAccept": "Einladung annehmen",
+  "chatInvitationJoining": "Beitritt läuft…",
+  "chatInvitationFailed": "Die Einladung konnte nicht angenommen werden. Prüfe deinen Zugriff und versuche es erneut."
 }

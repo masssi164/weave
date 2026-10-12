@@ -8,7 +8,10 @@ import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
 class NativeMatrixChatRepository
-    implements ChatRepository, ChatParticipantRepository {
+    implements
+        ChatRepository,
+        ChatParticipantRepository,
+        ChatInvitationRepository {
   NativeMatrixChatRepository({
     required MatrixCryptoSessionPort matrixCryptoSessionCoordinator,
     RustMatrixCoreBridge rustMatrixCoreBridge = const RustMatrixCoreBridge(),
@@ -18,6 +21,27 @@ class NativeMatrixChatRepository
   final MatrixCryptoSessionPort _matrixCryptoSessionCoordinator;
   final RustMatrixCoreBridge _rustMatrixCoreBridge;
   final Map<String, String> _latestEventByRoom = <String, String>{};
+
+  @override
+  Future<void> acceptInvitation(String roomId) async {
+    try {
+      final session = await _matrixCryptoSessionCoordinator.open();
+      await _rustMatrixCoreBridge.acceptRoomInvitation(
+        profileKey: session.profileKey,
+        roomId: roomId,
+      );
+    } on RustMatrixCoreBridgeException catch (error) {
+      if (isMatrixSessionExpiredCode(error.code)) {
+        throw const ChatFailure.sessionRequired(
+          'Sign in again before accepting the invitation.',
+        );
+      }
+      throw ChatFailure.protocol(
+        'The invitation could not be accepted.',
+        cause: error,
+      );
+    }
+  }
 
   @override
   Future<List<ChatConversation>> loadConversations() async {
@@ -37,7 +61,7 @@ class NativeMatrixChatRepository
                   ? ChatConversationPreviewType.encrypted
                   : ChatConversationPreviewType.none,
               unreadCount: room.unreadCount,
-              isInvite: false,
+              isInvite: room.isInvite,
               isDirectMessage: false,
             ),
           )

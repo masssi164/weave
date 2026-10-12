@@ -3723,4 +3723,18 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get filesPreviewUnsupported =>
       'Diese Datei kann hier nicht angezeigt werden. Mit Export kann sie in einer anderen App geöffnet werden.';
+
+  @override
+  String get chatInvitationDescription =>
+      'Du wurdest zu dieser Unterhaltung eingeladen. Tritt bei, um Nachrichten zu lesen und zu senden.';
+
+  @override
+  String get chatInvitationAccept => 'Einladung annehmen';
+
+  @override
+  String get chatInvitationJoining => 'Beitritt läuft…';
+
+  @override
+  String get chatInvitationFailed =>
+      'Die Einladung konnte nicht angenommen werden. Prüfe deinen Zugriff und versuche es erneut.';
 }
