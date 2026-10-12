@@ -19,6 +19,89 @@ import run_native_qualification as qualification
 
 
 class NativeQualificationTest(unittest.TestCase):
+    def setUp(self):
+        # Failure transcript retention must remain inside this test's owned
+        # disposable client directory, never the real workspace build outputs.
+        self.private_scope = tempfile.TemporaryDirectory()
+        self.addCleanup(self.private_scope.cleanup)
+        client = Path(self.private_scope.name) / 'client'
+        (client / 'build').mkdir(parents=True)
+        client_patch = patch.object(ios, 'CLIENT', client)
+        client_patch.start()
+        self.addCleanup(client_patch.stop)
+
+    def test_private_command_diagnostic_permissions_and_symlink_rejection(self):
+        private = 'raw-private-email raw-secret-password\n'
+        output = io.StringIO()
+        with redirect_stdout(output):
+            path = ios.retain_private_diagnostic(private)
+        self.assertEqual(path.read_text(), private)
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(path.parent.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(path.stat().st_uid, os.getuid())
+        self.assertEqual(output.getvalue(), '')
+        path.unlink()
+        path.parent.rmdir()
+        outside = Path(self.private_scope.name) / 'outside'
+        outside.mkdir()
+        path.parent.symlink_to(outside, target_is_directory=True)
+        with self.assertRaises(RuntimeError):
+            ios.retain_private_diagnostic(private)
+        self.assertEqual(list(outside.iterdir()), [])
+
+    def test_phase_transcript_retention_only_on_failure_and_never_public(self):
+        for succeeded, cleanup_failed in ((True, False), (False, False), (False, True)):
+            with self.subTest(succeeded=succeeded, cleanup_failed=cleanup_failed), tempfile.TemporaryDirectory() as name:
+                temporary = Path(name)
+                derived = temporary / 'derived'
+                products = derived / 'Build/Products'
+                (products / 'BrowserDriver.xctest').mkdir(parents=True)
+                (products / 'test.xctestrun').touch()
+                def launch(arguments, **kwargs):
+                    process = unittest.mock.Mock()
+                    process.poll.return_value = None if succeeded else 2
+                    process.wait.return_value = 0
+                    transcript = kwargs['stdout']
+                    if arguments[0] == 'make':
+                        transcript.write('raw-private-email raw-secret-password\n')
+                        transcript.write('NATIVE_PRODUCT_INITIAL_RESULT status=passed\nAll tests passed.\n')
+                    else:
+                        transcript.write('NATIVE_IOS_BROWSER_RESULT status=passed phase=form-submitted\n')
+                        transcript.write('NATIVE_IOS_BROWSER_STAGE phase=auth-completion-observed\n')
+                    transcript.flush()
+                    return process
+                output = io.StringIO()
+                def cleanup(_process):
+                    if cleanup_failed:
+                        diagnostics = list((ios.CLIENT / 'build/private-ios-qualification').glob('command-*.log'))
+                        self.assertEqual(len(diagnostics), 1)
+                        self.assertIn('raw-secret-password', diagnostics[0].read_text())
+                        raise PermissionError('private cleanup details')
+                with patch.object(ios.subprocess, 'Popen', side_effect=launch), \
+                        patch.object(ios, 'stop_flutter_process_group', side_effect=cleanup), \
+                        patch.object(ios, 'wait_for_flutter_shell', side_effect=None if succeeded else ios.NativeFailure('infrastructure', 'initial-app-start', 'integration-app-exited-before-readiness')), \
+                        patch.object(ios, 'simulator_driver_barrier', return_value=temporary / 'ready'), \
+                        patch.object(ios, 'simulator_app_pid', return_value='101'), \
+                        patch.object(ios, 'release_driver_barrier'), \
+                        patch.object(ios, 'relay_workspace_completion', return_value=True), redirect_stdout(output):
+                    if succeeded:
+                        self.assertEqual(ios.execute_phase('initial', 'owned', derived, temporary,
+                                                         {'WEAVE_NATIVE_TEST_RUN_ID': 'test-run'}, {}), '101')
+                    else:
+                        with self.assertRaises(PermissionError if cleanup_failed else ios.NativeFailure):
+                            ios.execute_phase('initial', 'owned', derived, temporary,
+                                              {'WEAVE_NATIVE_TEST_RUN_ID': 'test-run'}, {})
+                diagnostics = list((ios.CLIENT / 'build/private-ios-qualification').glob('command-*.log'))
+                self.assertEqual(len(diagnostics), 0 if succeeded else 1)
+                if not succeeded:
+                    self.assertIn('raw-secret-password', diagnostics[0].read_text())
+                    self.assertEqual(diagnostics[0].stat().st_mode & 0o777, 0o600)
+                    self.assertIn('command=make phase=initial exitCode=2 privateDiagnostic=command-', output.getvalue())
+                    diagnostics[0].unlink()
+                self.assertNotIn('raw-secret-password', output.getvalue())
+                self.assertNotIn('raw-private-email', output.getvalue())
+                self.assertNotIn('private cleanup details', output.getvalue())
+
     def test_native_sign_in_selector_matches_supported_product_resources(self):
         client = Path(__file__).resolve().parents[1]
         labels = [json.loads((client / f'lib/l10n/app_{locale}.arb').read_text())['signInButton']

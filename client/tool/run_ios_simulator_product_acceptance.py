@@ -15,6 +15,7 @@ import plistlib
 import shutil
 import signal
 import stat
+import sys
 import re
 import subprocess
 import tempfile
@@ -291,6 +292,15 @@ def command_stage(arguments: list[str]) -> str:
     return 'native-tool'
 
 
+def retain_private_diagnostic(contents: str) -> Path:
+    # Reuse the existing owned private diagnostic scope, never uploaded evidence.
+    diagnostics = verified_private_parent()
+    with tempfile.NamedTemporaryFile(mode='w', prefix='command-', suffix='.log', dir=diagnostics, delete=False) as log:
+        os.fchmod(log.fileno(), 0o600)
+        log.write(contents)
+        return Path(log.name)
+
+
 def run(arguments: list[str], *, env=None, timeout=900) -> str:
     child_env = (os.environ if env is None else env).copy()
     child_env.pop('WEAVE_NATIVE_MEMBER_EMAIL', None)
@@ -308,15 +318,8 @@ def run(arguments: list[str], *, env=None, timeout=900) -> str:
         # This helper executes builds/simctl only. UI transcripts are separately
         # contained inside the private per-run directory. Keep build failure
         # output locally for diagnosis, outside the uploaded testApp artifacts.
-        diagnostics = CLIENT / 'build/private-ios-qualification'
-        diagnostics.mkdir(mode=0o700, parents=True, exist_ok=True)
-        if diagnostics.is_symlink():
-            raise RuntimeError('Native diagnostic directory is a symlink')
-        diagnostics.chmod(0o700)
-        with tempfile.NamedTemporaryFile(mode='w', prefix='command-', suffix='.log', dir=diagnostics, delete=False) as log:
-            log.write(stdout + stderr)
-            os.chmod(log.name, 0o600)
-        print(f'NATIVE_IOS_COMMAND_RESULT status=failed command={Path(arguments[0]).name} privateDiagnostic={Path(log.name).name}', flush=True)
+        diagnostic = retain_private_diagnostic(stdout + stderr)
+        print(f'NATIVE_IOS_COMMAND_RESULT status=failed command={Path(arguments[0]).name} privateDiagnostic={diagnostic.name}', flush=True)
         stage = command_stage(arguments)
         failure_marker('infrastructure', stage, 'command-exit-failed')
         raise NativeFailure('infrastructure', stage, 'command-exit-failed')
@@ -559,6 +562,7 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
         flutter = None
         driver = None
         barrier = None
+        phase_succeeded = False
         try:
             barrier = simulator_driver_barrier(udid, env['WEAVE_NATIVE_TEST_RUN_ID'])
             flutter = subprocess.Popen(['make', 'ios-simulator-product-e2e'], cwd=CLIENT, env=env, stdout=flutter_log, stderr=subprocess.STDOUT, start_new_session=True)
@@ -610,6 +614,7 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
             if phase == 'restore' and 'NATIVE_PRODUCT_STAGE phase=expired-bearer-denied' not in observed:
                 raise NativeFailure('integration', 'restore-authorization', 'expired-session-denial-missing')
             print(f'NATIVE_IOS_PRODUCT_RESULT status=passed phase={phase} supportSafe=true', flush=True)
+            phase_succeeded = True
             return pid
         except subprocess.TimeoutExpired as failure:
             if failure.cmd and failure.cmd[0] == 'xcodebuild':
@@ -629,19 +634,42 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
             failure_marker('infrastructure', phase + '-runner', 'native-tool-unavailable')
             raise NativeFailure('infrastructure', phase + '-runner', 'native-tool-unavailable') from failure
         finally:
+            # Capture observed exit codes before our cleanup signals; a live
+            # peer's teardown exit must not be misreported as the original cause.
+            exit_codes = {name: process.poll() if process is not None else None
+                          for name, process in (('make', flutter), ('xcodebuild', driver))}
+            def retain_phase_diagnostics() -> None:
+                # Independent descriptors avoid changing a still-live peer's
+                # stdout offset. Preserve the original failure before cleanup.
+                for command, path in (('make', temporary / f'flutter-{phase}.log'),
+                                      ('xcodebuild', temporary / f'browser-{phase}.log')):
+                    transcript = path.read_text(errors='replace')
+                    if transcript:
+                        diagnostic = retain_private_diagnostic(transcript)
+                        status = exit_codes[command]
+                        code = str(status) if isinstance(status, int) and -999 <= status <= 999 else 'unavailable'
+                        print(f'NATIVE_IOS_COMMAND_RESULT status=failed command={command} phase={phase} exitCode={code} privateDiagnostic={diagnostic.name}', flush=True)
             try:
                 try:
-                    if driver is not None:
-                        stop_flutter_process_group(driver)
+                    if not phase_succeeded:
+                        retain_phase_diagnostics()
                 finally:
-                    if flutter is not None:
-                        stop_flutter_process_group(flutter)
+                    try:
+                        if driver is not None:
+                            stop_flutter_process_group(driver)
+                    finally:
+                        if flutter is not None:
+                            stop_flutter_process_group(flutter)
             finally:
-                # Retain only allowlisted diagnostic stages even if tool startup
-                # or cleanup failed; stages never substitute for passing tests.
+                # Export only allowlisted stages even if tool startup or cleanup
+                # failed; private transcripts never become uploaded evidence.
                 flutter_log.seek(0)
                 browser_log.seek(0)
-                emit_phase_stages(phase, flutter_log.read(), browser_log.read())
+                flutter_observed = flutter_log.read()
+                browser_observed = browser_log.read()
+                if phase_succeeded and sys.exc_info()[0] is not None:
+                    retain_phase_diagnostics()
+                emit_phase_stages(phase, flutter_observed, browser_observed)
                 private_fixture.unlink(missing_ok=True)
                 completion.unlink(missing_ok=True)
                 if barrier is not None:
