@@ -264,6 +264,26 @@ class ImpactTest(unittest.TestCase):
         gradle = (root / 'gradle/tasks/verification.gradle').read_text()
         self.assertIn("inputs.files(fileTree('.github/workflows') { include '*.yml', '*.yaml' })", gradle)
 
+    def test_core_verifies_draft_source_without_repeating_unchanged_readiness(self):
+        root = Path(__file__).resolve().parents[1]
+        core = (root / '.github/workflows/ci.yml').read_text()
+        events = core.split('on:\n', 1)[1].split('\npermissions:', 1)[0]
+        pr_events = events.split('  pull_request:\n', 1)[1].split('  merge_group:', 1)[0]
+        self.assertEqual(re.findall(r'^      - ([a-z_]+)$', pr_events, re.MULTILINE),
+                         ['opened', 'synchronize', 'reopened'])
+        self.assertIn('  push:\n    branches:\n      - dev\n      - main\n', events)
+        self.assertIn('  merge_group:\n', events)
+        self.assertIn('  workflow_dispatch:\n', events)
+        self.assertNotIn('ready_for_review', core)
+        self.assertNotIn('pull_request.draft', core)
+        self.assertNotIn('github.event.action', core)
+        self.assertIn('    name: Gradle CI\n    if: always()\n', core)
+        self.assertIn('run: python3 tools/dev_ci_results.py', core)
+        for workflow in ('main-promotion-gate.yml', 'release-notes-label.yml'):
+            document = (root / '.github/workflows' / workflow).read_text()
+            event_block = document.split('on:\n', 1)[1].split('\npermissions:', 1)[0]
+            self.assertIn('      - ready_for_review\n', event_block)
+
     def test_workflow_runs_freshness_before_selection_and_boundary_separately(self):
         root = Path(__file__).resolve().parents[1]
         workflow = (root/'.github/workflows/ci.yml').read_text()
