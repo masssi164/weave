@@ -4,6 +4,7 @@ import re
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from tools import dev_ci_impact as impact
 from tools import dev_ci_results as results
@@ -52,6 +53,78 @@ class ImpactTest(unittest.TestCase):
         self.assertTrue(selected['client'])
         self.assertFalse(selected['user'])
         self.assertFalse(selected['admin'])
+
+    def test_reviewed_native_inputs_keep_client_checks_without_consumer_regeneration(self):
+        native_inputs = (
+            'client/Makefile',
+            'client/integration_test/system_browser_auth_e2e_test.dart',
+            'client/tool/ios_browser_driver/BrowserDriver.swift',
+            'client/tool/run_ios_simulator_product_acceptance.py',
+            'client/tool/native_qualification_test.py',
+        )
+        self.assertEqual(impact.CLIENT_NON_CONSUMER_INPUTS, frozenset(native_inputs))
+        for paths in ([path] for path in native_inputs):
+            with self.subTest(paths=paths):
+                selected = impact.select(paths)
+                self.assertFalse(selected['user'])
+                self.assertFalse(selected['admin'])
+                self.assertTrue(all(selected[gate] for gate in ('client', 'infra', 'docs')))
+        self.assertFalse(impact.select(list(native_inputs))['user'])
+        for native in native_inputs:
+            for consumer_input in ('contracts/openapi/weave-user-openapi.json',
+                                   'client/lib/generated/user_api/api.dart',
+                                   'client/pubspec.lock'):
+                for paths in ([native, consumer_input], [consumer_input, native]):
+                    with self.subTest(paths=paths):
+                        self.assertTrue(impact.select(paths)['user'])
+
+    def test_temporal_verification_and_unreviewed_client_tools_select_user_gate(self):
+        for path in (
+            'client/test/integrations/weave_api/data/services/generated_calendar_time_value_test.dart',
+            'client/tool/new_qualification.py',
+            'client/tool/ios_browser_driver/Unknown.swift',
+            'client/integration_test/new_browser_test.dart',
+            'client/hook/build.dart', 'client/pubspec.yaml', 'client/pubspec.lock',
+            'client/analysis_options.yaml', 'client/dart_test.yaml',
+        ):
+            with self.subTest(path=path):
+                selected = impact.select([path])
+                self.assertTrue(selected['user'])
+                self.assertTrue(selected['client'])
+        self.assertTrue(impact.select(['rust/matrix-client/src/lib.rs'])['user'])
+        self.assertTrue(all(impact.select(['tools/generate_client_user_api.py']).values()))
+
+    def test_native_renames_and_consumer_deletions_use_complete_actual_git_inputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            def git(*args):
+                return subprocess.check_output(['git', '-C', tmp, *args],
+                                               stderr=subprocess.DEVNULL).decode().strip()
+            git('init'); git('config', 'user.email', 'ci@example.invalid'); git('config', 'user.name', 'CI')
+            native = root / 'client/tool/native_qualification_test.py'
+            generated = root / 'client/lib/generated/user_api/api.dart'
+            temporal = root / impact.USER_TEMPORAL_VERIFICATION
+            for path in (native, generated, temporal):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('fixture')
+            git('add', '.'); git('commit', '-m', 'base')
+            base = git('rev-parse', 'HEAD')
+            native.rename(native.with_name('unreviewed_native_test.py'))
+            generated.unlink()
+            temporal.unlink()
+            git('add', '.'); git('commit', '-m', 'rename and delete')
+            real_run = subprocess.run
+            with patch('tools.dev_ci_impact.subprocess.run',
+                       side_effect=lambda *args, **kwargs: real_run(*args, cwd=tmp, **kwargs)):
+                paths = impact.changed_paths(base)
+            self.assertEqual(set(paths), {
+                'client/tool/native_qualification_test.py', 'client/tool/unreviewed_native_test.py',
+                'client/lib/generated/user_api/api.dart', impact.USER_TEMPORAL_VERIFICATION,
+            })
+            self.assertTrue(impact.select(paths)['user'])
+            for path in paths:
+                if path != 'client/tool/native_qualification_test.py':
+                    self.assertTrue(impact.select([path])['user'])
 
     def test_docs_and_server_internal_changes_skip_consumers(self):
         for path in ('docs/architecture.md', 'server/src/main/java/InternalService.java'):
@@ -190,6 +263,26 @@ class ImpactTest(unittest.TestCase):
         self.assertNotIn('pull_request_target', labels)
         gradle = (root / 'gradle/tasks/verification.gradle').read_text()
         self.assertIn("inputs.files(fileTree('.github/workflows') { include '*.yml', '*.yaml' })", gradle)
+
+    def test_core_verifies_draft_source_without_repeating_unchanged_readiness(self):
+        root = Path(__file__).resolve().parents[1]
+        core = (root / '.github/workflows/ci.yml').read_text()
+        events = core.split('on:\n', 1)[1].split('\npermissions:', 1)[0]
+        pr_events = events.split('  pull_request:\n', 1)[1].split('  merge_group:', 1)[0]
+        self.assertEqual(re.findall(r'^      - ([a-z_]+)$', pr_events, re.MULTILINE),
+                         ['opened', 'synchronize', 'reopened'])
+        self.assertIn('  push:\n    branches:\n      - dev\n      - main\n', events)
+        self.assertIn('  merge_group:\n', events)
+        self.assertIn('  workflow_dispatch:\n', events)
+        self.assertNotIn('ready_for_review', core)
+        self.assertNotIn('pull_request.draft', core)
+        self.assertNotIn('github.event.action', core)
+        self.assertIn('    name: Gradle CI\n    if: always()\n', core)
+        self.assertIn('run: python3 tools/dev_ci_results.py', core)
+        for workflow in ('main-promotion-gate.yml', 'release-notes-label.yml'):
+            document = (root / '.github/workflows' / workflow).read_text()
+            event_block = document.split('on:\n', 1)[1].split('\npermissions:', 1)[0]
+            self.assertIn('      - ready_for_review\n', event_block)
 
     def test_workflow_runs_freshness_before_selection_and_boundary_separately(self):
         root = Path(__file__).resolve().parents[1]
