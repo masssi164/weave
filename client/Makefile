@@ -70,7 +70,7 @@ native-browser-e2e:
 	if [ "$${WEAVE_NATIVE_EXPECT_SIMULATOR:-false}" = "true" ] && [ "$${WEAVE_DEVICE_PRODUCT_E2E:-false}" = "true" ]; then \
 	  case "$${WEAVE_DEVICE_PRODUCT_PHASE:-initial}" in initial|restore) ;; *) echo 'Unsupported simulator product phase.' >&2; exit 2 ;; esac; \
 	  case '$(native_simulator_action)' in \
-	    build) flutter build ios --simulator --debug --no-codesign \
+	    build) flutter build ios --simulator --debug \
 	      --target=integration_test/system_browser_auth_e2e_test.dart --dart-define-from-file="$$dart_defines_file" ;; \
 	    attach) test -n '$(native_simulator_vm_uri)' || { echo 'Owned simulator VM service is required.' >&2; exit 2; }; \
 	      python3 -c 'import sys; sys.path.insert(0, "tool"); import run_ios_simulator_product_acceptance as native; native.owned_vm_service_uri(native.simulator_vm.VM_EVENT_PREFIX + sys.argv[1])' '$(native_simulator_vm_uri)'; \

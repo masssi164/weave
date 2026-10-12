@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -14,6 +15,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
+import 'package:weave/core/bootstrap/presentation/bootstrap_gate.dart';
+import 'package:weave/core/widgets/error_state.dart';
+import 'package:weave/core/widgets/loading_state.dart';
+import 'package:weave/features/onboarding/presentation/organization_access_screen.dart';
 import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
@@ -89,6 +94,97 @@ void _nativeProductDiagnostic(String message) => emitNativeProductDiagnostic(
     const String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID'),
   ),
 );
+
+String nativeBootstrapDiagnostic({
+  required String asyncState,
+  required String bootstrapPhase,
+  required String failureType,
+  required String causeType,
+  required String platformCode,
+  required String lifecycle,
+  required Map<String, int> counts,
+  required bool simulatorDriver,
+  required bool productEnabled,
+  required bool disposable,
+  required bool offline,
+}) {
+  String known(String value, List<String> allowed) =>
+      allowed.contains(value) ? value : 'unavailable';
+  final code =
+      RegExp(r'^-?[0-9]{1,6}$').stringMatch(platformCode) == platformCode
+      ? platformCode
+      : 'unavailable';
+  return 'NATIVE_PRODUCT_STAGE phase=shell-bootstrap-failed '
+      'asyncState=${known(asyncState, ['loading', 'error', 'data'])} '
+      'bootstrapPhase=${known(bootstrapPhase, ['loading', 'needsSetup', 'needsSignIn', 'ready', 'error'])} '
+      'failureType=${known(failureType, ['none', 'bootstrap', 'storage', 'validation', 'unknown'])} '
+      'causeType=${known(causeType, ['none', 'AppFailure', 'AuthFailure', 'PlatformException', 'StateError', 'FormatException', 'TimeoutException', 'SocketException', 'FlutterAppAuthPlatformException'])} '
+      'platformCode=$code '
+      'lifecycle=${known(lifecycle, ['resumed', 'inactive', 'hidden', 'paused', 'detached'])} '
+      '${['root', 'bootstrapGate', 'error', 'loading', 'onboarding', 'signIn', 'workspace'].map((key) => '${key}Count=${(counts[key] ?? 0).clamp(0, 999)}').join(' ')} '
+      'simulatorDriver=$simulatorDriver productEnabled=$productEnabled '
+      'disposable=$disposable offline=$offline';
+}
+
+void _reportNativeBootstrapFailure(WidgetTester tester, TestConfig config) {
+  final root = find.byType(WeaveApp);
+  var asyncState = 'unavailable';
+  var bootstrapPhase = 'unavailable';
+  AppFailure? failure;
+  Object? error;
+  if (root.evaluate().length == 1) {
+    final container = ProviderScope.containerOf(tester.element(root));
+    container
+        .read(appBootstrapProvider)
+        .when(
+          loading: () => asyncState = 'loading',
+          error: (cause, _) {
+            asyncState = 'error';
+            error = cause;
+            if (cause is AppFailure) failure = cause;
+          },
+          data: (state) {
+            asyncState = 'data';
+            bootstrapPhase = state.phase.name;
+            failure = state.failure;
+          },
+        );
+  }
+  final cause = failure?.cause ?? error;
+  _nativeProductDiagnostic(
+    nativeBootstrapDiagnostic(
+      asyncState: asyncState,
+      bootstrapPhase: bootstrapPhase,
+      failureType: failure?.type.name ?? 'none',
+      causeType: cause?.runtimeType.toString() ?? 'none',
+      platformCode: cause is PlatformException ? cause.code : '',
+      lifecycle: tester.binding.lifecycleState?.name ?? 'unavailable',
+      counts: {
+        'root': root.evaluate().length,
+        'bootstrapGate': find.byType(BootstrapGate).evaluate().length,
+        'error': find.byType(ErrorState).evaluate().length,
+        'loading': find.byType(LoadingState).evaluate().length,
+        'onboarding': find.byType(OrganizationAccessScreen).evaluate().length,
+        'signIn': find
+            .byKey(const ValueKey('weave.auth.sign-in'))
+            .evaluate()
+            .length,
+        'workspace': find
+            .byKey(const ValueKey('weave.workspace.home'))
+            .evaluate()
+            .length,
+      },
+      simulatorDriver: _usesSimulatorDriver(
+        const String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID'),
+      ),
+      productEnabled: const bool.fromEnvironment(
+        'WEAVE_SINGLE_SIGN_IN_PRODUCT_E2E',
+      ),
+      disposable: const bool.fromEnvironment('WEAVE_DEVICE_DISPOSABLE_STACK'),
+      offline: config.offlineContractOnly,
+    ),
+  );
+}
 
 // flutter drive preserves the simulator installation between process phases;
 // select the same journey formerly selected by flutter test --plain-name.
@@ -1234,10 +1330,15 @@ Future<ProviderContainer> _openWeaveSession(
       child: const WeaveApp(),
     ),
   );
-  await _waitForAny(tester, const [
-    ValueKey('weave.auth.sign-in'),
-    ValueKey('weave.workspace.home'),
-  ], timeout: const Duration(minutes: 1));
+  try {
+    await _waitForAny(tester, const [
+      ValueKey('weave.auth.sign-in'),
+      ValueKey('weave.workspace.home'),
+    ], timeout: const Duration(minutes: 1));
+  } catch (_) {
+    _reportNativeBootstrapFailure(tester, config);
+    rethrow;
+  }
   if (requireFreshSignIn) {
     expect(
       find.byKey(const ValueKey('weave.auth.sign-in')),

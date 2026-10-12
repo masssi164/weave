@@ -39,7 +39,7 @@ XCODE_VERSION = '26.5'
 XCODE_BUILD = '17F42'
 IOS_SIMULATOR_SDK_VERSION = '26.5'
 SAFE_PRODUCT_STAGES = {
-    'shell-ready', 'driver-attached', 'sign-in-tapped', 'appauth-requested', 'auth-failed',
+    'shell-ready', 'shell-bootstrap-failed', 'driver-attached', 'sign-in-tapped', 'appauth-requested', 'auth-failed',
     'appauth-pending', 'workspace-ready', 'files-start', 'files-passed',
     'calendar-start', 'calendar-agenda-failed', 'calendar-passed',
     'matrix-start', 'matrix-open-failed', 'matrix-admission',
@@ -150,6 +150,29 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
                 print(f'IOS_DIAGNOSTIC journey={phase} {marker} supportSafe=true', flush=True)
             if len(seen) >= 40:
                 return
+    if phase in {'initial', 'restore'}:
+        # The producer maps unknown enums to unavailable and bounds counts.
+        # Require its entire ordered record; never forward error text or config.
+        enums = {
+            'asyncState': 'loading|error|data|unavailable',
+            'bootstrapPhase': 'loading|needsSetup|needsSignIn|ready|error|unavailable',
+            'failureType': 'none|bootstrap|storage|validation|unknown|unavailable',
+            'causeType': 'none|AppFailure|AuthFailure|PlatformException|StateError|FormatException|TimeoutException|SocketException|FlutterAppAuthPlatformException|unavailable',
+            'platformCode': '-?[0-9]{1,6}|unavailable',
+            'lifecycle': 'resumed|inactive|hidden|paused|detached|unavailable',
+        }
+        pattern = r'(?:flutter: )?(NATIVE_PRODUCT_STAGE phase=shell-bootstrap-failed '
+        pattern += ' '.join(key + r'=(?:' + values + r')' for key, values in enums.items())
+        pattern += ' ' + ' '.join(key + r'Count=[0-9]{1,3}' for key in ('root', 'bootstrapGate', 'error', 'loading', 'onboarding', 'signIn', 'workspace'))
+        pattern += ' ' + ' '.join(key + r'=(?:true|false)' for key in ('simulatorDriver', 'productEnabled', 'disposable', 'offline')) + ')'
+        records = set()
+        for line in flutter_output.split('\n'):
+            match = re.fullmatch(pattern, line)
+            if match is not None and match[1] not in records:
+                records.add(match[1])
+                print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} {match[1]} supportSafe=true', flush=True)
+            if len(records) >= 3:
+                break
     # Only complete fixed-format numeric control diagnostics may leave the
     # private transcript. Do not retain labels, values or trailing messages.
     if phase in {'initial', 'restore'}:

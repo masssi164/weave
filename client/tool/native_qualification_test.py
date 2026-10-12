@@ -606,6 +606,9 @@ elif sys.argv[1] in ('test', 'drive', 'build'):
         values['_probe_keep_app']='--keep-app-running' in sys.argv
         values['_probe_driver']=next((a for a in sys.argv if a.startswith('--driver=')), '')
         values['_probe_existing']=next((a for a in sys.argv if a.startswith('--use-existing-app=')), '')
+        values['_probe_no_codesign']='--no-codesign' in sys.argv
+        values['_probe_simulator']='--simulator' in sys.argv
+        values['_probe_debug']='--debug' in sys.argv
         json.dump(values, output)
 else:
     sys.exit(2)
@@ -669,6 +672,9 @@ else:
                         defines = json.loads((temporary / 'defines.json').read_text())
                         self.assertEqual(defines['_probe_command'], 'build')
                         self.assertEqual(defines['WEAVE_DEVICE_PRODUCT_PHASE'], 'initial')
+                        self.assertFalse(defines['_probe_no_codesign'])
+                        self.assertTrue(defines['_probe_simulator'])
+                        self.assertTrue(defines['_probe_debug'])
                     else:
                         self.assertFalse((temporary / 'defines.json').exists())
 
@@ -811,6 +817,65 @@ void main() {
                 'NATIVE_PRODUCT_INITIAL_RESULT status=passed',
                 'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed'])
             self.assertNotIn('private-output', result.stdout + result.stderr)
+
+    def test_actual_bootstrap_diagnostic_formats_only_fixed_enums_and_bounded_counts(self):
+        dart = shutil.which('dart')
+        if dart is None:
+            self.skipTest('Dart SDK unavailable')
+        source = (Path(__file__).resolve().parents[1] / 'integration_test/system_browser_auth_e2e_test.dart').read_text()
+        helper = source.split('String nativeBootstrapDiagnostic(', 1)[1].split('\nvoid _reportNativeBootstrapFailure(', 1)[0]
+        with tempfile.TemporaryDirectory() as name:
+            probe = Path(name) / 'bootstrap.dart'
+            probe.write_text('String nativeBootstrapDiagnostic(' + helper + '''
+void main() {
+  print(nativeBootstrapDiagnostic(asyncState: 'data', bootstrapPhase: 'error', failureType: 'storage',
+    causeType: 'PlatformException', platformCode: '-34018', lifecycle: 'resumed',
+    counts: {'root': 1, 'bootstrapGate': 1, 'error': 1},
+    simulatorDriver: true, productEnabled: true, disposable: true, offline: false));
+  print(nativeBootstrapDiagnostic(asyncState: 'private@example.invalid', bootstrapPhase: 'https://private.invalid',
+    failureType: 'private-password', causeType: 'private-token', platformCode: '-34018 private', lifecycle: 'private-body',
+    counts: {'root': -1, 'error': 10000, 'private-password': 10},
+    simulatorDriver: false, productEnabled: false, disposable: false, offline: true));
+}
+''')
+            result = subprocess.run([dart, 'run', str(probe)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            records = result.stdout.splitlines()
+            self.assertEqual(len(records), 2)
+            self.assertIn('asyncState=data bootstrapPhase=error failureType=storage causeType=PlatformException platformCode=-34018 lifecycle=resumed', records[0])
+            self.assertIn('rootCount=1 bootstrapGateCount=1 errorCount=1 loadingCount=0 onboardingCount=0 signInCount=0 workspaceCount=0', records[0])
+            self.assertIn('asyncState=unavailable bootstrapPhase=unavailable failureType=unavailable causeType=unavailable platformCode=unavailable lifecycle=unavailable', records[1])
+            self.assertIn('rootCount=0 bootstrapGateCount=0 errorCount=999', records[1])
+            self.assertNotIn('private', result.stdout + result.stderr)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                ios.emit_phase_stages('initial', result.stdout, '')
+            self.assertEqual(output.getvalue().count('IOS_FLUTTER_DIAGNOSTIC'), 2)
+
+    def test_bootstrap_diagnostic_relay_rejects_private_and_unbounded_records(self):
+        record = ('NATIVE_PRODUCT_STAGE phase=shell-bootstrap-failed asyncState=data bootstrapPhase=error '
+                  'failureType=storage causeType=PlatformException platformCode=-34018 lifecycle=resumed '
+                  'rootCount=1 bootstrapGateCount=1 errorCount=1 loadingCount=0 onboardingCount=0 signInCount=0 workspaceCount=0 '
+                  'simulatorDriver=true productEnabled=true disposable=true offline=false')
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', record + '\nflutter: ' + record, '')
+        self.assertEqual(output.getvalue().count('IOS_FLUTTER_DIAGNOSTIC'), 1)
+        invalid = [record + ' private-password', 'flutter: flutter: ' + record, '00:01 +1: ' + record,
+                   record + '\rprivate', record.replace('asyncState=data', 'asyncState=private'),
+                   record.replace('platformCode=-34018', 'platformCode=-3401800'),
+                   record.replace('rootCount=1', 'rootCount=1000'), record.replace('rootCount=1', 'rootCount=-1'),
+                   record.replace('simulatorDriver=true', 'simulatorDriver=private'),
+                   record.replace('phase=shell-bootstrap-failed', 'phase=private')]
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('restore', '\n'.join(invalid), '')
+        self.assertNotIn('IOS_FLUTTER_DIAGNOSTIC', output.getvalue())
+        self.assertNotIn('private', output.getvalue())
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', '\n'.join(record.replace('rootCount=1', f'rootCount={i}') for i in range(10)), '')
+        self.assertEqual(output.getvalue().count('IOS_FLUTTER_DIAGNOSTIC'), 3)
 
     def test_initial_process_stop_requires_exact_identity_and_absence(self):
         executable = Path('/owned/device/Runner.app/Runner')
