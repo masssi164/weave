@@ -1,7 +1,7 @@
 package com.massimotter.weave.e2e;
 
 import com.massimotter.weave.userapi.model.AuthenticatedUserResponse;
-import com.massimotter.weave.userapi.model.PlatformConfigResponse;
+import com.massimotter.weave.userapi.model.OrgManifestResponse;
 import com.massimotter.weave.userapi.model.ProductProfileResponse;
 import com.massimotter.weave.userapi.model.WorkspaceHomeRecentActivityResponse;
 import com.massimotter.weave.userapi.model.WorkspaceHomeResponse;
@@ -633,7 +633,7 @@ final class CollaborationJourney {
     try {
       control("chat-provider-stop-proof", "WEAVE_CHAT_PROVIDER_CONTROL_RESULT state=stopped");
       providerStopped = true;
-      PlatformConfigResponse platform =
+      OrgManifestResponse platform =
           new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
               .platformConfig();
       if (!Integer.valueOf(2).equals(platform.getSchemaVersion())
