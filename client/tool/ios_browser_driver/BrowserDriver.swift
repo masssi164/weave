@@ -127,6 +127,19 @@ final class BrowserDriver: XCTestCase {
     let appBundleIdentifier: String
     let phase: String
     let nativeAuthCompletionPath: String
+    // Private simulator harness initiator; absent preserves native tap consumers.
+    let flutterInitiatesSignIn: Bool?
+  }
+
+  func testPrivateSignInInitiatorDefaultsToNativeAndRejectsInvalidType() throws {
+    let base = "\"email\":\"fixture@example.invalid\",\"password\":\"nonsecret\",\"issuerHost\":\"auth.weave.localhost\",\"appBundleIdentifier\":\"com.massimotter.weave\",\"phase\":\"initial\",\"nativeAuthCompletionPath\":\"/private/owned/workspace.ready\""
+    func decode(_ additional: String) throws -> Fixture {
+      try JSONDecoder().decode(Fixture.self, from: Data(("{" + base + additional + "}").utf8))
+    }
+    XCTAssertNotEqual(try decode("").flutterInitiatesSignIn, true)
+    XCTAssertNotEqual(try decode(",\"flutterInitiatesSignIn\":false").flutterInitiatesSignIn, true)
+    XCTAssertEqual(try decode(",\"flutterInitiatesSignIn\":true").flutterInitiatesSignIn, true)
+    XCTAssertThrowsError(try decode(",\"flutterInitiatesSignIn\":\"true\""))
   }
 
   enum PasswordPromptReadiness { case absent, ambiguous, waiting, ready }
@@ -494,8 +507,11 @@ final class BrowserDriver: XCTestCase {
       XCTAssertTrue(signIn.waitForExistence(timeout: 30), "Expected native Sign in control")
       XCTAssertEqual(signInControls.count, 1)
       XCTAssertTrue(signIn.isHittable, "Native Sign in control must be accessible")
-      signIn.tap()
-      print("NATIVE_IOS_BROWSER_STAGE phase=sign-in-tapped")
+      print("NATIVE_IOS_BROWSER_STAGE phase=sign-in-control-observed")
+      if fixture.flutterInitiatesSignIn != true {
+        signIn.tap()
+        print("NATIVE_IOS_BROWSER_STAGE phase=sign-in-tapped")
+      }
     }
     var usernameSubmitted = false
     while Date() < deadline {

@@ -40,7 +40,7 @@ XCODE_BUILD = '17F42'
 IOS_SIMULATOR_SDK_VERSION = '26.5'
 SAFE_PRODUCT_STAGES = {
     'shell-ready', 'shell-bootstrap-failed', 'shell-bootstrap-diagnostic-unavailable',
-    'driver-attached', 'sign-in-tapped', 'appauth-requested', 'auth-failed',
+    'driver-attached', 'flutter-sign-in-tapped', 'sign-in-tapped', 'appauth-requested', 'auth-failed',
     'appauth-pending', 'workspace-ready', 'files-start', 'files-passed',
     'calendar-start', 'calendar-agenda-failed', 'calendar-passed',
     'matrix-start', 'matrix-open-failed', 'matrix-admission',
@@ -50,7 +50,7 @@ SAFE_PRODUCT_STAGES = {
     'own-room-leave-denied', 'logout-denial-passed',
 }
 SAFE_BROWSER_STAGES = {
-    'driver-started', 'sign-in-tapped', 'app-wait-started', 'app-observed', 'issuer-observed',
+    'driver-started', 'sign-in-control-observed', 'sign-in-tapped', 'app-wait-started', 'app-observed', 'issuer-observed',
     'username-submitted', 'password-submitted', 'password-save-declined', 'auth-completion-observed', 'password-return-submitted',
 }
 
@@ -579,7 +579,8 @@ def terminate_initial_app(udid: str, expected_pid: str, timeout: float = 10) -> 
     raise NativeFailure('infrastructure', 'process-restart', 'initial-process-remained-running')
 
 
-def release_driver_barrier(flutter, driver, log_path: Path, udid: str, pid: str, barrier: Path, phase: str, timeout: float = 90) -> None:
+def release_driver_barrier(flutter, driver, log_path: Path, udid: str, pid: str, barrier: Path, phase: str, timeout: float = 90, *, require_sign_in_observation: bool = False) -> None:
+    required_stage = 'sign-in-control-observed' if require_sign_in_observation else 'app-observed'
     deadline = time.monotonic() + timeout
     with log_path.open() as observer:
         tail = ''
@@ -587,7 +588,7 @@ def release_driver_barrier(flutter, driver, log_path: Path, udid: str, pid: str,
             observed = tail + observer.read(65536)
             if flutter.poll() is not None or driver.poll() is not None:
                 raise NativeFailure('infrastructure', phase + '-driver-attach', 'process-exited-before-attachment')
-            if 'NATIVE_IOS_BROWSER_STAGE phase=app-observed' in observed:
+            if any(line == f'NATIVE_IOS_BROWSER_STAGE phase={required_stage}' for line in observed.split('\n')[:-1]):
                 if simulator_app_pid(udid) != pid:
                     raise NativeFailure('infrastructure', phase + '-driver-attach', 'integration-process-replaced')
                 descriptor = os.open(barrier, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)

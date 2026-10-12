@@ -320,16 +320,32 @@ void main() {
         );
         await barrier.delete();
         _stage('driver-attached');
-        // Actual XCTest taps the accessible Sign In control and supplies credentials
-        // exclusively to the real issuer web form through ASWebAuthenticationSession.
-        await _wait(
-          tester,
-          () => find
-              .byKey(const ValueKey('weave.workspace.home'))
-              .evaluate()
-              .isNotEmpty,
-          const Duration(minutes: 5),
-        );
+        // XCTest has verified the unique hittable native control before releasing
+        // this barrier. Flutter now performs one real product UI action; XCTest
+        // exclusively operates the actual system browser and issuer form.
+        expect(signIn, findsOneWidget);
+        await _tap(tester, signIn);
+        _stage('flutter-sign-in-tapped');
+        try {
+          await _wait(
+            tester,
+            () => find
+                .byKey(const ValueKey('weave.workspace.home'))
+                .evaluate()
+                .isNotEmpty,
+            const Duration(minutes: 5),
+          );
+        } catch (_) {
+          await safelyReportDualOnboardingFailure(
+            report: () => _reportOnboardingFailure(
+              tester,
+              role,
+              l10n.signInButton,
+            ).timeout(const Duration(seconds: 5)),
+            unavailable: () => _stage('onboarding-diagnostic-unavailable'),
+          );
+          rethrow;
+        }
       } else {
         await _wait(
           tester,

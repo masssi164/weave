@@ -1063,6 +1063,40 @@ void main() {
             self.assertEqual(barrier.read_bytes(), b'')
             self.assertEqual(barrier.stat().st_mode & 0o777, 0o600)
 
+    def test_dual_attachment_waits_for_native_control_not_merely_live_app(self):
+        for marker in ['app-observed', 'sign-in-control-observed']:
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                log = root / 'browser.log'
+                log.write_text('NATIVE_IOS_BROWSER_STAGE phase=' + marker + '\n')
+                barrier = root / 'ready'
+                flutter, driver = unittest.mock.Mock(), unittest.mock.Mock()
+                flutter.poll.return_value = driver.poll.return_value = None
+                with patch.object(ios, 'simulator_app_pid', return_value='123'), redirect_stdout(io.StringIO()):
+                    if marker == 'sign-in-control-observed':
+                        ios.release_driver_barrier(flutter, driver, log, 'owned', '123', barrier, 'initial',
+                                                   timeout=0.1, require_sign_in_observation=True)
+                        self.assertEqual(barrier.stat().st_mode & 0o777, 0o600)
+                    else:
+                        with self.assertRaises(ios.NativeFailure) as failure:
+                            ios.release_driver_barrier(flutter, driver, log, 'owned', '123', barrier, 'initial',
+                                                       timeout=0.1, require_sign_in_observation=True)
+                        self.assertEqual(failure.exception.reason, 'driver-attachment-timeout')
+                        self.assertFalse(barrier.exists())
+
+    def test_dual_attachment_rejects_partial_or_private_embedded_observation(self):
+        for marker in ['NATIVE_IOS_BROWSER_STAGE phase=sign-in-control-observed',
+                       'private NATIVE_IOS_BROWSER_STAGE phase=sign-in-control-observed\n',
+                       'NATIVE_IOS_BROWSER_STAGE phase=sign-in-control-observed private\n']:
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as name:
+                root = Path(name); log = root / 'browser.log'; log.write_text(marker)
+                flutter, driver = unittest.mock.Mock(), unittest.mock.Mock()
+                flutter.poll.return_value = driver.poll.return_value = None
+                with self.assertRaises(ios.NativeFailure):
+                    ios.release_driver_barrier(flutter, driver, log, 'owned', '123', root / 'ready', 'initial',
+                                               timeout=0.1, require_sign_in_observation=True)
+                self.assertFalse((root / 'ready').exists())
+
     def test_attachment_timeout_does_not_release_readiness(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)

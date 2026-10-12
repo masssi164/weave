@@ -384,7 +384,8 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
         raise ios.NativeFailure('infrastructure', 'dual-browser', 'missing-actor-test-plan')
     completion = ios.prepare_workspace_completion(temporary, 'initial')
     browser_fixture = dict(email=actor['email'], password=actor['password'], issuerHost='auth.weave.localhost',
-                           appBundleIdentifier=ios.BUNDLE, phase='initial', nativeAuthCompletionPath=str(completion))
+                           appBundleIdentifier=ios.BUNDLE, phase='initial', nativeAuthCompletionPath=str(completion),
+                           flutterInitiatesSignIn=True)
     private = bundles[0] / 'private-member.json'; private.write_text(json.dumps(browser_fixture)); private.chmod(0o600)
     flutter = driver = None
     succeeded = False
@@ -398,7 +399,7 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
                                        '-destination', 'platform=iOS Simulator,id=' + udid,
                                        '-parallel-testing-enabled', 'NO', '-resultBundlePath', str(temporary / 'browser.xcresult')],
                                       env=env, stdout=browser_log, stderr=subprocess.STDOUT, start_new_session=True))
-            ios.release_driver_barrier(flutter, driver, temporary / 'browser-initial.log', udid, pid, barrier, 'initial')
+            ios.release_driver_barrier(flutter, driver, temporary / 'browser-initial.log', udid, pid, barrier, 'initial', require_sign_in_observation=True)
             if not ios.relay_workspace_completion(flutter, driver, temporary / 'flutter-initial.log', completion, 'initial'):
                 raise ios.NativeFailure('integration', 'dual-authentication', 'workspace-not-observed')
             if driver.wait(timeout=420) != 0:
