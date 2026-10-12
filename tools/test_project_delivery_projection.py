@@ -1,6 +1,9 @@
 """Project evidence projection fails closed without inventing human acceptance."""
 import argparse
+import io
+import json
 import unittest
+import zipfile
 from unittest.mock import patch
 from tools import sprint_bootstrap as board
 from tools import verify_main_promotion_evidence as evidence
@@ -54,6 +57,33 @@ class ProjectionTest(unittest.TestCase):
             target.side_effect = ValueError('missing/failed/stale evidence')
             with self.assertRaises(ValueError): self.verify()
             target.side_effect = None
+
+    def test_hil_rejects_actual_old_and_single_ios_artifacts_before_preparation(self):
+        # Exercise the real promotion validator with only GitHub transport stubbed.
+        from tools.test_verify_main_promotion_evidence import TOOLCHAIN, dual_ios_proof
+        self.patches[2].stop()
+        self.latest.update(status='completed', conclusion='success')
+        self.mocks[5].return_value = [
+            {'name': name, 'conclusion': 'success'} for name in evidence.REQUIRED_JOBS]
+        single = dual_ios_proof()
+        single['actors'] = single['actors'][:1]
+        native = {
+            'schemaVersion': 'weave.native-qualification/v2', 'candidateCommit': SHA,
+            'sourceTree': TREE, 'specificationCommit': SPEC, 'toolchain': TOOLCHAIN,
+            'macos': {'status': 'passed'}, 'iosSimulator': {
+                'status': 'passed', 'rustTarget': 'aarch64-apple-ios-sim', 'collaboration': single},
+            'cleanupComplete': True, 'supportSafe': True, 'containsSecretValues': False,
+        }
+        for version in ('weave.native-qualification/v1', 'weave.native-qualification/v2'):
+            with self.subTest(version=version):
+                native['schemaVersion'] = version
+                archive = io.BytesIO()
+                with zipfile.ZipFile(archive, 'w') as bundle:
+                    bundle.writestr('native-qualification.json', json.dumps(native))
+                with patch.object(evidence, 'download_artifact', return_value=archive.getvalue()):
+                    with self.assertRaisesRegex(ValueError, 'Mandatory native qualification'):
+                        self.verify()
+                self.mocks[3].assert_not_called()
 
     def test_missing_explicit_item_association_fails(self):
         self.mocks[6].return_value = {'closingIssuesReferences': []}

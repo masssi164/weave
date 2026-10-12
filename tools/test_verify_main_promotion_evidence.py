@@ -77,6 +77,41 @@ HUMAN = "\n".join(
 
 
 class MainPromotionEvidenceTest(unittest.TestCase):
+    def test_physical_preparation_rejects_a_superseded_qualified_ancestor(self) -> None:
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/ios-dogfood.yml').read_text()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkout = root / 'checkout'
+            checkout.mkdir()
+            def git(*args: str) -> str:
+                return subprocess.check_output(['git', '-C', str(checkout), *args], text=True,
+                                               stderr=subprocess.DEVNULL).strip()
+            subprocess.run(['git', 'init', '--bare', '--quiet', str(root / 'origin.git')], check=True)
+            git('init', '--quiet')
+            git('config', 'user.name', 'Disposable preparation test')
+            git('config', 'user.email', 'gate@example.invalid')
+            git('-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'Qualified candidate')
+            stale = git('rev-parse', 'HEAD')
+            git('-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'New Dogfood candidate')
+            current = git('rev-parse', 'HEAD')
+            git('remote', 'add', 'origin', str(root / 'origin.git'))
+            git('push', '--quiet', 'origin', 'HEAD:refs/heads/dogfood')
+            for name, boundary in (
+                ('Verify current protected dogfood candidate', None),
+                ('Start dogfood twice and prove TLS identity is stable', './gradlew'),
+                ('Build, sign, install in place, and launch on physical iPhone', 'tools/dogfood_iphone_entry.sh'),
+            ):
+                step = workflow.split(f'      - name: {name}\n', 1)[1].split('      - name:', 1)[0]
+                script = '\n'.join(line[10:] for line in step.split('        run: |\n', 1)[1].splitlines())
+                if boundary:
+                    script = script.split(boundary, 1)[0]
+                for candidate, expected in ((stale, 1), (current, 0)):
+                    git('checkout', '--quiet', '--detach', candidate)
+                    result = subprocess.run(['bash', '-c', script], cwd=checkout,
+                                            env={**os.environ, 'DOGFOOD_COMMIT': candidate},
+                                            capture_output=True, text=True)
+                    self.assertEqual(result.returncode, expected, (name, result.stderr))
+
     def test_native_qualification_requires_both_platforms_exact_identity_and_cleanup(self) -> None:
         valid = {
             "schemaVersion": "weave.native-qualification/v2", "candidateCommit": SHA,
@@ -96,6 +131,9 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         for outcome in ("failed", "not-available", "skipped"):
             self.assertFalse(native_qualification_passed({**valid, "iosSimulator": {
                 "status": outcome, "rustTarget": "aarch64-apple-ios-sim"}}, SHA, OTHER, "c" * 40))
+        for platform in ("macos", "iosSimulator"):
+            for malformed in (None, [], "passed"):
+                self.assertFalse(native_qualification_passed({**valid, platform: malformed}, SHA, OTHER, "c" * 40))
 
     def test_dual_ios_rejects_single_sequential_reused_and_api_only_evidence(self) -> None:
         from tools.verify_main_promotion_evidence import dual_ios_collaboration_passed

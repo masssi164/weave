@@ -109,6 +109,7 @@ public class PlatformContractService {
         try {
             URI uri = URI.create(value.trim());
             if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
+                    || uri.getPort() == 0 || uri.getPort() > 65535
                     || uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null
                     || ("organizationOrigin".equals(field) && !uri.getPath().isEmpty() && !"/".equals(uri.getPath()))) {
                 throw new IllegalArgumentException("Unsafe public origin");
