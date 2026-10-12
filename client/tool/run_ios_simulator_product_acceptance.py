@@ -45,7 +45,7 @@ SAFE_PRODUCT_STAGES = {
 }
 SAFE_BROWSER_STAGES = {
     'driver-started', 'sign-in-tapped', 'app-wait-started', 'app-observed', 'issuer-observed',
-    'username-submitted', 'password-submitted', 'password-save-declined', 'auth-completion-observed',
+    'username-submitted', 'password-submitted', 'password-save-declined', 'auth-completion-observed', 'password-return-submitted',
 }
 
 

@@ -162,18 +162,107 @@ final class BrowserDriver: XCTestCase {
     return true
   }
 
+  static func returnRecoveryEligible(
+    settled: Bool, promptSeen: Bool, issuerObserved: Bool, leafCount: Int,
+    passwordCount: Int, submitCount: Int, passwordHittable: Bool, submitHittable: Bool,
+    usernameCount: Int, usernameMatches: Bool, secureLengthMatches: Bool,
+    providerErrorCount: Int, blockingAlertCount: Int
+  ) -> Bool {
+    settled && !promptSeen && issuerObserved && leafCount == 1 && passwordCount == 1 &&
+      submitCount == 1 && passwordHittable && submitHittable && usernameCount <= 1 &&
+      usernameCount >= 0 && (usernameCount == 0 || usernameMatches) && secureLengthMatches &&
+      providerErrorCount == 0 && blockingAlertCount == 0
+  }
+
+  func testReturnRecoveryRejectsChangedOrAmbiguousProviderState() {
+    func eligible(_ overrides: [String: Int] = [:]) -> Bool {
+      func count(_ key: String, _ fallback: Int) -> Int { overrides[key] ?? fallback }
+      return Self.returnRecoveryEligible(
+        settled: count("settled", 1) == 1, promptSeen: count("prompt", 0) == 1,
+        issuerObserved: count("issuer", 1) == 1, leafCount: count("leaf", 1),
+        passwordCount: count("password", 1), submitCount: count("submit", 1),
+        passwordHittable: count("passwordHittable", 1) == 1,
+        submitHittable: count("submitHittable", 1) == 1,
+        usernameCount: count("username", 0), usernameMatches: count("usernameMatches", 1) == 1,
+        secureLengthMatches: count("secureLength", 1) == 1,
+        providerErrorCount: count("error", 0), blockingAlertCount: count("alert", 0)
+      )
+    }
+    XCTAssertTrue(eligible())
+    XCTAssertTrue(eligible(["username": 1]))
+    for changed in [["settled": 0], ["prompt": 1], ["issuer": 0], ["leaf": 0], ["leaf": 2],
+                    ["password": 0], ["password": 2], ["submit": 0], ["submit": 2],
+                    ["passwordHittable": 0], ["submitHittable": 0], ["username": 2],
+                    ["username": 1, "usernameMatches": 0], ["secureLength": 0],
+                    ["error": 1], ["alert": 1]] {
+      XCTAssertFalse(eligible(changed))
+    }
+  }
+
   func waitForNativeWorkspace(
-    app: XCUIApplication, browser: XCUIApplication, fixture: Fixture, deadline: Date
+    app: XCUIApplication, browser: XCUIApplication, issuerSurface: XCUIApplication,
+    fixture: Fixture, deadline: Date
   ) -> Bool {
     var nextDiagnostic = Date.distantPast
+    let recoveryAfter = Date().addingTimeInterval(5)
+    var recoveryConsidered = false
+    var promptSeen = false
     let system = XCUIApplication(bundleIdentifier: "com.apple.springboard")
     while Date() < deadline {
-      guard declinePasswordSavePrompt(app: app, system: system) != nil else { return false }
+      guard let declined = declinePasswordSavePrompt(app: app, system: system) else { return false }
+      promptSeen = promptSeen || declined
       // Only the runner's observation of Flutter's real workspace assertion
       // releases this wait; a submit tap or disappearing browser never does.
       if Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath) {
         print("NATIVE_IOS_BROWSER_STAGE phase=auth-completion-observed")
         return true
+      }
+      if !recoveryConsidered && Date() >= recoveryAfter {
+        // One optional native Return on the freshly resolved original issuer form.
+        // No refill, further Return attempts, app activation, or representation-dependent pass.
+        recoveryConsidered = true
+        let state = issuerSurface.state
+        if !promptSeen && (state == .runningForeground || state == .runningBackground) {
+          let host = issuerSurface.descendants(matching: .any).matching(NSPredicate(
+            format: "label CONTAINS %@ OR value CONTAINS %@", fixture.issuerHost, fixture.issuerHost
+          ))
+          let webViews = issuerSurface.webViews
+          let leaves = Self.providerLeafIndices(
+            childWebViews: (0..<webViews.count).map { webViews.element(boundBy: $0).webViews.count },
+            formFields: (0..<webViews.count).map {
+              let web = webViews.element(boundBy: $0)
+              return web.textFields.count + web.secureTextFields.count
+            }
+          )
+          if host.count > 0 && leaves.count == 1 {
+            let provider = webViews.element(boundBy: leaves[0])
+            let passwords = provider.secureTextFields
+            let usernames = provider.textFields
+            let submits = provider.buttons.matching(NSPredicate(format: "label IN %@", Self.providerSubmitLabels))
+            let errors = webViews.descendants(matching: .any).matching(NSPredicate(
+              format: "label IN %@ OR value IN %@", Self.providerErrorLabels, Self.providerErrorLabels
+            )).count
+            let appRunning = app.state == .runningForeground || app.state == .runningBackground
+            let systemRunning = system.state == .runningForeground || system.state == .runningBackground
+            let alerts = (appRunning ? app.alerts.count : 0) + (systemRunning ? system.alerts.count : 0) +
+              issuerSurface.alerts.count
+            let usernameMatches = usernames.count == 1 && usernames.element.value as? String == fixture.email
+            let secureMatches = passwords.count == 1 &&
+              (passwords.element.value as? String)?.count == fixture.password.count
+            if Self.returnRecoveryEligible(
+              settled: true, promptSeen: promptSeen, issuerObserved: true, leafCount: leaves.count,
+              passwordCount: passwords.count, submitCount: submits.count,
+              passwordHittable: passwords.count == 1 && passwords.element.isHittable,
+              submitHittable: submits.count == 1 && submits.element.isHittable,
+              usernameCount: usernames.count, usernameMatches: usernameMatches,
+              secureLengthMatches: secureMatches, providerErrorCount: errors, blockingAlertCount: alerts
+            ) {
+              passwords.element.tap()
+              passwords.element.typeText(XCUIKeyboardKey.return.rawValue)
+              print("NATIVE_IOS_BROWSER_STAGE phase=password-return-submitted")
+            }
+          }
+        }
       }
       if Date() >= nextDiagnostic {
         var issuerSurfaces = 0
@@ -352,7 +441,7 @@ final class BrowserDriver: XCTestCase {
             XCTAssertTrue(submit.element.isHittable, "Identity-provider submit control must be accessible")
             submit.element.tap()
             print("NATIVE_IOS_BROWSER_STAGE phase=password-submitted")
-            guard waitForNativeWorkspace(app: app, browser: browser, fixture: fixture, deadline: deadline) else {
+            guard waitForNativeWorkspace(app: app, browser: browser, issuerSurface: surface, fixture: fixture, deadline: deadline) else {
               XCTFail("Native workspace did not follow identity-provider submission")
               return
             }

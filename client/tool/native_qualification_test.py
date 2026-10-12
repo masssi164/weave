@@ -114,6 +114,17 @@ class NativeQualificationTest(unittest.TestCase):
             ios.emit_phase_stages('private-journey', '', '\n'.join(safe))
         self.assertEqual(output.getvalue(), '')
 
+    def test_return_stage_is_fixed_and_never_exports_private_context(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', '',
+                'NATIVE_IOS_BROWSER_STAGE phase=password-return-submitted private-password\n'
+                'NATIVE_IOS_BROWSER_STAGE phase=private-return-result\n'
+                'NATIVE_IOS_BROWSER_STAGE phase=password-return-submitted-private\n')
+        self.assertEqual(output.getvalue().count('IOS_DIAGNOSTIC'), 1)
+        self.assertIn('phase=password-return-submitted supportSafe=true', output.getvalue())
+        self.assertNotIn('private-', output.getvalue())
+
     def test_runtime_must_be_available_and_apple_silicon(self):
         for entry in [
             {'identifier': ios.RUNTIME, 'isAvailable': False, 'supportedArchitectures': ['arm64']},
