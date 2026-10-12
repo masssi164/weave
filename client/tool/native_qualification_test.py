@@ -43,7 +43,7 @@ class NativeQualificationTest(unittest.TestCase):
 
     def test_provider_fields_and_submit_share_verified_leaf_scope(self):
         driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
-        provider = driver.split('for surface in [app, browser] {', 1)[1]
+        provider = driver.split('func testProductionBrowser', 1)[1].split('for surface in [app, browser] {', 1)[1]
         self.assertLess(provider.index('guard host.count > 0'), provider.index('let webViews'))
         self.assertIn('guard leaves.count == 1 else', provider)
         self.assertIn('let fields = provider.textFields', provider)
@@ -146,7 +146,7 @@ class NativeQualificationTest(unittest.TestCase):
                 def launch(arguments, **kwargs):
                     result = unittest.mock.Mock()
                     result.wait.return_value = 1 if arguments[0] == 'xcodebuild' else 0
-                    result.poll.return_value = None
+                    result.poll.return_value = 1 if arguments[0] == 'xcodebuild' else None
                     log = kwargs['stdout']
                     if arguments[0] == 'xcodebuild':
                         if waiting:
@@ -175,6 +175,150 @@ class NativeQualificationTest(unittest.TestCase):
                 self.assertNotIn('raw-private-email', output.getvalue())
                 self.assertFalse((bundle / 'private-member.json').exists())
                 self.assertFalse((temporary / 'ready').exists())
+                self.assertFalse((temporary / 'workspace-initial.ready').exists())
+
+    def test_workspace_relay_requires_exact_completed_marker_and_private_file(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / 'flutter.log'
+            completion = ios.prepare_workspace_completion(Path(name), 'initial')
+            flutter = unittest.mock.Mock()
+            driver = unittest.mock.Mock()
+            flutter.poll.return_value = driver.poll.return_value = None
+            output = io.StringIO()
+            with path.open('w+') as writer:
+                writer.write('private-email private-password\nNATIVE_PRODUCT_STAGE phase=workspace-ready\n')
+                writer.flush()
+                offset = writer.tell()
+                with redirect_stdout(output):
+                    self.assertTrue(ios.relay_workspace_completion(flutter, driver, path, completion, 'initial'))
+                self.assertEqual(writer.tell(), offset)
+            self.assertEqual(completion.read_text(), 'workspace-ready\n')
+            self.assertEqual(completion.stat().st_mode & 0o777, 0o600)
+            self.assertIn('source=flutter-workspace-assertion', output.getvalue())
+            self.assertNotIn('private-email', output.getvalue())
+            self.assertNotIn('private-password', output.getvalue())
+
+    def test_workspace_relay_rejects_partial_forged_and_oversized_lines(self):
+        for text in ['NATIVE_PRODUCT_STAGE phase=workspace-ready',
+                     'NATIVE_PRODUCT_STAGE phase=workspace-ready token=private-token\n',
+                     'prefix NATIVE_PRODUCT_STAGE phase=workspace-ready\n',
+                     'x' * 5000 + 'NATIVE_PRODUCT_STAGE phase=workspace-ready\n']:
+            with self.subTest(text=text[:30]), tempfile.TemporaryDirectory() as name:
+                path = Path(name) / 'flutter.log'
+                path.write_text(text)
+                completion = ios.prepare_workspace_completion(Path(name), 'initial')
+                flutter = unittest.mock.Mock()
+                driver = unittest.mock.Mock()
+                flutter.poll.return_value = driver.poll.return_value = None
+                with patch.object(ios.time, 'monotonic', side_effect=[0, 1, 3]), patch.object(ios.time, 'sleep'):
+                    with self.assertRaisesRegex(ios.NativeFailure, 'native-workspace-completion-timeout'):
+                        ios.relay_workspace_completion(flutter, driver, path, completion, 'initial', timeout=2)
+                self.assertFalse(completion.exists())
+
+    def test_workspace_relay_waits_for_split_marker_completed_newline(self):
+        with tempfile.TemporaryDirectory() as name:
+            completion = ios.prepare_workspace_completion(Path(name), 'initial')
+            flutter = unittest.mock.Mock()
+            driver = unittest.mock.Mock()
+            flutter.poll.return_value = driver.poll.return_value = None
+            fragments = iter(['NATIVE_PRODUCT_STA', 'GE phase=workspace-ready', '\n'])
+            observer = unittest.mock.Mock()
+            reads = []
+            def read(limit):
+                self.assertFalse(completion.exists())
+                reads.append(limit)
+                return next(fragments)
+            observer.read.side_effect = read
+            handle = unittest.mock.MagicMock()
+            handle.__enter__.return_value = observer
+            with redirect_stdout(io.StringIO()), patch.object(Path, 'open', return_value=handle),                     patch.object(ios.time, 'monotonic', side_effect=[0, 1, 2, 3, 5]), patch.object(ios.time, 'sleep'):
+                self.assertTrue(ios.relay_workspace_completion(flutter, driver, Path(name) / 'log', completion, 'initial', timeout=4))
+            self.assertEqual(reads, [65536, 65536, 65536])
+            self.assertEqual(completion.read_text(), 'workspace-ready\n')
+
+    def test_workspace_relay_never_overwrites_completion_path(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / 'flutter.log'
+            path.write_text('NATIVE_PRODUCT_STAGE phase=workspace-ready\n')
+            completion = ios.prepare_workspace_completion(Path(name), 'initial')
+            completion.write_text('stale-or-replaced')
+            flutter = unittest.mock.Mock()
+            driver = unittest.mock.Mock()
+            flutter.poll.return_value = driver.poll.return_value = None
+            with self.assertRaises(FileExistsError):
+                ios.relay_workspace_completion(flutter, driver, path, completion, 'initial')
+            self.assertEqual(completion.read_text(), 'stale-or-replaced')
+
+    def test_workspace_relay_never_signals_after_process_exit(self):
+        for flutter_status, driver_status, marker in [(7, None, ''), (7, None, 'NATIVE_PRODUCT_STAGE phase=workspace-ready\n'),
+                                                      (None, 0, 'NATIVE_PRODUCT_STAGE phase=workspace-ready\n')]:
+            with self.subTest(flutter_status=flutter_status, driver_status=driver_status), tempfile.TemporaryDirectory() as name:
+                path = Path(name) / 'flutter.log'
+                path.write_text(marker)
+                completion = ios.prepare_workspace_completion(Path(name), 'initial')
+                flutter = unittest.mock.Mock()
+                driver = unittest.mock.Mock()
+                flutter.poll.return_value, driver.poll.return_value = flutter_status, driver_status
+                if driver_status is not None:
+                    self.assertFalse(ios.relay_workspace_completion(flutter, driver, path, completion, 'initial'))
+                else:
+                    with self.assertRaises(ios.NativeFailure):
+                        ios.relay_workspace_completion(flutter, driver, path, completion, 'initial')
+                self.assertFalse(completion.exists())
+
+    def test_workspace_completion_clears_stale_and_rejects_symlink(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            completion = root / 'workspace-initial.ready'
+            completion.write_text('workspace-ready\n')
+            self.assertEqual(ios.prepare_workspace_completion(root, 'initial'), completion.resolve())
+            self.assertFalse(completion.exists())
+            target = root / 'private'
+            target.write_text('untouched')
+            completion.symlink_to(target)
+            with self.assertRaises(ios.NativeFailure):
+                ios.prepare_workspace_completion(root, 'initial')
+            self.assertEqual(target.read_text(), 'untouched')
+
+    def test_post_submit_diagnostics_never_export_private_text(self):
+        safe = 'NATIVE_IOS_POST_SUBMIT_STATE phase=pending issuerSurfaces=1 providerErrors=0 appAlertCount=1 systemAlertCount=0'
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', '', '\n'.join([safe, safe, safe + ' private-password',
+                safe.replace('pending', 'private-account'), safe.replace('providerErrors=0', 'providerErrors=private-token'),
+                safe.replace('appAlertCount=1', 'appAlertCount=private-alert'),
+                safe.replace('systemAlertCount=0', 'systemAlertCount=1000')]))
+        self.assertEqual(output.getvalue().count('IOS_POST_SUBMIT_DIAGNOSTIC'), 1)
+        self.assertIn('providerErrors=0 appAlertCount=1 systemAlertCount=0 supportSafe=true', output.getvalue())
+        for private in ('private-password', 'private-account', 'private-token', 'private-alert', '1000'):
+            self.assertNotIn(private, output.getvalue())
+
+    def test_password_prompt_decline_is_exact_alert_scoped_and_globally_unique(self):
+        driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
+        handler = driver.split('func declinePasswordSavePrompt', 1)[1].split('func waitForNativeWorkspace', 1)[0]
+        self.assertIn('app.alerts.matching(NSPredicate(format: "label IN %@", Self.passwordSaveTitles))', handler)
+        self.assertIn('system.alerts.matching(NSPredicate(format: "label IN %@", Self.passwordSaveTitles))', handler)
+        self.assertIn('Self.uniquePasswordDeclineSurface(', handler)
+        self.assertLess(handler.index('Self.uniquePasswordDeclineSurface('), handler.index('decline.tap()'))
+        self.assertIn('guard decline.isHittable', handler)
+        self.assertIn('prompt.waitForNonExistence(timeout: 10)', handler)
+        self.assertNotIn('.firstMatch', handler)
+        self.assertNotIn('app.activate()', handler)
+        self.assertIn('static let passwordDeclineLabels = ["Später", "Not Now"]', driver)
+        wait = driver.split('func waitForNativeWorkspace', 1)[1].split('func testProductionBrowser', 1)[0]
+        self.assertLess(wait.index('declinePasswordSavePrompt'), wait.index('Self.nativeWorkspaceObserved'))
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', '', 'NATIVE_IOS_BROWSER_STAGE phase=password-save-declined')
+        self.assertIn('NATIVE_IOS_BROWSER_STAGE phase=password-save-declined supportSafe=true', output.getvalue())
+
+    def test_ios_browser_pass_waits_for_real_workspace_signal(self):
+        driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
+        submitted = driver.split('phase=password-submitted', 1)[1]
+        self.assertLess(submitted.index('guard waitForNativeWorkspace'), submitted.index('status=passed phase=form-submitted'))
+        self.assertIn('if Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath)', driver)
+        self.assertIn('phase=auth-completion-observed', driver)
+        self.assertNotIn('app.activate()', driver.split('func waitForNativeWorkspace', 1)[1].split('func testProductionBrowser', 1)[0])
 
     def test_shell_observer_does_not_move_subprocess_writer_offset(self):
         with tempfile.TemporaryDirectory() as name:
@@ -403,12 +547,15 @@ else:
 
     def test_browser_surface_is_guarded_without_foreground_stealing(self):
         driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
-        browser_loop = driver.split('for surface in [app, browser] {', 1)[1]
+        browser_loop = driver.split('func testProductionBrowser', 1)[1].split('for surface in [app, browser] {', 1)[1]
         self.assertLess(browser_loop.index('guard surfaceState == .runningForeground || surfaceState == .runningBackground'),
                         browser_loop.index('surface.descendants'))
         self.assertEqual(driver.count('.activate()'), 1)
-        self.assertLess(driver.index('.activate()'), driver.index('while Date() < deadline'))
+        production = driver.split('func testProductionBrowser', 1)[1]
+        self.assertLess(production.index('.activate()'), production.index('while Date() < deadline'))
         self.assertNotIn('.activate()', browser_loop)
+        pending_loop = driver.split('func waitForNativeWorkspace', 1)[1].split('func testProductionBrowser', 1)[0]
+        self.assertLess(pending_loop.index('guard state == .runningForeground || state == .runningBackground'), pending_loop.index('surface.descendants'))
 
     def test_ios_failure_cannot_be_presented_as_macos_or_combined_success(self):
         with tempfile.TemporaryDirectory() as name:
