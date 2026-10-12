@@ -6,13 +6,16 @@ final class BrowserDriver: XCTestCase {
   static let consentLabels = ["Continue", "Fortfahren"]
   // Pinned Keycloak 26.7.1 doLogIn labels, independent of product/OS labels.
   static let providerSubmitLabels = ["Sign In", "Anmelden"]
-  // Exact failure messages from the same pinned provider's en/de resources.
-  static let providerErrorLabels = [
-    "Invalid username or password.", "Invalid username.", "Invalid password.",
-    "Account is disabled, contact your administrator.",
-    "Ungültiger Benutzername oder Passwort.", "Ungültiger Benutzername.",
-    "Ungültiges Passwort.", "Ihr Benutzerkonto ist gesperrt, bitte kontaktieren Sie den Admin."
+  // Exact failure messages from pinned Keycloak 26.7.1 en/de resources.
+  static let providerErrorCategories = [
+    "invalid-credentials": ["Invalid username or password.", "Ungültiger Benutzername oder Passwort."],
+    "invalid-username": ["Invalid username.", "Ungültiger Benutzername."],
+    "invalid-password": ["Invalid password.", "Ungültiges Passwort."],
+    "account-disabled": ["Account is disabled, contact your administrator.",
+                         "Ihr Benutzerkonto ist gesperrt, bitte kontaktieren Sie den Admin."]
   ]
+
+  static var providerErrorLabels: [String] { providerErrorCategories.values.flatMap { $0 } }
 
   // Observed iOS 26.5 password-save alert controls; never save test credentials.
   static let passwordSaveTitles = ["Passwort sichern?", "Save Password?"]
@@ -199,9 +202,17 @@ final class BrowserDriver: XCTestCase {
             print("NATIVE_IOS_PROVIDER_CONTROLS phase=post-submit leafWebViews=\(leaves.count) usernameFields=0 passwordFields=0 submitButtons=0")
           }
           // Count exact public provider errors without exporting UI text.
-          providerErrors += surface.webViews.staticTexts.matching(NSPredicate(
-            format: "label IN %@", Self.providerErrorLabels
+          let rendered = surface.webViews.descendants(matching: .any)
+          providerErrors += rendered.matching(NSPredicate(
+            format: "label IN %@ OR value IN %@", Self.providerErrorLabels, Self.providerErrorLabels
           )).count
+          // Browser error text can be rendered as a non-static accessibility role.
+          // Exact public labels only; nested wrappers can duplicate these diagnostic counts.
+          for category in Self.providerErrorCategories.keys.sorted() {
+            let labels = Self.providerErrorCategories[category]!
+            let count = rendered.matching(NSPredicate(format: "label IN %@ OR value IN %@", labels, labels)).count
+            print("NATIVE_IOS_PROVIDER_CONTROLS phase=provider-error category=\(category) matchingElements=\(min(count, 999))")
+          }
         }
         let appRunning = app.state == .runningForeground || app.state == .runningBackground
         let systemRunning = system.state == .runningForeground || system.state == .runningBackground
@@ -303,9 +314,15 @@ final class BrowserDriver: XCTestCase {
           }
           let provider = webViews.element(boundBy: leaves[0])
           let fields = provider.textFields.matching(NSPredicate(format: "label CONTAINS[c] 'email' OR label CONTAINS[c] 'username' OR identifier == 'username'"))
+          if !usernameSubmitted {
+            let hittable = fields.count == 1 && fields.element.isHittable
+            print("NATIVE_IOS_PROVIDER_CONTROLS phase=username-before usernameFields=\(min(fields.count, 999)) passwordFields=\(min(provider.secureTextFields.count, 999)) selectedFieldHittable=\(hittable)")
+          }
           if !usernameSubmitted && fields.count == 1 && fields.element.isHittable {
             fields.element.tap()
             fields.element.typeText(fixture.email)
+            let readbackEqual = fields.element.value as? String == fixture.email
+            print("NATIVE_IOS_PROVIDER_CONTROLS phase=username-after readbackEqual=\(readbackEqual)")
             let submit = provider.buttons.matching(NSPredicate(format: "label IN %@", Self.providerSubmitLabels))
             print("NATIVE_IOS_PROVIDER_CONTROLS phase=username leafWebViews=\(leaves.count) usernameFields=\(fields.count) passwordFields=\(provider.secureTextFields.count) submitButtons=\(submit.count)")
             XCTAssertEqual(submit.count, 1, "Expected one identity-provider submit control")
@@ -318,9 +335,17 @@ final class BrowserDriver: XCTestCase {
             continue
           }
           let passwords = provider.secureTextFields
+          if usernameSubmitted {
+            let hittable = passwords.count == 1 && passwords.element.isHittable
+            print("NATIVE_IOS_PROVIDER_CONTROLS phase=password-before usernameFields=\(min(fields.count, 999)) passwordFields=\(min(passwords.count, 999)) selectedFieldHittable=\(hittable)")
+          }
           if usernameSubmitted && passwords.count == 1 && passwords.element.isHittable {
             passwords.element.tap()
             passwords.element.typeText(fixture.password)
+            // Secure accessibility values can be masked or absent. Observe only;
+            // no representation-dependent assertion or raw length/value is exported.
+            let lengthEqual = (passwords.element.value as? String)?.count == fixture.password.count
+            print("NATIVE_IOS_PROVIDER_CONTROLS phase=password-after secureValueLengthEqual=\(lengthEqual)")
             let submit = provider.buttons.matching(NSPredicate(format: "label IN %@", Self.providerSubmitLabels))
             print("NATIVE_IOS_PROVIDER_CONTROLS phase=password leafWebViews=\(leaves.count) usernameFields=\(fields.count) passwordFields=\(passwords.count) submitButtons=\(submit.count)")
             XCTAssertEqual(submit.count, 1, "Expected one identity-provider submit control")
