@@ -7,15 +7,42 @@ import argparse
 import hashlib
 import json
 import subprocess
-import tempfile
-import urllib.request
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CERT_DIR = ROOT / "infra/weave-workspace/.generated/dogfood/tls"
+sys.path.insert(0, str(ROOT / "infra/weave-workspace/scripts"))
+from compose_env import load_context
+
+
+def canonical_origin(value: str) -> str:
+    if not isinstance(value, str) or any(character.isspace() for character in value):
+        raise ValueError("organization origin must not contain whitespace")
+    parsed = urlparse(value)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("invalid organization origin port") from exc
+    if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+            or parsed.password is not None or parsed.path not in ("", "/")
+            or parsed.params or parsed.query or parsed.fragment
+            or (port is not None and not 1 <= port <= 65535)):
+        raise ValueError("organization origin must be credential-free HTTPS with no path, query or fragment")
+    return f"https://{parsed.netloc}/"
+
+
+def bootstrap_context(public_url: str | None = None) -> dict:
+    if public_url is not None:
+        return {"organizationOrigin": canonical_origin(public_url), "tlsRoot": None,
+                "caFile": None, "localCaRequired": False}
+    context = load_context("dogfood", ROOT / "infra/weave-workspace")
+    ca = context.tls_root / "ca.pem"
+    return {"organizationOrigin": canonical_origin(context.env["WEAVE_PUBLIC_URL"]),
+            "tlsRoot": str(context.tls_root), "caFile": str(ca), "localCaRequired": True}
+
 
 
 def openssl_fingerprint(path: Path) -> str | None:
@@ -28,50 +55,6 @@ def openssl_fingerprint(path: Path) -> str | None:
     return output.split("=", 1)[1]
 
 
-def openssl_fingerprint_pem(pem: bytes) -> str | None:
-    if not pem:
-        return None
-    with tempfile.NamedTemporaryFile() as tmp:
-        tmp.write(pem)
-        tmp.flush()
-        return openssl_fingerprint(Path(tmp.name))
-
-
-def fetch_pem(url: str) -> bytes | None:
-    try:
-        with urllib.request.urlopen(url, timeout=5) as response:
-            return response.read()
-    except Exception:
-        return None
-
-
-def live_leaf_pem(host: str, connect_host: str, port: int) -> bytes | None:
-    try:
-        output = subprocess.check_output(
-            [
-                "openssl",
-                "s_client",
-                "-connect",
-                f"{connect_host}:{port}",
-                "-servername",
-                host,
-                "-showcerts",
-            ],
-            input=b"",
-            stderr=subprocess.DEVNULL,
-            timeout=10,
-        )
-    except Exception:
-        return None
-
-    start = output.find(b"-----BEGIN CERTIFICATE-----")
-    end = output.find(b"-----END CERTIFICATE-----", start)
-    if start == -1 or end == -1:
-        return None
-    end += len(b"-----END CERTIFICATE-----")
-    return output[start:end] + b"\n"
-
-
 def openssl_subject(path: Path) -> str | None:
     if not path.exists():
         return None
@@ -81,13 +64,36 @@ def openssl_subject(path: Path) -> str | None:
     ).strip()
 
 
-def openssl_subject_pem(pem: bytes | None) -> str | None:
-    if not pem:
-        return None
-    with tempfile.NamedTemporaryFile() as tmp:
-        tmp.write(pem)
-        tmp.flush()
-        return openssl_subject(Path(tmp.name))
+def validate_device_preferences(prefs: dict, bundle: dict, started: datetime,
+                                candidate: str, spec: str) -> None:
+    if bundle.get("stackCommit") != candidate or bundle.get("specRevision") != spec:
+        raise ValueError("handoff bundle candidate/specification mismatch")
+    origin = canonical_origin(bundle["organizationOrigin"])
+    host = urlparse(origin).hostname
+    if bundle["testerVisible"]["deepLink"] != "weave://join?" + urlencode({"organization_origin": origin}):
+        raise ValueError("handoff bundle is not the canonical organization-origin link")
+    for key, schema, field, expected in (
+        ("last_handoff_consumed_v1", "weave.client.last_handoff_consumed.v1", "result", "saved_configuration"),
+        ("dogfood_visible_state_v1", "weave.client.dogfood_visible_state.v1", "state", "handoff_ready"),
+        ("dogfood_auth_state_v1", "weave.client.dogfood_auth_state.v1", "state", "ready_for_sso"),
+    ):
+        value = json.loads(prefs[key])
+        if not isinstance(value, dict) or value.get("schemaVersion") != schema:
+            raise ValueError(f"{key}: malformed typed evidence")
+        recorded = datetime.fromisoformat(value["recordedAt"].replace("Z", "+00:00"))
+        if recorded.tzinfo is None or recorded < started or recorded > datetime.now(timezone.utc):
+            raise ValueError(f"{key}: stale or future evidence")
+        if (value.get(field) != expected or value.get("supportSafe") is not True
+                or value.get("organizationOriginHost") != host):
+            raise ValueError(f"{key}: discovery did not complete for this organization")
+        # Canonical URL-only entry has no activation/handoff identifiers. Those
+        # belong to the exact-source preparation bundle, never the member URL.
+        if "handoffRef" in value or "runId" in value:
+            raise ValueError(f"{key}: obsolete handoff evidence cannot qualify URL-only entry")
+        if key == "last_handoff_consumed_v1" and (
+                value.get("accessKind") != "server_uri" or value.get("platformConfigHost") != host
+                or value.get("platformConfigPath") != "/api/platform/config"):
+            raise ValueError("saved configuration did not use canonical OrgManifest discovery")
 
 
 def git_commit() -> str:
@@ -115,8 +121,7 @@ def write_markdown(path: Path, payload: dict[str, object]) -> None:
         f"- iOS deeplink: `{tester['deepLink']}`",
         f"- Activation invite ref: `{tester['activationInviteRef']}`",
         f"- Activation secret location: `{tester['activationSecretLocation']}`",
-        f"- CA URL: `{certs['caUrl']}`",
-        f"- CA LAN fallback: `{certs['caLanFallbackUrl']}`",
+        f"- Configured CA certificate file: `{certs['caFile']}`",
         f"- CA SHA256: `{certs['caSha256Fingerprint'] or 'unavailable until certs exist locally'}`",
         f"- Leaf SHA256: `{certs['leafSha256Fingerprint'] or 'unavailable until certs exist locally'}`",
         "",
@@ -160,72 +165,37 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-id", default="s32-massimo-dogfood")
     parser.add_argument("--handoff-ref", default="handoff-s32-massimo-dogfood-home")
-    parser.add_argument("--org", default="massimo-dogfood")
-    parser.add_argument("--workspace", default="home")
-    parser.add_argument("--profile", default="local-lan-dogfood")
-    parser.add_argument("--product-base-url", default="https://weave.test:44443")
-    parser.add_argument("--platform-config-url", default="https://weave.test:44443/api/platform/config")
-    parser.add_argument("--ca-url", default="http://weave.test:44080/weave-local-ca.pem")
-    parser.add_argument("--ca-lan-fallback-url", default="http://192.168.178.88:44080/weave-local-ca.pem")
-    parser.add_argument("--cert-dir", type=Path, default=DEFAULT_CERT_DIR)
-    parser.add_argument(
-        "--dogfood-route-mode",
-        choices=["local-stable-ca", "public-trusted-https"],
-        default=None,
-        help="Evidence mode for Massimo-facing dogfood links.",
-    )
-    parser.add_argument("--leaf-host", default="weave.test")
-    parser.add_argument("--leaf-connect-host", default="127.0.0.1")
-    parser.add_argument("--leaf-port", type=int, default=44443)
+    parser.add_argument("--product-base-url", help="Offline bundle override: one canonical HTTPS organization origin")
+    parser.add_argument("--print-context-json", action="store_true")
     parser.add_argument("--output-dir", type=Path, default=ROOT / "build/dogfood")
     args = parser.parse_args()
 
-    query = {
-        "handoff_ref": args.handoff_ref,
-        "org": args.org,
-        "workspace": args.workspace,
-        "profile": args.profile,
-        "run_id": args.run_id,
-    }
-    deep_link_query = dict(query)
-    deep_link_query["product_base_url"] = args.product_base_url
-    deep_link_query["platform_config_url"] = args.platform_config_url
-    web_join_url = f"{args.product_base_url}/join?{urlencode(query)}"
-    deep_link = f"weave://join?{urlencode(deep_link_query)}"
-    product_base = urlparse(args.product_base_url)
-    inferred_public_route = (
-        product_base.scheme == "https"
-        and product_base.hostname not in {"weave.test", "api.weave.test"}
-        and not str(product_base.hostname or "").endswith(".weave.test")
-    )
-    route_mode = args.dogfood_route_mode or (
-        "public-trusted-https" if inferred_public_route else "local-stable-ca"
-    )
+    context = bootstrap_context(args.product_base_url)
+    if args.print_context_json:
+        print(json.dumps(context))
+        return 0
+    origin = context["organizationOrigin"]
+    web_join_url = f"{origin}join"
+    deep_link = "weave://join?" + urlencode({"organization_origin": origin})
+    route_mode = "local-stable-ca" if context["localCaRequired"] else "public-trusted-https"
+    cert_dir = Path(context["tlsRoot"]) if context["tlsRoot"] else None
+    ca_file = cert_dir / "ca.pem" if cert_dir else None
+    leaf_file = cert_dir / "cert.pem" if cert_dir else None
+    ca_fingerprint = openssl_fingerprint(ca_file) if ca_file else None
+    leaf_fingerprint = openssl_fingerprint(leaf_file) if leaf_file else None
+    leaf_subject = openssl_subject(leaf_file) if leaf_file else None
 
-    ca_file = args.cert_dir / "ca.pem"
-    leaf_file = args.cert_dir / "cert.pem"
-    live_ca_pem = None if ca_file.exists() else fetch_pem(args.ca_url)
-    live_leaf = None if leaf_file.exists() else live_leaf_pem(
-        args.leaf_host,
-        args.leaf_connect_host,
-        args.leaf_port,
-    )
-    ca_fingerprint = openssl_fingerprint(ca_file) or openssl_fingerprint_pem(
-        live_ca_pem or b"",
-    )
-    leaf_fingerprint = openssl_fingerprint(leaf_file) or openssl_fingerprint_pem(
-        live_leaf or b"",
-    )
-    leaf_subject = openssl_subject(leaf_file) or openssl_subject_pem(live_leaf)
     payload: dict[str, object] = {
         "schemaVersion": "weave.dogfood.handoff-bundle.v1",
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "runId": args.run_id,
         "stackCommit": git_commit(),
+        "specRevision": json.loads((ROOT / "specs/weave-specs.lock.json").read_text())["specCorpus"]["gitCommit"],
+        "organizationOrigin": origin,
         "testerVisible": {
             "webJoinUrl": web_join_url,
             "deepLink": deep_link,
-            "platformConfigUrl": args.platform_config_url,
+            "platformConfigUrl": origin + "api/platform/config",
             "activationInviteRef": args.handoff_ref,
             "activationSecretLocation": "identity-provider-required-action-mail-only",
         },
@@ -244,17 +214,14 @@ def main() -> int:
             "mailpitLocalSafetyRequired": True,
         },
         "certificates": {
-            "caUrl": args.ca_url,
-            "caLanFallbackUrl": args.ca_lan_fallback_url,
+            "caFile": context["caFile"],
             "caSha256Fingerprint": ca_fingerprint,
             "leafSha256Fingerprint": leaf_fingerprint,
             "leafSubject": leaf_subject,
-            "persistedHostDirectory": str(args.cert_dir),
+            "persistedHostDirectory": context["tlsRoot"],
             "rotationPolicy": "never_rotate_unless_explicit",
             "physicalIphoneMustAlreadyTrustStableCa": route_mode == "local-stable-ca",
-            "fingerprintSource": "host-files"
-            if ca_file.exists() and leaf_file.exists()
-            else "live-endpoints",
+            "fingerprintSource": "host-files" if ca_file and ca_file.exists() and leaf_file.exists() else "unavailable",
         },
         "iosClient": {
             "bundleId": "com.massimotter.weave",

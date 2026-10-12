@@ -34,7 +34,7 @@ The installer defaults to `update_in_place`. It may uninstall only when a develo
 
 The active `Profile` configuration uses the Personal Team-compatible development entitlements: it preserves the Keychain application identity but omits Associated Domains, which Personal Development Teams cannot provision. The production `Release` configuration keeps the full Associated Domains entitlement. Dogfood login and handoff continue through the explicit AppAuth/custom-scheme path rather than universal links.
 
-TLS material lives outside Docker at `/Users/flotterotter/.weave/dogfood/generated/tls`. `dogfoodUp`, `dogfoodDown`, and `dogfoodReset` must not delete or rotate it. The Weave Local Development CA therefore normally needs to be installed and trusted on the iPhone only once.
+TLS material lives outside Docker at the reviewed environment’s `WEAVE_TLS_ROOT`. The physical entrypoint and TLS persistence workflow resolve it through `compose_env.load_context("dogfood", ...)`, using `WEAVE_ENV_FILE`. `dogfoodUp`, `dogfoodDown`, and `dogfoodReset` must not delete or rotate it. The Weave Local Development CA therefore normally needs to be installed and trusted on the iPhone only once.
 
 ## Before pressing Run
 
@@ -74,3 +74,8 @@ tools/dogfood_iphone_entry.sh --run --reset-mode update_in_place --transport wif
 ```
 
 Use `tools/dogfood_ios_session_restore_smoke.sh` after login when support-safe automated evidence of a successful session restore is useful. It does not read or export Keychain secrets.
+
+
+The physical entrypoint reads the same reviewed environment’s `WEAVE_PUBLIC_URL` as its single organization origin. It derives `/api/platform/config` there and launches `weave://join?organization_origin=...`; it never accepts separate API, auth, or platform-config overrides. Ports come from the reviewed environment, including installations using 80/443 or configurable bindings. `dogfood_handoff_bundle.py --product-base-url https://example.org/` remains a URL-only offline bundle override. This replaces the former `product_base_url`/`platform_config_url` handoff hints and fixed 44080/44443 defaults; historical Sprint 31 runbooks describe that retired path.
+
+The bundle records the exact source, pinned specification, preparation run and support-safe handoff reference outside the member URL. The configured CA certificate file is the manual trust setup source, not an assumed HTTP download endpoint. A `trusted` flag is a prerequisite only: physical preparation succeeds only after the installed app writes fresh typed `saved_configuration`, `handoff_ready`, and `ready_for_sso` evidence for the canonical origin after this launch. Saved configuration follows the real device HTTPS OrgManifest fetch and validation. Stale preferences, failed discovery, obsolete handoff identifiers, and candidate/specification mismatch block preparation. Preparation still does not establish human acceptance or completed SSO/product journeys.

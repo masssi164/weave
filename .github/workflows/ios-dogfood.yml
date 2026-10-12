@@ -162,7 +162,7 @@ jobs:
           [[ "$(git rev-parse origin/dogfood)" == "$DOGFOOD_COMMIT" ]]
           ./gradlew --no-daemon dogfoodUp
           python3 tools/dogfood_cert_persistence_smoke.py \
-            --cert-dir /Users/flotterotter/.weave/dogfood/generated/tls \
+            --cert-dir "$(python3 tools/dogfood_handoff_bundle.py --print-context-json | python3 -c 'import json,sys; print(json.load(sys.stdin)["tlsRoot"])')" \
             --recreate-command "./gradlew --no-daemon dogfoodUp" \
             --output build/evidence/prepare-human-test/tls-persistence.json
 

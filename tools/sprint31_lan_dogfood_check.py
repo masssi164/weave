@@ -246,12 +246,8 @@ def main() -> None:
             [
                 "python3",
                 "tools/dogfood_handoff_bundle.py",
-                "--dogfood-route-mode",
-                "public-trusted-https",
                 "--product-base-url",
                 "https://dogfood.example.invalid",
-                "--platform-config-url",
-                "https://dogfood.example.invalid/api/platform/config",
                 "--output-dir",
                 tmp,
             ],
