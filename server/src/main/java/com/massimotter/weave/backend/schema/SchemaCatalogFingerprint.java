@@ -64,7 +64,7 @@ final class SchemaCatalogFingerprint {
     String schema = connection.getSchema();
     DatabaseMetaData metadata = connection.getMetaData();
     Map<String, Map<String, Object>> tables = new TreeMap<>();
-    try (ResultSet rows = metadata.getTables(connection.getCatalog(), schema, "%", new String[] {"TABLE"})) {
+    try (ResultSet rows = metadata.getTables(connection.getCatalog(), schema, "%", legacyV2 ? new String[] {"TABLE"} : new String[] {"TABLE", "PARTITIONED TABLE"})) {
       while (rows.next()) {
         String table = rows.getString("TABLE_NAME");
         if (table != null
@@ -91,6 +91,31 @@ final class SchemaCatalogFingerprint {
   /** Owned schema objects outside JDBC's TABLE inventory must not escape catalog validation. */
   private static Map<String, Object> otherObjects(Connection connection, String schema) throws SQLException {
     Map<String, Object> objects = new LinkedHashMap<>();
+    // The accepted chain defines none of these behavior-changing objects. Presence
+    // is enough to reject drift; arguments, policy expressions and function bodies
+    // are deliberately excluded from support-safe catalog evidence.
+    objects.put("triggers", catalogRows(connection, schema, """
+        select c.relname as table_name,t.tgname as name,t.tgenabled::text as enabled,
+          fn.proname as function_name,fnns.nspname as function_schema
+        from pg_trigger t join pg_class c on c.oid=t.tgrelid
+          join pg_namespace n on n.oid=c.relnamespace
+          join pg_proc fn on fn.oid=t.tgfoid join pg_namespace fnns on fnns.oid=fn.pronamespace
+        where n.nspname=? and not t.tgisinternal order by c.relname,t.tgname
+        """));
+    objects.put("rules", catalogRows(connection, schema, """
+        select c.relname as table_name,r.rulename as name,r.ev_type::text as event,
+          r.ev_enabled::text as enabled,r.is_instead as instead
+        from pg_rewrite r join pg_class c on c.oid=r.ev_class
+          join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname=? and c.relkind not in ('v','m') order by c.relname,r.rulename
+        """));
+    objects.put("policies", catalogRows(connection, schema, """
+        select c.relname as table_name,p.polname as name,p.polcmd::text as command,
+          p.polpermissive as permissive
+        from pg_policy p join pg_class c on c.oid=p.polrelid
+          join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname=? order by c.relname,p.polname
+        """));
     objects.put("views", catalogRows(connection, schema, """
         select c.relname as name,c.relkind::text as kind,pg_get_viewdef(c.oid,true) as definition
         from pg_class c join pg_namespace n on n.oid=c.relnamespace
@@ -155,6 +180,19 @@ final class SchemaCatalogFingerprint {
       boolean legacyV2)
       throws SQLException {
     Map<String, Object> projection = new LinkedHashMap<>();
+    if (!legacyV2) {
+      try (var statement = connection.prepareStatement("select c.relkind::text,c.relrowsecurity,c.relforcerowsecurity "
+          + "from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname=? and c.relname=?")) {
+        statement.setString(1, schema);
+        statement.setString(2, table);
+        try (var rows = statement.executeQuery()) {
+          if (!rows.next()) throw new SQLException("Catalog table classification is unavailable");
+          projection.put("kind", rows.getString(1));
+          projection.put("rowSecurity", rows.getBoolean(2));
+          projection.put("forceRowSecurity", rows.getBoolean(3));
+        }
+      }
+    }
     List<Map<String, Object>> columns = new ArrayList<>();
     try (ResultSet rows = metadata.getColumns(connection.getCatalog(), schema, table, "%")) {
       while (rows.next()) {
