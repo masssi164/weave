@@ -150,14 +150,14 @@ Uri? _organizationAccessUri(String raw) {
   final parsed = Uri.tryParse(bareHost ? 'https://$input' : input);
   if (parsed == null || !parsed.isAbsolute || parsed.host.isEmpty) return null;
   if (parsed.scheme != 'https' && parsed.scheme != 'weave') return null;
-  if (parsed.userInfo.isNotEmpty) return null;
+  if (parsed.userInfo.isNotEmpty || parsed.hasFragment) return null;
 
   // Invitation, app-link and pasted QR payloads keep their signed/support-safe
   // handoff context. MemberHandoffParser performs the strict final validation.
   if ((parsed.scheme == 'https' && parsed.path == AppRoutes.join) ||
       (parsed.scheme == 'weave' &&
           (parsed.host == 'join' || parsed.path == AppRoutes.join))) {
-    return parsed;
+    return Uri.parse(normalizedJoinRouteLocation(parsed) ?? parsed.toString());
   }
   if (parsed.scheme != 'https' ||
       parsed.hasQuery ||

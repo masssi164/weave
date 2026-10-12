@@ -1,3 +1,11 @@
+import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
+import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:weave/core/widgets/error_state.dart';
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -176,6 +184,21 @@ class _FakeCalendarRepository implements CalendarRepository {
 }
 
 void main() {
+  test(
+    'startup app-link normalization never discards outer credentials or fragment',
+    () {
+      for (final link in [
+        'weave://join?organization_origin=https%3A%2F%2Fweave.example#fragment',
+        'weave://user:secret@join?organization_origin=https%3A%2F%2Fweave.example',
+      ]) {
+        expect(normalizedJoinRouteLocation(Uri.parse(link)), isNull);
+        expect(
+          initialLocationForDefaultRoute(link),
+          AppRoutes.organizationAccess,
+        );
+      }
+    },
+  );
   test('app-local reset consumes its control before canonical discovery', () {
     final clean = canonicalDogfoodAppStateResetLink(
       Uri.parse(
@@ -326,6 +349,127 @@ void main() {
       return container;
     }
 
+    for (final extra in [
+      '',
+      '&unexpected=1',
+      '&dogfood_reset=app_state',
+      '#fragment',
+      'outer-credentials',
+      'encoded-origin-credentials',
+    ]) {
+      testWidgets(
+        extra.isEmpty
+            ? 'pasted canonical app completion link reaches actual handoff discovery on needsSetup router'
+            : 'pasted app completion link rejects unsupported extra controls $extra',
+        (tester) async {
+          var discoveryCalls = 0;
+          final store = InMemoryPreferencesStore();
+          final client = MockClient((request) async {
+            discoveryCalls++;
+            expect(
+              request.url,
+              Uri.parse('https://weave.example/api/platform/config'),
+            );
+            final manifest =
+                jsonDecode(
+                      File(
+                        'test/fixtures/org_manifest_v2_valid.json',
+                      ).readAsStringSync(),
+                    )
+                    as Map<String, dynamic>;
+            manifest['organizationOrigin'] = 'https://weave.example';
+            return http.Response(
+              jsonEncode(manifest),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          });
+          final container = ProviderContainer.test(
+            overrides: [
+              preferencesStoreProvider.overrideWith((ref) => store),
+              secureStoreProvider.overrideWithValue(InMemorySecureStore()),
+              appStartDiscoveryClientProvider.overrideWithValue(
+                AppStartDiscoveryClient(httpClient: client),
+              ),
+              discoverOrganizationAccessProvider.overrideWith(
+                (ref) => DiscoverOrganizationAccess(
+                  repository: ref.watch(serverConfigurationRepositoryProvider),
+                  discoveryClient: AppStartDiscoveryClient(httpClient: client),
+                  evidenceStore: store,
+                ),
+              ),
+            ],
+          );
+          addTearDown(container.dispose);
+          final bootstrap = await container.read(appBootstrapProvider.future);
+          expect(bootstrap.phase, BootstrapPhase.needsSetup);
+          await tester.pumpWidget(
+            UncontrolledProviderScope(
+              container: container,
+              child: MaterialApp.router(
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                routerConfig: container.read(appRouterProvider),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.byType(OrganizationAccessScreen), findsOneWidget);
+          await tester.enterText(
+            find.byType(TextField),
+            extra == 'outer-credentials'
+                ? 'weave://user:secret@join?organization_origin=https%3A%2F%2Fweave.example'
+                : extra == 'encoded-origin-credentials'
+                ? 'weave://join?organization_origin=https%3A%2F%2Fuser%3Asecret%40weave.example'
+                : 'weave://join?organization_origin=https%3A%2F%2Fweave.example$extra',
+          );
+          await tester.tap(find.text('Continue to organization'));
+          for (var attempt = 0; attempt < 50; attempt++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 10)),
+            );
+            await tester.pumpAndSettle();
+            if (store.rawString(dogfoodVisibleStateStorageKey) != null) break;
+          }
+          final rejectedAtEntry = {
+            '#fragment',
+            'outer-credentials',
+          }.contains(extra);
+          expect(
+            find.byType(MemberHandoffScreen),
+            rejectedAtEntry ? findsNothing : findsOneWidget,
+          );
+          expect(
+            find.byType(OrganizationAccessScreen),
+            rejectedAtEntry ? findsOneWidget : findsNothing,
+          );
+          if (extra.isEmpty) {
+            expect(find.text('Sign In'), findsOneWidget);
+            expect(discoveryCalls, 1);
+            expect(
+              jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
+              'ready_for_sso',
+            );
+            final profile = await container.read(
+              savedServerConfigurationProvider.future,
+            );
+            expect(
+              profile!.organizationOrigin,
+              Uri.parse('https://weave.example/'),
+            );
+          } else {
+            if (!rejectedAtEntry) {
+              expect(find.byType(ErrorState), findsOneWidget);
+            }
+            expect(discoveryCalls, 0);
+            expect(
+              await container.read(savedServerConfigurationProvider.future),
+              isNull,
+            );
+          }
+        },
+      );
+    }
     testWidgets('shows organization access when no configuration exists', (
       tester,
     ) async {
