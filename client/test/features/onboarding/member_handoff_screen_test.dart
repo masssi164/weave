@@ -1,5 +1,10 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
+import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +25,7 @@ import 'package:weave/features/onboarding/presentation/member_handoff_screen.dar
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 import '../../helpers/in_memory_stores.dart';
+import '../../helpers/server_config_test_data.dart';
 import '../../../integration_test/dual_ios_collaboration_test.dart'
     show
         nativeDualHandoffSignIn,
@@ -151,6 +157,123 @@ void main() {
   );
 
   group('MemberHandoffScreen', () {
+    for (final successful in [true, false]) {
+      testWidgets(
+        successful
+            ? 'publishes discovery-saved canonical profile to existing null subscribers before ready UI'
+            : 'failed discovery preserves the existing canonical profile subscription',
+        (tester) async {
+          final store = InMemoryPreferencesStore();
+          final container = ProviderContainer(
+            overrides: [
+              preferencesStoreProvider.overrideWith((ref) => store),
+              discoverOrganizationAccessProvider.overrideWith(
+                (ref) => DiscoverOrganizationAccess(
+                  repository: ref.watch(serverConfigurationRepositoryProvider),
+                  evidenceStore: store,
+                  discoveryClient: AppStartDiscoveryClient(
+                    httpClient: MockClient((request) async {
+                      expect(
+                        request.url,
+                        Uri.parse('https://weave.example/api/platform/config'),
+                      );
+                      return http.Response(
+                        successful
+                            ? jsonEncode(
+                                (jsonDecode(
+                                        File(
+                                          'test/fixtures/org_manifest_v2_valid.json',
+                                        ).readAsStringSync(),
+                                      )
+                                      as Map<String, dynamic>)
+                                  ..['organizationOrigin'] =
+                                      'https://weave.example',
+                              )
+                            : '{}',
+                        successful ? 200 : 503,
+                        headers: {'content-type': 'application/json'},
+                      );
+                    }),
+                  ),
+                ),
+              ),
+            ],
+          );
+          addTearDown(container.dispose);
+          if (!successful) {
+            await container
+                .read(serverConfigurationRepositoryProvider)
+                .saveConfiguration(buildTestConfiguration());
+          }
+          final subscription = container.listen(
+            savedServerConfigurationProvider,
+            (_, _) {},
+          );
+          addTearDown(subscription.close);
+          final previous = await container.read(
+            savedServerConfigurationProvider.future,
+          );
+          if (successful) {
+            expect(previous, isNull);
+          } else {
+            expect(previous, isNotNull);
+          }
+          await tester.pumpWidget(
+            UncontrolledProviderScope(
+              container: container,
+              child: MaterialApp(
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: MemberHandoffScreen(
+                  uri: Uri.parse('https://weave.example'),
+                ),
+              ),
+            ),
+          );
+          // The generated HTTP client consumes an asynchronous response stream;
+          // wait for its real event-loop work before inspecting the ready frame.
+          for (var attempt = 0; attempt < 50; attempt++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 10)),
+            );
+            await tester.pumpAndSettle();
+            final raw = store.rawString(dogfoodAuthStateStorageKey);
+            if (raw != null &&
+                {
+                  'ready_for_sso',
+                  'recoverable_error',
+                }.contains(jsonDecode(raw)['state'])) {
+              break;
+            }
+          }
+          final current = await container.read(
+            savedServerConfigurationProvider.future,
+          );
+          if (successful) {
+            expect(nativeDualHandoffSignIn('Sign In'), findsOneWidget);
+            expect(current, isNotNull);
+            expect(
+              current!.organizationOrigin,
+              Uri.parse('https://weave.example/'),
+            );
+            expect(current.validatedManifest, isNotNull);
+            expect(current.manifestValidatedAt, isNotNull);
+            expect(
+              jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
+              'ready_for_sso',
+            );
+          } else {
+            expect(nativeDualHandoffSignIn('Sign In'), findsNothing);
+            expect(current, same(previous));
+            expect(
+              jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
+              'recoverable_error',
+            );
+          }
+        },
+      );
+    }
+
     testWidgets(
       'shows handoff-ready UI and records visible state after success',
       (tester) async {

@@ -18,6 +18,7 @@ import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 const dogfoodVisibleStateStorageKey = 'dogfood_visible_state_v1';
@@ -73,6 +74,9 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
           .read(discoverOrganizationAccessProvider)
           .call(widget.uri);
       if (mounted) {
+        // Discovery has committed the canonical profile. Refresh existing readers
+        // before exposing the action that starts OIDC and workspace consumers.
+        ref.invalidate(savedServerConfigurationProvider);
         setState(() => _access = access);
       }
     } catch (error) {
