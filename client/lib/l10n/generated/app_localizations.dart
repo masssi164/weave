@@ -5954,6 +5954,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This file cannot be viewed here. Use Export to open it in another app.'**
   String get filesPreviewUnsupported;
+
+  /// No description provided for @chatInvitationDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'You have been invited to this conversation. Join to read and send messages.'**
+  String get chatInvitationDescription;
+
+  /// No description provided for @chatInvitationAccept.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept invitation'**
+  String get chatInvitationAccept;
+
+  /// No description provided for @chatInvitationJoining.
+  ///
+  /// In en, this message translates to:
+  /// **'Joining…'**
+  String get chatInvitationJoining;
+
+  /// No description provided for @chatInvitationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The invitation could not be accepted. Check your access and try again.'**
+  String get chatInvitationFailed;
 }
 
 class _AppLocalizationsDelegate

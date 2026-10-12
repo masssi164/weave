@@ -64,7 +64,8 @@ def require_matrix_repository_contracts() -> None:
     require(
         "client/lib/features/chat/data/repositories/native_matrix_chat_repository.dart",
         "class NativeMatrixChatRepository",
-        "implements ChatRepository, ChatParticipantRepository",
+        "ChatParticipantRepository",
+        "ChatInvitationRepository",
         "RustMatrixCoreBridge",
         "loadRooms",
         "loadRoomMessages",
@@ -90,6 +91,20 @@ def require_matrix_repository_contracts() -> None:
         "opens the native Matrix client with the current Weave member token",
         "loss of current organization access drops the live Matrix client",
         "a changed manifest endpoint drops live Matrix access",
+    )
+    require(
+        "client/test/features/chat/chat_room_screen_test.dart",
+        "invited room requires confirmed acceptance; denied=",
+        "expect(repository.loadRoomTimelineCalls, 0)",
+        "chat-accept-invitation-button",
+    )
+    require(
+        "rust/matrix-client/src/flutter_crypto.rs",
+        "pub async fn accept_room_invitation",
+        "RoomState::Invited => room",
+        "M_WEAVE_CHAT_JOIN_DENIED",
+        "M_WEAVE_CHAT_JOIN_PENDING",
+        "M_WEAVE_CHAT_JOIN_REQUIRED",
     )
     require(
         "client/test/features/chat/chat_screen_test.dart",

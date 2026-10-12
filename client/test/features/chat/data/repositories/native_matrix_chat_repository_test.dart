@@ -135,7 +135,77 @@ class _ParticipantBridge extends FakeRustMatrixCoreBridge {
   }
 }
 
+class _InvitationBridge extends FakeRustMatrixCoreBridge {
+  _InvitationBridge(this.error);
+  final String? error;
+  String? joined;
+  @override
+  Future<void> acceptRoomInvitation({
+    required String profileKey,
+    required String roomId,
+  }) async {
+    expect(profileKey, isNotEmpty);
+    joined = roomId;
+    if (error != null) throw RustMatrixCoreBridgeException(error!);
+  }
+}
+
 void main() {
+  for (final error in <String?>[null, 'M_FORBIDDEN', 'M_UNKNOWN_TOKEN']) {
+    test(
+      'accept invitation forwards active profile and preserves refusal $error',
+      () async {
+        final bridge = _InvitationBridge(error);
+        final repository = NativeMatrixChatRepository(
+          matrixCryptoSessionCoordinator: FakeMatrixCryptoSessionPort(),
+          rustMatrixCoreBridge: bridge,
+        );
+        final operation = repository.acceptInvitation('!invite:api.weave.test');
+        if (error == null) {
+          await operation;
+        } else {
+          await expectLater(
+            operation,
+            throwsA(
+              isA<ChatFailure>().having(
+                (value) => value.type,
+                'type',
+                error == 'M_UNKNOWN_TOKEN'
+                    ? ChatFailureType.sessionRequired
+                    : ChatFailureType.protocol,
+              ),
+            ),
+          );
+        }
+        expect(bridge.joined, '!invite:api.weave.test');
+      },
+    );
+  }
+  test('SDK invited membership remains visible as an invitation', () async {
+    final bridge = FakeRustMatrixCoreBridge()
+      ..rooms = const [
+        RustMatrixEncryptedRoom(
+          roomId: '!invite:api.weave.test',
+          title: 'Invitation',
+          unreadCount: 0,
+          encrypted: false,
+          isInvite: true,
+        ),
+      ];
+    final repository = NativeMatrixChatRepository(
+      matrixCryptoSessionCoordinator: FakeMatrixCryptoSessionPort(),
+      rustMatrixCoreBridge: bridge,
+    );
+    expect((await repository.loadConversations()).single.isInvite, isTrue);
+    expect(
+      RustMatrixEncryptedRoom.fromJson({
+        'roomId': '!invite:api.weave.test',
+        'membership': 'invited',
+      }).isInvite,
+      isTrue,
+    );
+  });
+
   late FakeMatrixCryptoSessionPort cryptoSession;
   late FakeRustMatrixCoreBridge bridge;
 

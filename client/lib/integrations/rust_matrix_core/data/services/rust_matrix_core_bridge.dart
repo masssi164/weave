@@ -371,6 +371,7 @@ class RustMatrixEncryptedRoom {
     required this.title,
     required this.unreadCount,
     required this.encrypted,
+    this.isInvite = false,
   });
 
   factory RustMatrixEncryptedRoom.fromJson(Map<String, dynamic> json) {
@@ -379,6 +380,7 @@ class RustMatrixEncryptedRoom {
       title: _string(json['title']),
       unreadCount: _integer(json['unreadCount']),
       encrypted: json['encrypted'] == true,
+      isInvite: json['membership'] == 'invited',
     );
   }
 
@@ -386,6 +388,7 @@ class RustMatrixEncryptedRoom {
   final String title;
   final int unreadCount;
   final bool encrypted;
+  final bool isInvite;
 }
 
 class RustMatrixVerificationProjection {
@@ -603,6 +606,18 @@ class RustMatrixCoreBridge {
 
   Future<void> syncClient({required String profileKey}) async {
     await _native(() => syncMatrixClient(profileKey: profileKey));
+  }
+
+  Future<void> acceptRoomInvitation({
+    required String profileKey,
+    required String roomId,
+  }) async {
+    final result = await _native(
+      () => matrixAcceptRoomInvitation(profileKey: profileKey, roomId: roomId),
+    );
+    if (result['roomId'] != roomId || result['membership'] != 'joined') {
+      throw const RustMatrixCoreBridgeException('M_WEAVE_CHAT_JOIN_PENDING');
+    }
   }
 
   Future<List<RustMatrixEncryptedRoom>> loadRooms({

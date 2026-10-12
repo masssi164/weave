@@ -145,6 +145,14 @@ Future<String> matrixCreateBusinessRoomWithMembers({
   memberIds: memberIds,
 );
 
+Future<String> matrixAcceptRoomInvitation({
+  required String profileKey,
+  required String roomId,
+}) => RustLib.instance.api.crateFrbApiMatrixAcceptRoomInvitation(
+  profileKey: profileKey,
+  roomId: roomId,
+);
+
 Future<String> matrixRoomMessages({
   required String profileKey,
   required String roomId,
