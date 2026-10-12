@@ -29,6 +29,11 @@ class NativeQualificationTest(unittest.TestCase):
         client_patch = patch.object(ios, 'CLIENT', client)
         client_patch.start()
         self.addCleanup(client_patch.stop)
+        self.actual_phase_start = ios.start_phase_app
+        phase_start_patch = patch.object(ios, 'start_phase_app', side_effect=lambda udid, env:
+                                        (ios.simulator_app_pid(udid), 'http://127.0.0.1:12345/ownedDebug/'))
+        phase_start_patch.start()
+        self.addCleanup(phase_start_patch.stop)
 
     def test_private_command_diagnostic_permissions_and_symlink_rejection(self):
         private = 'raw-private-email raw-secret-password\n'
@@ -560,6 +565,7 @@ class NativeQualificationTest(unittest.TestCase):
                 clock = iter([0, 1, 901])
                 output = io.StringIO()
                 with redirect_stdout(output), patch.object(ios.subprocess, 'Popen', return_value=flutter) as launch, \
+                        patch.object(ios, 'simulator_app_pid', return_value='101'), \
                         patch.object(ios.time, 'monotonic', side_effect=lambda: next(clock)), \
                         patch.object(ios.time, 'sleep'), patch.object(ios, 'stop_flutter_process_group'), \
                         patch.object(ios, 'simulator_driver_barrier', return_value=temporary / 'ready'):
@@ -591,7 +597,7 @@ class NativeQualificationTest(unittest.TestCase):
 import json, os, sys
 if sys.argv[1] == 'devices':
     print(json.dumps([{'id': 'phone', 'emulator': False}, {'id': 'macos', 'emulator': False}, {'id': 'owned-sim', 'emulator': True}]))
-elif sys.argv[1] in ('test', 'drive'):
+elif sys.argv[1] in ('test', 'drive', 'build'):
     arg = next(item for item in sys.argv if item.startswith('--dart-define-from-file='))
     with open(arg.split('=', 1)[1]) as source, open(os.environ['HANDOFF_PROBE_OUTPUT'], 'w') as output:
         values=json.load(source)
@@ -599,6 +605,7 @@ elif sys.argv[1] in ('test', 'drive'):
         values['_probe_command']=sys.argv[1]
         values['_probe_keep_app']='--keep-app-running' in sys.argv
         values['_probe_driver']=next((a for a in sys.argv if a.startswith('--driver=')), '')
+        values['_probe_existing']=next((a for a in sys.argv if a.startswith('--use-existing-app=')), '')
         json.dump(values, output)
 else:
     sys.exit(2)
@@ -622,7 +629,10 @@ else:
                                 'WEAVE_DEVICE_OIDC_ISSUER_URL': 'https://auth.weave.localhost/realms/weave',
                                 'HANDOFF_PROBE_OUTPUT': str(temporary / 'defines.json')})
                     (temporary / 'defines.json').unlink(missing_ok=True)
-                    result = ios.subprocess.run(['make', target], cwd=Path(__file__).resolve().parents[1], env=env,
+                    arguments = ['make', target]
+                    if expected == 'true':
+                        arguments += ['native_simulator_action=attach', 'native_simulator_vm_uri=http://127.0.0.1:12345/ownedDebug/']
+                    result = ios.subprocess.run(arguments, cwd=Path(__file__).resolve().parents[1], env=env,
                                                 capture_output=True, text=True)
                     if phase == 'unsupported':
                         self.assertNotEqual(result.returncode, 0)
@@ -636,11 +646,99 @@ else:
                         self.assertEqual(defines['_probe_command'], 'drive')
                         self.assertTrue(defines['_probe_keep_app'])
                         self.assertEqual(defines['_probe_driver'], '--driver=test_driver/integration_test.dart')
+                        self.assertEqual(defines['_probe_existing'], '--use-existing-app=http://127.0.0.1:12345/ownedDebug/')
                         self.assertEqual(defines['WEAVE_DEVICE_PRODUCT_PHASE'], phase)
                     else:
                         self.assertEqual(defines['_probe_command'], 'test')
                         self.assertFalse(defines['_probe_keep_app'])
                         self.assertEqual(defines['_probe_reporter'], 'expanded')
+            env['WEAVE_DEVICE_PRODUCT_PHASE'] = 'initial'
+            for action, uri, succeeds in [('build', '', True), ('attach', '', False),
+                                         ('attach', 'http://other.invalid:12345/private/', False),
+                                         ('attach', 'http://127.0.0.1:12345/private/?query=private', False),
+                                         ('unsupported', '', False), ('', '', False)]:
+                with self.subTest(action=action):
+                    (temporary / 'defines.json').unlink(missing_ok=True)
+                    result = subprocess.run(['make', 'ios-simulator-product-e2e',
+                                             'native_simulator_action=' + action,
+                                             'native_simulator_vm_uri=' + uri],
+                                            cwd=Path(__file__).resolve().parents[1], env=env,
+                                            capture_output=True, text=True)
+                    self.assertEqual(result.returncode == 0, succeeds)
+                    if succeeds:
+                        defines = json.loads((temporary / 'defines.json').read_text())
+                        self.assertEqual(defines['_probe_command'], 'build')
+                        self.assertEqual(defines['WEAVE_DEVICE_PRODUCT_PHASE'], 'initial')
+                    else:
+                        self.assertFalse((temporary / 'defines.json').exists())
+
+    def test_owned_vm_uri_requires_bounded_loopback_event_and_never_exports_uri(self):
+        prefix = ios.simulator_vm.VM_EVENT_PREFIX
+        uri = 'http://127.0.0.1:12345/ownedDebug=/'
+        self.assertEqual(ios.owned_vm_service_uri(prefix + uri), uri)
+        for invalid in ['https://127.0.0.1:12345/code/', 'http://localhost:12345/code/',
+                        'http://other.invalid:12345/code/', 'http://user@127.0.0.1:12345/code/',
+                        'http://127.0.0.1:12345/code/?token=private',
+                        'http://127.0.0.1:12345/code/#private', 'http://127.0.0.1:99999/code/',
+                        'http://127.0.0.1:12345/' + 'x' * 512, uri + '\nprivate',
+                        'http://127.0.0.1:12345/code\r/', 'http://127.0.0.1:12345/code with space/']:
+            with self.subTest(invalid=invalid[:40]), redirect_stdout(io.StringIO()) as output:
+                with self.assertRaises(ios.NativeFailure) as raised:
+                    ios.owned_vm_service_uri(prefix + invalid)
+                self.assertNotIn(invalid, str(raised.exception))
+                self.assertEqual(output.getvalue(), '')
+
+    def test_owned_vm_discovery_requires_unchanged_pid_and_fresh_exact_query(self):
+        for pids, message, reason in [(['102'], None, 'owned-process-replaced'),
+                                     (['101', '102'], ios.simulator_vm.VM_EVENT_PREFIX + 'http://127.0.0.1:12345/code/', 'owned-process-replaced'),
+                                     (['101'], None, 'owned-vm-event-timeout'),
+                                     (['101', '101'], ios.simulator_vm.VM_EVENT_PREFIX + 'http://127.0.0.1:12345/code/', None)]:
+            with self.subTest(reason=reason), patch.object(ios, 'simulator_app_pid', side_effect=pids), \
+                    patch.object(ios.simulator_vm, 'query_vm_service_event', return_value=message) as query, \
+                    patch.object(ios.time, 'monotonic', side_effect=[0, 0, 46]), patch.object(ios.time, 'sleep'):
+                if reason is None:
+                    self.assertEqual(ios.discover_owned_vm_service('owned', '101', '2026-10-12 07:40:00'),
+                                     'http://127.0.0.1:12345/code/')
+                else:
+                    with self.assertRaises(ios.NativeFailure) as raised:
+                        ios.discover_owned_vm_service('owned', '101', '2026-10-12 07:40:00')
+                    self.assertEqual(raised.exception.reason, reason)
+                if query.called:
+                    query.assert_called_once_with('owned', 101, '2026-10-12 07:40:00')
+
+    def test_phase_app_build_install_paused_launch_precedes_owned_vm_discovery(self):
+        calls = []
+        def command(arguments, **kwargs):
+            calls.append(arguments)
+            return ios.BUNDLE + ': 101' if 'launch' in arguments else ''
+        with patch.object(ios, 'run', side_effect=command), \
+                patch.object(ios.simulator_vm, 'log_start_timestamp', return_value='2026-10-12 07:40:00'), \
+                patch.object(ios, 'discover_owned_vm_service', return_value='http://127.0.0.1:12345/privateDebug/') as discovery:
+            self.assertEqual(self.actual_phase_start('owned', {'WEAVE_DEVICE_PRODUCT_PHASE': 'restore'}),
+                             ('101', 'http://127.0.0.1:12345/privateDebug/'))
+        self.assertEqual(calls[0], ['make', 'ios-simulator-product-e2e', 'native_simulator_action=build'])
+        self.assertEqual(calls[1][:4], ['xcrun', 'simctl', 'install', 'owned'])
+        self.assertEqual(calls[2], ['xcrun', 'simctl', 'launch', 'owned', ios.BUNDLE,
+                                  '--enable-dart-profiling', '--disable-vm-service-publication', '--start-paused'])
+        discovery.assert_called_once_with('owned', '101', '2026-10-12 07:40:00')
+
+    def test_phase_build_and_invalid_launch_fail_before_vm_attachment(self):
+        for build_failed in (True, False):
+            with self.subTest(build_failed=build_failed):
+                call_count = 0
+                def command(arguments, **kwargs):
+                    nonlocal call_count
+                    call_count += 1
+                    if build_failed:
+                        raise ios.NativeFailure('infrastructure', 'native-tool', 'command-exit-failed')
+                    return 'other.bundle: 101' if 'launch' in arguments else ''
+                with patch.object(ios, 'run', side_effect=command), \
+                        patch.object(ios, 'discover_owned_vm_service') as discovery:
+                    with self.assertRaises(ios.NativeFailure) as raised:
+                        self.actual_phase_start('owned', {})
+                self.assertEqual(raised.exception.reason, 'command-exit-failed' if build_failed else 'invalid-owned-launch-identity')
+                self.assertEqual(call_count, 1 if build_failed else 3)
+                discovery.assert_not_called()
 
     def test_actual_dart_phase_selection_keeps_non_simulator_journeys(self):
         dart = shutil.which('dart')

@@ -28,6 +28,8 @@ from run_native_product_acceptance import restart_disposable_services, stop_flut
 
 CLIENT = Path(__file__).resolve().parents[1]
 ROOT = CLIENT.parent
+sys.path.insert(0, str(ROOT / 'tools'))
+import ios_simulator_xcrun as simulator_vm
 RUNTIME = 'com.apple.CoreSimulator.SimRuntime.iOS-26-5'
 DEVICE = 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro'
 BUNDLE = 'com.massimotter.weave'
@@ -461,6 +463,56 @@ def simulator_app_pid(udid: str) -> str:
     return next(iter(pids))
 
 
+def owned_vm_service_uri(message: str) -> str:
+    if not message.startswith(simulator_vm.VM_EVENT_PREFIX):
+        raise NativeFailure('infrastructure', 'vm-service', 'invalid-owned-vm-event')
+    uri = message.removeprefix(simulator_vm.VM_EVENT_PREFIX)
+    # urlparse normalizes CR/LF; reject them and every non-URI byte first.
+    if not re.fullmatch(r'http://127\.0\.0\.1:[0-9]{1,5}/[A-Za-z0-9_=/.-]{0,511}', uri):
+        raise NativeFailure('infrastructure', 'vm-service', 'invalid-owned-vm-uri')
+    parsed = urlparse(uri)
+    try:
+        port = parsed.port
+    except ValueError:
+        port = None
+    if (parsed.scheme != 'http' or parsed.hostname != '127.0.0.1'
+            or port is None or not 1 <= port <= 65535
+            or parsed.netloc != f'127.0.0.1:{port}' or parsed.query or parsed.fragment
+            or not re.fullmatch(r'/[A-Za-z0-9_=/.-]{0,511}', parsed.path)):
+        raise NativeFailure('infrastructure', 'vm-service', 'invalid-owned-vm-uri')
+    return uri
+
+
+def discover_owned_vm_service(udid: str, pid: str, started_at: str, timeout: float = 45) -> str:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if simulator_app_pid(udid) != pid:
+            raise NativeFailure('infrastructure', 'vm-service', 'owned-process-replaced')
+        message = simulator_vm.query_vm_service_event(udid, int(pid), started_at)
+        if message is not None:
+            uri = owned_vm_service_uri(message)
+            if simulator_app_pid(udid) != pid:
+                raise NativeFailure('infrastructure', 'vm-service', 'owned-process-replaced')
+            return uri
+        time.sleep(0.25)
+    raise NativeFailure('infrastructure', 'vm-service', 'owned-vm-event-timeout')
+
+
+def start_phase_app(udid: str, env: dict[str, str]) -> tuple[str, str]:
+    run(['make', 'ios-simulator-product-e2e', 'native_simulator_action=build'], env=env, timeout=1800)
+    run(['xcrun', 'simctl', 'install', udid, str(CLIENT / 'build/ios/iphonesimulator/Runner.app')], env=env)
+    started_at = simulator_vm.log_start_timestamp()
+    # FlutterDriver.connect resumes PauseStart after its one log subscription is
+    # installed. No auth callback/session is injected through this debug service.
+    launch = run(['xcrun', 'simctl', 'launch', udid, BUNDLE, '--enable-dart-profiling',
+                  '--disable-vm-service-publication', '--start-paused'], env=env).strip()
+    match = re.fullmatch(re.escape(BUNDLE) + r': ([1-9][0-9]{0,9})', launch)
+    if match is None:
+        raise NativeFailure('infrastructure', 'vm-service', 'invalid-owned-launch-identity')
+    pid = match.group(1)
+    return pid, discover_owned_vm_service(udid, pid, started_at)
+
+
 def terminate_initial_app(udid: str, expected_pid: str, timeout: float = 10) -> None:
     executable = simulator_app_executable(udid)
     snapshot = run(['/bin/ps', '-axo', 'pid=,comm='])
@@ -565,7 +617,10 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
         phase_succeeded = False
         try:
             barrier = simulator_driver_barrier(udid, env['WEAVE_NATIVE_TEST_RUN_ID'])
-            flutter = subprocess.Popen(['make', 'ios-simulator-product-e2e'], cwd=CLIENT, env=env, stdout=flutter_log, stderr=subprocess.STDOUT, start_new_session=True)
+            launched_pid, vm_uri = start_phase_app(udid, env)
+            flutter = subprocess.Popen(['make', 'ios-simulator-product-e2e', 'native_simulator_action=attach',
+                                        'native_simulator_vm_uri=' + vm_uri], cwd=CLIENT, env=env,
+                                       stdout=flutter_log, stderr=subprocess.STDOUT, start_new_session=True)
             # This is a different target from the preflight app. Its compile,
             # install and launch must complete before the authentication clock.
             wait_for_flutter_shell(flutter, temporary / f'flutter-{phase}.log', phase)
@@ -576,6 +631,8 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
                 barrier.unlink(missing_ok=True)
                 barrier = actual_barrier
             pid = simulator_app_pid(udid)
+            if pid != launched_pid:
+                raise NativeFailure('infrastructure', 'vm-service', 'owned-process-replaced')
             if previous_pid is not None:
                 if pid == previous_pid:
                     raise NativeFailure('infrastructure', 'process-restart', 'restore-process-not-replaced')
