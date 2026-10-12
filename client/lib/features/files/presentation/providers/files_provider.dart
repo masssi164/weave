@@ -141,6 +141,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
 
   @override
   Future<FilesViewState> build() async {
+    _directorySequence++;
     ref.watch(integrationInvalidationProvider(WorkspaceIntegration.files));
     ref.listen(weaveApiMemberSpacesProvider, (_, next) {
       final selected = _selectedRootSpaceRef;
@@ -178,12 +179,18 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     try {
       final connectionState = await _repository.connect();
       if (!connectionState.isConnected) {
-        state = AsyncData(FilesViewState(connectionState: connectionState));
+        state = AsyncData(
+          FilesViewState(
+            connectionState: connectionState,
+            rootSpaceRef: _selectedRootSpaceRef,
+          ),
+        );
         return;
       }
       final listing = await _listDirectory('/');
       state = AsyncData(
         FilesViewState(
+          rootSpaceRef: _selectedRootSpaceRef,
           connectionState: connectionState,
           directoryListing: listing,
         ),
@@ -210,6 +217,8 @@ class FilesController extends AsyncNotifier<FilesViewState> {
   }
 
   Future<void> disconnect() async {
+    _directorySequence++;
+    _selectedRootSpaceRef = null;
     final current = _currentStateOrNull();
     if (current != null) {
       state = AsyncData(
@@ -874,26 +883,38 @@ class FilesController extends AsyncNotifier<FilesViewState> {
   }
 
   Future<FilesViewState> _loadInitialState() async {
+    final sequence = _directorySequence;
     final connectionState = await _repository.restoreConnection();
     if (!connectionState.isConnected) {
-      return FilesViewState(connectionState: connectionState);
+      return FilesViewState(
+        connectionState: connectionState,
+        rootSpaceRef: _selectedRootSpaceRef,
+      );
     }
 
     try {
       final listing = await _listDirectory('/');
+      if (sequence != _directorySequence) {
+        throw const FilesFailure.permissionDenied(
+          'This Space is no longer available.',
+        );
+      }
       return FilesViewState(
+        rootSpaceRef: _selectedRootSpaceRef,
         connectionState: connectionState,
         directoryListing: listing,
       );
     } on FilesFailure catch (failure) {
       if (failure.type == FilesFailureType.invalidCredentials) {
         return FilesViewState(
+          rootSpaceRef: _selectedRootSpaceRef,
           connectionState: _connectionStateForFailure(connectionState, failure),
           directoryFailure: failure,
         );
       }
 
       return FilesViewState(
+        rootSpaceRef: _selectedRootSpaceRef,
         connectionState: connectionState,
         directoryFailure: failure,
       );
