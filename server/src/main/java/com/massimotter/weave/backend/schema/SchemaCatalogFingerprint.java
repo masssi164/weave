@@ -78,6 +78,7 @@ final class SchemaCatalogFingerprint {
     projection.put("format", legacyV2 ? "weave.schema-catalog/v2" : FORMAT);
     projection.put("schema", projectionSchema);
     projection.put("tables", tables);
+    if (!legacyV2) projection.put("otherObjects", otherObjects(connection, schema));
     byte[] canonical =
         new JsonCanonicalizer(new ObjectMapper().writeValueAsString(projection)
             .replace(schema + ".", projectionSchema + ".")
@@ -85,6 +86,68 @@ final class SchemaCatalogFingerprint {
             .getEncodedUTF8();
     String fingerprint = hex(MessageDigest.getInstance("SHA-256").digest(canonical));
     return new Snapshot(fingerprint, new String(canonical, StandardCharsets.UTF_8), List.copyOf(tables.keySet()));
+  }
+
+  /** Owned schema objects outside JDBC's TABLE inventory must not escape catalog validation. */
+  private static Map<String, Object> otherObjects(Connection connection, String schema) throws SQLException {
+    Map<String, Object> objects = new LinkedHashMap<>();
+    objects.put("views", catalogRows(connection, schema, """
+        select c.relname as name,c.relkind::text as kind,pg_get_viewdef(c.oid,true) as definition
+        from pg_class c join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname=? and c.relkind in ('v','m') order by c.relname
+        """));
+    objects.put("functions", catalogRows(connection, schema, """
+        select p.proname as name,p.prokind::text as kind,
+          pg_get_function_identity_arguments(p.oid) as arguments,
+          pg_get_function_result(p.oid) as result,l.lanname as language
+        from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+          join pg_language l on l.oid=p.prolang
+        where n.nspname=? order by p.proname,pg_get_function_identity_arguments(p.oid)
+        """));
+    objects.put("types", catalogRows(connection, schema, """
+        select t.typname as name,t.typtype::text as kind,
+          case when t.typtype='d' then format_type(t.typbasetype,t.typtypmod) else '' end as base_type,
+          t.typnotnull as not_null,coalesce(t.typdefault,'') as default_value,
+          coalesce((select string_agg(e.enumlabel,',' order by e.enumsortorder)
+            from pg_enum e where e.enumtypid=t.oid),'') as enum_labels,
+          coalesce((select string_agg(pg_get_constraintdef(c.oid,true),'|' order by c.conname)
+            from pg_constraint c where c.contypid=t.oid),'') as constraints
+        from pg_type t join pg_namespace n on n.oid=t.typnamespace
+        where n.nspname=? and t.typtype in ('e','d') order by t.typname
+        """));
+    objects.put("otherRelations", catalogRows(connection, schema, """
+        select c.relname as name,c.relkind::text as kind
+        from pg_class c join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname=? and c.relkind not in ('r','p','i','I','t','S','v','m') order by c.relname
+        """));
+    objects.put("sequences", catalogRows(connection, schema, """
+        select c.relname as name,s.seqstart as start,s.seqincrement as increment,
+          s.seqmax as maximum,s.seqmin as minimum,s.seqcache as cache,s.seqcycle as cycle
+        from pg_sequence s join pg_class c on c.oid=s.seqrelid
+          join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname=? order by c.relname
+        """));
+    return objects;
+  }
+
+  private static List<Map<String, Object>> catalogRows(Connection connection, String schema,
+      String query) throws SQLException {
+    List<Map<String, Object>> result = new ArrayList<>();
+    try (var statement = connection.prepareStatement(query)) {
+      statement.setString(1, schema);
+      try (var rows = statement.executeQuery()) {
+        var metadata = rows.getMetaData();
+        while (rows.next()) {
+          Map<String, Object> row = new LinkedHashMap<>();
+          for (int column = 1; column <= metadata.getColumnCount(); column++) {
+            Object value = rows.getObject(column);
+            row.put(metadata.getColumnLabel(column), value == null ? "" : value);
+          }
+          result.add(row);
+        }
+      }
+    }
+    return result;
   }
 
   private static Map<String, Object> tableProjection(

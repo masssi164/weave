@@ -306,6 +306,75 @@ class SchemaAuthorityInitializerPostgresTest {
   }
 
   @Test
+  void rejectsUnexpectedViewFunctionAndCustomTypes(@TempDir Path directory) throws Exception {
+    Environment environment = environment("other_objects", directory);
+    SchemaAuthorityInitializer.run(environment.values());
+    String[] additions = {
+        "create view unexpected_view as select 1 as value",
+        "create materialized view unexpected_materialized as select 1 as value",
+        "create function unexpected_function() returns integer language sql as 'select 1'",
+        "create type unexpected_enum as enum ('first','second')",
+        "create domain unexpected_domain as integer check (value > 0)",
+        "create type unexpected_composite as (value integer)",
+        "create sequence unexpected_sequence"
+    };
+    String[] removals = {
+        "drop view unexpected_view", "drop materialized view unexpected_materialized",
+        "drop function unexpected_function()", "drop type unexpected_enum",
+        "drop domain unexpected_domain", "drop type unexpected_composite", "drop sequence unexpected_sequence"
+    };
+    for (int index = 0; index < additions.length; index++) {
+      try (var connection = connection(environment); var statement = connection.createStatement()) {
+        statement.execute(additions[index]);
+      }
+      assertThatThrownBy(() -> SchemaAuthorityInitializer.run(environment.values()))
+          .hasMessageContaining("fingerprint");
+      try (var connection = connection(environment); var statement = connection.createStatement()) {
+        statement.execute(removals[index]);
+      }
+    }
+    SchemaAuthorityInitializer.run(environment.values());
+    assertThat(receipt(environment).path("migrationsExecuted").asInt()).isZero();
+  }
+
+  @Test
+  void terminatedProbeOwnedLockConnectionReleasesInitializer(@TempDir Path directory) throws Exception {
+    Environment environment = environment("terminated_lock", directory);
+    var executor = Executors.newSingleThreadExecutor();
+    try (var lock = connection(environment); var statement = lock.createStatement()) {
+      int pid;
+      try (var rows = statement.executeQuery("select pg_backend_pid(),pg_advisory_lock("
+          + "hashtext(current_database()),hashtext(coalesce(current_schema(),'public')))")) {
+        rows.next(); pid = rows.getInt(1);
+      }
+      var blocked = executor.submit(() -> { SchemaAuthorityInitializer.run(environment.values()); return null; });
+      try (var control = connection(environment); var query = control.prepareStatement(
+          "select count(*) from pg_stat_activity where datname=current_database() "
+              + "and ?=any(pg_blocking_pids(pid))")) {
+        query.setInt(1, pid);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        boolean waiting = false;
+        while (System.nanoTime() < deadline) {
+          try (var rows = query.executeQuery()) { rows.next(); waiting = rows.getInt(1) > 0; }
+          if (waiting) break;
+          TimeUnit.MILLISECONDS.sleep(50);
+        }
+        assertThat(waiting).isTrue();
+        assertThat(blocked.isDone()).isFalse();
+        try (var terminate = control.prepareStatement("select pg_terminate_backend(?)")) {
+          terminate.setInt(1, pid);
+          try (var rows = terminate.executeQuery()) { rows.next(); assertThat(rows.getBoolean(1)).isTrue(); }
+        }
+      }
+      blocked.get(60, TimeUnit.SECONDS);
+      SchemaReceiptVerifier.verify(environment.values());
+    } finally {
+      executor.shutdownNow();
+      assertThat(executor.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
+    }
+  }
+
+  @Test
   void rejectsColumnWidthAndForeignKeyActionDriftBeforeUpgrade(@TempDir Path directory) throws Exception {
     Environment environment = environment("typed_drift", directory);
     flyway(environment, MigrationVersion.fromVersion("12")).migrate();
