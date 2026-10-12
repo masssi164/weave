@@ -296,19 +296,27 @@ def assert_serving_candidate_rendered(context) -> None:
     # Render only: no image build, container creation, or persistent state access.
     command = [*context.compose_base_command, "config", "--no-env-resolution", "--format", "json"]
     environment = {**os.environ, **context.env}
-    result = subprocess.run(command, env=environment, text=True, capture_output=True, check=True)
-    services = json.loads(result.stdout)["services"]
-    candidate = context.env["WEAVE_CANDIDATE_COMMIT"]
-    for name in ("backend", "schema-init", "schema-receipt-check"):
-        assert services[name]["environment"]["WEAVE_CANDIDATE_COMMIT"] == candidate, (
-            f"{context.environment} {name} lost exact initializer/serving candidate identity")
-    # MCP is a separate HTTP consumer without a datasource/schema guard. Its
-    # existing resource identity must still match the same deployment candidate.
-    assert services["mcp"]["labels"]["com.massimotter.weave.candidate-commit"] == candidate
-    environment["WEAVE_CANDIDATE_COMMIT"] = ""
-    missing = subprocess.run(command, env=environment, text=True, capture_output=True)
-    assert missing.returncode != 0, "missing serving candidate must fail closed during Compose rendering"
-    assert "WEAVE_CANDIDATE_COMMIT" in missing.stderr
+    with tempfile.TemporaryDirectory() as temporary:
+        # Compose 2.x checks env-file existence with --no-env-resolution.
+        # Keep the empty render fixture outside every real generated-state root.
+        environment["WEAVE_GENERATED_ROOT"] = temporary
+        receipt_environment = Path(temporary) / "keycloak/migrations/receipt-check.env"
+        receipt_environment.parent.mkdir(parents=True)
+        receipt_environment.write_text("", encoding="utf-8")
+        os.chmod(receipt_environment, 0o600)
+        result = subprocess.run(command, env=environment, text=True, capture_output=True, check=True)
+        services = json.loads(result.stdout)["services"]
+        candidate = context.env["WEAVE_CANDIDATE_COMMIT"]
+        for name in ("backend", "schema-init", "schema-receipt-check"):
+            assert services[name]["environment"]["WEAVE_CANDIDATE_COMMIT"] == candidate, (
+                f"{context.environment} {name} lost exact initializer/serving candidate identity")
+        # MCP is a separate HTTP consumer without a datasource/schema guard. Its
+        # existing resource identity must still match the same deployment candidate.
+        assert services["mcp"]["labels"]["com.massimotter.weave.candidate-commit"] == candidate
+        environment["WEAVE_CANDIDATE_COMMIT"] = ""
+        missing = subprocess.run(command, env=environment, text=True, capture_output=True)
+        assert missing.returncode != 0, "missing serving candidate must fail closed during Compose rendering"
+        assert "WEAVE_CANDIDATE_COMMIT" in missing.stderr
 
 
 def main() -> int:
