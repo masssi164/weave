@@ -132,11 +132,12 @@ final class BrowserDriver: XCTestCase {
   enum PasswordPromptReadiness { case absent, ambiguous, waiting, ready }
 
   static func waitForPasswordPrompt(
-    state: () -> PasswordPromptReadiness, deadline: Date,
+    state: () -> PasswordPromptReadiness, deadline: Date, promptSeen: inout Bool,
     now: () -> Date = Date.init, pause: () -> Void = { Thread.sleep(forTimeInterval: 0.25) }
   ) -> PasswordPromptReadiness {
     while now() < deadline {
       let observed = state()
+      if observed != .absent { promptSeen = true }
       if observed != .waiting { return observed }
       pause()
     }
@@ -146,25 +147,44 @@ final class BrowserDriver: XCTestCase {
   func testPasswordPromptWaitUsesFreshStateAndBoundedDeadline() {
     var clock = Date(timeIntervalSince1970: 0)
     var states: [PasswordPromptReadiness] = [.waiting, .waiting, .ready]
+    var promptSeen = false
     XCTAssertEqual(Self.waitForPasswordPrompt(
-      state: { states.removeFirst() }, deadline: clock.addingTimeInterval(5),
+      state: { states.removeFirst() }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
       now: { clock }, pause: { clock.addTimeInterval(1) }
     ), .ready)
     XCTAssertTrue(states.isEmpty)
     for terminal in [PasswordPromptReadiness.absent, .ambiguous] {
-      XCTAssertEqual(Self.waitForPasswordPrompt(state: { terminal }, deadline: clock.addingTimeInterval(5), now: { clock }), terminal)
+      XCTAssertEqual(Self.waitForPasswordPrompt(state: { terminal }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen, now: { clock }), terminal)
     }
     var reads = 0
     XCTAssertEqual(Self.waitForPasswordPrompt(
-      state: { reads += 1; return .waiting }, deadline: clock.addingTimeInterval(5),
+      state: { reads += 1; return .waiting }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
       now: { clock }, pause: { clock.addTimeInterval(1) }
     ), .waiting)
     XCTAssertEqual(reads, 5)
   }
 
+  func testDisappearingObservedPromptSuppressesReturnRecovery() {
+    var clock = Date(timeIntervalSince1970: 0)
+    var states: [PasswordPromptReadiness] = [.waiting, .absent]
+    var promptSeen = false
+    XCTAssertEqual(Self.waitForPasswordPrompt(
+      state: { states.removeFirst() }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      now: { clock }, pause: { clock.addTimeInterval(1) }
+    ), .absent)
+    XCTAssertTrue(promptSeen)
+    XCTAssertFalse(Self.returnRecoveryEligible(
+      settled: true, promptSeen: promptSeen, issuerObserved: true, leafCount: 1,
+      passwordCount: 1, submitCount: 1, passwordHittable: true, submitHittable: true,
+      usernameCount: 0, usernameMatches: true, secureLengthMatches: true,
+      providerErrorCount: 0, blockingAlertCount: 0
+    ))
+  }
+
   // nil means an observed prompt was ambiguous/inaccessible; false means absent.
   func declinePasswordSavePrompt(
-    app: XCUIApplication, system: XCUIApplication, deadline: Date, completionPath: String
+    app: XCUIApplication, system: XCUIApplication, deadline: Date, completionPath: String,
+    promptSeen: inout Bool
   ) -> Bool? {
     var selectedDecline: XCUIElement?
     var selectedPrompt: XCUIElement?
@@ -188,7 +208,7 @@ final class BrowserDriver: XCTestCase {
       selectedDecline = decline
       selectedPrompt = surface == 0 ? appPrompts.element : systemPrompts.element
       return .ready
-    }, deadline: min(deadline, Date().addingTimeInterval(5)))
+    }, deadline: min(deadline, Date().addingTimeInterval(5)), promptSeen: &promptSeen)
     guard readiness != .absent else { return false }
     if Self.nativeWorkspaceObserved(path: completionPath) { return false }
     guard readiness == .ready, let decline = selectedDecline, let prompt = selectedPrompt else {
@@ -259,10 +279,10 @@ final class BrowserDriver: XCTestCase {
       }
       // A completed real workspace takes priority over an optional OS sheet,
       // which can outlive AppAuth and expose stale/non-hittable controls.
-      guard let declined = declinePasswordSavePrompt(
-        app: app, system: system, deadline: deadline, completionPath: fixture.nativeAuthCompletionPath
-      ) else { return false }
-      promptSeen = promptSeen || declined
+      guard declinePasswordSavePrompt(
+        app: app, system: system, deadline: deadline, completionPath: fixture.nativeAuthCompletionPath,
+        promptSeen: &promptSeen
+      ) != nil else { return false }
       if Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath) { continue }
       if !recoveryConsidered && Date() >= recoveryAfter {
         // One optional native Return on the freshly resolved original issuer form.
