@@ -407,12 +407,12 @@ class NativeQualificationTest(unittest.TestCase):
         self.assertIn('Self.uniquePasswordDeclineSurface(', handler)
         self.assertLess(handler.index('Self.uniquePasswordDeclineSurface('), handler.index('decline.tap()'))
         self.assertIn('guard decline.isHittable', handler)
-        self.assertIn('prompt.waitForNonExistence(timeout: 10)', handler)
+        self.assertIn('prompt.waitForNonExistence(timeout: min(10, max(0, deadline.timeIntervalSinceNow)))', handler)
         self.assertNotIn('.firstMatch', handler)
         self.assertNotIn('app.activate()', handler)
         self.assertIn('static let passwordDeclineLabels = ["Später", "Not Now"]', driver)
         wait = driver.split('func waitForNativeWorkspace', 1)[1].split('func testProductionBrowser', 1)[0]
-        self.assertLess(wait.index('declinePasswordSavePrompt'), wait.index('Self.nativeWorkspaceObserved'))
+        self.assertLess(wait.index('Self.nativeWorkspaceObserved'), wait.index('declinePasswordSavePrompt'))
         output = io.StringIO()
         with redirect_stdout(output):
             ios.emit_phase_stages('initial', '', 'NATIVE_IOS_BROWSER_STAGE phase=password-save-declined')

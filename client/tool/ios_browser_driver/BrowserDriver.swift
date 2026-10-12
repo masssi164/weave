@@ -129,32 +129,74 @@ final class BrowserDriver: XCTestCase {
     let nativeAuthCompletionPath: String
   }
 
-  // nil means an observed prompt was ambiguous/inaccessible; false means absent.
-  func declinePasswordSavePrompt(app: XCUIApplication, system: XCUIApplication) -> Bool? {
-    let appRunning = app.state == .runningForeground || app.state == .runningBackground
-    let systemRunning = system.state == .runningForeground || system.state == .runningBackground
-    let appPrompts = app.alerts.matching(NSPredicate(format: "label IN %@", Self.passwordSaveTitles))
-    let systemPrompts = system.alerts.matching(NSPredicate(format: "label IN %@", Self.passwordSaveTitles))
-    let appCount = appRunning ? appPrompts.count : 0
-    let systemCount = systemRunning ? systemPrompts.count : 0
-    guard appCount + systemCount > 0 else { return false }
-    let appDeclines = appPrompts.buttons.matching(NSPredicate(format: "label IN %@", Self.passwordDeclineLabels))
-    let systemDeclines = systemPrompts.buttons.matching(NSPredicate(format: "label IN %@", Self.passwordDeclineLabels))
-    guard let surface = Self.uniquePasswordDeclineSurface(
-      appPromptCount: appCount, systemPromptCount: systemCount,
-      appDeclineCount: appRunning ? appDeclines.count : 0, systemDeclineCount: systemRunning ? systemDeclines.count : 0
-    ) else {
-      XCTFail("Password-save alert must have one exact decline control on one surface")
-      return nil
+  enum PasswordPromptReadiness { case absent, ambiguous, waiting, ready }
+
+  static func waitForPasswordPrompt(
+    state: () -> PasswordPromptReadiness, deadline: Date,
+    now: () -> Date = Date.init, pause: () -> Void = { Thread.sleep(forTimeInterval: 0.25) }
+  ) -> PasswordPromptReadiness {
+    while now() < deadline {
+      let observed = state()
+      if observed != .waiting { return observed }
+      pause()
     }
-    let decline = surface == 0 ? appDeclines.element : systemDeclines.element
-    guard decline.isHittable else {
-      XCTFail("Password-save decline control must be accessible")
+    return .waiting
+  }
+
+  func testPasswordPromptWaitUsesFreshStateAndBoundedDeadline() {
+    var clock = Date(timeIntervalSince1970: 0)
+    var states: [PasswordPromptReadiness] = [.waiting, .waiting, .ready]
+    XCTAssertEqual(Self.waitForPasswordPrompt(
+      state: { states.removeFirst() }, deadline: clock.addingTimeInterval(5),
+      now: { clock }, pause: { clock.addTimeInterval(1) }
+    ), .ready)
+    XCTAssertTrue(states.isEmpty)
+    for terminal in [PasswordPromptReadiness.absent, .ambiguous] {
+      XCTAssertEqual(Self.waitForPasswordPrompt(state: { terminal }, deadline: clock.addingTimeInterval(5), now: { clock }), terminal)
+    }
+    var reads = 0
+    XCTAssertEqual(Self.waitForPasswordPrompt(
+      state: { reads += 1; return .waiting }, deadline: clock.addingTimeInterval(5),
+      now: { clock }, pause: { clock.addTimeInterval(1) }
+    ), .waiting)
+    XCTAssertEqual(reads, 5)
+  }
+
+  // nil means an observed prompt was ambiguous/inaccessible; false means absent.
+  func declinePasswordSavePrompt(
+    app: XCUIApplication, system: XCUIApplication, deadline: Date, completionPath: String
+  ) -> Bool? {
+    var selectedDecline: XCUIElement?
+    var selectedPrompt: XCUIElement?
+    let readiness = Self.waitForPasswordPrompt(state: {
+      if Self.nativeWorkspaceObserved(path: completionPath) { return .absent }
+      let appRunning = app.state == .runningForeground || app.state == .runningBackground
+      let systemRunning = system.state == .runningForeground || system.state == .runningBackground
+      let appPrompts = app.alerts.matching(NSPredicate(format: "label IN %@", Self.passwordSaveTitles))
+      let systemPrompts = system.alerts.matching(NSPredicate(format: "label IN %@", Self.passwordSaveTitles))
+      let appCount = appRunning ? appPrompts.count : 0
+      let systemCount = systemRunning ? systemPrompts.count : 0
+      guard appCount + systemCount > 0 else { return .absent }
+      let appDeclines = appPrompts.buttons.matching(NSPredicate(format: "label IN %@", Self.passwordDeclineLabels))
+      let systemDeclines = systemPrompts.buttons.matching(NSPredicate(format: "label IN %@", Self.passwordDeclineLabels))
+      guard let surface = Self.uniquePasswordDeclineSurface(
+        appPromptCount: appCount, systemPromptCount: systemCount,
+        appDeclineCount: appRunning ? appDeclines.count : 0, systemDeclineCount: systemRunning ? systemDeclines.count : 0
+      ) else { return .ambiguous }
+      let decline = surface == 0 ? appDeclines.element : systemDeclines.element
+      guard decline.isHittable else { return .waiting }
+      selectedDecline = decline
+      selectedPrompt = surface == 0 ? appPrompts.element : systemPrompts.element
+      return .ready
+    }, deadline: min(deadline, Date().addingTimeInterval(5)))
+    guard readiness != .absent else { return false }
+    if Self.nativeWorkspaceObserved(path: completionPath) { return false }
+    guard readiness == .ready, let decline = selectedDecline, let prompt = selectedPrompt else {
+      XCTFail("Password-save alert must settle to one accessible exact decline control")
       return nil
     }
     decline.tap()
-    let prompt = surface == 0 ? appPrompts.element : systemPrompts.element
-    guard prompt.waitForNonExistence(timeout: 10) else {
+    guard prompt.waitForNonExistence(timeout: min(10, max(0, deadline.timeIntervalSinceNow))) else {
       XCTFail("Password-save alert did not dismiss after declining")
       return nil
     }
@@ -209,14 +251,19 @@ final class BrowserDriver: XCTestCase {
     var promptSeen = false
     let system = XCUIApplication(bundleIdentifier: "com.apple.springboard")
     while Date() < deadline {
-      guard let declined = declinePasswordSavePrompt(app: app, system: system) else { return false }
-      promptSeen = promptSeen || declined
       // Only the runner's observation of Flutter's real workspace assertion
       // releases this wait; a submit tap or disappearing browser never does.
       if Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath) {
         print("NATIVE_IOS_BROWSER_STAGE phase=auth-completion-observed")
         return true
       }
+      // A completed real workspace takes priority over an optional OS sheet,
+      // which can outlive AppAuth and expose stale/non-hittable controls.
+      guard let declined = declinePasswordSavePrompt(
+        app: app, system: system, deadline: deadline, completionPath: fixture.nativeAuthCompletionPath
+      ) else { return false }
+      promptSeen = promptSeen || declined
+      if Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath) { continue }
       if !recoveryConsidered && Date() >= recoveryAfter {
         // One optional native Return on the freshly resolved original issuer form.
         // No refill, further Return attempts, app activation, or representation-dependent pass.
