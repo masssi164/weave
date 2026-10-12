@@ -15,9 +15,18 @@ public record FilesUserResource(
         String ownerPrincipalRef,
         State state,
         Instant createdAt,
-        Instant modifiedAt) {
+        Instant modifiedAt,
+        Scope scope) {
 
     public enum State { ACTIVE, TOMBSTONED }
+    public enum Scope { PRIVATE, SPACE }
+
+    public FilesUserResource(String organizationRef, String fileId, long bindingRevision,
+            String spaceRef, String parentFileId, String path, FilesDomain.Kind kind,
+            String ownerPrincipalRef, State state, Instant createdAt, Instant modifiedAt) {
+        this(organizationRef, fileId, bindingRevision, spaceRef, parentFileId, path, kind,
+                ownerPrincipalRef, state, createdAt, modifiedAt, Scope.PRIVATE);
+    }
 
     public FilesUserResource {
         organizationRef = required(organizationRef, "organizationRef");
@@ -28,6 +37,7 @@ public record FilesUserResource(
         ownerPrincipalRef = required(ownerPrincipalRef, "ownerPrincipalRef");
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(state, "state");
+        Objects.requireNonNull(scope, "scope");
         Objects.requireNonNull(createdAt, "createdAt");
         Objects.requireNonNull(modifiedAt, "modifiedAt");
         if (bindingRevision < 1 || !path.startsWith("/") || "/".equals(path)) {

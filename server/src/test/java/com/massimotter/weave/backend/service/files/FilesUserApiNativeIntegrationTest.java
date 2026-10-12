@@ -89,9 +89,50 @@ class FilesUserApiNativeIntegrationTest {
         assertThat(files.list(member, null).items()).singleElement()
                 .satisfies(item -> assertThat(item.fileId()).isEqualTo(created.fileId()));
         assertThat(files.download(member, created.fileId()).bytes()).containsExactly(bytes);
+        assertThat(files.list(member("outsider"), null, "workspace-default").items()).isEmpty();
         assertThatThrownBy(() -> files.inspect(member("outsider"), created.fileId()))
                 .isInstanceOfSatisfying(ApiErrorException.class,
                         failure -> assertThat(failure.status().value()).isEqualTo(404));
+    }
+
+    @Test
+    void sharedFilesRequireCurrentSpaceGrantsAndPreservePrivateOwnershipAndValidators() {
+        when(authorization.check(any())).thenReturn(ContextAuthorizationDecision.allow("member"));
+        String organization = "org:files-user-integration";
+        String space = "workspace-shared";
+        String owner = account("shared-owner");
+        spaces.provision(organization, space, owner, Set.of(account("shared-a"), account("shared-b")));
+        for (String subject : Set.of("shared-a", "shared-b")) {
+            var current = memberships.get(organization, space, owner, account(subject));
+            memberships.grant(organization, space, owner, account(subject),
+                    Set.of(Permission.VIEW, Permission.EDIT), current.strongEtag(), false);
+        }
+        Jwt a = member("shared-a");
+        Jwt b = member("shared-b");
+        byte[] first = {1, 2, 3};
+        var created = files.upload(a, "file:root", "shared-content.bin", "application/octet-stream",
+                first, "*", "shared-integration-upload", space);
+        assertThat(files.list(b, null, space).items()).singleElement()
+                .satisfies(item -> assertThat(item.fileId()).isEqualTo(created.fileId()));
+        assertThat(files.list(b, null).items()).isEmpty();
+        var downloaded = files.download(b, created.fileId());
+        assertThat(downloaded.bytes()).containsExactly(first);
+        byte[] changed = {9, 8, 7};
+        files.update(b, created.fileId(), "application/octet-stream", changed,
+                downloaded.etag(), "shared-integration-update");
+        assertThat(files.download(a, created.fileId()).bytes()).containsExactly(changed);
+        assertThatThrownBy(() -> files.update(a, created.fileId(), "application/octet-stream", first,
+                downloaded.etag(), "shared-stale-version-update"))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        failure -> assertThat(failure.status().value()).isEqualTo(412));
+        assertThatThrownBy(() -> files.download(member("shared-c"), created.fileId()))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        failure -> assertThat(failure.status().value()).isEqualTo(403));
+        var bGrant = memberships.get(organization, space, owner, account("shared-b"));
+        memberships.revoke(organization, space, owner, account("shared-b"), bGrant.strongEtag());
+        assertThatThrownBy(() -> files.download(b, created.fileId()))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        failure -> assertThat(failure.status().value()).isEqualTo(403));
     }
 
     private Jwt member(String subject) {

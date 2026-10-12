@@ -153,7 +153,12 @@ public class FilesUserApiService {
     }
 
     public FilesUserListResponse list(Jwt jwt, String parentFileId) {
-        Member member = member(jwt, "list-files", ContextPermission.VIEW);
+        return list(jwt, parentFileId, null);
+    }
+
+    public FilesUserListResponse list(Jwt jwt, String parentFileId, String spaceRef) {
+        ScopeSelection selected = selectScope(jwt, parentFileId, spaceRef);
+        Member member = member(jwt, "list-files", ContextPermission.VIEW, selected.spaceRef());
         String parent = parentFileId == null || parentFileId.isBlank() ? ROOT_ID : parentFileId;
         FilesUserResource parentResource = null;
         if (!ROOT_ID.equals(parent)) {
@@ -163,14 +168,16 @@ public class FilesUserApiService {
             }
         }
         ProviderBinding binding = activeBinding(member.organizationRef());
-        FilesProviderPort provider = pinnedProvider(binding, member.organizationRef());
+        FilesProviderPort provider = pinnedProvider(binding, member.organizationRef(), member.spaceRef());
         List<String> parentActions = collectionActions(member, provider, true);
         if (parentResource != null) {
             parentActions = project(member, binding, provider, parentResource).allowedActions();
         }
         List<FilesUserItemResponse> items = resources.activeChildren(member.organizationRef(), parent).stream()
-                .filter(resource -> resource.spaceRef().equals(SPACE_REF)
-                        && resource.ownerPrincipalRef().equals(member.principalRef()))
+                .filter(resource -> resource.spaceRef().equals(selected.spaceRef())
+                        && resource.scope() == selected.scope()
+                        && (resource.scope() == FilesUserResource.Scope.SPACE
+                            || resource.ownerPrincipalRef().equals(member.principalRef())))
                 .map(resource -> project(member, binding, provider, resource))
                 .toList();
         auditWorkloadRead(member, "files.search", parent, "completed", items.size());
@@ -178,22 +185,22 @@ public class FilesUserApiService {
     }
 
     public FilesUserItemResponse inspect(Jwt jwt, String fileId) {
-        Member member = member(jwt, "inspect-file", ContextPermission.VIEW);
+        Member member = member(jwt, "inspect-file", ContextPermission.VIEW, resourceSpace(jwt, fileId));
         FilesUserResource resource = requireOwned(member, fileId);
         ProviderBinding binding = activeBinding(member.organizationRef());
-        FilesUserItemResponse item = project(member, binding, pinnedProvider(binding, member.organizationRef()), resource);
+        FilesUserItemResponse item = project(member, binding, pinnedProvider(binding, member.organizationRef(), member.spaceRef()), resource);
         auditWorkloadRead(member, "files.resource.metadata", fileId, "completed", 1);
         return item;
     }
 
     public Download download(Jwt jwt, String fileId) {
-        Member member = member(jwt, "download-file", ContextPermission.VIEW);
+        Member member = member(jwt, "download-file", ContextPermission.VIEW, resourceSpace(jwt, fileId));
         FilesUserResource resource = requireOwned(member, fileId);
         if (resource.kind() != Kind.FILE) {
             throw missing();
         }
         ProviderBinding binding = activeBinding(member.organizationRef());
-        FilesProviderPort provider = pinnedProvider(binding, member.organizationRef());
+        FilesProviderPort provider = pinnedProvider(binding, member.organizationRef(), member.spaceRef());
         if (!provider.supportsConditionalBoundedRead()
                 || !provider.supportsIdentityBoundConditionalRead()) {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-identity-bound-read-unavailable",
@@ -234,7 +241,13 @@ public class FilesUserApiService {
     /** Atomic absent-name creation with a durable, explicitly keyed User HTTP intent. */
     public FilesUserItemResponse createFolder(
             Jwt jwt, String parentFileId, String name, String ifNoneMatch, String idempotencyKey) {
-        Member member = member(jwt, "create-files-folder", ContextPermission.EDIT);
+        return createFolder(jwt, parentFileId, name, ifNoneMatch, idempotencyKey, null);
+    }
+
+    public FilesUserItemResponse createFolder(Jwt jwt, String parentFileId, String name,
+            String ifNoneMatch, String idempotencyKey, String spaceRef) {
+        ScopeSelection selected = selectScope(jwt, parentFileId, spaceRef);
+        Member member = member(jwt, "create-files-folder", ContextPermission.EDIT, selected.spaceRef());
         if (!"*".equals(ifNoneMatch)) {
             throw error(HttpStatus.PRECONDITION_REQUIRED, "files-create-precondition-required",
                     "If-None-Match: * is required for creation.");
@@ -262,7 +275,7 @@ public class FilesUserApiService {
         try {
             mutation = intents.beginUserApi(new FilesMutationIntentService.Command(
                     idempotencyKey, member.organizationRef(), member.principalRef(), member.subject(),
-                    "createFilesFolder", parent + "\n" + path.value() + "\nIf-None-Match:*",
+                    "createFilesFolder", selected.scope() + "\n" + selected.spaceRef() + "\n" + parent + "\n" + path.value() + "\nIf-None-Match:*",
                     List.of(parent), member.policyRevision(), member.entitlementRevision()));
         } catch (OperationIntentService.IdempotencyKeyConflictException conflict) {
             throw error(HttpStatus.CONFLICT, "files-idempotency-conflict",
@@ -276,7 +289,7 @@ public class FilesUserApiService {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-pinned-binding-unavailable",
                     "The pinned Files binding is no longer active.");
         }
-        FilesProviderPort provider = pinnedProvider(binding, member.organizationRef());
+        FilesProviderPort provider = pinnedProvider(binding, member.organizationRef(), member.spaceRef());
         if (!provider.supportsStableObjectRefs() || !provider.supportsAtomicCollectionCreate()
                 || !provider.conformanceProfile().supports("create_collection")) {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-stable-identity-unavailable",
@@ -328,8 +341,8 @@ public class FilesUserApiService {
         }
         Instant now = Instant.now();
         FilesUserResource resource = new FilesUserResource(member.organizationRef(), fileId,
-                binding.revision(), SPACE_REF, parent, path.value(), Kind.COLLECTION,
-                member.principalRef(), FilesUserResource.State.ACTIVE, now, now);
+                binding.revision(), selected.spaceRef(), parent, path.value(), Kind.COLLECTION,
+                member.principalRef(), FilesUserResource.State.ACTIVE, now, now, selected.scope());
         FilesUserResource published;
         try {
             published = transactions.execute(status -> {
@@ -357,7 +370,13 @@ public class FilesUserApiService {
     /** Binary create is capped before adapter dispatch and conditionally published under one FileId. */
     public FilesUserItemResponse upload(Jwt jwt, String parentFileId, String name, String mediaType,
             byte[] bytes, String ifNoneMatch, String idempotencyKey) {
-        Member member = member(jwt, "upload-files-item", ContextPermission.EDIT);
+        return upload(jwt, parentFileId, name, mediaType, bytes, ifNoneMatch, idempotencyKey, null);
+    }
+
+    public FilesUserItemResponse upload(Jwt jwt, String parentFileId, String name, String mediaType,
+            byte[] bytes, String ifNoneMatch, String idempotencyKey, String spaceRef) {
+        ScopeSelection selected = selectScope(jwt, parentFileId, spaceRef);
+        Member member = member(jwt, "upload-files-item", ContextPermission.EDIT, selected.spaceRef());
         if (!"*".equals(ifNoneMatch)) {
             throw error(HttpStatus.PRECONDITION_REQUIRED, "files-create-precondition-required",
                     "If-None-Match: * is required for creation.");
@@ -389,7 +408,7 @@ public class FilesUserApiService {
         try {
             mutation = intents.beginUserApi(new FilesMutationIntentService.Command(
                     idempotencyKey, member.organizationRef(), member.principalRef(), member.subject(),
-                    "uploadFilesItemContent", parent + "\n" + path.value() + "\n" + mediaType
+                    "uploadFilesItemContent", selected.scope() + "\n" + selected.spaceRef() + "\n" + parent + "\n" + path.value() + "\n" + mediaType
                             + "\n" + contentDigest + "\nIf-None-Match:*",
                     List.of(parent), member.policyRevision(), member.entitlementRevision()));
         } catch (OperationIntentService.IdempotencyKeyConflictException conflict) {
@@ -404,7 +423,7 @@ public class FilesUserApiService {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-pinned-binding-unavailable",
                     "The pinned Files binding is no longer active.");
         }
-        FilesProviderPort provider = pinnedProvider(binding, member.organizationRef());
+        FilesProviderPort provider = pinnedProvider(binding, member.organizationRef(), member.spaceRef());
         if (!provider.supportsStableObjectRefs()
                 || !provider.supportsConditionalWrite() || !provider.supportsBoundedRead()) {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-conditional-write-unavailable",
@@ -463,8 +482,8 @@ public class FilesUserApiService {
         }
         Instant now = Instant.now();
         FilesUserResource resource = new FilesUserResource(member.organizationRef(), fileId,
-                binding.revision(), SPACE_REF, parent, path.value(), Kind.FILE,
-                member.principalRef(), FilesUserResource.State.ACTIVE, now, now);
+                binding.revision(), selected.spaceRef(), parent, path.value(), Kind.FILE,
+                member.principalRef(), FilesUserResource.State.ACTIVE, now, now, selected.scope());
         FilesUserResource published;
         try {
             published = transactions.execute(status -> {
@@ -492,7 +511,6 @@ public class FilesUserApiService {
     /** Replace one owned file only after both Weave content and provider versions match. */
     public FilesUserItemResponse update(Jwt jwt, String fileId, String mediaType, byte[] bytes,
             String ifMatch, String idempotencyKey) {
-        Member member = member(jwt, "update-files-item-content", ContextPermission.EDIT);
         if (ifMatch == null || ifMatch.isBlank()) {
             throw error(HttpStatus.PRECONDITION_REQUIRED, "files-update-precondition-required",
                     "A current strong If-Match validator is required.");
@@ -508,10 +526,11 @@ public class FilesUserApiService {
         if (bytes == null || bytes.length > MAX_UPLOAD_BYTES) {
             throw error(HttpStatus.PAYLOAD_TOO_LARGE, "files-upload-too-large", "Upload exceeds the byte limit.");
         }
+        Member member = member(jwt, "update-files-item-content", ContextPermission.EDIT, resourceSpace(jwt, fileId));
         FilesUserResource resource = requireOwned(member, fileId);
         if (resource.kind() != Kind.FILE) throw missing();
         ProviderBinding binding = activeBinding(member.organizationRef());
-        FilesProviderPort provider = pinnedProvider(binding, member.organizationRef());
+        FilesProviderPort provider = pinnedProvider(binding, member.organizationRef(), member.spaceRef());
         if (!provider.supportsConditionalBoundedRead() || !provider.supportsConditionalWrite()
                 || !provider.supportsIdentityBoundConditionalWrite()) {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-identity-bound-write-unavailable",
@@ -607,7 +626,7 @@ public class FilesUserApiService {
         Instant now = Instant.now();
         FilesUserResource changed = new FilesUserResource(resource.organizationRef(), resource.fileId(),
                 resource.bindingRevision(), resource.spaceRef(), resource.parentFileId(), resource.path(),
-                resource.kind(), resource.ownerPrincipalRef(), resource.state(), resource.createdAt(), now);
+                resource.kind(), resource.ownerPrincipalRef(), resource.state(), resource.createdAt(), now, resource.scope());
         try {
             transactions.execute(status -> resources.save(changed));
         } catch (RuntimeException publicationFailure) {
@@ -736,23 +755,63 @@ public class FilesUserApiService {
         return found;
     }
 
+    private record ScopeSelection(String spaceRef, FilesUserResource.Scope scope) {}
+
+    private String lookupOrganization(Jwt jwt) {
+        if (jwt == null) throw missing();
+        if ("weave-mcp-server".equals(jwt.getClaimAsString("azp"))) {
+            return workloadMember(jwt, "files-resource-lookup", ContextPermission.VIEW).organizationRef();
+        }
+        return identities.resolve(jwt).organizationId();
+    }
+
+    private String resourceSpace(Jwt jwt, String fileId) {
+        if (jwt == null) throw missing();
+        return resources.find(lookupOrganization(jwt), fileId)
+                .filter(resource -> resource.state() == State.ACTIVE)
+                .map(FilesUserResource::spaceRef).orElseThrow(this::missing);
+    }
+
+    private ScopeSelection selectScope(Jwt jwt, String parentFileId, String requestedSpace) {
+        if (parentFileId != null && !parentFileId.isBlank() && !ROOT_ID.equals(parentFileId)) {
+            if (jwt == null) throw missing();
+            FilesUserResource parent = resources.find(lookupOrganization(jwt), parentFileId)
+                    .filter(resource -> resource.state() == State.ACTIVE).orElseThrow(this::missing);
+            if (requestedSpace != null && !requestedSpace.equals(parent.spaceRef())) throw missing();
+            return new ScopeSelection(parent.spaceRef(), parent.scope());
+        }
+        if (requestedSpace == null) return new ScopeSelection(SPACE_REF, FilesUserResource.Scope.PRIVATE);
+        if (requestedSpace.isBlank() || requestedSpace.length() > 255) {
+            throw error(HttpStatus.BAD_REQUEST, "files-invalid-space", "A valid Space reference is required.");
+        }
+        if (jwt != null && "weave-mcp-server".equals(jwt.getClaimAsString("azp"))) throw missing();
+        return new ScopeSelection(requestedSpace, FilesUserResource.Scope.SPACE);
+    }
+
     private FilesUserResource requireOwned(Member member, String fileId) {
         if (fileId == null || fileId.isBlank() || ROOT_ID.equals(fileId)) {
             throw missing();
         }
         FilesUserResource resource = resources.find(member.organizationRef(), fileId).orElseThrow(this::missing);
-        if (resource.state() != State.ACTIVE || !resource.spaceRef().equals(SPACE_REF)
-                || !resource.ownerPrincipalRef().equals(member.principalRef())) {
+        if (resource.state() != State.ACTIVE || !resource.spaceRef().equals(member.spaceRef())
+                || (resource.scope() == FilesUserResource.Scope.PRIVATE
+                    && !resource.ownerPrincipalRef().equals(member.principalRef()))
+                || (member.workload() != null && resource.scope() != FilesUserResource.Scope.PRIVATE)) {
             throw missing();
         }
         return resource;
     }
 
     private Member member(Jwt jwt, String operation, ContextPermission permission) {
+        return member(jwt, operation, permission, SPACE_REF);
+    }
+
+    private Member member(Jwt jwt, String operation, ContextPermission permission, String spaceRef) {
         if (jwt == null) {
             throw error(HttpStatus.FORBIDDEN, "files-user-context-required", "A member session is required.");
         }
         if ("weave-mcp-server".equals(jwt.getClaimAsString("azp"))) {
+            if (!SPACE_REF.equals(spaceRef)) throw missing();
             return workloadMember(jwt, operation, permission);
         }
         capabilities.requireCapability(jwt,
@@ -762,14 +821,14 @@ public class FilesUserApiService {
         if (principal == null) {
             throw error(HttpStatus.UNAUTHORIZED, "unauthorized", "A member identity is required.");
         }
-        if (!spaceAllowed(identity.organizationId(), principal, identity.accountId(), permission)) {
+        if (!spaceAllowed(identity.organizationId(), principal, identity.accountId(), permission, spaceRef)) {
             throw error(HttpStatus.FORBIDDEN, "files-forbidden", "Files access is not allowed for this Space.");
         }
         boolean canEdit = permission == ContextPermission.EDIT
-                || canEdit(jwt, identity.organizationId(), principal, identity.accountId());
+                || canEdit(jwt, identity.organizationId(), principal, identity.accountId(), spaceRef);
         return new Member(identity.organizationId(), principal, identity.subject(), canEdit,
                 revisionClaim(jwt, "weave_policy_revision", "policy:unversioned"),
-                revisionClaim(jwt, "weave_entitlement_revision", "entitlement:unversioned"), null);
+                revisionClaim(jwt, "weave_entitlement_revision", "entitlement:unversioned"), null, spaceRef);
     }
 
     private Member workloadMember(Jwt jwt, String operation, ContextPermission permission) {
@@ -808,7 +867,7 @@ public class FilesUserApiService {
         }
         return new Member(workload.organizationRef(), principal, workload.memberBinding().subject(), false,
                 workload.policyRevision(),
-                workload.memberEntitlementRevision(), workload);
+                workload.memberEntitlementRevision(), workload, SPACE_REF);
     }
 
     private void auditWorkloadRead(Member member, String tool, String reference, String result, int count) {
@@ -830,10 +889,10 @@ public class FilesUserApiService {
                         "result", result + ":" + count)));
     }
 
-    private boolean canEdit(Jwt jwt, String organizationRef, String principal, String accountRef) {
+    private boolean canEdit(Jwt jwt, String organizationRef, String principal, String accountRef, String spaceRef) {
         try {
             capabilities.requireCapability(jwt, "files.upload", "files", "files-available-actions");
-            return spaceAllowed(organizationRef, principal, accountRef, ContextPermission.EDIT);
+            return spaceAllowed(organizationRef, principal, accountRef, ContextPermission.EDIT, spaceRef);
         } catch (ApiErrorException denied) {
             return false;
         }
@@ -841,8 +900,13 @@ public class FilesUserApiService {
 
     private boolean spaceAllowed(String organizationRef, String principal, String accountRef,
             ContextPermission permission) {
+        return spaceAllowed(organizationRef, principal, accountRef, permission, SPACE_REF);
+    }
+
+    private boolean spaceAllowed(String organizationRef, String principal, String accountRef,
+            ContextPermission permission, String spaceRef) {
         if (spaces != null) {
-            return spaces.allows(organizationRef, SPACE_REF, accountRef,
+            return spaces.allows(organizationRef, spaceRef, accountRef,
                     switch (permission) {
                         case VIEW -> SpaceAccessPort.Permission.VIEW;
                         case EDIT -> SpaceAccessPort.Permission.EDIT;
@@ -850,7 +914,7 @@ public class FilesUserApiService {
                     });
         }
         return contextAuthorization.check(new ContextAuthorizationRequest(
-                organizationRef, SPACE_REF, principal, permission)).allowed();
+                organizationRef, spaceRef, principal, permission)).allowed();
     }
 
     private String revisionClaim(Jwt jwt, String name, String fallback) {
@@ -865,9 +929,9 @@ public class FilesUserApiService {
                         "files-provider-unavailable", "The active Files provider is unavailable."));
     }
 
-    private FilesProviderPort pinnedProvider(ProviderBinding binding, String organizationRef) {
+    private FilesProviderPort pinnedProvider(ProviderBinding binding, String organizationRef, String spaceRef) {
         try {
-            return providers.pinned(binding, organizationRef, SPACE_REF);
+            return providers.pinned(binding, organizationRef, spaceRef);
         } catch (FilesProviderResolver.ProviderUnavailableException
                 | FilesProviderResolver.StaleBindingException unavailable) {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-provider-unavailable",
@@ -946,7 +1010,7 @@ public class FilesUserApiService {
 
     private record Member(String organizationRef, String principalRef, String subject, boolean canEdit,
                           String policyRevision, String entitlementRevision,
-                          WeaverWorkloadPrincipal workload) {}
+                          WeaverWorkloadPrincipal workload, String spaceRef) {}
 
     public record Download(byte[] bytes, String mediaType, String etag, String digest) {}
 }
