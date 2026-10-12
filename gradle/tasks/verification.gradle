@@ -70,7 +70,7 @@ tasks.named('clientGeneratedCalendarTemporalWire') {
     dependsOn 'checkClientUserApiFresh'
 }
 registerCommandTask('clientOpenApiDriftPrevention', file('client'), ['bash', '-lc', 'FLUTTER_BIN="${FLUTTER_BIN:-$(command -v flutter || true)}"; if [ -z "$FLUTTER_BIN" ] && [ -x "$HOME/flutter/bin/flutter" ]; then FLUTTER_BIN="$HOME/flutter/bin/flutter"; fi; if [ -z "$FLUTTER_BIN" ]; then echo "flutter not found; install Flutter or set FLUTTER_BIN" >&2; exit 127; fi; "$FLUTTER_BIN" test test/architecture/openapi_drift_prevention_contract_test.dart'], 'Block client OpenAPI facade drift for DTOs, raw JSON parsing, provider reachability, and hardcoded copy.')
-registerRootCommandTask('nativeQualificationContractTest', ['python3', 'client/tool/native_qualification_test.py'], 'Verify native qualification command/evidence semantics without a live runtime.')
+registerRootCommandTask('nativeQualificationContractTest', ['bash', '-c', 'python3 client/tool/native_qualification_test.py && python3 client/tool/dual_ios_collaboration_test.py'], 'Verify native and dual-simulator qualification command/evidence semantics without a live runtime.')
 tasks.named('clientDeterministicCi') {
     dependsOn 'clientOpenApiDriftPrevention', 'nativeQualificationContractTest'
 }

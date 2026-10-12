@@ -88,7 +88,7 @@ def main() -> int:
         "com.massimotter.weave",
         "KNDHGC2KV6",
         "6RUS2Z848X",
-        "mail.weave.test:44443",
+        "WEAVE_MAILPIT_URL",
     ):
         require(phrase in docs, f"iOS dogfood documentation is missing {phrase!r}")
 

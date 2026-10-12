@@ -114,7 +114,10 @@ class FilesUserApiNativeIntegrationTest {
                 first, "*", "shared-integration-upload", space);
         assertThat(files.list(b, null, space).items()).singleElement()
                 .satisfies(item -> assertThat(item.fileId()).isEqualTo(created.fileId()));
-        assertThat(files.list(b, null).items()).isEmpty();
+        // Shared membership does not grant the unrelated default private Space.
+        assertThatThrownBy(() -> files.list(b, null))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        failure -> assertThat(failure.status().value()).isEqualTo(403));
         var downloaded = files.download(b, created.fileId());
         assertThat(downloaded.bytes()).containsExactly(first);
         byte[] changed = {9, 8, 7};
