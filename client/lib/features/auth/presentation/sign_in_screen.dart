@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
+import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
+import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/error_state.dart';
@@ -163,21 +165,41 @@ class SignInScreen extends ConsumerWidget {
                                     handoffEvidence,
                                     MemberAuthOnboardingStage.ssoInProgress,
                                   );
+                                  if (!context.mounted) return;
                                   final signedIn = await ref
                                       .read(authFlowControllerProvider.notifier)
                                       .signIn();
-                                  if (signedIn && context.mounted) {
+                                  if (!context.mounted) return;
+                                  if (signedIn) {
                                     await _recordAuthStage(
                                       ref,
                                       handoffEvidence,
                                       MemberAuthOnboardingStage.authenticated,
                                     );
+                                    if (!context.mounted) return;
                                     await _recordAuthStage(
                                       ref,
                                       handoffEvidence,
                                       MemberAuthOnboardingStage
                                           .workspaceBootstrapLoading,
                                     );
+                                    if (!context.mounted) return;
+                                    final bootstrap = ref.read(
+                                      appBootstrapProvider,
+                                    );
+                                    if (bootstrap.isLoading ||
+                                        bootstrap.hasError ||
+                                        bootstrap.value?.phase !=
+                                            BootstrapPhase.ready) {
+                                      await _recordAuthFailure(
+                                        ref,
+                                        handoffEvidence,
+                                        const AuthFailure.protocol(
+                                          'The authenticated workspace did not become ready.',
+                                        ),
+                                      );
+                                      return;
+                                    }
                                     await _recordAuthStage(
                                       ref,
                                       handoffEvidence,

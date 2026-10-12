@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/router/app_routes.dart';
@@ -66,10 +67,8 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
   }
 
   Future<void> _consume() async {
-    if (await _redirectIfAuthenticated()) {
-      return;
-    }
     try {
+      if (await _redirectIfAuthenticated() || !mounted) return;
       final access = await ref
           .read(discoverOrganizationAccessProvider)
           .call(widget.uri);
@@ -80,6 +79,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         setState(() => _access = access);
       }
     } catch (error) {
+      if (!mounted) return;
       final errorCode = supportSafeHandoffErrorCode(error);
       await _recordVisibleFailure(errorCode);
       if (mounted) {
@@ -89,30 +89,43 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
   }
 
   Future<bool> _redirectIfAuthenticated() async {
-    final bootstrap = ref.read(appBootstrapProvider).asData?.value;
-    if (bootstrap?.phase != BootstrapPhase.ready) {
+    final bootstrap = await ref.read(appBootstrapProvider.future);
+    if (!mounted) return true;
+    if (!bootstrap.isResolved) {
+      throw bootstrap.failure ??
+          const AppFailure.bootstrap(
+            'The organization workspace is not ready.',
+          );
+    }
+    if (bootstrap.phase != BootstrapPhase.ready) {
       return false;
     }
-    final access = _tryParseAccess();
-    if (access != null) {
-      await ref
-          .read(memberAuthOnboardingStateRecorderProvider)
-          .record(MemberAuthOnboardingStage.workspaceReady, access: access);
-      _recordVisibleStateOnce('authenticated_redirect', access: access);
+    final access = const OrganizationAccessParser().parse(widget.uri);
+    final selected = await ref
+        .read(serverConfigurationRepositoryProvider)
+        .loadConfiguration();
+    if (!mounted) return true;
+    final origin = selected?.organizationOrigin;
+    final incoming = access.organizationOrigin;
+    if (origin == null ||
+        origin.scheme != 'https' ||
+        origin.userInfo.isNotEmpty ||
+        !{'', '/'}.contains(origin.path) ||
+        origin.hasQuery ||
+        origin.hasFragment ||
+        origin.host != incoming.host ||
+        origin.port != incoming.port) {
+      throw const AppFailure.validation(
+        'WEAVE-ORGANIZATION-ACCESS-INVALID: This link does not match the signed-in organization.',
+      );
     }
-    if (!mounted) {
-      return true;
-    }
-    context.go(AppRoutes.home);
+    await ref
+        .read(memberAuthOnboardingStateRecorderProvider)
+        .record(MemberAuthOnboardingStage.workspaceReady, access: access);
+    if (!mounted) return true;
+    _recordVisibleStateOnce('authenticated_redirect', access: access);
+    if (mounted) context.go(AppRoutes.home);
     return true;
-  }
-
-  OrganizationAccess? _tryParseAccess() {
-    try {
-      return const OrganizationAccessParser().parse(widget.uri);
-    } catch (_) {
-      return null;
-    }
   }
 
   @override
@@ -205,9 +218,11 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       await ref
           .read(memberAuthOnboardingStateRecorderProvider)
           .record(MemberAuthOnboardingStage.ssoInProgress, access: access);
+      if (!mounted) return;
       final signedIn = await ref
           .read(authFlowControllerProvider.notifier)
           .signIn();
+      if (!mounted) return;
       if (!signedIn) {
         final failure =
             ref.read(authFlowControllerProvider).failure ??
@@ -226,12 +241,14 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       await ref
           .read(memberAuthOnboardingStateRecorderProvider)
           .record(MemberAuthOnboardingStage.authenticated, access: access);
+      if (!mounted) return;
       await ref
           .read(memberAuthOnboardingStateRecorderProvider)
           .record(
             MemberAuthOnboardingStage.workspaceBootstrapLoading,
             access: access,
           );
+      if (!mounted) return;
       final bootstrap = ref.read(appBootstrapProvider).asData?.value;
       final workspaceReady = bootstrap?.phase == BootstrapPhase.ready;
       await ref
@@ -266,6 +283,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         await ref
             .read(memberAuthOnboardingStateRecorderProvider)
             .recordAuthFailure(failure, access: access);
+        if (!mounted) return;
         setState(() {
           _signInBusy = false;
           _signInFailure = failure;
@@ -276,6 +294,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         'Unable to sign in right now.',
         cause: error,
       );
+      if (!mounted) return;
       await ref
           .read(memberAuthOnboardingStateRecorderProvider)
           .recordAuthFailure(failure, access: access);
@@ -351,6 +370,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
     }
     _lastVisibleStateRecorded = key;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
       await ref
           .read(preferencesStoreProvider)
           .setString(

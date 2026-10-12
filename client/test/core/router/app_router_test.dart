@@ -1,3 +1,8 @@
+import 'dart:async';
+import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/features/auth/domain/entities/auth_failure.dart';
+import 'package:weave/features/app/domain/use_cases/sign_in_with_oidc.dart';
+import 'package:weave/features/app/domain/use_cases/resolve_app_bootstrap.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -9,6 +14,7 @@ import 'package:weave/features/server_config/presentation/providers/saved_server
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
@@ -57,6 +63,30 @@ import '../../helpers/fake_files_repository.dart';
 import '../../helpers/fake_identity_session_port.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
+
+class _ControlledBootstrapResolver implements ResolveAppBootstrap {
+  _ControlledBootstrapResolver({
+    this.initial = const BootstrapState.needsSignIn(),
+  });
+  final BootstrapState initial;
+  final Completer<BootstrapState> next = Completer<BootstrapState>();
+  var calls = 0;
+  @override
+  Future<BootstrapState> call() async {
+    if (calls++ == 0) return initial;
+    return next.future;
+  }
+}
+
+class _ControlledInteractiveSignIn implements SignInWithOidc {
+  final Completer<void> returned = Completer<void>();
+  var calls = 0;
+  @override
+  Future<void> call({required bool isInteractiveSignInSupported}) {
+    calls++;
+    return returned.future;
+  }
+}
 
 class _FakeServerConfigurationRepository
     implements ServerConfigurationRepository {
@@ -235,6 +265,20 @@ void main() {
   }
 
   group('AppRouter', () {
+    setUp(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('com.llfbandit.app_links/events'),
+            (_) async => null,
+          );
+    });
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('com.llfbandit.app_links/events'),
+            null,
+          );
+    });
     test('uses organization access as the normal launch route', () {
       expect(initialLocationForDefaultRoute('/'), AppRoutes.organizationAccess);
       expect(initialLocationForDefaultRoute(''), AppRoutes.organizationAccess);
@@ -291,9 +335,26 @@ void main() {
       InMemoryPreferencesStore? preferencesStore,
       UserProfile? userProfile,
       bool usePersistedConfiguration = false,
+      ResolveAppBootstrap? resolver,
+      SignInWithOidc? interactiveSignIn,
+      bool useHandoffDiscoveryFixture = false,
     }) {
       final container = ProviderContainer.test(
         overrides: [
+          if (useHandoffDiscoveryFixture)
+            discoverOrganizationAccessProvider.overrideWith(
+              (ref) => DiscoverOrganizationAccess(
+                repository: ref.watch(serverConfigurationRepositoryProvider),
+                discoveryClient: buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+                evidenceStore: ref.watch(preferencesStoreProvider),
+              ),
+            ),
+          if (resolver != null)
+            resolveAppBootstrapProvider.overrideWithValue(resolver),
+          if (interactiveSignIn != null)
+            signInWithOidcProvider.overrideWithValue(interactiveSignIn),
           if (!usePersistedConfiguration)
             appStartDiscoveryClientProvider.overrideWith(
               (ref) => buildTestDiscoveryClient(
@@ -349,6 +410,481 @@ void main() {
       return container;
     }
 
+    testWidgets(
+      'interactive bootstrap retry retains actual routed state and blocks stale content',
+      (tester) async {
+        final resolver = _ControlledBootstrapResolver();
+        final signIn = _ControlledInteractiveSignIn();
+        final container = createContainer(
+          configuration: buildTestConfiguration(),
+          resolver: resolver,
+          interactiveSignIn: signIn,
+        );
+        addTearDown(container.dispose);
+        await container.read(appBootstrapProvider.future);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final router = container.read(appRouterProvider);
+        final initialElement = tester.element(find.byType(SignInScreen));
+        final focus = Focus.of(
+          tester.element(
+            find
+                .descendant(
+                  of: find.byKey(const ValueKey('weave.auth.sign-in')),
+                  matching: find.byType(Text),
+                )
+                .first,
+          ),
+        );
+        focus.requestFocus();
+        await tester.pump();
+        expect(focus.hasFocus, isTrue);
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('weave.auth.sign-in')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('weave.auth.sign-in')));
+        await tester.pump();
+        expect(signIn.calls, 1);
+        signIn.returned.complete();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 10));
+        expect(container.read(appBootstrapProvider).isLoading, isTrue);
+        expect(initialElement.mounted, isTrue);
+        expect(container.read(appRouterProvider), same(router));
+        expect(focus.hasFocus, isFalse);
+        expect(
+          tester.semantics.simulatedAccessibilityTraversal().map(
+            (node) => node.label,
+          ),
+          isNot(contains('Sign In')),
+        );
+        expect(
+          find.byType(SignInScreen),
+          findsNothing,
+          reason: 'Pending bootstrap must block stale routed content',
+        );
+        expect(find.byType(SignInScreen, skipOffstage: false), findsOneWidget);
+        resolver.next.complete(const BootstrapState.ready());
+        await tester.pumpAndSettle();
+        expect(find.byType(HomeScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'actual handoff records workspace proof after retained bootstrap retry',
+      (tester) async {
+        final resolver = _ControlledBootstrapResolver();
+        final signIn = _ControlledInteractiveSignIn();
+        final store = InMemoryPreferencesStore();
+        final container = createContainer(
+          configuration: buildTestConfiguration(),
+          resolver: resolver,
+          interactiveSignIn: signIn,
+          preferencesStore: store,
+          useHandoffDiscoveryFixture: true,
+        );
+        addTearDown(container.dispose);
+        await container.read(appBootstrapProvider.future);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final router = container.read(appRouterProvider);
+        router.go(
+          '/join?organization_origin=https%3A%2F%2Fweave.home.internal',
+        );
+        for (var attempt = 0; attempt < 25; attempt++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pumpAndSettle();
+          if (find.text('Sign In').evaluate().isNotEmpty) break;
+        }
+        final handoff = tester.element(find.byType(MemberHandoffScreen));
+        await tester.ensureVisible(find.text('Sign In'));
+        await tester.tap(find.text('Sign In'));
+        await tester.pump();
+        expect(signIn.calls, 1);
+        signIn.returned.complete();
+        await tester.pump();
+        expect(container.read(appBootstrapProvider).isLoading, isTrue);
+        expect(handoff.mounted, isTrue);
+        expect(find.byType(MemberHandoffScreen), findsNothing);
+        expect(container.read(appRouterProvider), same(router));
+        resolver.next.complete(const BootstrapState.ready());
+        await tester.pumpAndSettle();
+        expect(find.byType(HomeScreen), findsOneWidget);
+        expect(
+          jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
+          'workspace_ready',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('cold bootstrap error leaves incoming handoff unmounted', (
+      tester,
+    ) async {
+      setStartupInitialLocation(
+        '/join?organization_origin=https%3A%2F%2Fweave.home.internal',
+      );
+      addTearDown(() => setStartupInitialLocation(null));
+      final store = InMemoryPreferencesStore();
+      final container = createContainer(
+        configuration: buildTestConfiguration(),
+        resolver: _ControlledBootstrapResolver(
+          initial: const BootstrapState.error(
+            AppFailure.validation('Initial failure'),
+          ),
+        ),
+        preferencesStore: store,
+        useHandoffDiscoveryFixture: true,
+      );
+      addTearDown(container.dispose);
+      await container.read(appBootstrapProvider.future);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const WeaveApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(MemberHandoffScreen, skipOffstage: false),
+        findsNothing,
+      );
+      expect(store.rawString(dogfoodAuthStateStorageKey), isNull);
+      expect(find.byType(HomeScreen), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'incoming handoff waits for pending bootstrap before discovery or reuse',
+      (tester) async {
+        final resolver = _ControlledBootstrapResolver(
+          initial: const BootstrapState.ready(),
+        );
+        final store = InMemoryPreferencesStore();
+        final container = createContainer(
+          configuration: buildTestConfiguration(),
+          resolver: resolver,
+          preferencesStore: store,
+          useHandoffDiscoveryFixture: true,
+        );
+        addTearDown(container.dispose);
+        await container.read(appBootstrapProvider.future);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        final retry = container.read(appBootstrapProvider.notifier).retry();
+        await tester.pump();
+        container
+            .read(appRouterProvider)
+            .go('/join?organization_origin=https%3A%2F%2Fweave.home.internal');
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(
+          store.rawString(dogfoodAuthStateStorageKey),
+          isNull,
+          reason:
+              'Blocked refresh must not start discovery or record stale workspace readiness',
+        );
+        resolver.next.complete(const BootstrapState.ready());
+        await retry;
+        await tester.pumpAndSettle();
+        expect(find.byType(HomeScreen), findsOneWidget);
+        expect(
+          jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
+          'workspace_ready',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'disposed handoff cannot attribute cancelled auth to workspace readiness',
+      (tester) async {
+        final resolver = _ControlledBootstrapResolver();
+        final signIn = _ControlledInteractiveSignIn();
+        final store = InMemoryPreferencesStore();
+        final container = createContainer(
+          configuration: buildTestConfiguration(),
+          resolver: resolver,
+          interactiveSignIn: signIn,
+          preferencesStore: store,
+          useHandoffDiscoveryFixture: true,
+        );
+        addTearDown(container.dispose);
+        await container.read(appBootstrapProvider.future);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        container
+            .read(appRouterProvider)
+            .go('/join?organization_origin=https%3A%2F%2Fweave.home.internal');
+        for (var attempt = 0; attempt < 25; attempt++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pumpAndSettle();
+          if (find.text('Sign In').evaluate().isNotEmpty) break;
+        }
+        await tester.tap(find.text('Sign In'));
+        await tester.pump();
+        expect(signIn.calls, 1);
+        await tester.pumpWidget(const SizedBox.shrink());
+        signIn.returned.completeError(const AuthFailure.cancelled('Cancelled'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(resolver.calls, 1);
+        expect(
+          jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
+          isNot('workspace_ready'),
+        );
+      },
+    );
+
+    for (final outcome in [
+      'needsSetup',
+      'needsSignIn',
+      'error',
+      'thrown-error',
+    ]) {
+      testWidgets('retained ready route blocks refresh and resolves $outcome', (
+        tester,
+      ) async {
+        final resolver = _ControlledBootstrapResolver(
+          initial: const BootstrapState.ready(),
+        );
+        final container = createContainer(
+          configuration: buildTestConfiguration(),
+          resolver: resolver,
+        );
+        addTearDown(container.dispose);
+        await container.read(appBootstrapProvider.future);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final router = container.read(appRouterProvider);
+        final retry = container.read(appBootstrapProvider.notifier).retry();
+        await tester.pump();
+        expect(find.byType(HomeScreen), findsNothing);
+        expect(find.byType(HomeScreen, skipOffstage: false), findsOneWidget);
+        expect(
+          container.read(resolvedBootstrapStateProvider).phase,
+          BootstrapPhase.loading,
+        );
+        if (outcome == 'thrown-error') {
+          resolver.next.completeError(StateError('Resolver failed'));
+        } else {
+          resolver.next.complete(switch (outcome) {
+            'needsSetup' => const BootstrapState.needsSetup(),
+            'needsSignIn' => const BootstrapState.needsSignIn(),
+            _ => const BootstrapState.error(
+              AppFailure.validation('Blocked refresh'),
+            ),
+          });
+        }
+        if (outcome == 'thrown-error') {
+          await expectLater(retry, throwsStateError);
+        } else {
+          await retry;
+        }
+        await tester.pumpAndSettle();
+        expect(container.read(appRouterProvider), same(router));
+        expect(find.byType(HomeScreen), findsNothing);
+        expect(
+          find.byType(OrganizationAccessScreen),
+          outcome == 'needsSetup' ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.byType(SignInScreen),
+          outcome == 'needsSignIn' ? findsOneWidget : findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets(
+      'disposed ordinary sign-in cannot read widget ref after cancellation',
+      (tester) async {
+        final resolver = _ControlledBootstrapResolver();
+        final signIn = _ControlledInteractiveSignIn();
+        final container = createContainer(
+          configuration: buildTestConfiguration(),
+          resolver: resolver,
+          interactiveSignIn: signIn,
+        );
+        addTearDown(container.dispose);
+        await container.read(appBootstrapProvider.future);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final button = find.byKey(const ValueKey('weave.auth.sign-in'));
+        await tester.ensureVisible(button);
+        await tester.pumpAndSettle();
+        await tester.tap(button);
+        await tester.pump();
+        expect(signIn.calls, 1);
+        await tester.pumpWidget(const SizedBox.shrink());
+        signIn.returned.completeError(const AuthFailure.cancelled('Cancelled'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(resolver.calls, 1);
+      },
+    );
+
+    for (final failure in ['data-error', 'thrown-error', 'needsSignIn']) {
+      testWidgets(
+        'ordinary sign-in never records workspace-ready after $failure',
+        (tester) async {
+          final resolver = _ControlledBootstrapResolver();
+          final signIn = _ControlledInteractiveSignIn();
+          final store = InMemoryPreferencesStore({
+            lastHandoffConsumedStorageKey: jsonEncode({
+              'supportSafe': true,
+              'organizationOriginHost': 'weave.home.internal',
+            }),
+          });
+          final container = createContainer(
+            configuration: buildTestConfiguration(),
+            resolver: resolver,
+            interactiveSignIn: signIn,
+            preferencesStore: store,
+          );
+          addTearDown(container.dispose);
+          await container.read(appBootstrapProvider.future);
+          await tester.pumpWidget(
+            UncontrolledProviderScope(
+              container: container,
+              child: const WeaveApp(),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final button = find.byKey(const ValueKey('weave.auth.sign-in'));
+          await tester.ensureVisible(button);
+          await tester.pumpAndSettle();
+          await tester.tap(button);
+          await tester.pump();
+          expect(signIn.calls, 1);
+          signIn.returned.complete();
+          await tester.pump();
+          if (failure == 'thrown-error') {
+            resolver.next.completeError(StateError('Resolver failed'));
+          } else {
+            resolver.next.complete(
+              failure == 'data-error'
+                  ? const BootstrapState.error(
+                      AppFailure.validation('Blocked workspace'),
+                    )
+                  : const BootstrapState.needsSignIn(),
+            );
+          }
+          await tester.pumpAndSettle();
+          expect(find.byType(HomeScreen), findsNothing);
+          expect(
+            jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
+            'recoverable_error',
+          );
+          final history =
+              jsonDecode(store.rawString(dogfoodAuthStateHistoryStorageKey)!)
+                  as List;
+          expect(
+            history.map((entry) => entry['state']),
+            isNot(contains('workspace_ready')),
+          );
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+
+    for (final target in [
+      'https://weave.home.internal',
+      'https://weave.home.internal:443/',
+      'https://other.example',
+      'https://weave.home.internal:4443',
+    ]) {
+      testWidgets(
+        'authenticated handoff binds existing profile origin $target',
+        (tester) async {
+          final resolver = _ControlledBootstrapResolver(
+            initial: const BootstrapState.ready(),
+          );
+          final store = InMemoryPreferencesStore();
+          final configuration = buildTestConfiguration();
+          final container = createContainer(
+            configuration: configuration,
+            resolver: resolver,
+            preferencesStore: store,
+          );
+          addTearDown(container.dispose);
+          await container.read(appBootstrapProvider.future);
+          await tester.pumpWidget(
+            UncontrolledProviderScope(
+              container: container,
+              child: const WeaveApp(),
+            ),
+          );
+          await tester.pumpAndSettle();
+          container
+              .read(appRouterProvider)
+              .go('/join?organization_origin=${Uri.encodeComponent(target)}');
+          await tester.pumpAndSettle();
+          final accepted =
+              !target.contains('other.example') && !target.contains('4443');
+          expect(
+            find.byType(ErrorState),
+            accepted ? findsNothing : findsOneWidget,
+          );
+          expect(
+            find.byType(HomeScreen),
+            accepted ? findsOneWidget : findsNothing,
+          );
+          expect(
+            await container
+                .read(serverConfigurationRepositoryProvider)
+                .loadConfiguration(),
+            same(configuration),
+          );
+          final raw = store.rawString(dogfoodAuthStateStorageKey);
+          expect(
+            raw == null ? null : jsonDecode(raw)['state'],
+            accepted ? 'workspace_ready' : isNot('workspace_ready'),
+          );
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+
     for (final extra in [
       '',
       '&unexpected=1',
@@ -401,6 +937,11 @@ void main() {
             ],
           );
           addTearDown(container.dispose);
+          final routerSubscription = container.listen(
+            appRouterProvider,
+            (_, _) {},
+          );
+          addTearDown(routerSubscription.close);
           final bootstrap = await container.read(appBootstrapProvider.future);
           expect(bootstrap.phase, BootstrapPhase.needsSetup);
           await tester.pumpWidget(
@@ -703,7 +1244,7 @@ void main() {
       'does not replay a dogfood join link after authentication is ready',
       (tester) async {
         setStartupInitialLocation(
-          '/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https://weave.test:44443&platform_config_url=https://weave.test:44443/api/platform/config',
+          '/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https://weave.home.internal&platform_config_url=https://weave.home.internal/api/platform/config',
         );
         addTearDown(() => setStartupInitialLocation(null));
         final secureStore = InMemorySecureStore();

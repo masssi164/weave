@@ -84,11 +84,13 @@ class _FailingSignInWithOidc implements SignInWithOidc {
   }
 }
 
-class _ReadyResolveAppBootstrap implements ResolveAppBootstrap {
-  const _ReadyResolveAppBootstrap();
+class _SignInThenReadyResolveAppBootstrap implements ResolveAppBootstrap {
+  var calls = 0;
 
   @override
-  Future<BootstrapState> call() async => const BootstrapState.ready();
+  Future<BootstrapState> call() async => calls++ == 0
+      ? const BootstrapState.needsSignIn()
+      : const BootstrapState.ready();
 }
 
 void main() {
@@ -166,6 +168,9 @@ void main() {
           final store = InMemoryPreferencesStore();
           final container = ProviderContainer(
             overrides: [
+              resolveAppBootstrapProvider.overrideWithValue(
+                _SignInThenReadyResolveAppBootstrap(),
+              ),
               preferencesStoreProvider.overrideWith((ref) => store),
               discoverOrganizationAccessProvider.overrideWith(
                 (ref) => DiscoverOrganizationAccess(
@@ -435,7 +440,7 @@ void main() {
             ),
             signInWithOidcProvider.overrideWithValue(signIn),
             resolveAppBootstrapProvider.overrideWithValue(
-              const _ReadyResolveAppBootstrap(),
+              _SignInThenReadyResolveAppBootstrap(),
             ),
           ],
         );

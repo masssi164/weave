@@ -78,6 +78,7 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
   final List<Timer> _pendingDeepLinkTimers = [];
   late final Future<bool> _workspaceWasReadyAtLaunch;
   bool _sessionContinuityRecorded = false;
+  bool _hasResolvedBootstrap = false;
 
   @override
   void initState() {
@@ -269,30 +270,26 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
   @override
   Widget build(BuildContext context) {
     final bootstrap = ref.watch(appBootstrapProvider);
+    if (bootstrap.value?.isResolved == true) _hasResolvedBootstrap = true;
 
+    Widget? gate;
     if (bootstrap.isLoading) {
-      return _buildFallbackApp(const BootstrapGate.loading());
-    }
-
-    if (bootstrap.hasError) {
-      return _buildFallbackApp(
-        BootstrapGate.error(
-          failure: const AppFailure.bootstrap(
-            'Unable to bootstrap the application.',
-          ),
-          onRetry: () => ref.read(appBootstrapProvider.notifier).retry(),
+      gate = const BootstrapGate.loading();
+    } else if (bootstrap.hasError) {
+      gate = BootstrapGate.error(
+        failure: const AppFailure.bootstrap(
+          'Unable to bootstrap the application.',
         ),
+        onRetry: () => ref.read(appBootstrapProvider.notifier).retry(),
+      );
+    } else if (bootstrap.value?.phase == BootstrapPhase.error) {
+      gate = BootstrapGate.error(
+        failure: bootstrap.requireValue.failure!,
+        onRetry: () => ref.read(appBootstrapProvider.notifier).retry(),
       );
     }
-
-    final bootstrapState = bootstrap.requireValue;
-    if (bootstrapState.phase == BootstrapPhase.error) {
-      return _buildFallbackApp(
-        BootstrapGate.error(
-          failure: bootstrapState.failure!,
-          onRetry: () => ref.read(appBootstrapProvider.notifier).retry(),
-        ),
-      );
+    if (!_hasResolvedBootstrap) {
+      return _buildFallbackApp(gate ?? const BootstrapGate.loading());
     }
 
     final router = ref.watch(appRouterProvider);
@@ -324,6 +321,18 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
       themeMode: themeSelection.themeMode,
       locale: appLocale,
       routerConfig: router,
+      builder: (context, child) {
+        if (gate == null) return child!;
+        // Keep async route owners mounted while blocking stale content and
+        // all pointer, keyboard-focus and accessibility interaction.
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            ExcludeFocus(child: Offstage(offstage: true, child: child)),
+            gate,
+          ],
+        );
+      },
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
     );
