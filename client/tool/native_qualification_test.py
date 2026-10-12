@@ -225,6 +225,25 @@ class NativeQualificationTest(unittest.TestCase):
             ios.emit_phase_stages('private-journey', '', '\n'.join(safe))
         self.assertEqual(output.getvalue(), '')
 
+    def test_password_prompt_diagnostics_are_count_only_bounded_and_deduplicated(self):
+        safe = 'NATIVE_IOS_PASSWORD_PROMPT_STATE appPrompts=1 systemPrompts=0 appDeclines=0 systemDeclines=0 readiness=ambiguous'
+        unsafe = [safe + ' private-password', 'prefix ' + safe,
+                  safe.replace('appPrompts=1', 'appPrompts=1000'),
+                  safe.replace('ambiguous', 'private-alert'), safe + '\rprivate-data']
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', '', '\n'.join([safe, safe, *unsafe]))
+        self.assertEqual(output.getvalue(), 'IOS_PROVIDER_DIAGNOSTIC journey=initial ' + safe + ' supportSafe=true\n')
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('restore', '', '\n'.join(
+                safe.replace('appDeclines=0', f'appDeclines={i}') for i in range(30)))
+        self.assertEqual(output.getvalue().count('IOS_PROVIDER_DIAGNOSTIC'), 16)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('private-journey', '', safe)
+        self.assertEqual(output.getvalue(), '')
+
     def test_return_stage_is_fixed_and_never_exports_private_context(self):
         output = io.StringIO()
         with redirect_stdout(output):

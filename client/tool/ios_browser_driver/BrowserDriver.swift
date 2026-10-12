@@ -148,13 +148,16 @@ final class BrowserDriver: XCTestCase {
     state: () -> PasswordPromptReadiness, deadline: Date, promptSeen: inout Bool,
     now: () -> Date = Date.init, pause: () -> Void = { Thread.sleep(forTimeInterval: 0.25) }
   ) -> PasswordPromptReadiness {
+    var latest = PasswordPromptReadiness.waiting
     while now() < deadline {
-      let observed = state()
-      if observed != .absent { promptSeen = true }
-      if observed != .waiting { return observed }
+      latest = state()
+      if latest != .absent { promptSeen = true }
+      if latest == .absent || latest == .ready { return latest }
+      // Both inaccessible and temporarily ambiguous AX snapshots must settle.
+      // Never select or tap a decline until one fresh exact control is hittable.
       pause()
     }
-    return .waiting
+    return latest
   }
 
   func testPasswordPromptWaitUsesFreshStateAndBoundedDeadline() {
@@ -166,15 +169,33 @@ final class BrowserDriver: XCTestCase {
       now: { clock }, pause: { clock.addTimeInterval(1) }
     ), .ready)
     XCTAssertTrue(states.isEmpty)
-    for terminal in [PasswordPromptReadiness.absent, .ambiguous] {
-      XCTAssertEqual(Self.waitForPasswordPrompt(state: { terminal }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen, now: { clock }), terminal)
-    }
+    XCTAssertEqual(Self.waitForPasswordPrompt(state: { .absent }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen, now: { clock }), .absent)
     var reads = 0
     XCTAssertEqual(Self.waitForPasswordPrompt(
       state: { reads += 1; return .waiting }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
       now: { clock }, pause: { clock.addTimeInterval(1) }
     ), .waiting)
     XCTAssertEqual(reads, 5)
+  }
+
+  func testAmbiguousPasswordPromptSettlesWithoutSelectingEarly() {
+    var clock = Date(timeIntervalSince1970: 0)
+    var states: [PasswordPromptReadiness] = [.waiting, .ambiguous, .ready]
+    var promptSeen = false
+    XCTAssertEqual(Self.waitForPasswordPrompt(
+      state: { states.removeFirst() }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      now: { clock }, pause: { clock.addTimeInterval(1) }
+    ), .ready)
+    XCTAssertTrue(states.isEmpty)
+    XCTAssertTrue(promptSeen)
+    XCTAssertEqual(clock.timeIntervalSince1970, 2)
+    var reads = 0
+    XCTAssertEqual(Self.waitForPasswordPrompt(
+      state: { reads += 1; return .ambiguous }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      now: { clock }, pause: { clock.addTimeInterval(1) }
+    ), .ambiguous)
+    XCTAssertEqual(reads, 5)
+    XCTAssertTrue(promptSeen)
   }
 
   func testDisappearingObservedPromptSuppressesReturnRecovery() {
@@ -212,12 +233,18 @@ final class BrowserDriver: XCTestCase {
       guard appCount + systemCount > 0 else { return .absent }
       let appDeclines = appPrompts.buttons.matching(NSPredicate(format: "label IN %@", Self.passwordDeclineLabels))
       let systemDeclines = systemPrompts.buttons.matching(NSPredicate(format: "label IN %@", Self.passwordDeclineLabels))
+      let appDeclineCount = appRunning ? appDeclines.count : 0
+      let systemDeclineCount = systemRunning ? systemDeclines.count : 0
+      func diagnose(_ readiness: String) {
+        print("NATIVE_IOS_PASSWORD_PROMPT_STATE appPrompts=\(min(appCount, 999)) systemPrompts=\(min(systemCount, 999)) appDeclines=\(min(appDeclineCount, 999)) systemDeclines=\(min(systemDeclineCount, 999)) readiness=\(readiness)")
+      }
       guard let surface = Self.uniquePasswordDeclineSurface(
         appPromptCount: appCount, systemPromptCount: systemCount,
-        appDeclineCount: appRunning ? appDeclines.count : 0, systemDeclineCount: systemRunning ? systemDeclines.count : 0
-      ) else { return .ambiguous }
+        appDeclineCount: appDeclineCount, systemDeclineCount: systemDeclineCount
+      ) else { diagnose("ambiguous"); return .ambiguous }
       let decline = surface == 0 ? appDeclines.element : systemDeclines.element
-      guard decline.isHittable else { return .waiting }
+      guard decline.isHittable else { diagnose("waiting"); return .waiting }
+      diagnose("ready")
       selectedDecline = decline
       selectedPrompt = surface == 0 ? appPrompts.element : systemPrompts.element
       return .ready

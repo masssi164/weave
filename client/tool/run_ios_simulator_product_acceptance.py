@@ -211,6 +211,7 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
     if phase in {'initial', 'restore'}:
         observed = set()
         typed_patterns = [
+            r'NATIVE_IOS_PASSWORD_PROMPT_STATE appPrompts=([0-9]{1,3}) systemPrompts=([0-9]{1,3}) appDeclines=([0-9]{1,3}) systemDeclines=([0-9]{1,3}) readiness=(ambiguous|waiting|ready)',
             r'NATIVE_IOS_PROVIDER_CONTROLS phase=(username-before|password-before) usernameFields=([0-9]{1,3}) passwordFields=([0-9]{1,3}) selectedFieldHittable=(true|false)',
             r'NATIVE_IOS_PROVIDER_CONTROLS phase=username-after readbackEqual=(true|false)',
             r'NATIVE_IOS_PROVIDER_CONTROLS phase=password-after secureValueLengthEqual=(true|false)',
