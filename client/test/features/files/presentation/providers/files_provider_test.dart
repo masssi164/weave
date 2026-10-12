@@ -301,8 +301,14 @@ void main() {
           container.read(filesProvider).requireValue.rootSpaceRef,
           'workspace-default',
         );
+        container.invalidate(filesProvider);
+        await container.read(filesProvider.future);
+        expect(
+          container.read(filesProvider).requireValue.rootSpaceRef,
+          'workspace-default',
+        );
         await container.read(filesProvider.notifier).selectRootSpace('unknown');
-        expect(scopes, [null, 'workspace-default']);
+        expect(scopes, [null, 'workspace-default', 'workspace-default']);
         expect(
           container.read(filesProvider).requireValue.directoryListing,
           isNull,

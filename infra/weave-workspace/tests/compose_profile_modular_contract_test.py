@@ -459,10 +459,13 @@ def main() -> int:
         for context in (dogfood, prod, load_context("dev", ROOT)):
             gateway = render_caddy(context)
             assert "handle /api/* {" in gateway
+            assert f"redir {context.env['WEAVE_PUBLIC_URL']}{{uri}} 308" in gateway
+            assert f"redir {context.env['WEAVE_AUTH_URL']}{{uri}} 308" in gateway
+            assert "http://weave." in gateway
             assert "handle_path /api" not in gateway
             assert gateway.index("handle @internal {") < gateway.index("handle /api/* {")
         assert "reverse_proxy mailpit:8025" in dogfood_caddy
-        mailpit_site = dogfood_caddy.split("https://mail.weave.test", 1)[1].split("}\n", 1)[0]
+        mailpit_site = dogfood_caddy.split("https://mail.weave.test {", 1)[1].split("}\n", 1)[0]
         assert "tls /certs/cert.pem /certs/key.pem" in mailpit_site
         assert "mailpit-cert.pem" not in mailpit_site
         assert "reverse_proxy mailpit:8025" not in render_caddy(prod)

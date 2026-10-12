@@ -111,6 +111,7 @@ services:
     secrets:
       - postgres-admin-password
       - backend-db-password
+      - backend-migration-db-password
       - keycloak-db-password
       - control-db-password
     networks:
@@ -743,13 +744,14 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${WEAVE_BACKEND_DB_NAME:-weave_backend}
-      SPRING_DATASOURCE_USERNAME: ${WEAVE_BACKEND_DB_USERNAME:-weave_backend}
+      SPRING_DATASOURCE_USERNAME: "${WEAVE_BACKEND_DB_USERNAME:-weave_backend}_migration"
+      WEAVE_SCHEMA_RUNTIME_ROLE: ${WEAVE_BACKEND_DB_USERNAME:-weave_backend}
       WEAVE_CANDIDATE_COMMIT: ${WEAVE_CANDIDATE_COMMIT}
-      WEAVE_PERSISTENCE_PASSWORD_FILE: /run/secrets/backend-db-password
+      WEAVE_PERSISTENCE_PASSWORD_FILE: /run/secrets/backend-migration-db-password
       WEAVE_SCHEMA_INIT_RECEIPT_FILE: /run/weave-schema-init/receipt.json
     secrets:
-      - source: backend-db-password
-        target: backend-db-password
+      - source: backend-migration-db-password
+        target: backend-migration-db-password
     volumes:
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/schema-init:/run/weave-schema-init
     networks:
@@ -1064,6 +1066,8 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/postgres-admin-password
   backend-db-password:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/backend-db-password
+  backend-migration-db-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/backend-migration-db-password
   keycloak-db-password:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-db-password
   keycloak-realm-migration-bootstrap-secret:

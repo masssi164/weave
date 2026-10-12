@@ -26,6 +26,11 @@ read_secret() {
 
 read_secret PGPASSWORD /run/secrets/postgres-admin-password WEAVE_POSTGRES_ADMIN_PASSWORD_FINGERPRINT
 read_secret WEAVE_BACKEND_DB_PASSWORD /run/secrets/backend-db-password WEAVE_BACKEND_DB_PASSWORD_FINGERPRINT
+read_secret WEAVE_BACKEND_MIGRATION_DB_PASSWORD /run/secrets/backend-migration-db-password WEAVE_BACKEND_MIGRATION_DB_PASSWORD_FINGERPRINT
+# One deployment identity determines both roles; operators configure only the
+# serving username. The dedicated migration role owns all product DDL.
+[ "${#WEAVE_BACKEND_DB_USERNAME}" -le 53 ] || fail "backend role name leaves no room for migration suffix"
+export WEAVE_BACKEND_MIGRATION_DB_USERNAME="${WEAVE_BACKEND_DB_USERNAME}_migration"
 read_secret WEAVE_KEYCLOAK_DB_PASSWORD /run/secrets/keycloak-db-password WEAVE_KEYCLOAK_DB_PASSWORD_FINGERPRINT
 read_secret WEAVE_CONTROL_DB_PASSWORD /run/secrets/control-db-password WEAVE_CONTROL_DB_PASSWORD_FINGERPRINT
 
@@ -34,6 +39,9 @@ psql --no-psqlrc --set=ON_ERROR_STOP=1 --quiet <<'SQL'
 \getenv backend_user WEAVE_BACKEND_DB_USERNAME
 \getenv backend_password WEAVE_BACKEND_DB_PASSWORD
 \getenv backend_fingerprint WEAVE_BACKEND_DB_PASSWORD_FINGERPRINT
+\getenv migration_user WEAVE_BACKEND_MIGRATION_DB_USERNAME
+\getenv migration_password WEAVE_BACKEND_MIGRATION_DB_PASSWORD
+\getenv migration_fingerprint WEAVE_BACKEND_MIGRATION_DB_PASSWORD_FINGERPRINT
 \getenv keycloak_name WEAVE_KEYCLOAK_DB_NAME
 \getenv keycloak_user WEAVE_KEYCLOAK_DB_USERNAME
 \getenv keycloak_password WEAVE_KEYCLOAK_DB_PASSWORD
@@ -66,7 +74,24 @@ INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fi
 VALUES (:'backend_user', :'backend_fingerprint')
 ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp()
 WHERE weave_control.database_role_secret_generations.secret_fingerprint IS DISTINCT FROM EXCLUDED.secret_fingerprint;
-SELECT format('CREATE DATABASE %I OWNER %I', :'backend_name', :'backend_user')
+INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
+SELECT :'migration_user', :'migration_fingerprint'
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'migration_user')
+ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp();
+SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'migration_user', :'migration_password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'migration_user') \gexec
+SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L', :'migration_user', :'migration_password')
+WHERE NOT EXISTS (
+  SELECT 1 FROM weave_control.database_role_secret_generations
+  WHERE role_name = :'migration_user' AND secret_fingerprint = :'migration_fingerprint'
+) \gexec
+INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
+VALUES (:'migration_user', :'migration_fingerprint')
+ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp()
+WHERE weave_control.database_role_secret_generations.secret_fingerprint IS DISTINCT FROM EXCLUDED.secret_fingerprint;
+SELECT format('ALTER ROLE %I NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS', :'backend_user') \gexec
+SELECT format('ALTER ROLE %I NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS', :'migration_user') \gexec
+SELECT format('CREATE DATABASE %I OWNER %I', :'backend_name', :'migration_user')
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'backend_name') \gexec
 
 INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
@@ -103,7 +128,7 @@ VALUES (:'control_user', :'control_fingerprint')
 ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp()
 WHERE weave_control.database_role_secret_generations.secret_fingerprint IS DISTINCT FROM EXCLUDED.secret_fingerprint;
 
-SELECT format('ALTER DATABASE %I OWNER TO %I', :'backend_name', :'backend_user') \gexec
+SELECT format('ALTER DATABASE %I OWNER TO %I', :'backend_name', :'migration_user') \gexec
 SELECT format('ALTER DATABASE %I OWNER TO %I', :'keycloak_name', :'keycloak_user') \gexec
 SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'backend_name') \gexec
 SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'keycloak_name') \gexec
@@ -166,9 +191,38 @@ GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA weave_control TO :"control_
 ALTER DEFAULT PRIVILEGES IN SCHEMA weave_control REVOKE ALL ON TABLES FROM PUBLIC;
 SQL
 
+PGDATABASE="${WEAVE_BACKEND_DB_NAME}" psql --no-psqlrc --set=ON_ERROR_STOP=1 --quiet <<'SQL'
+\getenv backend_user WEAVE_BACKEND_DB_USERNAME
+\getenv migration_user WEAVE_BACKEND_MIGRATION_DB_USERNAME
+SELECT EXISTS (
+  SELECT 1 FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba
+  WHERE r.rolname = :'backend_user' AND d.datname <> current_database()
+) AS unsafe_shared_ownership \gset
+\if :unsafe_shared_ownership
+  \echo 'WEAVE_POSTGRES_RECONCILE_ERROR serving role owns an unrelated database'
+  \quit 1
+\endif
+REASSIGN OWNED BY :"backend_user" TO :"migration_user";
+REVOKE ALL ON DATABASE :"DBNAME" FROM PUBLIC;
+REVOKE CREATE ON DATABASE :"DBNAME" FROM :"backend_user";
+GRANT CONNECT ON DATABASE :"DBNAME" TO :"backend_user";
+ALTER SCHEMA public OWNER TO :"migration_user";
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+REVOKE CREATE ON SCHEMA public FROM :"backend_user";
+GRANT USAGE ON SCHEMA public TO :"backend_user";
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO :"backend_user";
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO :"backend_user";
+ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_user" IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"backend_user";
+ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_user" IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO :"backend_user";
+SQL
+
 unset PGPASSWORD WEAVE_BACKEND_DB_PASSWORD WEAVE_KEYCLOAK_DB_PASSWORD \
   WEAVE_CONTROL_DB_PASSWORD WEAVE_POSTGRES_ADMIN_PASSWORD_FINGERPRINT \
-  WEAVE_BACKEND_DB_PASSWORD_FINGERPRINT WEAVE_KEYCLOAK_DB_PASSWORD_FINGERPRINT \
+  WEAVE_BACKEND_DB_PASSWORD_FINGERPRINT WEAVE_BACKEND_MIGRATION_DB_PASSWORD \
+  WEAVE_BACKEND_MIGRATION_DB_PASSWORD_FINGERPRINT WEAVE_BACKEND_MIGRATION_DB_USERNAME \
+  WEAVE_KEYCLOAK_DB_PASSWORD_FINGERPRINT \
   WEAVE_CONTROL_DB_PASSWORD_FINGERPRINT
 
 printf '%s\n' 'postgres-reconcile: converged'
