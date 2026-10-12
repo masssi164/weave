@@ -91,6 +91,20 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
             if len(counts) >= 6:
                 break
     if phase in {'initial', 'restore'}:
+        observed = set()
+        typed_patterns = [
+            r'NATIVE_IOS_PROVIDER_CONTROLS phase=(username-before|password-before) usernameFields=([0-9]{1,3}) passwordFields=([0-9]{1,3}) selectedFieldHittable=(true|false)',
+            r'NATIVE_IOS_PROVIDER_CONTROLS phase=username-after readbackEqual=(true|false)',
+            r'NATIVE_IOS_PROVIDER_CONTROLS phase=password-after secureValueLengthEqual=(true|false)',
+            r'NATIVE_IOS_PROVIDER_CONTROLS phase=provider-error category=(invalid-credentials|invalid-username|invalid-password|account-disabled) matchingElements=([0-9]{1,3})',
+        ]
+        for line in browser_output.split('\n'):
+            if any(re.fullmatch(pattern, line) for pattern in typed_patterns) and line not in observed:
+                observed.add(line)
+                print(f'IOS_PROVIDER_DIAGNOSTIC journey={phase} {line} supportSafe=true', flush=True)
+            if len(observed) >= 16:
+                break
+    if phase in {'initial', 'restore'}:
         states = set()
         for line in browser_output.splitlines():
             match = re.fullmatch(

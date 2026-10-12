@@ -74,6 +74,46 @@ class NativeQualificationTest(unittest.TestCase):
             ios.emit_phase_stages('private-journey', '', safe)
         self.assertEqual(output.getvalue(), '')
 
+    def test_input_diagnostics_reject_payloads_and_bound_unique_output(self):
+        safe = [
+            'NATIVE_IOS_PROVIDER_CONTROLS phase=username-before usernameFields=1 passwordFields=0 selectedFieldHittable=true',
+            'NATIVE_IOS_PROVIDER_CONTROLS phase=password-before usernameFields=0 passwordFields=1 selectedFieldHittable=false',
+            'NATIVE_IOS_PROVIDER_CONTROLS phase=username-after readbackEqual=false',
+            'NATIVE_IOS_PROVIDER_CONTROLS phase=password-after secureValueLengthEqual=true',
+            'NATIVE_IOS_PROVIDER_CONTROLS phase=provider-error category=invalid-credentials matchingElements=1',
+            'NATIVE_IOS_PROVIDER_CONTROLS phase=provider-error category=invalid-username matchingElements=0',
+            'NATIVE_IOS_PROVIDER_CONTROLS phase=provider-error category=invalid-password matchingElements=2',
+            'NATIVE_IOS_PROVIDER_CONTROLS phase=provider-error category=account-disabled matchingElements=1',
+        ]
+        unsafe = [line + ' private-account' for line in safe] + [
+            safe[0].replace('usernameFields=1', 'usernameFields=1000'),
+            safe[2].replace('false', 'private-password'),
+            safe[3].replace('secureValueLengthEqual=true', 'secureValueLength=47'),
+            safe[4].replace('invalid-credentials', 'private-error'),
+            'prefix ' + safe[2], safe[2] + '\rprivate-data',
+        ]
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', '', '\n'.join(safe + safe + unsafe))
+        self.assertEqual(output.getvalue().count('IOS_PROVIDER_DIAGNOSTIC'), len(safe))
+        for marker in safe:
+            self.assertIn(marker + ' supportSafe=true', output.getvalue())
+        for private in ('private-', '1000', 'secureValueLength=47', 'prefix'):
+            self.assertNotIn(private, output.getvalue())
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', '', '\n'.join(unsafe))
+        self.assertEqual(output.getvalue(), '')
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('restore', '', '\n'.join(
+                safe[4].replace('matchingElements=1', f'matchingElements={i}') for i in range(30)))
+        self.assertEqual(output.getvalue().count('IOS_PROVIDER_DIAGNOSTIC'), 16)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('private-journey', '', '\n'.join(safe))
+        self.assertEqual(output.getvalue(), '')
+
     def test_runtime_must_be_available_and_apple_silicon(self):
         for entry in [
             {'identifier': ios.RUNTIME, 'isAvailable': False, 'supportedArchitectures': ['arm64']},
