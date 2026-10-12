@@ -214,9 +214,76 @@ def native_toolchain_recorded(value: object) -> bool:
                    "rustc " + value["rustToolchain"] + " (")
 
 
+def dual_ios_collaboration_passed(value: object) -> bool:
+    """Reject single-client or incomplete proof for the accepted October release."""
+    if not isinstance(value, dict) or value.get("status") != "passed":
+        return False
+    digest = re.compile(r"[0-9a-f]{64}")
+    app_digest = value.get("appBuildSha256")
+    if not isinstance(app_digest, str) or not digest.fullmatch(app_digest):
+        return False
+    actors = value.get("actors")
+    if not isinstance(actors, list) or len(actors) != 2 or not all(isinstance(a, dict) for a in actors):
+        return False
+    roles = [actor.get("role") for actor in actors]
+    if not all(isinstance(role, str) for role in roles) or set(roles) != {"A", "B"}:
+        return False
+    for key in ("simulatorId", "identityDigest", "matrixDeviceDigest", "storageDigest"):
+        values = [actor.get(key) for actor in actors]
+        if not all(isinstance(item, str) for item in values) or len(set(values)) != 2:
+            return False
+        pattern = re.compile(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}") if key == "simulatorId" else digest
+        if not all(pattern.fullmatch(item) for item in values):
+            return False
+    processes = [actor.get("processId") for actor in actors]
+    if not all(type(pid) is int and pid > 0 for pid in processes) or len(set(processes)) != 2:
+        return False
+    try:
+        def interval(record: dict) -> tuple[datetime, datetime]:
+            start, end = (datetime.fromisoformat(record[key].replace("Z", "+00:00"))
+                          for key in ("startedAt", "endedAt"))
+            if start.tzinfo is None or end.tzinfo is None or start >= end:
+                raise ValueError("Invalid execution interval")
+            return start, end
+        overlap_start, overlap_end = interval(value["overlap"])
+        for actor in actors:
+            start, end = interval(actor)
+            if not start <= overlap_start < overlap_end <= end:
+                return False
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return False
+    scenarios = value.get("scenarios")
+    if not isinstance(scenarios, dict):
+        return False
+    for name in ("authentication", "chat", "calendar", "files", "authorization", "recovery", "accessibility"):
+        result = scenarios.get(name)
+        if not isinstance(result, dict) or result.get("status") != "passed":
+            return False
+        if result.get("actors") != ["A", "B"]:
+            return False
+        if name == "authorization":
+            denied_identity = result.get("deniedIdentityDigest")
+            if (result.get("evidence") not in ("flutter-ui", "server-denial")
+                    or not isinstance(denied_identity, str)
+                    or not digest.fullmatch(denied_identity)
+                    or denied_identity in {actor["identityDigest"] for actor in actors}
+                    or result.get("denials") != {"chat": "passed", "files": "passed", "calendar": "passed"}):
+                return False
+        elif result.get("evidence") != "flutter-ui":
+            return False
+    encryption = value.get("encryption")
+    if not isinstance(encryption, dict) or type(encryption.get("policyRequired")) is not bool:
+        return False
+    if encryption.get("plaintextFallback") is not False:
+        return False
+    if encryption.get("status") != ("passed" if encryption["policyRequired"] else "not-required"):
+        return False
+    return value.get("cleanupComplete") is True
+
+
 def native_qualification_passed(value: dict, sha: str, tree: str, spec: str) -> bool:
     return (
-        value.get("schemaVersion") == "weave.native-qualification/v1"
+        value.get("schemaVersion") == "weave.native-qualification/v2"
         and value.get("candidateCommit") == sha
         and value.get("sourceTree") == tree
         and value.get("specificationCommit") == spec
@@ -224,6 +291,7 @@ def native_qualification_passed(value: dict, sha: str, tree: str, spec: str) -> 
         and value.get("macos", {}).get("status") == "passed"
         and value.get("iosSimulator", {}).get("status") == "passed"
         and value.get("iosSimulator", {}).get("rustTarget") == "aarch64-apple-ios-sim"
+        and dual_ios_collaboration_passed(value.get("iosSimulator", {}).get("collaboration"))
         and value.get("cleanupComplete") is True
         and value.get("supportSafe") is True
         and value.get("containsSecretValues") is False
