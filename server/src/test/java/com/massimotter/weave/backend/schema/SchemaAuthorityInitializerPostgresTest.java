@@ -528,6 +528,78 @@ class SchemaAuthorityInitializerPostgresTest {
   }
 
   @Test
+  void lostSessionCannotOverwriteReplacementReceipt(@TempDir Path directory) throws Exception {
+    Environment environment = environment("publication_race", directory);
+    SchemaAuthorityInitializer.run(environment.values());
+    var first = new LinkedHashMap<>(environment.values());
+    first.put("WEAVE_CANDIDATE_COMMIT", "b".repeat(40));
+    var replacement = new LinkedHashMap<>(environment.values());
+    replacement.put("WEAVE_CANDIDATE_COMMIT", "c".repeat(40));
+    CountDownLatch pausedBeforeMove = new CountDownLatch(1);
+    CountDownLatch resume = new CountDownLatch(1);
+    var executor = Executors.newFixedThreadPool(2);
+    try {
+      var losing = executor.submit(() -> {
+        SchemaAuthorityInitializer.run(first, () -> {
+          pausedBeforeMove.countDown();
+          try {
+            if (!resume.await(30, TimeUnit.SECONDS)) throw new IllegalStateException("publication test resume timed out");
+          } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(failure);
+          }
+        });
+        return null;
+      });
+      assertThat(pausedBeforeMove.await(30, TimeUnit.SECONDS)).isTrue();
+      Path outputLock = environment.receipt().resolveSibling("." + environment.receipt().getFileName() + ".publication.lock");
+      try (var channel = java.nio.channels.FileChannel.open(outputLock, java.nio.file.StandardOpenOption.WRITE)) {
+        assertThatThrownBy(channel::tryLock).isInstanceOf(java.nio.channels.OverlappingFileLockException.class);
+      }
+      try (var control = connection(environment); var query = control.prepareStatement(
+          "select a.pid from pg_stat_activity a join pg_locks l on l.pid=a.pid "
+              + "where a.application_name='weave-schema-authority-init' and l.locktype='advisory' and l.granted "
+              + "and l.classid=(hashtext(current_database())::bigint & 4294967295)::oid "
+              + "and l.objid=(hashtext(?)::bigint & 4294967295)::oid and l.objsubid=2")) {
+        query.setString(1, control.getSchema());
+        int ownedPid;
+        try (var rows = query.executeQuery()) {
+          assertThat(rows.next()).isTrue(); ownedPid = rows.getInt(1); assertThat(rows.next()).isFalse();
+        }
+        try (var terminate = control.prepareStatement("select pg_terminate_backend(?)")) {
+          terminate.setInt(1, ownedPid);
+          try (var rows = terminate.executeQuery()) { rows.next(); assertThat(rows.getBoolean(1)).isTrue(); }
+        }
+      }
+      CountDownLatch replacementStarted = new CountDownLatch(1);
+      var winning = executor.submit(() -> {
+        replacementStarted.countDown();
+        SchemaAuthorityInitializer.run(replacement);
+        return null;
+      });
+      assertThat(replacementStarted.await(10, TimeUnit.SECONDS)).isTrue();
+      assertThatThrownBy(() -> winning.get(200, TimeUnit.MILLISECONDS))
+          .isInstanceOf(java.util.concurrent.TimeoutException.class);
+      resume.countDown();
+      assertThatThrownBy(() -> losing.get(30, TimeUnit.SECONDS))
+          .isInstanceOf(java.util.concurrent.ExecutionException.class);
+      winning.get(60, TimeUnit.SECONDS);
+      SchemaReceiptVerifier.verify(replacement);
+      assertThat(receipt(environment).path("candidateCommit").asText()).isEqualTo("c".repeat(40));
+      try (var connection = connection(environment); var statement = connection.createStatement();
+           var rows = statement.executeQuery("select candidate_commit,completed_at_utc from weave_schema_authority")) {
+        assertThat(rows.next()).isTrue();
+        assertThat(rows.getString(1)).isEqualTo("c".repeat(40));
+        assertThat(rows.getTimestamp(2).toInstant().toString()).isEqualTo(receipt(environment).path("completedAtUtc").asText());
+      }
+    } finally {
+      resume.countDown();
+      executor.shutdownNow();
+      assertThat(executor.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
+    }
+  }
+
+  @Test
   void failedPublicationCleanupWaitsAndPreservesLaterProof(@TempDir Path directory) throws Exception {
     Environment environment = environment("receipt_cleanup", directory);
     byte[] ownBytes = "this-initializer-proof".getBytes(java.nio.charset.StandardCharsets.UTF_8);

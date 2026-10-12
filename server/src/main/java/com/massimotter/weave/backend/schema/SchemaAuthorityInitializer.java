@@ -39,6 +39,11 @@ public final class SchemaAuthorityInitializer {
   }
 
   static void run(Map<String, String> environment) throws Exception {
+    run(environment, () -> {});
+  }
+
+  // Package-private deterministic publication probe; production supplies no callback.
+  static void run(Map<String, String> environment, Runnable beforePublication) throws Exception {
     String url = requiredAny(environment, "WEAVE_PERSISTENCE_URL", "SPRING_DATASOURCE_URL");
     if (!url.startsWith("jdbc:postgresql://")) {
       throw new IllegalStateException("schema-init requires PostgreSQL");
@@ -57,10 +62,13 @@ public final class SchemaAuthorityInitializer {
     // Flyway serializes migration DDL, but the authority marker, Hibernate validation,
     // fingerprint and receipt happen afterwards. Hold one schema-scoped session lock over
     // the complete one-shot operation so two initializers cannot race outside Flyway.
-    try (Connection lockConnection = DriverManager.getConnection(url, username, password)) {
+    // File output exclusion precedes the database lock, including cleanup. A
+    // replacement can never hold the database lock while waiting for this output.
+    try (var output = ReceiptOutputLock.acquire(receipt);
+         Connection lockConnection = DriverManager.getConnection(url, username, password)) {
       lockConnection.setClientInfo("ApplicationName", "weave-schema-authority-init");
       acquireSchemaInitializationLock(lockConnection);
-      runLocked(lockConnection, url, username, password, candidate, receipt, required(environment, "WEAVE_SCHEMA_RUNTIME_ROLE"));
+      runLocked(lockConnection, url, username, password, candidate, receipt, required(environment, "WEAVE_SCHEMA_RUNTIME_ROLE"), beforePublication);
     }
   }
 
@@ -71,7 +79,8 @@ public final class SchemaAuthorityInitializer {
       String password,
       String candidate,
       Path receipt,
-      String runtimeRole) throws Exception {
+      String runtimeRole,
+      Runnable beforePublication) throws Exception {
     if (!runtimeRole.matches("[A-Za-z_][A-Za-z0-9_]{0,62}")
         || runtimeRole.equals(username)) {
       throw new IllegalStateException("migration and runtime roles must be distinct bounded identifiers");
@@ -174,7 +183,7 @@ public final class SchemaAuthorityInitializer {
             completed = rows.getTimestamp(1).toInstant();
           }
           writeReceipt(lockConnection, url, username, password, receipt, candidate, migration.migrationsExecuted,
-              targetSchemaVersion, validated, completed);
+              targetSchemaVersion, validated, completed, beforePublication);
         } catch (Exception failure) {
           try { lockConnection.rollback(); } catch (Exception rollback) { failure.addSuppressed(rollback); }
           throw failure;
@@ -246,7 +255,8 @@ public final class SchemaAuthorityInitializer {
       int migrationsExecuted,
       String targetSchemaVersion,
       SchemaCatalogFingerprint.Snapshot snapshot,
-      Instant completed) throws Exception {
+      Instant completed,
+      Runnable beforePublication) throws Exception {
     Path parent = receipt.getParent();
     if (parent == null || !Files.isDirectory(parent)) {
       throw new IllegalStateException("schema receipt parent directory is unavailable");
@@ -282,6 +292,8 @@ public final class SchemaAuthorityInitializer {
       requireHeldAcceptanceLock(lockConnection);
       lockConnection.commit();
       requireCommittedMarker(lockConnection, candidate, snapshot.sha256(), completed);
+      beforePublication.run();
+      requireHeldAcceptanceLock(lockConnection);
       Files.move(
           temporary,
           receipt,
@@ -296,6 +308,40 @@ public final class SchemaAuthorityInitializer {
         cleanupOwnReceipt(lockConnection, url, username, password, receipt, serialized);
       }
       Files.deleteIfExists(temporary);
+    }
+  }
+
+  private record ReceiptOutputLock(java.nio.channels.FileChannel channel,
+      java.nio.channels.FileLock lock) implements AutoCloseable {
+    static ReceiptOutputLock acquire(Path receipt) throws Exception {
+      Path parent = receipt.getParent();
+      if (parent == null || !Files.isDirectory(parent)) {
+        throw new IllegalStateException("schema receipt parent directory is unavailable");
+      }
+      // Keep one stable inode: unlinking this non-authoritative coordination file
+      // could let replacement writers lock different inodes for the same receipt.
+      Path lockPath = receipt.resolveSibling("." + receipt.getFileName() + ".publication.lock");
+      var channel = java.nio.channels.FileChannel.open(lockPath, StandardOpenOption.CREATE,
+          StandardOpenOption.WRITE, java.nio.file.LinkOption.NOFOLLOW_LINKS);
+      try {
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(INITIALIZATION_LOCK_TIMEOUT_SECONDS);
+        do {
+          java.nio.channels.FileLock acquired = null;
+          try { acquired = channel.tryLock(); }
+          catch (java.nio.channels.OverlappingFileLockException waitingInThisJvm) { /* Bounded same-JVM waiter. */ }
+          if (acquired != null) return new ReceiptOutputLock(channel, acquired);
+          Thread.sleep(50);
+        } while (System.nanoTime() < deadline);
+        throw new IllegalStateException("schema receipt output exclusion timed out");
+      } catch (Exception failure) {
+        channel.close();
+        throw failure;
+      }
+    }
+
+    @Override
+    public void close() throws Exception {
+      try (channel) { lock.release(); }
     }
   }
 
