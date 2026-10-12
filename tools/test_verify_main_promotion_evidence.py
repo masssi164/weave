@@ -55,8 +55,34 @@ def dual_ios_proof():
     }
     proof["scenarios"]["authorization"].update({
         "deniedIdentityDigest": "7" * 64,
+        "resourceDigest": "8" * 64,
         "denials": {"chat": "passed", "files": "passed", "calendar": "passed"},
     })
+    proof["recovery"] = {
+        "actors": [{
+            "role": actor["role"], "initialProcessId": actor["processId"],
+            "restoredProcessId": actor["processId"] + 100,
+            "initialStartedAt": actor["startedAt"], "initialEndedAt": actor["endedAt"],
+            "restoredStartedAt": "2026-10-12T10:06:00Z", "restoredEndedAt": "2026-10-12T10:10:00Z",
+            "previousProcessAbsent": True, "expiryDenied": True,
+            "refreshObserved": True, "logoutIndependent": True,
+            **{"restored" + key[0].upper() + key[1:]: actor[key]
+               for key in ("identityDigest", "matrixDeviceDigest", "storageDigest")},
+        } for actor in proof["actors"]],
+        "initialOverlap": dict(proof["overlap"]),
+        "network": {
+            "interruptedActor": "A", "affectedConnections": 1,
+            "actorAForwardedBytes": 100, "actorBForwardedBytesDuringInterruption": 50,
+            **{key: True for key in ("userApiFailureObserved", "matrixSendFailureObserved",
+                                     "peerUiContinuityObserved", "restoreObserved",
+                                     "matrixRetryObserved", "peerReceptionObserved")},
+        },
+        "currentGrantRevocation": {
+            "status": "passed", "evidence": "server-denial-and-flutter-readback",
+            "resourceDigest": "8" * 64, "deniedIdentityDigest": "2" * 64,
+            "denied": True, "regrantRestored": True, "uiReadback": True,
+        },
+    }
     return proof
 
 
@@ -166,6 +192,46 @@ class MainPromotionEvidenceTest(unittest.TestCase):
                  "macos": {"status": "passed"}, "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim"},
                  "cleanupComplete": True, "supportSafe": True, "containsSecretValues": False}
         self.assertFalse(native_qualification_passed(value, SHA, OTHER, "c" * 40))
+
+    def test_dual_recovery_requires_real_restart_transport_and_current_resource_proof(self) -> None:
+        from tools.verify_main_promotion_evidence import dual_ios_collaboration_passed
+        valid = dual_ios_proof()
+        self.assertTrue(dual_ios_collaboration_passed(valid))
+        mutations = [
+            (("recovery",), None),
+            (("recovery", "actors"), []),
+            (("recovery", "actors", 0, "role"), []),
+            (("recovery", "actors", 0, "initialProcessId"), True),
+            (("recovery", "actors", 0, "restoredProcessId"), 101),
+            (("recovery", "actors", 1, "restoredProcessId"), 201),
+            (("recovery", "actors", 0, "restoredStartedAt"), "2026-10-12T10:04:00Z"),
+            (("recovery", "actors", 0, "restoredEndedAt"), "2026-10-12T10:10:00"),
+            (("recovery", "initialOverlap", "endedAt"), "2026-10-12T10:06:00Z"),
+            (("recovery", "network", "interruptedActor"), "B"),
+            (("recovery", "currentGrantRevocation", "resourceDigest"), "9" * 64),
+            (("recovery", "currentGrantRevocation", "deniedIdentityDigest"), "1" * 64),
+            (("recovery", "currentGrantRevocation", "evidence"), "api-only"),
+        ]
+        for key in ("restoredIdentityDigest", "restoredMatrixDeviceDigest", "restoredStorageDigest"):
+            mutations.append((("recovery", "actors", 0, key), "9" * 64))
+        for key in ("previousProcessAbsent", "expiryDenied", "refreshObserved", "logoutIndependent"):
+            mutations.append((("recovery", "actors", 0, key), False))
+        for key in ("affectedConnections", "actorAForwardedBytes", "actorBForwardedBytesDuringInterruption"):
+            for invalid in (0, True, "100"):
+                mutations.append((("recovery", "network", key), invalid))
+        for key in ("userApiFailureObserved", "matrixSendFailureObserved", "peerUiContinuityObserved",
+                    "restoreObserved", "matrixRetryObserved", "peerReceptionObserved"):
+            mutations.append((("recovery", "network", key), False))
+        for key in ("denied", "regrantRestored", "uiReadback"):
+            mutations.append((("recovery", "currentGrantRevocation", key), False))
+        for path, replacement in mutations:
+            with self.subTest(path=path, replacement=replacement):
+                malformed = copy.deepcopy(valid)
+                target = malformed
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = replacement
+                self.assertFalse(dual_ios_collaboration_passed(malformed))
 
     def test_native_toolchain_missing_malformed_or_inconsistent_fails_closed(self) -> None:
         from tools.verify_main_promotion_evidence import native_toolchain_recorded

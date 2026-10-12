@@ -214,6 +214,73 @@ def native_toolchain_recorded(value: object) -> bool:
                    "rustc " + value["rustToolchain"] + " (")
 
 
+def dual_ios_recovery_passed(value: object, actors: list[dict], authorization: dict) -> bool:
+    """Require real process/transport recovery bound to the initial UI actors."""
+    if not isinstance(value, dict):
+        return False
+    restored = value.get("actors")
+    if (not isinstance(restored, list) or len(restored) != 2
+            or not all(isinstance(actor, dict) for actor in restored)
+            or {actor.get("role") for actor in restored if isinstance(actor.get("role"), str)} != {"A", "B"}):
+        return False
+    initial = {actor["role"]: actor for actor in actors}
+    all_pids = [actor["processId"] for actor in actors]
+    try:
+        def timestamp(record: dict, key: str) -> datetime:
+            result = datetime.fromisoformat(record[key].replace("Z", "+00:00"))
+            if result.tzinfo is None:
+                raise ValueError("Execution time needs a timezone")
+            return result
+
+        start, end = (timestamp(value["initialOverlap"], key) for key in ("startedAt", "endedAt"))
+        if start >= end:
+            return False
+        for actor in restored:
+            previous = initial[actor["role"]]
+            pid = actor.get("restoredProcessId")
+            if (type(pid) is not int or pid <= 0 or pid in all_pids
+                    or type(actor.get("initialProcessId")) is not int
+                    or actor.get("initialProcessId") != previous["processId"]):
+                return False
+            all_pids.append(pid)
+            first_start, first_end, next_start, next_end = (
+                timestamp(actor, key) for key in (
+                    "initialStartedAt", "initialEndedAt", "restoredStartedAt", "restoredEndedAt"))
+            if (first_start != timestamp(previous, "startedAt")
+                    or first_end != timestamp(previous, "endedAt")
+                    or not first_start <= start < end <= first_end <= next_start < next_end):
+                return False
+            for key in ("identityDigest", "matrixDeviceDigest", "storageDigest"):
+                if actor.get("restored" + key[0].upper() + key[1:]) != previous[key]:
+                    return False
+            if any(actor.get(key) is not True for key in (
+                    "previousProcessAbsent", "expiryDenied", "refreshObserved", "logoutIndependent")):
+                return False
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return False
+    network = value.get("network")
+    if not isinstance(network, dict) or network.get("interruptedActor") != "A":
+        return False
+    for key in ("affectedConnections", "actorAForwardedBytes", "actorBForwardedBytesDuringInterruption"):
+        if type(network.get(key)) is not int or network[key] <= 0:
+            return False
+    if any(network.get(key) is not True for key in (
+            "userApiFailureObserved", "matrixSendFailureObserved", "peerUiContinuityObserved",
+            "restoreObserved", "matrixRetryObserved", "peerReceptionObserved")):
+        return False
+    grant = value.get("currentGrantRevocation")
+    resource = authorization.get("resourceDigest")
+    return (
+        isinstance(grant, dict)
+        and isinstance(resource, str) and re.fullmatch(r"[0-9a-f]{64}", resource) is not None
+        and grant.get("status") == "passed"
+        and grant.get("evidence") == "server-denial-and-flutter-readback"
+        and grant.get("resourceDigest") == resource
+        and grant.get("deniedIdentityDigest") == initial["B"]["identityDigest"]
+        and all(grant.get(key) is True for key in ("denied", "regrantRestored", "uiReadback"))
+    )
+
+
 def dual_ios_collaboration_passed(value: object) -> bool:
     """Reject single-client or incomplete proof for the accepted October release."""
     if not isinstance(value, dict) or value.get("status") != "passed":
@@ -277,6 +344,10 @@ def dual_ios_collaboration_passed(value: object) -> bool:
     if encryption.get("plaintextFallback") is not False:
         return False
     if encryption.get("status") != ("passed" if encryption["policyRequired"] else "not-required"):
+        return False
+    recovery = value.get("recovery")
+    if (not isinstance(recovery, dict) or recovery.get("initialOverlap") != value.get("overlap")
+            or not dual_ios_recovery_passed(recovery, actors, scenarios["authorization"])):
         return False
     return value.get("cleanupComplete") is True
 
