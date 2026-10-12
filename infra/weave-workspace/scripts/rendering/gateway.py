@@ -68,7 +68,7 @@ def render_caddy(context: ComposeContext) -> str:
   handle @internal {{
     respond 404
   }}
-  handle_path /api/* {{
+  handle /api/* {{
     reverse_proxy {backend}
   }}
   handle_path /mcp* {{

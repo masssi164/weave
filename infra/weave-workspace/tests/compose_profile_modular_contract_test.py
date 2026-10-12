@@ -453,6 +453,14 @@ def main() -> int:
         assert _overlay(dogfood, "sha256:" + "b" * 64)["smtpEndpoints"]["host"] == "mailpit"
         dogfood_caddy = render_caddy(dogfood)
         assert "@internal path /api/internal/* /actuator/*" in dogfood_caddy
+        # Server routes own the /api prefix on both product and dedicated API origins.
+        # A handle_path directive would silently rewrite /api/platform/config to
+        # /platform/config and break host-only organization discovery.
+        for context in (dogfood, prod, load_context("dev", ROOT)):
+            gateway = render_caddy(context)
+            assert "handle /api/* {" in gateway
+            assert "handle_path /api" not in gateway
+            assert gateway.index("handle @internal {") < gateway.index("handle /api/* {")
         assert "reverse_proxy mailpit:8025" in dogfood_caddy
         mailpit_site = dogfood_caddy.split("https://mail.weave.test", 1)[1].split("}\n", 1)[0]
         assert "tls /certs/cert.pem /certs/key.pem" in mailpit_site
