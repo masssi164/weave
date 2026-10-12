@@ -116,7 +116,7 @@ List<String> artifactPathsForGate(String gateName) {
         case 'specCorpusConformance':
             return ['specs/weave-specs.lock.json', 'tools/spec_corpus_conformance_check.py']
         case 'matrixSdkVendorProvenanceCheck':
-            return ['rust/vendor/matrix-sdk-crypto.weave-provenance.json', 'tools/matrix_sdk_vendor_provenance.py']
+            return ['rust/vendor/matrix-sdk-crypto.weave-provenance.json', 'rust/vendor/matrix-sdk.weave-provenance.json', 'tools/matrix_sdk_vendor_provenance.py']
         case 'synapseCompatibilityProbeTest':
             return ['tools/synapse_compatibility_probe.py', 'tools/synapse_compatibility_probe_test.py']
         case 'sprintBootstrapAudit':

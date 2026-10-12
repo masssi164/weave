@@ -144,6 +144,10 @@ class FilesController extends AsyncNotifier<FilesViewState> {
 
     try {
       final connectionState = await _repository.connect();
+      if (!connectionState.isConnected) {
+        state = AsyncData(FilesViewState(connectionState: connectionState));
+        return;
+      }
       final listing = await _repository.listDirectory('/');
       state = AsyncData(
         FilesViewState(

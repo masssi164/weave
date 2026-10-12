@@ -10,6 +10,8 @@ Weave uses a split source-of-truth model so product meaning, implementation proo
 2. **Implementation/evidence truth** lives in this repository: code, tests, CI, generated contracts, support-safe evidence, release notes, GitHub issues/PRs/checks, and milestones.
 3. **Runtime dependency truth** for Weaver/OpenClaw behavior lives in the Weaver/OpenClaw runtime repository and its own specs, docs, source, tests, and CI. Those artifacts can prove runtime capability, but they do not override the Weave product corpus.
 
+For the #1470 consolidation release, the corpus file `steering/release-2026-10-product-consolidation.md` is the accepted release profile. It supersedes conflicting older Core, public northbound DAV, direct-provider Matrix gateway, proprietary Chat REST, Runner, and Calls plans. Weave's Matrix Client-Server facade is the accepted Chat northbound protocol boundary. Provider adoption and migration are governed separately by #1498. Older text remains useful for security, integrity, permission, recovery, and historical evidence when consistent with those profiles.
+
 ## Local repo specs
 
 The `specs/` directory in this repository is not a second product corpus. It contains transitional Spec Kit packets, conformance projections, fixtures, and implementation evidence that must conform to the pinned corpus.
@@ -43,3 +45,9 @@ Do not mass-delete repo-local specs just because the corpus is canonical. Cleanu
 4. Remove duplicate transitional packets in focused PRs with local gate evidence.
 
 This policy also applies to AI-assisted work: agents must cite file paths, spec IDs, issues/PRs, and gate results instead of copying product truth into prompts or inventing acceptance from memory.
+
+## Delivery authority and retained history
+
+The pinned corpus `steering/devops-conformance.md`, ADR 0022 and delivery/human-testing acceptance features govern Feature → Dev → Dogfood E2E → HIL → Main. Repository workflows and evidence prove conformance; GitHub branch protection and Project fields must be inspected rather than inferred from docs. Project status is a projection, not release authority.
+
+ADR 0022 supersedes ADR 0019's Candidate Cut/Fresh Start deployment chain. Historical enterprise release packets, generated projections and compatibility fixtures remain where consumers require them; their old gates cannot control ordinary Dev or resettable Dogfood. Compose is the only active Weave Core runtime authority. Production launch controls require their separately accepted contract.

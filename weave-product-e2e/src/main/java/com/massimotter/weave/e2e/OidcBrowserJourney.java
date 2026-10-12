@@ -242,7 +242,7 @@ final class OidcBrowserJourney implements AutoCloseable {
       navigate(page, authorization, authorizationOperation(evidenceStage));
       callback =
           authenticateAndAwaitCallback(
-              page, redirectUri, observedCallback, email, password);
+              page, redirectUri, observedCallback, email, password, evidenceStage);
     }
 
     Map<String, String> callbackParameters = query(callback);
@@ -307,6 +307,21 @@ final class OidcBrowserJourney implements AutoCloseable {
         current.clientId(),
         current.requestedScopes(),
         current.idToken());
+  }
+
+  void requireRefreshDenied(TokenSet revoked) {
+    if (revoked.refreshToken().isBlank()) {
+      throw new ProductFlowException("revocation probe has no refresh credential");
+    }
+    JsonNode denial = http.form(
+        "deny revoked OIDC refresh session",
+        environment.oidc("/protocol/openid-connect/token"),
+        Map.of("grant_type", "refresh_token", "client_id", revoked.clientId(),
+            "refresh_token", revoked.refreshToken()),
+        Set.of(400));
+    if (!"invalid_grant".equals(denial.path("error").asString())) {
+      throw new ProductFlowException("revoked OIDC refresh returned the wrong failure");
+    }
   }
 
   JsonNode jwtPayload(String token) {
@@ -386,7 +401,8 @@ final class OidcBrowserJourney implements AutoCloseable {
       URI redirectUri,
       AtomicReference<String> observedCallback,
       String email,
-      String password) {
+      String password,
+      String evidenceStage) {
     boolean passwordSubmitted = false;
     for (int step = 0; step < MAX_BROWSER_STEPS; step++) {
       captureCallback(page.url(), redirectUri, observedCallback);
@@ -423,7 +439,9 @@ final class OidcBrowserJourney implements AutoCloseable {
       }
       waitForPage(page);
       if (hasVisibleError(page)) {
-        throw new ProductFlowException("OIDC login rejected the credentials");
+        throw new ProductFlowException(
+            "OIDC login rejected the credentials at " + evidenceStage
+                + " category=" + loginErrorCategory(page));
       }
       if (passwordSubmitted) {
         return awaitCallback(page, redirectUri, observedCallback);
@@ -666,6 +684,19 @@ final class OidcBrowserJourney implements AutoCloseable {
             page.locator(
                 ".alert-error, .pf-m-danger, [aria-invalid='true']"))
         != null;
+  }
+
+  private static String loginErrorCategory(Page page) {
+    Locator alert = firstVisible(page.locator(".alert-error, .pf-m-danger"));
+    if (alert == null) {
+      return "invalid-field";
+    }
+    String message = alert.innerText().toLowerCase(java.util.Locale.ROOT);
+    if (message.contains("invalid username or password")) return "invalid-credentials";
+    if (message.contains("verify") && message.contains("email")) return "email-verification";
+    if (message.contains("disabled")) return "account-disabled";
+    if (message.contains("expired")) return "expired-action";
+    return "other-issuer-error";
   }
 
   private String randomUrlSafe(int bytes) {

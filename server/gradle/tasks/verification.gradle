@@ -48,11 +48,10 @@ tasks.named('test') {
 tasks.register('openApiContractExport', Test) {
     group = 'verification'
     description = 'Export the server-owned OpenAPI contract without mutating the main test results.'
-    dependsOn tasks.named('buildMatrixRustCoreJni'), tasks.named('testClasses')
+    dependsOn tasks.named('testClasses')
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     maxParallelForks = 1
-    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
     systemProperty 'weave.openapi.export.path', rootProject.layout.buildDirectory
             .file('openapi/weave-openapi.raw.json')
             .get()
@@ -61,13 +60,17 @@ tasks.register('openApiContractExport', Test) {
     filter {
         includeTestsMatching '*OpenApiDocumentationTest'
     }
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // Cucumber suites discover their own scenarios outside the class filter.
+        // Export runs only the Jupiter metadata tests, never runtime journeys.
+        includeEngines 'junit-jupiter'
+    }
     outputs.upToDateWhen { false }
 }
 
 tasks.register('postgresJpaTest', Test) {
     group = 'verification'
-    description = 'Run the authoritative JPA repository, constraint, transaction, and migration contracts against PostgreSQL.'
+    description = 'Run the authoritative JPA repository, constraint, transaction, migration, and restore contracts against PostgreSQL.'
     dependsOn tasks.named('buildMatrixRustCoreJni'), tasks.named('testClasses')
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
@@ -80,6 +83,8 @@ tasks.register('postgresJpaTest', Test) {
     filter {
         includeTestsMatching '*PostgresJpaSchemaValidationTest'
         includeTestsMatching '*SchemaAuthorityInitializerPostgresTest'
+        includeTestsMatching '*CanonicalPostgresBackupRestoreTest'
+        includeTestsMatching '*CanonicalFilesBackupRestoreTest'
         includeTestsMatching '*JpaEncryptedRuntimeStateStoreTest'
         includeTestsMatching '*JpaRuntimeCellRepositoryTest'
         includeTestsMatching '*JpaRuntimeCommandRepositoryTest'
@@ -92,19 +97,30 @@ tasks.register('postgresJpaTest', Test) {
         includeTestsMatching '*JpaCanonicalChatLedgerRecoveryTest'
         includeTestsMatching '*JpaCanonicalChatStoreTest'
         includeTestsMatching '*MatrixE2eeStateServicePersistenceTest'
+        includeTestsMatching '*MatrixDeviceProofPostgresTest'
+        includeTestsMatching '*MatrixBackupVersionPostgresTest'
         includeTestsMatching '*MatrixFacadeClientStateServicePersistenceTest'
         includeTestsMatching '*JpaProviderSelectionRepositoryTest'
         includeTestsMatching '*JpaDeviceCredentialRepositoryTest'
         includeTestsMatching '*AdminControlPlaneServiceTest'
         includeTestsMatching '*JpaProductProfileOverrideRepositoryTest'
+        includeTestsMatching '*JpaProviderBindingRepositoryPostgresTest'
         includeTestsMatching '*JpaOrganizationBootstrapRepositoryTest'
         includeTestsMatching '*JpaMigrationRunEvidenceRepositoryTest'
         includeTestsMatching '*JpaOperationIntentRepositoryPostgresTest'
         includeTestsMatching '*FilesMutationIntentServicePostgresTest'
+        includeTestsMatching '*FilesUserApiNativeIntegrationTest'
         includeTestsMatching '*JpaFilesAuthorityRepositoryPostgresTest'
+        includeTestsMatching '*JpaFilesUserResourceRepositoryPostgresTest'
+        includeTestsMatching '*JpaSpaceAccessAdapterPostgresTest'
         includeTestsMatching '*JpaTransferRunRepositoryPostgresTest'
         includeTestsMatching '*WeaveNativeFilesAdapterTest'
         includeTestsMatching '*NativeCalendarProviderAdapterTest'
+        includeTestsMatching '*NativeCalendarPreviewHttpPostgresTest'
     }
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // Repository persistence belongs to Jupiter; Cucumber scenarios run in the
+        // product acceptance lane and bypass Gradle's class-name filter here.
+        includeEngines 'junit-jupiter'
+    }
 }

@@ -8,6 +8,10 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.DevopsProviderConfiguration;
 import com.massimotter.weave.backend.config.ProviderCoreConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
+import com.massimotter.weave.backend.config.AdminApiSecurityConfiguration;
+import com.massimotter.weave.backend.service.AdminProviderRegistryService;
+import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
+import com.massimotter.weave.backend.service.files.FilesProviderResolver;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
@@ -54,6 +58,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
         SecurityConfig.class,
+        AdminApiSecurityConfiguration.class,
+        AdminProviderRegistryService.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
         ApiErrorResponseWriter.class,
@@ -79,8 +85,26 @@ class ProviderRegistryControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
+    @MockitoBean(name = "jwtDecoder")
     private JwtDecoder jwtDecoder;
+
+    @MockitoBean(name = "adminApiJwtDecoder")
+    private JwtDecoder adminApiJwtDecoder;
+
+    @MockitoBean
+    private ProviderBindingRepository providerBindings;
+
+    @MockitoBean
+    private FilesProviderResolver filesProviderResolver;
+
+    @org.springframework.boot.test.context.TestConfiguration
+    static class UserDecoderConfiguration {
+        @org.springframework.context.annotation.Bean
+        @org.springframework.context.annotation.Primary
+        JwtDecoder jwtDecoder() {
+            return org.mockito.Mockito.mock(JwtDecoder.class);
+        }
+    }
 
     @MockitoBean
     private WorkspaceCapabilityService workspaceCapabilityService;
@@ -145,24 +169,25 @@ class ProviderRegistryControllerTest {
 
     @Test
     void providerStatusRequiresWorkspaceScope() throws Exception {
-        mockMvc.perform(get("/api/providers/status"))
+        mockMvc.perform(get("/api/admin/providers/status"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("unauthorized"));
     }
 
     @Test
     void providerStatusRejectsMembers() throws Exception {
-        mockMvc.perform(get("/api/providers/status").with(memberJwt()))
+        mockMvc.perform(get("/api/admin/providers/status").with(memberJwt()))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
-                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
-                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
+                .andExpect(jsonPath("$.code").value("forbidden"));
     }
 
     @Test
     void providerStatusReportsAllFacadeSeamsWithoutSecrets() throws Exception {
-        mockMvc.perform(get("/api/providers/status").with(adminJwt()))
+        mockMvc.perform(get("/api/admin/providers/status").with(adminJwt()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.organizationId").value("tenant-default"))
+                .andExpect(jsonPath("$.filesBinding.bindingState").value("NO_ACTIVE_BINDING"))
+                .andExpect(jsonPath("$.filesBinding.readiness").value("NOT_CONFIGURED"))
                 .andExpect(jsonPath("$.releaseStatus").value("provider-stack-contract-v1"))
                 .andExpect(jsonPath("$.providerConfigSource").value("admin-control-plane-selected-provider-mappings"))
                 .andExpect(jsonPath("$.bootstrapDefaultsAreSuggestionsOnly").value(true))

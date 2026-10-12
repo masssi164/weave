@@ -1,0 +1,6370 @@
+{
+  "components": {
+    "responses": {
+      "ForbiddenError": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiErrorResponse"
+            }
+          }
+        },
+        "description": "Bearer token is missing the weave:workspace scope."
+      },
+      "UnauthorizedError": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiErrorResponse"
+            }
+          }
+        },
+        "description": "Missing or invalid bearer token."
+      }
+    },
+    "schemas": {
+      "AdminAuditEventResponse": {
+        "description": "Support-safe admin audit event view.",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actorRef": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "redactionLevel": {
+            "type": "string"
+          },
+          "sourceRef": {
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AdminControlPlaneResponse": {
+        "description": "Organization/Admin Console control-plane snapshot served only by backend APIs.",
+        "properties": {
+          "adminApiRoutes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "backendOwnedFacades": {
+            "type": "boolean"
+          },
+          "bootstrapDefaultsAreSuggestionsOnly": {
+            "type": "boolean"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderCategoryStatusResponse"
+            },
+            "type": "array"
+          },
+          "contractVersion": {
+            "type": "string"
+          },
+          "denyByDefaultPolicy": {
+            "type": "boolean"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "goLiveReadiness": {
+            "$ref": "#/components/schemas/GoLiveReadinessResponse"
+          },
+          "mcpServerBindings": {
+            "items": {
+              "$ref": "#/components/schemas/McpServerBindingResponse"
+            },
+            "type": "array"
+          },
+          "memberClientMayConfigureProviders": {
+            "type": "boolean"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "platformIdentityReadiness": {
+            "$ref": "#/components/schemas/PlatformIdentityReadinessResponse"
+          },
+          "providerConfigSource": {
+            "type": "string"
+          },
+          "recommendedIdentityBroker": {
+            "type": "string"
+          },
+          "secretRefs": {
+            "items": {
+              "$ref": "#/components/schemas/SecretRefResponse"
+            },
+            "type": "array"
+          },
+          "selectedProviderMappings": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderSelectionResponse"
+            },
+            "type": "array"
+          },
+          "suiteDomainReadiness": {
+            "items": {
+              "$ref": "#/components/schemas/SuiteDomainReadinessResponse"
+            },
+            "type": "array"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "whitelist": {
+            "$ref": "#/components/schemas/CapabilityWhitelistResponse"
+          }
+        },
+        "type": "object"
+      },
+      "ApiErrorResponse": {
+        "description": "Stable JSON error envelope returned by protected API endpoints.",
+        "properties": {
+          "code": {
+            "description": "Stable machine-readable error code.",
+            "example": "unauthorized",
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": {},
+            "description": "Non-secret diagnostic details for this failure.",
+            "type": "object"
+          },
+          "memberImpact": {
+            "description": "Optional member-facing impact state or recovery hint owned by the backend facade.",
+            "example": "unavailable",
+            "type": "string"
+          },
+          "message": {
+            "description": "Support-safe explanation of what failed.",
+            "example": "Bearer authentication is required to access this endpoint.",
+            "type": "string"
+          },
+          "requestId": {
+            "description": "Correlation identifier for support and log lookup.",
+            "example": "8c2f4d7a-4d5f-4f88-92e8-4fcbb81dd527",
+            "type": "string"
+          },
+          "supportRef": {
+            "description": "Stable reference members can share with support without provider payloads.",
+            "example": "support:8c2f4d7a-4d5f-4f88-92e8-4fcbb81dd527",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "details",
+          "message",
+          "requestId",
+          "supportRef"
+        ],
+        "type": "object"
+      },
+      "BaselineSnapshot": {
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "evidenceRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "persistedChoiceModel": {
+            "type": "string"
+          },
+          "persistedProviderKey": {
+            "type": "string"
+          },
+          "persistedSelectionMatchesRequest": {
+            "type": "boolean"
+          },
+          "profileOverridePersistencePosture": {
+            "type": "string"
+          },
+          "profileOverridePresent": {
+            "type": "boolean"
+          },
+          "providerSelectionPersistencePosture": {
+            "type": "string"
+          },
+          "stableMemberImpactStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "BootstrapOwnerInvitationRequest": {
+        "properties": {
+          "displayName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "maxLength": 320,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "type": "object"
+      },
+      "BoundedApplyCutoverRollbackProof": {
+        "properties": {
+          "limitedApplyAllowed": {
+            "type": "boolean"
+          },
+          "productionCutoverAllowed": {
+            "type": "boolean"
+          },
+          "proofBoundary": {
+            "type": "string"
+          },
+          "releaseBlockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requiredEvidenceRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rollbackRestoreSmokeRequired": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "CanonicalDomainRegistryEntryResponse": {
+        "properties": {
+          "adapterManifestRequirements": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "adminStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "canonicalObjects": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "capabilityKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "compatibilityAliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "memberStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "portabilityRequirements": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerRealityLevelByCandidate": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "sourceOfTruthModes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CanonicalDomainRegistryResponse": {
+        "properties": {
+          "adminStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "compatibilityAliases": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/CanonicalDomainRegistryEntryResponse"
+            },
+            "type": "array"
+          },
+          "lossClasses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "memberStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerNamesInMemberContractsAllowed": {
+            "type": "boolean"
+          },
+          "providerRealityLevels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "registryVersion": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "CapabilityHealth": {
+        "properties": {
+          "backoffUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cachedAgeSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "capability": {
+            "type": "string"
+          },
+          "consecutiveFailures": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "correlationRef": {
+            "type": "string"
+          },
+          "nextProbeAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "probeLatencyMillis": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "readinessTransitions": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "degraded",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "supportSafeCode": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CapabilityState": {
+        "properties": {
+          "capability": {
+            "type": "string"
+          },
+          "memberImpact": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CapabilityWhitelistResponse": {
+        "description": "Admin-owned deny-by-default category capability whitelist snapshot.",
+        "properties": {
+          "denyByDefault": {
+            "type": "boolean"
+          },
+          "effectiveCapabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "normalMembersMayAuthorPolicy": {
+            "type": "boolean"
+          },
+          "profileCapabilities": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "selectedProfileKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sourceOfTruth": {
+            "type": "string"
+          },
+          "stableMemberImpactStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CapabilityWhitelistUpdateRequest": {
+        "description": "Contract request for admin-owned capability whitelist/profile updates.",
+        "properties": {
+          "capabilityKeys": {
+            "example": "chat.read",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "profileKey": {
+            "example": "workspace-admin",
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason": {
+            "description": "Support-safe reason recorded in audit, without raw provider diagnostics or secrets.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profileKey"
+        ],
+        "type": "object"
+      },
+      "ChatHistoryPolicy": {
+        "properties": {
+          "exportAllowed": {
+            "type": "boolean"
+          },
+          "redactOnMembershipRemoval": {
+            "type": "boolean"
+          },
+          "retention": {
+            "type": "string"
+          },
+          "supportSafeNotes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "visibility": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChatMigrationPreflightReport": {
+        "properties": {
+          "auditEventId": {
+            "type": "string"
+          },
+          "auditEventPublished": {
+            "type": "boolean"
+          },
+          "blockedOperations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "conflictCategories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "destructiveApplyAvailable": {
+            "type": "boolean"
+          },
+          "lossyFieldWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "objectCounts": {
+            "additionalProperties": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "preflightId": {
+            "type": "string"
+          },
+          "readinessState": {
+            "description": "Stable product-level Chat state returned to member clients.",
+            "enum": [
+              "available",
+              "degraded",
+              "disabled_by_policy",
+              "unavailable",
+              "not_configured",
+              "coming_later"
+            ],
+            "type": "string"
+          },
+          "sourceProviderKey": {
+            "type": "string"
+          },
+          "supportSafeWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "targetProviderKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChatMigrationPreflightRequest": {
+        "properties": {
+          "conflictHints": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "expectedLossyFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "inventoryCounts": {
+            "additionalProperties": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sourceProviderKey": {
+            "type": "string"
+          },
+          "targetProviderKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChatProviderMappingRecord": {
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "downstreamErrorsReturned": {
+            "type": "boolean"
+          },
+          "failClosed": {
+            "type": "boolean"
+          },
+          "lossyMappingWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "readinessState": {
+            "description": "Stable product-level Chat state returned to member clients.",
+            "enum": [
+              "available",
+              "degraded",
+              "disabled_by_policy",
+              "unavailable",
+              "not_configured",
+              "coming_later"
+            ],
+            "type": "string"
+          },
+          "secretsReturned": {
+            "type": "boolean"
+          },
+          "selectedByAdmin": {
+            "type": "boolean"
+          },
+          "selectedProviderKey": {
+            "type": "string"
+          },
+          "selectionSource": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "supportSafeDiagnostics": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "ChatProviderReplacementDryRunRequest": {
+        "description": "Admin/operator request for a support-safe Chat provider replacement dry-run.",
+        "properties": {
+          "attachmentCount": {
+            "format": "int32",
+            "maximum": 1000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "conversationCount": {
+            "format": "int32",
+            "maximum": 1000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "encryptedRoomCount": {
+            "format": "int32",
+            "maximum": 1000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "identityConflictCount": {
+            "format": "int32",
+            "maximum": 1000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "messageCount": {
+            "format": "int32",
+            "maximum": 10000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sourceAdapter": {
+            "description": "Source chat adapter key, not a URL or credential-bearing identifier.",
+            "example": "slack",
+            "maxLength": 64,
+            "minLength": 0,
+            "pattern": "[a-z0-9][a-z0-9-]{1,63}",
+            "type": "string"
+          },
+          "targetAdapter": {
+            "description": "Target chat adapter key, not a URL or credential-bearing identifier.",
+            "example": "synapse-homeserver",
+            "maxLength": 64,
+            "minLength": 0,
+            "pattern": "[a-z0-9][a-z0-9-]{1,63}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sourceAdapter",
+          "targetAdapter"
+        ],
+        "type": "object"
+      },
+      "ChatProviderReplacementDryRunResponse": {
+        "description": "Support-safe Chat provider replacement dry-run report for admins/operators.",
+        "properties": {
+          "category": {
+            "description": "Provider category under migration.",
+            "example": "chat",
+            "type": "string"
+          },
+          "conflicts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "dryRunId": {
+            "description": "Stable dry-run identifier for audit/support correlation.",
+            "type": "string"
+          },
+          "inventory": {
+            "additionalProperties": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "lossyWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "preflight": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerDiagnosticsRedacted": {
+            "description": "Whether provider object identifiers, URLs, usernames, and raw errors are redacted.",
+            "example": true,
+            "type": "boolean"
+          },
+          "reversibleEvidence": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sourceAdapter": {
+            "description": "Source adapter key. Admin-side only and never a raw URL or credential.",
+            "type": "string"
+          },
+          "status": {
+            "description": "Dry-run status.",
+            "example": "requires-admin-review",
+            "type": "string"
+          },
+          "supportSafe": {
+            "description": "Whether this report is safe for support bundles.",
+            "example": true,
+            "type": "boolean"
+          },
+          "targetAdapter": {
+            "description": "Target adapter key. Admin-side only and never a raw URL or credential.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChatReadiness": {
+        "properties": {
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "contractVersion": {
+            "type": "string"
+          },
+          "defaultHistoryPolicy": {
+            "$ref": "#/components/schemas/ChatHistoryPolicy"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "downstreamDiagnosticsExposedToMember": {
+            "type": "boolean"
+          },
+          "failClosed": {
+            "type": "boolean"
+          },
+          "memberClientMayConfigureProvider": {
+            "type": "boolean"
+          },
+          "memberImpact": {
+            "type": "string"
+          },
+          "memberState": {
+            "description": "Stable product-level Chat state returned to member clients.",
+            "enum": [
+              "available",
+              "degraded",
+              "disabled_by_policy",
+              "unavailable",
+              "not_configured",
+              "coming_later"
+            ],
+            "type": "string"
+          },
+          "migrationDryRunRequired": {
+            "type": "boolean"
+          },
+          "providerMapping": {
+            "$ref": "#/components/schemas/ChatProviderMappingRecord"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "supportSafeDiagnostics": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "ConsentRequirementReport": {
+        "properties": {
+          "adminConsentRequired": {
+            "type": "boolean"
+          },
+          "missingScopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requiredScopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ConsequencePreview": {
+        "properties": {
+          "applyBlockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "archiveOnlyCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "lossyCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "manualReviewCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "memberImpactCopy": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "preservedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "rollbackLimits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "unsupportedCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ContinuityReport": {
+        "properties": {
+          "abortRollbackPosture": {
+            "type": "string"
+          },
+          "accountedForNoDataLoss": {
+            "type": "boolean"
+          },
+          "canonicalObjectCounts": {
+            "additionalProperties": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "conflicts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "lossyFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "permissionImpact": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "provenanceRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "stableIdStrategy": {
+            "type": "string"
+          },
+          "unsupportedObjects": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CrossDomainImpactItem": {
+        "description": "Support-safe cross-domain provider impact item with canonical portability class.",
+        "properties": {
+          "applyBlockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "canonicalObjectRef": {
+            "type": "string"
+          },
+          "consequenceSummary": {
+            "type": "string"
+          },
+          "domainKey": {
+            "type": "string"
+          },
+          "evidenceRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mappingClass": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DomainAdapterCandidateResponse": {
+        "description": "Support-safe adapter candidate in the domain adapter registry. No endpoints, credentials, or raw provider diagnostics are exposed.",
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "adapterKey": {
+            "type": "string"
+          },
+          "choiceModel": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "diagnostics": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "migrationSupport": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerRealityLevel": {
+            "description": "Evidence-backed implementation maturity for provider candidates. Contract-only providers are never member-available.",
+            "enum": [
+              "contract_only",
+              "configured",
+              "live_read",
+              "live_write",
+              "migration_dry_run",
+              "migration_apply_ready",
+              "rollback_ready",
+              "release_ready"
+            ],
+            "type": "string"
+          },
+          "readiness": {
+            "description": "Admin Workspace Health readiness state for one provider-neutral category.",
+            "enum": [
+              "ready",
+              "disabled",
+              "degraded",
+              "policy_blocked",
+              "misconfigured"
+            ],
+            "type": "string"
+          },
+          "realityLevelRemediation": {
+            "type": "string"
+          },
+          "riskNotes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "DomainAdapterRegistryResponse": {
+        "description": "Admin/server-owned domain adapter registry. It enforces one active adapter per enabled Weave domain and redacts provider internals from member surfaces.",
+        "properties": {
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/DomainAdapterStatusResponse"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "memberProviderConfigurationAllowed": {
+            "type": "boolean"
+          },
+          "releaseStatus": {
+            "type": "string"
+          },
+          "singleActiveAdapterEnforced": {
+            "type": "boolean"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "DomainAdapterStatusResponse": {
+        "description": "One provider-neutral Weave domain with exactly one active adapter when enabled, or explicit fail-closed/disabled posture.",
+        "properties": {
+          "activeAdapter": {
+            "type": "string"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/DomainAdapterCandidateResponse"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "failClosed": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          },
+          "memberImpact": {
+            "type": "string"
+          },
+          "readiness": {
+            "description": "Admin Workspace Health readiness state for one provider-neutral category.",
+            "enum": [
+              "ready",
+              "disabled",
+              "degraded",
+              "policy_blocked",
+              "misconfigured"
+            ],
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "violations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "DomainMappingEvidence": {
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "conflicts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "lossyFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mappingClass": {
+            "type": "string"
+          },
+          "mappingStatus": {
+            "type": "string"
+          },
+          "sourceObject": {
+            "type": "string"
+          },
+          "targetAdapterObject": {
+            "type": "string"
+          },
+          "weaveDomainObject": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EffectivePolicyDenyResponse": {
+        "description": "Support-safe explanation for one denied effective capability.",
+        "properties": {
+          "capability": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "capability",
+          "reason",
+          "source"
+        ],
+        "type": "object"
+      },
+      "EffectivePolicyResponse": {
+        "description": "Admin/operator support-safe explanation of the effective Weave policy for the authenticated subject.",
+        "properties": {
+          "auditRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "capabilityGrants": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "context": {
+            "type": "string"
+          },
+          "contextRoles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "denies": {
+            "items": {
+              "$ref": "#/components/schemas/EffectivePolicyDenyResponse"
+            },
+            "type": "array"
+          },
+          "denyByDefault": {
+            "type": "boolean"
+          },
+          "emailPrimaryKey": {
+            "type": "boolean"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "identitySources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "orgRoles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "primaryIdentityKey": {
+            "type": "string"
+          },
+          "providerRoleMappings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "readinessImpact": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "auditRefs",
+          "capabilityGrants",
+          "context",
+          "contextRoles",
+          "denies",
+          "denyByDefault",
+          "emailPrimaryKey",
+          "groups",
+          "identitySources",
+          "orgRoles",
+          "organization",
+          "primaryIdentityKey",
+          "providerRoleMappings",
+          "readinessImpact",
+          "subject",
+          "supportSafe"
+        ],
+        "type": "object"
+      },
+      "EffectivePolicySimulationRequest": {
+        "description": "Admin-only support-safe effective capability policy simulation request.",
+        "properties": {
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requestedCapabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "subject": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EffectivePolicySimulationResponse": {
+        "description": "Support-safe effective capability policy simulation for admins/operators.",
+        "properties": {
+          "agentRuntimeEntitlementRequired": {
+            "type": "boolean"
+          },
+          "auditRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "capabilityStates": {
+            "items": {
+              "$ref": "#/components/schemas/CapabilityState"
+            },
+            "type": "array"
+          },
+          "deniedInputs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "grantedCapabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "nextActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "requestedCapabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "unknownInputsFailClosed": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "FilesBindingStatusResponse": {
+        "properties": {
+          "adapterKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bindingRevision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "bindingState": {
+            "enum": [
+              "ACTIVE",
+              "NO_ACTIVE_BINDING"
+            ],
+            "type": "string"
+          },
+          "readiness": {
+            "enum": [
+              "CONFIGURED",
+              "NOT_CONFIGURED",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "bindingState",
+          "readiness"
+        ],
+        "type": "object"
+      },
+      "GoLiveReadinessResponse": {
+        "description": "Support-safe organization go-live readiness summary for owners/admins.",
+        "properties": {
+          "adminActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "auditRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "memberPreviewState": {
+            "type": "string"
+          },
+          "normalMembersMayAccessSetupControls": {
+            "type": "boolean"
+          },
+          "rawProviderDiagnosticsExposed": {
+            "type": "boolean"
+          },
+          "releaseClaimControl": {
+            "$ref": "#/components/schemas/ReleaseClaimControlResponse"
+          },
+          "state": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "InventorySummary": {
+        "properties": {
+          "channels": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "files": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "messages": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "users": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "workspaces": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "LifecycleExpectations": {
+        "properties": {
+          "deleteExpectation": {
+            "type": "string"
+          },
+          "deprovisionExpectation": {
+            "type": "string"
+          },
+          "exportExpectation": {
+            "type": "string"
+          },
+          "rollbackSupportBoundary": {
+            "type": "string"
+          },
+          "sourceOfTruthPolicy": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LossyMappingReport": {
+        "properties": {
+          "adminNotes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "canonicalObjects": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "conflicts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "contractRisks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "replacementRequirement": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MappingProposal": {
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "weaveGuests": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "weaveMembers": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "weaveRooms": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "McpServerBindingResponse": {
+        "description": "Support-safe admin binding for an approved MCP server projected to Weaver runtimes.",
+        "properties": {
+          "allowedCapabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "allowedTools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "approvalRequiredForWrites": {
+            "type": "boolean"
+          },
+          "auditRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "authRef": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "endpointRef": {
+            "type": "string"
+          },
+          "nextActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rawEndpointExposed": {
+            "type": "boolean"
+          },
+          "rawServerConfigExposed": {
+            "type": "boolean"
+          },
+          "readinessState": {
+            "type": "string"
+          },
+          "secretValuesExposed": {
+            "type": "boolean"
+          },
+          "serverKey": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "transport": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MemberInvitationRequest": {
+        "properties": {
+          "displayName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "maxLength": 320,
+            "minLength": 0,
+            "type": "string"
+          },
+          "role": {
+            "minLength": 1,
+            "pattern": "owner|admin|member|guest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "role"
+        ],
+        "type": "object"
+      },
+      "MemberInvitationResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "invitationHandle": {
+            "type": "string"
+          },
+          "lifecycleStatus": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "provisioningStatus": {
+            "type": "string"
+          },
+          "requestedRole": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MemberLifecycleOperationResponse": {
+        "properties": {
+          "memberHandle": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MemberOffboardingRequest": {
+        "properties": {
+          "confirmation": {
+            "pattern": "OFFBOARD_MEMBER",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmation"
+        ],
+        "type": "object"
+      },
+      "MigrationApplyGateRequest": {
+        "properties": {
+          "adminApprovalRef": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "adminApproved": {
+            "type": "boolean"
+          },
+          "auditRefs": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 0,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "auditSinkAvailable": {
+            "type": "boolean"
+          },
+          "conflictReportRef": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "contentHashes": {
+            "items": {
+              "maxLength": 96,
+              "minLength": 0,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domainKey": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "dryRunReportRef": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "exportSnapshotRef": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "identityMappingComplete": {
+            "type": "boolean"
+          },
+          "importPlanRef": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "lossyMappingReportRef": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "memberImpactPreviewRef": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "objectCounts": {
+            "additionalProperties": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "postApplyVerificationRef": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "providerDiagnostics": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 0,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerMappingRef": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "requestedLifecycle": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "rollbackArchiveRef": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "runId": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "domainKey",
+          "objectCounts",
+          "requestedLifecycle",
+          "runId"
+        ],
+        "type": "object"
+      },
+      "MigrationApplyGateResponse": {
+        "properties": {
+          "applyAllowed": {
+            "type": "boolean"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domainKey": {
+            "type": "string"
+          },
+          "evidenceBundle": {
+            "$ref": "#/components/schemas/SupportSafeEvidenceBundle"
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "missingArtifacts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "nextActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerDiagnosticsRedacted": {
+            "type": "boolean"
+          },
+          "requiredArtifacts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "MigrationDryRunRequest": {
+        "properties": {
+          "inventory": {
+            "$ref": "#/components/schemas/SourceInventory"
+          },
+          "sourceProvider": {
+            "maxLength": 32,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "inventory",
+          "sourceProvider"
+        ],
+        "type": "object"
+      },
+      "MigrationDryRunResponse": {
+        "properties": {
+          "consentRequirements": {
+            "$ref": "#/components/schemas/ConsentRequirementReport"
+          },
+          "continuityReports": {
+            "items": {
+              "$ref": "#/components/schemas/ContinuityReport"
+            },
+            "type": "array"
+          },
+          "cutoverGates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domainMappings": {
+            "items": {
+              "$ref": "#/components/schemas/DomainMappingEvidence"
+            },
+            "type": "array"
+          },
+          "inventory": {
+            "$ref": "#/components/schemas/InventorySummary"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "mappingProposal": {
+            "$ref": "#/components/schemas/MappingProposal"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "providerDiagnosticsRedacted": {
+            "type": "boolean"
+          },
+          "rateLimitBudget": {
+            "$ref": "#/components/schemas/RateLimitBudgetEstimate"
+          },
+          "replaySafe": {
+            "type": "boolean"
+          },
+          "reportDownloadPath": {
+            "type": "string"
+          },
+          "sourceProvider": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "unmappableContent": {
+            "$ref": "#/components/schemas/UnmappableContentReport"
+          }
+        },
+        "type": "object"
+      },
+      "NoUnaccountedDataLossReport": {
+        "properties": {
+          "archiveOnlyCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "knownLosses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lossyCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "manualReviewCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "releaseClaimBoundaries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rollbackLimits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "unsupportedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "unsupportedData": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "vendorLockedCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "OrganizationBootstrapRequest": {
+        "description": "Admin-owned first-use organization bootstrap contract for existing or newly provisioned organizations.",
+        "properties": {
+          "adminPrimaryIdentityKeys": {
+            "description": "Immutable issuer+subject keys that retain owner/admin recovery access after bootstrap.",
+            "items": {
+              "maxLength": 528,
+              "minLength": 0,
+              "pattern": "issuer\\+subject:[^#\\s]{1,384}#[^#\\s]{1,128}",
+              "type": "string"
+            },
+            "maxItems": 25,
+            "minItems": 0,
+            "type": "array"
+          },
+          "bootstrapMode": {
+            "description": "Existing organization binds an already-owned tenant; new organization provisions initial policy.",
+            "type": "string"
+          },
+          "organizationId": {
+            "description": "Weave organization id to bootstrap or bind.",
+            "example": "acme-prod",
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason": {
+            "description": "Support-safe reason recorded in audit.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId"
+        ],
+        "type": "object"
+      },
+      "OrganizationBootstrapResponse": {
+        "description": "Support-safe organization bootstrap result.",
+        "properties": {
+          "actorPrimaryIdentityKey": {
+            "type": "string"
+          },
+          "auditRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "bootstrapMode": {
+            "type": "string"
+          },
+          "bootstrappedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastAdminGuardPassed": {
+            "type": "boolean"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "retainedAdminPrimaryIdentityKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "actorPrimaryIdentityKey",
+          "auditRefs",
+          "bootstrapMode",
+          "bootstrappedAt",
+          "lastAdminGuardPassed",
+          "organizationId",
+          "retainedAdminPrimaryIdentityKeys",
+          "supportSafe"
+        ],
+        "type": "object"
+      },
+      "OrganizationMemberPageResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OrganizationMemberResponse"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "OrganizationMemberResponse": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "memberHandle": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "capabilities",
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "OrganizationMemberUpdateRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "role": {
+            "minLength": 1,
+            "pattern": "owner|admin|member|guest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "type": "object"
+      },
+      "PlatformIdentityReadinessCardResponse": {
+        "description": "One support-safe Keycloak platform-security readiness card for Workspace Health/Admin Console.",
+        "properties": {
+          "diagnostics": {
+            "additionalProperties": {},
+            "description": "Support-safe diagnostics booleans/counts/contract keys only.",
+            "type": "object"
+          },
+          "evidenceRefs": {
+            "description": "Support-safe evidence refs/codes only; no URLs, client ids, realm internals, secrets, or raw provider errors.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "key": {
+            "description": "Stable card key owned by the backend readiness facade.",
+            "type": "string"
+          },
+          "label": {
+            "description": "Accessibility-friendly card label.",
+            "type": "string"
+          },
+          "memberImpact": {
+            "description": "Member impact expressed as product-level state only.",
+            "type": "string"
+          },
+          "nextActions": {
+            "description": "Concrete next operator/admin actions.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "remediation": {
+            "description": "Immediate operator remediation copy.",
+            "type": "string"
+          },
+          "state": {
+            "description": "Stable support-safe state: ready, degraded, policy-blocked, admin-action-required, coming_later, or disabled.",
+            "type": "string"
+          },
+          "summary": {
+            "description": "Support-safe operator summary with no Keycloak internals or raw downstream payloads.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PlatformIdentityReadinessResponse": {
+        "description": "Backend-owned, support-safe Keycloak platform-security readiness facade for Workspace Health/Admin Console.",
+        "properties": {
+          "adminApiRoutes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "backendOwnedFacade": {
+            "type": "boolean"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformIdentityReadinessCardResponse"
+            },
+            "type": "array"
+          },
+          "contractVersion": {
+            "type": "string"
+          },
+          "diagnostics": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "diagnosticsRedacted": {
+            "type": "boolean"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "memberClientMayConfigurePlatformSecurity": {
+            "type": "boolean"
+          },
+          "nextActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "overallState": {
+            "type": "string"
+          },
+          "platformAuthority": {
+            "type": "string"
+          },
+          "requiredForMemberFlows": {
+            "type": "boolean"
+          },
+          "stableStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "PortableExportImportContract": {
+        "properties": {
+          "evidenceRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "excludedAutomation": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "exportManifestRef": {
+            "type": "string"
+          },
+          "importManifestRef": {
+            "type": "string"
+          },
+          "portabilityGuarantee": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderAdapterReadinessEvidenceResponse": {
+        "description": "Support-safe Admin Console evidence for one domain adapter candidate.",
+        "properties": {
+          "adapterKey": {
+            "description": "Support-safe adapter key; never an endpoint URL or credential.",
+            "type": "string"
+          },
+          "configured": {
+            "description": "True when backend/operator configuration is present for the selected adapter.",
+            "type": "boolean"
+          },
+          "domain": {
+            "description": "Provider-neutral Weave domain/category key.",
+            "type": "string"
+          },
+          "evidenceTimestamp": {
+            "description": "UTC timestamp for the evidence snapshot.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "failClosed": {
+            "description": "True when unavailable provider access remains fail-closed behind Weave facades.",
+            "type": "boolean"
+          },
+          "health": {
+            "description": "Support-safe readiness/health state for this adapter.",
+            "type": "string"
+          },
+          "providerRealityLevel": {
+            "description": "Evidence-backed implementation maturity for this adapter candidate.",
+            "enum": [
+              "contract_only",
+              "configured",
+              "live_read",
+              "live_write",
+              "migration_dry_run",
+              "migration_apply_ready",
+              "rollback_ready",
+              "release_ready"
+            ],
+            "type": "string"
+          },
+          "reachable": {
+            "description": "True when the backend can infer a reachable adapter without exposing raw diagnostics.",
+            "type": "boolean"
+          },
+          "supportSafeDiagnostics": {
+            "additionalProperties": {},
+            "description": "Booleans/counts/stable codes only; no endpoints, secrets, tokens, or raw upstream errors.",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderCapabilityHealthResponse": {
+        "description": "Role-gated, support-safe cached provider capability observations.",
+        "properties": {
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/CapabilityHealth"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderCategoryContractResponse": {
+        "description": "Provider-neutral capability contract for one admin Workspace Health category. Default and external adapters are implementations behind the contract, not member-facing product surfaces.",
+        "properties": {
+          "adapterModules": {
+            "description": "Operational provider modules that can currently report readiness for this category.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "adminSelectable": {
+            "description": "Whether admins/operators may select or change the adapter for this category.",
+            "type": "boolean"
+          },
+          "canonicalObjects": {
+            "description": "Canonical Weave domain objects that adapters must map into without leaking provider schemas.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "category": {
+            "description": "Stable provider-neutral category key.",
+            "type": "string"
+          },
+          "choiceModels": {
+            "description": "Risk-aware admin choice models for recommended self-hosted defaults, existing external providers, managed cloud providers, and hybrid composites.",
+            "items": {
+              "$ref": "#/components/schemas/ProviderChoiceModelResponse"
+            },
+            "type": "array"
+          },
+          "defaultAdapters": {
+            "description": "Current self-hosted dogfood/default adapter keys for this category.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "exportDeleteExpectation": {
+            "description": "Export/delete/deprovision expectation used to avoid Weave becoming a silo.",
+            "type": "string"
+          },
+          "externalAdapters": {
+            "description": "External or future adapter keys proving the category is not coupled to the dogfood default.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "featureCapabilities": {
+            "description": "Category-level feature capability keys enforced by Weave policy/facades.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lossyMappingRisks": {
+            "description": "Adapter fields or semantics that require explicit lossy mapping notes.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "normalMembersConfigureProviders": {
+            "description": "Always false: normal members never configure raw providers.",
+            "type": "boolean"
+          },
+          "replacementRequirement": {
+            "description": "Provider replacement or migration dry-run expectation.",
+            "type": "string"
+          },
+          "sourceOfTruth": {
+            "description": "Admin-visible source-of-truth rule for this category.",
+            "type": "string"
+          },
+          "stableMemberImpactStates": {
+            "description": "Member-visible impact states that must remain stable even when an admin swaps adapters.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderCategoryStatusResponse": {
+        "description": "Provider-neutral admin Workspace Health category readiness with support-safe diagnostics.",
+        "properties": {
+          "adapterEvidence": {
+            "description": "Support-safe infra/backend adapter readiness evidence for Admin Console and support bundles.",
+            "items": {
+              "$ref": "#/components/schemas/ProviderAdapterReadinessEvidenceResponse"
+            },
+            "type": "array"
+          },
+          "bootstrapSuggestionOnly": {
+            "description": "True when defaults are being shown only as bootstrap/profile suggestions, not product truth.",
+            "type": "boolean"
+          },
+          "category": {
+            "description": "Stable provider-neutral category key.",
+            "type": "string"
+          },
+          "choiceModel": {
+            "description": "Selected provider choice model: recommended_self_hosted_default, external_existing_provider, or managed_cloud_provider.",
+            "type": "string"
+          },
+          "contract": {
+            "$ref": "#/components/schemas/ProviderCategoryContractResponse",
+            "description": "Provider-neutral capability contract and adapter seam for this category."
+          },
+          "diagnostics": {
+            "additionalProperties": {},
+            "description": "Support-safe diagnostics. Values are booleans/counts/keys only; no endpoints, secrets, or raw upstream errors.",
+            "type": "object"
+          },
+          "label": {
+            "description": "Human-readable provider-neutral category label.",
+            "type": "string"
+          },
+          "lossyMappingNotes": {
+            "description": "Support-safe notes for known lossy mappings across provider families.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "memberCapabilityState": {
+            "description": "Stable member capability state derived from policy, readiness, and provider reality level.",
+            "type": "string"
+          },
+          "memberImpact": {
+            "description": "Member-safe impact label. Does not expose raw provider setup.",
+            "type": "string"
+          },
+          "modules": {
+            "description": "Provider registry modules contributing to this category.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "policyState": {
+            "description": "Effective capability policy state used for this category.",
+            "enum": [
+              "allowed",
+              "policy_blocked",
+              "disabled",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "providerCandidates": {
+            "description": "Support-safe provider choices/candidates for admin diagnostics.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerRealityLevel": {
+            "description": "Evidence-backed provider implementation maturity for this category.",
+            "enum": [
+              "contract_only",
+              "configured",
+              "live_read",
+              "live_write",
+              "migration_dry_run",
+              "migration_apply_ready",
+              "rollback_ready",
+              "release_ready"
+            ],
+            "type": "string"
+          },
+          "readiness": {
+            "description": "Admin readiness state for this category.",
+            "enum": [
+              "ready",
+              "disabled",
+              "degraded",
+              "policy_blocked",
+              "misconfigured"
+            ],
+            "type": "string"
+          },
+          "realityLevelRemediation": {
+            "description": "Actionable admin remediation for the current provider reality level.",
+            "type": "string"
+          },
+          "selectedByAdmin": {
+            "description": "True only after an admin has applied a provider mapping for this category.",
+            "type": "boolean"
+          },
+          "selectedProviderKey": {
+            "description": "Admin Console-selected provider key, or awaiting_admin_selection when not applied.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderChoiceModelResponse": {
+        "description": "Admin-visible provider choice posture for a category. It records privacy/compliance risk notes without changing member-facing product semantics.",
+        "properties": {
+          "adapters": {
+            "description": "Support-safe adapter keys covered by this choice model.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "adminRiskNotes": {
+            "description": "Support-safe admin/operator risk notes. No secrets, URLs, tenant IDs, or raw provider errors.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "choiceModel": {
+            "description": "Stable choice model key: recommended_self_hosted_default, external_existing_provider, or managed_cloud_provider.",
+            "type": "string"
+          },
+          "recommended": {
+            "description": "Whether this is the recommended sovereign/default posture.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderReadinessTestRequest": {
+        "description": "Admin request to exercise a support-safe provider readiness contract.",
+        "properties": {
+          "providerKey": {
+            "example": "nextcloud-files",
+            "minLength": 1,
+            "type": "string"
+          },
+          "secretRef": {
+            "description": "Optional SecretRef id. Raw secret values are forbidden and ignored/redacted by the server.",
+            "type": "string"
+          },
+          "testKind": {
+            "example": "readiness",
+            "type": "string"
+          }
+        },
+        "required": [
+          "providerKey"
+        ],
+        "type": "object"
+      },
+      "ProviderReadinessTestResponse": {
+        "description": "Support-safe provider readiness test result.",
+        "properties": {
+          "auditEventPublished": {
+            "type": "boolean"
+          },
+          "diagnostics": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "providerKey": {
+            "type": "string"
+          },
+          "rawSecretExposed": {
+            "type": "boolean"
+          },
+          "readiness": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderRegistryResponse": {
+        "properties": {
+          "adminSelectedMappingsRequired": {
+            "type": "boolean"
+          },
+          "backendOwnedFacades": {
+            "type": "boolean"
+          },
+          "bootstrapDefaultsAreSuggestionsOnly": {
+            "type": "boolean"
+          },
+          "canonicalDomainRegistry": {
+            "$ref": "#/components/schemas/CanonicalDomainRegistryResponse"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderCategoryStatusResponse"
+            },
+            "type": "array"
+          },
+          "domainAdapterRegistry": {
+            "$ref": "#/components/schemas/DomainAdapterRegistryResponse"
+          },
+          "filesBinding": {
+            "$ref": "#/components/schemas/FilesBindingStatusResponse"
+          },
+          "flutterDirectProviderCallsAllowed": {
+            "type": "boolean"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "organizationId": {
+            "description": "Configured canonical deployment organization.",
+            "type": "string"
+          },
+          "providerConfigSource": {
+            "type": "string"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderStatusResponse"
+            },
+            "type": "array"
+          },
+          "releaseStatus": {
+            "type": "string"
+          },
+          "selectedProviderMappings": {
+            "description": "Legacy deployment configuration selections; not evidence of active organization runtime bindings.",
+            "items": {
+              "$ref": "#/components/schemas/ProviderSelection"
+            },
+            "type": "array"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "filesBinding",
+          "organizationId"
+        ],
+        "type": "object"
+      },
+      "ProviderReplacementDryRunRequest": {
+        "description": "Support-safe provider replacement preflight. This validates an adapter swap without applying provider state.",
+        "properties": {
+          "category": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "choiceModel": {
+            "type": "string"
+          },
+          "currentAdapter": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "lossyMappingNotes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "portableExportImportRequired": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requestedSwitchPlan": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "secretRef": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sourceOfTruth": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "targetAdapter": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "currentAdapter",
+          "secretRef",
+          "sourceOfTruth",
+          "targetAdapter"
+        ],
+        "type": "object"
+      },
+      "ProviderReplacementDryRunResponse": {
+        "description": "Support-safe provider replacement dry-run report for Admin Console review.",
+        "properties": {
+          "auditRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "baselineSnapshot": {
+            "$ref": "#/components/schemas/BaselineSnapshot"
+          },
+          "boundedProof": {
+            "$ref": "#/components/schemas/BoundedApplyCutoverRollbackProof"
+          },
+          "category": {
+            "type": "string"
+          },
+          "choiceModel": {
+            "type": "string"
+          },
+          "consequencePreview": {
+            "$ref": "#/components/schemas/ConsequencePreview"
+          },
+          "crossDomainImpact": {
+            "items": {
+              "$ref": "#/components/schemas/CrossDomainImpactItem"
+            },
+            "type": "array"
+          },
+          "currentAdapter": {
+            "type": "string"
+          },
+          "cutoverGates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "declaredSourceOfTruth": {
+            "type": "string"
+          },
+          "dryRunId": {
+            "type": "string"
+          },
+          "evidenceRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lifecycleExpectations": {
+            "$ref": "#/components/schemas/LifecycleExpectations"
+          },
+          "lossyMappingReport": {
+            "$ref": "#/components/schemas/LossyMappingReport"
+          },
+          "memberImpactStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "migrationDryRunRequired": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "noUnaccountedDataLossReport": {
+            "$ref": "#/components/schemas/NoUnaccountedDataLossReport"
+          },
+          "portableExportImportContract": {
+            "$ref": "#/components/schemas/PortableExportImportContract"
+          },
+          "providerDiagnosticsRedacted": {
+            "type": "boolean"
+          },
+          "readModelComparison": {
+            "$ref": "#/components/schemas/ReadModelComparison"
+          },
+          "readinessState": {
+            "type": "string"
+          },
+          "secretRefPresent": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "switchPlan": {
+            "$ref": "#/components/schemas/SwitchPlan"
+          },
+          "targetAdapter": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderSelection": {
+        "properties": {
+          "applied": {
+            "type": "boolean"
+          },
+          "category": {
+            "type": "string"
+          },
+          "choiceModel": {
+            "type": "string"
+          },
+          "lossyMappingNotes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "migrationDryRunRequired": {
+            "type": "boolean"
+          },
+          "providerKey": {
+            "type": "string"
+          },
+          "secretRef": {
+            "type": "string"
+          },
+          "selectedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "selectedBy": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderSelectionRequest": {
+        "description": "Admin-selected provider mapping. This is control-plane state; bootstrap defaults are only suggestions until this request is applied.",
+        "properties": {
+          "category": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "choiceModel": {
+            "type": "string"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "lossyMappingNotes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerKey": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "secretRef": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "providerKey"
+        ],
+        "type": "object"
+      },
+      "ProviderSelectionResponse": {
+        "description": "Support-safe category-selection metadata; this response is not active organization binding or cutover evidence.",
+        "properties": {
+          "applied": {
+            "description": "Category metadata was recorded; this does not mean the active organization binding changed.",
+            "type": "boolean"
+          },
+          "bootstrapSuggestionOnly": {
+            "type": "boolean"
+          },
+          "category": {
+            "type": "string"
+          },
+          "choiceModel": {
+            "type": "string"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "evidenceFreshAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lossyMappingNotes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "migrationDryRunRequired": {
+            "type": "boolean"
+          },
+          "persistencePosture": {
+            "type": "string"
+          },
+          "providerKey": {
+            "type": "string"
+          },
+          "readiness": {
+            "type": "string"
+          },
+          "secretRef": {
+            "type": "string"
+          },
+          "selectedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "selectedBy": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderStatusResponse": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "diagnostics": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "failClosed": {
+            "type": "boolean"
+          },
+          "module": {
+            "enum": [
+              "matrix",
+              "files",
+              "office",
+              "calendar",
+              "contacts",
+              "forms",
+              "boards",
+              "meetings",
+              "source-control",
+              "ci",
+              "issue-tracker",
+              "release"
+            ],
+            "type": "string"
+          },
+          "paidFeaturesRequired": {
+            "type": "boolean"
+          },
+          "providerKey": {
+            "type": "string"
+          },
+          "providerRealityLevel": {
+            "description": "Evidence-backed implementation maturity for provider candidates. Contract-only providers are never member-available.",
+            "enum": [
+              "contract_only",
+              "configured",
+              "live_read",
+              "live_write",
+              "migration_dry_run",
+              "migration_apply_ready",
+              "rollback_ready",
+              "release_ready"
+            ],
+            "type": "string"
+          },
+          "readOnly": {
+            "type": "boolean"
+          },
+          "readiness": {
+            "type": "string"
+          },
+          "redactionPolicy": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "disabled",
+              "not_configured",
+              "configured",
+              "ready",
+              "degraded",
+              "unsupported"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "supportSafeErrorCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportedCapabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "unsupportedOperations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "type": "object"
+      },
+      "RateLimitBudgetEstimate": {
+        "properties": {
+          "degradedStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "estimatedRequests": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "roughDurationSeconds": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RcEvidenceGateReadinessResponse": {
+        "description": "Support-safe RC evidence gate shown before go-live/release claims.",
+        "properties": {
+          "blocksReleaseClaim": {
+            "type": "boolean"
+          },
+          "evidenceFreshness": {
+            "type": "string"
+          },
+          "evidenceRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "nextAction": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReadModelComparison": {
+        "properties": {
+          "findings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "memberImpactStatesProviderNeutral": {
+            "type": "boolean"
+          },
+          "migrationEvidenceRecorded": {
+            "type": "boolean"
+          },
+          "northboundContractUnchanged": {
+            "type": "boolean"
+          },
+          "providerSemanticsLeakedToMembers": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ReleaseClaimControlResponse": {
+        "description": "Support-safe RC release-claim control surface for administrators.",
+        "properties": {
+          "accessibilityEvidenceRef": {
+            "type": "string"
+          },
+          "candidateTag": {
+            "type": "string"
+          },
+          "claimState": {
+            "type": "string"
+          },
+          "gates": {
+            "items": {
+              "$ref": "#/components/schemas/RcEvidenceGateReadinessResponse"
+            },
+            "type": "array"
+          },
+          "pinnedSpecCorpusRef": {
+            "type": "string"
+          },
+          "releaseNotesSource": {
+            "type": "string"
+          },
+          "supportBundleRef": {
+            "type": "string"
+          },
+          "unresolvedVetoes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "SecretRefResponse": {
+        "description": "Support-safe reference to a provider secret. Never contains the raw secret value.",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "providerKey": {
+            "example": "nextcloud-files",
+            "type": "string"
+          },
+          "purpose": {
+            "example": "oidc-client-secret",
+            "type": "string"
+          },
+          "rawSecretExposed": {
+            "type": "boolean"
+          },
+          "ref": {
+            "example": "secretref://weave/provider/keycloak-client-secret",
+            "type": "string"
+          },
+          "rotationRequired": {
+            "type": "boolean"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "SourceInventory": {
+        "properties": {
+          "channels": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "files": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "messages": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "scopes": {
+            "items": {
+              "maxLength": 128,
+              "minLength": 0,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "users": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "workspaces": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SpaceMemberChangeRequest": {
+        "properties": {
+          "permissionLevel": {
+            "description": "Hierarchical current grant: VIEW, VIEW+EDIT, or VIEW+EDIT+ADMIN.",
+            "enum": [
+              "VIEW",
+              "EDIT",
+              "ADMIN"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "permissionLevel"
+        ],
+        "type": "object"
+      },
+      "SpaceMemberListResponse": {
+        "properties": {
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/SpaceMemberResponse"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Last returned account reference when another page exists.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "members"
+        ],
+        "type": "object"
+      },
+      "SpaceMemberResponse": {
+        "properties": {
+          "accountRef": {
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "enum": [
+                "VIEW",
+                "EDIT",
+                "ADMIN"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accountRef",
+          "permissions"
+        ],
+        "type": "object"
+      },
+      "SpaceProvisionRequest": {
+        "properties": {
+          "memberAccountRefs": {
+            "description": "Member account references granted VIEW. The acting administrator receives ADMIN.",
+            "items": {
+              "pattern": "acct_[0-9a-f]{32}",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          },
+          "spaceRef": {
+            "description": "Chosen stable Weave Space reference in the current organization.",
+            "maxLength": 255,
+            "minLength": 0,
+            "pattern": "[A-Za-z0-9][A-Za-z0-9:_-]{0,254}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "spaceRef"
+        ],
+        "type": "object"
+      },
+      "SpaceProvisionResponse": {
+        "properties": {
+          "result": {
+            "enum": [
+              "CREATED",
+              "UNCHANGED"
+            ],
+            "type": "string"
+          },
+          "spaceRef": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result",
+          "spaceRef"
+        ],
+        "type": "object"
+      },
+      "SuiteDomainReadinessResponse": {
+        "description": "Support-safe suite domain readiness row for Admin Console go-live decisions.",
+        "properties": {
+          "adminReadiness": {
+            "type": "string"
+          },
+          "auditRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "backendOwnedFacade": {
+            "type": "boolean"
+          },
+          "canonicalObjectKinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "capabilityStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "label": {
+            "type": "string"
+          },
+          "memberState": {
+            "type": "string"
+          },
+          "nextAction": {
+            "type": "string"
+          },
+          "portabilityNotes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerCategoryKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerMappingOwnedByServer": {
+            "type": "boolean"
+          },
+          "rawProviderConfigExposedToMembers": {
+            "type": "boolean"
+          },
+          "selectedAdapterPosture": {
+            "type": "string"
+          },
+          "sourceOfTruthMode": {
+            "type": "string"
+          },
+          "supportSafeErrors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "SupportSafeEvidenceBundle": {
+        "properties": {
+          "artifactRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "auditRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "contentHashes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domainKey": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "objectCounts": {
+            "additionalProperties": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "redactedDiagnostics": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "redaction": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SwitchPlan": {
+        "properties": {
+          "cutoverWindowRequired": {
+            "type": "boolean"
+          },
+          "memberFacingStateDuringSwitch": {
+            "type": "string"
+          },
+          "planRef": {
+            "type": "string"
+          },
+          "preflightRequired": {
+            "type": "boolean"
+          },
+          "recoveryActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rollbackRequired": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "UnmappableContentReport": {
+        "properties": {
+          "count": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "WeaverEntitlementUpdateRequest": {
+        "properties": {
+          "entitled": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "WorkspaceCapabilityPolicyResponse": {
+        "description": "Admin/operator support-safe capability policy snapshot.",
+        "properties": {
+          "agentRuntimeControlPosture": {
+            "type": "string"
+          },
+          "denyByDefault": {
+            "type": "boolean"
+          },
+          "federationContract": {
+            "type": "string"
+          },
+          "grantedCapabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "platformIdentityAuthority": {
+            "type": "string"
+          },
+          "platformIdentityCategory": {
+            "type": "string"
+          },
+          "principalSource": {
+            "type": "string"
+          },
+          "profileKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agentRuntimeControlPosture",
+          "denyByDefault",
+          "federationContract",
+          "grantedCapabilities",
+          "groups",
+          "platformIdentityAuthority",
+          "platformIdentityCategory",
+          "principalSource",
+          "profileKeys",
+          "roles",
+          "supportSafe"
+        ],
+        "type": "object"
+      },
+      "WorkspaceReleaseReadinessCheckResponse": {
+        "description": "One operator-facing workspace readiness check.",
+        "properties": {
+          "action": {
+            "description": "Recommended operator action when the check is not ready.",
+            "type": "string"
+          },
+          "key": {
+            "description": "Stable check identifier.",
+            "example": "chat",
+            "type": "string"
+          },
+          "label": {
+            "description": "Human-readable check label.",
+            "example": "Matrix chat route",
+            "type": "string"
+          },
+          "message": {
+            "description": "Why this check is in its current state.",
+            "type": "string"
+          },
+          "readiness": {
+            "description": "Current readiness state for this check.",
+            "enum": [
+              "ready",
+              "degraded",
+              "blocked",
+              "unavailable"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "WorkspaceReleaseReadinessResponse": {
+        "description": "Admin-only configuration and cached capability readiness for the configured organization; not live provider or release verification.",
+        "properties": {
+          "actions": {
+            "description": "Outstanding operator actions extracted from the failing checks.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "checks": {
+            "description": "Readiness checks for the core product slice.",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceReleaseReadinessCheckResponse"
+            },
+            "type": "array"
+          },
+          "readiness": {
+            "description": "Overall workspace readiness for the currently configured workspace.",
+            "enum": [
+              "ready",
+              "degraded",
+              "blocked",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "description": "Short summary of configuration and cached capability availability.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearer-jwt": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "owner-bootstrap-token": {
+        "description": "Rotatable SecretRef credential for the empty-realm owner invitation only.",
+        "in": "header",
+        "name": "X-Weave-Bootstrap-Token",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "description": "JWT-protected product API for workspace capabilities and orchestration.",
+    "title": "Weave Backend API",
+    "version": "v1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/admin/audit/events": {
+      "get": {
+        "operationId": "listAdminAuditEvents",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminAuditEventResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Audit event list."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies the operation."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read support-safe admin/provider audit events",
+        "tags": [
+          "Admin control plane"
+        ]
+      }
+    },
+    "/api/admin/chat/migration-preflights": {
+      "post": {
+        "description": "Creates a support-safe, audited dry-run report for Chat provider replacement. Destructive apply is intentionally unavailable in this contract.",
+        "operationId": "createChatMigrationPreflight",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatMigrationPreflightRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMigrationPreflightReport"
+                }
+              }
+            },
+            "description": "Support-safe Chat migration preflight report."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing workspace scope, Context/Space access, or required chat capability."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Chat domain facade is disabled, degraded, or not ready."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Dry-run a future Chat provider replacement",
+        "tags": [
+          "Chat domain"
+        ]
+      }
+    },
+    "/api/admin/chat/provider-replacements/dry-run": {
+      "post": {
+        "operationId": "dryRunChatProviderReplacement",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatProviderReplacementDryRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatProviderReplacementDryRunResponse"
+                }
+              }
+            },
+            "description": "Support-safe provider replacement dry-run report."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing workspace scope, Context/Space access, or required chat capability."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Chat domain facade is disabled, degraded, or not ready."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Dry-run a Chat provider replacement with support-safe migration evidence",
+        "tags": [
+          "Chat domain"
+        ]
+      }
+    },
+    "/api/admin/chat/readiness": {
+      "get": {
+        "description": "Returns support-safe Chat provider mapping and readiness diagnostics for admins/operators.",
+        "operationId": "getAdminChatReadiness",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatReadiness"
+                }
+              }
+            },
+            "description": "Support-safe Admin Chat readiness."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing workspace scope, Context/Space access, or required chat capability."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Chat domain facade is disabled, degraded, or not ready."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Get admin Chat readiness",
+        "tags": [
+          "Chat domain"
+        ]
+      }
+    },
+    "/api/admin/control-plane": {
+      "get": {
+        "operationId": "getAdminControlPlane",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminControlPlaneResponse"
+                }
+              }
+            },
+            "description": "Admin control-plane snapshot."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies the operation."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read the support-safe organization control-plane overview",
+        "tags": [
+          "Admin control plane"
+        ]
+      }
+    },
+    "/api/admin/organizations/bootstrap": {
+      "post": {
+        "operationId": "bootstrapOrganization",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationBootstrapRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationBootstrapResponse"
+                }
+              }
+            },
+            "description": "Support-safe organization bootstrap result."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies the operation."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Bootstrap or bind an organization with immutable identity recovery administrators",
+        "tags": [
+          "Admin control plane"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/invitations": {
+      "get": {
+        "operationId": "listOrganizationInvitations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MemberInvitationResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Organization invitations."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer this organization."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization invitations"
+        ]
+      },
+      "post": {
+        "operationId": "createOrganizationInvitation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberInvitationResponse"
+                }
+              }
+            },
+            "description": "Created organization invitation."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer this organization."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization invitations"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/invitations/{invitationHandle}": {
+      "delete": {
+        "operationId": "revokeOrganizationInvitation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "invitationHandle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer this organization."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization invitations"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/invitations/{invitationHandle}/resend": {
+      "post": {
+        "operationId": "resendOrganizationInvitation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "invitationHandle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberInvitationResponse"
+                }
+              }
+            },
+            "description": "Resent organization invitation."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer this organization."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization invitations"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/members": {
+      "get": {
+        "operationId": "listOrganizationMembers",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberPageResponse"
+                }
+              }
+            },
+            "description": "Paged organization members visible to the administrator."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer the configured organization."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization members"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/members/{memberHandle}": {
+      "get": {
+        "operationId": "getOrganizationMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "memberHandle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberResponse"
+                }
+              }
+            },
+            "description": "Current organization member and version."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer the configured organization."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization members"
+        ]
+      },
+      "patch": {
+        "operationId": "updateOrganizationMemberAccess",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "memberHandle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationMemberUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberResponse"
+                }
+              }
+            },
+            "description": "Updated organization member and version."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer the configured organization."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization members"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/members/{memberHandle}/capabilities/weaver": {
+      "put": {
+        "operationId": "updateOrganizationMemberWeaverEntitlement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "memberHandle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeaverEntitlementUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberResponse"
+                }
+              }
+            },
+            "description": "Organization member after Weaver entitlement update."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer the configured organization."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization members"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/members/{memberHandle}/offboarding": {
+      "post": {
+        "operationId": "offboardOrganizationMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "memberHandle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberOffboardingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberLifecycleOperationResponse"
+                }
+              }
+            },
+            "description": "Support-safe member offboarding result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid required request header."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer the configured organization."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The organization member is unavailable."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The idempotency claim or owner protection conflicts with this operation."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The member version changed."
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "A member version precondition is required."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Identity provider administration failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Durable session revocation is unavailable."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization members"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/members/{memberHandle}/session-revocations": {
+      "post": {
+        "operationId": "revokeOrganizationMemberSessions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "memberHandle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberLifecycleOperationResponse"
+                }
+              }
+            },
+            "description": "Support-safe session revocation result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid required request header."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer the configured organization."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The organization member is unavailable."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The idempotency claim conflicts with an earlier operation."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The member version changed."
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "A member version precondition is required."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Identity provider administration failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Durable session revocation is unavailable."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization members"
+        ]
+      }
+    },
+    "/api/admin/platform/identity/readiness": {
+      "get": {
+        "operationId": "getPlatformIdentityReadiness",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformIdentityReadinessResponse"
+                }
+              }
+            },
+            "description": "Backend-owned platform identity readiness."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies the operation."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read support-safe fixed Keycloak platform readiness",
+        "tags": [
+          "Admin control plane"
+        ]
+      }
+    },
+    "/api/admin/policies/capability-whitelist": {
+      "get": {
+        "operationId": "getCapabilityWhitelist",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilityWhitelistResponse"
+                }
+              }
+            },
+            "description": "Capability whitelist snapshot."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies the operation."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read deny-by-default capability whitelist policy",
+        "tags": [
+          "Admin control plane"
+        ]
+      },
+      "patch": {
+        "operationId": "updateCapabilityWhitelist",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapabilityWhitelistUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilityWhitelistResponse"
+                }
+              }
+            },
+            "description": "Updated capability whitelist snapshot."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies the operation."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Record a support-safe capability whitelist policy update",
+        "tags": [
+          "Admin control plane"
+        ]
+      }
+    },
+    "/api/admin/policies/effective": {
+      "get": {
+        "operationId": "getEffectivePolicy",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EffectivePolicyResponse"
+                }
+              }
+            },
+            "description": "Support-safe effective policy explanation."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies the operation."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Explain the effective capability policy for the authenticated subject",
+        "tags": [
+          "Admin control plane"
+        ]
+      }
+    },
+    "/api/admin/policies/effective/simulations": {
+      "post": {
+        "operationId": "simulateEffectivePolicy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EffectivePolicySimulationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EffectivePolicySimulationResponse"
+                }
+              }
+            },
+            "description": "Support-safe policy simulation."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies the operation."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Simulate effective capability policy before provider/realm changes",
+        "tags": [
+          "Admin control plane"
+        ]
+      }
+    },
+    "/api/admin/provider-capability-health": {
+      "get": {
+        "operationId": "getProviderCapabilityHealth",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCapabilityHealthResponse"
+                }
+              }
+            },
+            "description": "Cached provider capability observations."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Effective workspace policy denies readiness diagnostics."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read cached support-safe provider capability health",
+        "tags": [
+          "Admin provider health"
+        ]
+      }
+    },
+    "/api/admin/providers/readiness-tests": {
+      "post": {
+        "operationId": "testProviderReadiness",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderReadinessTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderReadinessTestResponse"
+                }
+              }
+            },
+            "description": "Support-safe provider readiness test result."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies the operation."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Run a backend-owned support-safe provider readiness test contract",
+        "tags": [
+          "Admin control plane"
+        ]
+      }
+    },
+    "/api/admin/providers/replacements/dry-run": {
+      "post": {
+        "operationId": "dryRunProviderReplacement",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderReplacementDryRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderReplacementDryRunResponse"
+                }
+              }
+            },
+            "description": "Support-safe provider replacement dry-run report."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies the operation."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Dry-run a provider replacement before activation",
+        "tags": [
+          "Admin control plane"
+        ]
+      }
+    },
+    "/api/admin/providers/selections": {
+      "post": {
+        "operationId": "selectProvider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderSelectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderSelectionResponse"
+                }
+              }
+            },
+            "description": "Support-safe category metadata result; not a provider cutover."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies the operation."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Selection conflicts with the active binding or attempts unverified Files activation."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Record or dry-run category metadata without changing the active organization provider binding",
+        "tags": [
+          "Admin control plane"
+        ]
+      }
+    },
+    "/api/admin/providers/status": {
+      "get": {
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderRegistryResponse"
+                }
+              }
+            },
+            "description": "Deployment provider configuration and the configured organization's actual Files binding status."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing workspace scope, wrong deployment organization, or denied Admin readiness capability."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read support-safe admin/provider category capability and readiness status",
+        "tags": [
+          "Provider registry"
+        ]
+      }
+    },
+    "/api/admin/spaces": {
+      "post": {
+        "operationId": "provisionSpace",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpaceProvisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceProvisionResponse"
+                }
+              }
+            },
+            "description": "Created or confirmed identical durable setup."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid Space setup request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner/admin policy or organization denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Existing Space differs from setup intent."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Explicitly provision current-organization Space membership",
+        "tags": [
+          "Spaces Admin"
+        ]
+      }
+    },
+    "/api/admin/spaces/{spaceRef}/members": {
+      "get": {
+        "operationId": "listSpaceMembers",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "afterAccountRef",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberListResponse"
+                }
+              }
+            },
+            "description": "Current member grants in account-reference order."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberListResponse"
+                }
+              }
+            },
+            "description": "Invalid page request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner/admin policy or organization denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Existing Space differs from setup intent."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Page current Space member grants",
+        "tags": [
+          "Spaces Admin"
+        ]
+      }
+    },
+    "/api/admin/spaces/{spaceRef}/members/{accountRef}": {
+      "delete": {
+        "operationId": "deleteSpaceMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "accountRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Current grant revoked."
+          },
+          "400": {
+            "description": "Invalid member precondition."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner/admin policy or organization denied."
+          },
+          "404": {
+            "description": "Member unavailable."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Existing Space differs from setup intent."
+          },
+          "412": {
+            "description": "Member precondition is stale."
+          },
+          "428": {
+            "description": "Member precondition required."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Revoke current Space membership",
+        "tags": [
+          "Spaces Admin"
+        ]
+      },
+      "get": {
+        "operationId": "getSpaceMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "accountRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Current member grant.",
+            "headers": {
+              "ETag": {
+                "description": "Strong current member version.",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner/admin policy or organization denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Current member unavailable."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Existing Space differs from setup intent."
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Revoked grant; ETag identifies the tombstone for explicit regrant.",
+            "headers": {
+              "ETag": {
+                "description": "Strong revoked member version.",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read current Space member grant and version",
+        "tags": [
+          "Spaces Admin"
+        ]
+      },
+      "put": {
+        "operationId": "putSpaceMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "accountRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpaceMemberChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Versioned current member grant.",
+            "headers": {
+              "ETag": {
+                "description": "Strong current member version required for replacement or revocation.",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Invalid grant or precondition."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner/admin policy or organization denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Member unavailable for replacement."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Existing Space differs from setup intent."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Member precondition is stale."
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            },
+            "description": "Member precondition required."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Grant or replace current Space membership",
+        "tags": [
+          "Spaces Admin"
+        ]
+      }
+    },
+    "/api/admin/workspace/capability-policy": {
+      "get": {
+        "description": "Returns an admin/operator support-safe snapshot of IDM role/group intake, profile mapping, deny-by-default posture, and Weaver-disabled-by-default policy state.",
+        "operationId": "capabilityPolicy",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceCapabilityPolicyResponse"
+                }
+              }
+            },
+            "description": "Workspace capability policy snapshot."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin Console bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Workspace scope, current deployment organization, selected owner/admin role or readiness capability is missing."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Get Admin workspace capability policy",
+        "tags": [
+          "Admin Workspace"
+        ]
+      }
+    },
+    "/api/admin/workspace/release-readiness": {
+      "get": {
+        "description": "Returns the configured organization's operator-facing configuration and cached capability snapshot. This read does not verify live provider operations or release eligibility.",
+        "operationId": "releaseReadiness",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceReleaseReadinessResponse"
+                }
+              }
+            },
+            "description": "Admin workspace configuration snapshot; not live provider or release verification."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin Console bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Workspace scope, current deployment organization, selected owner/admin role or readiness capability is missing."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Get Admin workspace configuration readiness",
+        "tags": [
+          "Admin Workspace"
+        ]
+      }
+    },
+    "/api/bootstrap/owner-invitation": {
+      "post": {
+        "operationId": "bootstrapOwnerInvitation",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Weave-Bootstrap-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BootstrapOwnerInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberInvitationResponse"
+                }
+              }
+            },
+            "description": "First owner invitation."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid owner-bootstrap credential."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Owner bootstrap is unavailable."
+          }
+        },
+        "security": [
+          {
+            "owner-bootstrap-token": []
+          }
+        ],
+        "summary": "Create or return the first owner invitation in an empty human realm",
+        "tags": [
+          "identity-bootstrap"
+        ]
+      }
+    },
+    "/api/migration/apply-gates": {
+      "post": {
+        "operationId": "applyGate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MigrationApplyGateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationApplyGateResponse"
+                }
+              }
+            },
+            "description": "Provider migration apply-gate evaluation."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Admin token lacks organization or administration authority."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Validate generic provider migration apply gates without mutating providers",
+        "tags": [
+          "Migration"
+        ]
+      }
+    },
+    "/api/migration/dry-runs": {
+      "post": {
+        "operationId": "dryRun",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MigrationDryRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationDryRunResponse"
+                }
+              }
+            },
+            "description": "Replay-safe migration inventory dry-run."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid Admin bearer token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Admin token lacks organization or administration authority."
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Create a replay-safe migration inventory dry-run",
+        "tags": [
+          "Migration"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "description": "Generated server url",
+      "url": "http://localhost"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Organization/Admin Console APIs for provider policy, readiness, SecretRefs, and audit.",
+      "name": "Admin control plane"
+    },
+    {
+      "description": "Support-safe cached provider capability health for operators and support bundles.",
+      "name": "Admin provider health"
+    },
+    {
+      "description": "Admin-only configuration readiness and policy diagnostics.",
+      "name": "Admin Workspace"
+    },
+    {
+      "description": "Explicit durable Space setup for the current organization.",
+      "name": "Spaces Admin"
+    },
+    {
+      "description": "Keycloak-backed member lifecycle through opaque Weave references.",
+      "name": "Organization members"
+    },
+    {
+      "description": "Replay-safe migration inventory and dry-run reporting.",
+      "name": "Migration"
+    },
+    {
+      "description": "Organization-scoped member invitations.",
+      "name": "Organization invitations"
+    },
+    {
+      "description": "Backend-owned provider capability/readiness registry for optional provider-stack modules.",
+      "name": "Provider registry"
+    },
+    {
+      "description": "Canonical Weave Chat facade with provider-neutral conversations/messages, Context/Space authorization, capability checks, audit, and support-safe provider replacement seams.",
+      "name": "Chat domain"
+    }
+  ]
+}

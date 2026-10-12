@@ -64,7 +64,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0-beta.4';
 
   @override
-  int get rustContentHash => -674898733;
+  int get rustContentHash => -1236569759;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -77,17 +77,6 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 
 abstract class RustLibApi extends BaseApi {
   Future<String> crateFrbApiDisposeMatrixClient({required String profileKey});
-
-  Future<String> crateFrbApiInitializeMatrixClient({
-    required String profileKey,
-    required String homeserverUrl,
-    required String userId,
-    required String deviceId,
-    required String accessToken,
-    required String storePath,
-    required String storePassphrase,
-    required String extraRootCertificatePem,
-  });
 
   Future<String> crateFrbApiMatrixAcceptVerification({
     required String profileKey,
@@ -107,6 +96,11 @@ abstract class RustLibApi extends BaseApi {
     required bool matches,
   });
 
+  Future<String> crateFrbApiMatrixCreateBusinessRoom({
+    required String profileKey,
+    required String title,
+  });
+
   Future<String> crateFrbApiMatrixCreateEncryptedRoom({
     required String profileKey,
     required String title,
@@ -120,6 +114,57 @@ abstract class RustLibApi extends BaseApi {
     required String profileKey,
     required String roomId,
     required String eventId,
+  });
+
+  Future<String> crateFrbApiMatrixMemberSessionActivate({
+    required String profileKey,
+    required String homeserverUrl,
+    required String userId,
+    required String deviceId,
+    required String accessToken,
+    required String deviceProof,
+    required String storePath,
+    required String storePassphrase,
+    required String extraRootCertificatePem,
+  });
+
+  Future<String> crateFrbApiMatrixOauthAbort({required String loginKey});
+
+  Future<String> crateFrbApiMatrixOauthActivate({
+    required String loginKey,
+    required String profileKey,
+    required String storePath,
+    required String storePassphrase,
+  });
+
+  Future<String> crateFrbApiMatrixOauthEndSession({
+    required String profileKey,
+    required String storePath,
+  });
+
+  Future<String> crateFrbApiMatrixOauthFinish({
+    required String loginKey,
+    required String callbackUrl,
+  });
+
+  Future<String> crateFrbApiMatrixOauthRestore({
+    required String profileKey,
+    required String homeserverUrl,
+    required String userId,
+    required String deviceId,
+    required String storePath,
+    required String storePassphrase,
+    required String extraRootCertificatePem,
+  });
+
+  Future<String> crateFrbApiMatrixOauthStart({
+    required String loginKey,
+    required String homeserverUrl,
+    required String expectedIssuer,
+    required String clientId,
+    required String deviceId,
+    required String redirectUri,
+    required String extraRootCertificatePem,
   });
 
   Future<String> crateFrbApiMatrixRecover({
@@ -198,71 +243,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<String> crateFrbApiInitializeMatrixClient({
-    required String profileKey,
-    required String homeserverUrl,
-    required String userId,
-    required String deviceId,
-    required String accessToken,
-    required String storePath,
-    required String storePassphrase,
-    required String extraRootCertificatePem,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(profileKey, serializer);
-          sse_encode_String(homeserverUrl, serializer);
-          sse_encode_String(userId, serializer);
-          sse_encode_String(deviceId, serializer);
-          sse_encode_String(accessToken, serializer);
-          sse_encode_String(storePath, serializer);
-          sse_encode_String(storePassphrase, serializer);
-          sse_encode_String(extraRootCertificatePem, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 2,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateFrbApiInitializeMatrixClientConstMeta,
-        argValues: [
-          profileKey,
-          homeserverUrl,
-          userId,
-          deviceId,
-          accessToken,
-          storePath,
-          storePassphrase,
-          extraRootCertificatePem,
-        ],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateFrbApiInitializeMatrixClientConstMeta =>
-      const TaskConstMeta(
-        debugName: "initialize_matrix_client",
-        argNames: [
-          "profileKey",
-          "homeserverUrl",
-          "userId",
-          "deviceId",
-          "accessToken",
-          "storePath",
-          "storePassphrase",
-          "extraRootCertificatePem",
-        ],
-      );
-
-  @override
   Future<String> crateFrbApiMatrixAcceptVerification({
     required String profileKey,
   }) {
@@ -274,7 +254,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 2,
             port: port_,
           );
         },
@@ -309,7 +289,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 3,
             port: port_,
           );
         },
@@ -342,7 +322,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 4,
             port: port_,
           );
         },
@@ -377,7 +357,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 5,
             port: port_,
           );
         },
@@ -396,6 +376,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "matrix_confirm_sas",
         argNames: ["profileKey", "matches"],
+      );
+
+  @override
+  Future<String> crateFrbApiMatrixCreateBusinessRoom({
+    required String profileKey,
+    required String title,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(profileKey, serializer);
+          sse_encode_String(title, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFrbApiMatrixCreateBusinessRoomConstMeta,
+        argValues: [profileKey, title],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiMatrixCreateBusinessRoomConstMeta =>
+      const TaskConstMeta(
+        debugName: "matrix_create_business_room",
+        argNames: ["profileKey", "title"],
       );
 
   @override
@@ -503,6 +518,337 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<String> crateFrbApiMatrixMemberSessionActivate({
+    required String profileKey,
+    required String homeserverUrl,
+    required String userId,
+    required String deviceId,
+    required String accessToken,
+    required String deviceProof,
+    required String storePath,
+    required String storePassphrase,
+    required String extraRootCertificatePem,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(profileKey, serializer);
+          sse_encode_String(homeserverUrl, serializer);
+          sse_encode_String(userId, serializer);
+          sse_encode_String(deviceId, serializer);
+          sse_encode_String(accessToken, serializer);
+          sse_encode_String(deviceProof, serializer);
+          sse_encode_String(storePath, serializer);
+          sse_encode_String(storePassphrase, serializer);
+          sse_encode_String(extraRootCertificatePem, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 10,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFrbApiMatrixMemberSessionActivateConstMeta,
+        argValues: [
+          profileKey,
+          homeserverUrl,
+          userId,
+          deviceId,
+          accessToken,
+          deviceProof,
+          storePath,
+          storePassphrase,
+          extraRootCertificatePem,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiMatrixMemberSessionActivateConstMeta =>
+      const TaskConstMeta(
+        debugName: "matrix_member_session_activate",
+        argNames: [
+          "profileKey",
+          "homeserverUrl",
+          "userId",
+          "deviceId",
+          "accessToken",
+          "deviceProof",
+          "storePath",
+          "storePassphrase",
+          "extraRootCertificatePem",
+        ],
+      );
+
+  @override
+  Future<String> crateFrbApiMatrixOauthAbort({required String loginKey}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(loginKey, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 11,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFrbApiMatrixOauthAbortConstMeta,
+        argValues: [loginKey],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiMatrixOauthAbortConstMeta =>
+      const TaskConstMeta(
+        debugName: "matrix_oauth_abort",
+        argNames: ["loginKey"],
+      );
+
+  @override
+  Future<String> crateFrbApiMatrixOauthActivate({
+    required String loginKey,
+    required String profileKey,
+    required String storePath,
+    required String storePassphrase,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(loginKey, serializer);
+          sse_encode_String(profileKey, serializer);
+          sse_encode_String(storePath, serializer);
+          sse_encode_String(storePassphrase, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 12,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFrbApiMatrixOauthActivateConstMeta,
+        argValues: [loginKey, profileKey, storePath, storePassphrase],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiMatrixOauthActivateConstMeta =>
+      const TaskConstMeta(
+        debugName: "matrix_oauth_activate",
+        argNames: ["loginKey", "profileKey", "storePath", "storePassphrase"],
+      );
+
+  @override
+  Future<String> crateFrbApiMatrixOauthEndSession({
+    required String profileKey,
+    required String storePath,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(profileKey, serializer);
+          sse_encode_String(storePath, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFrbApiMatrixOauthEndSessionConstMeta,
+        argValues: [profileKey, storePath],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiMatrixOauthEndSessionConstMeta =>
+      const TaskConstMeta(
+        debugName: "matrix_oauth_end_session",
+        argNames: ["profileKey", "storePath"],
+      );
+
+  @override
+  Future<String> crateFrbApiMatrixOauthFinish({
+    required String loginKey,
+    required String callbackUrl,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(loginKey, serializer);
+          sse_encode_String(callbackUrl, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFrbApiMatrixOauthFinishConstMeta,
+        argValues: [loginKey, callbackUrl],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiMatrixOauthFinishConstMeta =>
+      const TaskConstMeta(
+        debugName: "matrix_oauth_finish",
+        argNames: ["loginKey", "callbackUrl"],
+      );
+
+  @override
+  Future<String> crateFrbApiMatrixOauthRestore({
+    required String profileKey,
+    required String homeserverUrl,
+    required String userId,
+    required String deviceId,
+    required String storePath,
+    required String storePassphrase,
+    required String extraRootCertificatePem,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(profileKey, serializer);
+          sse_encode_String(homeserverUrl, serializer);
+          sse_encode_String(userId, serializer);
+          sse_encode_String(deviceId, serializer);
+          sse_encode_String(storePath, serializer);
+          sse_encode_String(storePassphrase, serializer);
+          sse_encode_String(extraRootCertificatePem, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFrbApiMatrixOauthRestoreConstMeta,
+        argValues: [
+          profileKey,
+          homeserverUrl,
+          userId,
+          deviceId,
+          storePath,
+          storePassphrase,
+          extraRootCertificatePem,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiMatrixOauthRestoreConstMeta =>
+      const TaskConstMeta(
+        debugName: "matrix_oauth_restore",
+        argNames: [
+          "profileKey",
+          "homeserverUrl",
+          "userId",
+          "deviceId",
+          "storePath",
+          "storePassphrase",
+          "extraRootCertificatePem",
+        ],
+      );
+
+  @override
+  Future<String> crateFrbApiMatrixOauthStart({
+    required String loginKey,
+    required String homeserverUrl,
+    required String expectedIssuer,
+    required String clientId,
+    required String deviceId,
+    required String redirectUri,
+    required String extraRootCertificatePem,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(loginKey, serializer);
+          sse_encode_String(homeserverUrl, serializer);
+          sse_encode_String(expectedIssuer, serializer);
+          sse_encode_String(clientId, serializer);
+          sse_encode_String(deviceId, serializer);
+          sse_encode_String(redirectUri, serializer);
+          sse_encode_String(extraRootCertificatePem, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFrbApiMatrixOauthStartConstMeta,
+        argValues: [
+          loginKey,
+          homeserverUrl,
+          expectedIssuer,
+          clientId,
+          deviceId,
+          redirectUri,
+          extraRootCertificatePem,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiMatrixOauthStartConstMeta =>
+      const TaskConstMeta(
+        debugName: "matrix_oauth_start",
+        argNames: [
+          "loginKey",
+          "homeserverUrl",
+          "expectedIssuer",
+          "clientId",
+          "deviceId",
+          "redirectUri",
+          "extraRootCertificatePem",
+        ],
+      );
+
+  @override
   Future<String> crateFrbApiMatrixRecover({
     required String profileKey,
     required String recoveryKeyOrPassphrase,
@@ -516,7 +862,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 17,
             port: port_,
           );
         },
@@ -552,7 +898,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 18,
             port: port_,
           );
         },
@@ -583,7 +929,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 19,
             port: port_,
           );
         },
@@ -611,7 +957,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 20,
             port: port_,
           );
         },
@@ -648,7 +994,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 21,
             port: port_,
           );
         },
@@ -678,7 +1024,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 22,
             port: port_,
           );
         },
@@ -710,7 +1056,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 23,
             port: port_,
           );
         },
@@ -747,7 +1093,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 24,
             port: port_,
           );
         },
@@ -778,7 +1124,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 25,
             port: port_,
           );
         },

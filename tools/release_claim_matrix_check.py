@@ -14,7 +14,7 @@ CLAIM_MATRIX = ROOT / "docs" / "product-trust-provider-choice-claim-matrix.md"
 MEETING_DECISION = ROOT / "docs" / "meeting-architecture-decision.md"
 REGISTRY = ROOT / "specs" / "0004-domain-registry" / "canonical-domain-registry-v1.json"
 README_REQUIRED_BOUNDARIES = [
-    "active dogfood",
+    "not a finished production collaboration platform",
     "does not claim public production readiness",
     "perfect lossless migration",
     "unrestricted autonomous agents",
@@ -62,9 +62,9 @@ def main() -> None:
     if not README.exists():
         fail("missing README.md")
     text = README.read_text(encoding="utf-8")
-    if "## What Is Guarded" not in text:
+    if "## Current status" not in text:
         fail("README missing compact guarded-claims section")
-    if "## Release Evidence" not in text:
+    if "## Release evidence" not in text:
         fail("README missing release evidence pointer")
     for boundary in README_REQUIRED_BOUNDARIES:
         if boundary not in text:

@@ -6,6 +6,7 @@ import com.massimotter.weave.backend.model.interop.CanonicalBridgeEventResponse;
 import com.massimotter.weave.backend.model.interop.InteropStatusResponse;
 import com.massimotter.weave.backend.model.interop.SlackEventRequest;
 import com.massimotter.weave.backend.model.interop.SlackOAuthCallbackRequest;
+import com.massimotter.weave.backend.model.interop.SlackOAuthCallbackResponse;
 import com.massimotter.weave.backend.model.interop.SlackOutboundMessageRequest;
 import com.massimotter.weave.backend.model.interop.SlackOutboundMessageResponse;
 import com.massimotter.weave.backend.model.interop.SlackStatusResponse;
@@ -163,15 +164,15 @@ public class InteropGatewayService {
                 payload);
     }
 
-    public Map<String, Object> oauthCallback(SlackOAuthCallbackRequest request) {
+    public SlackOAuthCallbackResponse oauthCallback(SlackOAuthCallbackRequest request) {
         if (!slackStatus().enabled()) {
             throw disabled("oauth-callback");
         }
-        return Map.of(
-                "provider", "slack",
-                "installed", false,
-                "credentialStored", false,
-                "message", "Slack OAuth skeleton is wired; token exchange remains disabled until secret brokering is configured.");
+        return new SlackOAuthCallbackResponse(
+                "slack",
+                false,
+                false,
+                "Slack OAuth skeleton is wired; token exchange remains disabled until secret brokering is configured.");
     }
 
     private void verifySlackSignature(String rawBody, String requestTimestamp, String requestSignature) {

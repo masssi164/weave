@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.model.identity;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
 public record OrganizationMemberResponse(
@@ -7,8 +8,8 @@ public record OrganizationMemberResponse(
     String email,
     String displayName,
     String role,
-    List<String> capabilities,
-    boolean enabled,
+    @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> capabilities,
+    @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean enabled,
     String version) {
 
   public OrganizationMemberResponse {

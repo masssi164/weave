@@ -13,8 +13,65 @@
       "evidenceMode": "live-runtime"
     },
     {
+      "tag": "@weave-live-native-product",
+      "scenario": "One native sign-in opens Files Calendar and Chat",
+      "feature": "e2e/features/live_stack_app.feature",
+      "executableTest": "client/integration_test/system_browser_auth_e2e_test.dart",
+      "evidenceMarkers": [
+        "NATIVE_PRODUCT_SIGN_IN_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "client/tool/run_native_product_acceptance.py",
+          "fragments": [
+            "restart_disposable_services(env)",
+            "NATIVE_SERVICE_RESTART_RESULT status=passed"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-live-member-session-revocation",
+      "scenario": "Revoked sessions fail closed and later sign-in restores the same member",
+      "feature": "e2e/features/member_session_revocation.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/MemberSessionRevocationJourney.java",
+      "evidenceMarkers": [
+        "WEAVE_MEMBER_SESSION_REVOCATION_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "gradle/tasks/test-app.sh",
+          "fragments": [
+            ".administratorSessionRevocationDenied == true",
+            ".reauthenticationAfterSessionRevocation == true",
+            ".uninitializedChatLogoutDenied == true"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-live-foreign-organization-denial",
+      "scenario": "A foreign organization owner cannot cross the Weave boundary",
+      "feature": "e2e/features/foreign_organization_isolation.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/ForeignOrganizationJourney.java",
+      "evidenceMarkers": [
+        "WEAVE_FOREIGN_ORGANIZATION_DENIAL_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "gradle/tasks/test-app.sh",
+          "fragments": [
+            ".foreignOrganizationDenied == true"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@files-webdav-read-list-download",
-      "scenario": "Member lists and reads files through the Weave WebDAV facade",
+      "scenario": "Historical WebDAV read tests retain provider isolation evidence",
       "feature": "e2e/features/files_webdav_facade.feature",
       "executableTest": "tools/files_webdav_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -29,20 +86,12 @@
             "getDownloadsFileThroughFacadePath",
             "not(containsString(\"remote.php\"))"
           ]
-        },
-        {
-          "path": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
-          "fragments": [
-            "lists files through the Weave WebDAV data plane with the Weave token",
-            "downloads files through the Weave WebDAV data plane",
-            "isNot(contains('WebDAV'))"
-          ]
         }
       ]
     },
     {
       "tag": "@files-webdav-write-mvp",
-      "scenario": "Member writes files through the Weave WebDAV facade with guarded preconditions",
+      "scenario": "Historical WebDAV write tests retain precondition and audit evidence",
       "feature": "e2e/features/files_webdav_facade.feature",
       "executableTest": "tools/files_webdav_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -68,7 +117,7 @@
     },
     {
       "tag": "@files-mcp-facade-no-provider-bypass",
-      "scenario": "Files MCP tools cannot bypass the Files facade",
+      "scenario": "Historical MCP Files contract records provider bypass restrictions",
       "feature": "e2e/features/files_webdav_facade.feature",
       "executableTest": "tools/files_webdav_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -79,8 +128,9 @@
         {
           "path": "infra/weave-workspace/weave-mcp-tool-contract.json",
           "fragments": [
-            "\"dataPlaneAuthority\": \"weave-webdav-facade\"",
-            "rawProviderUrl"
+            "curated workload-only Files and Calendar projection through the generated Weave User API",
+            "\"runtimeDirectProviderAccessAllowed\": false",
+            "\"rawProviderInternalsReturned\": false"
           ]
         }
       ]
@@ -102,17 +152,6 @@
             "getDownloadsFileThroughFacadePath",
             "putMkcolAndDeleteUseWebDavFacadeWriteUseCases"
           ]
-        },
-        {
-          "path": "client/lib/features/files/data/repositories/backend_files_repository.dart",
-          "fragments": [
-            "http.Request('PROPFIND'",
-            "'dav', 'files'",
-            "'PUT'",
-            "'MKCOL'",
-            "'DELETE'",
-            "'If-None-Match': '*'"
-          ]
         }
       ]
     },
@@ -122,8 +161,7 @@
       "feature": "e2e/features/target_standard_facade_hard_gate.feature",
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
-        "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP",
-        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
+        "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -154,17 +192,16 @@
       "feature": "e2e/features/target_standard_facade_hard_gate.feature",
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
-        "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP",
-        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
+        "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
           "path": "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
           "fragments": [
-            "WeaveMatrixFacadeChatRepository",
-            "Matrix Client-Server projection",
-            "`/api/chat/**` remains a control/product facade"
+            "NativeMatrixChatRepository",
+            "native Rust/Matrix SDK",
+            "Weave User API room bindings remain separate"
           ]
         },
         {
@@ -479,17 +516,14 @@
           "fragments": [
             "Weave Client and Organization/Admin Console split",
             "The Weave Client owns member work surfaces",
-            "The Organization/Admin Console owns organization bootstrap",
-            "collaborative-domain provider choice, policy, readiness, diagnostics, and",
-            "whitelisting"
+            "The Organization/Admin Console owns organization bootstrap"
           ]
         },
         {
-          "path": "docs/architecture.md",
+          "path": "docs/specification-source-of-truth.md",
           "fragments": [
-            "Organization discovery and manifest contract",
-            "provider setup, endpoint rotation, diagnostics, and whitelisting are never member-client responsibilities",
-            "Those states are limited to `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`"
+            "For the #1470 consolidation release",
+            "accepted release profile"
           ]
         },
         {
@@ -535,30 +569,26 @@
           ]
         },
         {
-          "path": "client/test/integrations/weave_api/data/services/weave_api_client_test.dart",
+          "path": "client/test/architecture/backend_facade_contract_test.dart",
           "fragments": [
-            "fetches provider stack readiness without direct provider URLs",
-            "ProviderCategoryReadiness.policyBlocked",
-            "keepsMemberSemanticsStable",
-            "external_existing_provider",
-            "rawProviderErrorsReturned"
+            "member app cannot acquire provider registry diagnostics with its User session",
+            "generated/admin_api/",
+            "workspaceCapabilitySnapshotProvider"
           ]
         },
         {
           "path": "client/test/features/settings/settings_screen_test.dart",
           "fragments": [
-            "Admin/operator readiness cockpit",
-            "Overall posture: Admin action required",
-            "Category health and member impact",
-            "Provider diagnostics hidden from normal members",
-            "Configure endpoint mappings and SecretRefs"
+            "owner health keeps User capability states without Admin diagnostics",
+            "expect(find.text('Workspace Readiness'), findsOneWidget)",
+            "expect(find.text('Provider stack readiness'), findsNothing)"
           ]
         },
         {
           "path": "docs/admin-operator-handbook.md",
           "fragments": [
-            "Workspace/Admin Health is the operator control plane for this posture.",
-            "overall posture, category health, support-safe evidence, member/admin boundaries, and the next operator action"
+            "The separately authenticated Admin Console owns provider diagnostics.",
+            "Flutter Workspace Health uses only member-safe capability and readiness snapshots"
           ]
         }
       ],
@@ -692,18 +722,18 @@
       ],
       "additionalEvidence": [
         {
-          "path": "docs/canonical-feature-models.md",
+          "path": "e2e/README.md",
           "fragments": [
-            "The member client and Admin Console consume stable Weave contracts",
-            "Admin/provider policy and readiness decide whether a member manifest capability state is `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`.",
-            "Raw secrets, bearer tokens, provider URLs with credentials, downstream bodies, and provider-internal IDs do not appear in member responses"
+            "provider-neutral",
+            "Server authorization still enforces User/Admin",
+            "DAV remains private inside"
           ]
         },
         {
-          "path": "docs/architecture.md",
+          "path": "docs/specification-source-of-truth.md",
           "fragments": [
-            "Server facades expose Weave-owned models per capability",
-            "must not leak provider IDs, raw provider payloads, secrets, or downstream diagnostics"
+            "Implementation/evidence truth",
+            "pinned Weave Specification Corpus"
           ]
         }
       ],
@@ -762,11 +792,10 @@
           ]
         },
         {
-          "path": "docs/architecture.md",
+          "path": "e2e/README.md",
           "fragments": [
-            "Platform identity and RBAC capability profile contract",
-            "Keycloak is the platform authority",
-            "category-level capability keys"
+            "organization, Space, member, and resource boundaries",
+            "MCP has no provider or IAM"
           ]
         }
       ],
@@ -774,53 +803,25 @@
     },
     {
       "tag": "@weave-v01-agent-runtime-control-policy",
-      "scenario": "Runtime cells derive from current organization entitlement and policy",
+      "scenario": "Weaver workload access is bounded while private Runner work is deferred",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/AgentRuntimeAdminControllerTest.java",
+      "executableTest": "tools/enterprise_target_architecture_spine_check.py",
       "evidenceMarkers": [
         "V01_AGENT_RUNTIME_CONTROL_POLICY"
       ],
       "additionalEvidence": [
         {
-          "path": "docs/product-line-and-weaver-plan.md",
+          "path": "docs/specification-source-of-truth.md",
           "fragments": [
-            "Agent Runtime Control integration",
-            "signed RuntimeProfile v2",
-            "cell owns zero durable bytes"
+            "Weave's Matrix Client-Server facade is the accepted Chat northbound protocol boundary"
           ]
         },
         {
-          "path": "docs/architecture.md",
+          "path": "e2e/README.md",
           "fragments": [
-            "## Agent Runtime Control contract",
-            "RuntimeProfile v2 is a signed, short-lived desired-state projection",
-            "The active MCP catalog is limited to the read-only Files projection over WebDAV"
-          ]
-        },
-        {
-          "path": "docs/admin-provisioned-first-use.md",
-          "fragments": [
-            "## Agent Runtime Control policy",
-            "Exact native Keycloak Organization membership `/capabilities/weaver` is the sole self-hosted coarse entitlement source",
-            "profile generation is audited"
-          ]
-        },
-        {
-          "path": "infra/docs/weaver-runtime-lifecycle.md",
-          "fragments": [
-            "Each cell gets a dedicated confidential Keycloak client",
-            "Signed RuntimeProfile input",
-            "Zero durable cell-local bytes",
-            "DELETE_RUNTIME_STATE_ONLY"
-          ]
-        },
-        {
-          "path": "infra/weave-workspace/weaver-runtime-lifecycle.contract.json",
-          "fragments": [
-            "weave-weaver-runtime-lifecycle-contract-v2",
-            "signed-RuntimeProfile-v2",
-            "zeroDurableCellLocalBytes",
-            "confirmed-delete-runtime-state-identity-credential-and-ephemeral-material"
+            "Weaver/OpenClaw integration retain",
+            "MCP has no provider or IAM",
+            "Private Runners are deferred"
           ]
         }
       ],
@@ -828,7 +829,7 @@
     },
     {
       "tag": "@weave-v01-mcp-workload-boundary",
-      "scenario": "MCP admits only a current entitled workload and advertises the guarded Files read slice",
+      "scenario": "MCP admits only a current entitled workload and advertises curated Files and Calendar tools",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
       "executableTest": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
       "evidenceMarkers": [
@@ -836,18 +837,9 @@
       ],
       "additionalEvidence": [
         {
-          "path": "docs/governed-weaver-runtime-security-contract.md",
-          "fragments": [
-            "MCP is an AI-workload surface, never a human member API",
-            "The first active catalog entry is the read-only Files projection",
-            "inbound bearer is never relayed",
-            "ApprovalDecisionEvidence v2"
-          ]
-        },
-        {
           "path": "infra/docs/weave-mcp-tool-contract.md",
           "fragments": [
-            "first read-only Files slice active",
+            "Guarded / curated Files and Calendar slices active",
             "Human access tokens",
             "Standard Token Exchange V2",
             "`files.search`"
@@ -1111,7 +1103,7 @@
         {
           "path": "admin-console/README.md",
           "fragments": [
-            "Talks only to Weave backend admin APIs",
+            "Uses generated Admin operations for authorized",
             "The Weave member client remains provider-agnostic"
           ]
         },
@@ -3780,7 +3772,7 @@
         {
           "path": "admin-console/src/App.test.tsx",
           "fragments": [
-            "applies selected providers only after fresh dry-run evidence and consequence confirmation",
+            "does not activate a provider from selection metadata even when a fixture claims fresh evidence",
             "blocks provider apply when dry-run evidence becomes stale after selection changes"
           ]
         },
@@ -3874,10 +3866,10 @@
           ]
         },
         {
-          "path": "admin-console/src/App.test.tsx",
+          "path": "server/src/test/java/com/massimotter/weave/backend/agentruntime/application/AgentRuntimeControlServiceTest.java",
           "fragments": [
-            "loads an Agent Runtime Control projection without exposing runtime internals",
-            "Agent Runtime Control"
+            "entitlementAuthority.denied = true",
+            "RuntimeEntitlementState.REVOKED"
           ]
         }
       ]
@@ -3949,10 +3941,10 @@
           ]
         },
         {
-          "path": "admin-console/src/App.test.tsx",
+          "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
           "fragments": [
-            "loads an Agent Runtime Control projection without exposing runtime internals",
-            "empty catalog"
+            "discoversTheCuratedFilesToolAndCanonicalResourceTemplate",
+            "files.search"
           ]
         }
       ]
@@ -3992,7 +3984,7 @@
     },
     {
       "tag": "@enterprise-target-decision-lock",
-      "scenario": "Enterprise hard-plan decisions are locked before implementation lanes expand",
+      "scenario": "The approved consolidation release governs architecture evidence",
       "feature": "e2e/features/enterprise_target_architecture.feature",
       "executableTest": "tools/enterprise_target_architecture_spine_check.py",
       "evidenceMarkers": [
@@ -4001,18 +3993,24 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
+          "path": "docs/specification-source-of-truth.md",
           "fragments": [
-            "Domain kernel",
-            "OpenAPI is demoted to control",
-            "#1011"
+            "steering/release-2026-10-product-consolidation.md",
+            "supersedes conflicting older Core"
+          ]
+        },
+        {
+          "path": "e2e/README.md",
+          "fragments": [
+            "separate User and Admin OpenAPI artifacts",
+            "#1498 owns provider adoption and portability"
           ]
         }
       ]
     },
     {
       "tag": "@enterprise-target-open-standard-northbound",
-      "scenario": "Northbound standards stay separate from southbound providers",
+      "scenario": "Current client boundaries separate generated HTTP, native Matrix, and private adapters",
       "feature": "e2e/features/enterprise_target_architecture.feature",
       "executableTest": "tools/enterprise_target_architecture_spine_check.py",
       "evidenceMarkers": [
@@ -4021,48 +4019,26 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
+          "path": "e2e/README.md",
           "fragments": [
-            "OIDC/OAuth2-governed Open Standards Gateway",
-            "LiveKit is the first SFU candidate",
-            "Open standards are northbound projections or southbound adapter seams"
+            "separate User and Admin OpenAPI artifacts",
+            "Flutter native Matrix SDK",
+            "DAV remains private inside",
+            "MCP has no provider or IAM"
           ]
         },
         {
-          "path": "docs/architecture.md",
+          "path": "specs/spec-inventory.yaml",
           "fragments": [
-            "OIDC/OAuth2 for identity",
-            "WebDAV for Files",
-            "CalDAV/iCalendar for",
-            "Calendar",
-            "Matrix Client-Server API for Chat",
-            "pinned MatrixRTC Profile 0 plus",
-            "WebRTC for Calls",
-            "workload-only MCP for Agents"
-          ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
-          "fragments": [
-            "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
-            "calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData",
-            "calDavEventReadPutAndDeleteUseCalendarFacadeBoundaryAndStableErrors"
-          ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
-          "fragments": [
-            "syncProjectsCanonicalChatThroughRustWithStableWeaveCursor",
-            "sendParsesInRustAndForwardsTransactionForCanonicalIdempotency",
-            "rust-ruma-jni",
-            "!channel-general:api.weave.test"
+            "Generated User API over server-owned Files routes",
+            "Weave Matrix Client-Server facade with narrowly scoped Rust/Ruma/JNI"
           ]
         }
       ]
     },
     {
       "tag": "@enterprise-target-openapi-control-plane-only",
-      "scenario": "OpenAPI does not become the normal collaboration data plane",
+      "scenario": "Separate User and Admin OpenAPI artifacts govern current HTTP access",
       "feature": "e2e/features/enterprise_target_architecture.feature",
       "executableTest": "tools/enterprise_target_architecture_spine_check.py",
       "evidenceMarkers": [
@@ -4071,36 +4047,25 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-004-server-openapi-contract-authority.md",
+          "path": "e2e/README.md",
           "fragments": [
-            "superseded for normal Files, Calendar, and Chat data planes",
-            "OpenAPI/REST is not the normal Files, Calendar, or Chat data plane",
-            "Files: WebDAV",
-            "Calendar: CalDAV plus iCalendar",
-            "Chat: Matrix Client-Server API projection"
+            "separate User and Admin OpenAPI artifacts",
+            "Server authorization still enforces User/Admin",
+            "generated User API"
           ]
         },
         {
-          "path": "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
+          "path": "docs/specification-source-of-truth.md",
           "fragments": [
-            "Matrix Client-Server projection as the chat data plane",
-            "`/api/chat/**` remains a control/product facade",
-            "OpenAPI/REST"
-          ]
-        },
-        {
-          "path": "client/test/architecture/backend_facade_contract_test.dart",
-          "fragments": [
-            "primary chat provider is wired through the Matrix Client-Server projection",
-            "BackendChatRepository(",
-            "isNot(contains('matrixSessionServiceProvider'))"
+            "accepted release profile",
+            "Weave's Matrix Client-Server facade is the accepted Chat northbound protocol boundary"
           ]
         }
       ]
     },
     {
       "tag": "@enterprise-target-no-transitional-compatibility",
-      "scenario": "Transitional behavior is not preserved as architecture",
+      "scenario": "Superseded architecture stays historical while current safeguards remain",
       "feature": "e2e/features/enterprise_target_architecture.feature",
       "executableTest": "tools/enterprise_target_architecture_spine_check.py",
       "evidenceMarkers": [
@@ -4109,18 +4074,18 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-008-no-transitional-compatibility-as-architecture.md",
+          "path": "docs/specification-source-of-truth.md",
           "fragments": [
-            "Transitional behavior is not architecture",
-            "fixture-fenced",
-            "Strategic JSON/file runtime truth is not preserved as the target"
+            "Cleanup policy",
+            "preserve evidence and gates"
           ]
         },
         {
-          "path": "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
+          "path": "specs/spec-inventory.yaml",
           "fragments": [
-            "direct target-implementation issue DAG",
-            "#1031"
+            "obsoleteLocalMeanings",
+            "Weave Matrix Client-Server facade with narrowly scoped Rust/Ruma/JNI",
+            "Generated User API over server-owned Files routes"
           ]
         }
       ]
@@ -4180,7 +4145,7 @@
     },
     {
       "tag": "@enterprise-target-persistence-foundation",
-      "scenario": "Strategic control-plane state gains a gated relational persistence foundation",
+      "scenario": "Weave-owned strategic state has one gated relational persistence foundation",
       "feature": "e2e/features/enterprise_target_architecture.feature",
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/provider/JpaProviderSelectionRepositoryTest.java",
       "evidenceMarkers": [
@@ -4189,12 +4154,11 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
+          "path": "docs/architecture/database-schema-authority.md",
           "fragments": [
-            "one persistent, non-cancelling schema initializer",
-            "Testcontainers JUnit/PostgreSQL",
-            "H2 only for fast development/unit feedback",
-            "PostgreSQL as the authoritative integration"
+            "versioned Flyway SQL migrations",
+            "Hibernate validates mappings",
+            "H2 remains limited to fast tests"
           ]
         },
         {
@@ -4238,11 +4202,10 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
+          "path": "docs/architecture/database-schema-authority.md",
           "fragments": [
-            "the only production storage mode for strategic Weave-owned state",
-            "append-only evidence streams",
-            "they are not alternative strategic database authorities"
+            "one production schema authority",
+            "Hibernate validates mappings"
           ]
         },
         {
@@ -4279,11 +4242,11 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
+          "path": "docs/architecture/database-schema-authority.md",
           "fragments": [
-            "the only production storage mode for strategic Weave-owned state",
-            "migration evidence",
-            "they are not alternative strategic database authorities"
+            "one production schema authority",
+            "PostgreSQL is authoritative",
+            "restored Flyway history"
           ]
         },
         {
@@ -4312,7 +4275,7 @@
     },
     {
       "tag": "@enterprise-target-provider-switch-no-drift-foundation",
-      "scenario": "Provider replacement dry-run records no-drift evidence without provider semantics leaking northbound",
+      "scenario": "Provider replacement dry-run remains a prerequisite rather than cutover proof",
       "feature": "e2e/features/enterprise_target_architecture.feature",
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
       "evidenceMarkers": [
@@ -4321,11 +4284,11 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
+          "path": "e2e/README.md",
           "fragments": [
-            "ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION",
-            "provider-switch no-drift foundation",
-            "#1025"
+            "Unsupported source properties or grants block activation",
+            "Offline dry-run/JPA tests",
+            "effective allow and deny permissions"
           ]
         },
         {
@@ -4348,7 +4311,7 @@
     },
     {
       "tag": "@open-standards-manifest",
-      "scenario": "Authenticated member discovers standard protocol entrypoints",
+      "scenario": "Authenticated member discovers release access surfaces",
       "feature": "e2e/features/open_standards_gateway_manifest.feature",
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
       "evidenceMarkers": [
@@ -4359,34 +4322,34 @@
         {
           "path": "server/src/test/resources/features/open-standards-gateway-control-plane.feature",
           "fragments": [
-            "Authenticated member discovers standard protocol entrypoints",
-            "Files advertises the Weave WebDAV facade",
-            "Calendar advertises the Weave CalDAV facade",
-            "Chat advertises a Matrix Client-Server endpoint"
+            "Authenticated member discovers release access surfaces",
+            "Files advertises the guarded generated User API without public WebDAV",
+            "Calendar advertises the guarded generated User API without public CalDAV",
+            "Chat advertises the guarded Weave Matrix Client-Server endpoint"
           ]
         }
       ]
     },
     {
-      "tag": "@openapi-control-only",
-      "scenario": "OpenAPI is only control and generated convenience",
+      "tag": "@openapi-domain-boundaries",
+      "scenario": "OpenAPI retains domain boundaries",
       "feature": "e2e/features/open_standards_gateway_manifest.feature",
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
       "evidenceMarkers": [
-        "OPENAPI_CONTROL_PLANE_CONTRACT",
-        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
+        "OPENAPI_USER_DOMAIN_BOUNDARY",
+        "OPENAPI_PROTOCOL_BOUNDARY"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/OpenApiDocumentationTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
           "fragments": [
-            "/api/files/client-setup/credentials",
-            "/api/files/client-setup/credentials/{credentialId}",
-            "/api/files/{id}/download",
-            "/api/calendar/events",
+            "/api/files/readiness",
+            "/api/calendar/scopes",
+            "/api/chat/readiness",
             "/api/chat/conversations",
-            "doesNotExist()"
+            "/dav/files",
+            "/caldav"
           ]
         }
       ]
@@ -4404,10 +4367,10 @@
         {
           "path": "server/src/main/java/com/massimotter/weave/backend/service/OrganizationManifestService.java",
           "fragments": [
-            "disabled_by_policy",
-            "not_configured",
-            "degraded",
-            "coming_later"
+            "CapabilityManifestState.DISABLED_BY_POLICY",
+            "CapabilityManifestState.NOT_CONFIGURED",
+            "CapabilityManifestState.DEGRADED",
+            "CapabilityManifestState.UNAVAILABLE"
           ]
         }
       ]
@@ -4677,24 +4640,37 @@
     },
     {
       "tag": "@files-flutter-webdav",
-      "scenario": "Flutter Files repository uses /dav/files for all file data-plane operations",
+      "scenario": "Historical Flutter WebDAV target is superseded",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [
-        "FLUTTER_FILES_WEBDAV_DATA_PLANE",
-        "FLUTTER_FILES_WEBDAV_COPY_MOVE"
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@files-user-api-generated-client",
+      "scenario": "Flutter uses generated Files operations and stable Weave references",
+      "feature": "e2e/features/files_user_api_generated.feature",
+      "executableTest": "tools/files_webdav_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "FILES_USER_API_GENERATED_CLIENT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/lib/features/files/data/repositories/backend_files_repository.dart",
+          "path": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
           "fragments": [
-            "http.Request('PROPFIND'",
-            "http.StreamedRequest('PUT'",
-            "http.Request('MKCOL'",
-            "method: 'COPY'",
-            "method: 'MOVE'",
-            "'DELETE'"
+            "uses the generated User API repository for release members",
+            "download validates exact bytes, length, digest and strong ETag",
+            "unsupported mutations and denied actions never use a fallback route"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/files/FilesUserApiServiceTest.java",
+          "fragments": [
+            "anotherOrganizationCannotResolveTheSameOpaqueFileId",
+            "currentReadOnlyGrantDoesNotAdvertiseMutationOrShareActions"
           ]
         }
       ]
@@ -4883,42 +4859,23 @@
             "X-WEAVE-CHANNEL-ID:engineering-general",
             "X-WEAVE-MEETING-THREAD-ID:meeting:channel-engineering-general:"
           ]
-        },
-        {
-          "path": "client/test/features/calendar/data/services/calendar_facade_client_test.dart",
-          "fragments": [
-            "meeting:channel-engineering-general:79cc2c616b93",
-            "events.events.single.threadRef.meetingThreadId"
-          ]
         }
       ]
     },
     {
-      "tag": "@calendar-flutter-caldav",
-      "scenario": "Flutter Calendar repository uses CalDAV and iCalendar for calendar data",
-      "feature": "e2e/features/calendar_caldav_facade.feature",
+      "tag": "@calendar-flutter-generated-user",
+      "scenario": "Calendar app uses the shared member session and preserves scheduling intent",
+      "feature": "e2e/features/calendar_user_api_generated.feature",
       "executableTest": "client/test/features/calendar/data/services/calendar_facade_client_test.dart",
       "evidenceMarkers": [
-        "FLUTTER_CALDAV_DATA_PLANE",
-        "FLUTTER_CALDAV_MUTATION_DATA_PLANE"
+        "CALENDAR_USER_API_GENERATED_CLIENT",
+        "CALENDAR_USER_API_TEMPORAL_PRESERVATION"
       ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "client/lib/features/calendar/data/services/calendar_facade_client.dart",
-          "fragments": [
-            "calendar-query",
-            "text/calendar",
-            "If-None-Match",
-            "If-Match",
-            "_httpClient.delete("
-          ]
-        }
-      ]
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@matrix-connect",
-      "scenario": "OIDC-provisioned member can connect to Matrix",
+      "scenario": "Weave sign-in establishes authorized Matrix access",
       "feature": "e2e/features/chat_matrix_facade.feature",
       "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -4927,11 +4884,25 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
             "MATRIX_CONNECT_CONTRACT",
-            "connect opens the OIDC-gated encrypted Rust session",
+            "connect opens the native encrypted Matrix session",
             "cryptoSession.synchronizeValues"
+          ]
+        },
+        {
+          "path": "client/test/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator_test.dart",
+          "fragments": [
+            "ordinary Chat access establishes Matrix through the Weave SSO context",
+            "a different organization cannot reuse the saved Matrix session",
+            "wrong OIDC issuer or audience never starts Matrix sign-in"
+          ]
+        },
+        {
+          "path": "client/test/features/chat/chat_screen_test.dart",
+          "fragments": [
+            "loads Chat without a separate member Connect action"
           ]
         }
       ]
@@ -4947,9 +4918,9 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
-            "maps only Rust-projected encrypted rooms into chat entities",
+            "maps encrypted and business rooms into chat entities",
             "MATRIX_SPACES_ROOMS_CONTRACT",
             "RustMatrixEncryptedRoom"
           ]
@@ -4967,7 +4938,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
             "MATRIX_MESSAGE_CONTRACT",
             "send, decrypt, and receipt stay inside the Rust Matrix core",
@@ -4980,11 +4951,11 @@
       "tag": "@matrix-openclaw-stock-channel",
       "scenario": "Stock OpenClaw Matrix channel runs against the Weave facade",
       "feature": "e2e/features/chat_matrix_facade.feature",
-      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/CollaborationJourney.java",
       "evidenceMarkers": [
-        "MATRIX_OPENCLAW_STOCK_CHANNEL_CONTRACT"
+        "WEAVE_OPENCLAW_MATRIX_RESULT status=passed"
       ],
-      "evidenceMode": "offline-spec",
+      "evidenceMode": "live-runtime",
       "additionalEvidence": [
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
@@ -5007,7 +4978,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
             "markRoomRead",
             "bridge.receipts",
@@ -5109,7 +5080,7 @@
           "path": "client/test/architecture/backend_facade_contract_test.dart",
           "fragments": [
             "FLUTTER_MATRIX_BOUNDARY_CONTRACT",
-            "WeaveMatrixFacadeChatRepository",
+            "NativeMatrixChatRepository",
             "isNot(contains('BackendChatRepository('))",
             "isNot(contains('matrixSessionServiceProvider'))"
           ]
@@ -5366,7 +5337,7 @@
     },
     {
       "tag": "@mcp-files-facade",
-      "scenario": "MCP Files read slice projects the existing authorized WebDAV facade",
+      "scenario": "MCP Files read slice projects the generated User Files API",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -5376,13 +5347,30 @@
     },
     {
       "tag": "@mcp-calendar-facade",
-      "scenario": "MCP Calendar catalog stays empty until the Calendar action contract is complete",
+      "scenario": "MCP Calendar agenda projects bounded generated User Calendar reads",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_CALENDAR_CATALOG_GUARDED"
+        "MCP_CALENDAR_READ_SLICE_ACTIVE"
       ],
-      "evidenceMode": "offline-spec"
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/CalendarUserApiClient.java",
+          "fragments": [
+            "new CalendarUserApi(client)",
+            "calendars.listUserCalendars(",
+            "calendars.queryCalendarAgenda("
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/calendar/CalendarUserApiServiceTest.java",
+          "fragments": [
+            "currentCalendarWorkloadReadsThroughMemberSpaceAndAuditsWithoutMaterializing",
+            "revokedWorkloadSpaceFailsBeforeCalendarProviderQuery"
+          ]
+        }
+      ]
     },
     {
       "tag": "@mcp-chat-facade",
@@ -5426,7 +5414,7 @@
     },
     {
       "tag": "@spring-ai-mcp-transport",
-      "scenario": "MCP admits only a current ARC-bound workload",
+      "scenario": "MCP admits only a currently bound workload",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -5439,6 +5427,7 @@
           "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
           "fragments": [
             "boundCellIsExchangedAndDispatchedThroughTheFrameworkTransport",
+            "validWorkloadBearerInitializesWithoutOptionalExtensionMarker",
             "humanBearerCannotDiscoverTheMcpCatalog",
             "weaver-cell-test",
             "status().isForbidden()"
@@ -5486,7 +5475,8 @@
             "tokenPolicy.resolve(",
             "exchange.exchange(",
             "EXCHANGED_TOKEN_ATTRIBUTE",
-            "Set.copyOf(properties.exchangeScopes())"
+            "workload.scopes().stream()",
+            ".filter(properties.exchangeScopes()::contains)"
           ]
         }
       ]
@@ -5796,7 +5786,7 @@
       "tag": "@matrix-e2ee-fail-closed-client",
       "scenario": "A client without E2EE capability cannot downgrade a room",
       "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+      "executableTest": "rust/matrix-client/src/flutter_crypto.rs",
       "evidenceMarkers": [
         "MATRIX_E2EE_CLIENT_FAILS_CLOSED"
       ],
@@ -5863,6 +5853,119 @@
         "HUMAN_TESTING_HAS_NO_MANIFEST_GATE"
       ],
       "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@calendar-mcp-write-parity",
+      "scenario": "Authorized MCP scheduling preserves User API versions and access",
+      "feature": "e2e/features/calendar_user_api_generated.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
+      "evidenceMarkers": [
+        "WEAVE_CALENDAR_MCP_WRITE_PARITY_RESULT",
+        "WEAVE_OPENCLAW_CALENDAR_WRITE_PARITY_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "test-app"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/WorkloadMcpJourney.java",
+          "fragments": [
+            "verifyCalendarWriteParity",
+            "calendar.create replay",
+            "MCP stale calendar.update",
+            "verifyMcpEventDeleted"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/ReleaseMcpJourney.java",
+          "fragments": [
+            "proveOpenClawCalendarWriteDenied",
+            "proveOpenClawCalendarWriteParity",
+            "calendar.verifyMcpEventDeleted"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedCalendarJourney.java",
+          "fragments": [
+            "readMcpEvent",
+            "verifyMcpEventUnchanged",
+            "verifyMcpEventDeleted"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@calendar-user-api-runtime",
+      "scenario": "Shared scheduling preserves time and access after restart",
+      "feature": "e2e/features/calendar_user_api_generated.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
+      "evidenceMarkers": [
+        "WEAVE_TEST_APP_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "test-app"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedCalendarJourney.java",
+          "fragments": [
+            "expectedOccurrences",
+            "requireWorkspaceScope",
+            "stale identical update",
+            "beforeDeniedCreate",
+            "deleteCalendarEvent"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/CollaborationJourney.java",
+          "fragments": [
+            "calendar.createAndVerify",
+            "calendar.verify(room.calendarProof()",
+            "calendar.delete(room.calendarProof()"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@generated-workspace-user-admin-runtime",
+      "scenario": "The member sees honest availability while the operator sees private setup checks",
+      "feature": "e2e/features/generated_workspace_user_admin.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
+      "evidenceMarkers": [
+        "WEAVE_TEST_APP_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "test-app"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedAdminApi.java",
+          "fragments": [
+            "AdminWorkspaceApi",
+            "verifyWorkspaceDiagnostics",
+            "admin_control_plane.readiness_read"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedWorkspaceJourney.java",
+          "fragments": [
+            "WorkspaceApi",
+            "verifyHome",
+            "getItemCount() != null"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
+          "fragments": [
+            "reject User session at Admin workspace diagnostics",
+            "assertSeparatedApiSessions",
+            "verifyHome(memberSession.accessToken())"
+          ]
+        }
+      ]
     }
   ]
 }

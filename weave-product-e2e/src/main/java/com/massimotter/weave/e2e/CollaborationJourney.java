@@ -1,5 +1,10 @@
 package com.massimotter.weave.e2e;
 
+import com.massimotter.weave.userapi.model.AuthenticatedUserResponse;
+import com.massimotter.weave.userapi.model.PlatformConfigResponse;
+import com.massimotter.weave.userapi.model.ProductProfileResponse;
+import com.massimotter.weave.userapi.model.WorkspaceHomeRecentActivityResponse;
+import com.massimotter.weave.userapi.model.WorkspaceHomeResponse;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -12,9 +17,11 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +33,7 @@ final class CollaborationJourney {
   private static final Set<PosixFilePermission> OWNER_FILE_PERMISSIONS =
       PosixFilePermissions.fromString("rw-------");
   private static final String MATRIX_DEVICE_HEADER = "X-Weave-Matrix-Device-Id";
+  private static final String MATRIX_DEVICE_PROOF_HEADER = "X-Weave-Matrix-Device-Proof";
   private static final String MEGOLM = "m.megolm.v1.aes-sha2";
   private static final Duration PROCESS_TIMEOUT = Duration.ofMinutes(5);
   private static final Duration PROCESS_CLEANUP_TIMEOUT = Duration.ofSeconds(10);
@@ -33,10 +41,18 @@ final class CollaborationJourney {
   private final ProductFlowEnvironment environment;
   private final JsonHttpClient http;
   private RetainedRoom retainedFirstPass;
+  private final GeneratedCalendarJourney calendar;
+  private final GeneratedFilesJourney files;
+  private final GeneratedProfileHomeApi profileHome;
+  private final SecureRandom deviceProofRandom = new SecureRandom();
+  private final Map<String, String> deviceProofs = new LinkedHashMap<>();
 
   CollaborationJourney(ProductFlowEnvironment environment, JsonHttpClient http) {
     this.environment = environment;
     this.http = http;
+    this.calendar = new GeneratedCalendarJourney(environment);
+    this.files = new GeneratedFilesJourney(environment);
+    this.profileHome = new GeneratedProfileHomeApi(environment);
   }
 
   PassProof runPass(
@@ -46,7 +62,8 @@ final class CollaborationJourney {
       OidcBrowserJourney.TokenSet outsider,
       JsonNode authorClaims,
       JsonNode collaboratorClaims,
-      JsonNode outsiderClaims) {
+      JsonNode outsiderClaims,
+      String openClawMemberToken) {
     if (pass < 1 || pass > 2) {
       throw new IllegalArgumentException("collaboration pass must be one or two");
     }
@@ -57,19 +74,27 @@ final class CollaborationJourney {
 
     String suffix = runHash() + "-p" + pass;
     String fileName = "collaboration-" + suffix + ".txt";
-    String eventUid = "collaboration-" + suffix;
     String roomId = null;
     String authorEventId = null;
     String collaboratorEventId = null;
     String outageEventId = null;
-    boolean fileCreated = false;
-    boolean calendarCreated = false;
+    GeneratedFilesJourney.MemberProof fileProof = null;
+    GeneratedCalendarJourney.Proof calendarProof = null;
     boolean restartContinuityVerified = false;
     String nativeRevisionHash = null;
     try {
+      if (pass == 1) {
+        requirePublicMatrixDiscovery();
+      }
       MatrixIdentity collaboratorMatrix = matrixIdentity(collaboratorIdentity, pass);
       matrixIdentity(outsiderIdentity, pass);
       matrixIdentity(authorIdentity, pass);
+      if (pass == 1 && Boolean.getBoolean("weave.e2e.release-mcp")) {
+        if (openClawMemberToken == null || openClawMemberToken.isBlank()) {
+          throw new ProductFlowException("OpenClaw normal member session is unavailable");
+        }
+        proveOpenClawBusinessRoom(openClawMemberToken, collaboratorMatrix.userId());
+      }
       if (pass == 2) {
         restartContinuityVerified =
             verifyAndCleanRetainedFirstPass(
@@ -77,57 +102,39 @@ final class CollaborationJourney {
       }
       roomId = createEncryptedRoom(authorIdentity, collaboratorMatrix.userId(), pass);
       joinRoom(collaboratorIdentity, roomId, pass);
+      String collaboratorSyncCursor = matrixSyncCursor(collaboratorIdentity, roomId, pass);
 
       String authorCiphertext = ciphertext("author", pass);
       String collaboratorCiphertext = ciphertext("collaborator", pass);
       authorEventId = sendEncrypted(authorIdentity, roomId, authorCiphertext, "author", pass);
       requireCiphertextObserved(collaboratorIdentity, roomId, authorCiphertext, "author", pass);
+      requireSyncObserved(
+          collaboratorIdentity, roomId, authorEventId, authorCiphertext,
+          collaboratorSyncCursor, pass);
       collaboratorEventId =
           sendEncrypted(collaboratorIdentity, roomId, collaboratorCiphertext, "collaborator", pass);
       requireCiphertextObserved(authorIdentity, roomId, collaboratorCiphertext, "collaborator", pass);
       requireMatrixDenied(outsiderIdentity, roomId, pass);
       String initialFile = "initial-" + Hashing.sha256(suffix).substring(0, 24);
       String updatedFile = "updated-" + Hashing.sha256(suffix).substring(0, 24);
-      String initialEtag = createFile(authorIdentity, fileName, initialFile);
-      fileCreated = true;
-      requireBody(collaboratorIdentity, "/dav/files/" + encode(fileName), initialFile, "shared file");
-      String updatedFileEtag =
-          updateFile(collaboratorIdentity, fileName, initialEtag, updatedFile);
-      if (initialEtag.equals(updatedFileEtag)) {
-        throw new ProductFlowException("WebDAV revision did not advance after update");
-      }
-      requireBody(authorIdentity, "/dav/files/" + encode(fileName), updatedFile, "updated shared file");
-      requireWebDavDenied(outsiderIdentity, fileName, pass);
+      fileProof = files.createMemberProof(authorIdentity.token(), fileName, initialFile,
+          "collaboration-file-create-" + suffix);
+      fileProof = files.updateMemberProof(fileProof, authorIdentity.token(), updatedFile,
+          "collaboration-file-update-" + suffix);
+      files.verifyMemberProof(fileProof, authorIdentity.token(), collaboratorIdentity.token(),
+          outsiderIdentity.token());
 
-      String initialCalendar = calendar(eventUid, "Initial " + suffix);
-      String updatedCalendar = calendar(eventUid, "Updated " + suffix);
-      String calendarEtag = createCalendar(authorIdentity, eventUid, initialCalendar);
-      calendarCreated = true;
-      requireCalendar(
-          collaboratorIdentity,
-          "/caldav/workspace/" + encode(eventUid) + ".ics",
-          initialCalendar,
-          "shared calendar event");
-      String updatedCalendarEtag =
-          updateCalendar(authorIdentity, eventUid, calendarEtag, updatedCalendar);
-      if (calendarEtag.equals(updatedCalendarEtag)) {
-        throw new ProductFlowException("CalDAV revision did not advance after update");
-      }
-      requireCalendar(
-          collaboratorIdentity,
-          "/caldav/workspace/" + encode(eventUid) + ".ics",
-          updatedCalendar,
-          "updated shared calendar event");
-      requireCalendarDenied(outsiderIdentity, eventUid, pass);
+      calendarProof = calendar.createAndVerify(
+          authorIdentity.token(), collaboratorIdentity.token(), outsiderIdentity.token(), suffix);
       nativeRevisionHash =
           Hashing.sha256(
               authorEventId
                   + "\u0000"
                   + collaboratorEventId
                   + "\u0000"
-                  + updatedFileEtag
+                  + fileProof.revision()
                   + "\u0000"
-                  + updatedCalendarEtag);
+                  + calendarProof.revisionEvidence());
 
       proveProfileIsolation(pass, authorIdentity, collaboratorIdentity, outsiderIdentity);
       proveHomeProjection(authorIdentity, collaboratorIdentity, outsiderIdentity);
@@ -143,16 +150,13 @@ final class CollaborationJourney {
                 List.of(
                     Hashing.sha256(authorCiphertext),
                     Hashing.sha256(collaboratorCiphertext)),
-                fileName,
-                updatedFile,
-                eventUid,
-                updatedCalendar);
+                fileProof,
+                calendarProof);
         roomId = null;
         authorEventId = null;
         collaboratorEventId = null;
         outageEventId = null;
-        fileCreated = false;
-        calendarCreated = false;
+        calendarProof = null;
       } else {
         cleanRoomStrict(
             authorIdentity,
@@ -165,10 +169,8 @@ final class CollaborationJourney {
         roomId = null;
       }
       if (pass == 2) {
-        deleteStrict(authorIdentity, "/caldav/workspace/" + encode(eventUid) + ".ics", "calendar event");
-        calendarCreated = false;
-        deleteStrict(authorIdentity, "/dav/files/" + encode(fileName), "file");
-        fileCreated = false;
+        calendar.delete(calendarProof, authorIdentity.token());
+        calendarProof = null;
       }
 
       return new PassProof(
@@ -198,15 +200,8 @@ final class CollaborationJourney {
         leaveBestEffort(collaboratorIdentity, roomId, pass);
         leaveBestEffort(authorIdentity, roomId, pass);
       }
-      if (calendarCreated) {
-        deleteBestEffort(
-            authorIdentity,
-            "/caldav/workspace/" + encode(eventUid) + ".ics",
-            "calendar event");
-      }
-      if (fileCreated) {
-        deleteBestEffort(authorIdentity, "/dav/files/" + encode(fileName), "file");
-      }
+      // Exact namespace teardown removes temporary Files objects; successful Calendar
+      // paths delete their events through the generated API with current versions.
     }
   }
 
@@ -228,20 +223,8 @@ final class CollaborationJourney {
       requireCiphertextObserved(collaborator, room.roomId(), ciphertext, "restart", pass);
     }
     requireMatrixDenied(outsider, room.roomId(), pass);
-    requireBody(author, "/dav/files/" + encode(room.fileName()), room.fileBody(), "restarted shared file");
-    requireBody(collaborator, "/dav/files/" + encode(room.fileName()), room.fileBody(), "restarted shared file");
-    requireWebDavDenied(outsider, room.fileName(), pass);
-    requireCalendar(
-        author,
-        "/caldav/workspace/" + encode(room.eventUid()) + ".ics",
-        room.calendarBody(),
-        "restarted shared calendar event");
-    requireCalendar(
-        collaborator,
-        "/caldav/workspace/" + encode(room.eventUid()) + ".ics",
-        room.calendarBody(),
-        "restarted shared calendar event");
-    requireCalendarDenied(outsider, room.eventUid(), pass);
+    files.verifyMemberProof(room.fileProof(), author.token(), collaborator.token(), outsider.token());
+    calendar.verify(room.calendarProof(), author.token(), collaborator.token(), outsider.token());
     cleanRoomStrict(
         author,
         collaborator,
@@ -250,8 +233,7 @@ final class CollaborationJourney {
         room.collaboratorEventId(),
         room.outageEventId(),
         pass);
-    deleteStrict(author, "/caldav/workspace/" + encode(room.eventUid()) + ".ics", "retained calendar event");
-    deleteStrict(author, "/dav/files/" + encode(room.fileName()), "retained file");
+    calendar.delete(room.calendarProof(), author.token());
     retainedFirstPass = null;
     return true;
   }
@@ -291,6 +273,32 @@ final class CollaborationJourney {
     }
   }
 
+  private void requirePublicMatrixDiscovery() {
+    JsonNode wellKnown = http.json(
+        "discover Weave Matrix facade", "GET",
+        environment.apiOrigin().resolve("/.well-known/matrix/client"),
+        Map.of(), null, Set.of(200));
+    String expectedOrigin = environment.apiOrigin().getScheme() + "://"
+        + environment.apiOrigin().getRawAuthority();
+    if (!expectedOrigin.equals(
+        wellKnown.path("m.homeserver").path("base_url").asString())) {
+      throw new ProductFlowException("Matrix discovery does not point to the Weave API authority");
+    }
+    JsonNode versions = http.json(
+        "discover public Matrix versions", "GET",
+        environment.api("/_matrix/client/versions"), Map.of(), null, Set.of(200));
+    if (!versions.path("versions").isArray()
+        || !"v1.18".equals(versions.path("versions").path(0).asString())) {
+      throw new ProductFlowException("public Matrix version discovery is unavailable");
+    }
+    JsonNode login = http.json(
+        "discover Matrix login policy", "GET",
+        environment.api("/_matrix/client/v3/login"), Map.of(), null, Set.of(200));
+    if (!login.path("flows").isArray() || login.path("flows").size() != 0) {
+      throw new ProductFlowException("Matrix discovery advertised an unavailable second login");
+    }
+  }
+
   private MatrixIdentity matrixIdentity(Identity identity, int pass) {
     JsonNode response =
         http.jsonRetryingMatrixIdentityConflict(
@@ -307,7 +315,103 @@ final class CollaborationJourney {
         || !deviceId.equals(deviceId(identity.role(), pass))) {
       throw new ProductFlowException(identity.role() + " Matrix identity is invalid");
     }
+    requireDeviceProofDenial(identity, pass);
     return new MatrixIdentity(userId, deviceId);
+  }
+
+  private void proveOpenClawBusinessRoom(String memberToken, String userId) {
+    String script = System.getProperty("weave.e2e.openclaw-matrix-script", "");
+    if (script.isBlank() || !Path.of(script).isAbsolute()
+        || !Files.isRegularFile(Path.of(script))) {
+      throw new ProductFlowException("real OpenClaw Matrix proof script is unavailable");
+    }
+    ObjectNode request = http.mapper().createObjectNode();
+    request.put("name", "Weave business Chat " + runHash());
+    JsonNode created = http.json(
+        "create authorized non-encrypted business room", "POST",
+        environment.api("/_matrix/client/v3/createRoom"),
+        bearer(memberToken, Map.of()),
+        request, Set.of(200));
+    String roomId = created.path("room_id").asString();
+    if (!roomId.matches("![^:]{1,200}:[A-Za-z0-9.:-]+")) {
+      throw new ProductFlowException("business Matrix room projection is invalid");
+    }
+    String marker = "Weave OpenClaw Matrix E2E " + runHash();
+    try {
+      ProcessBuilder builder = new ProcessBuilder(
+          "python3", script,
+          "--homeserver", environment.apiOrigin().toString(),
+          "--user", userId,
+          "--room", roomId,
+          "--message", marker,
+          "--ca", environment.caCertificate().toString(),
+          "--private-root", environment.evidenceFile().getParent().toString());
+      builder.environment().put("WEAVE_MATRIX_MEMBER_TOKEN", memberToken);
+      Process process = builder.redirectErrorStream(true).start();
+      if (!process.waitFor(PROCESS_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
+        process.destroyForcibly();
+        throw new ProductFlowException("real OpenClaw Matrix send exceeded its deadline");
+      }
+      String output = new String(process.getInputStream().readNBytes(4096), StandardCharsets.UTF_8);
+      if (process.exitValue() != 0
+          || !output.contains("WEAVE_OPENCLAW_MATRIX_RESULT status=passed")) {
+        String diagnostic = output.lines()
+            .filter(line -> line.startsWith("WEAVE_OPENCLAW_MATRIX_ERROR "))
+            .findFirst().orElse("WEAVE_OPENCLAW_MATRIX_ERROR unavailable");
+        throw new ProductFlowException(diagnostic);
+      }
+      System.out.println(output.trim());
+      Instant deadline = Instant.now().plus(environment.convergenceTimeout());
+      while (Instant.now().isBefore(deadline)) {
+        JsonNode messages = http.json(
+            "independently read OpenClaw business-room event", "GET",
+            environment.api("/_matrix/client/v3/rooms/" + encode(roomId) + "/messages?limit=100"),
+            bearer(memberToken, Map.of()),
+            null, Set.of(200));
+        for (JsonNode event : messages.path("chunk")) {
+          if ("m.room.message".equals(event.path("type").asString())
+              && marker.equals(event.path("content").path("body").asString())
+              && userId.equals(event.path("sender").asString())
+              && event.path("event_id").asString().startsWith("$")) {
+            return;
+          }
+        }
+        sleep();
+      }
+      throw new ProductFlowException("OpenClaw business-room event did not converge");
+    } catch (InterruptedException failure) {
+      Thread.currentThread().interrupt();
+      throw new ProductFlowException("real OpenClaw Matrix proof was interrupted", failure);
+    } catch (IOException failure) {
+      throw new ProductFlowException("real OpenClaw Matrix proof could not start", failure);
+    } finally {
+      try {
+        http.json("leave OpenClaw business room", "POST",
+            environment.api("/_matrix/client/v3/rooms/" + encode(roomId) + "/leave"),
+            bearer(memberToken, Map.of()), http.mapper().createObjectNode(), Set.of(200));
+      } catch (RuntimeException ignored) {
+        // The disposable stack is still torn down after a failed proof.
+      }
+    }
+  }
+
+  private void requireDeviceProofDenial(Identity identity, int pass) {
+    Map<String, String> headers = new LinkedHashMap<>(
+        bearer(identity.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(identity.role(), pass))));
+    byte[] unboundSecret = new byte[48];
+    deviceProofRandom.nextBytes(unboundSecret);
+    headers.put(MATRIX_DEVICE_PROOF_HEADER,
+        Base64.getUrlEncoder().withoutPadding().encodeToString(unboundSecret));
+    JsonNode denied = http.json(
+        "deny unbound Matrix device proof",
+        "GET",
+        environment.api("/_matrix/client/v3/account/whoami"),
+        Map.copyOf(headers),
+        null,
+        Set.of(401));
+    if (!"M_UNKNOWN_TOKEN".equals(denied.path("errcode").asString())) {
+      throw new ProductFlowException("unbound Matrix device proof was not rejected");
+    }
   }
 
   private String createEncryptedRoom(Identity author, String collaboratorUserId, int pass) {
@@ -423,6 +527,74 @@ final class CollaborationJourney {
     throw new ProductFlowException("encrypted " + actor + " event did not converge");
   }
 
+  private String matrixSyncCursor(Identity member, String roomId, int pass) {
+    JsonNode response = http.json(
+        "establish member Matrix sync cursor", "GET",
+        environment.api("/_matrix/client/v3/sync?timeout=0"),
+        bearer(member.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(member.role(), pass))),
+        null, Set.of(200));
+    String cursor = response.path("next_batch").asString();
+    JsonNode encryption = response.path("rooms").path("join").path(roomId)
+        .path("state").path("events");
+    if (!cursor.startsWith("weave.s1.") || !encryption.isArray()) {
+      throw new ProductFlowException("member Matrix sync did not establish a Weave room cursor");
+    }
+    boolean encrypted = false;
+    for (JsonNode event : encryption) {
+      if ("m.room.encryption".equals(event.path("type").asString())
+          && MEGOLM.equals(event.path("content").path("algorithm").asString())) {
+        encrypted = true;
+      }
+    }
+    if (!encrypted) {
+      throw new ProductFlowException("member Matrix sync omitted the room encryption policy");
+    }
+    return cursor;
+  }
+
+  private void requireSyncObserved(
+      Identity member, String roomId, String eventId, String ciphertext,
+      String since, int pass) {
+    Instant deadline = Instant.now().plus(environment.convergenceTimeout());
+    while (Instant.now().isBefore(deadline)) {
+      JsonNode response = http.json(
+          "observe member Matrix incremental sync", "GET",
+          environment.api("/_matrix/client/v3/sync?since=" + encode(since) + "&timeout=0"),
+          bearer(member.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(member.role(), pass))),
+          null, Set.of(200));
+      String nextBatch = response.path("next_batch").asString();
+      if (!nextBatch.startsWith("weave.s1.")) {
+        throw new ProductFlowException("member Matrix sync returned an invalid Weave cursor");
+      }
+      if (syncContainsEncryptedEvent(response, roomId, eventId, ciphertext)) {
+        if (since.equals(nextBatch)) {
+          throw new ProductFlowException("member Matrix sync did not advance after an event");
+        }
+        return;
+      }
+      sleep();
+    }
+    throw new ProductFlowException("encrypted event did not converge through member Matrix sync");
+  }
+
+  static boolean syncContainsEncryptedEvent(
+      JsonNode response, String roomId, String eventId, String ciphertext) {
+    JsonNode events = response.path("rooms").path("join").path(roomId)
+        .path("timeline").path("events");
+    if (!events.isArray()) {
+      return false;
+    }
+    for (JsonNode event : events) {
+      if (eventId.equals(event.path("event_id").asString())
+          && "m.room.encrypted".equals(event.path("type").asString())
+          && ciphertext.equals(event.path("content").path("ciphertext").asString())
+          && !event.path("content").has("body")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private void requireMatrixDenied(Identity outsider, String roomId, int pass) {
     http.send(
         "deny outsider Matrix room read",
@@ -461,24 +633,25 @@ final class CollaborationJourney {
     try {
       control("chat-provider-stop-proof", "WEAVE_CHAT_PROVIDER_CONTROL_RESULT state=stopped");
       providerStopped = true;
-      JsonNode platform =
-          http.json(
-              "keep platform configuration reachable during Chat outage",
-              "GET",
-              environment.api("/api/platform/config"),
-              Map.of(),
-              null,
-              Set.of(200));
-      if (platform.isMissingNode() || platform.isNull()) {
+      PlatformConfigResponse platform =
+          new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
+              .platformConfig();
+      if (!Integer.valueOf(2).equals(platform.getSchemaVersion())
+          || !environment.apiOrigin().resolve("/api").equals(platform.getUserApiBaseUrl())
+          || platform.getProtocols() == null
+          || platform.getProtocols().getMatrixClientServerBaseUrl() == null) {
         throw new ProductFlowException("platform configuration failed during Chat outage");
       }
-      http.json(
-          "keep authenticated member surface reachable during Chat outage",
-          "GET",
-          environment.api("/api/me"),
-          bearer(author.token(), Map.of()),
-          null,
-          Set.of(200));
+      AuthenticatedUserResponse member =
+          new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
+              .authenticatedUser(author.token());
+      if (!author.issuer().equals(member.getIdentityIssuer())
+          || !author.actorRef().equals("user:" + member.getSubject())
+          || !author.tenant().equals(member.getOrganizationId())
+          || !(("issuer+subject:" + author.issuer() + "#" + member.getSubject())
+              .equals(member.getPrimaryIdentityKey()))) {
+        throw new ProductFlowException("authenticated member identity changed during Chat outage");
+      }
       JsonHttpClient.Response unavailable =
           http.send(
               "reject Chat send while Synapse is unavailable",
@@ -579,201 +752,66 @@ final class CollaborationJourney {
             + encode(transaction));
   }
 
-  private String createFile(Identity author, String fileName, String content) {
-    JsonHttpClient.Response response =
-        http.send(
-            "create shared WebDAV file",
-            "PUT",
-            environment.api("/dav/files/" + encode(fileName)),
-            bearer(author.token(), Map.of("If-None-Match", "*")),
-            "text/plain; charset=utf-8",
-            content.getBytes(StandardCharsets.UTF_8),
-            Set.of(201));
-    return requireEtag(response, "created WebDAV file");
-  }
-
-  private String updateFile(Identity collaborator, String fileName, String etag, String content) {
-    JsonHttpClient.Response response =
-        http.send(
-            "update shared WebDAV file",
-            "PUT",
-            environment.api("/dav/files/" + encode(fileName)),
-            bearer(collaborator.token(), Map.of("If-Match", etag)),
-            "text/plain; charset=utf-8",
-            content.getBytes(StandardCharsets.UTF_8),
-            Set.of(204));
-    return requireEtag(response, "updated WebDAV file");
-  }
-
-  private void requireWebDavDenied(Identity outsider, String fileName, int pass) {
-    http.send(
-        "deny outsider WebDAV read",
-        "GET",
-        environment.api("/dav/files/" + encode(fileName)),
-        bearer(outsider.token(), Map.of()),
-        null,
-        null,
-        Set.of(403, 404));
-    http.send(
-        "deny outsider WebDAV write",
-        "PUT",
-        environment.api("/dav/files/outsider-denied-" + pass + ".txt"),
-        bearer(outsider.token(), Map.of("If-None-Match", "*")),
-        "text/plain; charset=utf-8",
-        "denied".getBytes(StandardCharsets.UTF_8),
-        Set.of(403));
-  }
-
-  private String createCalendar(Identity author, String uid, String content) {
-    JsonHttpClient.Response response =
-        http.send(
-            "create shared CalDAV event",
-            "PUT",
-            environment.api("/caldav/workspace/" + encode(uid) + ".ics"),
-            bearer(author.token(), Map.of("If-None-Match", "*")),
-            "text/calendar; charset=utf-8",
-            content.getBytes(StandardCharsets.UTF_8),
-            Set.of(201));
-    return requireEtag(response, "created CalDAV event");
-  }
-
-  private String updateCalendar(
-      Identity collaborator, String uid, String etag, String content) {
-    JsonHttpClient.Response response =
-        http.send(
-            "update shared CalDAV event",
-            "PUT",
-            environment.api("/caldav/workspace/" + encode(uid) + ".ics"),
-            bearer(collaborator.token(), Map.of("If-Match", etag)),
-            "text/calendar; charset=utf-8",
-            content.getBytes(StandardCharsets.UTF_8),
-            Set.of(204));
-    return requireEtag(response, "updated CalDAV event");
-  }
-
-  private void requireCalendarDenied(Identity outsider, String uid, int pass) {
-    http.send(
-        "deny outsider CalDAV read",
-        "GET",
-        environment.api("/caldav/workspace/" + encode(uid) + ".ics"),
-        bearer(outsider.token(), Map.of()),
-        null,
-        null,
-        Set.of(403, 404));
-    String outsiderUid = "outsider-denied-" + runHash() + "-" + pass;
-    http.send(
-        "deny outsider CalDAV write",
-        "PUT",
-        environment.api("/caldav/workspace/" + outsiderUid + ".ics"),
-        bearer(outsider.token(), Map.of("If-None-Match", "*")),
-        "text/calendar; charset=utf-8",
-        calendar(outsiderUid, "Denied").getBytes(StandardCharsets.UTF_8),
-        Set.of(403));
-  }
-
-  private void requireBody(
-      Identity identity, String path, String expected, String operation) {
-    JsonHttpClient.Response response =
-        http.send(
-            "read " + operation,
-            "GET",
-            environment.api(path),
-            bearer(identity.token(), Map.of()),
-            null,
-            null,
-            Set.of(200));
-    if (!expected.equals(response.bodyText())) {
-      throw new ProductFlowException(operation + " did not match exactly");
-    }
-  }
-
-  private void requireCalendar(
-      Identity identity, String path, String expected, String operation) {
-    JsonHttpClient.Response response =
-        http.send(
-            "read " + operation,
-            "GET",
-            environment.api(path),
-            bearer(identity.token(), Map.of()),
-            null,
-            null,
-            Set.of(200));
-    IcalendarProjectionAssertions.requireWorkspaceProjection(
-        expected, response.bodyText(), operation);
-  }
-
   private void proveProfileIsolation(
       int pass, Identity author, Identity collaborator, Identity outsider) {
     Map<String, String> observed = new LinkedHashMap<>();
     for (Identity identity : List.of(author, collaborator, outsider)) {
-      ObjectNode update = http.mapper().createObjectNode();
       String displayName = "Weave " + identity.role() + " " + runHash() + " " + pass;
-      update.put("displayName", displayName);
-      update.put("locale", "collaborator".equals(identity.role()) ? "de" : "en");
-      update.put("timezone", "Europe/Berlin");
-      update.put("profileVisibility", "private");
-      update.putObject("accessibilityPreferences").put("reducedMotion", "true");
-      JsonNode updated =
-          http.json(
-              "update " + identity.role() + " product profile",
-              "PATCH",
-              environment.api("/api/profile"),
-              bearer(identity.token(), Map.of()),
-              update,
-              Set.of(200));
-      if (!displayName.equals(updated.path("displayName").asString())
-          || !"true".equals(
-              updated.path("accessibilityPreferences").path("reducedMotion").asString())) {
+      String locale = "collaborator".equals(identity.role()) ? "de" : "en";
+      ProductProfileResponse updated = profileHome.updateProfile(identity.token(), displayName, locale);
+      if (!displayName.equals(updated.getDisplayName())
+          || updated.getAccessibilityPreferences() == null
+          || !"true".equals(updated.getAccessibilityPreferences().get("reducedMotion"))) {
         throw new ProductFlowException(identity.role() + " profile update did not persist");
       }
-      JsonNode current =
-          http.json(
-              "read " + identity.role() + " product profile",
-              "GET",
-              environment.api("/api/profile"),
-              bearer(identity.token(), Map.of()),
-              null,
-              Set.of(200));
-      observed.put(identity.role(), current.path("userId").asString());
-      if (!displayName.equals(current.path("displayName").asString())) {
+      ProductProfileResponse current = profileHome.readProfile(identity.token());
+      observed.put(identity.role(), current.getUserId());
+      if (!displayName.equals(current.getDisplayName())
+          || !locale.equals(current.getLocale())
+          || !"Europe/Berlin".equals(current.getTimezone())
+          || current.getProfileVisibility()
+              != ProductProfileResponse.ProfileVisibilityEnum.PRIVATE
+          || current.getAccessibilityPreferences() == null
+          || !"true".equals(current.getAccessibilityPreferences().get("reducedMotion"))) {
         throw new ProductFlowException(identity.role() + " profile isolation did not persist");
       }
     }
-    if (observed.values().stream().anyMatch(String::isBlank)
+    if (observed.values().stream().anyMatch(value -> value == null || value.isBlank())
         || Set.copyOf(observed.values()).size() != 3) {
       throw new ProductFlowException("product profile identities are not isolated");
     }
   }
 
   private void proveHomeProjection(Identity author, Identity collaborator, Identity outsider) {
-    for (Identity identity : List.of(author, collaborator)) {
-      JsonNode home =
-          http.json(
-              "read shared Home activity as " + identity.role(),
-              "GET",
-              environment.api("/api/workspace/home"),
-              bearer(identity.token(), Map.of()),
-              null,
-              Set.of(200));
-      if (!home.path("supportSafe").asBoolean(false)
-          || !home.path("recentActivity").isArray()
-          || home.path("recentActivity").isEmpty()) {
-        throw new ProductFlowException("shared Home activity did not converge");
+    WorkspaceHomeResponse authorHome = home(author);
+    String privateActivityRef = null;
+    for (WorkspaceHomeRecentActivityResponse activity : authorHome.getRecentActivity()) {
+      if ("files.user_write.completed".equals(activity.getAction())
+          && WorkspaceHomeRecentActivityResponse.VisibilityEnum.PRIVATE.equals(activity.getVisibility())
+          && Boolean.TRUE.equals(activity.getActorIsCurrentUser())) {
+        privateActivityRef = activity.getActivityRef();
+        break;
       }
     }
-    JsonNode outsiderHome =
-        http.json(
-            "filter outsider Home projection",
-            "GET",
-            environment.api("/api/workspace/home"),
-            bearer(outsider.token(), Map.of()),
-            null,
-            Set.of(200));
-    if (!outsiderHome.path("supportSafe").asBoolean(false)
-        || !outsiderHome.path("recentActivity").isArray()
-        || !outsiderHome.path("recentActivity").isEmpty()) {
-      throw new ProductFlowException("outsider Home activity was not filtered");
+    if (privateActivityRef == null || privateActivityRef.isBlank()) {
+      throw new ProductFlowException("completed User Files activity did not reach owner Home");
     }
+    for (Identity identity : List.of(collaborator, outsider)) {
+      WorkspaceHomeResponse otherHome = home(identity);
+      for (WorkspaceHomeRecentActivityResponse activity : otherHome.getRecentActivity()) {
+        if (privateActivityRef.equals(activity.getActivityRef())) {
+          throw new ProductFlowException("private User Files activity leaked to " + identity.role());
+        }
+      }
+    }
+  }
+
+  private WorkspaceHomeResponse home(Identity identity) {
+    WorkspaceHomeResponse response = profileHome.home(identity.token());
+    if (!Boolean.TRUE.equals(response.getSupportSafe()) || response.getRecentActivity() == null) {
+      throw new ProductFlowException(identity.role() + " Home activity response is invalid");
+    }
+    return response;
   }
 
   private JsonNode replayCapturedCallback() {
@@ -1067,21 +1105,6 @@ final class CollaborationJourney {
     }
   }
 
-  private void deleteBestEffort(Identity identity, String path, String kind) {
-    try {
-      http.send(
-          "delete isolated " + kind,
-          "DELETE",
-          environment.api(path),
-          bearer(identity.token(), Map.of()),
-          null,
-          null,
-          Set.of(204, 404));
-    } catch (ProductFlowException cleanupFailure) {
-      System.err.println("WEAVE_TEST_APP_CLEANUP_ERROR " + kind.replace(' ', '-'));
-    }
-  }
-
   private void cleanRoomStrict(
       Identity author,
       Identity collaborator,
@@ -1151,17 +1174,6 @@ final class CollaborationJourney {
         Set.of(200));
   }
 
-  private void deleteStrict(Identity identity, String path, String kind) {
-    http.send(
-        "delete isolated " + kind,
-        "DELETE",
-        environment.api(path),
-        bearer(identity.token(), Map.of()),
-        null,
-        null,
-        Set.of(204));
-  }
-
   private URI proof(String path) {
     return environment.chatProofOrigin().resolve(path);
   }
@@ -1172,32 +1184,6 @@ final class CollaborationJourney {
     } catch (RuntimeException failure) {
       throw new ProductFlowException("collaboration request encoding failed", failure);
     }
-  }
-
-  private static String requireEtag(JsonHttpClient.Response response, String operation) {
-    String etag = response.firstHeader("ETag");
-    if (etag.isBlank() || etag.length() > 256) {
-      throw new ProductFlowException(operation + " omitted its ETag");
-    }
-    return etag;
-  }
-
-  private static String calendar(String uid, String summary) {
-    return "BEGIN:VCALENDAR\r\n"
-        + "VERSION:2.0\r\n"
-        + "PRODID:-//Weave//isolated testApp//EN\r\n"
-        + "BEGIN:VEVENT\r\n"
-        + "UID:"
-        + uid
-        + "\r\n"
-        + "DTSTAMP:20300101T000000Z\r\n"
-        + "DTSTART:20300102T100000Z\r\n"
-        + "DTEND:20300102T110000Z\r\n"
-        + "SUMMARY:"
-        + summary
-        + "\r\n"
-        + "END:VEVENT\r\n"
-        + "END:VCALENDAR\r\n";
   }
 
   private String ciphertext(String actor, int pass) {
@@ -1224,10 +1210,18 @@ final class CollaborationJourney {
     return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
   }
 
-  private static Map<String, String> bearer(String token, Map<String, String> additional) {
+  private Map<String, String> bearer(String token, Map<String, String> additional) {
     Map<String, String> headers = new LinkedHashMap<>();
     headers.put("Authorization", "Bearer " + token);
     headers.putAll(additional);
+    String deviceId = additional.get(MATRIX_DEVICE_HEADER);
+    if (deviceId != null) {
+      headers.put(MATRIX_DEVICE_PROOF_HEADER, deviceProofs.computeIfAbsent(deviceId, ignored -> {
+        byte[] secret = new byte[48];
+        deviceProofRandom.nextBytes(secret);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
+      }));
+    }
     return Map.copyOf(headers);
   }
 
@@ -1279,10 +1273,8 @@ final class CollaborationJourney {
       String outageEventId,
       List<String> ciphertexts,
       List<String> correlationHashes,
-      String fileName,
-      String fileBody,
-      String eventUid,
-      String calendarBody) {
+      GeneratedFilesJourney.MemberProof fileProof,
+      GeneratedCalendarJourney.Proof calendarProof) {
     RetainedRoom {
       ciphertexts = List.copyOf(ciphertexts);
       correlationHashes = List.copyOf(correlationHashes);

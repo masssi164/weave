@@ -34,7 +34,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
         "weave.interop.slack.token-ref=secret://slack/bot-token",
         "weave.interop.slack.signing-secret-ref=secret://slack/signing-secret",
-        "weave.interop.slack.client-secret-ref=secret://slack/client-secret"
+        "weave.interop.slack.client-secret-ref=secret://slack/client-secret",
+        "weave.compatibility.public-dav.enabled=true"
 })
 @AutoConfigureMockMvc
 class PlatformProductContractControllerTest {
@@ -137,7 +138,7 @@ class PlatformProductContractControllerTest {
                 """;
 
         mockMvc.perform(post("/api/migration/dry-runs")
-                        .with(workspaceJwt())
+                        .with(memberJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isForbidden());
@@ -170,7 +171,7 @@ class PlatformProductContractControllerTest {
     @Test
     void migrationApplyGateBlocksMissingArtifactsAndRedactsEvidence() throws Exception {
         mockMvc.perform(post("/api/migration/apply-gates")
-                        .with(workspaceJwt())
+                        .with(memberJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -389,10 +390,22 @@ class PlatformProductContractControllerTest {
                         .issuer("https://auth.example.invalid/realms/weave")
                         .claim("preferred_username", "admin")
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("aud", java.util.List.of("weave-app"))
+                        .claim("aud", java.util.List.of("https://api.weave.test/api"))
+                        .claim("azp", "weave-admin-console")
                         .claim("organization", HumanJwtTestSupport.organizationWithRole("admin")))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_ADMIN"));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor memberJwt() {
+        return jwt().jwt(token -> token
+                        .subject("member-123")
+                        .issuer("https://auth.example.invalid/realms/weave")
+                        .claim("weave_tenant_id", "tenant-default")
+                        .claim("aud", java.util.List.of("https://api.weave.test/api"))
+                        .claim("azp", "weave-app")
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
+                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

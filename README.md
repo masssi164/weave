@@ -2,51 +2,133 @@
 
 **Your collaboration. Your choice of providers.**
 
-Weave is building a collaboration product for files, calendars, and conversations with organization-owned identity, stable resource references, and replaceable providers. [Weaver](https://github.com/masssi164/weaver) is an optional, separately deployed personal-assistant runtime. Weave does not depend on Weaver or the owner's private Home-core collection to operate.
+Weave is building a modular collaboration platform for files, calendars, and conversations — without making one vendor the center of your working world. The goal is to keep your workspace, its identities, and its relationships while choosing the services behind each capability.
 
-> **Development status:** This `main` branch contains an earlier foundation, not the accepted product consolidation. Follow [epic #1470](https://github.com/masssi164/weave/issues/1470) and its current child stories for the standalone product contract. [Epic #1498](https://github.com/masssi164/weave/issues/1498) owns provider migration and rollback. The `dev` branch is the integration lane. A successful component build does not establish integrated product readiness.
+[Start developing](#develop-and-test) · [Roadmap](#ordered-roadmap) · [Architecture](#core-architecture) · [Meet Weaver](https://github.com/masssi164/weaver)
+
+> **Bounded standalone profile:** Files, Calendar, and authorized non-E2EE Matrix business rooms have integrated release evidence. Weave is not a finished production collaboration platform. Provider migration and general Matrix interoperability remain outside this release profile. Protected branch status is tracked in [#1481](https://github.com/masssi164/weave/issues/1481).
 
 ## What Weave is
 
-The approved release centers on one server-owned, code-first HTTP API with separate User and Admin OpenAPI artifacts and generated consumers in Flutter, MCP, the Admin UI, and product E2E. Server authorization enforces User/Admin, organization, and resource boundaries. Exactly one provider is active per organization and module.
+A collaboration platform should let you choose its building blocks, not require an all-or-nothing stack.
 
-Chat uses a bounded, standards-compliant Matrix Client-Server facade northbound in Weave. Rust/Ruma/JNI handles its Matrix wire boundary; the Weave Chat domain owns authorization, canonical relationships, and provider-neutral routing. Flutter keeps its native Rust/Matrix SDK, and Weaver keeps its established OpenClaw Matrix integration. The [Matrix support profile](docs/reference/matrix-client-server-support-profile.md) defines the release surface; Weave does not claim to be a general-purpose Matrix homeserver. One ordinary Weave sign-in must make authorized Files, Calendar, and Chat capabilities ready without provider-specific Connect, login, or token steps.
+**Choose providers by capability.** Files, Calendar, and Chat are product concepts, not vendor names. Replaceable adapters connect the services behind them. Provider-neutral does not mean every provider is already supported.
 
-Provider adoption, data migration, permission-preserving cutover, reconciliation, and rollback belong to [epic #1498](https://github.com/masssi164/weave/issues/1498). Public northbound WebDAV/CalDAV, private Runners, long-polling execution, workflows, context graphs, broad ARC orchestration, Calls, and multi-provider merging are outside #1470. Southbound DAV remains an appropriate provider-adapter implementation detail. These boundaries describe the accepted target, not features already proven on `main`.
+**Keep the context, not just an export.** A file, an event, and a conversation can belong to the same Space. Stable `weave://` references and cross-domain relationships are central to the design. The separate [provider portability epic #1498](https://github.com/masssi164/weave/issues/1498) requires Files adoption and replacement to preserve data, stable references, and effective permissions. Activation must stop if a required source property or permission cannot be preserved.
 
-## Core architecture
+**Build the workspace you need.** The broader vision includes documents, tasks, and meetings as modular capabilities. The immediate implementation work concentrates on the Files, Calendar, and Chat foundation and its integration boundaries. The wider vision is not a list of already shipped features.
 
-The intended boundary is between Weave-owned product concepts and provider-specific implementation. The Server owns the User/Admin HTTP contract, stable resource identities, current authorization, and one active provider binding per organization and module. The Matrix Client-Server facade is the explicit non-OpenAPI northbound exception for Chat. Existing transfer machinery is foundation work for #1498; provider replacement and permission parity still require separate integrated proof.
+### Weave and Weaver
+
+**Weave provides the collaboration foundation. [Weaver](https://github.com/masssi164/weaver) is its optional personal-assistant runtime.**
+
+Weaver is an upstream-first OpenClaw distribution for a personal agent assigned to an entitled member. It is intended to work within organization-approved capabilities and current domain permissions — not become a second identity system or an unrestricted shortcut to provider credentials.
+
+Weave does not require an agent to be useful. Weaver adds another way to work with it. Matrix supplies the conversational channel; workload-scoped MCP is a separately gated integration. The Weave release suite exercises its curated Files and Calendar MCP tools with OpenClaw `2026.9.8`; **managed MCP remains disabled in Weaver's optional cell runtime**. Chat is not duplicated as MCP tools.
 
 ## Current status
 
-This branch contains prior Files, Calendar, and Chat domain foundations, persistence and transfer machinery, infrastructure, clients, and tests. The generated-client, single-sign-in, Matrix facade, and real product journeys required by #1470 are still being integrated and verified. Some older documents and architectural tests describe superseded product assumptions; they do not override the current [release steering contract](https://github.com/masssi164/weave-specs/blob/main/steering/release-2026-10-product-consolidation.md).
+The bounded standalone profile has real integrated Files, Calendar, Chat, Admin, and OpenClaw evidence. A passing component test or build alone is not evidence that a wider capability is ready for daily use.
 
-## Ordered roadmap
+The approved [product consolidation epic #1470](https://github.com/masssi164/weave/issues/1470) and [pinned specification policy](docs/specification-source-of-truth.md) define the current standalone-product delivery contract. Its stories are #1471–#1476 and #1479–#1481; #1477–#1478 belong to [provider portability epic #1498](https://github.com/masssi164/weave/issues/1498). #1470 acceptance requires integrated user, admin, MCP, Matrix, Files, and Calendar journeys, not compilation alone. Provider adoption, migration, cutover, and rollback are #1498 acceptance. Older Core and gateway work remains historical or reusable only as classified in the epics.
 
-[Epic #1470](https://github.com/masssi164/weave/issues/1470) and its current child stories own standalone product scope, dependencies, and acceptance. [Epic #1498](https://github.com/masssi164/weave/issues/1498) owns provider portability and migration. The older Core issue order is historical and does not expand either release.
+Weave does not claim public production readiness, unrestricted autonomous agents or universal provider interchangeability. The [product trust claim matrix](docs/product-trust-provider-choice-claim-matrix.md) records the scope and limitations of earlier evidence.
+
+The portability promise is no unaccounted data loss; perfect lossless migration is not claimed as delivered. #1498 requires activation to remain blocked whenever required data or effective permissions cannot be preserved.
 
 ## Develop and test
 
-For new work, use the protected `dev` integration lane and the [developer handbook](docs/developer-handbook.md). The [Gitflow workflow](docs/gitflow-pr-workflow.md) describes promotion to `main`. Java 21 is required for the Gradle foundation checks; container-backed checks require the corresponding local services.
+Start from the implementation lane:
 
 ```bash
-./gradlew coreArchitectureCi canonicalDataCi postgresPersistenceCi
-./gradlew protocolFacadeFoundationCi mcpFoundationCi coreDocsCheck
+git clone --branch dev https://github.com/masssi164/weave.git
+cd weave
+python3 tools/core_docs_check.py
 ```
 
-Run the relevant exact-head checks and integrated journeys before claiming readiness. #1470 requires real Flutter single-sign-in, User/Admin, Matrix, Files, Calendar, and MCP journeys plus post-merge checks. Provider-switch and permission-preserving rollback evidence closes #1498 separately.
+Use **Java 21** for the foundation gates below. Container tooling is needed for checks that actually start PostgreSQL, IAM, protocol, or full-system infrastructure. Run the checks relevant to your change; these are developer commands, not a production installer.
+
+```bash
+./gradlew specCorpusConformance
+./gradlew acceptanceContract
+./gradlew clientCi serverCi adminCi
+./gradlew infraStatic docsCheck
+```
+
+Follow the [developer handbook](docs/developer-handbook.md) and [Gitflow workflow](docs/gitflow-pr-workflow.md) for prerequisites and protected promotion. Run focused checks for the area you change; full-stack checks require the corresponding local services.
+
+Flutter, Node, Xcode, TestFlight, and manual release evidence are not prerequisites for unrelated Server/Data/MCP work.
+
+Server controllers, transport models and validation generate the separate User and Admin OpenAPI artifacts. After changing that code, regenerate the consumers and verify the complete generation chain:
+
+```bash
+./gradlew generateOpenApiContract
+./gradlew generateClientUserApi generateAdminApiClient generateAdminPublicUserApiClient
+./gradlew generatedApiCi
+```
+
+Do not edit generated artifacts manually. Flutter consumes the User API; the Admin UI uses the generated Admin client for authorized operations and a separate generated User client for public pre-login configuration. The curated MCP Files and Calendar tools use the generated JVM User client, and product E2E uses generated User and separately credentialed Admin clients. Calendar mutations remain subject to current organization and resource authorization.
+The [native acceptance instructions and evidence](docs/native-flutter-integration.md) describe the automated macOS journey and its platform limits. Exact integrated acceptance is tracked in the linked consolidation stories.
+
+## Core architecture
+
+The enduring boundary is between **the meaning of your workspace** and **the services implementing its capabilities**.
+
+```text
+People and their interfaces       Optional Weaver assistant
+                 \                 /
+                  Weave product layer
+       Spaces | stable resources | relationships
+       access intent | provider bindings | evidence
+                              |
+                   Integration boundaries
+                              |
+                 Files | Calendar | Chat
+                     Selected providers
+```
+
+In words: Weave connects collaboration capabilities through its own product concepts and stable references. Provider-specific identifiers and behavior stay at adapter boundaries. Weaver remains an optional runtime integration; it does not define the collaboration platform or replace its authorization.
+
+The current release boundary is a server-owned code-first User/Admin API with generated consumers, a Weave Matrix Client-Server northbound facade for Weave-owned Flutter and Weaver/OpenClaw clients, and provider-neutral Files and Calendar operations. Rust/Ruma/JNI handles Matrix wire parsing and projection; the Weave Chat domain owns canonical persistence, current authorization and southbound routing through `ChatProviderPort`. Exactly one provider is active per organization and module. One member-facing Weave OIDC/PKCE login makes authorized capabilities ready; Flutter uses that member session at the Weave Matrix facade. Chat E2EE is governed by organization and room policy, with client-owned cryptographic device state for encrypted rooms. E2EE remains Guarded pending its complete device, verification and recovery qualification; explicitly encrypted rooms fail closed when that capability is unavailable. Independent third-party Matrix-client interoperability and its separate OAuth profile, public northbound WebDAV/CalDAV, private Runners, Calls, and broad orchestration are outside this release. Detailed contracts belong to the [pinned specification policy](docs/specification-source-of-truth.md), [Matrix support profile](docs/reference/matrix-client-server-support-profile.md), and [epic #1470](https://github.com/masssi164/weave/issues/1470).
+
+## Ordered roadmap
+
+[Epic #1470](https://github.com/masssi164/weave/issues/1470) owns the standalone product: scope alignment (#1471), the code-first API and generated consumers (#1472–#1473), identity and authorization (#1474), bounded Matrix Chat (#1475), durable resources and one active binding (#1476), product flows (#1479), integrated E2E (#1480), and mainline closure (#1481). [Epic #1498](https://github.com/masssi164/weave/issues/1498) owns provider adoption and migration, including Files profiles (#1477), cutover, recovery, and rollback (#1478). Delivery status is tracked by those issues and protected branch checks; a roadmap entry is not a shipped capability.
 
 ## Documentation
 
-- [Data-sovereignty foundation](docs/architecture/data-sovereignty-core.md)
-- [Canonical transfer kernel](docs/architecture/canonical-transfer-kernel.md)
-- [Core development workflow](docs/development/core-workflow.md)
-- [Documentation audit](docs/documentation-audit.md)
-- [Weaver runtime](https://github.com/masssi164/weaver)
+- **Start contributing:** [Developer handbook](docs/developer-handbook.md), [Gitflow workflow](docs/gitflow-pr-workflow.md), and [contribution guide](CONTRIBUTING.md).
+- **Read implementation notes:** [Data-sovereignty core](docs/architecture/data-sovereignty-core.md) and [package boundaries](docs/architecture/core-package-boundaries.md). The [transfer-kernel inventory](docs/architecture/canonical-transfer-kernel.md) records historical design; apply the pinned release profile to current work.
+- **Check the evidence:** [Current workflow ownership](docs/development/current-workflow-ownership.md) and [CI runs](https://github.com/masssi164/weave/actions); use the historical [workflow disposition](docs/development/workflow-disposition.md) and [documentation audit](docs/documentation-audit.md) when tracing older decisions.
+
+## Release notes
+
+Earlier release notes describe their own historical candidates. Current #1470 capabilities require the linked implementation and acceptance evidence; the draft below is not proof of a completed standalone product.
+
+<!-- WEAVE_RELEASE_NOTES_START -->
+- Historical change draft: [Unreleased](docs/release-notes/unreleased.md)
+- Release-note history and process: [Release notes](docs/release-notes/index.md)
+<!-- WEAVE_RELEASE_NOTES_END -->
+
+## Release evidence
+
+Final delivery requires the accepted product journeys, exact remote `main` commits and applicable post-merge checks. Generated clients, local fixtures and earlier sprint reports each prove only their stated scope. See [delivery story #1481](https://github.com/masssi164/weave/issues/1481) for the remaining closure requirements.
+
+<!-- WEAVE_RELEASE_NOTES:START -->
+- Offline release-note fixture review artifact: `build/release-notes/unreleased.md`
+- README pointer check: deterministic structure and generated-link validation; it does not establish product acceptance or release readiness.
+<!-- WEAVE_RELEASE_NOTES:END -->
+
+## Get involved
+
+Bring a concrete collaboration problem, a reproducible issue, an interoperability test, or a focused contribution. Start with [the issues](https://github.com/masssi164/weave/issues) and agree on scope before a large change. Interface design, documentation, and installation feedback matter alongside code.
+
+Weave is an independent project by Massimo. AI-assisted development and communication are welcome, with human responsibility, review, and disclosure.
 
 ## License
 
 Copyright © 2026 Massimo (GitHub: masssi164).
 
-Weave-authored code and documentation are licensed under **EUPL-1.2-or-later**, except where existing notices or documented third-party exceptions specify otherwise. See [LICENSE](LICENSE), [Notices](NOTICE.md), [Third-party notices](THIRD_PARTY_NOTICES.md), and the [contribution and DCO guidance](CONTRIBUTING.md). Earlier licence grants remain in force. Vendored Matrix SDK crypto and its upstream-oriented patch series retain their Apache-2.0 and file-level notices.
+Weave-authored code and documentation are licensed under **EUPL-1.2-or-later**, except where existing notices or documented third-party exceptions specify otherwise. See [LICENSE](LICENSE), [Notices](NOTICE.md), and [Third-party notices](THIRD_PARTY_NOTICES.md).
+
+The vendored Matrix SDK crypto code and its upstream-oriented patch series retain their Apache-2.0 licensing and existing file-level notices. They are not relabelled as EUPL. Contributors retain copyright and follow the applicable licence and [DCO sign-off policy](CONTRIBUTING.md).

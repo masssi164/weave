@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Objective integrity checks for the active Weave core documentation."""
+"""Objective integrity checks for current Weave documentation and historical links."""
 
 from __future__ import annotations
 
@@ -7,14 +7,23 @@ import re
 import sys
 from pathlib import Path
 
+import readme_release_notes
+
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
 ACTIVE_DOCS = (
     README,
     ROOT / "docs/architecture/data-sovereignty-core.md",
     ROOT / "docs/architecture/core-package-boundaries.md",
-    ROOT / "docs/architecture/canonical-transfer-kernel.md",
+    ROOT / "docs/specification-source-of-truth.md",
+    ROOT / "docs/developer-handbook.md",
     ROOT / "docs/development/core-workflow.md",
+    ROOT / "docs/development/current-workflow-ownership.md",
+    ROOT / "docs/gitflow-pr-workflow.md",
+)
+HISTORICAL_DOCS = (
+    ROOT / "docs/architecture/canonical-transfer-kernel.md",
+    ROOT / "docs/development/mainline-convergence.md",
     ROOT / "docs/development/workflow-disposition.md",
     ROOT / "docs/testing/core-test-strategy.md",
     ROOT / "docs/documentation-audit.md",
@@ -86,7 +95,7 @@ def check_links(path: Path, failures: list[str]) -> None:
 def main() -> int:
     failures: list[str] = []
 
-    for path in (*ACTIVE_DOCS, *REDIRECT_DOCS):
+    for path in (*ACTIVE_DOCS, *HISTORICAL_DOCS, *REDIRECT_DOCS):
         if not path.is_file():
             fail(f"missing required documentation file: {path.relative_to(ROOT)}", failures)
 
@@ -102,6 +111,14 @@ def main() -> int:
     for heading in REQUIRED_HEADINGS:
         if heading not in readme_text:
             fail(f"README is missing heading: {heading}", failures)
+
+    try:
+        readme_release_notes.check_readme_structure(readme_text)
+        expected = readme_release_notes.replace_blocks(readme_text, readme_release_notes.DEFAULT_SOURCE)
+        if expected != readme_text:
+            fail("README managed release pointers are stale", failures)
+    except SystemExit:
+        fail("README managed release pointers or their source are invalid", failures)
 
     for path in ACTIVE_DOCS:
         text = path.read_text(encoding="utf-8")
@@ -120,13 +137,21 @@ def main() -> int:
             fail(f"redirect is not marked superseded near the top: {path.relative_to(ROOT)}", failures)
         check_links(path, failures)
 
+    for path in HISTORICAL_DOCS:
+        if not any(
+            line.startswith("Status: historical")
+            for line in path.read_text(encoding="utf-8").splitlines()[2:8]
+        ):
+            fail(f"historical document lacks explicit status: {path.relative_to(ROOT)}", failures)
+        check_links(path, failures)
+
     task_sources = [ROOT / "build.gradle", *sorted((ROOT / "gradle/tasks").glob("*.gradle"))]
     combined_tasks = "\n".join(path.read_text(encoding="utf-8") for path in task_sources)
     for task in REQUIRED_TASKS:
         if task not in combined_tasks:
             fail(f"documented Gradle task is not registered: {task}", failures)
 
-    disposition = (ROOT / "docs/development/workflow-disposition.md").read_text(encoding="utf-8")
+    disposition = (ROOT / "docs/development/current-workflow-ownership.md").read_text(encoding="utf-8")
     for workflow in sorted((ROOT / ".github/workflows").glob("*.yml")):
         if workflow.name not in disposition:
             fail(f"workflow has no documented disposition: {workflow.name}", failures)

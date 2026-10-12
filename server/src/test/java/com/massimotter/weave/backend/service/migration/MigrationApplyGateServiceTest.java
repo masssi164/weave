@@ -85,6 +85,46 @@ class MigrationApplyGateServiceTest {
     }
 
     @Test
+    void filesApplyRejectsApprovedCompleteLookingPersistedArtifactNames() {
+        Instant now = Instant.now();
+        repository.save(new MigrationRunEvidence(
+                "migration-files-001",
+                "files",
+                "approved",
+                Map.of("File", 1),
+                List.of("sha256:2222222222222222222222222222222222222222222222222222222222222222"),
+                List.of("audit:migration.dry_run:files:001"),
+                completeArtifactRefs("files"),
+                List.of("claimed source and target parity"),
+                true,
+                true,
+                true,
+                now,
+                now.plusSeconds(3600)));
+
+        for (String domain : List.of("files", " FILES ")) {
+            var response = service.evaluate(new MigrationApplyGateRequest(
+                    "migration-files-001", domain, "approved",
+                    "dry-run:files:001", "export:files:001", "import:files:001",
+                    "mapping:files:001", "lossy:files:001", "conflict:files:001",
+                    "impact:files:001", "approval:files:001", "rollback:files:001",
+                    "verify:files:001", Map.of("File", 1),
+                    List.of("sha256:2222222222222222222222222222222222222222222222222222222222222222"),
+                    List.of("audit:migration.dry_run:files:001"), true, true, true, List.of()));
+
+            assertThat(response.applyAllowed()).isFalse();
+            assertThat(response.lifecycle()).isEqualTo("blocked");
+            assertThat(response.blockers()).anySatisfy(blocker ->
+                    assertThat(blocker).contains("real source inventory", "target readback", "effective-permission parity"));
+            assertThat(response.evidenceBundle().objectCounts()).isEmpty();
+            assertThat(response.evidenceBundle().contentHashes()).isEmpty();
+            assertThat(response.evidenceBundle().artifactRefs()).isEmpty();
+            assertThat(response.evidenceBundle().redaction()).isEqualTo("support_safe");
+            assertThat(response.toString()).doesNotContain("claimed source and target parity");
+        }
+    }
+
+    @Test
     void chatApplyRequiresCrossDomainImpactManualReviewAndRollbackRetentionEvidence() {
         Map<String, String> refs = completeArtifactRefs("chat");
         refs.remove("crossDomainImpactReportRef");

@@ -16,7 +16,6 @@ public final class FilesAuthority {
             FileObject object,
             FileVersion version,
             String contentDigest,
-            String storageReference,
             long providerBindingRevision,
             Lifecycle lifecycle,
             Instant observedAt) {
@@ -29,7 +28,6 @@ public final class FilesAuthority {
             if (contentDigest != null && !contentDigest.matches("sha256:[a-f0-9]{64}")) {
                 throw new IllegalArgumentException("contentDigest must be a sha256 digest");
             }
-            storageReference = optional(storageReference);
             if (providerBindingRevision < 1) {
                 throw new IllegalArgumentException("providerBindingRevision must be positive");
             }
@@ -77,7 +75,4 @@ public final class FilesAuthority {
         return value.trim();
     }
 
-    private static String optional(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
-    }
 }

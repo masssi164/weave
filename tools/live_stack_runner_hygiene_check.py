@@ -27,7 +27,7 @@ def main() -> int:
         require("--minimum-free-gib 20" in document, "capacity floor is not 20 GiB")
 
     require("runs-on: [self-hosted, macOS, ARM64, weave-live]" in e2e, "E2E is not pinned to the live runner")
-    require("cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in e2e, "only superseded PR E2E runs may be cancelled")
+    require("cancel-in-progress: false" in e2e, "exact-candidate runtime execution must not be cancelled by a later candidate")
     require("./gradlew --no-daemon specCorpusConformance testApp" in e2e, "E2E does not use the authoritative product-flow task")
     require("trap cleanup EXIT" in test_app and "cleanup_test_app_runtime.py" in test_app, "testApp does not own exact cleanup")
 

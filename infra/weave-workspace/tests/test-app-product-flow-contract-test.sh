@@ -20,6 +20,8 @@ readonly GRADLE_TASKS="${REPOSITORY_ROOT}/gradle/tasks/architecture-lifecycle.gr
 readonly MODULE_BUILD="${REPOSITORY_ROOT}/weave-product-e2e/build.gradle"
 readonly MODULE_TASKS="${REPOSITORY_ROOT}/weave-product-e2e/gradle/tasks/product-flow.gradle"
 readonly FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java"
+readonly GENERATED_ADMIN="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedAdminApi.java"
+readonly GENERATED_USER="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedUserApi.java"
 readonly BROWSER_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/OidcBrowserJourney.java"
 readonly ACTIVATION_INBOX="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/MailpitActivationInbox.java"
 readonly MCP_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/WorkloadMcpJourney.java"
@@ -135,7 +137,17 @@ teardown_line="$(grep -nF 'bash "${TEARDOWN}" e2e' "${LIFECYCLE}" | cut -d: -f1)
   fail "bounded diagnostics must remain immediately before exact teardown"
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RESTART_EVIDENCE_PATH'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH'
-absent "${LIFECYCLE}" 'e2e keycloak-migration-apply'
+contains "${LIFECYCLE}" 'bash "${COMPOSE}" e2e keycloak-migration-apply'
+empty_proof_line="$(grep -nF 'export WEAVE_E2E_EMPTY_NAMESPACE_PROOF=' "${LIFECYCLE}" | cut -d: -f1)"
+stack_prepared_line="$(grep -nF 'STACK_PREPARED=true' "${LIFECYCLE}" | cut -d: -f1)"
+realm_migration_line="$(grep -nF 'bash "${COMPOSE}" e2e keycloak-migration-apply' "${LIFECYCLE}" | cut -d: -f1)"
+product_up_line="$(grep -nF 'bash "${COMPOSE}" e2e up' "${LIFECYCLE}" | cut -d: -f1)"
+[[ "${empty_proof_line}" =~ ^[0-9]+$ && "${stack_prepared_line}" =~ ^[0-9]+$ &&
+   "${realm_migration_line}" =~ ^[0-9]+$ && "${product_up_line}" =~ ^[0-9]+$ &&
+   ${empty_proof_line} -lt ${stack_prepared_line} &&
+   ${stack_prepared_line} -lt ${realm_migration_line} &&
+   ${realm_migration_line} -lt ${product_up_line} ]] ||
+  fail "testApp must qualify the empty namespace and arm teardown before migration and product startup"
 contains "${LIFECYCLE}" 'import-initialized disposable Compose test stack'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_CANDIDATE_MANIFEST'
 contains "${LIFECYCLE}" 'candidate-manifest-check.py'
@@ -194,20 +206,31 @@ contains "${DCR_CONTRACT_PROBE}" '"credentialsIncluded": False'
 
 contains "${MODULE_BUILD}" 'apply from: "${projectDir}/gradle/tasks/product-flow.gradle"'
 contains "${MODULE_TASKS}" "args 'install', '--with-deps', 'chromium'"
-contains "${FLOW}" '/api/bootstrap/owner-invitation'
-contains "${FLOW}" '/api/v1/identity/session/reconcile'
-contains "${FLOW}" '"access_updated"'
+contains "${FLOW}" '.bootstrapOwner(readBootstrapToken()'
+contains "${GENERATED_ADMIN}" 'bootstrap.bootstrapOwnerInvitation('
+contains "${FLOW}" '.reconcileIdentitySession(session.accessToken())'
+contains "${GENERATED_USER}" 'identitySession.reconcileIdentitySession(headers(bearer))'
+contains "${FLOW}" 'IdentitySessionReconcileResponse.StateEnum.ACCESS_UPDATED'
 contains "${FLOW}" 'organizationGroups(claims)'
 contains "${FLOW}" '/api/admin/providers/selections'
 contains "${FLOW}" 'new ProviderSelection("chat", "weave-native")'
-contains "${FLOW}" 'new ProviderSelection("files", "weave-native")'
+# Files already has an explicit fresh-stack binding. Its legacy selection route
+# must prove dry-run and denied activation, not mutate that binding.
+contains "${FLOW}" '.category("files")'
+contains "${FLOW}" '.dryRun(true)'
+contains "${FLOW}" 'Boolean.FALSE.equals(dryRun.getApplied())'
+contains "${FLOW}" 'Set.of(409)'
+contains "${FLOW}" 'files-provider-activation-unverified'
+contains "${FLOW}" 'binding.getBindingRevision()'
+contains "${FLOW}" 'binding.getAdapterKey()'
 contains "${FLOW}" 'new ProviderSelection("calendar", "weave-native")'
 contains "${FLOW}" 'weave.test-app-product-flow/v2'
 contains "${FLOW}" 'southboundProviderDependencyObserved'
 contains "${FLOW}" 'nativePersistenceVerified'
 contains "${FLOW}" '"recommended_self_hosted_default"'
-contains "${FLOW}" '/api/chat/readiness'
-contains "${FLOW}" '"available".equals(observedState)'
+contains "${FLOW}" 'userApi.chatReadiness(ownerToken)'
+contains "${GENERATED_USER}" 'chat.getChatReadiness(headers(bearer))'
+contains "${FLOW}" 'readiness.getMemberState() == ChatReadiness.MemberStateEnum.AVAILABLE'
 absent "${FLOW}" 'claims.path("groups")'
 contains "${FLOW}" 'authorization_code_pkce_s256'
 contains "${FLOW}" 'environment.productOrigin().resolve("/admin-console/")'
@@ -268,7 +291,9 @@ import sys
 from pathlib import Path
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
-selection = source.index("configureRequiredProviders(ownerSession.accessToken())")
+selection = source.index("configureRequiredProviders(adminSession.accessToken())")
+if "configureRequiredProviders(ownerSession.accessToken())" in source:
+    raise SystemExit("Provider setup requires the separate Admin session")
 readiness = source.index("awaitChatReadiness(ownerSession.accessToken())")
 collaboration = source.index("CollaborationJourney collaboration")
 if not selection < readiness < collaboration:

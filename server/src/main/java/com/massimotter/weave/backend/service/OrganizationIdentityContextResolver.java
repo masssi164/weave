@@ -91,6 +91,24 @@ public final class OrganizationIdentityContextResolver {
                 providerRoleMappings(roles, groups));
     }
 
+    /** Human HTTP admission may assert the configured data scope, never select another tenant. */
+    public boolean matchesConfiguredTenant(Jwt jwt) {
+        if (jwt == null || properties.defaultTenantId().isBlank()) {
+            return false;
+        }
+        for (String claim : new String[] {properties.tenantClaim(), properties.tenantFallbackClaim()}) {
+            if (jwt.getClaims().containsKey(claim)
+                    && !properties.defaultTenantId().equals(jwt.getClaims().get(claim))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public String configuredOrganizationId() {
+        return properties.defaultTenantId();
+    }
+
     private static String requireSubject(Jwt jwt) {
         if (jwt == null || !hasText(jwt.getSubject())) {
             throw new ApiErrorException(

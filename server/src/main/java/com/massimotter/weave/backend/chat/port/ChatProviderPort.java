@@ -13,6 +13,7 @@ import com.massimotter.weave.backend.chat.domain.ChatRedactionReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
+import com.massimotter.weave.backend.chat.domain.ChatTimelinePage;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
 import com.massimotter.weave.backend.chat.domain.ChatTypingIndicator;
@@ -37,6 +38,12 @@ public interface ChatProviderPort {
     ProviderConformanceProfile conformanceProfile();
 
     ChatConversations joinedConversations(ChatRequestContext context);
+
+    /** Stable, bounded canonical identifiers for rooms joined by the current actor in one Space. */
+    java.util.List<String> joinedConversationRefs(ChatRequestContext context, String afterConversationId, int limit);
+
+    /** Finds a current joined or invited room's Space without trusting a token context. */
+    java.util.Optional<String> memberConversationContext(ChatRequestContext context, ConversationId conversationId);
 
     default ChatConversations joinedConversations(ChatActorRef actorRef) {
         return joinedConversations(ChatRequestContext.isolatedTest(actorRef));
@@ -69,6 +76,12 @@ public interface ChatProviderPort {
     }
 
     ChatTimeline timelineEvents(ChatRequestContext context, ConversationId conversationId, ChatCursor cursor, int limit);
+
+    ChatTimelinePage timelinePage(ChatRequestContext context, ConversationId conversationId, ChatCursor before, int limit);
+
+    /** Resolves a committed canonical event after current room authorization. */
+    ChatTimelineEvent event(ChatRequestContext context, ConversationId conversationId, String eventId);
+
 
     default ChatTimeline timelineEvents(
             ChatActorRef actorRef,

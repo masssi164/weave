@@ -7,7 +7,6 @@ import 'package:weave/core/config/feature_flags.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
-import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
@@ -157,38 +156,6 @@ AsyncValue<WorkspaceCapabilitySnapshot> _workspaceCapabilitySnapshot() {
         readiness: WorkspaceCapabilityReadiness.unavailable,
       ),
     ),
-  );
-}
-
-ProviderStatusSnapshot _providerStatus({
-  required String module,
-  required String providerKey,
-  ProviderState state = ProviderState.notConfigured,
-  bool enabled = false,
-  bool configured = false,
-  bool readOnly = true,
-}) {
-  return ProviderStatusSnapshot(
-    module: module,
-    providerKey: providerKey,
-    state: state,
-    readiness: state == ProviderState.ready ? 'ready' : 'fail-closed',
-    enabled: enabled,
-    configured: configured,
-    readOnly: readOnly,
-    failClosed: state != ProviderState.ready,
-    supportSafe: true,
-    paidFeaturesRequired: false,
-    summary: 'Support-safe readiness for $providerKey.',
-    supportedCapabilities: const [],
-    unsupportedOperations: state == ProviderState.ready
-        ? const []
-        : const ['runtime-action'],
-    supportSafeErrorCodes: state == ProviderState.ready
-        ? const []
-        : const ['PROVIDER_NOT_CONFIGURED'],
-    redactionPolicy: 'support-safe',
-    candidates: const [],
   );
 }
 
@@ -472,34 +439,6 @@ void main() {
           weaveBackendConnectionStateProvider.overrideWithValue(
             WeaveBackendConnectionState.connected,
           ),
-          weaveApiProviderStackSnapshotProvider.overrideWith(
-            (ref) async => const ProviderStackSnapshot(
-              releaseStatus: 'provider-readiness',
-              backendOwnedFacades: true,
-              flutterDirectProviderCallsAllowed: false,
-              supportSafe: true,
-              providers: [
-                ProviderStatusSnapshot(
-                  module: 'files',
-                  providerKey: 'nextcloud-files',
-                  state: ProviderState.ready,
-                  readiness: 'ready',
-                  enabled: true,
-                  configured: true,
-                  readOnly: false,
-                  failClosed: false,
-                  supportSafe: true,
-                  paidFeaturesRequired: false,
-                  summary: 'Operator-only provider readiness.',
-                  supportedCapabilities: [],
-                  unsupportedOperations: [],
-                  supportSafeErrorCodes: [],
-                  redactionPolicy: 'support-safe',
-                  candidates: [],
-                ),
-              ],
-            ),
-          ),
           userProfileProvider.overrideWith((ref) async => _memberProfile),
         ],
       );
@@ -639,341 +578,50 @@ void main() {
       );
     });
 
-    testWidgets('surfaces provider stack fail-closed readiness safely', (
-      tester,
-    ) async {
-      final container = ProviderContainer.test(
-        overrides: [
-          preferencesStoreProvider.overrideWith(
-            (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
-          ),
-          chatSecurityRepositoryProvider.overrideWithValue(
-            FakeChatSecurityRepository(),
-          ),
-          workspaceConnectionStateProvider.overrideWithValue(
-            _workspaceConnectionState(),
-          ),
-          workspaceCapabilitySnapshotProvider.overrideWithValue(
-            _workspaceCapabilitySnapshot(),
-          ),
-          weaveBackendConnectionStateProvider.overrideWithValue(
-            WeaveBackendConnectionState.connected,
-          ),
-          weaveApiProviderStackSnapshotProvider.overrideWith(
-            (ref) async => const ProviderStackSnapshot(
-              releaseStatus: 'contract-preview',
-              backendOwnedFacades: true,
-              flutterDirectProviderCallsAllowed: false,
-              supportSafe: true,
-              categories: [
-                ProviderCategoryStatusSnapshot(
-                  category: 'calendar',
-                  label: 'calendar',
-                  readiness: ProviderCategoryReadiness.degraded,
-                  policyState: 'allowed',
-                  memberImpact: 'Calendar is degraded.',
-                  modules: ['calendar'],
-                  providerCandidates: ['nextcloud-calendar'],
-                  adapterEvidence: [
-                    ProviderAdapterReadinessEvidenceSnapshot(
-                      domain: 'calendar',
-                      adapterKey: 'nextcloud-caldav',
-                      configured: false,
-                      reachable: false,
-                      health: 'admin_selected_pending_backend_configuration',
-                      failClosed: true,
-                      supportSafeDiagnostics: {
-                        'secretsReturned': false,
-                        'rawProviderErrorsReturned': false,
-                      },
-                    ),
-                  ],
-                  diagnostics: {
-                    'secretsReturned': false,
-                    'rawProviderErrorsReturned': false,
-                  },
-                ),
-                ProviderCategoryStatusSnapshot(
-                  category: 'agent-runtime-control',
-                  label: 'Agent Runtime Control',
-                  readiness: ProviderCategoryReadiness.policyBlocked,
-                  policyState: 'policy_blocked',
-                  memberImpact:
-                      'Agent Runtime Control is disabled by workspace policy.',
-                  modules: [],
-                  providerCandidates: [],
-                  diagnostics: {
-                    'secretsReturned': false,
-                    'rawProviderErrorsReturned': false,
-                  },
-                ),
-              ],
-              providers: [
-                ProviderStatusSnapshot(
-                  module: 'office',
-                  providerKey: 'onlyoffice-community',
-                  state: ProviderState.disabled,
-                  readiness: 'fail-closed',
-                  enabled: false,
-                  configured: false,
-                  readOnly: true,
-                  failClosed: true,
-                  supportSafe: true,
-                  paidFeaturesRequired: false,
-                  summary: 'Disabled until configured behind backend facade.',
-                  supportedCapabilities: [],
-                  unsupportedOperations: ['launch'],
-                  supportSafeErrorCodes: ['PROVIDER_DISABLED'],
-                  redactionPolicy: 'support-safe',
-                  candidates: ['ONLYOFFICE Docs Community'],
-                ),
-              ],
+    testWidgets(
+      'owner health keeps User capability states without Admin diagnostics',
+      (tester) async {
+        final container = ProviderContainer.test(
+          overrides: [
+            preferencesStoreProvider.overrideWith(
+              (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
+            ),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              FakeChatSecurityRepository(),
+            ),
+            workspaceConnectionStateProvider.overrideWithValue(
+              _workspaceConnectionState(),
+            ),
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              _workspaceCapabilitySnapshot(),
+            ),
+            weaveBackendConnectionStateProvider.overrideWithValue(
+              WeaveBackendConnectionState.connected,
+            ),
+            userProfileProvider.overrideWith((ref) async => _ownerProfile),
+          ],
+        );
+        addTearDown(container.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(body: WorkspaceHealthScreen()),
             ),
           ),
-          weaveApiOfficeCapabilitiesSnapshotProvider.overrideWith(
-            (ref) async => const OfficeCapabilitiesSnapshot(
-              releaseStatus: 'contract-preview',
-              enabled: false,
-              configured: false,
-              supportSafe: true,
-              launchMode: 'disabled',
-              defaultProvider: 'onlyoffice-community',
-              providerReadiness: [],
-              supportedFileTypes: [],
-              candidates: [],
-              capabilities: OfficeCapabilityFlagsSnapshot(
-                view: false,
-                edit: false,
-                comment: false,
-                review: false,
-                formFill: false,
-              ),
-              permissions: OfficePermissionModelSnapshot(
-                canView: false,
-                canEdit: false,
-                canComment: false,
-                canReview: false,
-                canFillForms: false,
-                reason: 'token leaked from https://office.example.test',
-              ),
-              lockSessionReadiness: OfficeLockSessionReadinessSnapshot(
-                documentLocks: 'unavailable',
-                sessionTokens: 'unavailable',
-                callbackVerification: 'unavailable',
-                supportSafe: true,
-              ),
-            ),
-          ),
-          userProfileProvider.overrideWith((ref) async => _ownerProfile),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: WorkspaceHealthScreen()),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Provider stack readiness'), findsOneWidget);
-      expect(find.text('Admin/operator readiness cockpit'), findsOneWidget);
-      expect(
-        find.text('Overall posture: Admin action required', findRichText: true),
-        findsOneWidget,
-      );
-      expect(
-        find.text(
-          'Category health: 0 ready of 2; 2 need action',
-          findRichText: true,
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.text('Evidence: Support-safe and redacted', findRichText: true),
-        findsOneWidget,
-      );
-      expect(
-        find.text(
-          'Member boundary: Provider diagnostics hidden from normal members',
-          findRichText: true,
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Next actions'), findsOneWidget);
-      expect(
-        find.textContaining('Configure endpoint mappings and SecretRefs'),
-        findsWidgets,
-      );
-      expect(find.text('Category health and member impact'), findsOneWidget);
-      expect(find.text('Member impact: Calendar is degraded.'), findsOneWidget);
-      expect(find.text('Policy: allowed'), findsOneWidget);
-      expect(find.textContaining('support-safe readiness only'), findsWidgets);
-      expect(
-        find.text('Flutter provider calls: Blocked', findRichText: true),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('Flutter does not call Nextcloud'),
-        findsOneWidget,
-      );
-      expect(find.text('Office readiness'), findsOneWidget);
-      expect(find.text('unconfigured'), findsWidgets);
-      expect(find.text('fail-closed'), findsWidgets);
-      expect(
-        find.textContaining('Office launch is fail-closed'),
-        findsOneWidget,
-      );
-      expect(find.text('calendar: degraded'), findsOneWidget);
-      expect(find.text('nextcloud-caldav: unconfigured'), findsOneWidget);
-      expect(find.text('Unavailable'), findsWidgets);
-      expect(find.text('Agent Runtime Control: Blocked'), findsOneWidget);
-      expect(find.textContaining('provider-token-123'), findsNothing);
-      expect(find.textContaining('https://gitlab.example.test'), findsNothing);
-      expect(find.textContaining('https://office.example.test'), findsNothing);
-    });
-
-    testWidgets('renders the full final provider product coverage list', (
-      tester,
-    ) async {
-      final container = ProviderContainer.test(
-        overrides: [
-          preferencesStoreProvider.overrideWith(
-            (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
-          ),
-          chatSecurityRepositoryProvider.overrideWithValue(
-            FakeChatSecurityRepository(),
-          ),
-          workspaceConnectionStateProvider.overrideWithValue(
-            _workspaceConnectionState(),
-          ),
-          workspaceCapabilitySnapshotProvider.overrideWithValue(
-            _workspaceCapabilitySnapshot(),
-          ),
-          weaveBackendConnectionStateProvider.overrideWithValue(
-            WeaveBackendConnectionState.connected,
-          ),
-          weaveApiProviderStackSnapshotProvider.overrideWith(
-            (ref) async => ProviderStackSnapshot(
-              releaseStatus: 'provider-final-coverage',
-              backendOwnedFacades: true,
-              flutterDirectProviderCallsAllowed: false,
-              supportSafe: true,
-              providers: [
-                _providerStatus(
-                  module: 'files',
-                  providerKey: 'nextcloud-files',
-                  state: ProviderState.ready,
-                  enabled: true,
-                  configured: true,
-                  readOnly: false,
-                ),
-                _providerStatus(
-                  module: 'calendar',
-                  providerKey: 'nextcloud-caldav',
-                  state: ProviderState.ready,
-                  enabled: true,
-                  configured: true,
-                  readOnly: false,
-                ),
-                _providerStatus(
-                  module: 'contacts',
-                  providerKey: 'nextcloud-carddav',
-                ),
-                _providerStatus(
-                  module: 'forms',
-                  providerKey: 'nextcloud-forms',
-                ),
-                _providerStatus(
-                  module: 'matrix',
-                  providerKey: 'synapse-homeserver',
-                  state: ProviderState.ready,
-                  enabled: true,
-                  configured: true,
-                  readOnly: false,
-                ),
-                _providerStatus(
-                  module: 'matrix-auth',
-                  providerKey: 'matrix-authentication-service',
-                  state: ProviderState.ready,
-                  enabled: true,
-                  configured: true,
-                  readOnly: false,
-                ),
-                _providerStatus(module: 'meetings', providerKey: 'livekit'),
-                _providerStatus(
-                  module: 'boards',
-                  providerKey: 'openproject-primary',
-                ),
-              ],
-            ),
-          ),
-          weaveApiOfficeCapabilitiesSnapshotProvider.overrideWith(
-            (ref) async => const OfficeCapabilitiesSnapshot(
-              releaseStatus: 'contract-preview',
-              enabled: false,
-              configured: false,
-              supportSafe: true,
-              launchMode: 'disabled',
-              defaultProvider: 'onlyoffice-community',
-              providerReadiness: [],
-              supportedFileTypes: [],
-              candidates: [],
-              capabilities: OfficeCapabilityFlagsSnapshot(
-                view: false,
-                edit: false,
-                comment: false,
-                review: false,
-                formFill: false,
-              ),
-              permissions: OfficePermissionModelSnapshot(
-                canView: false,
-                canEdit: false,
-                canComment: false,
-                canReview: false,
-                canFillForms: false,
-                reason: 'not-configured',
-              ),
-              lockSessionReadiness: OfficeLockSessionReadinessSnapshot(
-                documentLocks: 'unavailable',
-                sessionTokens: 'unavailable',
-                callbackVerification: 'unavailable',
-                supportSafe: true,
-              ),
-            ),
-          ),
-          userProfileProvider.overrideWith((ref) async => _ownerProfile),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: WorkspaceHealthScreen()),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Identity realm: ready'), findsNothing);
-      expect(find.text('Files: ready'), findsOneWidget);
-      expect(find.text('Calendar: ready'), findsOneWidget);
-      expect(find.text('Contacts: unconfigured'), findsOneWidget);
-      expect(find.text('Forms: unconfigured'), findsOneWidget);
-      expect(find.text('Matrix chat: ready'), findsOneWidget);
-      expect(find.text('Matrix auth: ready'), findsOneWidget);
-      expect(find.text('Meetings: unconfigured'), findsOneWidget);
-      expect(find.text('Boards: unconfigured'), findsOneWidget);
-    });
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Workspace Readiness'), findsOneWidget);
+        expect(find.text('Files'), findsWidgets);
+        expect(find.text('Calendar'), findsWidgets);
+        expect(find.text('Provider stack readiness'), findsNothing);
+        expect(find.text('Admin/operator readiness cockpit'), findsNothing);
+        expect(find.textContaining('SecretRef'), findsNothing);
+        expect(find.textContaining('nextcloud'), findsNothing);
+      },
+    );
 
     testWidgets(
       'workspace readiness retry rebuilds bootstrap after an async error',

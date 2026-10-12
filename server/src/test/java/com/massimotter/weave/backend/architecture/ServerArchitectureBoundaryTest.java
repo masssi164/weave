@@ -54,6 +54,8 @@ class ServerArchitectureBoundaryTest {
             "rawproviderpayload",
             "raw provider payload");
     private static final List<String> NATIVE_OR_MCP_CONTRACT_EXEMPT_LITERALS = List.of(
+            // Internal Spring filter type, not a member-facing bearer-token field.
+            "bearertokenauthenticationfilter",
             "rawproviderpayloadincluded",
             "rawproviderpayload\", \"redacted\"",
             "rawproviderpayload\",",
@@ -192,6 +194,19 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
+    void securityFilterTypeDoesNotHideAnExposedBearerTokenField() {
+        JavaSource frameworkFilter = new JavaSource(
+                Path.of("CalendarMcpSecurityConfiguration.java"), "", List.of(),
+                "BearerTokenAuthenticationFilter.class");
+        JavaSource exposedField = new JavaSource(
+                Path.of("CalendarMcpResponse.java"), "", List.of(),
+                "record CalendarMcpResponse(String bearerToken) {}");
+
+        assertThat(forbiddenNativeOrMcpLiterals(frameworkFilter)).isEmpty();
+        assertThat(forbiddenNativeOrMcpLiterals(exposedField)).contains("bearertoken");
+    }
+
+    @Test
     void strategicJsonAndFileRuntimeAuthorityDoesNotExpandBeyondFencedDebt() throws IOException {
         List<String> violations = productionSources().stream()
                 .filter(ServerArchitectureBoundaryTest::usesFileRuntimeStore)
@@ -207,9 +222,13 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void filesOpenApiControllerRemainsControlPlaneOnly() throws IOException {
+    void filesMemberDataPlaneIsServerOwnedAndCodeFirst() throws IOException {
         JavaSource filesController = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("controller", "FilesController.java")))
+                .findFirst()
+                .orElseThrow();
+        JavaSource userController = productionSources().stream()
+                .filter(source -> source.path().endsWith(Path.of("controller", "FilesUserItemsController.java")))
                 .findFirst()
                 .orElseThrow();
 
@@ -218,6 +237,13 @@ class ServerArchitectureBoundaryTest {
                 .doesNotContain("@PostMapping(\"/api/files/upload\")")
                 .doesNotContain("@PostMapping(\"/api/files/folders\")")
                 .doesNotContain("@DeleteMapping(\"/api/files/{id}\")");
+        assertThat(userController.text())
+                .contains("@GetMapping(value = \"/api/files/items\"")
+                .contains("@GetMapping(value = \"/api/files/items/{fileId}\"")
+                .contains("@GetMapping(\"/api/files/items/{fileId}/content\")")
+                .contains("@PostMapping(value = \"/api/files/items/folders\"")
+                .contains("@PostMapping(value = \"/api/files/items/uploads\"")
+                .contains("@PutMapping(value = \"/api/files/items/{fileId}/content\"");
     }
 
     @Test
@@ -305,7 +331,8 @@ class ServerArchitectureBoundaryTest {
                 .contains("matrixProtocolCoreService.parseEvent(")
                 .contains("matrixProtocolCoreService.parseObject(")
                 .contains("chatDomainFacadeService.conversations(jwt)")
-                .contains("chatDomainFacadeService.timeline(")
+                // The bounded Matrix history path uses canonical paged timelines.
+                .contains("chatDomainFacadeService.timelinePage(")
                 .contains("chatDomainFacadeService.sendEvent(")
                 .doesNotContain("/api/chat/conversations")
                 .doesNotContain("ChatFacadeService")

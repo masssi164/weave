@@ -13,6 +13,7 @@ import com.massimotter.weave.backend.chat.domain.ChatRedactionReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
 import com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
+import com.massimotter.weave.backend.chat.domain.ChatTimelinePage;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
 import com.massimotter.weave.backend.chat.domain.ChatTypingIndicator;
@@ -108,6 +109,16 @@ public final class NativeChatProviderAdapter implements ChatProviderPort {
     }
 
     @Override
+    public java.util.List<String> joinedConversationRefs(ChatRequestContext context, String afterConversationId, int limit) {
+        return store.joinedConversationRefs(context, afterConversationId, limit);
+    }
+
+    @Override
+    public java.util.Optional<String> memberConversationContext(ChatRequestContext context, ConversationId conversationId) {
+        return store.memberConversationContext(context, conversationId);
+    }
+
+    @Override
     public ChatCursor currentCursor(ChatRequestContext context) {
         return store.currentCursor(context);
     }
@@ -146,6 +157,17 @@ public final class NativeChatProviderAdapter implements ChatProviderPort {
             ChatCursor cursor,
             int limit) {
         return store.timelineEvents(context, conversationId, cursor, limit);
+    }
+
+    @Override
+    public ChatTimelinePage timelinePage(
+            ChatRequestContext context, ConversationId conversationId, ChatCursor before, int limit) {
+        return store.timelinePage(context, conversationId, before, limit);
+    }
+
+    @Override
+    public ChatTimelineEvent event(ChatRequestContext context, ConversationId conversationId, String eventId) {
+        return store.event(context, conversationId, eventId);
     }
 
     @Override

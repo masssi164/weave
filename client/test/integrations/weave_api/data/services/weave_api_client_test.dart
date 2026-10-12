@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
-import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
 import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart';
@@ -402,89 +401,96 @@ void main() {
       },
     );
 
-    test('fetches Weave Home through backend facade', () async {
-      late http.BaseRequest capturedRequest;
-      final client = HttpWeaveApiClient(
-        httpClient: _RecordingHttpClient((request) async {
-          capturedRequest = request;
-          return _jsonResponse({
-            'version': 2,
-            'readiness': 'degraded',
-            'summary': 'Weave Home is usable, with setup actions remaining.',
-            'supportSafe': true,
-            'sections': [
-              {
-                'key': 'recent-channels',
-                'title': 'Recent channels',
-                'readiness': 'ready',
-                'summary': 'Project conversations are available.',
-                'itemCount': 1,
-                'accessible': true,
-                'productRoute': 'weave://home/channels',
-              },
-              {
-                'key': 'open-tasks',
-                'title': 'Open tasks',
-                'readiness': 'degraded',
-                'summary': 'Board writes stay gated behind audit.',
-                'itemCount': 0,
-                'accessible': true,
-                'productRoute': 'weave://home/tasks',
-              },
-            ],
-            'actions': [
-              {
-                'key': 'review-open-tasks',
-                'label': 'Review open tasks',
-                'productRoute': 'weave://home/tasks',
-                'reason': 'Board writes stay gated behind audit.',
-              },
-            ],
-            'recentActivity': [
-              _workspaceHomeActivityJson(
-                actorIsCurrentUser: true,
-                activityHash:
-                    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-                actorHash:
-                    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-              ),
-            ],
-          });
-        }),
-      );
+    test(
+      'HOME_USER_API_GENERATED_CLIENT uses generated User Home v3 transport',
+      () async {
+        late http.BaseRequest capturedRequest;
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            capturedRequest = request;
+            return _jsonResponse({
+              'version': 3,
+              'readiness': 'degraded',
+              'summary':
+                  'Some workspace capabilities are unavailable. Retry or contact your administrator.',
+              'supportSafe': true,
+              'sections': [
+                {
+                  'key': 'recent-channels',
+                  'title': 'Recent channels',
+                  'readiness': 'ready',
+                  'summary': 'Project conversations are available.',
+                  'itemCount': null,
+                  'accessible': true,
+                  'productRoute': 'weave://home/channels',
+                },
+                {
+                  'key': 'open-tasks',
+                  'title': 'Open tasks',
+                  'readiness': 'degraded',
+                  'summary': 'Tasks are unavailable for your current access.',
+                  'itemCount': 0,
+                  'accessible': true,
+                  'productRoute': 'weave://home/tasks',
+                },
+              ],
+              'actions': [
+                {
+                  'key': 'review-open-tasks',
+                  'label': 'Review open tasks',
+                  'productRoute': 'weave://home/tasks',
+                  'reason': 'Tasks are unavailable for your current access.',
+                },
+              ],
+              'recentActivity': [
+                _workspaceHomeActivityJson(
+                  actorIsCurrentUser: true,
+                  activityHash:
+                      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                  actorHash:
+                      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                ),
+              ],
+            });
+          }),
+        );
 
-      final snapshot = await client.fetchWorkspaceHome(
-        baseUrl: Uri.parse('https://api.weave.test/api'),
-        accessToken: 'token-123',
-      );
+        final snapshot = await client.fetchWorkspaceHome(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accessToken: 'token-123',
+        );
 
-      expect(
-        capturedRequest.url.toString(),
-        'https://api.weave.test/api/workspace/home',
-      );
-      expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
-      expect(snapshot.supportSafe, isTrue);
-      expect(snapshot.sections.first.key, 'recent-channels');
-      expect(snapshot.sections.first.productRoute, 'weave://home/channels');
-      expect(snapshot.actions.single.productRoute, 'weave://home/tasks');
-      expect(snapshot.recentActivity.single.supportSafe, isTrue);
-      expect(
-        snapshot.recentActivity.single.domain,
-        WorkspaceHomeActivityDomain.files,
-      );
-      expect(
-        snapshot.recentActivity.single.action,
-        WorkspaceHomeActivityAction.filesWebDavWriteCompleted,
-      );
-      expect(snapshot.recentActivity.single.actorIsCurrentUser, isTrue);
-      expect(snapshot.hasActionableWork, isTrue);
-    });
+        expect(
+          capturedRequest.url.toString(),
+          'https://api.weave.test/api/workspace/home',
+        );
+        expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
+        expect(snapshot.version, 3);
+        expect(snapshot.sections.first.itemCount, isNull);
+        expect(snapshot.sections[1].itemCount, 0);
+        expect(snapshot.supportSafe, isTrue);
+        expect(snapshot.sections.first.key, 'recent-channels');
+        expect(snapshot.sections.first.productRoute, 'weave://home/channels');
+        expect(snapshot.actions.single.productRoute, 'weave://home/tasks');
+        expect(snapshot.recentActivity.single.supportSafe, isTrue);
+        expect(
+          snapshot.recentActivity.single.domain,
+          WorkspaceHomeActivityDomain.files,
+        );
+        expect(
+          snapshot.recentActivity.single.action,
+          WorkspaceHomeActivityAction.filesWebDavWriteCompleted,
+        );
+        expect(snapshot.recentActivity.single.actorIsCurrentUser, isTrue);
+        expect(snapshot.hasActionableWork, isTrue);
+      },
+    );
 
     test('rejects unsafe Weave Home provider leakage', () async {
       final client = HttpWeaveApiClient(
         httpClient: _RecordingHttpClient((request) async {
           return _jsonResponse({
-            'version': 2,
+            'version': 3,
             'readiness': 'ready',
             'summary': 'Raw provider URL https://provider.example leaked.',
             'supportSafe': true,
@@ -511,7 +517,18 @@ void main() {
         _workspaceHomeActivityJson(action: 'files.unknown.completed'),
         _workspaceHomeActivityJson(domain: 'provider-files'),
         _workspaceHomeActivityJson(visibility: 'context:private-id'),
+        _workspaceHomeActivityJson(
+          action: 'files.user_write.completed',
+          visibility: 'private',
+          actorIsCurrentUser: false,
+        ),
+        _workspaceHomeActivityJson(
+          action: 'files.user_write.completed',
+          visibility: 'workspace',
+          actorIsCurrentUser: true,
+        ),
         _workspaceHomeActivityJson(occurredAt: '2026-07-12T10:00:00'),
+        _workspaceHomeActivityJson(occurredAt: '2026-07-12'),
         _workspaceHomeActivityJson(supportSafe: false),
       ];
 
@@ -519,7 +536,7 @@ void main() {
         final client = HttpWeaveApiClient(
           httpClient: _RecordingHttpClient((request) async {
             return _jsonResponse({
-              'version': 2,
+              'version': 3,
               'readiness': 'ready',
               'summary': 'Weave Home is ready.',
               'supportSafe': true,
@@ -540,12 +557,51 @@ void main() {
       }
     });
 
+    test(
+      'projects completed private User Files activity for its actor',
+      () async {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            return _jsonResponse({
+              'version': 3,
+              'readiness': 'ready',
+              'summary': 'Weave Home is ready.',
+              'supportSafe': true,
+              'sections': [],
+              'actions': [],
+              'recentActivity': [
+                _workspaceHomeActivityJson(
+                  action: 'files.user_write.completed',
+                  visibility: 'private',
+                  actorIsCurrentUser: true,
+                ),
+              ],
+            });
+          }),
+        );
+
+        final home = await client.fetchWorkspaceHome(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accessToken: 'token-123',
+        );
+
+        expect(
+          home.recentActivity.single.action,
+          WorkspaceHomeActivityAction.filesUserWriteCompleted,
+        );
+        expect(
+          home.recentActivity.single.visibility,
+          WorkspaceHomeActivityVisibility.private,
+        );
+      },
+    );
+
     test('rejects duplicate Weave Home activity references', () async {
       final activity = _workspaceHomeActivityJson();
       final client = HttpWeaveApiClient(
         httpClient: _RecordingHttpClient((request) async {
           return _jsonResponse({
-            'version': 2,
+            'version': 3,
             'readiness': 'ready',
             'summary': 'Weave Home is ready.',
             'supportSafe': true,
@@ -560,6 +616,104 @@ void main() {
         () => client.fetchWorkspaceHome(
           baseUrl: Uri.parse('https://api.weave.test/api'),
           accessToken: 'token-123',
+        ),
+        throwsA(isA<AppFailure>()),
+      );
+    });
+
+    test(
+      'Home retains unknown counts and rejects negative counts instead of inventing zero',
+      () async {
+        for (final count in [null, 0, 8, -1]) {
+          final client = HttpWeaveApiClient(
+            httpClient: _RecordingHttpClient(
+              (_) async => _jsonResponse({
+                'version': 3,
+                'readiness': 'ready',
+                'summary': 'Workspace capabilities are available.',
+                'supportSafe': true,
+                'sections': [
+                  {
+                    'key': 'recent-channels',
+                    'title': 'Recent channels',
+                    'readiness': 'ready',
+                    'summary': 'Conversations are available.',
+                    'itemCount': count,
+                    'accessible': true,
+                    'productRoute': 'weave://home/channels',
+                  },
+                ],
+                'actions': [],
+                'recentActivity': [],
+              }),
+            ),
+          );
+          final pending = client.fetchWorkspaceHome(
+            baseUrl: Uri.parse('https://api.weave.test/api'),
+            accessToken: 'member-token',
+          );
+          if (count != null && count < 0) {
+            await expectLater(pending, throwsA(isA<AppFailure>()));
+          } else {
+            final snapshot = await pending;
+            expect(snapshot.sections.single.itemCount, count);
+            expect(snapshot.hasActionableWork, count != null && count > 0);
+          }
+        }
+      },
+    );
+
+    test('Home HTTP failures never expose operator response details', () async {
+      for (final status in [401, 403, 503]) {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient(
+            (_) async => _jsonResponse({
+              'message':
+                  'Configure provider password at https://private.example.test with Bearer unsafe-token',
+            }, statusCode: status),
+          ),
+        );
+        await expectLater(
+          client.fetchWorkspaceHome(
+            baseUrl: Uri.parse('https://api.weave.test/api'),
+            accessToken: 'member-token',
+          ),
+          throwsA(
+            isA<AppFailure>()
+                .having(
+                  (failure) => failure.message,
+                  'support-safe message',
+                  isNot(contains('provider')),
+                )
+                .having(
+                  (failure) => failure.message,
+                  'no raw token',
+                  isNot(contains('unsafe-token')),
+                )
+                .having((failure) => failure.cause, 'status only', status),
+          ),
+        );
+      }
+    });
+
+    test('Home rejects the superseded v2 payload explicitly', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient(
+          (_) async => _jsonResponse({
+            'version': 2,
+            'readiness': 'ready',
+            'summary': 'Old Home snapshot.',
+            'supportSafe': true,
+            'sections': [],
+            'actions': [],
+            'recentActivity': [],
+          }),
+        ),
+      );
+      await expectLater(
+        client.fetchWorkspaceHome(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accessToken: 'member-token',
         ),
         throwsA(isA<AppFailure>()),
       );
@@ -663,437 +817,6 @@ void main() {
       expect(diagnostic.status, 'not_validated');
       expect(diagnostic.keepsMessageBodiesOpaque, isTrue);
       expect(diagnostic.keepsAgentsAndConnectorsFailClosed, isTrue);
-    });
-
-    test(
-      'fetches provider stack readiness without direct provider URLs',
-      () async {
-        late http.BaseRequest capturedRequest;
-        final client = HttpWeaveApiClient(
-          httpClient: _RecordingHttpClient((request) async {
-            capturedRequest = request;
-            return _jsonResponse({
-              'releaseStatus': 'provider-stack-contract-v1',
-              'providerConfigSource':
-                  'admin-control-plane-selected-provider-mappings',
-              'bootstrapDefaultsAreSuggestionsOnly': true,
-              'adminSelectedMappingsRequired': true,
-              'backendOwnedFacades': true,
-              'flutterDirectProviderCallsAllowed': false,
-              'supportSafe': true,
-              'categories': [
-                {
-                  'category': 'chat',
-                  'label': 'Chat',
-                  'contract': {
-                    'category': 'chat',
-                    'featureCapabilities': ['chat.read', 'chat.send'],
-                    'defaultAdapters': ['matrix-chat'],
-                    'externalAdapters': ['zulip-chat'],
-                    'choiceModels': [
-                      {
-                        'choiceModel': 'recommended_self_hosted_default',
-                        'adapters': ['matrix-chat'],
-                        'adminRiskNotes': [
-                          'recommended sovereign/default posture',
-                        ],
-                        'recommended': true,
-                      },
-                      {
-                        'choiceModel': 'external_existing_provider',
-                        'adapters': ['zulip-chat'],
-                        'adminRiskNotes': [
-                          'admin records privacy and compliance risk outside member UX',
-                        ],
-                        'recommended': false,
-                      },
-                    ],
-                    'adapterModules': ['chat'],
-                    'stableMemberImpactStates': [
-                      'available',
-                      'disabled_by_policy',
-                      'not_configured',
-                      'degraded',
-                      'unavailable',
-                      'coming_later',
-                    ],
-                    'adminSelectable': true,
-                    'normalMembersConfigureProviders': false,
-                  },
-                  'readiness': 'ready',
-                  'providerRealityLevel': 'release_ready',
-                  'memberCapabilityState': 'available',
-                  'realityLevelRemediation':
-                      'Release-ready provider: keep evidence current.',
-                  'policyState': 'allowed',
-                  'memberImpact': 'Chat is available.',
-                  'modules': ['chat'],
-                  'providerCandidates': ['matrix-chat', 'zulip-chat'],
-                  'selectedProviderKey': 'matrix-chat',
-                  'choiceModel': 'recommended_self_hosted_default',
-                  'selectedByAdmin': true,
-                  'bootstrapSuggestionOnly': false,
-                  'lossyMappingNotes': [],
-                  'adapterEvidence': [
-                    {
-                      'domain': 'chat',
-                      'adapterKey': 'matrix-chat',
-                      'configured': true,
-                      'reachable': true,
-                      'health': 'ready',
-                      'providerRealityLevel': 'release_ready',
-                      'failClosed': true,
-                      'supportSafeDiagnostics': {
-                        'providerState': 'ready',
-                        'supportSafe': true,
-                        'secretsReturned': false,
-                        'rawProviderErrorsReturned': false,
-                        'rawProviderError':
-                            'Authorization: Bearer should-not-render',
-                      },
-                      'evidenceTimestamp': '2026-05-25T18:00:00Z',
-                    },
-                  ],
-                  'diagnostics': {
-                    'providerCount': 2,
-                    'allSupportSafe': true,
-                    'secretsReturned': false,
-                    'rawProviderErrorsReturned': false,
-                  },
-                },
-                {
-                  'category': 'agent-runtime-control',
-                  'label': 'Agent Runtime Control',
-                  'contract': {
-                    'category': 'agent-runtime-control',
-                    'featureCapabilities': ['agent-runtime.entitled'],
-                    'defaultAdapters': ['weaver-openclaw'],
-                    'externalAdapters': [],
-                    'choiceModels': [
-                      {
-                        'choiceModel': 'recommended_self_hosted_default',
-                        'adapters': ['weaver-openclaw'],
-                        'adminRiskNotes': ['disabled by default'],
-                        'recommended': true,
-                      },
-                    ],
-                    'adapterModules': [],
-                    'stableMemberImpactStates': [
-                      'available',
-                      'disabled_by_policy',
-                      'not_configured',
-                      'degraded',
-                      'unavailable',
-                      'coming_later',
-                    ],
-                    'adminSelectable': true,
-                    'normalMembersConfigureProviders': false,
-                  },
-                  'readiness': 'policy_blocked',
-                  'providerRealityLevel': 'contract_only',
-                  'memberCapabilityState': 'disabled_by_policy',
-                  'realityLevelRemediation':
-                      'Contract-only candidate remains unavailable.',
-                  'policyState': 'policy_blocked',
-                  'memberImpact':
-                      'Agent Runtime Control is disabled by workspace policy.',
-                  'modules': [],
-                  'providerCandidates': [],
-                  'selectedProviderKey': 'awaiting_admin_selection',
-                  'choiceModel': 'not_selected',
-                  'selectedByAdmin': false,
-                  'bootstrapSuggestionOnly': true,
-                  'lossyMappingNotes': [],
-                  'diagnostics': {
-                    'providerCount': 0,
-                    'allSupportSafe': true,
-                    'secretsReturned': false,
-                    'rawProviderErrorsReturned': false,
-                  },
-                },
-              ],
-              'providers': [
-                {
-                  'module': 'office',
-                  'providerKey': 'onlyoffice-community',
-                  'state': 'disabled',
-                  'readiness': 'fail-closed',
-                  'enabled': false,
-                  'configured': false,
-                  'readOnly': true,
-                  'failClosed': true,
-                  'supportSafe': true,
-                  'paidFeaturesRequired': false,
-                  'summary': 'Disabled until configured behind backend facade.',
-                  'supportedCapabilities': ['documents'],
-                  'unsupportedOperations': ['launch'],
-                  'supportSafeErrorCodes': ['PROVIDER_DISABLED'],
-                  'redactionPolicy': 'no raw provider errors',
-                  'candidates': ['ONLYOFFICE Docs Community'],
-                  'providerRealityLevel': 'migration_dry_run',
-                },
-                {
-                  'module': 'meetings',
-                  'providerKey': 'livekit',
-                  'state': 'not_configured',
-                  'readiness': 'fail-closed',
-                  'enabled': false,
-                  'configured': false,
-                  'readOnly': false,
-                  'failClosed': true,
-                  'supportSafe': true,
-                  'paidFeaturesRequired': false,
-                  'summary': 'LiveKit SFU readiness is fail-closed.',
-                  'supportedCapabilities': ['sfu-configuration-readiness'],
-                  'unsupportedOperations': ['livekit-api-secret-exposure'],
-                  'supportSafeErrorCodes': ['rtc-authorization-required'],
-                  'redactionPolicy': 'booleans only',
-                  'candidates': ['livekit'],
-                  'providerRealityLevel': 'rollback_ready',
-                  'diagnostics': {
-                    'activeSfuAdapter': 'livekit',
-                    'livekitUrlConfigured': true,
-                    'apiKeyConfigured': true,
-                    'apiSecretConfigured': true,
-                    'tokenEndpointConfigured': true,
-                    'tokenEndpoint': 'https://token-broker.internal/livekit',
-                    'rawProviderError': 'Authorization: Bearer leaked',
-                    'secretsReturned': false,
-                  },
-                },
-              ],
-            });
-          }),
-        );
-
-        final snapshot = await client.fetchProviderStackStatus(
-          baseUrl: Uri.parse('https://api.weave.test/api'),
-          accessToken: 'token-123',
-        );
-
-        expect(
-          capturedRequest.url.toString(),
-          'https://api.weave.test/api/providers/status',
-        );
-        expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
-        expect(snapshot.failClosed, isTrue);
-        expect(
-          snapshot.providerConfigSource,
-          'admin-control-plane-selected-provider-mappings',
-        );
-        expect(snapshot.bootstrapDefaultsAreSuggestionsOnly, isTrue);
-        expect(snapshot.adminSelectedMappingsRequired, isTrue);
-        expect(snapshot.categories, hasLength(2));
-        expect(snapshot.categories.first.category, 'chat');
-        expect(
-          snapshot.categories.first.contract.featureCapabilities,
-          containsAll(['chat.read', 'chat.send']),
-        );
-        expect(
-          snapshot.categories.first.contract.defaultAdapters,
-          contains('matrix-chat'),
-        );
-        expect(
-          snapshot.categories.first.contract.externalAdapters,
-          contains('zulip-chat'),
-        );
-        expect(
-          snapshot.categories.first.contract.keepsMemberSemanticsStable,
-          isTrue,
-        );
-        expect(
-          snapshot.categories.first.contract.choiceModels.map(
-            (choiceModel) => choiceModel.choiceModel,
-          ),
-          containsAll([
-            'recommended_self_hosted_default',
-            'external_existing_provider',
-          ]),
-        );
-        expect(
-          snapshot.categories.first.contract.choiceModels.first.recommended,
-          isTrue,
-        );
-        expect(
-          snapshot.categories.first.contract.choiceModels.last.adminRiskNotes
-              .join(' '),
-          contains('privacy'),
-        );
-        expect(
-          snapshot.categories.first.readiness,
-          ProviderCategoryReadiness.ready,
-        );
-        expect(
-          snapshot.categories.first.providerRealityLevel,
-          ProviderRealityLevel.releaseReady,
-        );
-        expect(snapshot.categories.first.memberCapabilityState, 'available');
-        expect(snapshot.categories.first.memberAvailable, isTrue);
-        expect(snapshot.categories.first.selectedProviderKey, 'matrix-chat');
-        expect(snapshot.categories.first.selectedByAdmin, isTrue);
-        expect(snapshot.categories.first.bootstrapSuggestionOnly, isFalse);
-        expect(snapshot.categories.first.supportSafe, isTrue);
-        expect(
-          snapshot.categories.first.adapterEvidence.single.adapterKey,
-          'matrix-chat',
-        );
-        expect(
-          snapshot.categories.first.adapterEvidence.single.configured,
-          isTrue,
-        );
-        expect(
-          snapshot.categories.first.adapterEvidence.single.reachable,
-          isTrue,
-        );
-        expect(
-          snapshot.categories.first.adapterEvidence.single.providerRealityLevel,
-          ProviderRealityLevel.releaseReady,
-        );
-        expect(
-          snapshot
-              .categories
-              .first
-              .adapterEvidence
-              .single
-              .supportSafeDiagnostics,
-          isNot(contains('rawProviderError')),
-        );
-        expect(snapshot.categories.last.category, 'agent-runtime-control');
-        expect(
-          snapshot.categories.last.readiness,
-          ProviderCategoryReadiness.policyBlocked,
-        );
-        expect(
-          snapshot.categories.last.providerRealityLevel,
-          ProviderRealityLevel.contractOnly,
-        );
-        expect(snapshot.categories.last.memberAvailable, isFalse);
-        expect(snapshot.providers.first.module, 'office');
-        expect(snapshot.providers.first.failClosed, isTrue);
-        expect(
-          snapshot.providers.first.providerRealityLevel,
-          ProviderRealityLevel.migrationDryRun,
-        );
-        expect(snapshot.providers.first.available, isFalse);
-        final meetings = snapshot.providers.singleWhere(
-          (provider) => provider.module == 'meetings',
-        );
-        expect(meetings.providerKey, 'livekit');
-        expect(
-          meetings.providerRealityLevel,
-          ProviderRealityLevel.rollbackReady,
-        );
-        expect(meetings.available, isFalse);
-        expect(meetings.diagnostics['livekitUrlConfigured'], isTrue);
-        expect(meetings.diagnostics['apiSecretConfigured'], isTrue);
-        expect(meetings.diagnostics['tokenEndpointConfigured'], isTrue);
-        expect(meetings.diagnostics['secretsReturned'], isFalse);
-        expect(meetings.diagnostics, isNot(contains('tokenEndpoint')));
-        expect(meetings.diagnostics, isNot(contains('rawProviderError')));
-      },
-    );
-
-    test(
-      'keeps provider category contract optional during version skew',
-      () async {
-        final client = HttpWeaveApiClient(
-          httpClient: _RecordingHttpClient((request) async {
-            return _jsonResponse({
-              'releaseStatus': 'contract-preview',
-              'backendOwnedFacades': true,
-              'flutterDirectProviderCallsAllowed': false,
-              'supportSafe': true,
-              'categories': [
-                {
-                  'category': 'chat',
-                  'label': 'Chat',
-                  'readiness': 'ready',
-                  'policyState': 'allowed',
-                  'memberImpact': 'usable',
-                  'modules': ['matrix'],
-                  'providerCandidates': ['synapse'],
-                  'diagnostics': {
-                    'secretsReturned': false,
-                    'rawProviderErrorsReturned': false,
-                  },
-                },
-              ],
-              'providers': [],
-            });
-          }),
-        );
-
-        final snapshot = await client.fetchProviderStackStatus(
-          baseUrl: Uri.parse('https://api.weave.test/api'),
-          accessToken: 'token-123',
-        );
-
-        expect(snapshot.categories.single.category, 'chat');
-        expect(snapshot.categories.single.contract.category, 'chat');
-        expect(snapshot.categories.single.contract.adminSelectable, isTrue);
-        expect(
-          snapshot.categories.single.contract.normalMembersConfigureProviders,
-          isFalse,
-        );
-      },
-    );
-
-    test('redacts sensitive provider summary text from DTOs', () async {
-      final client = HttpWeaveApiClient(
-        httpClient: _RecordingHttpClient((request) async {
-          return _jsonResponse({
-            'releaseStatus': 'contract-preview',
-            'backendOwnedFacades': true,
-            'flutterDirectProviderCallsAllowed': false,
-            'supportSafe': true,
-            'providers': [
-              {
-                'module': 'source-control',
-                'providerKey': 'gitlab-ce-foss',
-                'state': 'not_configured',
-                'readiness': 'fail-closed',
-                'enabled': false,
-                'configured': false,
-                'readOnly': true,
-                'failClosed': true,
-                'supportSafe': true,
-                'paidFeaturesRequired': false,
-                'summary': 'token leaked from https://gitlab.example.test',
-                'redactionPolicy': 'secret should not be visible',
-                'diagnostics': {
-                  'safeFlag': true,
-                  'nested': {
-                    'details': ['ok', 'https://gitlab.example.test/token'],
-                  },
-                  'tokenHeader': 'Bearer provider-token-123',
-                },
-              },
-            ],
-          });
-        }),
-      );
-
-      final snapshot = await client.fetchProviderStackStatus(
-        baseUrl: Uri.parse('https://api.weave.test/api'),
-        accessToken: 'token-123',
-      );
-
-      expect(snapshot.providers.single.summary, isNot(contains('token')));
-      expect(snapshot.providers.single.summary, isNot(contains('https://')));
-      expect(
-        snapshot.providers.single.redactionPolicy,
-        isNot(contains('secret')),
-      );
-      expect(snapshot.providers.single.diagnostics['safeFlag'], isTrue);
-      expect(snapshot.providers.single.diagnostics.toString(), contains('ok'));
-      expect(
-        snapshot.providers.single.diagnostics.toString(),
-        isNot(contains('provider-token-123')),
-      );
-      expect(
-        snapshot.providers.single.diagnostics.toString(),
-        isNot(contains('https://gitlab.example.test')),
-      );
     });
 
     test('fetches DevOps and Office readiness through backend facades', () async {
@@ -1275,6 +998,104 @@ void main() {
           accessToken: 'token-123',
         ),
         throwsA(isA<AppFailure>()),
+      );
+    });
+
+    test(
+      'reads durable member Spaces using generated User operations',
+      () async {
+        final requestedPaths = <String>[];
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            requestedPaths.add(request.url.path);
+            expect(request.headers['Authorization'], 'Bearer token-123');
+            if (request.url.path.endsWith('/workspace-default')) {
+              return _jsonResponse({'spaceRef': 'workspace-default'});
+            }
+            if (request.url.queryParameters['afterSpaceRef'] ==
+                'workspace-default') {
+              return _jsonResponse({
+                'spaces': [
+                  {'spaceRef': 'team-space'},
+                ],
+                'nextAfterSpaceRef': null,
+              });
+            }
+            return _jsonResponse({
+              'spaces': [
+                {'spaceRef': 'workspace-default'},
+              ],
+              'nextAfterSpaceRef': 'workspace-default',
+            });
+          }),
+        );
+
+        final access = await client.fetchMemberSpaces(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accessToken: 'token-123',
+        );
+
+        expect(access.hasDefaultSpace, isTrue);
+        expect(access.visibleSpaceRefs, {'workspace-default', 'team-space'});
+        expect(requestedPaths, [
+          '/api/spaces',
+          '/api/spaces',
+          '/api/spaces/workspace-default',
+        ]);
+      },
+    );
+
+    test('removes default Space revoked between list and read', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          if (request.url.path.endsWith('/workspace-default')) {
+            return _jsonResponse({'error': 'not_found'}, statusCode: 404);
+          }
+          return _jsonResponse({
+            'spaces': [
+              {'spaceRef': 'workspace-default'},
+            ],
+            'nextAfterSpaceRef': null,
+          });
+        }),
+      );
+
+      final access = await client.fetchMemberSpaces(
+        baseUrl: Uri.parse('https://api.weave.test/api'),
+        accessToken: 'token-123',
+      );
+
+      expect(access.hasDefaultSpace, isFalse);
+      expect(access.hasChatSpace, isFalse);
+    });
+
+    test('rejects a denied default Space read as an expired session', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          if (request.url.path.endsWith('/workspace-default')) {
+            return _jsonResponse({'error': 'forbidden'}, statusCode: 403);
+          }
+          return _jsonResponse({
+            'spaces': [
+              {'spaceRef': 'workspace-default'},
+            ],
+            'nextAfterSpaceRef': null,
+          });
+        }),
+      );
+
+      await expectLater(
+        client.fetchMemberSpaces(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accessToken: 'token-123',
+        ),
+        throwsA(
+          isA<AppFailure>().having(
+            (failure) => failure.message,
+            'message',
+            contains('rejected the current session'),
+          ),
+        ),
       );
     });
   });

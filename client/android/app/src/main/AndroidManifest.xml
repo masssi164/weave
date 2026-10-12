@@ -39,6 +39,12 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="weave" android:pathPrefix="/join" />
             </intent-filter>
+            <intent-filter android:label="weave_matrix_oauth_redirect">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.massimotter.weave.matrix" android:path="/oauthredirect" />
+            </intent-filter>
         </activity>
         <activity
             android:name="net.openid.appauth.RedirectUriReceiverActivity"

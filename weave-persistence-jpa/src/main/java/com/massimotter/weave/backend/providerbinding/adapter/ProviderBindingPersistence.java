@@ -10,6 +10,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import java.io.Serial;
 import java.io.Serializable;
@@ -19,13 +20,19 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.List;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 @Entity
-@Table(name = "weave_provider_bindings")
+@Table(
+        name = "weave_provider_bindings",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_weave_provider_bindings_active_slot",
+                columnNames = {"organization_ref", "domain_key", "active_slot"}))
 class ProviderBindingJpaEntity {
 
     @EmbeddedId
@@ -167,6 +174,15 @@ interface ProviderBindingJpaRepository
             @Param("organizationRef") String organizationRef,
             @Param("domain") String domain,
             @Param("state") ProviderBinding.State state);
+
+    @Query("""
+            select max(binding.id.bindingRevision) from ProviderBindingJpaEntity binding
+            where binding.id.organizationRef = :organizationRef
+              and binding.id.domain = :domain
+            """)
+    Long maxRevision(
+            @Param("organizationRef") String organizationRef,
+            @Param("domain") String domain);
 }
 
 @Entity
@@ -209,20 +225,22 @@ class ProviderObjectMappingJpaEntity {
     }
 
     void observe(ProviderObjectMapping mapping) {
-        if (!firstObservedAt.toInstant().equals(mapping.firstObservedAt())) {
+        // Apply the timestamp(6) persistence precision before checking immutable/monotonic
+        // observations. Linux clocks may provide nanoseconds even for the initial insert.
+        Instant first = mapping.firstObservedAt().truncatedTo(ChronoUnit.MICROS);
+        Instant last = mapping.lastObservedAt().truncatedTo(ChronoUnit.MICROS);
+        if (!firstObservedAt.toInstant().equals(first)) {
             throw new IllegalArgumentException(
                     "provider mapping first observation cannot be rewritten");
         }
         if (lastObservedAt != null
-                && mapping.lastObservedAt().isBefore(lastObservedAt.toInstant())) {
+                && last.isBefore(lastObservedAt.toInstant())) {
             throw new IllegalArgumentException(
                     "provider mapping observation cannot move backwards");
         }
         providerObjectRef = mapping.providerObjectRef();
         provenance = mapping.provenance();
-        lastObservedAt = mapping.lastObservedAt()
-                .truncatedTo(ChronoUnit.MICROS)
-                .atOffset(ZoneOffset.UTC);
+        lastObservedAt = last.atOffset(ZoneOffset.UTC);
     }
 
     ProviderObjectMapping toDomain() {
@@ -316,6 +334,26 @@ class ProviderObjectMappingId implements Serializable {
 
 interface ProviderObjectMappingJpaRepository
         extends JpaRepository<ProviderObjectMappingJpaEntity, ProviderObjectMappingId> {
+
+    @Query("""
+            select mapping from ProviderObjectMappingJpaEntity mapping
+            where mapping.id.organizationRef = :organizationRef
+              and mapping.id.domain = :domain
+              and mapping.id.bindingRevision = :bindingRevision
+              and mapping.providerObjectRef like concat(:providerRefPrefix, '%')
+              and mapping.id.canonicalObjectId > :afterCanonicalId
+            order by mapping.id.canonicalObjectId
+            """)
+    List<ProviderObjectMappingJpaEntity> mappedByProviderRefPrefix(
+            @Param("organizationRef") String organizationRef,
+            @Param("domain") String domain,
+            @Param("bindingRevision") long bindingRevision,
+            @Param("providerRefPrefix") String providerRefPrefix,
+            @Param("afterCanonicalId") String afterCanonicalId,
+            Pageable page);
+
+    boolean existsByIdOrganizationRefAndIdDomainAndIdBindingRevision(
+            String organizationRef, String domain, long bindingRevision);
 
     Optional<ProviderObjectMappingJpaEntity>
             findByIdOrganizationRefAndIdDomainAndIdBindingRevisionAndProviderObjectRef(

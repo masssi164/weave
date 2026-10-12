@@ -79,7 +79,7 @@ Use `GET /api/admin/platform/identity/readiness` or the embedded `platformIdenti
 
 Readiness is support-safe and covers login, invitations, activation mail, membership projection, session revocation, retained-owner protection, workload-client credentials, and federation/broker posture. LDAP/AD and external OIDC/SAML sources remain Keycloak-managed upstream integrations; their absence must not be presented as an alternative identity-provider choice.
 
-Workspace/Admin Health is the operator control plane for this posture. The client readiness cockpit summarizes overall posture, category health, support-safe evidence, member/admin boundaries, and the next operator action from backend-owned readiness snapshots. Category rows state member impact and policy state without leaking provider internals; provider adapter evidence remains admin-only.
+The separately authenticated Admin Console owns provider diagnostics. Its server-owned readiness snapshots summarize overall posture, category health, support-safe evidence, member/admin boundaries, and the next operator action. Flutter Workspace Health uses only member-safe capability and readiness snapshots, including when an owner or admin uses the member app. It does not call the provider registry or use a User session for Admin APIs.
 
 ## Whitelisting and policies
 

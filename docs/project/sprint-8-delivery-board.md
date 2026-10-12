@@ -1,6 +1,6 @@
 # Sprint 8 delivery board
 
-Status: active delivery policy for `Sprint 8 — Canonical Domains & Portable Provider Contracts`.
+Status: historical execution policy for `Sprint 8 — Canonical Domains & Portable Provider Contracts`; current Project configuration and delivery projection are documented in [Sprint bootstrap and Delivery Board flow](../sprint-bootstrap-and-board-flow.md).
 
 Sprint 8 turned the provider-neutral product direction into reviewable delivery lanes for canonical domains, portable provider contracts, Keycloak desired-state evidence, Admin Console control-plane gates, and the OpenClaw-derived Weaver foundation. The sprint board is a historical execution surface. The current identity contract supersedes the former server dry-run design with the single-writer, profile-specific Identity Ops `plan`/`apply`/`verify` flow; the pinned Weave Specification Corpus remains canonical product/domain truth.
 
@@ -26,7 +26,7 @@ Every Sprint 8 issue must carry enough labels to make ownership, priority, and e
 
 ## Board columns
 
-Use these project statuses for Sprint 8 items:
+These were intended Sprint 8 workflow concepts; they are not the inspected current Project field options:
 
 1. **Inbox** — captured but not yet accepted into Sprint 8 sequencing.
 2. **Ready** — acceptance criteria, dependencies, labels, and evidence gate are explicit.

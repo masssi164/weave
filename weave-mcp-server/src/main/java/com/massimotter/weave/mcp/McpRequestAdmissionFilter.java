@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -23,6 +24,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 final class McpRequestAdmissionFilter extends OncePerRequestFilter {
   static final String EXCHANGED_TOKEN_ATTRIBUTE = ExchangedAccessToken.class.getName();
+  private static final String DOMAIN_SCOPE_ATTRIBUTE =
+      McpRequestAdmissionFilter.class.getName() + ".domain-scope";
 
   private final McpWorkloadProperties properties;
   private final McpWorkloadTokenPolicy tokenPolicy;
@@ -57,8 +60,19 @@ final class McpRequestAdmissionFilter extends OncePerRequestFilter {
     }
     try {
       McpCellWorkloadPrincipal workload = tokenPolicy.resolve(jwtAuthentication.getToken());
-      HttpServletRequest effectiveRequest = validateExtensionNegotiation(request);
-      Set<String> scopes = Set.copyOf(properties.exchangeScopes());
+      HttpServletRequest effectiveRequest = validateRequest(request);
+      Set<String> admittedScopes =
+          workload.scopes().stream()
+              .filter(properties.exchangeScopes()::contains)
+              .collect(Collectors.toUnmodifiableSet());
+      Object requestedDomain = effectiveRequest.getAttribute(DOMAIN_SCOPE_ATTRIBUTE);
+      Set<String> scopes = admittedScopes;
+      if (requestedDomain instanceof String domain) {
+        if (!admittedScopes.contains(domain)) {
+          throw new McpAdmissionException(McpAdmissionException.Kind.INSUFFICIENT_SCOPE);
+        }
+        scopes = Set.of(domain);
+      }
       ExchangedAccessToken exchanged =
           exchange.exchange(workload, jwtAuthentication.getToken().getTokenValue(), scopes);
       effectiveRequest.setAttribute(EXCHANGED_TOKEN_ATTRIBUTE, exchanged);
@@ -73,7 +87,7 @@ final class McpRequestAdmissionFilter extends OncePerRequestFilter {
     }
   }
 
-  private HttpServletRequest validateExtensionNegotiation(HttpServletRequest request)
+  private HttpServletRequest validateRequest(HttpServletRequest request)
       throws IOException {
     if (!"POST".equalsIgnoreCase(request.getMethod())) {
       return request;
@@ -102,11 +116,35 @@ final class McpRequestAdmissionFilter extends OncePerRequestFilter {
               .path("capabilities")
               .path("extensions")
               .path(McpWorkloadProperties.CLIENT_CREDENTIALS_EXTENSION);
-      if (!extension.isObject()) {
+      if (!extension.isMissingNode() && !extension.isObject()) {
         throw new McpAdmissionException(McpAdmissionException.Kind.BAD_REQUEST);
       }
     }
-    return new BufferedRequest(request, body);
+    String requestedDomain = requestedDomain(root);
+    BufferedRequest buffered = new BufferedRequest(request, body);
+    if (requestedDomain != null) {
+      buffered.setAttribute(DOMAIN_SCOPE_ATTRIBUTE, requestedDomain);
+    }
+    return buffered;
+  }
+
+  private static String requestedDomain(JsonNode request) {
+    String method = request.path("method").stringValue();
+    if ("tools/call".equals(method)) {
+      JsonNode name = request.path("params").path("name");
+      return switch (name.isString() ? name.stringValue() : "") {
+        case "files.search" -> "files.read";
+        case "calendar.agenda" -> "calendar.read";
+        case "calendar.create", "calendar.update", "calendar.delete" -> "calendar.write";
+        default -> null;
+      };
+    }
+    JsonNode uri = request.path("params").path("uri");
+    if ("resources/read".equals(method) && uri.isString()
+        && uri.stringValue().startsWith("weave://files/")) {
+      return "files.read";
+    }
+    return null;
   }
 
   private static final class BufferedRequest extends HttpServletRequestWrapper {

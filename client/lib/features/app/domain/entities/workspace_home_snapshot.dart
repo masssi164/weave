@@ -20,7 +20,10 @@ class WorkspaceHomeSnapshot {
   final bool supportSafe;
 
   bool get hasActionableWork =>
-      actions.isNotEmpty || sections.any((section) => section.itemCount > 0);
+      actions.isNotEmpty ||
+      sections.any(
+        (section) => section.itemCount != null && section.itemCount! > 0,
+      );
 
   /// Whether the current Home surface can be rendered for a member.
   ///
@@ -34,9 +37,12 @@ class WorkspaceHomeSnapshot {
 
 enum WorkspaceHomeActivityDomain { files }
 
-enum WorkspaceHomeActivityAction { filesWebDavWriteCompleted }
+enum WorkspaceHomeActivityAction {
+  filesWebDavWriteCompleted,
+  filesUserWriteCompleted,
+}
 
-enum WorkspaceHomeActivityVisibility { workspace }
+enum WorkspaceHomeActivityVisibility { workspace, private }
 
 /// One support-safe, authorization-filtered activity projected by Weave Home.
 ///
@@ -80,7 +86,9 @@ class WorkspaceHomeSection {
   final String title;
   final WorkspaceCapabilityReadiness readiness;
   final String summary;
-  final int itemCount;
+
+  /// Null means unmeasured; it does not mean the section is empty.
+  final int? itemCount;
   final bool accessible;
   final String productRoute;
 }

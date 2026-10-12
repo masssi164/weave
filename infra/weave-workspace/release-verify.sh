@@ -282,9 +282,9 @@ nextcloud_oidc_provider="$(docker exec --user www-data weave-nextcloud php occ u
 assert_json "${nextcloud_oidc_provider}" '.settings.checkBearer == true or .settings.checkBearer == "1" or .settings.checkBearer == 1' "Nextcloud OIDC provider should validate Bearer tokens"
 assert_json "${nextcloud_oidc_provider}" '.settings.bearerProvisioning == true or .settings.bearerProvisioning == "1" or .settings.bearerProvisioning == 1' "Nextcloud OIDC provider should provision Bearer-token users"
 
-log "Checking the OIDC-gated Weave Matrix facade..."
-matrix_facade_status="$(curl_status "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/versions")"
-[[ "${matrix_facade_status}" == "401" ]] || fail "Release verify failed: unauthenticated Matrix facade access should be denied with HTTP 401, got ${matrix_facade_status}"
+log "Checking the public Matrix homeserver Client-Server discovery endpoint..."
+matrix_homeserver_versions="$(curl_json "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/versions")"
+assert_json "${matrix_homeserver_versions}" '.versions | type == "array"' "Matrix homeserver should advertise Client-Server versions without a Weave API bearer token"
 
 log "Checking southbound Matrix provider delegated auth discovery..."
 mas_discovery="$(curl_json "${WEAVE_MATRIX_PROVIDER_URL}/.well-known/openid-configuration")"

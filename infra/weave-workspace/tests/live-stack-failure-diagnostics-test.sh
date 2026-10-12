@@ -36,6 +36,8 @@ case "${1:-}" in
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payloadpayload.signature123
 callback=https://runner:secret-password@provider.internal.example/path
 operator=person@example.com
+subject_token_client_id="sensitive-cell-client"
+requested_token_type="sensitive-token-type"
 mc: <ERROR> Invalid command usage, flag provided but not defined: -generated-secret-value
 LOGS
     ;;
@@ -126,11 +128,19 @@ grep -Fq '"actionRequired": true' "${output_dir}/health-checks/backend-readiness
 ! grep -Fq 'private-request-id' "${output_dir}/health-checks/backend-readiness.json"
 ! grep -Fq 'Restore it.' "${output_dir}/health-checks/backend-readiness.json"
 
-if grep -R -Fq 'secret-password' "${output_dir}" || grep -R -Fq 'person@example.com' "${output_dir}" || grep -R -Fq 'eyJhbGci' "${output_dir}"; then
+if grep -R -Fq 'secret-password' "${output_dir}" || grep -R -Fq 'person@example.com' "${output_dir}" || grep -R -Fq 'eyJhbGci' "${output_dir}" || grep -R -Fq 'sensitive-cell-client' "${output_dir}" || grep -R -Fq 'sensitive-token-type' "${output_dir}"; then
   echo "failure diagnostics leaked raw private log content" >&2
   grep -R -n -E 'secret-password|person@example\.com|eyJhbGci' "${output_dir}" >&2 || true
   exit 1
 fi
+
+bash "${SCRIPT}" --verify "${output_dir}"
+printf 'subject_token_client_id="unredacted-fixture"\n' >"${output_dir}/unsafe-fixture.log"
+if bash "${SCRIPT}" --verify "${output_dir}" >"${work_dir}/unsafe-check.log" 2>&1; then
+  echo "failure diagnostics verifier accepted an unredacted token field" >&2
+  exit 1
+fi
+: >"${output_dir}/unsafe-fixture.log"
 
 hanging_output="${work_dir}/hanging-output"
 hanging_pid_file="${work_dir}/hanging.pid"

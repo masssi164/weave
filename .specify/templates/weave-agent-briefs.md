@@ -99,7 +99,7 @@ Return:
 ```text
 Plan a real Weave sprint from the governing spec.
 Inputs: <spec.md/plan.md/tasks.md/docs/issues>.
-Do first: recover truth from the pinned spec corpus, then main, repo conformance specs, GitHub issues/PRs, CI/evidence.
+Do first: recover truth from the pinned spec corpus, then current dev and main, repo conformance specs, GitHub issues/PRs, CI/evidence.
 Output: sprint goal, issue DAG, PR train order, required roles, required gates, merge authorization status, product-core blockers.
 If issues are missing and GitHub access is available, create/update them with dependency notes and parallel/sequential labels.
 Do not implement yet.

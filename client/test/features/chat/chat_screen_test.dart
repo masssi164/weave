@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/theme/app_theme.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
@@ -23,8 +25,151 @@ import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/fake_chat_security_repository.dart';
 import '../../helpers/test_app.dart';
 
+const _readyChatSnapshot = WorkspaceCapabilitySnapshot(
+  shellAccess: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.shellAccess,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  chat: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.chat,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  files: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.files,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  calendar: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.calendar,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  boards: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.boards,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+);
+
+final _blockedChatSnapshot = WorkspaceCapabilitySnapshot(
+  shellAccess: _readyChatSnapshot.shellAccess,
+  chat: const WorkspaceCapabilityState(
+    capability: WorkspaceCapability.chat,
+    readiness: WorkspaceCapabilityReadiness.blocked,
+    policyState: WorkspaceCapabilityPolicyState.policyBlocked,
+  ),
+  files: _readyChatSnapshot.files,
+  calendar: _readyChatSnapshot.calendar,
+  boards: _readyChatSnapshot.boards,
+);
+
+class _ChatCapabilityController
+    extends Notifier<AsyncValue<WorkspaceCapabilitySnapshot>> {
+  @override
+  AsyncValue<WorkspaceCapabilitySnapshot> build() =>
+      const AsyncData(_readyChatSnapshot);
+
+  void show(WorkspaceCapabilitySnapshot snapshot) {
+    state = AsyncData(snapshot);
+  }
+}
+
+Widget _chatTestApp(Widget child, {List<dynamic> overrides = const []}) {
+  return createTestApp(
+    child,
+    overrides: [
+      workspaceCapabilitySnapshotProvider.overrideWithValue(
+        const AsyncData(_readyChatSnapshot),
+      ),
+      ...overrides,
+    ],
+  );
+}
+
+Widget _chatTestRouterApp(
+  GoRouter router, {
+  List<dynamic> overrides = const [],
+}) {
+  return createTestRouterApp(
+    router,
+    overrides: [
+      workspaceCapabilitySnapshotProvider.overrideWithValue(
+        const AsyncData(_readyChatSnapshot),
+      ),
+      ...overrides,
+    ],
+  );
+}
+
 void main() {
   group('ChatScreen', () {
+    testWidgets('hides revoked rooms and reloads after grant restoration', (
+      tester,
+    ) async {
+      final capabilityState =
+          NotifierProvider<
+            _ChatCapabilityController,
+            AsyncValue<WorkspaceCapabilitySnapshot>
+          >(_ChatCapabilityController.new);
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async => const [
+          ChatConversation(
+            id: '!room:home.internal',
+            title: 'Private project',
+            previewType: ChatConversationPreviewType.text,
+            unreadCount: 0,
+            isInvite: false,
+            isDirectMessage: false,
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) => ref.watch(capabilityState),
+            ),
+            chatRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Private project'), findsOneWidget);
+      final initialReads = repository.loadConversationsCalls;
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      container.read(capabilityState.notifier).show(_blockedChatSnapshot);
+      await tester.pumpAndSettle();
+      expect(find.text('Private project'), findsNothing);
+      expect(repository.loadConversationsCalls, initialReads);
+
+      container.read(capabilityState.notifier).show(_readyChatSnapshot);
+      await tester.pumpAndSettle();
+      expect(repository.loadConversationsCalls, greaterThan(initialReads));
+      expect(find.text('Private project'), findsOneWidget);
+    });
+
+    testWidgets('does not start native Matrix without a current Space grant', (
+      tester,
+    ) async {
+      final repository = FakeChatRepository();
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              AsyncData(_blockedChatSnapshot),
+            ),
+            chatRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repository.loadConversationsCalls, 0);
+      expect(find.text('No conversations yet'), findsOneWidget);
+    });
+
     FakeChatSecurityRepository buildSecurityRepository() {
       return FakeChatSecurityRepository(
         loadSecurityStateHandler: ({bool refresh = false}) async {
@@ -54,7 +199,7 @@ void main() {
       final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -69,35 +214,26 @@ void main() {
       expect(find.text('Loading conversations…'), findsOneWidget);
     });
 
-    testWidgets('auto-connects when no Matrix session is available', (
+    testWidgets('loads Chat without a separate member Connect action', (
       tester,
     ) async {
-      final connectCompleter = Completer<void>();
       final repository = FakeChatRepository();
       final securityRepository = buildSecurityRepository();
-      repository.loadConversationsHandler = () async {
-        if (repository.connectCalls == 0) {
-          throw const ChatFailure.sessionRequired(
-            'Connect chat to load conversations.',
-          );
-        }
-
-        return const <ChatConversation>[
-          ChatConversation(
-            id: '!abc:home.internal',
-            title: 'Family',
-            previewType: ChatConversationPreviewType.text,
-            previewText: 'Dinner is ready',
-            unreadCount: 2,
-            isInvite: false,
-            isDirectMessage: false,
-          ),
-        ];
-      };
-      repository.connectHandler = () => connectCompleter.future;
+      repository.loadConversationsHandler = () async =>
+          const <ChatConversation>[
+            ChatConversation(
+              id: '!abc:home.internal',
+              title: 'Family',
+              previewType: ChatConversationPreviewType.text,
+              previewText: 'Dinner is ready',
+              unreadCount: 2,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+          ];
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -107,14 +243,10 @@ void main() {
           ],
         ),
       );
-      await tester.pump();
-      await tester.pump();
-
-      expect(find.text('Connecting to chat…'), findsOneWidget);
-      expect(repository.connectCalls, 1);
-
-      connectCompleter.complete();
       await tester.pumpAndSettle();
+
+      expect(find.text('Connect chat'), findsNothing);
+      expect(repository.connectCalls, 0);
 
       expect(find.text('Family'), findsOneWidget);
       expect(find.text('Dinner is ready'), findsOneWidget);
@@ -126,22 +258,13 @@ void main() {
         final repository = FakeChatRepository();
         final securityRepository = buildSecurityRepository();
         repository.loadConversationsHandler = () async {
-          if (repository.connectCalls == 0) {
-            throw const ChatFailure.sessionRequired(
-              'Connect chat to load conversations.',
-            );
-          }
-
-          return const <ChatConversation>[];
-        };
-        repository.connectHandler = () async {
           throw const ChatFailure.unsupportedConfiguration(
-            'Chat provider setup is unavailable to this member.',
+            'Weave Matrix support is unavailable to this member.',
           );
         };
 
         await tester.pumpWidget(
-          createTestApp(
+          _chatTestApp(
             const ChatScreen(),
             overrides: [
               chatRepositoryProvider.overrideWithValue(repository),
@@ -158,25 +281,22 @@ void main() {
           find.textContaining('Chat setup needs admin attention'),
           findsOneWidget,
         );
-        expect(find.text('Connect chat'), findsOneWidget);
+        expect(find.text('Connect chat'), findsNothing);
+        expect(find.text('Retry'), findsOneWidget);
       },
     );
 
-    testWidgets('shows a connect action after a cancelled Matrix sign-in', (
+    testWidgets('offers a retry after automatic Chat sign-in is interrupted', (
       tester,
     ) async {
       final repository = FakeChatRepository();
       final securityRepository = buildSecurityRepository();
+      var loadCalls = 0;
       repository.loadConversationsHandler = () async {
-        if (repository.connectCalls == 0) {
-          throw const ChatFailure.sessionRequired(
-            'Connect chat to load conversations.',
-          );
-        }
-
-        if (repository.connectCalls == 1) {
-          throw const ChatFailure.sessionRequired(
-            'Connect chat to load conversations.',
+        loadCalls++;
+        if (loadCalls == 1) {
+          throw const ChatFailure.cancelled(
+            'Automatic Chat sign-in was interrupted.',
           );
         }
 
@@ -192,16 +312,9 @@ void main() {
           ),
         ];
       };
-      repository.connectHandler = () async {
-        if (repository.connectCalls == 1) {
-          throw const ChatFailure.cancelled(
-            'Chat sign-in was cancelled before it completed.',
-          );
-        }
-      };
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -214,82 +327,86 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Connect chat'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(find.text('Connect chat'), findsNothing);
+      expect(repository.connectCalls, 0);
 
-      await tester.tap(find.text('Connect chat'));
+      await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
 
       expect(find.text('Sam'), findsOneWidget);
-      expect(repository.connectCalls, 2);
+      expect(loadCalls, 2);
+      expect(repository.connectCalls, 0);
     });
 
-    testWidgets(
-      'does not auto-connect again after a typed Matrix homeserver invalidation',
-      (tester) async {
-        var homeserverChanged = false;
-        final repository = FakeChatRepository(
-          loadConversationsHandler: () async {
-            if (homeserverChanged) {
-              throw const ChatFailure.sessionRequired(
-                'Connect chat to load conversations.',
-              );
-            }
-
-            return const <ChatConversation>[
-              ChatConversation(
-                id: '!abc:home.internal',
-                title: 'Family',
-                previewType: ChatConversationPreviewType.text,
-                previewText: 'Dinner is ready',
-                unreadCount: 2,
-                isInvite: false,
-                isDirectMessage: false,
-              ),
-            ];
-          },
-        );
-        final securityRepository = buildSecurityRepository();
-        final container = ProviderContainer.test(
-          overrides: [
-            chatRepositoryProvider.overrideWithValue(repository),
-            chatSecurityRepositoryProvider.overrideWithValue(
-              securityRepository,
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
-
-        await tester.pumpWidget(
-          UncontrolledProviderScope(
-            container: container,
-            child: MaterialApp(
-              theme: AppTheme.light,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: const Scaffold(body: ChatScreen()),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        expect(find.text('Family'), findsOneWidget);
-        expect(repository.connectCalls, 0);
-
-        homeserverChanged = true;
-        container
-            .read(workspaceInvalidationProvider.notifier)
-            .invalidate(
-              integration: WorkspaceIntegration.chat,
-              reason: IntegrationInvalidationReason.chatConfigurationChanged,
+    testWidgets('rechecks Chat after a typed Matrix endpoint invalidation', (
+      tester,
+    ) async {
+      var homeserverChanged = false;
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async {
+          if (homeserverChanged) {
+            throw const ChatFailure.sessionRequired(
+              'Chat access could not be confirmed.',
             );
+          }
 
-        await tester.pump();
-        await tester.pump();
+          return const <ChatConversation>[
+            ChatConversation(
+              id: '!abc:home.internal',
+              title: 'Family',
+              previewType: ChatConversationPreviewType.text,
+              previewText: 'Dinner is ready',
+              unreadCount: 2,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+          ];
+        },
+      );
+      final securityRepository = buildSecurityRepository();
+      final container = ProviderContainer.test(
+        overrides: [
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            const AsyncData(_readyChatSnapshot),
+          ),
+          chatRepositoryProvider.overrideWithValue(repository),
+          chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
+        ],
+      );
+      addTearDown(container.dispose);
 
-        expect(repository.connectCalls, 0);
-        expect(find.text('Connect chat'), findsOneWidget);
-      },
-    );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.light,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(body: ChatScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Family'), findsOneWidget);
+      expect(repository.connectCalls, 0);
+
+      homeserverChanged = true;
+      container
+          .read(workspaceInvalidationProvider.notifier)
+          .invalidate(
+            integration: WorkspaceIntegration.chat,
+            reason: IntegrationInvalidationReason.chatConfigurationChanged,
+          );
+
+      await tester.pump();
+      await tester.pump();
+
+      expect(repository.connectCalls, 0);
+      expect(find.text('Connect chat'), findsNothing);
+      expect(find.text('Retry'), findsOneWidget);
+    });
 
     testWidgets('shows the empty state when there are no conversations', (
       tester,
@@ -319,7 +436,7 @@ void main() {
       final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -394,7 +511,7 @@ void main() {
         addTearDown(router.dispose);
 
         await tester.pumpWidget(
-          createTestRouterApp(
+          _chatTestRouterApp(
             router,
             overrides: [
               chatRepositoryProvider.overrideWithValue(repository),
@@ -447,7 +564,7 @@ void main() {
       final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -501,7 +618,7 @@ void main() {
         final securityRepository = buildSecurityRepository();
 
         await tester.pumpWidget(
-          createTestApp(
+          _chatTestApp(
             const ChatScreen(),
             overrides: [
               chatRepositoryProvider.overrideWithValue(repository),
@@ -570,7 +687,7 @@ void main() {
         final securityRepository = buildSecurityRepository();
 
         await tester.pumpWidget(
-          createTestApp(
+          _chatTestApp(
             const ChatScreen(),
             overrides: [
               chatRepositoryProvider.overrideWithValue(repository),
@@ -644,7 +761,7 @@ void main() {
       final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -713,6 +830,9 @@ void main() {
       final securityRepository = buildSecurityRepository();
       final container = ProviderContainer.test(
         overrides: [
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            const AsyncData(_readyChatSnapshot),
+          ),
           chatRepositoryProvider.overrideWithValue(repository),
           chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
         ],
@@ -762,6 +882,50 @@ void main() {
       expect(find.text('Showing last known rooms'), findsNothing);
     });
 
+    testWidgets('drops cached rooms when refresh loses member authority', (
+      tester,
+    ) async {
+      var accessRevoked = false;
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async {
+          if (accessRevoked) {
+            throw const ChatFailure.sessionRequired(
+              'M_WEAVE_MATRIX_ACCESS_DENIED',
+            );
+          }
+          return const <ChatConversation>[
+            ChatConversation(
+              id: '!private:home.internal',
+              title: 'Private project',
+              previewType: ChatConversationPreviewType.text,
+              unreadCount: 0,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+          ];
+        },
+      );
+      await tester.pumpWidget(
+        _chatTestApp(
+          const ChatScreen(),
+          overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Private project'), findsOneWidget);
+
+      accessRevoked = true;
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      await container.read(chatProvider.notifier).retry();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Private project'), findsNothing);
+      expect(find.text('Showing last known rooms'), findsNothing);
+      expect(find.text('Retry'), findsOneWidget);
+    });
+
     testWidgets('meets androidTapTargetGuideline', (tester) async {
       final repository = FakeChatRepository(
         loadConversationsHandler: () async => const <ChatConversation>[
@@ -779,7 +943,7 @@ void main() {
       final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
@@ -811,7 +975,7 @@ void main() {
       final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
-        createTestApp(
+        _chatTestApp(
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),

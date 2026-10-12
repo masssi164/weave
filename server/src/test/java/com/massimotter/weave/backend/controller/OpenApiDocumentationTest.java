@@ -1,19 +1,36 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
+import io.swagger.v3.oas.annotations.Operation;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.startsWith;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -31,6 +48,365 @@ class OpenApiDocumentationTest {
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
+
+    // Metadata export reads the real HTTP handlers and transport models; it does
+    // not exercise the Matrix wire codec. Runtime/protocol tests retain JNI.
+    @MockitoBean(enforceOverride = true)
+    private MatrixProtocolCoreService matrixProtocolCore;
+
+    @Autowired
+    @Qualifier("requestMappingHandlerMapping")
+    private RequestMappingHandlerMapping handlerMapping;
+
+    @AfterEach
+    void metadataExportDoesNotInvokeMatrixProtocolRuntime() {
+        verifyNoInteractions(matrixProtocolCore);
+    }
+
+    @Test
+    void publicDavAndCredentialSetupRoutesAreDisabledByDefault() {
+        var activePaths = handlerMapping.getHandlerMethods().keySet().stream()
+                .flatMap(mapping -> mapping.getPatternValues().stream())
+                .toList();
+        assertFalse(activePaths.stream().anyMatch(path -> path.startsWith("/dav/files")
+                || path.startsWith("/caldav")
+                || path.startsWith("/api/files/client-setup")
+                || path.startsWith("/api/files/native-provider-setup")
+                || path.startsWith("/api/calendar/client-setup")
+                || path.startsWith("/api/calendar/native-sync-setup")));
+        assertTrue(activePaths.contains("/api/files/items"));
+        assertTrue(activePaths.contains("/api/calendar/calendars"));
+    }
+
+    @Test
+    void calendarProductRoutesHaveExplicitUserOperationsAndTypedTemporalPreconditions() throws Exception {
+        mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars'].get.operationId").value("listUserCalendars"))
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events'].get.operationId").value("queryCalendarAgenda"))
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events'].post.operationId").value("createCalendarEvent"))
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events/{eventId}'].get.operationId").value("getCalendarEvent"))
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events/{eventId}'].put.operationId").value("updateCalendarEvent"))
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events/{eventId}'].delete.operationId").value("deleteCalendarEvent"))
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events/{eventId}'].put.responses['412']").exists())
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars/{calendarId}/events/{eventId}'].delete.responses['428']").exists())
+                .andExpect(jsonPath("$.components.schemas.CalendarTimeValue.properties.kind.enum").value(hasItems("DATE", "FLOATING", "UTC", "ZONED")))
+                .andExpect(jsonPath("$.components.schemas.CalendarTimeValue.properties.date.format").value("date"))
+                .andExpect(jsonPath("$.components.schemas.CalendarTimeValue.properties.localDateTime.format").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.CalendarTimeValue.additionalProperties").value(false))
+                .andExpect(jsonPath("$.components.schemas.CalendarEventRecurrence.additionalProperties").value(false))
+                .andExpect(jsonPath("$.components.schemas.CalendarEventOverride.additionalProperties").value(false))
+                .andExpect(jsonPath("$.components.schemas.CalendarEventAttendee.additionalProperties").value(false))
+                .andExpect(jsonPath("$.components.schemas.CalendarEventWriteRequest.additionalProperties").value(false))
+                .andExpect(jsonPath("$.components.schemas.CalendarEventRecurrence.required").value(hasItems("interval")))
+                .andExpect(jsonPath("$.components.schemas.CalendarUserEvent.properties.providerRef").doesNotExist());
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/calendar/calendars']").doesNotExist());
+    }
+
+    @Test
+    void profileUserOperationsDescribeJsonSuccessAndErrorBodies() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode user = mapper.readTree(mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        int checked = 0;
+        for (String path : new String[] {"/api/profile", "/api/profile/readiness", "/api/profile/sync-status"}) {
+            for (var method : user.path("paths").path(path).properties()) {
+                if (!Set.of("get", "patch").contains(method.getKey())) {
+                    continue;
+                }
+                for (var response : method.getValue().path("responses").properties()) {
+                    JsonNode content = response.getValue().path("content");
+                    assertEquals(1, content.size(), path + " " + method.getKey() + " " + response.getKey());
+                    String expectedSchema = response.getKey().startsWith("2")
+                            ? switch (path) {
+                                case "/api/profile/readiness" -> "ProfileReadinessResponse";
+                                case "/api/profile/sync-status" -> "ModuleSyncStatusResponse";
+                                default -> "ProductProfileResponse";
+                            }
+                            : "ApiErrorResponse";
+                    assertEquals("#/components/schemas/" + expectedSchema,
+                            content.path("application/json").path("schema").path("$ref").asText(),
+                            path + " " + method.getKey() + " " + response.getKey());
+                    checked++;
+                }
+            }
+        }
+        assertEquals(14, checked, "Expected every Profile User success and documented error response");
+    }
+
+    @Test
+    void userAndAdminResponsesNeverUseWildcardMediaForDocumentedBodies() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        int checked = 0;
+        for (String audience : List.of("user", "admin")) {
+            JsonNode document = mapper.readTree(mockMvc.perform(get("/v3/api-docs/" + audience))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+            for (var path : document.path("paths").properties()) {
+                for (var method : path.getValue().properties()) {
+                    if (!Set.of("get", "post", "put", "patch", "delete", "head").contains(method.getKey())) {
+                        continue;
+                    }
+                    for (var response : method.getValue().path("responses").properties()) {
+                        JsonNode content = response.getValue().path("content");
+                        assertFalse(content.has("*/*"), audience + " " + method.getKey() + " " + path.getKey()
+                                + " " + response.getKey() + " must declare its actual media type");
+                        checked++;
+                    }
+                }
+            }
+        }
+        assertTrue(checked > 100, "The media audit must cover the generated product operation set");
+    }
+
+    @Test
+    void workspaceDiagnosticsAreAdminOnlyAndHomeCountsAreExplicitlyUnknown() throws Exception {
+        mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/workspace/capability-policy']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/workspace/release-readiness']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/admin/workspace/capability-policy']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/admin/workspace/release-readiness']").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.WorkspaceCapabilityPolicyResponse").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.WorkspaceReleaseReadinessResponse").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeSectionResponse.properties.itemCount.type").value(hasItems("integer", "null")))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeSectionResponse.properties.itemCount.minimum").value(0));
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/admin/workspace/capability-policy'].get.operationId").value("capabilityPolicy"))
+                .andExpect(jsonPath("$.paths['/api/admin/workspace/release-readiness'].get.operationId").value("releaseReadiness"))
+                .andExpect(jsonPath("$.paths['/api/admin/workspace/capability-policy'].get.responses['401']").exists())
+                .andExpect(jsonPath("$.paths['/api/admin/workspace/release-readiness'].get.responses['403']").exists())
+                .andExpect(jsonPath("$.paths['/api/workspace/home']").doesNotExist());
+    }
+
+    @Test
+    void adminMemberOperationsExportTheirActualTypedSuccessResponses() throws Exception {
+        String members = "/api/admin/organizations/{organizationId}/members";
+        String member = members + "/{memberHandle}";
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['" + members + "'].get.responses['200'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/OrganizationMemberPageResponse"))
+                .andExpect(jsonPath("$.paths['" + member + "'].get.responses['200'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/OrganizationMemberResponse"))
+                .andExpect(jsonPath("$.paths['" + member + "'].patch.responses['200'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/OrganizationMemberResponse"))
+                .andExpect(jsonPath("$.paths['" + member + "/capabilities/weaver'].put.responses['200'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/OrganizationMemberResponse"))
+                .andExpect(jsonPath("$.paths['" + member + "/session-revocations'].post.responses['200'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/MemberLifecycleOperationResponse"))
+                .andExpect(jsonPath("$.paths['" + member + "/offboarding'].post.responses['200'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/MemberLifecycleOperationResponse"))
+                .andExpect(jsonPath("$.components.schemas.OrganizationMemberPageResponse.required")
+                        .value(hasItems("items")))
+                .andExpect(jsonPath("$.components.schemas.OrganizationMemberPageResponse.properties.nextCursor.type")
+                        .value(hasItems("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.OrganizationMemberResponse.required")
+                        .value(hasItems("capabilities", "enabled")))
+                .andExpect(jsonPath("$.paths['" + members + "'].get.responses['401']").exists())
+                .andExpect(jsonPath("$.paths['" + members + "'].get.responses['403']").exists());
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.MemberInvitationResponse.properties.capabilities")
+                        .doesNotExist());
+        mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['" + members + "']").doesNotExist());
+    }
+
+    @Test
+    void adminProviderSelectionExportsTheBindingConflictAndMetadataSemantics() throws Exception {
+        String selection = "/api/admin/providers/selections";
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['" + selection + "'].post.operationId").value("selectProvider"))
+                .andExpect(jsonPath("$.paths['" + selection + "'].post.summary")
+                        .value("Record or dry-run category metadata without changing the active organization provider binding"))
+                .andExpect(jsonPath("$.paths['" + selection + "'].post.responses['200'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ProviderSelectionResponse"))
+                .andExpect(jsonPath("$.paths['" + selection + "'].post.responses['409'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.components.schemas.ProviderSelectionResponse.properties.applied.description")
+                        .value("Category metadata was recorded; this does not mean the active organization binding changed."));
+        mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['" + selection + "']").doesNotExist());
+    }
+
+    @Test
+    void nonEmptySuccessResponsesAlwaysHaveTransportSchemas() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        Set<String> httpMethods = Set.of("get", "put", "post", "delete", "patch");
+        for (String group : new String[] {"user", "admin"}) {
+            JsonNode document = mapper.readTree(mockMvc.perform(get("/v3/api-docs/" + group))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+            for (var path : document.path("paths").properties()) {
+                for (var method : path.getValue().properties()) {
+                    if (!httpMethods.contains(method.getKey())) {
+                        continue;
+                    }
+                    boolean hasSuccess = false;
+                    for (var response : method.getValue().path("responses").properties()) {
+                        if (response.getKey().matches("2\\d\\d")) {
+                            hasSuccess = true;
+                        }
+                        if (response.getKey().matches("2\\d\\d") && !"204".equals(response.getKey())) {
+                            assertTrue(response.getValue().has("content")
+                                            && response.getValue().path("content").size() > 0,
+                                    group + " " + method.getKey() + " " + path.getKey()
+                                            + " exported an untyped success response " + response.getKey());
+                        }
+                    }
+                    assertTrue(hasSuccess, group + " " + method.getKey() + " " + path.getKey()
+                            + " omitted its success response");
+                }
+            }
+        }
+    }
+
+    @Test
+    void exportedOperationIdsAreExplicitUniqueAndIdenticalAcrossDocuments() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode combined = mapper.readTree(mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        Set<String> httpMethods = Set.of("get", "put", "post", "delete", "options", "head", "patch", "trace");
+        Map<String, String> operationIds = new HashMap<>();
+        for (String group : new String[] {"user", "admin"}) {
+            JsonNode document = mapper.readTree(mockMvc.perform(get("/v3/api-docs/" + group))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+            for (var pathEntry : document.path("paths").properties()) {
+                String path = pathEntry.getKey();
+                for (var methodEntry : pathEntry.getValue().properties()) {
+                    String method = methodEntry.getKey();
+                    if (!httpMethods.contains(method)) {
+                        continue;
+                    }
+                    String location = method.toUpperCase(java.util.Locale.ROOT) + " " + path;
+                    var handlers = handlerMapping.getHandlerMethods().entrySet().stream()
+                            .filter(entry -> entry.getKey().getPatternValues().contains(path))
+                            .filter(entry -> entry.getKey().getMethodsCondition().getMethods().stream()
+                                    .anyMatch(requestMethod -> requestMethod.name().equalsIgnoreCase(method)))
+                            .map(Map.Entry::getValue)
+                            .distinct()
+                            .toList();
+                    assertEquals(1, handlers.size(), "Expected one server handler for " + location);
+                    Operation declared = handlers.getFirst().getMethodAnnotation(Operation.class);
+                    assertNotNull(declared, "Missing explicit @Operation for " + location);
+                    assertFalse(declared.operationId().isBlank(), "Missing explicit operationId for " + location);
+                    assertEquals(declared.operationId(), methodEntry.getValue().path("operationId").asText(),
+                            "Grouped export changed the declared operationId for " + location);
+                    assertEquals(declared.operationId(),
+                            combined.path("paths").path(path).path(method).path("operationId").asText(),
+                            "Combined export changed the declared operationId for " + location);
+                    assertNull(operationIds.putIfAbsent(declared.operationId(), location),
+                            "Duplicate declared operationId " + declared.operationId() + " at " + location);
+                }
+            }
+        }
+        assertFalse(operationIds.isEmpty(), "No User/Admin operations were checked");
+    }
+
+    @Test
+    void securedPreviewAndBootstrapRoutesDocumentTheirActualErrorBoundaries() throws Exception {
+        mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/guest/access-contract'].get.responses['401'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/guest/access-contract'].get.responses['403'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/guest/invitations'].post.responses['401'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/guest/invitations'].post.responses['403'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"));
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/migration/dry-runs'].post.responses['401'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/migration/dry-runs'].post.responses['403'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/migration/apply-gates'].post.responses['401'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/migration/apply-gates'].post.responses['403'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['201'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/MemberInvitationResponse"))
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['401'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.responses['503'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"));
+    }
+
+    @Test
+    void separatesUserAndAdminOperations() throws Exception {
+        MvcResult user = mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/me']").exists())
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}'].delete").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}'].patch").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/move']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/copy']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/items/uploads'].post.responses['400'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/files/items/uploads'].post.responses['415'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/files/items/folders'].post.responses['412'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.responses['200'].headers['ETag'].schema.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.responses['200'].headers['Content-Digest'].schema.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.responses['200'].headers['Content-Length'].schema.type")
+                        .value("integer"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.responses['200'].headers['Content-Type'].schema.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.responses['304'].headers['ETag'].schema.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.paths['/api/admin/control-plane']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/providers/status']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/admin/providers/status']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/connectors/boundary']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/connectors/manifest/validate']").doesNotExist())
+                .andReturn();
+        MvcResult admin = mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/admin/control-plane']").exists())
+                .andExpect(jsonPath("$.paths['/api/admin/providers/status'].get.operationId").value("status"))
+                .andExpect(jsonPath("$.components.schemas.ProviderRegistryResponse.required", hasItems("organizationId", "filesBinding")))
+                .andExpect(jsonPath("$.components.schemas.FilesBindingStatusResponse.properties.bindingState.enum",
+                        hasItems("ACTIVE", "NO_ACTIVE_BINDING")))
+                .andExpect(jsonPath("$.components.schemas.FilesBindingStatusResponse.properties.readiness.enum",
+                        hasItems("CONFIGURED", "NOT_CONFIGURED", "UNAVAILABLE")))
+                .andExpect(jsonPath("$.paths['/api/providers/status']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation']").exists())
+                .andExpect(jsonPath("$.paths['/api/connectors/boundary']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/connectors/manifest/validate']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.operationId")
+                        .value("listOrganizationInvitations"))
+                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.responses['200'].content['application/json'].schema.type")
+                        .value("array"))
+                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.responses['200'].content['application/json'].schema.items['$ref']")
+                        .value("#/components/schemas/MemberInvitationResponse"))
+                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations/{invitationHandle}/resend'].post.responses['200'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/MemberInvitationResponse"))
+                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.security[0]['bearer-jwt']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/me']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/admin/agent-runtimes/{personRef}']").doesNotExist())
+                .andReturn();
+
+        String exportPath = System.getProperty("weave.openapi.export.path");
+        if (exportPath != null && !exportPath.isBlank()) {
+            Path directory = Path.of(exportPath).getParent();
+            Files.createDirectories(directory);
+            Files.writeString(directory.resolve("weave-user-openapi.raw.json"),
+                    user.getResponse().getContentAsString());
+            Files.writeString(directory.resolve("weave-admin-openapi.raw.json"),
+                    admin.getResponse().getContentAsString());
+        }
+    }
 
     @Test
     void exposesOpenApiDescription() throws Exception {
@@ -55,40 +431,45 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/files']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/files/upload']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/files/folders']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/items'].get.operationId").value("listFilesItems"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}'].get.operationId")
+                        .value("getFilesItem"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].get.operationId")
+                        .value("downloadFilesItemContent"))
+                .andExpect(jsonPath("$.paths['/api/files/items/folders'].post.operationId")
+                        .value("createFilesFolder"))
+                .andExpect(jsonPath("$.paths['/api/files/items/uploads'].post.operationId")
+                        .value("uploadFilesItemContent"))
+                .andExpect(jsonPath("$.paths['/api/files/items/{fileId}/content'].put.operationId")
+                        .value("updateFilesItemContent"))
                 .andExpect(jsonPath("$.paths['/api/files/readiness']").exists())
                 .andExpect(jsonPath("$.paths['/api/files/readiness'].get.operationId").value("getFilesReadiness"))
-                .andExpect(jsonPath("$.paths['/api/files/readiness'].get.responses['200'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/files/readiness'].get.responses['200'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/WorkspaceCapabilityStatusResponse"))
-                .andExpect(jsonPath("$.paths['/api/files/native-provider-setup']").exists())
-                .andExpect(jsonPath("$.paths['/api/files/native-provider-setup'].get.operationId")
-                        .value("getFilesNativeProviderSetup"))
-                .andExpect(jsonPath("$.paths['/api/files/native-provider-setup'].get.responses['200'].content['*/*'].schema['$ref']")
-                        .value("#/components/schemas/FileNativeProviderSetupResponse"))
-                .andExpect(jsonPath("$.paths['/api/files/client-setup/credentials']").exists())
-                .andExpect(jsonPath("$.paths['/api/files/client-setup/credentials/{credentialId}']").exists())
+                .andExpect(jsonPath("$.paths['/api/files/native-provider-setup']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/client-setup/credentials']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/client-setup/credentials/{credentialId}']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/files/{id}/download']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/files/{id}']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/events']").doesNotExist())
-                .andExpect(jsonPath("$.paths['/api/calendar/client-setup']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/native-sync-setup']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/native-sync-setup'].get.operationId")
-                        .value("getCalendarNativeSyncSetup"))
-                .andExpect(jsonPath("$.paths['/api/calendar/native-sync-setup'].get.responses['200'].content['*/*'].schema['$ref']")
-                        .value("#/components/schemas/CalendarNativeSyncSetupResponse"))
+                .andExpect(jsonPath("$.paths['/api/calendar/client-setup']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/calendar/native-sync-setup']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/access-policy']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials/{credentialId}']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/client-setup/apple.mobileconfig']").exists())
+                .andExpect(jsonPath("$.paths['/api/calendar/access-policy'].get.responses['200'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/CalendarAccessPolicyResponse"))
+                .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials/{credentialId}']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/calendar/client-setup/apple.mobileconfig']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/events/{id}']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calls']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calls/native-boundary-setup']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calls/{id}']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calls/{id}/join']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/workspace/capabilities']").exists())
-                .andExpect(jsonPath("$.paths['/api/workspace/home'].get.responses['200'].content['*/*'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/workspace/home'].get.responses['200'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/WorkspaceHomeResponse"))
-                .andExpect(jsonPath("$.paths['/api/workspace/release-readiness']").exists())
-                .andExpect(jsonPath("$.paths['/api/providers/status']").exists())
+                .andExpect(jsonPath("$.paths['/api/workspace/release-readiness']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/admin/providers/status']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/workspace/capabilities']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/workspace/release-readiness']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/interop/status']").exists())
@@ -143,6 +524,8 @@ class OpenApiDocumentationTest {
                         .value("date-time"))
                 .andExpect(jsonPath("$.components.schemas.WorkspaceHomeRecentActivityResponse.properties.visibility.enum[0]")
                         .value("workspace"))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeRecentActivityResponse.properties.visibility.enum[1]")
+                        .value("private"))
                 .andExpect(jsonPath("$.components.schemas.WorkspaceHomeRecentActivityResponse.properties.actorRefHash.type")
                         .value("string"))
                 .andExpect(jsonPath("$.components.schemas.WorkspaceHomeRecentActivityResponse.properties.actorIsCurrentUser.type")

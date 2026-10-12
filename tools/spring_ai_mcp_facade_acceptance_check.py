@@ -12,7 +12,7 @@ MARKERS = (
     "SPRING_AI_MCP_STATEFUL_TRANSPORT",
     "MCP_WORKLOAD_EDGE_BOUND_CELL_ONLY",
     "MCP_FILES_READ_SLICE_ACTIVE",
-    "MCP_CALENDAR_CATALOG_GUARDED",
+    "MCP_CALENDAR_READ_SLICE_ACTIVE",
     "MCP_CHAT_CATALOG_GUARDED",
     "MCP_PROVIDER_NEUTRAL_OUTPUT",
     "MCP_STANDARD_SERVER_PROJECTION_ACTIVE",
@@ -89,7 +89,7 @@ def main() -> int:
             "resource-uri: https://api.weave.test/mcp",
             "authorization-server: https://auth.weave.test/realms/weave",
             "token-uri: http://keycloak:8080/realms/weave/protocol/openid-connect/token",
-            "backend-files-uri: http://backend:8080/dav/files",
+            "backend-api-uri: http://backend:8080/api",
         )
         reject(
             f"weave-mcp-server/src/main/resources/application-{profile}.yml",
@@ -121,7 +121,8 @@ def main() -> int:
         "CLIENT_CREDENTIALS_EXTENSION",
         "exchange.exchange(",
         "EXCHANGED_TOKEN_ATTRIBUTE",
-        "Set.copyOf(properties.exchangeScopes())",
+        "workload.scopes().stream()",
+        ".filter(properties.exchangeScopes()::contains)",
     )
     require(
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/FilesMcpProjection.java",
@@ -130,10 +131,28 @@ def main() -> int:
         "readOnlyHint = true",
     )
     require(
-        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/FilesWebDavClient.java",
-        'HttpMethod.valueOf("SEARCH")',
-        "<w:canonical-id/>",
-        "<d:eq>",
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/FilesUserApiClient.java",
+        "new FilesUserApi(client)",
+        "files.listFilesItems(",
+        "files.getFilesItem(",
+        "files.downloadFilesItemContent(",
+    )
+    require(
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/CalendarMcpProjection.java",
+        'name = "calendar.agenda"',
+        "readOnlyHint = true",
+        "calendars.agenda(",
+    )
+    require(
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/CalendarUserApiClient.java",
+        "new CalendarUserApi(client)",
+        "calendars.listUserCalendars(",
+        "calendars.queryCalendarAgenda(",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/config/CalendarMcpSecurityConfiguration.java",
+        '@Qualifier("calendarMcpWorkloadJwtDecoder")',
+        "SCOPE_calendar.read",
     )
     require(
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpTransportConfiguration.java",
@@ -156,14 +175,14 @@ def main() -> int:
         "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
         "publishesProtectedResourceMetadataWithoutAuthentication",
         "humanBearerCannotDiscoverTheMcpCatalog",
-        "extensionNegotiationIsMandatoryForWorkloadClientCredentials",
+        "validWorkloadBearerInitializesWithoutOptionalExtensionMarker",
         "boundCellIsExchangedAndDispatchedThroughTheFrameworkTransport",
         "discoversTheCuratedFilesToolAndCanonicalResourceTemplate",
     )
     require(
         "server/src/main/java/com/massimotter/weave/backend/config/FilesWebDavSecurityConfiguration.java",
         '@Qualifier("filesMcpWorkloadJwtDecoder")',
-        '.securityMatcher("/dav/files", "/dav/files/**")',
+        '.securityMatcher("/dav/files", "/dav/files/**", "/api/files/items", "/api/files/items/**")',
         "SCOPE_files.read",
     )
     require(

@@ -50,6 +50,13 @@ class HomeRecentActivity extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 switch (home) {
+                  _ when home.hasError => _ActivityStatus(
+                    icon: Icons.error_outline,
+                    message: l10n.homeRecentActivityUnavailable,
+                    actionLabel: l10n.retryButton,
+                    onAction: () =>
+                        ref.invalidate(weaveApiWorkspaceHomeProvider),
+                  ),
                   AsyncLoading() => _ActivityStatus(
                     icon: Icons.sync_outlined,
                     message: l10n.homeRecentActivityLoading,
@@ -117,6 +124,8 @@ class _ActivityTile extends StatelessWidget {
     final visibility = switch (activity.visibility) {
       WorkspaceHomeActivityVisibility.workspace =>
         l10n.homeRecentActivityWorkspaceVisibility,
+      WorkspaceHomeActivityVisibility.private =>
+        l10n.homeRecentActivityPrivateVisibility,
     };
     final recency = _formatRecency(context, activity.occurredAt);
 
@@ -162,6 +171,11 @@ class _ActivityTile extends StatelessWidget {
         activity.actorIsCurrentUser
             ? l10n.homeRecentActivityCurrentMemberFilesCompleted
             : l10n.homeRecentActivityOtherMemberFilesCompleted,
+      (
+        WorkspaceHomeActivityDomain.files,
+        WorkspaceHomeActivityAction.filesUserWriteCompleted,
+      ) =>
+        l10n.homeRecentActivityCurrentMemberFilesCompleted,
     };
   }
 }

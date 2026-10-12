@@ -15,10 +15,6 @@ void main() {
         'https://api.home.internal',
       );
       expect(
-        endpoints.nextcloudBaseUrl.toString(),
-        'https://api.home.internal/dav/files',
-      );
-      expect(
         endpoints.backendApiBaseUrl.toString(),
         'https://api.home.internal/api',
       );
@@ -31,10 +27,6 @@ void main() {
       expect(
         endpoints.matrixHomeserverUrl.toString(),
         'https://api.example.com',
-      );
-      expect(
-        endpoints.nextcloudBaseUrl.toString(),
-        'https://api.example.com/dav/files',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
@@ -55,10 +47,6 @@ void main() {
           'https://api.workspace.example.com',
         );
         expect(
-          endpoints.nextcloudBaseUrl.toString(),
-          'https://api.workspace.example.com/dav/files',
-        );
-        expect(
           endpoints.backendApiBaseUrl.toString(),
           'https://api.workspace.example.com/api',
         );
@@ -72,10 +60,6 @@ void main() {
       expect(
         endpoints.matrixHomeserverUrl.toString(),
         'http://api.home.internal',
-      );
-      expect(
-        endpoints.nextcloudBaseUrl.toString(),
-        'http://api.home.internal/dav/files',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
@@ -120,6 +104,23 @@ void main() {
         () => deriver.parseServiceUrl(
           'https://api.home.internal',
           fieldName: 'the backend API URL',
+        ),
+        throwsA(isA<AppFailure>()),
+      );
+    });
+
+    test('accepts an independent Matrix homeserver origin only', () {
+      expect(
+        deriver.parseMatrixHomeserverUrl('https://matrix.example.com/'),
+        Uri.parse('https://matrix.example.com'),
+      );
+      expect(
+        () => deriver.parseMatrixHomeserverUrl('https://api.example.com/api'),
+        throwsA(isA<AppFailure>()),
+      );
+      expect(
+        () => deriver.parseMatrixHomeserverUrl(
+          'https://user:secret@matrix.example.com',
         ),
         throwsA(isA<AppFailure>()),
       );

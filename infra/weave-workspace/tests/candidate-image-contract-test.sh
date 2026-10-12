@@ -11,6 +11,7 @@ readonly MCP_IMAGE="${REPOSITORY_ROOT}/weave-mcp-server/Dockerfile"
 readonly KEYCLOAK_RUNTIME_IMAGE="${REPOSITORY_ROOT}/infra/weave-workspace/keycloak/Dockerfile.runtime"
 readonly WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
 readonly CI_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/ci.yml"
+readonly LABEL_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/release-notes-label.yml"
 readonly HUMAN_TESTING_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/human-testing-readiness.yml"
 readonly LIVE_STACK_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/live-stack-e2e.yml"
 readonly MAIN_PROMOTION_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/main-promotion-gate.yml"
@@ -123,12 +124,38 @@ contains "${REALM_EVIDENCE}" 'manifest.get("schemaVersion") != "weave.compose-re
 contains "${REALM_EVIDENCE}" 'manifest.get("deploymentArtifacts")'
 contains "${REALM_EVIDENCE}" '"realmArtifacts" in manifest'
 
-contains "${CI_WORKFLOW}" 'group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}'
-contains "${CI_WORKFLOW}" "cancel-in-progress: \${{ github.event_name == 'pull_request' }}"
-contains "${CI_WORKFLOW}" 'timeout-minutes: 60'
-contains "${CI_WORKFLOW}" "github.event.action != 'labeled'"
-contains "${CI_WORKFLOW}" "github.event.action != 'unlabeled'"
+# Label events have their own sole authority and cannot replace the protected Core suite.
+# Every Core aggregate validates the real selected results under its constant check name.
+contains "${CI_WORKFLOW}" 'group: core-ci-${{ github.event.pull_request.number || github.ref }}'
+contains "${CI_WORKFLOW}" 'cancel-in-progress: true'
+reject "${CI_WORKFLOW}" '- labeled'
+reject "${CI_WORKFLOW}" '- unlabeled'
+reject "${CI_WORKFLOW}" 'github.event.action'
+contains "${CI_WORKFLOW}" 'name: Gradle CI'
+contains "${CI_WORKFLOW}" 'if: always()'
+reject "${CI_WORKFLOW}" 'name: Release Notes Label Check'
+contains "${LABEL_WORKFLOW}" 'name: Release Notes Label Check'
+contains "${LABEL_WORKFLOW}" '- labeled'
+contains "${LABEL_WORKFLOW}" '- unlabeled'
+contains "${LABEL_WORKFLOW}" 'releaseNotesLabelCheck'
+# Draft source already runs on opened/synchronize; readiness changes mutable
+# labels/promotion evidence, not the deterministic source candidate.
 reject "${CI_WORKFLOW}" '- ready_for_review'
+contains "${CI_WORKFLOW}" '- opened'
+contains "${CI_WORKFLOW}" '- synchronize'
+contains "${CI_WORKFLOW}" '- reopened'
+contains "${CI_WORKFLOW}" '  push:'
+contains "${CI_WORKFLOW}" '  merge_group:'
+contains "${CI_WORKFLOW}" '  workflow_dispatch:'
+reject "${CI_WORKFLOW}" 'pull_request.draft'
+contains "${LABEL_WORKFLOW}" '- ready_for_review'
+contains "${MAIN_PROMOTION_WORKFLOW}" '- ready_for_review'
+contains "${CI_WORKFLOW}" 'name: Generated User API consumers'
+contains "${CI_WORKFLOW}" 'name: Generated Admin API consumers'
+contains "${CI_WORKFLOW}" 'NEEDS_JSON: ${{ toJSON(needs) }}'
+contains "${CI_WORKFLOW}" 'run: python3 tools/dev_ci_results.py'
+# Exact selected/skipped result expectations are covered by executable negatives.
+python3 -m unittest tools.test_dev_ci_impact
 
 if [[ -f "${WORKFLOW}" ]]; then
   reject "${WORKFLOW}" 'opentofu/setup-opentofu'

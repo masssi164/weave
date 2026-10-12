@@ -1,5 +1,6 @@
 Feature: Calendar CalDAV facade
-  Calendar data-plane behavior is exposed through Weave-owned CalDAV and iCalendar.
+  Historical server protocol fixtures preserve iCalendar, version and access behavior.
+  Public CalDAV is outside current #1470 acceptance; member Calendar uses the generated User API.
 
   @caldav-discovery
   Scenario: CalDAV well-known discovery and principal discovery work
@@ -54,8 +55,3 @@ Feature: Calendar CalDAV facade
     Given a member creates a channel calendar event through CalDAV
     When the event is queried, read, and updated through the Calendar facade
     Then its iCalendar projection keeps the same Weave context, channel, and meeting-thread identifiers
-
-  @calendar-flutter-caldav
-  Scenario: Flutter Calendar repository uses CalDAV and iCalendar for calendar data
-    Given the Flutter Calendar repository is exercised
-    Then calendar list, event query, event read, event write, delete, and free/busy use Weave CalDAV/iCalendar

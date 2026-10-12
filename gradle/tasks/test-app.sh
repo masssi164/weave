@@ -8,6 +8,7 @@ readonly REPOSITORY_ROOT
 readonly WORKSPACE_ROOT="${REPOSITORY_ROOT}/infra/weave-workspace"
 readonly CONTEXT_HELPER="${REPOSITORY_ROOT}/gradle/scripts/prepare_test_app_context.py"
 readonly RUNTIME_CLEANUP="${REPOSITORY_ROOT}/gradle/scripts/cleanup_test_app_runtime.py"
+readonly NATIVE_TLS_PREPARER="${REPOSITORY_ROOT}/gradle/scripts/prepare_native_test_app_tls.py"
 readonly EMPTY_NAMESPACE_WRITER="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_empty_namespace_evidence.py"
 readonly COMPOSE="${WORKSPACE_ROOT}/compose.sh"
 readonly TEARDOWN="${WORKSPACE_ROOT}/teardown.sh"
@@ -17,6 +18,7 @@ readonly RUNTIME_IMAGE_EVIDENCE_WRITER="${REPOSITORY_ROOT}/gradle/scripts/write_
 readonly CANDIDATE_MANIFEST_CHECK="${REPOSITORY_ROOT}/gradle/tasks/candidate-manifest-check.py"
 
 RUN_ID="${WEAVE_TEST_APP_RUN_ID:-}"
+RELEASE_MCP="${WEAVE_TEST_APP_RELEASE_MCP:-false}"
 OUTPUT_ROOT="${WEAVE_TEST_APP_OUTPUT_ROOT:-${REPOSITORY_ROOT}/build/test-app}"
 SERVER_IMAGE="${WEAVE_TEST_APP_SERVER_IMAGE:-}"
 MCP_IMAGE="${WEAVE_TEST_APP_MCP_IMAGE:-}"
@@ -49,18 +51,26 @@ validate_runtime_image() {
     fail "${expected_title} image dependency-platform label is invalid"
 }
 
+discard_unsafe_diagnostics() {
+  python3 "${REPOSITORY_ROOT}/gradle/scripts/discard_unsafe_diagnostics.py" \
+    --output-root "${OUTPUT_ROOT}" --diagnostics-dir "$1"
+}
+
 cleanup() {
   local primary_status="$?" cleanup_status=0
   trap - EXIT INT TERM
   set +e
   if [[ "${STACK_PREPARED}" == "true" ]]; then
     if ((primary_status != 0)) && [[ -x "${FAILURE_DIAGNOSTICS}" ]]; then
+      local diagnostics_dir="${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/failure-diagnostics"
       WEAVE_PROFILE=e2e \
         WEAVE_RESOURCE_PREFIX="${WEAVE_E2E_RUN_NAMESPACE}" \
         WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=30 \
         bash "${FAILURE_DIAGNOSTICS}" \
-          "${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/failure-diagnostics" ||
+          "${diagnostics_dir}" || {
+        discard_unsafe_diagnostics "${diagnostics_dir}" || cleanup_status=$?
         log "WEAVE_TEST_APP_LIFECYCLE_WARNING support-safe failure diagnostics did not complete"
+      }
     fi
     WEAVE_TEARDOWN_EVIDENCE_FILE="${WEAVE_TEST_APP_TEARDOWN_EVIDENCE_PATH}" \
       bash "${TEARDOWN}" e2e \
@@ -94,6 +104,8 @@ for command in awk bash docker find git java jq openssl python3 shasum; do
   require_command "${command}"
 done
 [[ -x "${REPOSITORY_ROOT}/gradlew" ]] || fail "Gradle wrapper is unavailable"
+[[ "${RELEASE_MCP}" == "true" || "${RELEASE_MCP}" == "false" ]] ||
+  fail "WEAVE_TEST_APP_RELEASE_MCP must be true or false"
 [[ "${OUTPUT_ROOT}" == /* ]] || fail "WEAVE_TEST_APP_OUTPUT_ROOT must be absolute"
 [[ -f "${CONTEXT_HELPER}" ]] || fail "Fresh testApp context helper is unavailable"
 [[ -f "${EMPTY_NAMESPACE_WRITER}" ]] || fail "Fresh namespace proof helper is unavailable"
@@ -244,6 +256,15 @@ validate_runtime_image \
   "Weave Keycloak Runtime" \
   "keycloak-26.7.1-downstream-built-in-policy"
 
+# The former upstream MinIO Community registry digest is no longer published.
+# Build the optional S3 E2E dependency from pinned upstream source and pass its
+# exact local image ID to the isolated Compose project. This does not mutate
+# any persistent dogfood deployment or publish a runtime image.
+export WEAVE_RUNTIME_STATE_IMAGE
+WEAVE_RUNTIME_STATE_IMAGE="$(
+  bash "${WORKSPACE_ROOT}/scripts/build_runtime_state_image.sh"
+)"
+
 if [[ -n "${candidate_manifest_path}" ]]; then
   jq -e \
     --arg source_candidate_commit "${image_source_commit}" \
@@ -286,10 +307,42 @@ python3 "${EMPTY_NAMESPACE_WRITER}" \
   --output "${empty_namespace_proof}"
 export WEAVE_E2E_EMPTY_NAMESPACE_PROOF="${empty_namespace_proof}"
 
+if [[ -n "${WEAVE_TEST_APP_NATIVE_RUNNER:-}" ]]; then
+  [[ "${WEAVE_TEST_APP_PUBLIC_DOMAIN:-}" == "weave.localhost" ]] ||
+    fail "native macOS acceptance requires the weave.localhost disposable profile"
+  [[ -n "${WEAVE_TEST_APP_NATIVE_CA_ROOT:-}" ]] ||
+    fail "WEAVE_TEST_APP_NATIVE_CA_ROOT is required for trusted native HTTPS"
+  python3 "${NATIVE_TLS_PREPARER}" \
+    --ca-root "${WEAVE_TEST_APP_NATIVE_CA_ROOT}" \
+    --tls-root "${WEAVE_TEST_APP_TLS_ROOT}" \
+    --domain "weave.localhost"
+fi
+
 log "Starting one exact, import-initialized disposable Compose test stack."
 STACK_PREPARED=true
+bash "${COMPOSE}" e2e keycloak-migration-apply
+if [[ "${RELEASE_MCP}" == "true" ]]; then
+  python3 - "${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads/release-mcp.json" <<'PY'
+import os
+import sys
+
+path = sys.argv[1]
+descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+    output.write('{"schemaVersion":1,"bindings":[]}\n')
+    output.flush()
+    os.fsync(output.fileno())
+PY
+fi
 bash "${COMPOSE}" e2e up
 bash "${WORKSPACE_ROOT}/operator-check.sh" e2e
+if [[ "${RELEASE_MCP}" == "true" ]]; then
+  python3 "${REPOSITORY_ROOT}/gradle/scripts/prepare_release_mcp_workload.py" \
+    --issuer "${WEAVE_TEST_APP_ISSUER}" \
+    --ca "${WEAVE_TEST_APP_TLS_ROOT}/ca.pem" \
+    --client-id "weaver-cell-${WEAVE_E2E_RUN_NAMESPACE#weave-e2e-}" \
+    --workload-root "${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads"
+fi
 
 first_render_manifest="${WEAVE_TEST_APP_RUN_ROOT}/render-manifest-first.json"
 cp "${WEAVE_TEST_APP_GENERATED_ROOT}/render-manifest.json" "${first_render_manifest}"
@@ -338,7 +391,7 @@ for required in \
   [[ -f "${required}" && ! -L "${required}" ]] ||
     fail "an exact TLS or bootstrap SecretRef input is unavailable"
 done
-log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
+log "Running invitation, real Chromium activation, PKCE, generated User Files/Calendar, and MCP profile=${RELEASE_MCP}."
 "${REPOSITORY_ROOT}/gradlew" \
   --no-daemon \
   --max-workers=2 \
@@ -354,12 +407,19 @@ log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
   "-Dweave.e2e.mailpit-origin=${WEAVE_TEST_APP_MAILPIT_ORIGIN}" \
   "-Dweave.e2e.mailpit-api=${WEAVE_TEST_APP_MAILPIT_API}" \
   "-Dweave.e2e.mcp-endpoint=${WEAVE_TEST_APP_MCP_ENDPOINT}" \
+  "-Dweave.e2e.mcp-local-port=${WEAVE_MCP_HOST_PORT}" \
+  "-Dweave.e2e.openclaw-script=${REPOSITORY_ROOT}/gradle/scripts/verify_openclaw_release_mcp.py" \
+  "-Dweave.e2e.openclaw-matrix-script=${REPOSITORY_ROOT}/gradle/scripts/verify_openclaw_matrix_business_room.py" \
+  "-Dweave.e2e.release-mcp=${RELEASE_MCP}" \
   "-Dweave.e2e.chat-proof-origin=${WEAVE_TEST_APP_CHAT_PROOF_ORIGIN}" \
   "-Dweave.e2e.ca-certificate=${WEAVE_TEST_APP_TLS_ROOT}/ca.pem" \
   "-Dweave.e2e.tls-leaf-certificate=${WEAVE_TEST_APP_TLS_ROOT}/cert.pem" \
   "-Dweave.e2e.hosts-file=${WEAVE_TEST_APP_HOSTS_FILE}" \
+  "-Dweave.e2e.native-runner=${WEAVE_TEST_APP_NATIVE_RUNNER:-}" \
   "-Dweave.e2e.bootstrap-owner-token=${WEAVE_TEST_APP_SECRET_ROOT}/identity-bootstrap-owner-token" \
   "-Dweave.e2e.chat-proof-token=${WEAVE_TEST_APP_SECRET_ROOT}/chat-e2e-proof-token" \
+  "-Dweave.e2e.foreign-organization-identity=${WEAVE_TEST_APP_SECRET_ROOT}/foreign-organization-e2e-identity.json" \
+  "-Dweave.e2e.foreign-organization-fixture-command=${COMPOSE}" \
   "-Dweave.e2e.workload-credential-root=${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads" \
   "-Dweave.e2e.evidence-file=${WEAVE_TEST_APP_EVIDENCE_PATH}" \
   "-Dweave.e2e.persistence-restart-command=${COMPOSE}" \
@@ -373,8 +433,25 @@ jq -e \
   --arg source_candidate_commit "${image_source_commit}" \
   --arg specification_commit "${specification_commit}" \
   --arg candidate_manifest_digest "${candidate_manifest_digest}" \
-  --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
-  .schemaVersion == "weave.test-app-product-flow/v2" and
+  --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" \
+  --arg release_mcp "${RELEASE_MCP}" '
+  ((($release_mcp == "true") and
+    .schemaVersion == "weave.test-app-product-flow/v3-release" and
+    .arcCellCreated == false and
+    .sameReleaseBindingAfterRestart == true and
+    .openClawFilesInvoked == true and
+    .openClawCalendarInvoked == true and
+    .calendarMcpWriteParity == true and
+    .openClawCalendarWriteParity == true and
+    (.openClawClientVersion | test("^20[0-9]{2}\\.[0-9]+\\.[0-9]+$")) and
+    (.releaseBindingRefSha256 | test("^[0-9a-f]{64}$")) and
+    (.cellRefSha256 == null) and
+    (.sameJpaCellAfterRestart == null) and
+    (.sameMcpCellAfterRestart == null)) or
+   (($release_mcp == "false") and
+    .schemaVersion == "weave.test-app-product-flow/v2" and
+    .sameJpaCellAfterRestart == true and
+    .sameMcpCellAfterRestart == true)) and
   .candidateCommit == $candidate_commit and
   .sourceCandidateCommit == $source_candidate_commit and
   .specificationCommit == $specification_commit and
@@ -384,21 +461,27 @@ jq -e \
   .humanOAuth == "authorization_code_pkce_s256" and
   .workloadOAuth == "client_credentials_private_key_jwt" and
   .mcpTool == "files.search" and
-  .serverProjection == "weave-webdav" and
+  .calendarMcpAgenda == true and
+  .calendarMcpWrongScopeDenied == true and
+  .calendarMcpRevocationDenied == true and
+  .serverProjection == "weave-user-api" and
   .canonicalResourceSeen == true and
   .postgresRestartObserved == true and
   .runtimeStateRestartObserved == true and
   .runtimeStateFixtureRestored == true and
-  .sameJpaCellAfterRestart == true and
-  .sameMcpCellAfterRestart == true and
   (.persistenceRestartEvidenceSha256 | test("^sha256:[0-9a-f]{64}$")) and
   .revocationDenied == true and
   .regrantRestored == true and
   .sameHumanSubjectAfterRegrant == true and
   .samePersonRefAfterRegrant == true and
+  .spaceRevocationRestored == true and
+  .foreignOrganizationDenied == true and
+  .administratorSessionRevocationDenied == true and
+  .reauthenticationAfterSessionRevocation == true and
+  .uninitializedChatLogoutDenied == true and
   .collaboration.repeatCount == 2 and
   .collaboration.selectedProviders == {"chat":"weave-native","files":"weave-native","calendar":"weave-native"} and
-  .collaboration.northboundFacades == {"matrix":true,"webdav":true,"caldav":true} and
+  .collaboration.northboundContracts == {"matrix":"matrix-client-server","files":"weave-user-api","calendar":"weave-user-api"} and
   .collaboration.southboundProviderDependencyObserved == false and
   (.collaboration.identityRefHashes.author | test("^sha256:[0-9a-f]{64}$")) and
   (.collaboration.identityRefHashes.collaborator | test("^sha256:[0-9a-f]{64}$")) and

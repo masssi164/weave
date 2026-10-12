@@ -108,7 +108,7 @@ export const adminConsoleMessages = {
     readinessDashboardLabel: 'Domain readiness dashboard',
     betaReadinessHeading: 'Beta setup and control readiness preview',
     betaReadinessDescription:
-      'This Admin Console preview ties Keycloak platform security, provider adapters, Agent Runtime Control, and evidence posture into one screen-reader-friendly checklist before members are invited. It is support-safe: admins see action labels and evidence refs, not raw provider payloads or secrets.',
+      'This Admin Console preview ties identity security, provider adapters, and evidence posture into one screen-reader-friendly checklist before members are invited. It is support-safe: admins see action labels and evidence refs, not raw provider payloads or secrets.',
     betaReadinessChecklistLabel: 'Beta setup and control readiness checklist',
     goLiveHeading: 'Organization go-live readiness',
     goLiveStateLabel: 'State',
@@ -129,7 +129,7 @@ export const adminConsoleMessages = {
       'Keycloak is fixed as the central identity authority. Configure LDAP, Active Directory, or external OIDC/SAML connections in the operator-managed Keycloak setup; runtime IDM switching is not supported.',
     providerSelectionHeading: 'Provider selection and readiness',
     providerSelectionDescription:
-      'Admin Console-selected mappings are the source of truth. Secrets stay as SecretRef handles; readiness tests run only through backend admin APIs.',
+      'This selection records deployment metadata only; it does not activate or replace an organization provider binding. Verified activation belongs to #1498. Secrets stay as SecretRef handles, and readiness tests run through backend admin APIs.',
     providerCategoryLabel: 'Provider category',
     providerCategoryHelper:
       'Category-first canonical Weave contracts stay separate from adapter choices.',
@@ -286,7 +286,7 @@ export const adminConsoleMessages = {
     readinessDashboardLabel: 'Domain-Bereitschafts-Dashboard',
     betaReadinessHeading: 'Beta-Einrichtungs- und Steuerungsbereitschaft',
     betaReadinessDescription:
-      'Diese Admin-Konsolenvorschau verbindet IDM/RBAC, Provider-Adapter, Agent Runtime Control und Evidenzlage in einer screenreader-freundlichen Checkliste, bevor Mitglieder eingeladen werden. Sie ist support-sicher: Admins sehen Aktionslabels und Evidenz-Refs, keine rohen Provider-Payloads oder Secrets.',
+      'Diese Admin-Konsolenvorschau verbindet IDM/RBAC, Provider-Adapter und Evidenzlage in einer screenreader-freundlichen Checkliste, bevor Mitglieder eingeladen werden. Sie ist support-sicher: Admins sehen Aktionslabels und Evidenz-Refs, keine rohen Provider-Payloads oder Secrets.',
     betaReadinessChecklistLabel: 'Beta-Einrichtungs- und Steuerungscheckliste',
     goLiveHeading: 'Organisations-Go-Live-Bereitschaft',
     goLiveStateLabel: 'Zustand',
@@ -307,7 +307,7 @@ export const adminConsoleMessages = {
       'Keycloak ist als zentrale Identitätsinstanz festgelegt. LDAP, Active Directory oder externe OIDC-/SAML-Verbindungen werden im operatorverwalteten Keycloak-Setup konfiguriert; ein IDM-Wechsel zur Laufzeit wird nicht unterstützt.',
     providerSelectionHeading: 'Provider-Auswahl und Bereitschaft',
     providerSelectionDescription:
-      'In der Admin-Konsole gewählte Zuordnungen sind Source of Truth. Secrets bleiben SecretRef-Handles; Bereitschaftstests laufen nur über Backend-Admin-APIs.',
+      'Diese Auswahl erfasst nur Deployment-Metadaten; sie aktiviert oder ersetzt keine Provider-Bindung einer Organisation. Die verifizierte Aktivierung gehört zu #1498. Secrets bleiben SecretRef-Handles; Bereitschaftstests laufen über Backend-Admin-APIs.',
     providerCategoryLabel: 'Provider-Kategorie',
     providerCategoryHelper:
       'Kategorie-erste kanonische Weave-Verträge bleiben von Adapterentscheidungen getrennt.',

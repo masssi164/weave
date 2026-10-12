@@ -34,7 +34,9 @@ public final class FilesProviderBindingBootstrap implements ApplicationRunner {
         String adapterKey = properties.requiredAdapterKey();
         String configurationRef = properties.requiredConfigurationRef();
         return repository.current(organizationRef, "files")
-                .map(current -> requireEquivalent(current, adapterKey, configurationRef))
+                .map(current -> current.revision() == 1
+                        ? requireEquivalent(current, adapterKey, configurationRef)
+                        : current)
                 .orElseGet(() -> repository.activate(
                         organizationRef, "files", 0, adapterKey, configurationRef, Instant.now(clock)));
     }

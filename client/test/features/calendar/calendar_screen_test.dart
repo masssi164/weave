@@ -1,32 +1,49 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_failure.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
 
 import '../../helpers/test_app.dart';
 
 class _FakeCalendarRepository implements CalendarRepository {
   _FakeCalendarRepository({
     required List<CalendarEvent> events,
+    this.eventLoadGate,
     this.failCreates = false,
+    this.failUpdates = false,
   }) : events = List<CalendarEvent>.of(events);
 
   final List<CalendarEvent> events;
+  final Future<void>? eventLoadGate;
   final bool failCreates;
+  final bool failUpdates;
   final List<CalendarEventDraft> createdDrafts = <CalendarEventDraft>[];
   final List<String> deletedIds = <String>[];
   final List<String?> updatedEtags = <String?>[];
+  final List<CalendarEventDraft> updatedDrafts = [];
+  int scopeLoads = 0;
+  int eventLoads = 0;
 
   @override
   Future<CalendarScopeList> loadScopes() async {
+    scopeLoads++;
     return const CalendarScopeList(
       scopes: [
-        CalendarScope.workspace,
+        CalendarScope(
+          type: 'workspace',
+          label: 'Workspace',
+          capabilities: ['read', 'create', 'update', 'delete'],
+        ),
         CalendarScope(
           id: 'team-engineering',
           type: 'team',
@@ -38,25 +55,16 @@ class _FakeCalendarRepository implements CalendarRepository {
   }
 
   @override
-  Future<CalendarEventList> loadEvents({CalendarScope? scope}) async {
+  Future<CalendarEventList> loadEvents({
+    CalendarScope? scope,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    eventLoads++;
+    if (eventLoadGate != null) await eventLoadGate;
     return CalendarEventList(
       scope: scope ?? CalendarScope.workspace,
       events: List<CalendarEvent>.of(events),
-    );
-  }
-
-  @override
-  Future<CalendarClientSetup> loadClientSetup() async {
-    return const CalendarClientSetup(
-      scope: CalendarScope.workspace,
-      username: 'weave-backend',
-      credentialPolicy: 'secret-free-setup-metadata',
-      endpoints: CalendarExternalEndpoints(
-        serverUrl: '/caldav',
-        caldavDiscoveryUrl: '/caldav',
-        principalUrl: '/caldav/principals/users/weave-backend/',
-      ),
-      options: [],
     );
   }
 
@@ -73,6 +81,7 @@ class _FakeCalendarRepository implements CalendarRepository {
     }
     final event = CalendarEvent(
       id: 'created-${createdDrafts.length}',
+      allowedActions: const ['update', 'delete'],
       title: draft.title,
       description: draft.description,
       startTime: draft.startTime,
@@ -93,9 +102,12 @@ class _FakeCalendarRepository implements CalendarRepository {
     String? etag,
   }) async {
     updatedEtags.add(etag);
+    updatedDrafts.add(draft);
+    if (failUpdates) throw const CalendarFailure(CalendarFailureKind.conflict);
     final index = events.indexWhere((event) => event.id == id);
     final event = CalendarEvent(
       id: id,
+      allowedActions: const ['update', 'delete'],
       title: draft.title,
       description: draft.description,
       startTime: draft.startTime,
@@ -111,7 +123,7 @@ class _FakeCalendarRepository implements CalendarRepository {
   }
 
   @override
-  Future<void> deleteEvent(String id) async {
+  Future<void> deleteEvent(String id, {String? etag}) async {
     deletedIds.add(id);
     events.removeWhere((event) => event.id == id);
   }
@@ -159,15 +171,175 @@ WorkspaceCapabilitySnapshot _calendarUnavailableSnapshot() {
   );
 }
 
+class _CalendarCapabilityController
+    extends Notifier<AsyncValue<WorkspaceCapabilitySnapshot>> {
+  @override
+  AsyncValue<WorkspaceCapabilitySnapshot> build() =>
+      AsyncData(_calendarUnavailableSnapshot());
+
+  void show(WorkspaceCapabilitySnapshot snapshot) {
+    state = AsyncData(snapshot);
+  }
+}
+
 void main() {
   group('CalendarScreen', () {
     testWidgets(
-      'renders a full calendar surface with events and setup status',
+      'moves from a readable loading state to an actionable empty state',
+      (tester) async {
+        final gate = Completer<void>();
+        final repository = _FakeCalendarRepository(
+          events: [],
+          eventLoadGate: gate.future,
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            const CalendarScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWithValue(
+                const AsyncData(_readySnapshot),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+              calendarEvaluationTimeZoneProvider.overrideWith(
+                (ref) async => 'Europe/Berlin',
+              ),
+            ],
+          ),
+        );
+        await tester.pump();
+        expect(repository.eventLoads, greaterThan(0));
+        expect(find.text('Loading event details…'), findsOneWidget);
+        expect(find.text('No events yet'), findsNothing);
+
+        gate.complete();
+        await tester.pumpAndSettle();
+        expect(find.text('Loading event details…'), findsNothing);
+        expect(find.text('No events yet'), findsOneWidget);
+        await tester.tap(find.byTooltip('Create event'));
+        await tester.pumpAndSettle();
+        expect(find.text('Create calendar event'), findsOneWidget);
+      },
+    );
+
+    testWidgets('tabs through event fields and returns focus after dismissal', (
+      tester,
+    ) async {
+      final repository = _FakeCalendarRepository(events: []);
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              const AsyncData(_readySnapshot),
+            ),
+            calendarRepositoryProvider.overrideWithValue(repository),
+            calendarEvaluationTimeZoneProvider.overrideWith(
+              (ref) async => 'Europe/Berlin',
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final trigger = find.widgetWithIcon(IconButton, Icons.add);
+      Finder focused() => find.byElementPredicate(
+        (element) =>
+            identical(element, FocusManager.instance.primaryFocus?.context),
+      );
+      for (
+        var i = 0;
+        i < 30 &&
+            find.ancestor(of: focused(), matching: trigger).evaluate().isEmpty;
+        i++
+      ) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      expect(find.ancestor(of: focused(), matching: trigger), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      final fields = find.byType(TextField);
+      expect(
+        find.ancestor(of: focused(), matching: fields.first),
+        findsOneWidget,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(
+        find.ancestor(of: focused(), matching: fields.at(1)),
+        findsOneWidget,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Create calendar event'), findsNothing);
+      expect(find.ancestor(of: focused(), matching: trigger), findsOneWidget);
+    });
+    testWidgets(
+      'waits for access, loads agenda automatically, and hides revoked events',
+      (tester) async {
+        final capabilityState =
+            NotifierProvider<
+              _CalendarCapabilityController,
+              AsyncValue<WorkspaceCapabilitySnapshot>
+            >(_CalendarCapabilityController.new);
+        final repository = _FakeCalendarRepository(
+          events: [
+            CalendarEvent(
+              id: 'private-event',
+              title: 'Private review',
+              startTime: DateTime(2026, 6, 27, 10),
+              endTime: DateTime(2026, 6, 27, 11),
+            ),
+          ],
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            const CalendarScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWith(
+                (ref) => ref.watch(capabilityState),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+              calendarEvaluationTimeZoneProvider.overrideWith(
+                (ref) async => 'Europe/Berlin',
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Calendar is unavailable'), findsOneWidget);
+        expect(repository.scopeLoads, 0);
+        expect(repository.eventLoads, 0);
+
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(CalendarScreen)),
+        );
+        container.read(capabilityState.notifier).show(_readySnapshot);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Private review'), findsOneWidget);
+        expect(repository.scopeLoads, greaterThan(0));
+        expect(repository.eventLoads, greaterThan(0));
+
+        container
+            .read(capabilityState.notifier)
+            .show(_calendarUnavailableSnapshot());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Private review'), findsNothing);
+        expect(find.text('Calendar is unavailable'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'renders accessible Calendar without external credentials or setup',
       (tester) async {
         final repository = _FakeCalendarRepository(
           events: [
             CalendarEvent(
               id: 'event-1',
+              allowedActions: const ['update', 'delete'],
               title: 'Design review',
               startTime: DateTime(2026, 6, 27, 10),
               endTime: DateTime(2026, 6, 27, 11),
@@ -184,6 +356,9 @@ void main() {
                 const AsyncData(_readySnapshot),
               ),
               calendarRepositoryProvider.overrideWithValue(repository),
+              calendarEvaluationTimeZoneProvider.overrideWith(
+                (ref) async => 'Europe/Berlin',
+              ),
             ],
           ),
         );
@@ -204,7 +379,7 @@ void main() {
         await tester.drag(find.byType(ListView), const Offset(0, -600));
         await tester.pumpAndSettle();
 
-        expect(find.text('Use Calendar in other apps'), findsOneWidget);
+        expect(find.text('Use Calendar in other apps'), findsNothing);
       },
     );
 
@@ -221,6 +396,9 @@ void main() {
                 AsyncData(_calendarUnavailableSnapshot()),
               ),
               calendarRepositoryProvider.overrideWithValue(repository),
+              calendarEvaluationTimeZoneProvider.overrideWith(
+                (ref) async => 'Europe/Berlin',
+              ),
             ],
           ),
         );
@@ -239,6 +417,8 @@ void main() {
           find.widgetWithIcon(IconButton, Icons.add),
         );
         expect(createButton.onPressed, isNull);
+        expect(repository.scopeLoads, 0);
+        expect(repository.eventLoads, 0);
         expect(repository.createdDrafts, isEmpty);
       },
     );
@@ -256,6 +436,9 @@ void main() {
               const AsyncData(_readySnapshot),
             ),
             calendarRepositoryProvider.overrideWithValue(repository),
+            calendarEvaluationTimeZoneProvider.overrideWith(
+              (ref) async => 'Europe/Berlin',
+            ),
           ],
         ),
       );
@@ -285,6 +468,7 @@ void main() {
         events: [
           CalendarEvent(
             id: 'event-1',
+            allowedActions: const ['update', 'delete'],
             title: 'Design review',
             startTime: DateTime(2026, 6, 27, 10),
             endTime: DateTime(2026, 6, 27, 11),
@@ -301,6 +485,9 @@ void main() {
               const AsyncData(_readySnapshot),
             ),
             calendarRepositoryProvider.overrideWithValue(repository),
+            calendarEvaluationTimeZoneProvider.overrideWith(
+              (ref) async => 'Europe/Berlin',
+            ),
           ],
         ),
       );
@@ -323,6 +510,7 @@ void main() {
         events: [
           CalendarEvent(
             id: 'event-1',
+            allowedActions: const ['update', 'delete'],
             title: 'Design review',
             startTime: DateTime(2026, 6, 27, 10),
             endTime: DateTime(2026, 6, 27, 11),
@@ -339,6 +527,9 @@ void main() {
               const AsyncData(_readySnapshot),
             ),
             calendarRepositoryProvider.overrideWithValue(repository),
+            calendarEvaluationTimeZoneProvider.overrideWith(
+              (ref) async => 'Europe/Berlin',
+            ),
           ],
         ),
       );
@@ -361,5 +552,374 @@ void main() {
         findsNothing,
       );
     });
+
+    testWidgets(
+      'recurring occurrence controls explain the guard without mutating the series',
+      (tester) async {
+        final repository = _FakeCalendarRepository(
+          events: [
+            CalendarEvent(
+              id: 'recurring',
+              title: 'Weekly planning',
+              startTime: DateTime(2026, 10, 25, 10),
+              endTime: DateTime(2026, 10, 25, 11),
+              recurring: true,
+              allowedActions: const ['update', 'delete'],
+            ),
+          ],
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            const CalendarScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWithValue(
+                const AsyncData(_readySnapshot),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Repeating event:'), findsOneWidget);
+        expect(
+          tester
+              .widget<IconButton>(
+                find.byWidgetPredicate(
+                  (widget) =>
+                      widget is IconButton &&
+                      widget.tooltip == 'Edit Weekly planning',
+                ),
+              )
+              .onPressed,
+          isNull,
+        );
+        expect(
+          tester
+              .widget<IconButton>(
+                find.byWidgetPredicate(
+                  (widget) =>
+                      widget is IconButton &&
+                      widget.tooltip == 'Delete Weekly planning',
+                ),
+              )
+              .onPressed,
+          isNull,
+        );
+        expect(repository.updatedEtags, isEmpty);
+        expect(repository.deletedIds, isEmpty);
+      },
+    );
+
+    testWidgets('read-only event actions remain disabled', (tester) async {
+      final repository = _FakeCalendarRepository(
+        events: [
+          CalendarEvent(
+            id: 'read-only',
+            title: 'Read only',
+            startTime: DateTime(2026, 10, 25, 10),
+            endTime: DateTime(2026, 10, 25, 11),
+            allowedActions: const ['read'],
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              const AsyncData(_readySnapshot),
+            ),
+            calendarRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<IconButton>(
+              find.byWidgetPredicate(
+                (widget) =>
+                    widget is IconButton && widget.tooltip == 'Edit Read only',
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<IconButton>(
+              find.byWidgetPredicate(
+                (widget) =>
+                    widget is IconButton &&
+                    widget.tooltip == 'Delete Read only',
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets('transient preview edits through the normal event dialog', (
+      tester,
+    ) async {
+      const handle = 'pv_0123456789abcdefghijklmnopqrstuv';
+      final repository = _FakeCalendarRepository(
+        events: [
+          CalendarEvent(
+            id: handle,
+            previewHandle: handle,
+            title: 'Provider planning',
+            startTime: DateTime(2026, 10, 25, 10),
+            endTime: DateTime(2026, 10, 25, 11),
+            allowedActions: const ['read', 'materialize', 'update', 'delete'],
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              const AsyncData(_readySnapshot),
+            ),
+            calendarRepositoryProvider.overrideWithValue(repository),
+            calendarEvaluationTimeZoneProvider.overrideWith(
+              (ref) async => 'Europe/Berlin',
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Edit Provider planning'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'Revised planning');
+      await tester.tap(find.text('Save event'));
+      await tester.pumpAndSettle();
+      expect(repository.updatedDrafts.single.title, 'Revised planning');
+      expect(repository.updatedEtags.single, isNull);
+      expect(find.text('Revised planning'), findsWidgets);
+    });
+
+    testWidgets(
+      'version conflict explains reload and leaves the event visible',
+      (tester) async {
+        final repository = _FakeCalendarRepository(
+          failUpdates: true,
+          events: [
+            CalendarEvent(
+              id: 'conflict',
+              title: 'Review',
+              startTime: DateTime(2026, 10, 25, 10),
+              endTime: DateTime(2026, 10, 25, 11),
+              etag: '"old"',
+              allowedActions: const ['update'],
+            ),
+          ],
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            const CalendarScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWithValue(
+                const AsyncData(_readySnapshot),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+              calendarEvaluationTimeZoneProvider.overrideWith(
+                (ref) async => 'Europe/Berlin',
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Edit Review'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save event'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('This event changed. Refresh'),
+          findsOneWidget,
+        );
+        expect(find.text('Review'), findsOneWidget);
+      },
+    );
+
+    testWidgets('all-day create keeps an exclusive next-day end', (
+      tester,
+    ) async {
+      final repository = _FakeCalendarRepository(events: []);
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              const AsyncData(_readySnapshot),
+            ),
+            calendarRepositoryProvider.overrideWithValue(repository),
+            calendarEvaluationTimeZoneProvider.overrideWith(
+              (ref) async => 'Europe/Berlin',
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Create event'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'All day');
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('first day after the event'), findsOneWidget);
+      await tester.tap(find.text('Save event'));
+      await tester.pumpAndSettle();
+      final draft = repository.createdDrafts.single;
+      expect(draft.allDay, isTrue);
+      expect(
+        draft.endTime.difference(draft.startTime),
+        const Duration(days: 1),
+      );
+      expect(draft.timezone, 'Europe/Berlin');
+    });
+
+    for (final view in ['Day', 'Week', 'Month']) {
+      testWidgets(
+        '$view includes cross-boundary events and excludes their exclusive end',
+        (tester) async {
+          final now = DateTime.now();
+          final day = DateTime.utc(now.year, now.month, now.day);
+          final start = view == 'Month'
+              ? DateTime.utc(now.year, now.month)
+              : view == 'Week'
+              ? day.subtract(Duration(days: day.weekday - 1))
+              : day;
+          final repository = _FakeCalendarRepository(
+            events: [
+              CalendarEvent(
+                id: 'crossing',
+                title: 'Across boundary',
+                startTime: start.subtract(const Duration(days: 1)),
+                endTime: start.add(const Duration(days: 2)),
+                allDay: true,
+              ),
+              CalendarEvent(
+                id: 'ended',
+                title: 'Already ended',
+                startTime: start.subtract(const Duration(days: 2)),
+                endTime: start,
+                allDay: true,
+              ),
+            ],
+          );
+          await tester.pumpWidget(
+            createTestApp(
+              const CalendarScreen(),
+              overrides: [
+                workspaceCapabilitySnapshotProvider.overrideWithValue(
+                  const AsyncData(_readySnapshot),
+                ),
+                calendarRepositoryProvider.overrideWithValue(repository),
+              ],
+            ),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(find.text(view));
+          await tester.pumpAndSettle();
+          expect(find.text('Across boundary'), findsWidgets);
+          expect(find.text('Already ended'), findsNothing);
+        },
+      );
+    }
+
+    testWidgets(
+      'editor preserves floating DST-gap fields on a title-only change',
+      (tester) async {
+        final repository = _FakeCalendarRepository(
+          events: [
+            CalendarEvent(
+              id: 'gap',
+              title: 'Floating time',
+              startTime: DateTime.utc(2026, 3, 29, 2, 30),
+              endTime: DateTime.utc(2026, 3, 29, 3, 30),
+              timeKind: CalendarTimeKind.floating,
+              etag: '"gap"',
+              allowedActions: const ['update'],
+            ),
+          ],
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            const CalendarScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWithValue(
+                const AsyncData(_readySnapshot),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+              calendarEvaluationTimeZoneProvider.overrideWith(
+                (ref) async => 'Europe/Berlin',
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Edit Floating time'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField).first, 'Title only');
+        await tester.tap(find.text('Save event'));
+        await tester.pumpAndSettle();
+        expect(
+          repository.updatedDrafts.single.startTime,
+          DateTime.utc(2026, 3, 29, 2, 30),
+        );
+        expect(
+          repository.updatedDrafts.single.timeKind,
+          CalendarTimeKind.floating,
+        );
+      },
+    );
+
+    testWidgets(
+      'a draft opened by a previous session cannot be submitted by the next member',
+      (tester) async {
+        final repository = _FakeCalendarRepository(events: []);
+        var session = WeaveAuthenticatedSession(
+          apiBaseUrl: Uri.parse('https://api.example.test/api'),
+          accessToken: 'first',
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            const CalendarScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWithValue(
+                const AsyncData(_readySnapshot),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+              calendarEvaluationTimeZoneProvider.overrideWith(
+                (ref) async => 'Europe/Berlin',
+              ),
+              weaveAuthenticatedSessionProvider.overrideWith(
+                (ref) async => session,
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Create event'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byType(TextField).first,
+          'Previous member draft',
+        );
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(CalendarScreen)),
+        );
+        session = WeaveAuthenticatedSession(
+          apiBaseUrl: Uri.parse('https://api.example.test/api'),
+          accessToken: 'second',
+        );
+        container.invalidate(weaveAuthenticatedSessionProvider);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save event'));
+        await tester.pumpAndSettle();
+        expect(repository.createdDrafts, isEmpty);
+      },
+    );
   });
 }

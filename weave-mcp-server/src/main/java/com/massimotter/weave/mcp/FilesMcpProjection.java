@@ -10,12 +10,12 @@ import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriUtils;
 
-/** Semantic MCP projection over the Weave WebDAV Files facade. */
+/** Semantic MCP projection over generated Weave User Files operations. */
 @Component
 public final class FilesMcpProjection {
-  private final FilesWebDavClient files;
+  private final FilesUserApiClient files;
 
-  FilesMcpProjection(FilesWebDavClient files) {
+  FilesMcpProjection(FilesUserApiClient files) {
     this.files = files;
   }
 
@@ -81,7 +81,7 @@ public final class FilesMcpProjection {
     if (canonicalId.isBlank() || canonicalId.length() > 500) {
       throw new IllegalArgumentException("The canonical file reference is invalid");
     }
-    FilesWebDavClient.FileContent content = files.read(canonicalId);
+    FilesUserApiClient.FileContent content = files.read(canonicalId);
     String mimeType = content.item().mimeType();
     if (mimeType != null
         && !(mimeType.startsWith("text/")

@@ -13,8 +13,8 @@ import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import com.massimotter.weave.backend.service.OrganizationManifestService;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
@@ -48,11 +48,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(
-        controllers = WorkspaceController.class,
+        controllers = {WorkspaceController.class, AdminWorkspaceController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
         OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
+        com.massimotter.weave.backend.config.AdminApiSecurityConfiguration.class,
         WorkspaceCapabilityService.class,
         OrganizationManifestService.class,
         WorkspaceReleaseReadinessService.class,
@@ -69,6 +70,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         OAuth2ResourceServerProperties.class
 })
 @org.springframework.test.context.TestPropertySource(properties = {
+        "weave.context.authorization.default-tenant-id=weave-dogfood",
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
         "weave.workspace.chat.dependency-url=https://matrix.weave.test",
         "weave.workspace.files.dependency-url=https://files.weave.test",
@@ -84,14 +86,29 @@ class WorkspaceControllerTest {
     @Autowired
     private OAuth2ResourceServerProperties resourceServerProperties;
 
-    @MockitoBean
+    @MockitoBean(name = "jwtDecoder")
     private JwtDecoder jwtDecoder;
+
+    @org.springframework.boot.test.context.TestConfiguration
+    static class UserDecoderConfiguration {
+        @org.springframework.context.annotation.Bean
+        @org.springframework.context.annotation.Primary
+        JwtDecoder jwtDecoder() {
+            return org.mockito.Mockito.mock(JwtDecoder.class);
+        }
+    }
+
+    @MockitoBean(name = "adminApiJwtDecoder")
+    private JwtDecoder adminApiJwtDecoder;
 
     @MockitoBean
     private AuditEventPublisher auditEventPublisher;
 
     @MockitoBean
     private ContextAuthorizationPort contextAuthorizationPort;
+
+    @MockitoBean
+    private SpaceAccessPort spaceAccessPort;
 
     @Test
     void returnsOrganizationManifestForMemberClientWithoutAdminConsoleLeakage() throws Exception {
@@ -118,7 +135,7 @@ class WorkspaceControllerTest {
                         "accept organization auth URL, invite link, or deep link",
                         "complete OIDC Authorization Code with PKCE through the organization authority",
                         "consume effective organization manifest and capability states",
-                        "render only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later member states")))
+                        "render only currently authorized and available member capabilities")))
                 .andExpect(jsonPath("$.adminConsoleResponsibilities", hasItems(
                         "create and bootstrap organizations",
                         "manage Keycloak identity, upstream federation, and selectable category providers",
@@ -131,36 +148,27 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.memberCapabilityStates['calendar-events']").value("degraded"))
                 .andExpect(jsonPath("$.memberCapabilityStates['files-docs']").value("available"))
                 .andExpect(jsonPath("$.memberCapabilityStates['boards-tasks']").value("disabled_by_policy"))
-                .andExpect(jsonPath("$.memberCapabilityStates.meetings").value("not_configured"))
-                .andExpect(jsonPath("$.memberCapabilityStates['forms-contacts']").value("coming_later"))
+                .andExpect(jsonPath("$.memberCapabilityStates.meetings").doesNotExist())
+                .andExpect(jsonPath("$.memberCapabilityStates['forms-contacts']").doesNotExist())
                 .andExpect(jsonPath("$.clientAccessDiscovery.files.productApiBasePath").value("/api/files"))
                 .andExpect(jsonPath("$.clientAccessDiscovery.files.openApiTag").value("Files"))
                 .andExpect(jsonPath("$.clientAccessDiscovery.files.supportSafe").value(true))
                 .andExpect(jsonPath("$.clientAccessDiscovery.files.providerConfigurationExposed").value(false))
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'standard-protocol')].name")
-                        .value(hasItem("Weave WebDAV projection")))
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'standard-protocol')].setupPath")
-                        .value(hasItem("/dav/files")))
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'standard-protocol')].readiness")
-                        .value(hasItem("data_plane_read_write_available")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'standard-protocol')]").isEmpty())
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'openapi')].readiness")
+                        .value(hasItem("data_plane_guarded")))
                 .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'mcp')]").isEmpty())
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'native-os')].setupPath")
-                        .value(hasItem("/api/files/native-provider-setup")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'native-os')]").isEmpty())
                 .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.status")
-                        .value("revocable_device_grants_available"))
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.lifecyclePaths", hasItems(
-                        "/api/files/client-setup/credentials",
-                        "/api/files/native-provider-setup")))
+                        .value("member_oidc_session"))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.lifecyclePaths").isEmpty())
                 .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.secretMaterialReturned").value(false))
-                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'standard-protocol')].name")
-                        .value(hasItem("Weave CalDAV/iCalendar projection")))
-                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'standard-protocol')].setupPath")
-                        .value(hasItem("/caldav")))
-                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'native-os')].setupPath")
-                        .value(hasItem("/api/calendar/native-sync-setup")))
-                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.credentialLifecycle.lifecyclePaths", hasItems(
-                        "/api/calendar/client-setup/credentials",
-                        "/api/calendar/client-setup/apple.mobileconfig")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'standard-protocol')]").isEmpty())
+                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'openapi')].readiness")
+                        .value(hasItem("data_plane_guarded")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.credentialLifecycle.status")
+                        .value("member_oidc_session"))
+                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.credentialLifecycle.lifecyclePaths").isEmpty())
                 .andExpect(jsonPath("$.clientAccessDiscovery.chat.openApiTag").value("Chat domain"))
                 .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'openapi')].name")
                         .value(hasItem("Weave Chat control and context API")))
@@ -171,17 +179,12 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'standard-protocol')].setupPath")
                         .value(hasItem("/_matrix/client")))
                 .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'standard-protocol')].readiness")
-                        .value(hasItem("encrypted_data_plane_available")))
+                        .value(hasItem("compatibility_guarded")))
                 .andExpect(jsonPath("$.clientAccessDiscovery.chat.credentialLifecycle.status")
-                        .value("session_bound_no_raw_matrix_credentials"))
-                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].productApiBasePath")
-                        .value("/_matrix/client"))
-                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].surfaces[?(@.kind == 'standard-protocol')].name")
-                        .value(hasItem("MatrixRTC Profile 0 signaling")))
-                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].surfaces[?(@.kind == 'standard-protocol')].readiness")
-                        .value(hasItems("experimental_guarded", "rtc_authorizer_required")))
-                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].credentialLifecycle.status")
-                        .value("matrix_native_oauth_distinct_from_sfu_tokens"))
+                        .value("member_oidc_session_guarded"))
+                .andExpect(jsonPath("$.clientAccessDiscovery.chat.credentialLifecycle.blockedUntil")
+                        .value(hasItems("Weave-owned Matrix client compatibility", "policy-governed E2EE qualification")))
+                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls']").doesNotExist())
                 .andExpect(jsonPath("$.capabilities.calendar.grantedCapabilities", hasItems("calendar.read")))
                 .andExpect(jsonPath("$.capabilities.agentRuntimeControl.policyState").value("disabled"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("matrix.weave.test"))))
@@ -191,6 +194,9 @@ class WorkspaceControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("token="))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("secretref://"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("providerDiagnostics"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("/dav/files"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("/caldav"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("MatrixRTC"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("Authorization: Bearer"))));
     }
 
@@ -241,7 +247,7 @@ class WorkspaceControllerTest {
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.organizationId").value("tenant-default"));
+                .andExpect(jsonPath("$.organizationId").value("weave-dogfood"));
     }
 
     @Test
@@ -251,20 +257,18 @@ class WorkspaceControllerTest {
 
     @Test
     void operatorCanReadReleaseReadinessSnapshot() throws Exception {
-        assertReleaseReadinessSnapshot("/api/workspace/release-readiness");
+        assertReleaseReadinessSnapshot("/api/admin/workspace/release-readiness");
     }
 
     @Test
     void releaseReadinessRejectsMembersWithoutAdminReadinessCapability() throws Exception {
-        mockMvc.perform(get("/api/workspace/release-readiness").with(jwt()
+        mockMvc.perform(get("/api/admin/workspace/release-readiness").with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
-                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
-                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
+                .andExpect(jsonPath("$.code").value("forbidden"));
     }
 
     @Test
@@ -276,7 +280,7 @@ class WorkspaceControllerTest {
     void homeProjectsOnlyContextAuthorizedSupportSafeActivityFromTheJwtCaller() throws Exception {
         when(auditEventPublisher.events()).thenReturn(List.of(
                 new AuditEvent(
-                        "tenant-a",
+                        "weave-dogfood",
                         "workspace-shared",
                         "user:author-sub",
                         "files:webdav",
@@ -288,7 +292,7 @@ class WorkspaceControllerTest {
                                 "productPath", "/private/quarterly-plan.pdf",
                                 "providerId", "provider-resource-42")),
                 new AuditEvent(
-                        "tenant-a",
+                        "weave-dogfood",
                         "workspace-private",
                         "user:private-author",
                         "files:webdav",
@@ -297,22 +301,18 @@ class WorkspaceControllerTest {
                         "home-controller-private-write",
                         AuditRedactionLevel.SUPPORT_SAFE,
                         Map.of("productPath", "/private/secret.pdf"))));
-        when(contextAuthorizationPort.check(any())).thenAnswer(invocation -> {
-            var request = (com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest) invocation.getArgument(0);
-            return "workspace-shared".equals(request.contextId())
-                    ? ContextAuthorizationDecision.allow("shared workspace")
-                    : ContextAuthorizationDecision.deny("not a member");
-        });
+        when(spaceAccessPort.allows(any(), any(), any(), any())).thenAnswer(invocation ->
+                "workspace-shared".equals(invocation.getArgument(1)));
 
         mockMvc.perform(get("/api/workspace/home").with(jwt()
                         .jwt(token -> token
                                 .subject("author-sub")
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("weave_tenant_id", "tenant-a")
+                                .claim("weave_tenant_id", "weave-dogfood")
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.version").value(2))
+                .andExpect(jsonPath("$.version").value(3))
                 .andExpect(jsonPath("$.recentActivity.length()").value(1))
                 .andExpect(jsonPath("$.recentActivity[0].activityRef").value(org.hamcrest.Matchers.matchesPattern(
                         "activity:sha256:[0-9a-f]{64}")))
@@ -354,7 +354,7 @@ class WorkspaceControllerTest {
 
     @Test
     void returnsAdminCapabilityPolicySnapshot() throws Exception {
-        mockMvc.perform(get("/api/workspace/capability-policy").with(jwt()
+        mockMvc.perform(get("/api/admin/workspace/capability-policy").with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("admin")))
@@ -372,15 +372,13 @@ class WorkspaceControllerTest {
 
     @Test
     void rejectsCapabilityPolicyForMembers() throws Exception {
-        mockMvc.perform(get("/api/workspace/capability-policy").with(jwt()
+        mockMvc.perform(get("/api/admin/workspace/capability-policy").with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
-                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
-                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
+                .andExpect(jsonPath("$.code").value("forbidden"));
     }
 
     @Test
@@ -401,7 +399,7 @@ class WorkspaceControllerTest {
         mockMvc.perform(get("/api/workspace/capabilities"))
                 .andExpect(status().isUnauthorized());
 
-        mockMvc.perform(get("/api/workspace/release-readiness"))
+        mockMvc.perform(get("/api/admin/workspace/release-readiness"))
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/api/workspace/home"))
@@ -450,8 +448,11 @@ class WorkspaceControllerTest {
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.version").value(2))
+                .andExpect(jsonPath("$.version").value(3))
                 .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.sections[*].itemCount").value(org.hamcrest.Matchers.hasSize(5)))
+                .andExpect(jsonPath("$.sections[*].itemCount").value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.nullValue())))
+                .andExpect(jsonPath("$.sections[0].summary").value("Chat is available."))
                 .andExpect(jsonPath("$.sections[0].key").value("recent-channels"))
                 .andExpect(jsonPath("$.sections[0].productRoute").value("weave://home/channels"))
                 .andExpect(jsonPath("$.sections[1].key").value("open-tasks"))

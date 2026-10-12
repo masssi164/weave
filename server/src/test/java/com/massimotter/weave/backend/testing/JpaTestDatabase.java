@@ -20,6 +20,7 @@ import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.SharedEntityManagerCreator;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 import org.springframework.transaction.interceptor.DefaultTransactionAttribute;
@@ -100,6 +101,7 @@ public final class JpaTestDatabase {
   public static synchronized void initializeSchema(DataSource dataSource) {
     if (!CONTEXTS.containsKey(dataSource)) {
       register(dataSource, create(dataSource, "create"));
+      new JdbcTemplate(dataSource).update("insert into weave_chat_change_commit_fence (id) values (1)");
     }
   }
 

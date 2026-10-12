@@ -7,16 +7,19 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.massimotter.weave.userapi.model.CalendarUserEvent;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Date;
@@ -32,9 +35,15 @@ import java.util.regex.Pattern;
 /** Per-cell private_key_jwt, client credentials, and MCP Streamable HTTP proof. */
 final class WorkloadMcpJourney {
   private static final long MAXIMUM_WORKLOAD_TOKEN_TTL_SECONDS = 60;
-  private static final Set<String> MCP_SCOPES = Set.of("mcp.tools", "files.read");
+  private static final Set<String> FILES_SCOPES = Set.of("mcp.tools", "files.read");
+  private static final Set<String> CALENDAR_SCOPES = Set.of("mcp.tools", "calendar.read");
+  private static final Set<String> CALENDAR_WRITE_SCOPES = Set.of("mcp.tools", "calendar.write");
   private static final Pattern FILES_ERROR_CODE =
-      Pattern.compile("Files facade rejected request: ([a-z0-9-]{1,64})");
+      Pattern.compile("Files User API rejected request: HTTP ([0-9]{3})");
+  private static final Pattern CALENDAR_ERROR_CODE =
+      Pattern.compile("Calendar User API rejected request: HTTP ([0-9]{3})");
+  private static final Pattern FILES_RESOURCE_URI =
+      Pattern.compile("weave://files/[A-Za-z0-9%:_-]+");
 
   private final ProductFlowEnvironment environment;
   private final JsonHttpClient http;
@@ -44,20 +53,304 @@ final class WorkloadMcpJourney {
     this.http = http;
   }
 
-  McpProof invokeFilesSearch(String cellRef, String expectedFileName) {
+  McpProof invokeFilesSearch(String cellRef, GeneratedFilesJourney.Proof proof) {
     String cellKey = requireCellKey(cellRef);
     String clientId = "weaver-cell-" + cellKey;
     RSAKey key = readActiveKey(clientId);
-    String workloadToken = clientCredentials(clientId, key);
-    validateWorkloadToken(workloadToken, clientId);
+    return invokeFilesSearch(clientId, key, proof);
+  }
+
+  McpProof invokeFilesSearch(String clientId, RSAKey key, GeneratedFilesJourney.Proof proof) {
+    String workloadToken = clientCredentials(clientId, key, FILES_SCOPES);
+    validateWorkloadToken(workloadToken, clientId, FILES_SCOPES);
+
+    String sessionId = initializeSession(workloadToken);
+    requireTool(workloadToken, sessionId, "files.search");
+
+    ObjectNode call = request(3, "tools/call");
+    ObjectNode callParameters = call.putObject("params");
+    callParameters.put("name", "files.search");
+    callParameters
+        .putObject("arguments")
+        .put("query", proof.name())
+        .put("path", "/")
+        .put("limit", 10);
+    JsonNode result = protocolBody(mcp(workloadToken, sessionId, call, Set.of(200)));
+    requireNoError(result, "MCP files.search");
+    String serialized = result.toString();
+    if (!serialized.contains(proof.name())
+        || !serialized.contains("weave://files/")
+        || serialized.toLowerCase(java.util.Locale.ROOT).contains("nextcloud")
+        || serialized.contains("/remote.php/dav")
+        || serialized.contains("providerId")) {
+      throw new ProductFlowException(
+          "MCP files.search did not return a provider-neutral canonical match");
+    }
+    Matcher resource = FILES_RESOURCE_URI.matcher(serialized);
+    String resourceUri = "";
+    while (resource.find()) {
+      String candidate = resource.group();
+      String candidateId = URLDecoder.decode(
+          candidate.substring("weave://files/".length()), StandardCharsets.UTF_8);
+      if (proof.fileId().equals(candidateId)) {
+        resourceUri = candidate;
+        break;
+      }
+    }
+    if (resourceUri.isBlank()) {
+      throw new ProductFlowException("MCP files.search omitted the expected stable file reference");
+    }
+    ObjectNode read = request(4, "resources/read");
+    read.putObject("params").put("uri", resourceUri);
+    JsonNode readResult = protocolBody(mcp(workloadToken, sessionId, read, Set.of(200)));
+    requireNoError(readResult, "MCP Files resource read");
+    String expectedContent = new String(proof.content(), StandardCharsets.UTF_8);
+    if (stream(readResult.path("result").path("contents"))
+            .noneMatch(content -> expectedContent.equals(content.path("text").asString()))
+        || readResult.toString().toLowerCase(java.util.Locale.ROOT).contains("nextcloud")
+        || readResult.toString().contains("/remote.php/dav")) {
+      throw new ProductFlowException("MCP Files resource read changed the generated User content");
+    }
+    return new McpProof(clientId, "files.search", "weave-user-api", true);
+  }
+
+  void invokeCalendarAgenda(String cellRef, GeneratedCalendarJourney.Proof proof) {
+    String clientId = "weaver-cell-" + requireCellKey(cellRef);
+    RSAKey key = readActiveKey(clientId);
+    invokeCalendarAgenda(clientId, key, proof);
+  }
+
+  void invokeCalendarAgenda(String clientId, RSAKey key, GeneratedCalendarJourney.Proof proof) {
+    ObjectNode call = request(3, "tools/call");
+    call.putObject("params")
+        .put("name", "calendar.agenda")
+        .putObject("arguments")
+        .put("calendarId", proof.calendarId())
+        .put("from", "2026-10-23T00:00:00Z")
+        .put("to", "2026-10-29T00:00:00Z")
+        .put("evaluationTimeZone", "Europe/Berlin");
+
+    String filesToken = clientCredentials(clientId, key, FILES_SCOPES);
+    validateWorkloadToken(filesToken, clientId, FILES_SCOPES);
+    String filesSession = initializeSession(filesToken);
+    JsonHttpClient.Response wrongScope = mcp(filesToken, filesSession, call, Set.of(403));
+    if (!wrongScope.firstHeader("WWW-Authenticate").contains("error=\"insufficient_scope\"")
+        || !wrongScope.bodyText().contains("\"error\":\"insufficient_scope\"")) {
+      throw new ProductFlowException("a Files-only Cell token reached Calendar MCP");
+    }
+
+    String token = clientCredentials(clientId, key, CALENDAR_SCOPES);
+    validateWorkloadToken(token, clientId, CALENDAR_SCOPES);
+    String sessionId = initializeSession(token);
+    requireTool(token, sessionId, "calendar.agenda");
+    JsonNode result = protocolBody(mcp(token, sessionId, call, Set.of(200)));
+    requireNoError(result, "MCP calendar.agenda");
+    String serialized = result.path("result").toString();
+    for (GeneratedCalendarJourney.EventProof expected : proof.events()) {
+      if (!serialized.contains(expected.event().getId())
+          || !serialized.contains(expected.event().getContent().getTitle())) {
+        throw new ProductFlowException("MCP Calendar omitted an authorized persisted event");
+      }
+    }
+    if (!serialized.contains(proof.calendarId())
+        || serialized.contains("providerId")
+        || serialized.toLowerCase(java.util.Locale.ROOT).contains("nextcloud")) {
+      throw new ProductFlowException("MCP Calendar changed the provider-neutral agenda projection");
+    }
+  }
+
+  void verifyCalendarWriteDeniedForMember(String cellRef, String calendarId) {
+    String clientId = "weaver-cell-" + requireCellKey(cellRef);
+    RSAKey key = readActiveKey(clientId);
+    verifyCalendarWriteDeniedForMember(clientId, key, calendarId);
+  }
+
+  void verifyCalendarWriteDeniedForMember(String clientId, RSAKey key, String calendarId) {
+    ObjectNode call = request(3, "tools/call");
+    ObjectNode arguments = call.putObject("params")
+        .put("name", "calendar.create")
+        .putObject("arguments");
+    arguments.put("calendarId", calendarId)
+        .put("idempotencyKey", "calendar-mcp-member-denied-" + environment.runId());
+    ObjectNode event = arguments.putObject("event");
+    event.put("title", "Denied MCP Calendar write " + environment.runId());
+    event.putObject("start").put("kind", "DATE").put("date", "2026-10-25");
+    event.putObject("end").put("kind", "DATE").put("date", "2026-10-26");
+    event.putArray("attendees");
+    event.putArray("overrides");
+
+    String readToken = clientCredentials(clientId, key, CALENDAR_SCOPES);
+    validateWorkloadToken(readToken, clientId, CALENDAR_SCOPES);
+    String readSession = initializeSession(readToken);
+    JsonHttpClient.Response wrongScope = mcp(readToken, readSession, call, Set.of(403));
+    if (!wrongScope.firstHeader("WWW-Authenticate").contains("error=\"insufficient_scope\"")) {
+      throw new ProductFlowException("a Calendar read-only token reached a Calendar mutation");
+    }
+
+    String writeToken = clientCredentials(clientId, key, CALENDAR_WRITE_SCOPES);
+    validateWorkloadToken(writeToken, clientId, CALENDAR_WRITE_SCOPES);
+    String writeSession = initializeSession(writeToken);
+    requireTool(writeToken, writeSession, "calendar.create");
+    JsonHttpClient.Response deniedResponse =
+        mcp(writeToken, writeSession, call, Set.of(200, 403));
+    if (deniedResponse.status() == 403) {
+      return;
+    }
+    JsonNode denied = protocolBody(deniedResponse);
+    String result = denied.path("result").toString();
+    if (!denied.path("result").path("isError").asBoolean(false)
+        || !result.contains("Calendar User API rejected request: HTTP 403")
+        || result.contains("providerId") || result.contains("access_token")) {
+      throw new ProductFlowException("a member without calendar.manage_events could write over MCP");
+    }
+  }
+
+  void verifyCalendarWriteParity(
+      String clientId, RSAKey key, GeneratedCalendarJourney userCalendar,
+      String calendarId, String authorToken, String runId) {
+    String token = clientCredentials(clientId, key, CALENDAR_WRITE_SCOPES);
+    validateWorkloadToken(token, clientId, CALENDAR_WRITE_SCOPES);
+    String sessionId = initializeSession(token);
+    for (String tool : List.of("calendar.create", "calendar.update", "calendar.delete")) {
+      requireTool(token, sessionId, tool);
+    }
+
+    String title = "MCP Calendar parity " + Hashing.sha256(runId).substring(0, 16);
+    String idempotencyKey = "calendar-mcp-parity-" + Hashing.sha256(runId);
+    ObjectNode create = calendarWriteCall(3, "calendar.create", calendarId);
+    ObjectNode createArguments = (ObjectNode) create.path("params").path("arguments");
+    createArguments.put("idempotencyKey", idempotencyKey);
+    createArguments.set("event", calendarWriteContent(title));
+    JsonNode createdResult = protocolBody(mcp(token, sessionId, create, Set.of(200)));
+    requireNoError(createdResult, "MCP calendar.create");
+    CalendarUserEvent created = userCalendar.readMcpEvent(calendarId, title, authorToken);
+    requireCalendarDateContent(created, title);
+    requireCalendarResult(createdResult, created, "MCP calendar.create");
+
+    JsonNode replay = protocolBody(mcp(token, sessionId, create, Set.of(200)));
+    requireNoError(replay, "MCP calendar.create replay");
+    requireCalendarResult(replay, created, "MCP calendar.create replay");
+    userCalendar.verifyMcpEventUnchanged(calendarId, created, authorToken);
+
+    ObjectNode changedReplay = calendarWriteCall(4, "calendar.create", calendarId);
+    ObjectNode changedArguments = (ObjectNode) changedReplay.path("params").path("arguments");
+    changedArguments.put("idempotencyKey", idempotencyKey);
+    changedArguments.set("event", calendarWriteContent(title + " changed replay"));
+    requireCalendarConflict(protocolBody(mcp(token, sessionId, changedReplay, Set.of(200))),
+        409, "MCP changed create replay");
+    userCalendar.verifyMcpEventUnchanged(calendarId, created, authorToken);
+
+    String updatedTitle = title + " updated";
+    ObjectNode update = calendarWriteCall(5, "calendar.update", calendarId);
+    ObjectNode updateArguments = (ObjectNode) update.path("params").path("arguments");
+    updateArguments.put("eventId", created.getId());
+    updateArguments.put("ifMatch", created.getVersion());
+    updateArguments.set("event", calendarWriteContent(updatedTitle));
+    JsonNode updatedResult = protocolBody(mcp(token, sessionId, update, Set.of(200)));
+    requireNoError(updatedResult, "MCP calendar.update");
+    CalendarUserEvent updated = userCalendar.readMcpEvent(calendarId, updatedTitle, authorToken);
+    requireCalendarDateContent(updated, updatedTitle);
+    if (!created.getId().equals(updated.getId())
+        || created.getVersion().equals(updated.getVersion())) {
+      throw new ProductFlowException("MCP Calendar update changed identity or did not advance version");
+    }
+    requireCalendarResult(updatedResult, updated, "MCP calendar.update");
+    requireCalendarConflict(protocolBody(mcp(token, sessionId, update, Set.of(200))),
+        412, "MCP stale calendar.update");
+    userCalendar.verifyMcpEventUnchanged(calendarId, updated, authorToken);
+
+    ObjectNode delete = calendarWriteCall(7, "calendar.delete", calendarId);
+    ObjectNode deleteArguments = (ObjectNode) delete.path("params").path("arguments");
+    deleteArguments.put("eventId", updated.getId());
+    deleteArguments.put("ifMatch", updated.getVersion());
+    JsonNode deletedResult = protocolBody(mcp(token, sessionId, delete, Set.of(200)));
+    requireNoError(deletedResult, "MCP calendar.delete");
+    JsonNode deletedProjection = toolPayload(deletedResult, "eventId", "MCP calendar.delete");
+    if (!updated.getId().equals(deletedProjection.path("eventId").asString())
+        || !deletedProjection.path("deleted").asBoolean(false)) {
+      throw new ProductFlowException("MCP Calendar delete omitted its canonical result");
+    }
+    userCalendar.verifyMcpEventDeleted(calendarId, updated.getId(), authorToken);
+  }
+
+  private ObjectNode calendarWriteCall(int id, String tool, String calendarId) {
+    ObjectNode call = request(id, "tools/call");
+    call.putObject("params").put("name", tool)
+        .putObject("arguments").put("calendarId", calendarId);
+    return call;
+  }
+
+  private ObjectNode calendarWriteContent(String title) {
+    ObjectNode event = http.mapper().createObjectNode();
+    event.put("title", title);
+    event.putObject("start").put("kind", "DATE").put("date", "2026-10-25");
+    event.putObject("end").put("kind", "DATE").put("date", "2026-10-26");
+    event.putArray("attendees");
+    event.putArray("overrides");
+    return event;
+  }
+
+  private static void requireCalendarDateContent(CalendarUserEvent event, String title) {
+    if (!title.equals(event.getContent().getTitle())
+        || event.getContent().getStart().getKind()
+            != com.massimotter.weave.userapi.model.CalendarTimeValue.KindEnum.DATE
+        || !LocalDate.parse("2026-10-25").equals(event.getContent().getStart().getDate())
+        || event.getContent().getEnd().getKind()
+            != com.massimotter.weave.userapi.model.CalendarTimeValue.KindEnum.DATE
+        || !LocalDate.parse("2026-10-26").equals(event.getContent().getEnd().getDate())) {
+      throw new ProductFlowException("MCP Calendar write lost DATE temporal intent");
+    }
+  }
+
+  private void requireCalendarResult(
+      JsonNode result, CalendarUserEvent event, String operation) {
+    JsonNode projection = toolPayload(result, "id", operation);
+    String serialized = projection.toString();
+    if (!event.getId().equals(projection.path("id").asString())
+        || !event.getVersion().equals(projection.path("version").asString())
+        || !event.getContent().getTitle().equals(
+            projection.path("content").path("title").asString())
+        || serialized.contains("providerId")
+        || serialized.toLowerCase(java.util.Locale.ROOT).contains("nextcloud")) {
+      throw new ProductFlowException(operation + " differed from generated User readback");
+    }
+  }
+
+  private JsonNode toolPayload(JsonNode response, String requiredField, String operation) {
+    JsonNode result = response.path("result");
+    JsonNode structured = result.path("structuredContent");
+    if (structured.isObject() && !structured.path(requiredField).isMissingNode()) {
+      return structured;
+    }
+    for (JsonNode entry : result.path("content")) {
+      if (!"text".equals(entry.path("type").asString())) continue;
+      try {
+        JsonNode parsed = http.mapper().readTree(entry.path("text").asString());
+        if (parsed != null && parsed.isObject()
+            && !parsed.path(requiredField).isMissingNode()) {
+          return parsed;
+        }
+      } catch (JacksonException malformed) {
+        // A text rendering is not authoritative unless it parses as a result object.
+      }
+    }
+    throw new ProductFlowException(operation + " omitted structured tool content");
+  }
+
+  private static void requireCalendarConflict(JsonNode result, int code, String operation) {
+    if (!result.path("result").path("isError").asBoolean(false)
+        || !("calendar-user-http-" + code).equals(supportSafeErrorClass(result))
+        || result.toString().contains("providerId")) {
+      throw new ProductFlowException(operation + " did not preserve its version conflict");
+    }
+  }
+
+  private String initializeSession(String workloadToken) {
 
     ObjectNode initialize = request(1, "initialize");
     ObjectNode parameters = initialize.putObject("params");
     parameters.put("protocolVersion", "2025-11-25");
-    parameters
-        .putObject("capabilities")
-        .putObject("extensions")
-        .putObject("io.modelcontextprotocol/oauth-client-credentials");
+    parameters.putObject("capabilities");
     parameters.putObject("clientInfo").put("name", "weave-test-app").put("version", "1.0");
 
     JsonHttpClient.Response initialized =
@@ -81,6 +374,10 @@ final class WorkloadMcpJourney {
     initializedNotification.set("params", http.mapper().createObjectNode());
     mcp(workloadToken, sessionId, initializedNotification, Set.of(200, 202, 204));
 
+    return sessionId;
+  }
+
+  private void requireTool(String workloadToken, String sessionId, String toolName) {
     ObjectNode list = request(2, "tools/list");
     list.set("params", http.mapper().createObjectNode());
     JsonNode tools = protocolBody(mcp(workloadToken, sessionId, list, Set.of(200)));
@@ -89,35 +386,14 @@ final class WorkloadMcpJourney {
         stream(tools.path("result").path("tools"))
             .anyMatch(
                 tool ->
-                    "files.search".equals(tool.path("name").asString())
+                    toolName.equals(tool.path("name").asString())
                         && tool.path("inputSchema").isObject());
     if (!found) {
-      throw new ProductFlowException("MCP discovery omitted the files.search schema");
+      throw new ProductFlowException("MCP discovery omitted the " + toolName + " schema");
     }
-
-    ObjectNode call = request(3, "tools/call");
-    ObjectNode callParameters = call.putObject("params");
-    callParameters.put("name", "files.search");
-    callParameters
-        .putObject("arguments")
-        .put("query", expectedFileName)
-        .put("path", "/")
-        .put("limit", 10);
-    JsonNode result = protocolBody(mcp(workloadToken, sessionId, call, Set.of(200)));
-    requireNoError(result, "MCP files.search");
-    String serialized = result.toString();
-    if (!serialized.contains(expectedFileName)
-        || !serialized.contains("weave://files/")
-        || serialized.toLowerCase(java.util.Locale.ROOT).contains("nextcloud")
-        || serialized.contains("/remote.php/dav")
-        || serialized.contains("providerId")) {
-      throw new ProductFlowException(
-          "MCP files.search did not return a provider-neutral canonical match");
-    }
-    return new McpProof(clientId, "files.search", "weave-webdav", true);
   }
 
-  private String clientCredentials(String clientId, RSAKey key) {
+  String clientCredentials(String clientId, RSAKey key, Set<String> scopes) {
     URI tokenUri = environment.oidc("/protocol/openid-connect/token");
     Instant now = Instant.now();
     JWTClaimsSet claims =
@@ -151,7 +427,7 @@ final class WorkloadMcpJourney {
                 "client_assertion_type",
                     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
                 "client_assertion", assertion.serialize(),
-                "scope", "mcp.tools files.read"),
+                "scope", String.join(" ", scopes.stream().sorted().toList())),
             Set.of(200));
     String accessToken = token.path("access_token").asString("").trim();
     if (accessToken.isEmpty()
@@ -163,7 +439,7 @@ final class WorkloadMcpJourney {
     return accessToken;
   }
 
-  private void validateWorkloadToken(String token, String clientId) {
+  private void validateWorkloadToken(String token, String clientId, Set<String> expectedScopes) {
     JsonNode header = jwtPart(token, 0);
     if (!hasRfc9068TokenType(header)) {
       throw new ProductFlowException("MCP workload token type is not RFC 9068 at+jwt");
@@ -185,7 +461,7 @@ final class WorkloadMcpJourney {
     }
     Set<String> scopes =
         Set.of(claims.path("scope").asString("").trim().split("\\s+"));
-    if (!scopes.equals(MCP_SCOPES)) {
+    if (!scopes.equals(expectedScopes)) {
       throw new ProductFlowException("MCP workload token scope set is not exact");
     }
     Set<String> roles = strings(claims.path("realm_access").path("roles"));
@@ -306,8 +582,20 @@ final class WorkloadMcpJourney {
     if (!sessionId.isBlank()) {
       headers.put("Mcp-Session-Id", sessionId);
     }
+    String method = request.path("method").asString("");
+    String operation = switch (method) {
+      case "initialize" -> "initialize";
+      case "tools/list" -> "tools/list";
+      case "tools/call" -> {
+        String name = request.path("params").path("name").asString("");
+        yield "tools/call " + (name.equals("files.search") || name.equals("calendar.agenda")
+            || name.equals("calendar.create") || name.equals("calendar.update")
+            || name.equals("calendar.delete") ? name : "unknown");
+      }
+      default -> "unknown method";
+    };
     return http.send(
-        "invoke MCP Streamable HTTP",
+        "invoke MCP Streamable HTTP " + operation,
         "POST",
         environment.mcpEndpoint(),
         Map.copyOf(headers),
@@ -361,7 +649,24 @@ final class WorkloadMcpJourney {
   static String supportSafeErrorClass(JsonNode response) {
     Matcher filesError = FILES_ERROR_CODE.matcher(response.toString());
     if (filesError.find()) {
-      return filesError.group(1);
+      return "files-user-http-" + filesError.group(1);
+    }
+    Matcher calendarError = CALENDAR_ERROR_CODE.matcher(response.toString());
+    if (calendarError.find()) {
+      return "calendar-user-http-" + calendarError.group(1);
+    }
+    String toolContent = response.path("result").path("content").path(0).path("text").asString("");
+    if (toolContent.contains("The Calendar is unavailable to the current member")) {
+      return "calendar-not-visible";
+    }
+    if (toolContent.contains("The Calendar agenda exceeds the MCP result bound")
+        || toolContent.contains("The Calendar agenda exceeds the MCP byte bound")) {
+      return "calendar-result-bound";
+    }
+    if (toolContent.contains("A stable Weave Calendar reference is required")
+        || toolContent.contains("A valid bounded Calendar interval and time zone are required")
+        || toolContent.contains("The Calendar interval must be at most 366 days")) {
+      return "calendar-invalid-arguments";
     }
     JsonNode code = response.path("error").path("code");
     if (code.canConvertToInt()) {
@@ -370,7 +675,7 @@ final class WorkloadMcpJourney {
     return "redacted-tool-error";
   }
 
-  private JsonNode jwtPayload(String token) {
+  JsonNode jwtPayload(String token) {
     return jwtPart(token, 1);
   }
 

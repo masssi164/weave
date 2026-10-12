@@ -13,6 +13,10 @@ class KeycloakRealmMigrationOperationPolicyTest {
     List<Operation> allowed =
         List.of(
             operation(HttpMethod.GET, "/admin/realms/weave"),
+            operation(HttpMethod.GET, "/admin/realms/weave/client-scopes"),
+            operation(HttpMethod.GET, "/admin/realms/weave/client-scopes/native-id"),
+            operation(HttpMethod.GET, "/admin/realms/weave/client-scopes/native-id/protocol-mappers/models"),
+            operation(HttpMethod.PUT, "/admin/realms/weave/client-scopes/native-id/protocol-mappers/models/mapper-id"),
             operation(
                 HttpMethod.GET,
                 "/admin/realms/master/clients?clientId=weave-realm-migration-bootstrap"),
@@ -54,6 +58,11 @@ class KeycloakRealmMigrationOperationPolicyTest {
     List<Operation> forbidden =
         List.of(
             operation(HttpMethod.PUT, "/admin/realms/weave"),
+            operation(HttpMethod.PUT, "/admin/realms/weave/client-scopes/native-id"),
+            operation(HttpMethod.POST, "/admin/realms/weave/client-scopes"),
+            operation(HttpMethod.POST, "/admin/realms/weave/client-scopes/native-id/protocol-mappers/models"),
+            operation(HttpMethod.DELETE, "/admin/realms/weave/client-scopes/native-id/protocol-mappers/models/mapper-id"),
+            operation(HttpMethod.PUT, "/admin/realms/other/client-scopes/native-id/protocol-mappers/models/mapper-id"),
             operation(HttpMethod.POST, "/admin/realms/weave/users"),
             operation(
                 HttpMethod.PUT, "/admin/realms/weave/users/person/reset-password"),

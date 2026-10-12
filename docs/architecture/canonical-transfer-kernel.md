@@ -1,6 +1,10 @@
 # Canonical transfer kernel
 
-Status: active foundation for issues #1012 and #1299.
+Status: historical #1012/#1299 transfer-kernel design and reusable test inventory.
+The pinned Weave Specification Corpus and #1470 govern the current standalone product;
+#1498 owns actual provider adoption, migration, cutover, recovery, and rollback. The
+fidelity classes below describe source information, but a `lossy` or `unsupported`
+classification cannot by itself authorize activation or claim preserved permissions.
 
 ## Purpose
 

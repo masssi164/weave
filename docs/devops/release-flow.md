@@ -1,6 +1,6 @@
 # Weave release flow
 
-This release flow keeps `main` stable while giving Weave a practical integration lane for issues, a persistent dogfood lane for candidate validation, and optional later release-hardening lanes.
+This release flow keeps `main` stable while giving Weave a practical integration lane for issues, a resettable Dogfood lane for exact automated qualification followed by distinct HIL, and optional later release-hardening lanes.
 
 ## Normal issue flow
 
@@ -23,11 +23,11 @@ This release flow keeps `main` stable while giving Weave a practical integration
 ## Dogfood promotion flow
 
 - Promote `dev` to `dogfood` by PR when the integrated candidate is ready for live validation.
-- Run full or feature-relevant E2E/live/dogfood checks on that promotion candidate, including acceptance-contract evidence mapped from `e2e/features/` and `e2e/scenario_mappings.json`.
-- Add or update missing feature-relevant Gherkin/Cucumber scenarios or deterministic mappings by this stage at the latest.
-- Merge to `dogfood` only when the candidate evidence is green or an accepted test-gate exception is documented.
-- The merge to `dogfood` deploys or updates the persistent LAN dogfood stack for human, iPhone, and accessibility validation.
-- Promote `dogfood` to `main` by PR only after green dogfood E2E/live evidence and required human-test signoff.
+- Run deterministic checks and review on the promotion PR; add missing acceptance scenarios/mappings before qualification.
+- The protected Dogfood merge commit becomes the candidate. Mandatory Full Compose, native macOS and native iOS Simulator integration must pass for that exact commit and pinned corpus revision.
+- Deploy that same qualified commit and prepare its physical iPhone build before HIL. Merging to Dogfood alone does not authorize human-test readiness.
+- Record explicit human acceptance; automated suites never manufacture human outcomes.
+- Promote the unchanged qualified Dogfood tree to Main using existing automated, deployment, preparation and human evidence. Newer Dev work does not invalidate it; a changed candidate does.
 
 ## Optional release-candidate hardening flow
 

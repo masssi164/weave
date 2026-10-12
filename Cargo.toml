@@ -1,9 +1,12 @@
 [workspace]
 members = ["rust/matrix-protocol", "rust/matrix-client"]
-exclude = ["rust/vendor/matrix-sdk-crypto"]
+exclude = ["rust/vendor/matrix-sdk", "rust/vendor/matrix-sdk-crypto"]
 resolver = "2"
 
 [patch.crates-io]
 # Temporary client-only Matrix SDK crypto patch. It is not reachable from
 # the server protocol crate and is governed by the provenance check.
 matrix-sdk-crypto = { path = "rust/vendor/matrix-sdk-crypto" }
+# Keep the native client on the stable Matrix OAuth API/device scope names
+# while the upstream SDK still requests the older MSC2967 spellings.
+matrix-sdk = { path = "rust/vendor/matrix-sdk" }

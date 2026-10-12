@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -24,8 +25,15 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.exception.AgentRuntimeAdminExceptionHandler;
 import com.massimotter.weave.backend.model.agentruntime.AgentRuntimeProjectionResponse;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
@@ -35,6 +43,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -43,6 +52,7 @@ import org.springframework.test.web.servlet.MockMvc;
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
         OrganizationIdentityContextResolver.class,
+        DeploymentOrganizationAdmission.class,
         AgentRuntimeAdminSecurityConfiguration.class,
         AgentRuntimeErrorResponseWriter.class,
         ApiErrorResponseWriter.class,
@@ -67,6 +77,40 @@ class AgentRuntimeAdminControllerTest {
 
     @MockitoBean(name = "agentRuntimeAdminJwtDecoder")
     private JwtDecoder agentRuntimeAdminJwtDecoder;
+
+    @ParameterizedTest
+    @ValueSource(strings = {"owner", "admin"})
+    void configuredOrganizationAdminBearerUsesTheRuntimeScope(String role) throws Exception {
+        given(agentRuntimeAdminJwtDecoder.decode("current-org"))
+                .willReturn(adminBearer(role, "current"));
+        given(runtimes.get(any(AdminContext.class), eq(PERSON))).willReturn(projection());
+
+        mockMvc.perform(get("/api/admin/agent-runtimes/{personRef}", PERSON)
+                        .header("Authorization", "Bearer current-org"))
+                .andExpect(status().isOk());
+        ArgumentCaptor<AdminContext> context = ArgumentCaptor.forClass(AdminContext.class);
+        verify(runtimes).get(context.capture(), eq(PERSON));
+        assertThat(context.getValue().organizationRef()).isEqualTo("tenant-default");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"wrong-id", "wrong-alias", "missing", "multiple", "tenant", "fallback",
+            "member", "mixed-roles", "missing-scope"})
+    void foreignOrAmbiguousHumanContextCannotReadOrMutateRuntimes(String mismatch) throws Exception {
+        given(agentRuntimeAdminJwtDecoder.decode("denied-context"))
+                .willReturn(adminBearer("admin", mismatch));
+
+        mockMvc.perform(get("/api/admin/agent-runtimes/{personRef}", PERSON)
+                        .header("Authorization", "Bearer denied-context"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("agent-runtime-admin-forbidden"))
+                .andExpect(jsonPath("$.details").doesNotExist());
+        mockMvc.perform(post("/api/admin/agent-runtimes/{personRef}/provision", PERSON)
+                        .header("Authorization", "Bearer denied-context")
+                        .header("Idempotency-Key", KEY))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(runtimes);
+    }
 
     @Test
     void exactAdminScopeAndOrganizationBoundIdentityAreRequired() throws Exception {
@@ -195,12 +239,38 @@ class AgentRuntimeAdminControllerTest {
                         .subject("admin-user-1")
                         .issuedAt(Instant.parse("2026-07-20T10:00:00Z"))
                         .expiresAt(Instant.parse("2026-07-20T10:05:00Z"))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("scope", AgentRuntimeAdminSecurityConfiguration.ADMIN_SCOPE))
                 .authorities(new SimpleGrantedAuthority(
                                 AgentRuntimeAdminSecurityConfiguration.ADMIN_AUTHORITY),
                         new SimpleGrantedAuthority(
                                 AgentRuntimeAdminSecurityConfiguration.ADMIN_ROLE_AUTHORITY));
+    }
+
+    private static Jwt adminBearer(String role, String mismatch) {
+        var selected = new HashMap<String, Object>();
+        selected.put("id", "wrong-id".equals(mismatch) ? "foreign-native-org" : HumanJwtTestSupport.ORGANIZATION_ID);
+        List<String> roles = switch (mismatch) {
+            case "member" -> List.of("member");
+            case "mixed-roles" -> List.of("admin", "member");
+            default -> List.of(role);
+        };
+        selected.put("resource_access", Map.of("weave-app", Map.of("roles", roles)));
+        var organizations = new HashMap<String, Object>();
+        organizations.put("wrong-alias".equals(mismatch) ? "foreign-alias" : HumanJwtTestSupport.ORGANIZATION_ALIAS,
+                selected);
+        if ("multiple".equals(mismatch)) organizations.put("another-org", selected);
+        var builder = Jwt.withTokenValue("admin-bearer").header("alg", "none")
+                .issuer("https://auth.weave.test/realms/weave").subject("admin-user-1")
+                .audience(List.of("https://api.weave.test/api"))
+                .claim("azp", "weave-admin-console")
+                .claim("scope", "missing-scope".equals(mismatch) ? "weave:workspace"
+                        : AgentRuntimeAdminSecurityConfiguration.ADMIN_SCOPE);
+        if (!"missing".equals(mismatch)) builder.claim("organization", organizations);
+        if ("tenant".equals(mismatch)) builder.claim("weave_tenant_id", "foreign-tenant");
+        if ("fallback".equals(mismatch)) builder.claim("tenant_id", "foreign-tenant");
+        return builder.build();
     }
 
     private static AgentRuntimeProjectionResponse projection() {

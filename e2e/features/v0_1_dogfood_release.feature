@@ -54,16 +54,16 @@ Feature: Weave v0.1 dogfood production release
     Given an organization has configured Keycloak federation, provider categories, capability profiles, and whitelists in the Admin Console
     When a member opens Weave with an organization auth URL, invite link, or deep link and completes SSO
     Then the Weave Client receives a support-safe organization manifest and effective capability states
-    And member-visible states are only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later
+    And member-visible states follow the pinned provider-neutral CapabilityState contract
     And provider setup, endpoint rotation, readiness diagnostics, secrets, and provider/tool/agent whitelisting stay in the Admin Console
 
   @weave-v01-admin-health-policy-enforcement
   Scenario: Admin health enforces provider readiness and member policy boundaries
-    Given an owner or admin opens Workspace Health after selecting provider categories
+    Given an owner or admin opens the separately authenticated Admin Console after selecting provider categories
     When backend provider readiness and capability policy are evaluated
-    Then Workspace Health returns overall posture, support-safe category readiness, next actions, and evidence for available, disabled_by_policy, not_configured, degraded, unavailable, coming_later, and misconfigured states
+    Then Admin Console health returns overall posture, support-safe category readiness, next actions, and evidence for available, disabled_by_policy, not_configured, degraded, unavailable, coming_later, and misconfigured states
     And feature capabilities are separated from default and external provider adapters
-    And members receive only provider-neutral capability states without raw provider setup
+    And Flutter receives only provider-neutral capability states without raw provider setup even for owner and admin roles
     And member API writes are denied when Keycloak-derived capability policy does not grant the required category capability
     And Weaver remains disabled by default unless governed organization policy explicitly enables it
 
@@ -91,7 +91,7 @@ Feature: Weave v0.1 dogfood production release
   Scenario: Member client sees stable feature states without raw provider details
     Given an admin has selected providers and the backend has evaluated readiness and capability policy
     When a normal member opens Weave and fetches their organization manifest and feature surfaces
-    Then the member sees only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later feature states
+    Then the member sees only the pinned provider-neutral capability states
     And provider names may appear only as product-safe context when necessary
     And provider URLs, raw provider identifiers, downstream payloads, secrets, readiness internals, and adapter diagnostics are not exposed to the member client
 
@@ -111,26 +111,26 @@ Feature: Weave v0.1 dogfood production release
     Then Keycloak is the identity authority and upstream OIDC SAML LDAP or Active Directory sources remain behind it
     And capability profiles grant category-level capabilities deny-by-default
     And admins/operators can inspect support-safe policy state
-    And members only see available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later impact states
+    And members only see pinned provider-neutral impact states
     And Weaver capability placeholders stay disabled by default until a governed runtime policy exists
 
   @weave-v01-agent-runtime-control-policy
-  Scenario: Runtime cells derive from current organization entitlement and policy
-    Given an admin has enabled Agent Runtime Control after Keycloak entitlement and signing trust are ready
-    When an entitled person is provisioned through the organization-bound administrative API
-    Then ARC binds one disposable cell and dedicated Keycloak workload client to the immutable person identity
-    And ARC signs a short-lived RuntimeProfile v2 containing references and maximum capabilities only
-    And portable workspace content and encrypted runtime state remain in authorities outside the zero-durable-byte cell
-    And missing entitlement, stale profile, cross-cell access, or incomplete restore state fails closed
+  Scenario: Weaver workload access is bounded while private Runner work is deferred
+    Given the current release permits only curated Weaver MCP access under organization policy
+    When an entitled workload requests a domain operation
+    Then workload identity remains separate from the member and MCP edge identities
+    And the Server revalidates current member and resource authorization before provider access
+    And a missing entitlement, stale binding, cross-organization access, or upscope attempt fails closed
+    And private Runner cells, workspace materialization, and long-polling execution are not current release gates
 
   @weave-v01-mcp-workload-boundary
-  Scenario: MCP admits only a current entitled workload and advertises the guarded Files read slice
-    Given an ARC-bound cell has an exact-audience Keycloak workload token
-    When the cell negotiates the MCP Client Credentials extension over Spring AI Streamable HTTP
-    Then the MCP edge exchanges rather than relays the workload token and resolves current backend cell context
+  Scenario: MCP admits only a current entitled workload and advertises curated Files and Calendar tools
+    Given a protected workload-to-member binding has an exact-audience Keycloak workload token
+    When the workload initializes over Spring AI Streamable HTTP with a valid bearer
+    Then the MCP edge exchanges rather than relays the workload token and resolves current backend member context
     And human tokens, generic service accounts, stale profiles, and upscope attempts are denied
-    And domain tool resource and prompt catalogs remain empty until current authorization and evidence gates are executable
-    And a future domain side effect still requires independent domain authorization and single-use decision evidence
+    And only the curated Files and Calendar tools and Files resource are advertised
+    And Calendar writes still require current member, Space, capability, and version authorization
 
   @weave-v01-channel-workspace
   Scenario: A Space control room is the primary workspace surface

@@ -1,0 +1,401 @@
+package com.massimotter.weave.e2e;
+
+import com.massimotter.weave.userapi.api.FilesUserApi;
+import com.massimotter.weave.userapi.invoker.ApiClient;
+import com.massimotter.weave.userapi.invoker.ApiException;
+import com.massimotter.weave.userapi.model.FilesUserItemResponse;
+import com.massimotter.weave.userapi.model.FilesUserListResponse;
+import java.io.File;
+import java.io.IOException;
+import java.net.http.HttpClient;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/** Real Files User contract proof through the same generated JVM client used by other consumers. */
+final class GeneratedFilesJourney {
+  private static final Pattern SAFE_ERROR_CODE =
+      Pattern.compile("\\\"code\\\"\\s*:\\s*\\\"([a-z][a-z0-9-]{0,63})\\\"");
+  private final FilesUserApi files;
+
+  GeneratedFilesJourney(ProductFlowEnvironment environment) {
+    ApiClient client =
+        new ApiClient()
+            .setHttpClientBuilder(
+                HttpClient.newBuilder()
+                    .sslContext(JsonHttpClient.sslContext(environment.caCertificate()))
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .followRedirects(HttpClient.Redirect.NEVER))
+            .setReadTimeout(Duration.ofSeconds(30));
+    client.updateBaseUri(
+        environment.apiOrigin().getScheme()
+            + "://"
+            + environment.apiOrigin().getRawAuthority());
+    files = new FilesUserApi(client);
+  }
+
+  void requireRootAvailable(String token, String stage) {
+    try {
+      FilesUserListResponse root = files.listFilesItems(null, bearer(token));
+      if (!"file:root".equals(root.getParentFileId())) {
+        throw new ProductFlowException(stage + " returned an invalid Files root");
+      }
+    } catch (ApiException failure) {
+      throw new ProductFlowException(stage + " returned HTTP " + failure.getCode());
+    }
+  }
+
+  Proof createAndVerify(String memberToken, String outsiderToken, String runId) {
+    String suffix = Hashing.sha256(runId).substring(0, 20);
+    String name = "generated-files-" + suffix + ".bin";
+    String idempotencyKey = "generated-files-upload-" + suffix;
+    byte[] content = new byte[] {0, 10, (byte) 0xff, 34, 92, 127};
+    Path source = null;
+    String stage = "root-list";
+    try {
+      source = Files.createTempFile("weave-user-files-", ".bin");
+      Files.write(source, content);
+      FilesUserListResponse root = files.listFilesItems(null, bearer(memberToken));
+      if (!"file:root".equals(root.getParentFileId())
+          || !root.getAllowedActions().contains("upload")) {
+        throw new ProductFlowException("generated Files root is not writable for the member");
+      }
+      stage = "upload";
+      FilesUserItemResponse created =
+          files.uploadFilesItemContent(
+              root.getParentFileId(), name, "*", idempotencyKey, source.toFile(),
+              "application/octet-stream", bearer(memberToken));
+      stage = "idempotent-replay";
+      FilesUserItemResponse replayed =
+          files.uploadFilesItemContent(
+              root.getParentFileId(), name, "*", idempotencyKey, source.toFile(),
+              "application/octet-stream", bearer(memberToken));
+      if (created == null || !created.getFileId().equals(replayed.getFileId())
+          || !created.getRevision().equals(replayed.getRevision())) {
+        throw new ProductFlowException("generated Files upload did not replay its stable identity");
+      }
+      stage = "idempotency-conflict";
+      Files.write(source, new byte[] {42});
+      try {
+        files.uploadFilesItemContent(
+            root.getParentFileId(), name, "*", idempotencyKey, source.toFile(),
+            "application/octet-stream", bearer(memberToken));
+        throw new ProductFlowException("generated Files accepted changed content under the same key");
+      } catch (ApiException conflict) {
+        if (conflict.getCode() != 409) {
+          throw conflict;
+        }
+      }
+      Proof proof = new Proof(created.getFileId(), name, content);
+      verify(proof, memberToken, outsiderToken);
+      return proof;
+    } catch (ApiException failure) {
+      throw new ProductFlowException(
+          "generated Files " + stage + " failed with HTTP " + failure.getCode()
+              + " code=" + safeErrorCode(failure));
+    } catch (IOException failure) {
+      throw new ProductFlowException("generated Files local proof file failed");
+    } finally {
+      if (source != null) {
+        try {
+          Files.deleteIfExists(source);
+        } catch (IOException ignored) {
+          // The isolated E2E process and stack are discarded after this run.
+        }
+      }
+    }
+  }
+
+  Proof createMcpTextFile(String memberToken, String runId) {
+    String suffix = Hashing.sha256(runId).substring(0, 20);
+    String name = "generated-mcp-" + suffix + ".txt";
+    byte[] content = ("Weave generated User Files MCP proof " + suffix)
+        .getBytes(StandardCharsets.UTF_8);
+    Path source = null;
+    try {
+      source = Files.createTempFile("weave-user-mcp-", ".txt");
+      Files.write(source, content);
+      FilesUserItemResponse created = files.uploadFilesItemContent(
+          "file:root", name, "*", "generated-mcp-upload-" + suffix, source.toFile(),
+          "text/plain", bearer(memberToken));
+      if (created == null || !name.equals(created.getName())
+          || created.getFileId() == null || created.getFileId().isBlank()
+          || !created.getAllowedActions().contains("download")) {
+        throw new ProductFlowException("generated MCP text file was not downloadable");
+      }
+      return new Proof(created.getFileId(), name, content);
+    } catch (ApiException failure) {
+      throw new ProductFlowException(
+          "generated MCP text file upload failed with HTTP " + failure.getCode()
+              + " code=" + safeErrorCode(failure));
+    } catch (IOException failure) {
+      throw new ProductFlowException("generated MCP local proof file failed");
+    } finally {
+      if (source != null) {
+        try {
+          Files.deleteIfExists(source);
+        } catch (IOException ignored) {
+          // The isolated E2E process and stack are discarded after this run.
+        }
+      }
+    }
+  }
+
+  void verify(Proof proof, String memberToken, String outsiderToken) {
+    try {
+      FilesUserListResponse root = files.listFilesItems(null, bearer(memberToken));
+      if (root == null || root.getItems().stream()
+          .noneMatch(item -> proof.fileId().equals(item.getFileId())
+              && proof.name().equals(item.getName()))) {
+        throw new ProductFlowException("generated Files identity was absent from the member list");
+      }
+      FilesUserItemResponse inspected = files.getFilesItem(proof.fileId(), bearer(memberToken));
+      if (inspected == null || !proof.fileId().equals(inspected.getFileId())
+          || !inspected.getAllowedActions().contains("download")) {
+        throw new ProductFlowException("generated Files identity was not downloadable by its owner");
+      }
+      var response = files.downloadFilesItemContentWithHttpInfo(proof.fileId(), null, bearer(memberToken));
+      File downloaded = response.getData();
+      String expectedEtag = "\"sha256-50de86022dd7b26e4724b3dd79b3c63719169aa289ceb99e8041ba6ef44f4e95\"";
+      try {
+        if (response.getStatusCode() != 200
+            || !expectedEtag.equals(header(response.getHeaders(), "ETag"))
+            || !"sha-256=:UN6GAi3Xsm5HJLPdebPGNxkWmqKJzrmegEG6bvRPTpU=:"
+                .equals(header(response.getHeaders(), "Content-Digest"))
+            || !"6".equals(header(response.getHeaders(), "Content-Length"))
+            || !"application/octet-stream".equals(header(response.getHeaders(), "Content-Type"))) {
+          throw new ProductFlowException("generated Files download violated its binary response contract");
+        }
+        if (downloaded == null || !Arrays.equals(proof.content(), Files.readAllBytes(downloaded.toPath()))) {
+          throw new ProductFlowException("generated Files download changed the uploaded bytes");
+        }
+      } finally {
+        if (downloaded != null) {
+          Files.deleteIfExists(downloaded.toPath());
+        }
+      }
+      try {
+        File unexpected = files.downloadFilesItemContent(proof.fileId(), expectedEtag, bearer(memberToken));
+        if (unexpected != null) Files.deleteIfExists(unexpected.toPath());
+        throw new ProductFlowException("generated Files conditional download did not return 304");
+      } catch (ApiException unchanged) {
+        if (unchanged.getCode() != 304
+            || !expectedEtag.equals(header(unchanged.getResponseHeaders().map(), "ETag"))) {
+          throw new ProductFlowException("generated Files conditional download violated its validator contract");
+        }
+      }
+      try {
+        files.getFilesItem(proof.fileId(), bearer(outsiderToken));
+      } catch (ApiException denial) {
+        if (denial.getCode() == 403 || denial.getCode() == 404) {
+          return;
+        }
+        throw new ProductFlowException(
+            "generated Files outsider denial returned HTTP " + denial.getCode());
+      }
+      throw new ProductFlowException("generated Files exposed the member object to an outsider");
+    } catch (ApiException failure) {
+      throw new ProductFlowException(
+          "generated Files verification failed with HTTP " + failure.getCode());
+    } catch (IOException failure) {
+      throw new ProductFlowException("generated Files download could not be verified");
+    }
+  }
+
+  void verifyForeignOrganizationDenied(Proof proof, String foreignToken, String memberToken) {
+    try {
+      files.getFilesItem(proof.fileId(), bearer(foreignToken));
+      throw new ProductFlowException("foreign organization read the primary File");
+    } catch (ApiException denial) {
+      if (denial.getCode() != 401 || !"unauthorized".equals(safeErrorCode(denial))) {
+        throw new ProductFlowException(
+            "foreign organization Files read returned HTTP " + denial.getCode());
+      }
+    }
+    Path source = null;
+    String name = "foreign-denied-" + Hashing.sha256(proof.fileId()).substring(0, 16);
+    try {
+      source = Files.createTempFile("weave-foreign-denied-", ".txt");
+      Files.writeString(source, "foreign organization must not write");
+      try {
+        files.uploadFilesItemContent("file:root", name, "*",
+            "foreign-denied-" + Hashing.sha256(name).substring(0, 24), source.toFile(),
+            "text/plain", bearer(foreignToken));
+        throw new ProductFlowException("foreign organization wrote a primary File");
+      } catch (ApiException denial) {
+        if (denial.getCode() != 401 || !"unauthorized".equals(safeErrorCode(denial))) {
+          throw new ProductFlowException(
+              "foreign organization Files write returned HTTP " + denial.getCode());
+        }
+      }
+      FilesUserListResponse root = files.listFilesItems(null, bearer(memberToken));
+      if (root.getItems().stream().anyMatch(item -> name.equals(item.getName()))
+          || root.getItems().stream().noneMatch(item -> proof.fileId().equals(item.getFileId()))) {
+        throw new ProductFlowException("foreign Files denial changed primary state");
+      }
+    } catch (IOException failure) {
+      throw new ProductFlowException("foreign Files denial fixture failed");
+    } catch (ApiException failure) {
+      throw new ProductFlowException("primary Files readback failed after foreign denial");
+    } finally {
+      deleteLocal(source);
+    }
+  }
+
+  MemberProof createMemberProof(String ownerToken, String name, String content, String key) {
+    Path source = null;
+    try {
+      source = Files.createTempFile("weave-collaboration-file-", ".txt");
+      Files.writeString(source, content, StandardCharsets.UTF_8);
+      FilesUserItemResponse created = files.uploadFilesItemContent(
+          "file:root", name, "*", key, source.toFile(), "text/plain", bearer(ownerToken));
+      if (created == null || created.getFileId() == null || created.getFileId().isBlank()
+          || created.getRevision() == null || created.getRevision().isBlank()
+          || !name.equals(created.getName())) {
+        throw new ProductFlowException("generated Files creation omitted stable identity or revision");
+      }
+      MemberProof proof = new MemberProof(created.getFileId(), name, created.getRevision(), content);
+      readExact(proof, ownerToken);
+      return proof;
+    } catch (ApiException failure) {
+      throw new ProductFlowException("generated Files creation failed with HTTP " + failure.getCode());
+    } catch (IOException failure) {
+      throw new ProductFlowException("generated Files proof source could not be written");
+    } finally {
+      deleteLocal(source);
+    }
+  }
+
+  MemberProof updateMemberProof(MemberProof prior, String ownerToken, String content, String key) {
+    String strongEtag = readExact(prior, ownerToken);
+    Path source = null;
+    try {
+      source = Files.createTempFile("weave-collaboration-update-", ".txt");
+      Files.writeString(source, content, StandardCharsets.UTF_8);
+      FilesUserItemResponse updated = files.updateFilesItemContent(
+          prior.fileId(), strongEtag, key, source.toFile(), "text/plain", bearer(ownerToken));
+      if (updated == null || !prior.fileId().equals(updated.getFileId())
+          || prior.revision().equals(updated.getRevision())) {
+        throw new ProductFlowException("generated Files update changed identity or retained revision");
+      }
+      MemberProof proof = new MemberProof(prior.fileId(), prior.name(), updated.getRevision(), content);
+      if (strongEtag.equals(readExact(proof, ownerToken))) {
+        throw new ProductFlowException("generated Files content ETag did not advance after update");
+      }
+      return proof;
+    } catch (ApiException failure) {
+      throw new ProductFlowException("generated Files update failed with HTTP " + failure.getCode());
+    } catch (IOException failure) {
+      throw new ProductFlowException("generated Files update source could not be written");
+    } finally {
+      deleteLocal(source);
+    }
+  }
+
+  void verifyMemberProof(MemberProof proof, String ownerToken,
+      String ungrantedMemberToken, String outsiderToken) {
+    String strongEtag = readExact(proof, ownerToken);
+    denyReadAndWrite(proof, ungrantedMemberToken, strongEtag, "member");
+    denyReadAndWrite(proof, outsiderToken, strongEtag, "outsider");
+    readExact(proof, ownerToken);
+  }
+
+  private String readExact(MemberProof proof, String token) {
+    File downloaded = null;
+    try {
+      FilesUserItemResponse current = files.getFilesItem(proof.fileId(), bearer(token));
+      if (current == null || !proof.fileId().equals(current.getFileId())
+          || !proof.name().equals(current.getName())
+          || !proof.revision().equals(current.getRevision())) {
+        throw new ProductFlowException("generated Files metadata changed unexpectedly");
+      }
+      var response = files.downloadFilesItemContentWithHttpInfo(proof.fileId(), null, bearer(token));
+      downloaded = response.getData();
+      String etag = header(response.getHeaders(), "ETag");
+      if (response.getStatusCode() != 200 || downloaded == null
+          || etag.isBlank() || etag.startsWith("W/")
+          || !Arrays.equals(proof.content().getBytes(StandardCharsets.UTF_8),
+              Files.readAllBytes(downloaded.toPath()))) {
+        throw new ProductFlowException("generated Files content or strong ETag changed unexpectedly");
+      }
+      return etag;
+    } catch (ApiException failure) {
+      throw new ProductFlowException("generated Files read failed with HTTP " + failure.getCode());
+    } catch (IOException failure) {
+      throw new ProductFlowException("generated Files read could not be verified");
+    } finally {
+      if (downloaded != null) deleteLocal(downloaded.toPath());
+    }
+  }
+
+  private void denyReadAndWrite(MemberProof proof, String token, String etag, String actor) {
+    try {
+      files.getFilesItem(proof.fileId(), bearer(token));
+      throw new ProductFlowException("generated Files exposed an ungranted " + actor + " read");
+    } catch (ApiException denied) {
+      if (denied.getCode() != 403 && denied.getCode() != 404) {
+        throw new ProductFlowException("generated Files " + actor + " read denial returned HTTP "
+            + denied.getCode());
+      }
+    }
+    Path source = null;
+    try {
+      source = Files.createTempFile("weave-denied-file-write-", ".txt");
+      Files.writeString(source, "denied", StandardCharsets.UTF_8);
+      files.updateFilesItemContent(proof.fileId(), etag,
+          "deny-collaboration-update-" + actor + "-" + Hashing.sha256(proof.fileId()).substring(0, 16),
+          source.toFile(), "text/plain", bearer(token));
+      throw new ProductFlowException("generated Files accepted an ungranted " + actor + " write");
+    } catch (ApiException denied) {
+      if (denied.getCode() != 403 && denied.getCode() != 404) {
+        throw new ProductFlowException("generated Files " + actor + " write denial returned HTTP "
+            + denied.getCode());
+      }
+    } catch (IOException failure) {
+      throw new ProductFlowException("generated Files denial source could not be written");
+    } finally {
+      deleteLocal(source);
+    }
+  }
+
+  private static void deleteLocal(Path path) {
+    if (path == null) return;
+    try {
+      Files.deleteIfExists(path);
+    } catch (IOException ignored) {
+      // The disposable E2E process and stack are discarded after this run.
+    }
+  }
+
+  private static Map<String, String> bearer(String token) {
+    return Map.of("Authorization", "Bearer " + token);
+  }
+
+  private static String header(Map<String, List<String>> headers, String name) {
+    return headers.entrySet().stream()
+        .filter(entry -> entry.getKey().equalsIgnoreCase(name))
+        .flatMap(entry -> entry.getValue().stream())
+        .findFirst().orElse("");
+  }
+
+  private static String safeErrorCode(ApiException failure) {
+    String body = failure.getResponseBody();
+    if (body == null || body.length() > 8192) {
+      return "unavailable";
+    }
+    Matcher matched = SAFE_ERROR_CODE.matcher(body);
+    return matched.find() ? matched.group(1) : "unavailable";
+  }
+
+  // The disposable Compose topology tears down its exact volumes after this run; the User API
+  // does not yet expose deletion, so this proof object must never be written to a live tenant.
+  record Proof(String fileId, String name, byte[] content) {}
+
+  record MemberProof(String fileId, String name, String revision, String content) {}
+}

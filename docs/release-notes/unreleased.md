@@ -1,9 +1,21 @@
 # Unreleased
 
+Historical accumulated change draft; not a current #1470 acceptance report. Entries below
+retain the boundaries and evidence of their original changes, including superseded public
+DAV, ARC and earlier release claims. Apply [the current release profile](../specification-source-of-truth.md)
+and [delivery story #1481](https://github.com/masssi164/weave/issues/1481) before treating any
+entry as a current capability. Provider adoption/migration is tracked separately in #1498.
+
 Use this page for release-affecting changes that have merged but are not included in a tagged release yet. `v0.1.0-rc.3` is the latest published prerelease; older post-RC2 entries moved into the versioned v0.1 release notes and RC3 evidence audit.
 
 ## Added
 
+- Adds scoped `calendar.create`, `calendar.update`, and `calendar.delete` MCP tools through
+  the generated JVM User Calendar client. The Server checks current organization role and
+  Space authorization, and mutations retain idempotency or strong version preconditions.
+  Live OpenClaw/provider acceptance remains pending.
+- Adds a bounded, read-only `calendar.agenda` MCP tool over the generated User Calendar client,
+  with per-tool downscoped workload exchange and current member/Space authorization.
 - Adds the Fresh Weave JVM architecture with framework-free application/files cores, explicit
   JPA/provider/security adapter modules, separate Server and MCP processes, a provider-neutral
   `files.search`/`weave://files/{id}` MCP slice over the existing WebDAV projection, and

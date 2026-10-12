@@ -40,6 +40,10 @@ final class KeycloakRealmMigrationTransport {
     request(HttpMethod.PUT, path, body.toString(), 201);
   }
 
+  void putNoContent(String path, JsonNode body) {
+    request(HttpMethod.PUT, path, body.toString(), 204);
+  }
+
   void delete(String path) {
     request(HttpMethod.DELETE, path, null, 204);
   }

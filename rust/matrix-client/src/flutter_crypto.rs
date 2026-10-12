@@ -1,5 +1,13 @@
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use matrix_sdk::{
-    authentication::{matrix::MatrixSession, SessionTokens},
+    authentication::{
+        matrix::MatrixSession,
+        oauth::{
+            error::{BasicErrorResponseType, RequestTokenError},
+            ClientId, OAuthError, OAuthSession, UserSession,
+        },
+        SessionTokens,
+    },
     config::SyncSettings,
     deserialized_responses::{
         ProcessedToDeviceEvent, TimelineEvent, TimelineEventKind, ToDeviceUnableToDecryptReason,
@@ -21,7 +29,6 @@ use matrix_sdk::{
             room::create_room::v3::{Request as CreateRoomRequest, RoomPreset},
         },
         api::error::ErrorKind,
-        api::MatrixVersion,
         events::receipt::ReceiptThread,
         events::{
             key::verification::VerificationMethod, room::encryption::RoomEncryptionEventContent,
@@ -31,32 +38,63 @@ use matrix_sdk::{
         OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedUserId, UInt,
     },
     store::RoomLoadSettings,
-    Client, Room, RoomMemberships, SessionMeta,
+    utils::UrlOrQuery,
+    Client, HttpError, RefreshTokenError, Room, RoomMemberships, SessionMeta,
 };
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use matrix_sdk_store_encryption::StoreCipher;
+use reqwest::header::{HeaderMap, HeaderValue};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet, HashMap},
-    path::Path,
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex, OnceLock},
     time::Duration,
 };
 use tokio::sync::Mutex as AsyncMutex;
+use url::Url;
 
-const DEVICE_ID_HEADER: &str = "x-weave-matrix-device-id";
 const PRE_SEND_DEVICE_QUERY_ATTEMPTS: usize = 10;
 const PRE_SEND_DEVICE_QUERY_DELAY: Duration = Duration::from_millis(500);
 const MATRIX_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const MATRIX_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 const OLM_RECOVERY_ROTATION_PENDING_KEY: &[u8] = b"weave.olm-recovery-room-key-rotation-pending.v1";
+const MATRIX_OAUTH_SESSION_FILE: &str = "weave-matrix-oauth-session.v1";
+
+struct PendingOAuthLogin {
+    client: Client,
+    homeserver_url: String,
+    device_id: String,
+    redirect_uri: Url,
+    issuer: Url,
+    extra_root_certificate_pem: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct PersistedOAuthSession {
+    homeserver_url: String,
+    client_id: String,
+    user_id: String,
+    device_id: String,
+    tokens: SessionTokens,
+}
+
+#[derive(Serialize, Deserialize)]
+struct EncryptedOAuthSession {
+    cipher_export: Vec<u8>,
+    ciphertext: Vec<u8>,
+}
 
 struct ManagedClient {
     client: Client,
+    oauth_session_persistence_enabled: Arc<Mutex<bool>>,
     homeserver_url: String,
     user_id: String,
     device_id: String,
-    access_token: String,
     room_security_fingerprints: HashMap<String, RoomSecurityFingerprint>,
     pre_send_security_fingerprints: HashMap<String, RoomSecurityFingerprint>,
     accepting_operations: bool,
@@ -354,11 +392,16 @@ impl TimelineDecryptionDiagnostics {
 }
 
 static CLIENTS: OnceLock<Mutex<HashMap<String, ManagedClient>>> = OnceLock::new();
+static PENDING_OAUTH_LOGINS: OnceLock<Mutex<HashMap<String, PendingOAuthLogin>>> = OnceLock::new();
 static CLIENT_LIFECYCLE_GATES: OnceLock<Mutex<HashMap<String, Arc<AsyncMutex<()>>>>> =
     OnceLock::new();
 
 fn clients() -> &'static Mutex<HashMap<String, ManagedClient>> {
     CLIENTS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn pending_oauth_logins() -> &'static Mutex<HashMap<String, PendingOAuthLogin>> {
+    PENDING_OAUTH_LOGINS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn client_lifecycle_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String> {
@@ -372,23 +415,251 @@ fn client_lifecycle_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, S
         .clone())
 }
 
-pub async fn initialize(
+pub async fn oauth_start(
+    login_key: String,
+    homeserver_url: String,
+    expected_issuer: String,
+    client_id: String,
+    device_id: String,
+    redirect_uri: String,
+    extra_root_certificate_pem: String,
+) -> String {
+    json_result(
+        oauth_start_inner(
+            login_key,
+            homeserver_url,
+            expected_issuer,
+            client_id,
+            device_id,
+            redirect_uri,
+            extra_root_certificate_pem,
+        )
+        .await,
+    )
+}
+
+async fn oauth_start_inner(
+    login_key: String,
+    homeserver_url: String,
+    expected_issuer: String,
+    client_id: String,
+    device_id: String,
+    redirect_uri: String,
+    extra_root_certificate_pem: String,
+) -> Result<Value, String> {
+    validate_identifier(&login_key, "login")?;
+    validate_identifier(&device_id, "device")?;
+    let homeserver =
+        Url::parse(&homeserver_url).map_err(|_| "M_WEAVE_MATRIX_HOMESERVER".to_string())?;
+    if !matches!(homeserver.scheme(), "https" | "http") || homeserver.host_str().is_none() {
+        return Err("M_WEAVE_MATRIX_HOMESERVER".to_string());
+    }
+    let expected_issuer =
+        Url::parse(&expected_issuer).map_err(|_| "M_WEAVE_MATRIX_OAUTH_ISSUER".to_string())?;
+    if expected_issuer.scheme() != "https"
+        || expected_issuer.host_str().is_none()
+        || !expected_issuer.username().is_empty()
+        || expected_issuer.password().is_some()
+        || expected_issuer.query().is_some()
+        || expected_issuer.fragment().is_some()
+    {
+        return Err("M_WEAVE_MATRIX_OAUTH_ISSUER".to_string());
+    }
+    if client_id.trim().is_empty() || client_id != client_id.trim() {
+        return Err("M_WEAVE_MATRIX_OAUTH_CLIENT".to_string());
+    }
+    let redirect = Url::parse(&redirect_uri).map_err(|_| "M_WEAVE_MATRIX_REDIRECT".to_string())?;
+    if redirect.as_str() != "com.massimotter.weave.matrix:/oauthredirect" {
+        return Err("M_WEAVE_MATRIX_REDIRECT".to_string());
+    }
+    let http_client = build_http_client(HeaderMap::new(), &extra_root_certificate_pem)?;
+    let client = Client::builder()
+        .homeserver_url(homeserver.as_str())
+        .http_client(http_client)
+        .handle_refresh_tokens()
+        .build()
+        .await
+        .map_err(|_| "M_WEAVE_MATRIX_DISCOVERY".to_string())?;
+
+    client
+        .oauth()
+        .restore_registered_client(ClientId::new(client_id));
+    let authorization = client
+        .oauth()
+        .login(
+            redirect.clone(),
+            Some(OwnedDeviceId::from(device_id.as_str())),
+            None,
+            None,
+        )
+        .build()
+        .await
+        .map_err(|_| "M_WEAVE_MATRIX_OAUTH_UNAVAILABLE".to_string())?;
+    let issuer = client
+        .oauth()
+        .cached_server_metadata()
+        .await
+        .map_err(|_| "M_WEAVE_MATRIX_DISCOVERY".to_string())?
+        .issuer;
+    if issuer != expected_issuer {
+        return Err("M_WEAVE_MATRIX_OAUTH_ISSUER_MISMATCH".to_string());
+    }
+    pending_oauth_logins()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .insert(
+            login_key,
+            PendingOAuthLogin {
+                client,
+                homeserver_url,
+                device_id,
+                redirect_uri: redirect,
+                issuer,
+                extra_root_certificate_pem,
+            },
+        );
+    Ok(json!({
+        "authorizationUrl": authorization.url.as_str(),
+        "state": authorization.state.secret(),
+    }))
+}
+
+pub async fn oauth_finish(login_key: String, callback_url: String) -> String {
+    json_result(oauth_finish_inner(&login_key, &callback_url).await)
+}
+
+async fn oauth_finish_inner(login_key: &str, callback_url: &str) -> Result<Value, String> {
+    let pending = pending_oauth_logins()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .remove(login_key)
+        .ok_or_else(|| "M_WEAVE_MATRIX_OAUTH_STATE".to_string())?;
+    let callback = validate_oauth_callback(callback_url, &pending.redirect_uri, &pending.issuer)?;
+    pending
+        .client
+        .oauth()
+        .finish_login(UrlOrQuery::Url(callback))
+        .await
+        .map_err(|_| "M_WEAVE_MATRIX_OAUTH_RESPONSE".to_string())?;
+    let session = pending
+        .client
+        .oauth()
+        .full_session()
+        .ok_or_else(|| "M_WEAVE_MATRIX_OAUTH_SESSION".to_string())?;
+    if session.user.meta.device_id.as_str() != pending.device_id {
+        return Err("M_WEAVE_MATRIX_DEVICE_MISMATCH".to_string());
+    }
+    let result = json!({
+        "userId": session.user.meta.user_id.as_str(),
+        "deviceId": session.user.meta.device_id.as_str(),
+    });
+    pending_oauth_logins()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .insert(login_key.to_string(), pending);
+    Ok(result)
+}
+
+fn validate_oauth_callback(
+    callback_url: &str,
+    redirect_uri: &Url,
+    issuer: &Url,
+) -> Result<Url, String> {
+    let callback = Url::parse(callback_url).map_err(|_| "M_WEAVE_MATRIX_REDIRECT".to_string())?;
+    if callback.scheme() != redirect_uri.scheme()
+        || callback.path() != redirect_uri.path()
+        || callback.host_str() != redirect_uri.host_str()
+        || callback.fragment().is_some()
+    {
+        return Err("M_WEAVE_MATRIX_REDIRECT".to_string());
+    }
+    if callback
+        .query_pairs()
+        .filter(|(key, _)| key == "state")
+        .count()
+        != 1
+    {
+        return Err("M_WEAVE_MATRIX_OAUTH_STATE".to_string());
+    }
+    let reported_issuers = callback
+        .query_pairs()
+        .filter(|(key, _)| key == "iss")
+        .map(|(_, value)| value.into_owned())
+        .collect::<Vec<_>>();
+    if reported_issuers.len() > 1
+        || reported_issuers
+            .first()
+            .is_some_and(|reported| reported != issuer.as_str())
+    {
+        return Err("M_WEAVE_MATRIX_OAUTH_ISSUER".to_string());
+    }
+    Ok(callback)
+}
+
+pub fn oauth_abort(login_key: String) -> String {
+    json_result(
+        pending_oauth_logins()
+            .lock()
+            .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())
+            .map(|mut pending| {
+                pending.remove(&login_key);
+                json!({ "aborted": true })
+            }),
+    )
+}
+
+pub async fn oauth_activate(
+    login_key: String,
+    profile_key: String,
+    store_path: String,
+    store_passphrase: String,
+) -> String {
+    json_result(oauth_activate_inner(&login_key, profile_key, store_path, store_passphrase).await)
+}
+
+async fn oauth_activate_inner(
+    login_key: &str,
+    profile_key: String,
+    store_path: String,
+    store_passphrase: String,
+) -> Result<Value, String> {
+    let pending = pending_oauth_logins()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .remove(login_key)
+        .ok_or_else(|| "M_WEAVE_MATRIX_OAUTH_STATE".to_string())?;
+    let session = pending
+        .client
+        .oauth()
+        .full_session()
+        .ok_or_else(|| "M_WEAVE_MATRIX_OAUTH_SESSION".to_string())?;
+    activate_oauth_session(
+        profile_key,
+        pending.homeserver_url,
+        store_path,
+        store_passphrase,
+        pending.extra_root_certificate_pem,
+        session,
+        false,
+    )
+    .await
+}
+
+pub async fn oauth_restore(
     profile_key: String,
     homeserver_url: String,
     user_id: String,
     device_id: String,
-    access_token: String,
     store_path: String,
     store_passphrase: String,
     extra_root_certificate_pem: String,
 ) -> String {
     json_result(
-        initialize_inner(
+        oauth_restore_inner(
             profile_key,
             homeserver_url,
             user_id,
             device_id,
-            access_token,
             store_path,
             store_passphrase,
             extra_root_certificate_pem,
@@ -397,32 +668,112 @@ pub async fn initialize(
     )
 }
 
-async fn initialize_inner(
+pub async fn oauth_end_session(profile_key: String, store_path: String) -> String {
+    json_result(oauth_end_session_inner(&profile_key, &store_path).await)
+}
+
+async fn oauth_end_session_inner(profile_key: &str, store_path: &str) -> Result<Value, String> {
+    validate_identifier(profile_key, "profile")?;
+    if store_path.trim().is_empty() {
+        return Err("M_WEAVE_E2EE_CONFIGURATION".to_string());
+    }
+    let lifecycle_gate = client_lifecycle_gate_for(profile_key)?;
+    let _lifecycle_guard = lifecycle_gate.lock().await;
+    let (client, matrix_io_gate, persistence_enabled) = {
+        let mut guard = clients()
+            .lock()
+            .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
+        match guard.get_mut(profile_key) {
+            Some(managed) => {
+                managed.accepting_operations = false;
+                (
+                    Some(managed.client.clone()),
+                    Some(managed.matrix_io_gate.clone()),
+                    Some(managed.oauth_session_persistence_enabled.clone()),
+                )
+            }
+            None => (None, None, None),
+        }
+    };
+    let _matrix_io_guard = if let Some(gate) = &matrix_io_gate {
+        Some(gate.lock().await)
+    } else {
+        None
+    };
+    let revoked = if let Some(client) = client {
+        client.oauth().logout().await.is_ok()
+    } else {
+        false
+    };
+    let _persistence_guard = if let Some(enabled) = &persistence_enabled {
+        let mut guard = enabled
+            .lock()
+            .map_err(|_| "M_WEAVE_MATRIX_SESSION_STORE".to_string())?;
+        *guard = false;
+        Some(guard)
+    } else {
+        None
+    };
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .remove(profile_key);
+    match fs::remove_file(Path::new(store_path).join(MATRIX_OAUTH_SESSION_FILE)) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(_) => return Err("M_WEAVE_MATRIX_SESSION_STORE".to_string()),
+    }
+    Ok(json!({ "localSessionCleared": true, "remoteRevocationConfirmed": revoked }))
+}
+
+async fn oauth_restore_inner(
     profile_key: String,
     homeserver_url: String,
     user_id: String,
     device_id: String,
-    access_token: String,
     store_path: String,
     store_passphrase: String,
     extra_root_certificate_pem: String,
 ) -> Result<Value, String> {
-    validate_identifier(&profile_key, "profile")?;
-    if homeserver_url.trim().is_empty()
-        || access_token.is_empty()
-        || store_path.trim().is_empty()
-        || store_passphrase.len() < 32
+    let persisted = load_oauth_session(Path::new(&store_path), &store_passphrase)
+        .map_err(|_| "M_WEAVE_MATRIX_SESSION_STORE".to_string())?;
+    if persisted.homeserver_url != homeserver_url
+        || persisted.user_id != user_id
+        || persisted.device_id != device_id
     {
+        return Err("M_WEAVE_MATRIX_SESSION_MISMATCH".to_string());
+    }
+    let session = persisted.into_sdk_session()?;
+    activate_oauth_session(
+        profile_key,
+        homeserver_url,
+        store_path,
+        store_passphrase,
+        extra_root_certificate_pem,
+        session,
+        true,
+    )
+    .await
+}
+
+async fn activate_oauth_session(
+    profile_key: String,
+    homeserver_url: String,
+    store_path: String,
+    store_passphrase: String,
+    extra_root_certificate_pem: String,
+    session: OAuthSession,
+    restored: bool,
+) -> Result<Value, String> {
+    validate_identifier(&profile_key, "profile")?;
+    if store_path.trim().is_empty() || store_passphrase.len() < 32 {
         return Err("M_WEAVE_E2EE_CONFIGURATION".to_string());
     }
-    let matrix_user_id =
-        OwnedUserId::try_from(user_id.as_str()).map_err(|_| "M_WEAVE_E2EE_IDENTITY".to_string())?;
-    let matrix_device_id = OwnedDeviceId::from(device_id.as_str());
-    validate_identifier(&device_id, "device")?;
-
+    let user_id = session.user.meta.user_id.to_string();
+    let device_id = session.user.meta.device_id.to_string();
     let lifecycle_gate = client_lifecycle_gate_for(&profile_key)?;
     let _lifecycle_guard = lifecycle_gate.lock().await;
-    let (matrix_io_gate, replacing_existing) = {
+    let matrix_io_gate = {
         let mut guard = clients()
             .lock()
             .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
@@ -430,54 +781,38 @@ async fn initialize_inner(
             if existing.homeserver_url == homeserver_url
                 && existing.user_id == user_id
                 && existing.device_id == device_id
-                && existing.access_token == access_token
                 && existing.accepting_operations
             {
-                return Ok(json!({
-                    "initialized": true,
-                    "restored": true,
-                    "deviceId": device_id,
-                }));
+                return Ok(
+                    json!({ "initialized": true, "restored": true, "userId": user_id, "deviceId": device_id }),
+                );
             }
-            // Token renewal cannot create a second Matrix SDK/store owner.
-            // Reject new operations, drain the single explicit sync/send gate,
-            // and reuse that gate for the replacement client.
             existing.accepting_operations = false;
-            (existing.matrix_io_gate.clone(), true)
+            existing.matrix_io_gate.clone()
         } else {
-            (Arc::new(AsyncMutex::new(())), false)
+            Arc::new(AsyncMutex::new(()))
         }
     };
     let _matrix_io_guard = matrix_io_gate.lock().await;
-    let continuity = if replacing_existing {
-        clients()
-            .lock()
-            .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
-            .remove(&profile_key)
-            .map(|replaced| ClientContinuityState {
-                room_security_fingerprints: replaced.room_security_fingerprints,
-                pre_send_security_fingerprints: replaced.pre_send_security_fingerprints,
-                sync_cursor: replaced.sync_cursor,
-                to_device_diagnostics: replaced.to_device_diagnostics,
-                timeline_decryption_diagnostics: replaced.timeline_decryption_diagnostics,
-                peer_device_diagnostics: replaced.peer_device_diagnostics,
-            })
-            .unwrap_or_default()
-    } else {
-        ClientContinuityState::default()
-    };
+    let continuity = clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .remove(&profile_key)
+        .map(|replaced| ClientContinuityState {
+            room_security_fingerprints: replaced.room_security_fingerprints,
+            pre_send_security_fingerprints: replaced.pre_send_security_fingerprints,
+            sync_cursor: replaced.sync_cursor,
+            to_device_diagnostics: replaced.to_device_diagnostics,
+            timeline_decryption_diagnostics: replaced.timeline_decryption_diagnostics,
+            peer_device_diagnostics: replaced.peer_device_diagnostics,
+        })
+        .unwrap_or_default();
 
-    let mut default_headers = HeaderMap::new();
-    default_headers.insert(
-        HeaderName::from_static(DEVICE_ID_HEADER),
-        HeaderValue::from_str(&device_id).map_err(|_| "M_WEAVE_E2EE_IDENTITY".to_string())?,
-    );
-    let http_client = build_http_client(default_headers, &extra_root_certificate_pem)?;
-
+    let http_client = build_http_client(HeaderMap::new(), &extra_root_certificate_pem)?;
     let client = Client::builder()
         .homeserver_url(&homeserver_url)
-        .server_versions([MatrixVersion::V1_18])
         .http_client(http_client)
+        .handle_refresh_tokens()
         .sqlite_store(Path::new(&store_path), Some(store_passphrase.as_str()))
         .with_encryption_settings(EncryptionSettings {
             auto_enable_cross_signing: true,
@@ -488,30 +823,32 @@ async fn initialize_inner(
         .build()
         .await
         .map_err(|_| "M_WEAVE_E2EE_STORE".to_string())?;
-
+    let oauth_session_persistence_enabled = install_oauth_session_callbacks(
+        &client,
+        PathBuf::from(&store_path),
+        store_passphrase.clone(),
+        homeserver_url.clone(),
+    )?;
     client
-        .matrix_auth()
-        .restore_session(
-            MatrixSession {
-                meta: SessionMeta {
-                    user_id: matrix_user_id,
-                    device_id: matrix_device_id,
-                },
-                tokens: SessionTokens {
-                    access_token: access_token.clone(),
-                    refresh_token: None,
-                },
-            },
-            RoomLoadSettings::default(),
-        )
+        .oauth()
+        .restore_session(session, RoomLoadSettings::default())
         .await
-        .map_err(|_| "M_WEAVE_E2EE_SESSION".to_string())?;
-
+        .map_err(|_| "M_WEAVE_MATRIX_OAUTH_SESSION".to_string())?;
     client
         .encryption()
         .wait_for_e2ee_initialization_tasks()
         .await;
-
+    let active_session = client
+        .oauth()
+        .full_session()
+        .ok_or_else(|| "M_WEAVE_MATRIX_OAUTH_SESSION".to_string())?;
+    persist_oauth_session(
+        Path::new(&store_path),
+        &store_passphrase,
+        &homeserver_url,
+        &active_session,
+    )
+    .map_err(|_| "M_WEAVE_MATRIX_SESSION_STORE".to_string())?;
     clients()
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
@@ -519,10 +856,10 @@ async fn initialize_inner(
             profile_key,
             ManagedClient {
                 client,
+                oauth_session_persistence_enabled,
                 homeserver_url,
-                user_id,
+                user_id: user_id.clone(),
                 device_id: device_id.clone(),
-                access_token,
                 room_security_fingerprints: continuity.room_security_fingerprints,
                 pre_send_security_fingerprints: continuity.pre_send_security_fingerprints,
                 accepting_operations: true,
@@ -536,12 +873,371 @@ async fn initialize_inner(
                 sas_verification: None,
             },
         );
+    Ok(
+        json!({ "initialized": true, "restored": restored, "userId": user_id, "deviceId": device_id }),
+    )
+}
 
-    Ok(json!({
-        "initialized": true,
-        "restored": false,
-        "deviceId": device_id,
-    }))
+pub async fn member_session_activate(
+    profile_key: String,
+    homeserver_url: String,
+    user_id: String,
+    device_id: String,
+    access_token: String,
+    device_proof: String,
+    store_path: String,
+    store_passphrase: String,
+    extra_root_certificate_pem: String,
+) -> String {
+    json_result(
+        member_session_activate_inner(
+            profile_key,
+            homeserver_url,
+            user_id,
+            device_id,
+            access_token,
+            device_proof,
+            store_path,
+            store_passphrase,
+            extra_root_certificate_pem,
+        )
+        .await,
+    )
+}
+
+async fn member_session_activate_inner(
+    profile_key: String,
+    homeserver_url: String,
+    user_id: String,
+    device_id: String,
+    access_token: String,
+    device_proof: String,
+    store_path: String,
+    store_passphrase: String,
+    extra_root_certificate_pem: String,
+) -> Result<Value, String> {
+    validate_identifier(&profile_key, "profile")?;
+    validate_identifier(&device_id, "device")?;
+    if access_token.is_empty() || access_token != access_token.trim() {
+        return Err("M_WEAVE_MATRIX_MEMBER_TOKEN".to_string());
+    }
+    if device_proof.len() < 43
+        || device_proof.len() > 86
+        || !device_proof
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    {
+        return Err("M_WEAVE_MATRIX_DEVICE_PROOF".to_string());
+    }
+    if store_path.trim().is_empty() || store_passphrase.len() < 32 {
+        return Err("M_WEAVE_E2EE_CONFIGURATION".to_string());
+    }
+    let homeserver =
+        Url::parse(&homeserver_url).map_err(|_| "M_WEAVE_MATRIX_HOMESERVER".to_string())?;
+    if homeserver.scheme() != "https"
+        || homeserver.host_str().is_none()
+        || !homeserver.username().is_empty()
+        || homeserver.password().is_some()
+        || !matches!(homeserver.path(), "" | "/")
+        || homeserver.query().is_some()
+        || homeserver.fragment().is_some()
+    {
+        return Err("M_WEAVE_MATRIX_HOMESERVER".to_string());
+    }
+    let user_id = OwnedUserId::try_from(user_id.as_str())
+        .map_err(|_| "M_WEAVE_MATRIX_SESSION_MISMATCH".to_string())?;
+    let lifecycle_gate = client_lifecycle_gate_for(&profile_key)?;
+    let _lifecycle_guard = lifecycle_gate.lock().await;
+    let matrix_io_gate = {
+        let mut guard = clients()
+            .lock()
+            .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
+        if let Some(existing) = guard.get_mut(&profile_key) {
+            existing.accepting_operations = false;
+            existing.matrix_io_gate.clone()
+        } else {
+            Arc::new(AsyncMutex::new(()))
+        }
+    };
+    let _matrix_io_guard = matrix_io_gate.lock().await;
+    let continuity = clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .remove(&profile_key)
+        .map(|replaced| ClientContinuityState {
+            room_security_fingerprints: replaced.room_security_fingerprints,
+            pre_send_security_fingerprints: replaced.pre_send_security_fingerprints,
+            sync_cursor: replaced.sync_cursor,
+            to_device_diagnostics: replaced.to_device_diagnostics,
+            timeline_decryption_diagnostics: replaced.timeline_decryption_diagnostics,
+            peer_device_diagnostics: replaced.peer_device_diagnostics,
+        })
+        .unwrap_or_default();
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-weave-matrix-device-id",
+        HeaderValue::from_str(&device_id)
+            .map_err(|_| "M_WEAVE_MATRIX_DEVICE_MISMATCH".to_string())?,
+    );
+    let mut proof_header = HeaderValue::from_str(&device_proof)
+        .map_err(|_| "M_WEAVE_MATRIX_DEVICE_PROOF".to_string())?;
+    proof_header.set_sensitive(true);
+    headers.insert("x-weave-matrix-device-proof", proof_header);
+    let http_client = build_http_client(headers, &extra_root_certificate_pem)?;
+    let member_access_token = access_token.clone();
+    let client = Client::builder()
+        .homeserver_url(homeserver.as_str())
+        .http_client(http_client.clone())
+        .sqlite_store(Path::new(&store_path), Some(store_passphrase.as_str()))
+        .with_encryption_settings(EncryptionSettings {
+            auto_enable_cross_signing: true,
+            auto_enable_backups: true,
+            backup_download_strategy: BackupDownloadStrategy::AfterDecryptionFailure,
+            ..Default::default()
+        })
+        .build()
+        .await
+        .map_err(|_| "M_WEAVE_E2EE_STORE".to_string())?;
+    client
+        .restore_session(MatrixSession {
+            meta: SessionMeta {
+                user_id: user_id.clone(),
+                device_id: OwnedDeviceId::from(device_id.as_str()),
+            },
+            tokens: SessionTokens {
+                access_token,
+                refresh_token: None,
+            },
+        })
+        .await
+        .map_err(|_| "M_WEAVE_MATRIX_MEMBER_SESSION".to_string())?;
+    // Verify the member bearer and device possession before publishing the
+    // native client. Callers may open without an initial sync, and only a
+    // verified activation may retire an older OAuth grant on disk.
+    let whoami = match client.whoami().await {
+        Ok(identity) => identity,
+        Err(error)
+            if matrix_error_kind_code(error.client_api_error_kind(), "")
+                == "M_WEAVE_DEVICE_RECOVERY_REQUIRED" =>
+        {
+            recover_legacy_member_device(
+                &client,
+                &http_client,
+                &homeserver,
+                &member_access_token,
+                &device_proof,
+            )
+            .await?;
+            client
+                .whoami()
+                .await
+                .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?
+        }
+        Err(_) => return Err("M_WEAVE_MATRIX_MEMBER_SESSION".to_string()),
+    };
+    if whoami.user_id != user_id
+        || whoami.device_id.as_deref().map(|value| value.as_str()) != Some(device_id.as_str())
+    {
+        return Err("M_WEAVE_MATRIX_SESSION_MISMATCH".to_string());
+    }
+    client
+        .encryption()
+        .wait_for_e2ee_initialization_tasks()
+        .await;
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .insert(
+            profile_key,
+            ManagedClient {
+                client,
+                oauth_session_persistence_enabled: Arc::new(Mutex::new(false)),
+                homeserver_url,
+                user_id: user_id.to_string(),
+                device_id: device_id.clone(),
+                room_security_fingerprints: continuity.room_security_fingerprints,
+                pre_send_security_fingerprints: continuity.pre_send_security_fingerprints,
+                accepting_operations: true,
+                matrix_io_gate: matrix_io_gate.clone(),
+                room_security_gate: Arc::new(AsyncMutex::new(())),
+                sync_cursor: continuity.sync_cursor,
+                to_device_diagnostics: continuity.to_device_diagnostics,
+                timeline_decryption_diagnostics: continuity.timeline_decryption_diagnostics,
+                peer_device_diagnostics: continuity.peer_device_diagnostics,
+                verification_request: None,
+                sas_verification: None,
+            },
+        );
+    Ok(json!({ "initialized": true, "userId": user_id, "deviceId": device_id }))
+}
+
+async fn recover_legacy_member_device(
+    client: &Client,
+    http_client: &reqwest::Client,
+    homeserver: &Url,
+    member_access_token: &str,
+    device_proof: &str,
+) -> Result<(), String> {
+    let secret = URL_SAFE_NO_PAD
+        .decode(device_proof)
+        .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let proof_hash = Sha256::digest(&secret)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let challenge_url = homeserver
+        .join("/_matrix/client/unstable/org.weave.device_continuity/challenge")
+        .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let response = http_client
+        .post(challenge_url)
+        .bearer_auth(member_access_token)
+        .send()
+        .await
+        .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    if !response.status().is_success() {
+        return Err("M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string());
+    }
+    let response: Value = serde_json::from_str(
+        &response
+            .text()
+            .await
+            .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?,
+    )
+    .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let challenge_id = response["challenge_id"]
+        .as_str()
+        .filter(|value| {
+            value.len() == 36
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
+        })
+        .ok_or_else(|| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let challenge = response["challenge"]
+        .as_str()
+        .filter(|value| {
+            value.starts_with("weave.matrix-device-continuity.v1\n")
+                && value.ends_with(&format!("\n{proof_hash}"))
+        })
+        .ok_or_else(|| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let signature = client
+        .encryption()
+        .sign_device_continuity_challenge(challenge)
+        .await
+        .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let complete_url = homeserver
+        .join("/_matrix/client/unstable/org.weave.device_continuity/complete")
+        .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    let response = http_client
+        .post(complete_url)
+        .bearer_auth(member_access_token)
+        .json(&json!({ "challenge_id": challenge_id, "signature": signature }))
+        .send()
+        .await
+        .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?;
+    if !response.status().is_success() {
+        return Err("M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string());
+    }
+    Ok(())
+}
+
+impl PersistedOAuthSession {
+    fn from_sdk_session(homeserver_url: &str, session: &OAuthSession) -> Self {
+        Self {
+            homeserver_url: homeserver_url.to_string(),
+            client_id: session.client_id.as_str().to_string(),
+            user_id: session.user.meta.user_id.to_string(),
+            device_id: session.user.meta.device_id.to_string(),
+            tokens: session.user.tokens.clone(),
+        }
+    }
+
+    fn into_sdk_session(self) -> Result<OAuthSession, String> {
+        Ok(OAuthSession {
+            client_id: matrix_sdk::authentication::oauth::ClientId::new(self.client_id),
+            user: UserSession {
+                meta: SessionMeta {
+                    user_id: OwnedUserId::try_from(self.user_id.as_str())
+                        .map_err(|_| "M_WEAVE_MATRIX_SESSION_MISMATCH".to_string())?,
+                    device_id: OwnedDeviceId::from(self.device_id.as_str()),
+                },
+                tokens: self.tokens,
+            },
+        })
+    }
+}
+
+fn install_oauth_session_callbacks(
+    client: &Client,
+    store_path: PathBuf,
+    passphrase: String,
+    homeserver_url: String,
+) -> Result<Arc<Mutex<bool>>, String> {
+    let reload_path = store_path.clone();
+    let reload_passphrase = passphrase.clone();
+    let persistence_enabled = Arc::new(Mutex::new(true));
+    let save_enabled = persistence_enabled.clone();
+    client
+        .set_session_callbacks(
+            Box::new(move |_| Ok(load_oauth_session(&reload_path, &reload_passphrase)?.tokens)),
+            Box::new(move |client| {
+                let enabled = save_enabled
+                    .lock()
+                    .map_err(|_| std::io::Error::other("Matrix session store lock failed"))?;
+                if !*enabled {
+                    return Ok(());
+                }
+                let session = client.oauth().full_session().ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Matrix session unavailable",
+                    )
+                })?;
+                persist_oauth_session(&store_path, &passphrase, &homeserver_url, &session)?;
+                Ok(())
+            }),
+        )
+        .map_err(|_| "M_WEAVE_MATRIX_SESSION_STORE".to_string())?;
+    Ok(persistence_enabled)
+}
+
+fn persist_oauth_session(
+    store_path: &Path,
+    passphrase: &str,
+    homeserver_url: &str,
+    session: &OAuthSession,
+) -> std::io::Result<()> {
+    let cipher = StoreCipher::new().map_err(std::io::Error::other)?;
+    let persisted = PersistedOAuthSession::from_sdk_session(homeserver_url, session);
+    let envelope = EncryptedOAuthSession {
+        cipher_export: cipher.export(passphrase).map_err(std::io::Error::other)?,
+        ciphertext: cipher
+            .encrypt_value(&persisted)
+            .map_err(std::io::Error::other)?,
+    };
+    fs::create_dir_all(store_path)?;
+    let mut temporary = tempfile::NamedTempFile::new_in(store_path)?;
+    serde_json::to_writer(&mut temporary, &envelope).map_err(std::io::Error::other)?;
+    temporary.flush()?;
+    temporary.as_file().sync_all()?;
+    temporary
+        .persist(store_path.join(MATRIX_OAUTH_SESSION_FILE))
+        .map_err(|error| error.error)?;
+    Ok(())
+}
+
+fn load_oauth_session(
+    store_path: &Path,
+    passphrase: &str,
+) -> std::io::Result<PersistedOAuthSession> {
+    let bytes = fs::read(store_path.join(MATRIX_OAUTH_SESSION_FILE))?;
+    let envelope: EncryptedOAuthSession =
+        serde_json::from_slice(&bytes).map_err(std::io::Error::other)?;
+    let cipher =
+        StoreCipher::import(passphrase, &envelope.cipher_export).map_err(std::io::Error::other)?;
+    cipher
+        .decrypt_value(&envelope.ciphertext)
+        .map_err(std::io::Error::other)
 }
 
 fn build_http_client(
@@ -554,6 +1250,9 @@ fn build_http_client(
     // can always regain the sole crypto-store owner.
     let mut builder = reqwest::Client::builder()
         .default_headers(default_headers)
+        // Device possession and member credentials are scoped to the exact
+        // advertised Weave authority; never forward them to a redirect target.
+        .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(MATRIX_CONNECT_TIMEOUT)
         .timeout(MATRIX_REQUEST_TIMEOUT);
     if !extra_root_certificate_pem.trim().is_empty() {
@@ -607,35 +1306,17 @@ async fn complete_sync_cycle_under_gate(
 ) -> Result<CompletedSyncCycle, String> {
     let (client, since) = client_and_sync_cursor(profile_key)?;
     let settings = sync_settings(timeout, since.as_deref());
-    let mut response = client
+    let response = client
         .sync_once(settings)
         .await
         .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
     record_to_device_diagnostics(profile_key, &response.to_device)?;
     remember_olm_recovery_rotation(&client, &response.to_device).await?;
     reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
-    let (mut enabled_rooms, mut converged_rooms) =
-        converge_joined_room_security(profile_key, &client).await?;
-    if enabled_rooms > 0 {
-        let next_batch = response.next_batch.clone();
-        response = client
-            .sync_once(sync_settings(
-                Duration::from_secs(0),
-                Some(next_batch.as_str()),
-            ))
-            .await
-            .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
-        record_to_device_diagnostics(profile_key, &response.to_device)?;
-        remember_olm_recovery_rotation(&client, &response.to_device).await?;
-        reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
-        let (newly_enabled_rooms, newly_converged_rooms) =
-            converge_joined_room_security(profile_key, &client).await?;
-        enabled_rooms = enabled_rooms.saturating_add(newly_enabled_rooms);
-        converged_rooms = converged_rooms.max(newly_converged_rooms);
-    }
+    let converged_rooms = converge_joined_room_security(profile_key, &client).await?;
     let completed = CompletedSyncCycle {
         next_batch: response.next_batch,
-        enabled_rooms,
+        enabled_rooms: 0,
         converged_rooms,
     };
     remember_sync_cursor(profile_key, completed.next_batch.clone())?;
@@ -845,11 +1526,7 @@ fn sync_settings(timeout: Duration, since: Option<&str>) -> SyncSettings {
     }
 }
 
-async fn converge_joined_room_security(
-    profile_key: &str,
-    client: &Client,
-) -> Result<(u64, u64), String> {
-    let mut enabled_rooms = 0_u64;
+async fn converge_joined_room_security(profile_key: &str, client: &Client) -> Result<u64, String> {
     let mut converged_rooms = 0_u64;
     for room in client.joined_rooms() {
         let encryption = room
@@ -857,10 +1534,8 @@ async fn converge_joined_room_security(
             .await
             .map_err(|_| "M_WEAVE_E2EE_ROOM_STATE".to_string())?;
         if !encryption.is_encrypted() {
-            room.enable_encryption()
-                .await
-                .map_err(|_| "M_WEAVE_E2EE_ENABLE_ROOM".to_string())?;
-            enabled_rooms += 1;
+            // Room policy is owned by Weave. Sync must never change a
+            // business room into an encrypted room as a side effect.
             continue;
         }
 
@@ -887,7 +1562,7 @@ async fn converge_joined_room_security(
             Err(code) => return Err(code),
         }
     }
-    Ok((enabled_rooms, converged_rooms))
+    Ok(converged_rooms)
 }
 
 fn is_conversation_scoped_sync_security_error(code: &str) -> bool {
@@ -909,10 +1584,18 @@ pub async fn rooms(profile_key: String) -> String {
 }
 
 pub async fn create_encrypted_room(profile_key: String, title: String) -> String {
-    json_result(create_encrypted_room_inner(&profile_key, &title).await)
+    json_result(create_room_inner(&profile_key, &title, true).await)
 }
 
-async fn create_encrypted_room_inner(profile_key: &str, title: &str) -> Result<Value, String> {
+pub async fn create_business_room(profile_key: String, title: String) -> String {
+    json_result(create_room_inner(&profile_key, &title, false).await)
+}
+
+async fn create_room_inner(
+    profile_key: &str,
+    title: &str,
+    encrypted: bool,
+) -> Result<Value, String> {
     let title = title.trim();
     if title.is_empty() || title.chars().count() > 200 {
         return Err("M_INVALID_PARAM".to_string());
@@ -924,10 +1607,12 @@ async fn create_encrypted_room_inner(profile_key: &str, title: &str) -> Result<V
         let mut request = CreateRoomRequest::new();
         request.name = Some(title.to_owned());
         request.preset = Some(RoomPreset::PrivateChat);
-        request.initial_state = vec![InitialStateEvent::with_empty_state_key(
-            RoomEncryptionEventContent::with_recommended_defaults(),
-        )
-        .to_raw_any()];
+        if encrypted {
+            request.initial_state = vec![InitialStateEvent::with_empty_state_key(
+                RoomEncryptionEventContent::with_recommended_defaults(),
+            )
+            .to_raw_any()];
+        }
         client
             .create_room(request)
             .await
@@ -945,7 +1630,7 @@ async fn create_encrypted_room_inner(profile_key: &str, title: &str) -> Result<V
     Ok(json!({
         "roomId": room_id.to_string(),
         "title": title,
-        "encrypted": true,
+        "encrypted": encrypted,
     }))
 }
 
@@ -997,22 +1682,25 @@ async fn room_messages_inner(
     let room = client
         .get_room(&room_id)
         .ok_or_else(|| "M_NOT_FOUND".to_string())?;
-    if !room
+    let encrypted = room
         .latest_encryption_state()
         .await
         .map_err(|_| "M_WEAVE_E2EE_ROOM_STATE".to_string())?
-        .is_encrypted()
-    {
-        return Err("M_WEAVE_E2EE_REQUIRED".to_string());
-    }
+        .is_encrypted();
 
     let mut options = MessagesOptions::backward();
     options.limit =
         UInt::new(u64::from(limit.clamp(1, 100))).expect("bounded Matrix message limit");
-    let response = room
-        .messages(options)
-        .await
-        .map_err(|_| "M_WEAVE_E2EE_TIMELINE".to_string())?;
+    let response = room.messages(options).await.map_err(|error| {
+        let code = matrix_sdk_error_code(&error, "M_WEAVE_E2EE_TIMELINE");
+        match code.as_str() {
+            "M_FORBIDDEN"
+            | "M_UNKNOWN_TOKEN"
+            | "M_MISSING_TOKEN"
+            | "M_WEAVE_MATRIX_SESSION_EXPIRED" => code,
+            _ => "M_WEAVE_E2EE_TIMELINE".to_string(),
+        }
+    })?;
     let timeline_diagnostics = TimelineDecryptionDiagnostics::from_events(&response.chunk);
     remember_timeline_decryption_diagnostics(profile_key, timeline_diagnostics.clone())?;
     let decryption = decryption_diagnostics(
@@ -1023,7 +1711,7 @@ async fn room_messages_inner(
     let mut messages = response
         .chunk
         .iter()
-        .filter_map(project_timeline_event)
+        .filter_map(|event| project_timeline_event(event, encrypted))
         .collect::<Vec<_>>();
     messages.reverse();
     Ok(json!({
@@ -1069,17 +1757,21 @@ async fn send_text_inner(profile_key: &str, room_id: &str, body: &str) -> Result
     let room = client
         .get_room(&room_id)
         .ok_or_else(|| "M_NOT_FOUND".to_string())?;
-    if !room
+    let encrypted = room
         .latest_encryption_state()
         .await
         .map_err(|_| "M_WEAVE_E2EE_ROOM_STATE".to_string())?
-        .is_encrypted()
-    {
-        return Err("M_WEAVE_E2EE_REQUIRED".to_string());
-    }
-    refresh_active_member_device_keys(profile_key, &client, &room, RoomSecurityRefresh::PreSend)
+        .is_encrypted();
+    if encrypted {
+        refresh_active_member_device_keys(
+            profile_key,
+            &client,
+            &room,
+            RoomSecurityRefresh::PreSend,
+        )
         .await?;
-    let rotate_after_olm_recovery = olm_recovery_rotation_pending(&client).await?;
+    }
+    let rotate_after_olm_recovery = encrypted && olm_recovery_rotation_pending(&client).await?;
     if rotate_after_olm_recovery {
         // A newly-established Olm channel does not invalidate the SDK's
         // existing outbound Megolm sharing record. Rotate exactly once after
@@ -1808,8 +2500,10 @@ fn verification_json(profile_key: &str) -> Result<Value, String> {
     Ok(json!({ "phase": "none" }))
 }
 
-fn project_timeline_event(event: &TimelineEvent) -> Option<Value> {
-    if event.encryption_info().is_none() {
+fn project_timeline_event(event: &TimelineEvent, encrypted_room: bool) -> Option<Value> {
+    // MATRIX_E2EE_CLIENT_FAILS_CLOSED: never project a plaintext event as
+    // content of an explicitly encrypted room.
+    if encrypted_room != event.encryption_info().is_some() {
         return None;
     }
     let raw = serde_json::to_value(event.raw()).ok()?;
@@ -1822,7 +2516,7 @@ fn project_timeline_event(event: &TimelineEvent) -> Option<Value> {
         "sender": event.sender().map(|value| value.to_string()).unwrap_or_default(),
         "originServerTs": raw.get("origin_server_ts").and_then(Value::as_u64).unwrap_or_default(),
         "body": body,
-        "contentType": "encryptedText",
+        "contentType": if encrypted_room { "encryptedText" } else { "text" },
     }))
 }
 
@@ -1896,6 +2590,15 @@ fn bootstrap_recovery_error_code(error: &RecoveryError) -> &'static str {
 
 fn matrix_sdk_error_code(error: &matrix_sdk::Error, fallback: &str) -> String {
     if let matrix_sdk::Error::Http(http_error) = error {
+        if let HttpError::RefreshToken(RefreshTokenError::OAuth(oauth_error)) = &**http_error {
+            if matches!(
+                &**oauth_error,
+                OAuthError::RefreshToken(RequestTokenError::ServerResponse(response))
+                    if *response.error() == BasicErrorResponseType::InvalidGrant
+            ) {
+                return "M_WEAVE_MATRIX_SESSION_EXPIRED".to_string();
+            }
+        }
         return matrix_error_kind_code(http_error.client_api_error_kind(), fallback);
     }
     fallback.to_owned()
@@ -1934,7 +2637,157 @@ fn json_result(result: Result<Value, String>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::engine::general_purpose::STANDARD_NO_PAD;
+    use ed25519_dalek::{Signature, VerifyingKey};
     use matrix_sdk::encryption::secret_storage::SecretStorageError;
+
+    #[test]
+    fn member_bearer_is_rejected_for_insecure_or_non_origin_matrix_urls() {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime")
+            .block_on(async {
+                for homeserver in [
+                    "http://api.weave.test",
+                    "https://api.weave.test/other",
+                    "https://user:password@api.weave.test",
+                ] {
+                    let result = member_session_activate_inner(
+                        "profile0001".to_owned(),
+                        homeserver.to_owned(),
+                        "@person:api.weave.test".to_owned(),
+                        "DEVICE0001".to_owned(),
+                        "member-token".to_owned(),
+                        "a".repeat(43),
+                        "/tmp/weave-matrix-rejected-url".to_owned(),
+                        "p".repeat(32),
+                        String::new(),
+                    )
+                    .await;
+                    assert_eq!(result, Err("M_WEAVE_MATRIX_HOMESERVER".to_owned()));
+                }
+            });
+    }
+
+    #[test]
+    fn installed_crypto_device_signs_continuity_challenge_with_its_own_key() {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime")
+            .block_on(async {
+                let directory = tempfile::tempdir().expect("temporary crypto store");
+                let client = Client::builder()
+                    .homeserver_url("https://api.weave.test")
+                    .sqlite_store(
+                        directory.path(),
+                        Some("device-continuity-test-passphrase-12345"),
+                    )
+                    .build()
+                    .await
+                    .expect("native Matrix client");
+                client
+                    .restore_session(MatrixSession {
+                        meta: SessionMeta {
+                            user_id: OwnedUserId::try_from("@member:api.weave.test")
+                                .expect("Matrix user ID"),
+                            device_id: OwnedDeviceId::from("WEAVEDEVICECONTINUITY"),
+                        },
+                        tokens: SessionTokens {
+                            access_token: "test-member-token".to_owned(),
+                            refresh_token: None,
+                        },
+                    })
+                    .await
+                    .expect("restored encrypted session");
+                let challenge = "weave.matrix-device-continuity.v1\nnonce\nproof-hash";
+                let encoded_signature = client
+                    .encryption()
+                    .sign_device_continuity_challenge(challenge)
+                    .await
+                    .expect("device signature");
+                let encoded_public_key =
+                    client.encryption().ed25519_key().await.expect("device key");
+                let signature = Signature::from_slice(
+                    &STANDARD_NO_PAD
+                        .decode(encoded_signature)
+                        .expect("signature base64"),
+                )
+                .expect("Ed25519 signature");
+                let public_key: [u8; 32] = STANDARD_NO_PAD
+                    .decode(encoded_public_key)
+                    .expect("public key base64")
+                    .try_into()
+                    .expect("Ed25519 public key");
+                let verifier = VerifyingKey::from_bytes(&public_key).expect("verifying key");
+                verifier
+                    .verify_strict(challenge.as_bytes(), &signature)
+                    .expect("installed device controls its public key");
+                assert!(verifier
+                    .verify_strict(b"different challenge", &signature)
+                    .is_err());
+            });
+    }
+
+    #[test]
+    fn matrix_oauth_callback_rejects_wrong_redirect_or_reported_issuer() {
+        let redirect =
+            Url::parse("com.massimotter.weave.matrix:/oauthredirect").expect("Matrix redirect URL");
+        let issuer = Url::parse("https://mas.matrix.example/").expect("Matrix issuer");
+        let valid = "com.massimotter.weave.matrix:/oauthredirect?code=code&state=state&iss=https%3A%2F%2Fmas.matrix.example%2F";
+        assert!(validate_oauth_callback(valid, &redirect, &issuer).is_ok());
+        for invalid in [
+            "com.massimotter.weave:/oauthredirect?code=code&state=state",
+            "com.massimotter.weave.matrix:/other?code=code&state=state",
+            "com.massimotter.weave.matrix:/oauthredirect?code=code&state=state&state=state",
+            "com.massimotter.weave.matrix:/oauthredirect?code=code&state=state&iss=https%3A%2F%2Fother.example%2F",
+            "com.massimotter.weave.matrix:/oauthredirect?code=code&state=state&iss=https%3A%2F%2Fmas.matrix.example%2F&iss=https%3A%2F%2Fmas.matrix.example%2F",
+        ] {
+            assert!(validate_oauth_callback(invalid, &redirect, &issuer).is_err());
+        }
+    }
+
+    #[test]
+    fn matrix_oauth_session_is_encrypted_and_bound_to_its_store_passphrase() {
+        let directory = tempfile::tempdir().expect("temporary Matrix store");
+        let session = OAuthSession {
+            client_id: matrix_sdk::authentication::oauth::ClientId::new("weave-matrix".to_string()),
+            user: UserSession {
+                meta: SessionMeta {
+                    user_id: OwnedUserId::try_from("@member:matrix.example").expect("Matrix user"),
+                    device_id: OwnedDeviceId::from("WEAVEDEVICE"),
+                },
+                tokens: SessionTokens {
+                    access_token: "matrix-access-secret".to_string(),
+                    refresh_token: Some("matrix-refresh-secret".to_string()),
+                },
+            },
+        };
+        persist_oauth_session(
+            directory.path(),
+            "a-long-unique-crypto-store-passphrase",
+            "https://matrix.example",
+            &session,
+        )
+        .expect("persist encrypted session");
+
+        let bytes = fs::read(directory.path().join(MATRIX_OAUTH_SESSION_FILE))
+            .expect("read encrypted session");
+        assert!(!bytes
+            .windows(b"matrix-access-secret".len())
+            .any(|part| part == b"matrix-access-secret"));
+        assert!(!bytes
+            .windows(b"matrix-refresh-secret".len())
+            .any(|part| part == b"matrix-refresh-secret"));
+        let restored =
+            load_oauth_session(directory.path(), "a-long-unique-crypto-store-passphrase")
+                .expect("restore encrypted session");
+        assert_eq!(restored.user_id, "@member:matrix.example");
+        assert_eq!(restored.device_id, "WEAVEDEVICE");
+        assert_eq!(restored.tokens, session.user.tokens);
+        assert!(load_oauth_session(directory.path(), "different-passphrase").is_err());
+    }
 
     #[test]
     fn platform_roots_remain_the_default() {

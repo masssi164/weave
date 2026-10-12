@@ -16,6 +16,26 @@ void main() {
     }
   });
 
+  test('native accessibility publication precedes live widget tests', () {
+    final source = File(
+      'integration_test/system_browser_auth_e2e_test.dart',
+    ).readAsStringSync();
+    final frameworkBaseline = source.indexOf(
+      'binding.platformDispatcher.semanticsEnabledTestValue = true;',
+    );
+    final enginePublication = source.indexOf(
+      'ui.PlatformDispatcher.instance.setSemanticsTreeEnabled(true);',
+    );
+    expect(frameworkBaseline, greaterThanOrEqualTo(0));
+    expect(enginePublication, greaterThan(frameworkBaseline));
+    expect(enginePublication, lessThan(source.indexOf('testWidgets(')));
+    final nativeInput = source.indexOf(
+      'binding.shouldPropagateDevicePointerEvents = true;',
+    );
+    expect(nativeInput, greaterThan(enginePublication));
+    expect(nativeInput, lessThan(source.indexOf('testWidgets(')));
+  });
+
   test('physical auth proof uses production AppAuth and no credentials', () {
     final testSource = File(
       'integration_test/system_browser_auth_e2e_test.dart',
@@ -34,7 +54,28 @@ void main() {
     expect(appAuthSource, contains('issuer:'));
     expect(appAuthSource, contains('nonce:'));
     expect(makefile, contains('physical-device-auth-e2e'));
-    expect(makefile, contains('.emulator == false'));
+    final physicalTarget = makefile.substring(
+      makefile.indexOf('physical-device-auth-e2e:\n'),
+      makefile.indexOf('\nnative-browser-e2e:\n'),
+    );
+    final simulatorTarget = makefile.substring(
+      makefile.indexOf('\nios-simulator-product-e2e:\n'),
+    );
+    expect(physicalTarget, contains('WEAVE_NATIVE_EXPECT_SIMULATOR=false'));
+    expect(
+      physicalTarget,
+      isNot(contains('WEAVE_NATIVE_EXPECT_SIMULATOR=true')),
+    );
+    expect(simulatorTarget, contains('WEAVE_NATIVE_EXPECT_SIMULATOR=true'));
+    expect(simulatorTarget, contains('WEAVE_IOS_SIMULATOR_ID'));
+    expect(simulatorTarget, contains('WEAVE_DEVICE_DISPOSABLE_STACK'));
+    expect(
+      makefile,
+      contains(
+        r'--argjson simulator "$${WEAVE_NATIVE_EXPECT_SIMULATOR:-false}"',
+      ),
+    );
+    expect(makefile, contains(r'.id == $$id and .emulator == $$simulator'));
     for (final forbidden in const <String>[
       'WEAVE_TEST_USERNAME',
       'WEAVE_TEST_PASSWORD',

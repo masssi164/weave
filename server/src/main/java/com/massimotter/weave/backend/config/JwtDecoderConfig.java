@@ -1,10 +1,13 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
+import com.massimotter.weave.backend.security.MemberSessionCutoffService;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
@@ -12,6 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
@@ -28,8 +32,55 @@ import org.springframework.util.StringUtils;
 @Configuration
 public class JwtDecoderConfig {
 
-    @Bean
+    @Bean("jwtDecoder")
     @Primary
+    JwtDecoder memberJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            ObjectProvider<MatrixFacadeClientStateService> memberSessions,
+            ObjectProvider<MemberSessionCutoffService> memberCutoffs) {
+        return withMemberSessionRevocation(
+                withMemberCutoff(jwtDecoder(resourceServerProperties, weaveSecurityProperties),
+                        memberCutoffs::getObject), memberSessions::getObject);
+    }
+
+    // Direct decoder contract tests exercise the existing per-session boundary.
+    JwtDecoder memberJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            ObjectProvider<MatrixFacadeClientStateService> memberSessions) {
+        return withMemberSessionRevocation(
+                jwtDecoder(resourceServerProperties, weaveSecurityProperties), memberSessions::getObject);
+    }
+
+    static JwtDecoder withMemberCutoff(
+            JwtDecoder decoder, Supplier<MemberSessionCutoffService> memberCutoffs) {
+        return token -> {
+            Jwt jwt = decoder.decode(token);
+            if (memberCutoffs.get().revoked(jwt)) {
+                throw new BadJwtException("The Weave member session was revoked.");
+            }
+            return jwt;
+        };
+    }
+
+    static JwtDecoder withMemberSessionRevocation(
+            JwtDecoder decoder, Supplier<MatrixFacadeClientStateService> memberSessions) {
+        return token -> {
+            Jwt jwt = decoder.decode(token);
+            // Resolve only after signature/claim validation, so contract export
+            // does not load the native Matrix runtime through authentication.
+            MatrixFacadeClientStateService sessions = memberSessions.get();
+            if (sessions.revoked(jwt)) {
+                // Retain the longest expiry when another already-issued bearer
+                // from the same revoked OIDC session is presented.
+                sessions.revoke(jwt);
+                throw new BadJwtException("The Weave member session was revoked.");
+            }
+            return jwt;
+        };
+    }
+
     JwtDecoder jwtDecoder(
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties) {
@@ -37,17 +88,49 @@ public class JwtDecoderConfig {
         if (!StringUtils.hasText(issuerUri)) {
             return configuredDecoder(resourceServerProperties, jwt -> OAuth2TokenValidatorResult.success());
         }
-        OAuth2TokenValidator<Jwt> validator = JwtValidators.createDefaultWithIssuer(issuerUri);
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(issuerUri),
+                requiredHumanSubjectValidator());
         if (weaveSecurityProperties.hasRequiredAudience()) {
             validator = new DelegatingOAuth2TokenValidator<>(
                     validator,
-                    requiredAudienceValidator(weaveSecurityProperties.requiredAudience()));
+                    exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())));
         }
         if (weaveSecurityProperties.hasRequiredAuthorizedParty()) {
             validator = new DelegatingOAuth2TokenValidator<>(
                     validator,
                     requiredAuthorizedPartyValidator(weaveSecurityProperties.requiredAuthorizedParty()));
         }
+        return configuredDecoder(resourceServerProperties, validator);
+    }
+
+    @Bean("adminApiJwtDecoder")
+    JwtDecoder adminApiJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            ObjectProvider<MemberSessionCutoffService> memberCutoffs) {
+        return withMemberCutoff(adminApiValidatedDecoder(resourceServerProperties, weaveSecurityProperties),
+                memberCutoffs::getObject);
+    }
+
+    JwtDecoder adminApiJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties) {
+        return adminApiValidatedDecoder(resourceServerProperties, weaveSecurityProperties);
+    }
+
+    private JwtDecoder adminApiValidatedDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties) {
+        String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
+        if (!StringUtils.hasText(issuerUri)) {
+            return configuredDecoder(resourceServerProperties, jwt -> OAuth2TokenValidatorResult.success());
+        }
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(issuerUri),
+                requiredHumanSubjectValidator(),
+                exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
+                requiredAuthorizedPartyValidator("weave-admin-console"));
         return configuredDecoder(resourceServerProperties, validator);
     }
 
@@ -72,6 +155,27 @@ public class JwtDecoderConfig {
         return configuredRfc9068Decoder(resourceServerProperties, validator);
     }
 
+    @Bean("calendarMcpWorkloadJwtDecoder")
+    @ConditionalOnProperty(name = "weave.agent-runtime.workload-identity.enabled", havingValue = "true")
+    JwtDecoder calendarMcpWorkloadJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties) {
+        String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
+        if (!StringUtils.hasText(issuerUri)) {
+            return configuredRfc9068Decoder(
+                    resourceServerProperties,
+                    jwt -> OAuth2TokenValidatorResult.success());
+        }
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+                new JwtTimestampValidator(),
+                new JwtIssuerValidator(issuerUri),
+                rfc9068AccessTokenTypeValidator(),
+                exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
+                requiredAuthorizedPartyValidator("weave-mcp-server"),
+                oneOfExactScopesValidator(Set.of("calendar.read", "calendar.write")));
+        return configuredRfc9068Decoder(resourceServerProperties, validator);
+    }
+
     @Bean("agentRuntimeAdminJwtDecoder")
     @ConditionalOnExpression(
             "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
@@ -87,6 +191,7 @@ public class JwtDecoderConfig {
         }
         OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(issuerUri),
+                requiredHumanSubjectValidator(),
                 exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
                 requiredAuthorizedPartyValidator(AgentRuntimeAdminSecurityConfiguration.CLIENT_ID));
         return configuredDecoder(resourceServerProperties, validator);
@@ -153,6 +258,13 @@ public class JwtDecoderConfig {
         };
     }
 
+    static OAuth2TokenValidator<Jwt> requiredHumanSubjectValidator() {
+        return jwt -> StringUtils.hasText(jwt.getSubject())
+                ? OAuth2TokenValidatorResult.success()
+                : OAuth2TokenValidatorResult.failure(
+                        error("invalid_token", "The human access token is missing a subject."));
+    }
+
     static OAuth2TokenValidator<Jwt> requiredAudienceValidator(String requiredAudience) {
         String normalizedRequiredAudience = requiredAudience.trim();
         return jwt -> hasRequiredAudience(jwt, normalizedRequiredAudience);
@@ -197,6 +309,19 @@ public class JwtDecoderConfig {
             }
             return OAuth2TokenValidatorResult.failure(
                     error("invalid_token", "The token scope set is not exact."));
+        };
+    }
+
+    static OAuth2TokenValidator<Jwt> oneOfExactScopesValidator(Set<String> allowedScopes) {
+        Set<String> allowed = Set.copyOf(allowedScopes);
+        return jwt -> {
+            String claim = jwt.getClaimAsString("scope");
+            if (claim != null && allowed.contains(claim.trim())
+                    && claim.trim().split("\\s+").length == 1) {
+                return OAuth2TokenValidatorResult.success();
+            }
+            return OAuth2TokenValidatorResult.failure(
+                    error("invalid_token", "The token scope is not an admitted exact domain scope."));
         };
     }
 

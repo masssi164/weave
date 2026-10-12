@@ -132,6 +132,14 @@ def check_diagrams() -> None:
             fail(f"{name} is not linked from diagrams index and mkdocs nav")
 
 
+def check_matrix_support_profile() -> None:
+    from check_matrix_support_profile import PROFILE, check_profile
+
+    errors = check_profile(read(ROOT / PROFILE), ROOT)
+    if errors:
+        fail("Matrix support profile: " + "; ".join(errors))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -145,6 +153,7 @@ def main() -> None:
     if not args.release_notes_only:
         check_required_docs()
         check_diagrams()
+        check_matrix_support_profile()
 
     print("docs-check: ok")
 

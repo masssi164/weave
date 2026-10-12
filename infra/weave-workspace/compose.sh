@@ -21,6 +21,16 @@ if [[ "$1" == "e2e" && "$2" == "keycloak-migration-apply" ]]; then
     --env-file "${WEAVE_ENV_FILE:?WEAVE_ENV_FILE is required for isolated E2E migration}"
 fi
 
+if [[ "$1" == "e2e" && "$2" == "foreign-organization-fixture" ]]; then
+  [[ $# -eq 2 ]] || {
+    printf 'WEAVE_COMPOSE_ERROR e2e foreign-organization-fixture does not accept command arguments\n' >&2
+    exit 2
+  }
+  exec python3 "${ROOT_DIR}/scripts/keycloak_foreign_org_fixture.py" \
+    --root "${ROOT_DIR}" \
+    --env-file "${WEAVE_ENV_FILE:?WEAVE_ENV_FILE is required for isolated E2E fixture}"
+fi
+
 if [[ "$1" == "dogfood" && "$2" == "bootstrap-owner" ]]; then
   exec python3 "${ROOT_DIR}/scripts/dogfood_lifecycle.py" \
     bootstrap-owner \

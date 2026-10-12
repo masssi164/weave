@@ -1,0 +1,238 @@
+package com.massimotter.weave.e2e;
+
+import com.massimotter.weave.adminapi.api.AdminControlPlaneApi;
+import com.massimotter.weave.adminapi.api.AdminWorkspaceApi;
+import com.massimotter.weave.adminapi.api.IdentityBootstrapApi;
+import com.massimotter.weave.adminapi.api.OrganizationInvitationsApi;
+import com.massimotter.weave.adminapi.api.OrganizationMembersApi;
+import com.massimotter.weave.adminapi.api.ProviderRegistryApi;
+import com.massimotter.weave.adminapi.invoker.ApiClient;
+import com.massimotter.weave.adminapi.invoker.ApiException;
+import com.massimotter.weave.adminapi.model.AdminControlPlaneResponse;
+import com.massimotter.weave.adminapi.model.ApiErrorResponse;
+import com.massimotter.weave.adminapi.model.BootstrapOwnerInvitationRequest;
+import com.massimotter.weave.adminapi.model.MemberInvitationRequest;
+import com.massimotter.weave.adminapi.model.MemberInvitationResponse;
+import com.massimotter.weave.adminapi.model.OrganizationMemberPageResponse;
+import com.massimotter.weave.adminapi.model.OrganizationMemberResponse;
+import com.massimotter.weave.adminapi.model.ProviderSelectionRequest;
+import com.massimotter.weave.adminapi.model.ProviderSelectionResponse;
+import com.massimotter.weave.adminapi.model.ProviderRegistryResponse;
+import com.massimotter.weave.adminapi.model.WeaverEntitlementUpdateRequest;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/** TLS-bound consumer of the generated server-owned Admin contract. */
+final class GeneratedAdminApi {
+  private final ObjectMapper mapper;
+  private final AdminControlPlaneApi controlPlane;
+  private final ProviderRegistryApi providers;
+  private final AdminWorkspaceApi workspace;
+  private final IdentityBootstrapApi bootstrap;
+  private final OrganizationInvitationsApi invitations;
+  private final OrganizationMembersApi members;
+
+  GeneratedAdminApi(URI apiOrigin, Path caCertificate) {
+    this(
+        apiOrigin,
+        HttpClient.newBuilder()
+            .sslContext(JsonHttpClient.sslContext(caCertificate))
+            .connectTimeout(Duration.ofSeconds(10))
+            .followRedirects(HttpClient.Redirect.NEVER));
+  }
+
+  GeneratedAdminApi(URI apiOrigin, HttpClient.Builder httpClientBuilder) {
+    ApiClient client =
+        new ApiClient()
+            .setHttpClientBuilder(httpClientBuilder)
+            .setReadTimeout(Duration.ofSeconds(30));
+    client.updateBaseUri(apiOrigin.getScheme() + "://" + apiOrigin.getRawAuthority());
+    mapper = client.getObjectMapper();
+    controlPlane = new AdminControlPlaneApi(client);
+    providers = new ProviderRegistryApi(client);
+    workspace = new AdminWorkspaceApi(client);
+    bootstrap = new IdentityBootstrapApi(client);
+    invitations = new OrganizationInvitationsApi(client);
+    members = new OrganizationMembersApi(client);
+  }
+
+  MemberInvitationResponse bootstrapOwner(String token, String idempotencyKey, String email) {
+    try {
+      MemberInvitationResponse result =
+          bootstrap.bootstrapOwnerInvitation(
+              token,
+              idempotencyKey,
+              new BootstrapOwnerInvitationRequest()
+                  .email(email)
+                  .displayName("Weave E2E Owner"));
+      if (result == null) {
+        throw new ProductFlowException("Owner bootstrap returned no invitation");
+      }
+      return result;
+    } catch (ApiException failure) {
+      throw new ProductFlowException("Owner bootstrap failed with HTTP " + failure.getCode());
+    }
+  }
+
+  MemberInvitationResponse inviteMember(
+      String bearer,
+      String organizationId,
+      String idempotencyKey,
+      String email,
+      String displayName,
+      String role) {
+    try {
+      MemberInvitationResponse result =
+          invitations.createOrganizationInvitation(
+              organizationId,
+              idempotencyKey,
+              new MemberInvitationRequest().email(email).displayName(displayName).role(role),
+              authHeaders(bearer));
+      if (result == null) {
+        throw new ProductFlowException("Member invitation returned no projection");
+      }
+      return result;
+    } catch (ApiException failure) {
+      throw new ProductFlowException("Member invitation failed with HTTP " + failure.getCode());
+    }
+  }
+
+  OrganizationMemberPageResponse listMembers(String bearer, String organizationId) {
+    try {
+      OrganizationMemberPageResponse result =
+          members.listOrganizationMembers(organizationId, null, 100, authHeaders(bearer));
+      if (result == null || result.getItems() == null) {
+        throw new ProductFlowException("Member listing returned no page");
+      }
+      return result;
+    } catch (ApiException failure) {
+      throw new ProductFlowException("Member listing failed with HTTP " + failure.getCode());
+    }
+  }
+
+  OrganizationMemberResponse updateWeaverEntitlement(
+      String bearer,
+      String organizationId,
+      String memberHandle,
+      String version,
+      String idempotencyKey,
+      boolean entitled) {
+    try {
+      OrganizationMemberResponse result =
+          members.updateOrganizationMemberWeaverEntitlement(
+              organizationId,
+              memberHandle,
+              version,
+              idempotencyKey,
+              new WeaverEntitlementUpdateRequest().entitled(entitled),
+              authHeaders(bearer));
+      if (result == null) {
+        throw new ProductFlowException("Weaver entitlement update returned no member");
+      }
+      return result;
+    } catch (ApiException failure) {
+      throw new ProductFlowException(
+          "Weaver entitlement update failed with HTTP " + failure.getCode());
+    }
+  }
+
+  void verifyWorkspaceDiagnostics(String bearer) {
+    try {
+      var policy = workspace.capabilityPolicy(authHeaders(bearer));
+      if (policy == null || !Boolean.TRUE.equals(policy.getSupportSafe())
+          || !Boolean.TRUE.equals(policy.getDenyByDefault())
+          || !policy.getGrantedCapabilities().contains("admin_control_plane.readiness_read")) {
+        throw new ProductFlowException("Admin workspace policy did not match current authority");
+      }
+      var readiness = workspace.releaseReadiness(authHeaders(bearer));
+      if (readiness == null || readiness.getReadiness() == null || readiness.getChecks() == null
+          || !readiness.getChecks().stream().map(value -> value.getKey()).collect(Collectors.toSet())
+              .equals(Set.of("auth-contract", "chat", "files"))) {
+        throw new ProductFlowException("Admin workspace configuration checks did not match");
+      }
+    } catch (ApiException failure) {
+      throw new ProductFlowException("Admin workspace diagnostics failed with HTTP " + failure.getCode()
+          + supportSafeErrorCode(failure));
+    }
+  }
+
+  ProviderRegistryResponse providerStatus(String bearer) {
+    try {
+      ProviderRegistryResponse result = providers.status(authHeaders(bearer));
+      if (result == null) {
+        throw new ProductFlowException("Admin provider status returned an empty response");
+      }
+      return result;
+    } catch (ApiException failure) {
+      throw new ProductFlowException("Admin provider status failed with HTTP " + failure.getCode()
+          + supportSafeErrorCode(failure));
+    }
+  }
+
+  AdminControlPlaneResponse controlPlane(String bearer) {
+    try {
+      AdminControlPlaneResponse result =
+          controlPlane.getAdminControlPlane(authHeaders(bearer));
+      if (result == null) {
+        throw new ProductFlowException("Admin control plane returned an empty response");
+      }
+      return result;
+    } catch (ApiException failure) {
+      // Generated exceptions include raw bodies. Keep E2E diagnostics support-safe.
+      throw new ProductFlowException("Admin control plane failed with HTTP " + failure.getCode()
+          + supportSafeErrorCode(failure));
+    }
+  }
+
+  void requireForeignOrganizationDenied(String bearer) {
+    try {
+      controlPlane.getAdminControlPlane(authHeaders(bearer));
+      throw new ProductFlowException("foreign organization reached the primary Admin control plane");
+    } catch (ApiException denial) {
+      if (denial.getCode() != 403 && denial.getCode() != 404) {
+        throw new ProductFlowException(
+            "foreign organization Admin denial returned HTTP " + denial.getCode());
+      }
+    }
+  }
+
+  private String supportSafeErrorCode(ApiException failure) {
+    String body = failure.getResponseBody();
+    if (body == null || body.length() > 8192) {
+      return "";
+    }
+    try {
+      ApiErrorResponse error = mapper.readValue(body, ApiErrorResponse.class);
+      String value = error.getCode();
+      return value != null && value.matches("[a-z0-9-]{1,80}")
+          ? " (code=" + value + ")" : "";
+    } catch (Exception ignored) {
+      return "";
+    }
+  }
+
+  ProviderSelectionResponse selectProvider(String bearer, ProviderSelectionRequest request) {
+    try {
+      ProviderSelectionResponse result = controlPlane.selectProvider(request, authHeaders(bearer));
+      if (result == null) {
+        throw new ProductFlowException("Admin provider selection returned an empty response");
+      }
+      return result;
+    } catch (ApiException failure) {
+      throw new ProductFlowException("Admin provider selection failed with HTTP " + failure.getCode());
+    }
+  }
+
+  private Map<String, String> authHeaders(String bearer) {
+    if (bearer == null || bearer.isBlank()) {
+      throw new IllegalArgumentException("Admin access token is unavailable");
+    }
+    return Map.of("Authorization", "Bearer " + bearer);
+  }
+}

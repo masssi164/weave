@@ -1,6 +1,6 @@
 # Calendar support profile
 
-This profile is normative for the Calendar scope of PR #1325. A capability is not considered complete merely because its domain type exists; the indicated server path and qualification evidence must also be green.
+This profile records the Calendar compatibility boundary inherited from PR #1325 and the current #1470/#1479 release overlay. A capability is not considered complete merely because its domain type exists; the indicated server path and qualification evidence must also be green. The release northbound product contract is the code-first Calendar User API under `/api/calendar/calendars`; generated-consumer and real runtime evidence remain required for release acceptance. See `specs/calendar-user-api-contract.md` for implementation evidence and limitations.
 
 ## iCalendar / VEVENT
 
@@ -18,13 +18,15 @@ This profile is normative for the Calendar scope of PR #1325. A capability is no
 | RECURRENCE-ID single-instance move/cancel | Supported by canonical model | Final closure requires normalized relational persistence/interoperability evidence. |
 | RANGE=THISANDFUTURE | Unsupported | Rejected; no silent downgrade. |
 | VTODO / VJOURNAL | Unsupported | Outside current product profile. |
-| Unknown X-* properties | Guarded | Must not override canonical/security fields; preservation policy requires explicit evidence before closure claim. |
+| Unknown properties, parameters, components and alarms | Guarded / rejected | Unsupported input fails closed before editing. Unknown X-* and VTIMEZONE components are not silently discarded. Only explicit IANA TZID semantics are supported. The legacy owned X-WEAVE scope fields cannot override authorized server scope. |
 
-## CalDAV
+## Southbound CalDAV and historical protocol evidence
+
+Public northbound CalDAV, including its legacy discovery/facade routes, is deferred by the current release profile. The following rows describe adapter or historical protocol implementation evidence; they do not make northbound CalDAV a #1470 closure requirement or claim general CalDAV conformance. Southbound objects whose href identity differs from their UID fail closed until a lossless mapping contract exists.
 
 | Capability | Status | Notes |
 | --- | --- | --- |
-| Collection discovery / PROPFIND | Supported facade surface | Provider-specific availability remains readiness-gated. |
+| Collection discovery / PROPFIND | Historical facade evidence; northbound deferred | Provider-specific availability remains readiness-gated. |
 | calendar-query REPORT | Supported | Time-range requests are bounded. |
 | sync-collection | Supported | Native sync must use captured logical high-water. |
 | GET / PUT / DELETE | Supported | ETag/precondition behavior is part of closure evidence. |

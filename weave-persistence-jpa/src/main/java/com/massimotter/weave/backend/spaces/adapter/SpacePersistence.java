@@ -6,6 +6,7 @@ import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import jakarta.persistence.LockModeType;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.Instant;
@@ -14,7 +15,12 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.List;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /** Canonical Space aggregate root. */
 @Entity
@@ -59,6 +65,10 @@ class SpaceJpaEntity {
         updatedAt = utc(now);
     }
 
+    boolean active() {
+        return "ACTIVE".equals(lifecycleState);
+    }
+
     static OffsetDateTime utc(Instant value) {
         return Objects.requireNonNull(value, "now")
                 .truncatedTo(ChronoUnit.MICROS)
@@ -100,6 +110,9 @@ class SpaceId implements Serializable {
 }
 
 interface SpaceJpaRepository extends JpaRepository<SpaceJpaEntity, SpaceId> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select space from SpaceJpaEntity space where space.id = :id")
+    Optional<SpaceJpaEntity> lockById(@Param("id") SpaceId id);
 }
 
 /** Membership is independently versioned to avoid replacing the Space aggregate graph. */
@@ -148,9 +161,31 @@ class SpaceMembershipJpaEntity {
     void replacePermissions(String permissionSet, Instant now) {
         this.permissionSet =
                 Objects.requireNonNull(permissionSet, "permissionSet");
+        lifecycleState = "ACTIVE";
         updatedAt = Objects.requireNonNull(now, "now")
                 .truncatedTo(ChronoUnit.MICROS)
                 .atOffset(ZoneOffset.UTC);
+    }
+
+    void revoke(Instant now) {
+        lifecycleState = "REVOKED";
+        updatedAt = SpaceJpaEntity.utc(now);
+    }
+
+    boolean active() {
+        return "ACTIVE".equals(lifecycleState);
+    }
+
+    String permissionSet() {
+        return permissionSet;
+    }
+
+    String accountRef() {
+        return id.personRef();
+    }
+
+    long version() {
+        return version;
     }
 }
 
@@ -181,6 +216,10 @@ class SpaceMembershipId implements Serializable {
         this.personRef = Objects.requireNonNull(personRef, "personRef");
     }
 
+    String personRef() {
+        return personRef;
+    }
+
     @Override
     public boolean equals(Object candidate) {
         return this == candidate
@@ -198,9 +237,43 @@ class SpaceMembershipId implements Serializable {
 
 interface SpaceMembershipJpaRepository
         extends JpaRepository<SpaceMembershipJpaEntity, SpaceMembershipId> {
+    @Query("""
+            select m from SpaceMembershipJpaEntity m
+            where m.id.organizationRef = :organizationRef
+              and m.id.spaceRef = :spaceRef
+              and m.id.personRef > :afterAccountRef
+              and m.lifecycleState = 'ACTIVE'
+            order by m.id.personRef
+            """)
+    List<SpaceMembershipJpaEntity> currentMembers(
+            @Param("organizationRef") String organizationRef,
+            @Param("spaceRef") String spaceRef,
+            @Param("afterAccountRef") String afterAccountRef,
+            Pageable page);
+
+    List<SpaceMembershipJpaEntity> findByIdOrganizationRefAndIdSpaceRef(
+            String organizationRef, String spaceRef);
     Optional<SpaceMembershipJpaEntity>
             findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(
                     String organizationRef,
                     String spaceRef,
                     String personRef);
+
+    @Query("""
+            select s.id.spaceRef from SpaceJpaEntity s, SpaceMembershipJpaEntity m
+            where s.id.organizationRef = :organizationRef
+              and m.id.organizationRef = :organizationRef
+              and s.id.spaceRef = m.id.spaceRef
+              and m.id.personRef = :personRef
+              and s.lifecycleState = 'ACTIVE'
+              and m.lifecycleState = 'ACTIVE'
+              and m.permissionSet in ('VIEW', 'VIEW,EDIT', 'VIEW,EDIT,ADMIN')
+              and s.id.spaceRef > :afterSpaceRef
+            order by s.id.spaceRef
+            """)
+    List<String> visibleSpaceRefs(
+            @Param("organizationRef") String organizationRef,
+            @Param("personRef") String personRef,
+            @Param("afterSpaceRef") String afterSpaceRef,
+            Pageable page);
 }

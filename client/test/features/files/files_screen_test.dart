@@ -1,8 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/files/data/services/file_picker_files_import_picker.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
@@ -20,6 +24,70 @@ import 'package:weave/features/server_config/presentation/providers/server_confi
 import '../../helpers/server_config_test_data.dart';
 import '../../helpers/test_app.dart';
 
+const _readyFilesSnapshot = WorkspaceCapabilitySnapshot(
+  shellAccess: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.shellAccess,
+    readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
+  ),
+  chat: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.chat,
+    readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
+  ),
+  files: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.files,
+    readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
+  ),
+  calendar: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.calendar,
+    readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
+  ),
+  boards: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.boards,
+    readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
+  ),
+);
+
+Widget _filesTestApp(Widget child, {List<dynamic> overrides = const []}) {
+  return createTestApp(
+    child,
+    overrides: [
+      workspaceCapabilitySnapshotProvider.overrideWithValue(
+        const AsyncData(_readyFilesSnapshot),
+      ),
+      ...overrides,
+    ],
+  );
+}
+
+WorkspaceCapabilitySnapshot _blockedFilesSnapshot() =>
+    WorkspaceCapabilitySnapshot(
+      shellAccess: _readyFilesSnapshot.shellAccess,
+      chat: _readyFilesSnapshot.chat,
+      files: const WorkspaceCapabilityState(
+        capability: WorkspaceCapability.files,
+        readiness: WorkspaceCapabilityReadiness.blocked,
+        policyState: WorkspaceCapabilityPolicyState.policyBlocked,
+      ),
+      calendar: _readyFilesSnapshot.calendar,
+      boards: _readyFilesSnapshot.boards,
+    );
+
+class _CapabilitySnapshotController
+    extends Notifier<AsyncValue<WorkspaceCapabilitySnapshot>> {
+  @override
+  AsyncValue<WorkspaceCapabilitySnapshot> build() =>
+      AsyncData(_blockedFilesSnapshot());
+
+  void show(WorkspaceCapabilitySnapshot snapshot) {
+    state = AsyncData(snapshot);
+  }
+}
+
 class _FakeFilesRepository
     implements FilesRepository, FilesEntryMutationRepository {
   _FakeFilesRepository({
@@ -28,7 +96,7 @@ class _FakeFilesRepository
     this.listDirectoryHandler,
     this.uploadFileHandler,
     this.createFolderHandler,
-    this.deleteEntryHandler,
+    this.grantActions = true,
   });
 
   final FilesConnectionState connectionState;
@@ -42,8 +110,9 @@ class _FakeFilesRepository
   uploadFileHandler;
   final Future<FileEntry> Function(String parentPath, String name)?
   createFolderHandler;
-  final Future<void> Function(FileEntry entry)? deleteEntryHandler;
+  final bool grantActions;
   final List<String> requestedPaths = <String>[];
+  int restoreConnectionCalls = 0;
 
   @override
   Future<FilesConnectionState> connect() async => connectionState;
@@ -56,9 +125,38 @@ class _FakeFilesRepository
     requestedPaths.add(path);
     final handler = listDirectoryHandler;
     if (handler != null) {
-      return handler(path);
+      return _withTestActions(await handler(path));
     }
-    return listings[path] ?? const DirectoryListing(path: '/', entries: []);
+    return _withTestActions(
+      listings[path] ?? const DirectoryListing(path: '/', entries: []),
+    );
+  }
+
+  DirectoryListing _withTestActions(DirectoryListing listing) {
+    if (!grantActions) return listing;
+    // Existing widget fixtures exercise supported actions through a fake
+    // repository. Explicit fixture actions remain visible to negative tests.
+    return DirectoryListing(
+      path: listing.path,
+      parentFileId: listing.parentFileId,
+      allowedActions: const {'listChildren', 'createFolder', 'upload'},
+      entries: listing.entries
+          .map(
+            (entry) => FileEntry(
+              id: entry.id,
+              name: entry.name,
+              path: entry.path,
+              isDirectory: entry.isDirectory,
+              modifiedAt: entry.modifiedAt,
+              sizeInBytes: entry.sizeInBytes,
+              revision: entry.revision,
+              allowedActions: entry.isDirectory
+                  ? {...entry.allowedActions, 'inspect', 'listChildren'}
+                  : {...entry.allowedActions, 'inspect', 'download'},
+            ),
+          )
+          .toList(growable: false),
+    );
   }
 
   @override
@@ -91,11 +189,14 @@ class _FakeFilesRepository
 
   @override
   Future<void> deleteEntry(FileEntry entry) async {
-    await deleteEntryHandler?.call(entry);
+    throw UnimplementedError('No generated User delete operation exists.');
   }
 
   @override
-  Future<FilesConnectionState> restoreConnection() async => connectionState;
+  Future<FilesConnectionState> restoreConnection() async {
+    restoreConnectionCalls++;
+    return connectionState;
+  }
 }
 
 class _FakeServerConfigurationRepository
@@ -125,7 +226,101 @@ class _FakeFilesImportPicker implements FilesImportPicker {
 
 void main() {
   group('FilesScreen', () {
-    testWidgets('shows a connect action when Weave Files is disconnected', (
+    testWidgets(
+      'waits for member access, opens Files automatically, and hides revoked content',
+      (tester) async {
+        final capabilityState =
+            NotifierProvider<
+              _CapabilitySnapshotController,
+              AsyncValue<WorkspaceCapabilitySnapshot>
+            >(_CapabilitySnapshotController.new);
+        final repository = _FakeFilesRepository(
+          connectionState: FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://api.weave.local/api'),
+            accountLabel: 'Weave files',
+          ),
+          listings: {
+            '/': const DirectoryListing(
+              path: '/',
+              entries: [
+                FileEntry(
+                  id: 'file:10fd870a-6c0e-4c06-9181-b0c1cdb855b7',
+                  name: 'Private plan.txt',
+                  path: '/Private plan.txt',
+                  isDirectory: false,
+                ),
+              ],
+            ),
+          },
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            const FilesScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWith(
+                (ref) => ref.watch(capabilityState),
+              ),
+              filesRepositoryProvider.overrideWithValue(repository),
+              serverConfigurationRepositoryProvider.overrideWith(
+                (ref) => _FakeServerConfigurationRepository(
+                  buildTestConfiguration(),
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Files are unavailable'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel(
+            RegExp('Files.*State: Disabled by policy.*Recovery:'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Private plan.txt'), findsNothing);
+        expect(repository.restoreConnectionCalls, 0);
+        expect(repository.requestedPaths, isEmpty);
+
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(FilesScreen)),
+        );
+        container.read(capabilityState.notifier).show(_readyFilesSnapshot);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Private plan.txt'), findsOneWidget);
+        expect(repository.restoreConnectionCalls, 1);
+        expect(repository.requestedPaths, ['/']);
+        expect(find.text('Connect Files'), findsNothing);
+
+        container.read(capabilityState.notifier).show(_blockedFilesSnapshot());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Private plan.txt'), findsNothing);
+        expect(find.text('Files are unavailable'), findsOneWidget);
+
+        repository.listings['/'] = const DirectoryListing(
+          path: '/',
+          entries: [
+            FileEntry(
+              id: 'file:20fd870a-6c0e-4c06-9181-b0c1cdb855b7',
+              name: 'Current plan.txt',
+              path: '/Current plan.txt',
+              isDirectory: false,
+            ),
+          ],
+        );
+        container.read(capabilityState.notifier).show(_readyFilesSnapshot);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Private plan.txt'), findsNothing);
+        expect(find.text('Current plan.txt'), findsOneWidget);
+        expect(repository.restoreConnectionCalls, 2);
+        expect(repository.requestedPaths, ['/', '/']);
+      },
+    );
+
+    testWidgets('points to the shared Weave sign-in when Files has no session', (
       tester,
     ) async {
       final repository = _FakeFilesRepository(
@@ -135,7 +330,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -148,30 +343,61 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Connect Files'), findsNWidgets(2));
-      expect(find.text('Files are not connected'), findsOneWidget);
+      expect(find.text('Connect Files'), findsNothing);
+      expect(find.text('Sign in to use Files'), findsOneWidget);
       expect(
-        find.text('Connect Weave Files to browse workspace files.'),
+        find.text('Sign in to Weave to browse workspace files.'),
         findsOneWidget,
       );
       expect(find.text('Weave Files'), findsOneWidget);
       expect(find.text('Weave product boundary'), findsOneWidget);
       expect(
-        find.textContaining(
-          'Files actions use the Weave workspace service facade',
-        ),
+        find.textContaining('Files actions use the Weave User API'),
         findsOneWidget,
       );
       expect(find.text('https://files.home.internal'), findsNothing);
       expect(
         find.bySemanticsLabel(
           RegExp(
-            'Weave product boundary.*workspace service facade.*raw service paths and credentials',
+            'Weave product boundary.*Weave User API.*raw provider paths and credentials',
             dotAll: true,
           ),
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets('explains unavailable Files access without browsing', (
+      tester,
+    ) async {
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.unavailable(
+          baseUrl: Uri.parse('https://api.home.internal/api'),
+          message: 'Files access is blocked by workspace policy.',
+        ),
+      );
+
+      await tester.pumpWidget(
+        _filesTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Files are unavailable'), findsOneWidget);
+      expect(
+        find.text('Files access is blocked by workspace policy.'),
+        findsOneWidget,
+      );
+      expect(find.text('Retry'), findsAtLeastNWidgets(1));
+      expect(repository.requestedPaths, isEmpty);
     });
 
     testWidgets('shows shared guidance when a connected folder is empty', (
@@ -185,7 +411,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -208,6 +434,57 @@ void main() {
       expect(find.text('Refresh'), findsAtLeastNWidgets(1));
       expect(find.text('https://files.home.internal'), findsNothing);
       expect(find.text('Nextcloud'), findsNothing);
+    });
+
+    testWidgets('hides file actions absent from server grants', (tester) async {
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://api.home.internal/api'),
+          accountLabel: 'alice',
+        ),
+        grantActions: false,
+        listings: const {
+          '/': DirectoryListing(
+            path: '/',
+            entries: [
+              FileEntry(
+                id: 'file:folder',
+                name: 'Folder',
+                path: '/Folder',
+                isDirectory: true,
+              ),
+              FileEntry(
+                id: 'file:note',
+                name: 'note.txt',
+                path: '/note.txt',
+                isDirectory: false,
+              ),
+            ],
+          ),
+        },
+      );
+      await tester.pumpWidget(
+        _filesTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('New folder'), findsNothing);
+      expect(find.text('Upload'), findsNothing);
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
+      expect(find.byIcon(Icons.file_download_outlined), findsNothing);
+      final folderTile = tester.widget<ListTile>(
+        find.ancestor(of: find.text('Folder'), matching: find.byType(ListTile)),
+      );
+      expect(folderTile.onTap, isNull);
     });
 
     testWidgets('renders directory contents and allows folder navigation', (
@@ -262,7 +539,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -336,7 +613,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          createTestApp(
+          _filesTestApp(
             const FilesScreen(),
             overrides: [
               filesRepositoryProvider.overrideWithValue(repository),
@@ -420,7 +697,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -475,7 +752,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -530,7 +807,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -598,7 +875,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -654,7 +931,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          createTestApp(
+          _filesTestApp(
             const FilesScreen(),
             overrides: [
               filesRepositoryProvider.overrideWithValue(repository),
@@ -720,7 +997,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -773,7 +1050,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -847,7 +1124,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -877,36 +1154,17 @@ void main() {
       );
     });
 
-    testWidgets('confirms deletion, removes the entry, and shows feedback', (
+    testWidgets('opens folder dialog from keyboard and restores action focus', (
       tester,
     ) async {
-      FileEntry? deletedEntry;
-      var deletionComplete = false;
-      const fileEntry = FileEntry(
-        id: 'file-1',
-        name: 'old.txt',
-        path: '/old.txt',
-        isDirectory: false,
-      );
       final repository = _FakeFilesRepository(
         connectionState: FilesConnectionState.connected(
           baseUrl: Uri.parse('https://files.home.internal'),
           accountLabel: 'alice',
         ),
-        listDirectoryHandler: (path) async {
-          return DirectoryListing(
-            path: '/',
-            entries: deletionComplete ? const [] : const [fileEntry],
-          );
-        },
-        deleteEntryHandler: (entry) async {
-          deletedEntry = entry;
-          deletionComplete = true;
-        },
       );
-
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -919,19 +1177,72 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Delete old.txt'));
+      final trigger = find.widgetWithText(OutlinedButton, 'New folder');
+      Finder focused() => find.byElementPredicate(
+        (element) =>
+            identical(element, FocusManager.instance.primaryFocus?.context),
+      );
+      for (
+        var i = 0;
+        i < 30 &&
+            find.ancestor(of: focused(), matching: trigger).evaluate().isEmpty;
+        i++
+      ) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      expect(find.ancestor(of: focused(), matching: trigger), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
-      expect(find.text('Delete old.txt?'), findsOneWidget);
-      await tester.tap(find.text('Delete').last);
+      final field = find.byType(TextField);
+      expect(find.ancestor(of: focused(), matching: field), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      final cancel = find.widgetWithText(TextButton, 'Cancel');
+      expect(find.ancestor(of: focused(), matching: cancel), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Create folder'), findsNothing);
+      expect(find.ancestor(of: focused(), matching: trigger), findsOneWidget);
+    });
+
+    testWidgets('does not offer delete without a generated User operation', (
+      tester,
+    ) async {
+      const fileEntry = FileEntry(
+        id: 'file-1',
+        name: 'old.txt',
+        path: '/old.txt',
+        isDirectory: false,
+        allowedActions: {'delete'},
+      );
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://api.home.internal/api'),
+          accountLabel: 'alice',
+        ),
+        listings: const {
+          '/': DirectoryListing(path: '/', entries: [fileEntry]),
+        },
+      );
+
+      await tester.pumpWidget(
+        _filesTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
       await tester.pumpAndSettle();
 
-      expect(deletedEntry, fileEntry);
-      expect(find.text('Deleted old.txt.'), findsOneWidget);
-      expect(find.text('old.txt'), findsNothing);
-      expect(
-        find.bySemanticsLabel('Deleted old.txt.'),
-        findsAtLeastNWidgets(1),
-      );
+      expect(find.text('old.txt'), findsOneWidget);
+      expect(find.byTooltip('Delete old.txt'), findsNothing);
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
     });
 
     testWidgets('meets androidTapTargetGuideline', (tester) async {
@@ -942,7 +1253,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
@@ -966,7 +1277,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _filesTestApp(
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),

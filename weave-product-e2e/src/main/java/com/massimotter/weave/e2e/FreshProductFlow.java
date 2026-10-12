@@ -1,5 +1,12 @@
 package com.massimotter.weave.e2e;
 
+import com.massimotter.weave.adminapi.model.ProviderSelectionRequest;
+import com.massimotter.weave.adminapi.model.ProviderSelectionResponse;
+import com.massimotter.weave.adminapi.model.MemberInvitationResponse;
+import com.massimotter.weave.adminapi.model.OrganizationMemberResponse;
+import com.massimotter.weave.userapi.model.ChatReadiness;
+import com.massimotter.weave.userapi.model.IdentitySessionReconcileResponse;
+import com.massimotter.weave.userapi.model.ProfileReadinessResponse;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -52,7 +59,8 @@ public final class FreshProductFlow {
       new FreshProductFlow(environment).run();
       System.out.println(
           "WEAVE_TEST_APP_RESULT status=passed activation=browser pkce=S256 "
-              + "workload=private_key_jwt tool=files.search projection=webdav supportSafe=true");
+              + "workload=private_key_jwt tools=files.search,calendar.agenda projection=user-api "
+              + "userFiles=generated supportSafe=true");
     } catch (RuntimeException failure) {
       System.err.println(
           "WEAVE_TEST_APP_ERROR "
@@ -71,9 +79,6 @@ public final class FreshProductFlow {
     String ownerEmail = environment.ownerEmail();
     String memberEmail = environment.memberEmail();
     String outsiderEmail = environment.outsiderEmail();
-    String proofFile =
-        "weave-e2e-" + Hashing.sha256(environment.runId()).substring(0, 16) + ".txt";
-    boolean fileCreated = false;
     OidcBrowserJourney.TokenSet memberSession = null;
     OidcBrowserJourney.TokenSet outsiderSession = null;
     OidcBrowserJourney.TokenSet adminSession = null;
@@ -85,11 +90,18 @@ public final class FreshProductFlow {
     boolean regrantRestored = false;
     boolean sameHumanSubjectAfterRegrant = false;
     boolean samePersonRefAfterRegrant = false;
+    boolean spaceRevocationRestored = false;
+    boolean foreignOrganizationDenied = false;
     List<CollaborationJourney.PassProof> collaborationPasses = new java.util.ArrayList<>();
 
     try (OidcBrowserJourney browser = new OidcBrowserJourney(environment, http)) {
-      JsonNode ownerInvitation = bootstrapOwner(ownerEmail);
-      String organizationId = requiredText(ownerInvitation, "organizationId");
+      MemberInvitationResponse ownerInvitation = bootstrapOwner(ownerEmail);
+      String organizationId = ownerInvitation.getOrganizationId();
+      if (organizationId == null || organizationId.isBlank()
+          || !"owner".equals(ownerInvitation.getRequestedRole())
+          || !ownerEmail.equalsIgnoreCase(ownerInvitation.getEmail())) {
+        throw new ProductFlowException("Owner bootstrap returned an invalid invitation projection");
+      }
       MailpitActivationInbox ownerInbox =
           new MailpitActivationInbox(
               http,
@@ -122,7 +134,21 @@ public final class FreshProductFlow {
               browser, ownerSession, "owner", ownerEmail, ownerPassword);
       ownerSession = awaitAuthority(browser, ownerSession, "/owners", "owner");
       validateHumanWorkspaceToken(browser.jwtPayload(ownerSession.accessToken()), "weave-app");
-      configureRequiredProviders(ownerSession.accessToken());
+      adminSession =
+          browser.authorize(
+              "weave-admin-console",
+              environment.productOrigin().resolve("/admin-console/"),
+              List.of("openid", "profile", "email", "agent-runtime.admin"),
+              ownerEmail,
+              ownerPassword,
+              "owner-initial-admin");
+      validateAdminToken(browser.jwtPayload(adminSession.accessToken()));
+      assertSeparatedApiSessions(ownerSession.accessToken(), adminSession.accessToken());
+      assertGeneratedAdminControlPlane(adminSession.accessToken(), organizationId);
+      new ForeignOrganizationJourney(environment, http).provision();
+      GeneratedSpacesJourney spaces = new GeneratedSpacesJourney(environment);
+      spaces.provisionDefault(adminSession.accessToken(), ownerSession.accessToken());
+      configureRequiredProviders(adminSession.accessToken());
       awaitChatReadiness(ownerSession.accessToken());
 
       Instant memberInvitedAt = Instant.now();
@@ -131,7 +157,7 @@ public final class FreshProductFlow {
           memberEmail,
           "Weave E2E Member",
           "member",
-          ownerSession.accessToken());
+          adminSession.accessToken());
       MailpitActivationInbox memberInbox =
           new MailpitActivationInbox(
               http,
@@ -162,12 +188,20 @@ public final class FreshProductFlow {
           reconcileIdentitySession(
               browser, memberSession, "member", memberEmail, memberPassword);
       setWeaverEntitlement(
-          organizationId, memberEmail, ownerSession.accessToken(), true, "initial");
+          organizationId, memberEmail, adminSession.accessToken(), true, "initial");
+      setWeaverEntitlement(
+          organizationId, ownerEmail, adminSession.accessToken(), true, "owner-calendar-write");
+      ownerSession =
+          awaitAuthority(
+              browser, ownerSession, "/capabilities/weaver", "agent-runtime.entitled");
       memberSession =
           awaitAuthority(
               browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
       JsonNode memberClaims = browser.jwtPayload(memberSession.accessToken());
       validateHumanWorkspaceToken(memberClaims, "weave-app");
+      spaces.verifyAbsent(memberSession.accessToken());
+      spaces.grantEditor(adminSession.accessToken(), memberSession.accessToken(),
+          accountId(environment.issuer().toString(), memberSession.subject()));
       String memberUsername = memberEmail.substring(0, memberEmail.indexOf('@'));
       if (!memberUsername.equals(memberClaims.path("preferred_username").asString())) {
         throw new ProductFlowException(
@@ -181,7 +215,7 @@ public final class FreshProductFlow {
           outsiderEmail,
           "Weave E2E Outsider",
           "guest",
-          ownerSession.accessToken());
+          adminSession.accessToken());
       MailpitActivationInbox outsiderInbox =
           new MailpitActivationInbox(
               http,
@@ -213,6 +247,43 @@ public final class FreshProductFlow {
               browser, outsiderSession, "guest", outsiderEmail, outsiderPassword);
       outsiderSession = awaitAuthority(browser, outsiderSession, "/guests", "guest");
       validateHumanWorkspaceToken(browser.jwtPayload(outsiderSession.accessToken()), "weave-app");
+      spaces.verifyAbsent(outsiderSession.accessToken());
+
+      GeneratedFilesJourney generatedFiles = new GeneratedFilesJourney(environment);
+      GeneratedFilesJourney.Proof generatedFilesProof =
+          generatedFiles.createAndVerify(
+              memberSession.accessToken(), outsiderSession.accessToken(), environment.runId());
+      spaces.verifyOwnerOnlyFileRelation(memberSession.accessToken(), ownerSession.accessToken(),
+          generatedFilesProof.fileId());
+
+      String openClawMatrixMemberToken = null;
+      if (Boolean.getBoolean("weave.e2e.release-mcp")) {
+        OidcBrowserJourney.TokenSet openClawMatrixSession = browser.authorize(
+            "weave-app",
+            URI.create("com.massimotter.weave:/oauthredirect"),
+            List.of("openid", "profile", "email"),
+            memberEmail,
+            memberPassword,
+            "member-openclaw-matrix-device");
+        JsonNode openClawClaims = browser.jwtPayload(openClawMatrixSession.accessToken());
+        validateHumanWorkspaceToken(openClawClaims, "weave-app");
+        JsonNode primaryClaims = browser.jwtPayload(memberSession.accessToken());
+        String primarySessionId = primaryClaims.path("sid").asString();
+        if (primarySessionId.isBlank()) {
+          primarySessionId = primaryClaims.path("session_state").asString();
+        }
+        String openClawSessionId = openClawClaims.path("sid").asString();
+        if (openClawSessionId.isBlank()) {
+          openClawSessionId = openClawClaims.path("session_state").asString();
+        }
+        if (!memberSession.subject().equals(openClawMatrixSession.subject())
+            || primarySessionId.isBlank() || openClawSessionId.isBlank()
+            || primarySessionId.equals(openClawSessionId)) {
+          throw new ProductFlowException(
+              "OpenClaw Matrix needs a distinct normal member OIDC device session");
+        }
+        openClawMatrixMemberToken = openClawMatrixSession.accessToken();
+      }
 
       CollaborationJourney collaboration = new CollaborationJourney(environment, http);
       collaborationPasses.add(
@@ -223,7 +294,8 @@ public final class FreshProductFlow {
               outsiderSession,
               browser.jwtPayload(ownerSession.accessToken()),
               browser.jwtPayload(memberSession.accessToken()),
-              browser.jwtPayload(outsiderSession.accessToken())));
+              browser.jwtPayload(outsiderSession.accessToken()),
+              openClawMatrixMemberToken));
       collaboration.restartCollaborationServices();
       browser.awaitIssuerTransportAfterRestart();
       ownerSession =
@@ -250,6 +322,9 @@ public final class FreshProductFlow {
               outsiderEmail,
               outsiderPassword,
               "outsider-post-collaboration-restart");
+      generatedFiles.verify(
+          generatedFilesProof, memberSession.accessToken(), outsiderSession.accessToken());
+      new GeneratedWorkspaceJourney(environment).verifyHome(memberSession.accessToken());
       collaborationPasses.add(
           collaboration.runPass(
               2,
@@ -258,7 +333,8 @@ public final class FreshProductFlow {
               outsiderSession,
               browser.jwtPayload(ownerSession.accessToken()),
               browser.jwtPayload(memberSession.accessToken()),
-              browser.jwtPayload(outsiderSession.accessToken())));
+              browser.jwtPayload(outsiderSession.accessToken()),
+              null));
 
       adminSession =
           browser.authorize(
@@ -272,90 +348,213 @@ public final class FreshProductFlow {
 
       personRef =
           accountId(environment.issuer().toString(), memberSession.subject());
-      JsonNode provisioned = provisionRuntime(personRef, adminSession.accessToken());
-      startedRuntime = startRuntime(personRef, adminSession.accessToken(), provisioned);
+      GeneratedCalendarJourney generatedCalendar = new GeneratedCalendarJourney(environment);
+      GeneratedCalendarJourney.Proof mcpCalendarProof = generatedCalendar.createAndVerify(
+          ownerSession.accessToken(), memberSession.accessToken(),
+          outsiderSession.accessToken(), environment.runId() + "-mcp");
+      new ForeignOrganizationJourney(environment, http).prove(
+          browser, organizationId, generatedFiles, generatedFilesProof,
+          memberSession.accessToken(), generatedCalendar, mcpCalendarProof,
+          ownerSession, adminSession.accessToken(),
+          new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate()));
+      foreignOrganizationDenied = true;
+      GeneratedFilesJourney.Proof mcpTextProof =
+          generatedFiles.createMcpTextFile(memberSession.accessToken(), environment.runId());
+      if (Boolean.getBoolean("weave.e2e.release-mcp")) {
+        ReleaseMcpJourney release = new ReleaseMcpJourney(environment, http);
+        release.bind(memberSession.subject(), personRef, true);
+        mcpProof = release.files(mcpTextProof);
+        release.calendar(mcpCalendarProof);
+        release.verifyCalendarWriteDenied(mcpCalendarProof.calendarId());
+        release.proveOpenClawCalendarWriteDenied(mcpCalendarProof.calendarId());
+        release.bind(ownerSession.subject(),
+            accountId(environment.issuer().toString(), ownerSession.subject()), true);
+        String openClawWriteVersion;
+        try {
+          release.verifyCalendarWriteParity(generatedCalendar,
+              mcpCalendarProof.calendarId(), ownerSession.accessToken());
+          openClawWriteVersion = release.proveOpenClawCalendarWriteParity(
+              generatedCalendar, mcpCalendarProof.calendarId(), ownerSession.accessToken());
+        } finally {
+          release.bind(memberSession.subject(), personRef, true);
+        }
+        System.out.println("WEAVE_CALENDAR_MCP_WRITE_PARITY_RESULT status=passed "
+            + "create=true replay=true update=true conflict=true delete=true "
+            + "generatedReadback=true supportSafe=true");
+        String openClawVersion = release.proveOpenClawFiles(mcpTextProof);
+        if (!openClawVersion.equals(release.proveOpenClawCalendar(mcpCalendarProof))
+            || !openClawVersion.equals(openClawWriteVersion)) {
+          throw new ProductFlowException("OpenClaw client version changed within one proof");
+        }
+        System.out.println("WEAVE_OPENCLAW_CALENDAR_WRITE_PARITY_RESULT status=passed "
+            + "client=real create=true replay=true update=true staleDenied=true "
+            + "delete=true memberDenied=true generatedReadback=true supportSafe=true");
 
-      createProofFile(proofFile, memberSession.accessToken());
-      fileCreated = true;
-      mcpProof =
-          new WorkloadMcpJourney(environment, http)
-              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), proofFile);
+        restartProof = new PersistenceRestartJourney(environment, http).restart();
+        WorkloadMcpJourney.McpProof afterRestart = release.files(mcpTextProof);
+        release.calendar(mcpCalendarProof);
+        if (!mcpProof.equals(afterRestart)) {
+          throw new ProductFlowException("release MCP binding changed across service restart");
+        }
 
-      restartProof = new PersistenceRestartJourney(environment, http).restart();
-      JsonNode persistedRuntime =
-          getRuntime(personRef, adminSession.accessToken());
-      requireSameRuntime(startedRuntime, persistedRuntime);
-      WorkloadMcpJourney.McpProof postRestartMcpProof =
-          new WorkloadMcpJourney(environment, http)
-              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), proofFile);
-      if (!mcpProof.equals(postRestartMcpProof)) {
-        throw new ProductFlowException(
-            "the same Cell MCP projection did not persist across service restarts");
-      }
-
-      String originalSubject = memberSession.subject();
-      setWeaverEntitlement(
-          organizationId, memberEmail, ownerSession.accessToken(), false, "revoke");
-      memberSession =
-          awaitAuthorityAbsent(
-              browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
-      JsonNode revokedRuntime = reconcileRuntime(personRef, adminSession.accessToken(), "revoke");
-      if (!"revoked".equals(revokedRuntime.path("entitlementState").asString())) {
-        throw new ProductFlowException("ARC reconciliation did not revoke the unentitled cell");
-      }
-      try {
-        new WorkloadMcpJourney(environment, http)
-            .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), proofFile);
-      } catch (ProductFlowException expectedDenial) {
+        String originalSubject = memberSession.subject();
+        release.bind(originalSubject, personRef, false);
+        if (!releaseMcpDenied(release, mcpTextProof)) {
+          throw new ProductFlowException("revoked release binding retained Files access");
+        }
+        setWeaverEntitlement(
+            organizationId, memberEmail, adminSession.accessToken(), false, "revoke");
+        memberSession = awaitAuthorityAbsent(
+            browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
+        release.bind(originalSubject, personRef, true);
+        if (!releaseMcpDenied(release, mcpTextProof)) {
+          throw new ProductFlowException("removed Weaver entitlement retained Files access");
+        }
         revocationDenied = true;
-      }
-      if (!revocationDenied) {
-        throw new ProductFlowException("revoked cell remained able to invoke MCP");
-      }
+        if (!releaseCalendarDenied(release, mcpCalendarProof)) {
+          throw new ProductFlowException("removed Weaver entitlement retained Calendar access");
+        }
+        boolean calendarRevocationDenied = true;
 
-      setWeaverEntitlement(
-          organizationId, memberEmail, ownerSession.accessToken(), true, "regrant");
-      memberSession =
-          awaitAuthority(
-              browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
-      sameHumanSubjectAfterRegrant = originalSubject.equals(memberSession.subject());
-      String regrantedPersonRef =
-          accountId(environment.issuer().toString(), memberSession.subject());
-      samePersonRefAfterRegrant = personRef.equals(regrantedPersonRef);
-      if (!sameHumanSubjectAfterRegrant || !samePersonRefAfterRegrant) {
-        throw new ProductFlowException("Weaver regrant replaced the immutable human identity");
-      }
-      JsonNode regrantedRuntime =
-          provisionRuntime(regrantedPersonRef, adminSession.accessToken(), "regrant");
-      JsonNode restartedRuntime =
-          startRuntime(regrantedPersonRef, adminSession.accessToken(), regrantedRuntime, "regrant");
-      requireSameRuntimeIdentity(startedRuntime, restartedRuntime);
-      WorkloadMcpJourney.McpProof postRegrantMcpProof =
+        setWeaverEntitlement(
+            organizationId, memberEmail, adminSession.accessToken(), true, "regrant");
+        memberSession = awaitAuthority(
+            browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
+        sameHumanSubjectAfterRegrant = originalSubject.equals(memberSession.subject());
+        samePersonRefAfterRegrant = personRef.equals(
+            accountId(environment.issuer().toString(), memberSession.subject()));
+        if (!sameHumanSubjectAfterRegrant || !samePersonRefAfterRegrant) {
+          throw new ProductFlowException("Weaver regrant replaced the immutable member identity");
+        }
+        regrantRestored = mcpProof.equals(release.files(mcpTextProof));
+        release.calendar(mcpCalendarProof);
+        if (!regrantRestored) {
+          throw new ProductFlowException("release MCP access did not recover after regrant");
+        }
+        spaces.verifyRevocationAndVersionedRegrant(adminSession.accessToken(),
+            memberSession.accessToken(), personRef, generatedFilesProof.fileId());
+        spaceRevocationRestored = true;
+        generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
+        // Native Calendar writes use the owner's normal User session. Run its
+        // real logout after all JVM journeys that need that owner's SSO state.
+        new MemberSessionRevocationJourney(environment, http).prove(
+            browser, organizationId, ownerEmail, ownerPassword);
+        runNativeAuthorizedJourney(ownerEmail, ownerPassword);
+        writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
+            release.bindingRef(), mcpProof, restartProof, revocationDenied,
+            calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
+            samePersonRefAfterRegrant, spaceRevocationRestored, foreignOrganizationDenied,
+            collaborationPasses,
+            true, openClawVersion);
+      } else {
+        JsonNode provisioned = provisionRuntime(personRef, adminSession.accessToken());
+        startedRuntime = startRuntime(personRef, adminSession.accessToken(), provisioned);
+        WorkloadMcpJourney mcpJourney = new WorkloadMcpJourney(environment, http);
+        String cellRef = requiredText(startedRuntime, "cellRef");
+        mcpProof = mcpJourney.invokeFilesSearch(cellRef, mcpTextProof);
+        mcpJourney.invokeCalendarAgenda(cellRef, mcpCalendarProof);
+        mcpJourney.verifyCalendarWriteDeniedForMember(cellRef, mcpCalendarProof.calendarId());
+
+        restartProof = new PersistenceRestartJourney(environment, http).restart();
+        JsonNode persistedRuntime =
+            getRuntime(personRef, adminSession.accessToken());
+        requireSameRuntime(startedRuntime, persistedRuntime);
+        WorkloadMcpJourney.McpProof postRestartMcpProof =
+            new WorkloadMcpJourney(environment, http)
+                .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
+        new WorkloadMcpJourney(environment, http)
+            .invokeCalendarAgenda(cellRef, mcpCalendarProof);
+        if (!mcpProof.equals(postRestartMcpProof)) {
+          throw new ProductFlowException(
+              "the same Cell MCP projection did not persist across service restarts");
+        }
+
+        String originalSubject = memberSession.subject();
+        setWeaverEntitlement(
+            organizationId, memberEmail, adminSession.accessToken(), false, "revoke");
+        memberSession =
+            awaitAuthorityAbsent(
+                browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
+        JsonNode revokedRuntime = reconcileRuntime(personRef, adminSession.accessToken(), "revoke");
+        if (!"revoked".equals(revokedRuntime.path("entitlementState").asString())) {
+          throw new ProductFlowException("ARC reconciliation did not revoke the unentitled cell");
+        }
+        try {
           new WorkloadMcpJourney(environment, http)
-              .invokeFilesSearch(requiredText(restartedRuntime, "cellRef"), proofFile);
-      regrantRestored = mcpProof.equals(postRegrantMcpProof);
-      if (!regrantRestored) {
-        throw new ProductFlowException(
-            "the regranted Cell did not restore the same MCP projection");
-      }
+              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), mcpTextProof);
+        } catch (ProductFlowException expectedDenial) {
+          revocationDenied = true;
+        }
+        if (!revocationDenied) {
+          throw new ProductFlowException("revoked cell remained able to invoke MCP");
+        }
+        boolean calendarRevocationDenied = false;
+        try {
+          new WorkloadMcpJourney(environment, http)
+              .invokeCalendarAgenda(cellRef, mcpCalendarProof);
+        } catch (ProductFlowException expectedDenial) {
+          calendarRevocationDenied = true;
+        }
+        if (!calendarRevocationDenied) {
+          throw new ProductFlowException("revoked cell remained able to read Calendar over MCP");
+        }
 
-      writeEvidence(
-          startedAt,
-          ownerEmail,
-          memberEmail,
-          outsiderEmail,
-          requiredText(startedRuntime, "cellRef"),
-          mcpProof,
-          restartProof,
-          revocationDenied,
-          regrantRestored,
-          sameHumanSubjectAfterRegrant,
-          samePersonRefAfterRegrant,
-          collaborationPasses);
-    } finally {
-      if (fileCreated && memberSession != null) {
-        deleteProofFile(proofFile, memberSession.accessToken());
+        setWeaverEntitlement(
+            organizationId, memberEmail, adminSession.accessToken(), true, "regrant");
+        memberSession =
+            awaitAuthority(
+                browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
+        sameHumanSubjectAfterRegrant = originalSubject.equals(memberSession.subject());
+        String regrantedPersonRef =
+            accountId(environment.issuer().toString(), memberSession.subject());
+        samePersonRefAfterRegrant = personRef.equals(regrantedPersonRef);
+        if (!sameHumanSubjectAfterRegrant || !samePersonRefAfterRegrant) {
+          throw new ProductFlowException("Weaver regrant replaced the immutable human identity");
+        }
+        JsonNode regrantedRuntime =
+            provisionRuntime(regrantedPersonRef, adminSession.accessToken(), "regrant");
+        JsonNode restartedRuntime =
+            startRuntime(regrantedPersonRef, adminSession.accessToken(), regrantedRuntime, "regrant");
+        requireSameRuntimeIdentity(startedRuntime, restartedRuntime);
+        WorkloadMcpJourney.McpProof postRegrantMcpProof =
+            new WorkloadMcpJourney(environment, http)
+                .invokeFilesSearch(requiredText(restartedRuntime, "cellRef"), mcpTextProof);
+        new WorkloadMcpJourney(environment, http)
+            .invokeCalendarAgenda(cellRef, mcpCalendarProof);
+        regrantRestored = mcpProof.equals(postRegrantMcpProof);
+        if (!regrantRestored) {
+          throw new ProductFlowException(
+              "the regranted Cell did not restore the same MCP projection");
+        }
+
+        spaces.verifyRevocationAndVersionedRegrant(adminSession.accessToken(),
+            memberSession.accessToken(), personRef, generatedFilesProof.fileId());
+        spaceRevocationRestored = true;
+        generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
+        new MemberSessionRevocationJourney(environment, http).prove(
+            browser, organizationId, ownerEmail, ownerPassword);
+        runNativeAuthorizedJourney(ownerEmail, ownerPassword);
+
+        writeEvidence(
+            startedAt,
+            ownerEmail,
+            memberEmail,
+            outsiderEmail,
+            requiredText(startedRuntime, "cellRef"),
+            mcpProof,
+            restartProof,
+            revocationDenied,
+            calendarRevocationDenied,
+            regrantRestored,
+            sameHumanSubjectAfterRegrant,
+            samePersonRefAfterRegrant,
+            spaceRevocationRestored,
+            foreignOrganizationDenied,
+            collaborationPasses,
+            false,
+            "");
       }
+    } finally {
       // Avoid retaining references longer than the single bounded JVM run.
       ownerPassword = "";
       memberPassword = "";
@@ -370,19 +569,37 @@ public final class FreshProductFlow {
     }
   }
 
-  private JsonNode bootstrapOwner(String email) {
-    ObjectNode request = http.mapper().createObjectNode();
-    request.put("email", email);
-    request.put("displayName", "Weave E2E Owner");
-    return http.json(
-        "create first owner invitation",
-        "POST",
-        environment.api("/api/bootstrap/owner-invitation"),
-        Map.of(
-            "X-Weave-Bootstrap-Token", readBootstrapToken(),
-            "Idempotency-Key", "test-app-owner-" + runHash()),
-        request,
-        Set.of(200, 201));
+  private void runNativeAuthorizedJourney(String memberEmail, String memberPassword) {
+    String runner = System.getProperty("weave.e2e.native-runner", "");
+    if (runner.isBlank()) {
+      return;
+    }
+    ProcessBuilder process = new ProcessBuilder("python3", runner);
+    process.environment().put("WEAVE_NATIVE_MEMBER_EMAIL", memberEmail);
+    process.environment().put("WEAVE_NATIVE_MEMBER_PASSWORD", memberPassword);
+    process.environment().put("WEAVE_NATIVE_ISSUER", environment.issuer().toString());
+    process.environment().put("WEAVE_NATIVE_API_BASE_URL", environment.apiOrigin() + "/api");
+    process.environment().put("WEAVE_NATIVE_MATRIX_URL", environment.apiOrigin().toString());
+    process.environment().put("WEAVE_NATIVE_CA", environment.caCertificate().toString());
+    process.inheritIO();
+    try {
+      int status = process.start().waitFor();
+      if (status != 0) {
+        throw new ProductFlowException("native Flutter acceptance failed");
+      }
+    } catch (IOException failure) {
+      throw new ProductFlowException("native Flutter acceptance could not start");
+    } catch (InterruptedException failure) {
+      Thread.currentThread().interrupt();
+      throw new ProductFlowException("native Flutter acceptance was interrupted");
+    } finally {
+      process.environment().remove("WEAVE_NATIVE_MEMBER_PASSWORD");
+    }
+  }
+
+  private MemberInvitationResponse bootstrapOwner(String email) {
+    return new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate())
+        .bootstrapOwner(readBootstrapToken(), "test-app-owner-" + runHash(), email);
   }
 
   private void inviteActor(
@@ -391,25 +608,18 @@ public final class FreshProductFlow {
       String displayName,
       String role,
       String accessToken) {
-    ObjectNode request = http.mapper().createObjectNode();
-    request.put("email", email);
-    request.put("displayName", displayName);
-    request.put("role", role);
-    JsonNode invitation =
-        http.json(
-            "invite " + role + " through Weave",
-            "POST",
-            environment.api(
-                "/api/admin/organizations/"
-                    + encodeSegment(organizationId)
-                    + "/invitations"),
-            bearer(
+    MemberInvitationResponse invitation =
+        new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate())
+            .inviteMember(
                 accessToken,
-                Map.of("Idempotency-Key", "test-app-" + role + "-" + runHash())),
-            request,
-            Set.of(201));
-    if (!role.equals(invitation.path("requestedRole").asString())
-        || invitation.has("capabilities")) {
+                organizationId,
+                "test-app-" + role + "-" + runHash(),
+                email,
+                displayName,
+                role);
+    if (!role.equals(invitation.getRequestedRole())
+        || !organizationId.equals(invitation.getOrganizationId())
+        || !email.equalsIgnoreCase(invitation.getEmail())) {
       throw new ProductFlowException(role + " invitation projection is invalid");
     }
   }
@@ -420,20 +630,11 @@ public final class FreshProductFlow {
       String accessToken,
       boolean entitled,
       String operation) {
-    JsonNode page =
-        http.json(
-            "list organization members for Weaver assignment",
-            "GET",
-            environment.api(
-                "/api/admin/organizations/"
-                    + encodeSegment(organizationId)
-                    + "/members?size=100"),
-            bearer(accessToken, Map.of()),
-            null,
-            Set.of(200));
-    JsonNode member = null;
-    for (JsonNode candidate : page.path("items")) {
-      if (email.equalsIgnoreCase(candidate.path("email").asString())) {
+    GeneratedAdminApi adminApi = new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate());
+    var page = adminApi.listMembers(accessToken, organizationId);
+    OrganizationMemberResponse member = null;
+    for (OrganizationMemberResponse candidate : page.getItems()) {
+      if (email.equalsIgnoreCase(candidate.getEmail())) {
         if (member != null) {
           throw new ProductFlowException("member projection is ambiguous");
         }
@@ -443,28 +644,21 @@ public final class FreshProductFlow {
     if (member == null) {
       throw new ProductFlowException("activated member is missing");
     }
-    ObjectNode request = http.mapper().createObjectNode();
-    request.put("entitled", entitled);
-    JsonNode updated =
-        http.json(
-            (entitled ? "assign" : "remove") + " native Weaver organization capability",
-            "PUT",
-            environment.api(
-                "/api/admin/organizations/"
-                    + encodeSegment(organizationId)
-                    + "/members/"
-                    + encodeSegment(requiredText(member, "memberHandle"))
-                    + "/capabilities/weaver"),
-            bearer(
-                accessToken,
-                Map.of(
-                    "If-Match", requiredText(member, "version"),
-                    "Idempotency-Key",
-                        "test-app-weaver-" + operation + "-" + runHash())),
-            request,
-            Set.of(200));
+    if (member.getMemberHandle() == null || member.getMemberHandle().isBlank()
+        || member.getVersion() == null || member.getVersion().isBlank()) {
+      throw new ProductFlowException("member projection omitted stable handle or version");
+    }
+    OrganizationMemberResponse updated =
+        adminApi.updateWeaverEntitlement(
+            accessToken,
+            organizationId,
+            member.getMemberHandle(),
+            member.getVersion(),
+            "test-app-weaver-" + operation + "-" + runHash(),
+            entitled);
     Set<String> expected = entitled ? Set.of("agent-runtime.entitled") : Set.of();
-    if (!strings(updated.path("capabilities")).equals(expected)) {
+    if (updated.getCapabilities() == null
+        || !Set.copyOf(updated.getCapabilities()).equals(expected)) {
       throw new ProductFlowException("native Weaver capability mutation did not converge");
     }
   }
@@ -524,71 +718,96 @@ public final class FreshProductFlow {
   }
 
   private void proveMemberApi(String token) {
-    JsonNode readiness =
-        http.json(
-            "read authenticated profile readiness",
-            "GET",
-            environment.api("/api/profile/readiness"),
-            bearer(token, Map.of()),
-            null,
-            Set.of(200));
-    if (!readiness.path("supportSafe").asBoolean(false)) {
+    new GeneratedWorkspaceJourney(environment).verifyHome(token);
+    ProfileReadinessResponse readiness =
+        new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
+            .profileReadiness(token);
+    if (!Boolean.TRUE.equals(readiness.getSupportSafe())) {
       throw new ProductFlowException("profile readiness was not support-safe");
     }
   }
 
   private void configureRequiredProviders(String ownerToken) {
+    GeneratedAdminApi adminApi =
+        new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate());
     List<ProviderSelection> requiredProviders =
         List.of(
             new ProviderSelection("chat", "weave-native"),
-            new ProviderSelection("files", "weave-native"),
             new ProviderSelection("calendar", "weave-native"));
     for (ProviderSelection selection : requiredProviders) {
-      ObjectNode request = http.mapper().createObjectNode();
-      request.put("category", selection.category());
-      request.put("providerKey", selection.providerKey());
-      request.put("choiceModel", "recommended_self_hosted_default");
-      request.put("dryRun", false);
-      request.putArray("lossyMappingNotes");
-      request.put("reason", "configure the isolated Fresh Stack product path");
-      JsonNode response =
-          http.json(
-              "apply " + selection.category() + " provider selection",
-              "POST",
-              environment.api("/api/admin/providers/selections"),
-              bearer(ownerToken, Map.of()),
-              request,
-              Set.of(200));
-      if (!selection.category().equals(response.path("category").asString())
-          || !selection.providerKey().equals(response.path("providerKey").asString())
-          || !"recommended_self_hosted_default".equals(
-              response.path("choiceModel").asString())
-          || !response.path("applied").asBoolean(false)
-          || response.path("dryRun").asBoolean(true)
-          || !response.path("supportSafe").asBoolean(false)) {
+      ProviderSelectionResponse response =
+          adminApi.selectProvider(
+              ownerToken,
+              new ProviderSelectionRequest()
+                  .category(selection.category())
+                  .providerKey(selection.providerKey())
+                  .choiceModel("recommended_self_hosted_default")
+                  .dryRun(false)
+                  .lossyMappingNotes(List.of())
+                  .reason("configure the isolated Fresh Stack product path"));
+      if (!selection.category().equals(response.getCategory())
+          || !selection.providerKey().equals(response.getProviderKey())
+          || !"recommended_self_hosted_default".equals(response.getChoiceModel())
+          || !Boolean.TRUE.equals(response.getApplied())
+          || !Boolean.FALSE.equals(response.getDryRun())
+          || !Boolean.TRUE.equals(response.getSupportSafe())) {
         throw new ProductFlowException(
             selection.category() + " provider selection did not converge");
       }
+    }
+
+    // The fresh stack starts with its native Files binding. An Admin selection
+    // must not silently replace it until a real migration has verified data,
+    // references, and effective permissions against both providers.
+    ProviderSelectionResponse dryRun =
+        adminApi.selectProvider(
+            ownerToken,
+            new ProviderSelectionRequest()
+                .category("files")
+                .providerKey("weave-native")
+                .choiceModel("recommended_self_hosted_default")
+                .dryRun(true)
+                .lossyMappingNotes(List.of())
+                .reason("verify Files activation remains fenced"));
+    if (!"files".equals(dryRun.getCategory())
+        || !Boolean.TRUE.equals(dryRun.getDryRun())
+        || !Boolean.FALSE.equals(dryRun.getApplied())
+        || !Boolean.TRUE.equals(dryRun.getSupportSafe())) {
+      throw new ProductFlowException("Files selection dry-run was not support-safe and unapplied");
+    }
+
+    ObjectNode filesRequest = http.mapper().createObjectNode();
+    filesRequest.put("category", "files");
+    filesRequest.put("providerKey", "weave-native");
+    filesRequest.put("choiceModel", "recommended_self_hosted_default");
+    filesRequest.putArray("lossyMappingNotes");
+    filesRequest.put("reason", "verify Files activation remains fenced");
+    filesRequest.put("dryRun", false);
+    JsonNode blocked =
+        http.json(
+            "reject unverified Files provider activation",
+            "POST",
+            environment.api("/api/admin/providers/selections"),
+            bearer(ownerToken, Map.of()),
+            filesRequest,
+            Set.of(409));
+    if (!"files-provider-activation-unverified".equals(blocked.path("code").asString())) {
+      throw new ProductFlowException("unverified Files provider activation did not fail closed");
     }
   }
 
   private void awaitChatReadiness(String ownerToken) {
     Instant deadline = Instant.now().plus(environment.convergenceTimeout());
     String observedState = "unavailable";
+    GeneratedUserApi userApi = new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate());
     while (Instant.now().isBefore(deadline)) {
-      JsonNode readiness =
-          http.json(
-              "read Chat provider readiness",
-              "GET",
-              environment.api("/api/chat/readiness"),
-              bearer(ownerToken, Map.of()),
-              null,
-              Set.of(200));
-      observedState = readiness.path("memberState").asString();
-      if ("available".equals(observedState)
-          && "chat".equals(readiness.path("domain").asString())
-          && !readiness.path("failClosed").asBoolean(true)
-          && readiness.path("supportSafe").asBoolean(false)) {
+      ChatReadiness readiness = userApi.chatReadiness(ownerToken);
+      observedState = readiness.getMemberState() == null
+          ? "unavailable" : readiness.getMemberState().getValue();
+      if (readiness.getMemberState() == ChatReadiness.MemberStateEnum.AVAILABLE
+          && "chat".equals(readiness.getDomain())
+          && Boolean.FALSE.equals(readiness.getFailClosed())
+          && Boolean.TRUE.equals(readiness.getSupportSafe())) {
         return;
       }
       sleep();
@@ -603,17 +822,11 @@ public final class FreshProductFlow {
       String expectedRole,
       String email,
       String password) {
-    JsonNode response =
-        http.json(
-            "reconcile authenticated identity session",
-            "POST",
-            environment.api("/api/v1/identity/session/reconcile"),
-            bearer(session.accessToken(), Map.of()),
-            null,
-            Set.of(200));
-    if (!"access_updated".equals(response.path("state").asString())
-        || !response.path("reauthorizationRequired").asBoolean(false)
-        || response.has("sessionRefreshRequired")) {
+    IdentitySessionReconcileResponse response =
+        new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
+            .reconcileIdentitySession(session.accessToken());
+    if (response.getState() != IdentitySessionReconcileResponse.StateEnum.ACCESS_UPDATED
+        || !Boolean.TRUE.equals(response.getReauthorizationRequired())) {
       throw new ProductFlowException(
           "identity session did not apply the pending " + expectedRole + " intent");
     }
@@ -627,6 +840,10 @@ public final class FreshProductFlow {
   }
 
   private void validateAdminToken(JsonNode claims) {
+    String organizationViolation = NativeOrganizationClaims.violation(claims);
+    if (organizationViolation != null) {
+      throw new ProductFlowException("Admin token contract did not match " + organizationViolation);
+    }
     Set<String> audiences = strings(claims.path("aud"));
     Set<String> scopes = tokenScopes(claims);
     if (!"weave-admin-console".equals(claims.path("azp").asString())
@@ -636,6 +853,69 @@ public final class FreshProductFlow {
         || !organizationGroups(claims).contains("/owners")
         || !organizationRoles(claims, "weave-app").contains("owner")) {
       throw new ProductFlowException("Agent Runtime admin token is not exact");
+    }
+  }
+
+  private void assertSeparatedApiSessions(String userToken, String adminToken) {
+    for (String path : List.of("/api/admin/workspace/capability-policy", "/api/admin/workspace/release-readiness")) {
+      JsonNode denied = http.json("reject User session at Admin workspace diagnostics", "GET",
+          environment.api(path), bearer(userToken, Map.of()), null, Set.of(401));
+      if (!"unauthorized".equals(denied.path("code").asString())) {
+        throw new ProductFlowException("Admin workspace diagnostics accepted a User session");
+      }
+    }
+    JsonNode providerStatusDenied =
+        http.json(
+            "reject User session at Admin provider status",
+            "GET",
+            environment.api("/api/admin/providers/status"),
+            bearer(userToken, Map.of()),
+            null,
+            Set.of(401));
+    JsonNode adminDenied =
+        http.json(
+            "reject User session at Admin API",
+            "GET",
+            environment.api("/api/admin/control-plane"),
+            bearer(userToken, Map.of()),
+            null,
+            Set.of(401));
+    JsonNode userDenied =
+        http.json(
+            "reject Admin session at User API",
+            "GET",
+            environment.api("/api/me"),
+            bearer(adminToken, Map.of()),
+            null,
+            Set.of(401));
+    if (!"unauthorized".equals(adminDenied.path("code").asString())
+        || !"unauthorized".equals(providerStatusDenied.path("code").asString())
+        || !"unauthorized".equals(userDenied.path("code").asString())) {
+      throw new ProductFlowException("User and Admin API sessions were not separated");
+    }
+  }
+
+  private void assertGeneratedAdminControlPlane(String adminToken, String organizationId) {
+    var admin = new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate());
+    admin.verifyWorkspaceDiagnostics(adminToken);
+    var controlPlane = admin.controlPlane(adminToken);
+    if (!organizationId.equals(controlPlane.getOrganizationId())
+        || !Boolean.TRUE.equals(controlPlane.getSupportSafe())) {
+      throw new ProductFlowException("Admin control plane identity or projection did not match");
+    }
+    var status = admin.providerStatus(adminToken);
+    var binding = status.getFilesBinding();
+    if (!environment.tenantId().equals(status.getOrganizationId())
+        || !Boolean.TRUE.equals(status.getSupportSafe())
+        || binding == null
+        || binding.getBindingState()
+            != com.massimotter.weave.adminapi.model.FilesBindingStatusResponse.BindingStateEnum.ACTIVE
+        || binding.getBindingRevision() == null
+        || binding.getBindingRevision() < 1
+        || !"weave-native".equals(binding.getAdapterKey())
+        || binding.getReadiness()
+            != com.massimotter.weave.adminapi.model.FilesBindingStatusResponse.ReadinessEnum.CONFIGURED) {
+      throw new ProductFlowException("Admin status did not match the isolated Files binding");
     }
   }
 
@@ -670,6 +950,10 @@ public final class FreshProductFlow {
     }
     if (!hasExactWorkspaceScope(scopes)) {
       invalidClaims.add("workspace-scope");
+    }
+    String organizationViolation = NativeOrganizationClaims.violation(claims);
+    if (organizationViolation != null) {
+      invalidClaims.add(organizationViolation);
     }
     Set<String> organizationRoles = organizationRoles(claims, "weave-app");
     Set<String> productRoles = Set.of("owner", "admin", "member", "guest");
@@ -814,36 +1098,36 @@ public final class FreshProductFlow {
         "/api/admin/agent-runtimes/" + encodeSegment(personRef) + operation);
   }
 
-  private void createProofFile(String fileName, String token) {
-    JsonHttpClient.Response response =
-        http.send(
-            "create Files WebDAV proof object",
-            "PUT",
-            environment.api("/dav/files/" + encodeSegment(fileName)),
-            bearer(token, Map.of("If-None-Match", "*")),
-            "text/plain; charset=utf-8",
-            ("Weave testApp " + runHash()).getBytes(StandardCharsets.UTF_8),
-            Set.of(201));
-    if (response.firstHeader("ETag").isBlank()) {
-      throw new ProductFlowException("Files WebDAV proof object omitted its ETag");
+  private static boolean releaseMcpDenied(
+      ReleaseMcpJourney release, GeneratedFilesJourney.Proof proof) {
+    try {
+      release.files(proof);
+      return false;
+    } catch (ProductFlowException denied) {
+      if (!isExpectedReleaseDenial(denied)) {
+        throw denied;
+      }
+      return true;
     }
   }
 
-  private void deleteProofFile(String fileName, String token) {
+  private static boolean releaseCalendarDenied(
+      ReleaseMcpJourney release, GeneratedCalendarJourney.Proof proof) {
     try {
-      http.send(
-          "delete Files WebDAV proof object",
-          "DELETE",
-          environment.api("/dav/files/" + encodeSegment(fileName)),
-          bearer(token, Map.of()),
-          null,
-          null,
-          Set.of(204, 404));
-    } catch (ProductFlowException cleanupFailure) {
-      System.err.println(
-          "WEAVE_TEST_APP_CLEANUP_ERROR "
-              + safeMessage(cleanupFailure.getMessage()));
+      release.calendar(proof);
+      return false;
+    } catch (ProductFlowException denied) {
+      if (!isExpectedReleaseDenial(denied)) {
+        throw denied;
+      }
+      return true;
     }
+  }
+
+  private static boolean isExpectedReleaseDenial(ProductFlowException denied) {
+    String message = denied.getMessage();
+    return message != null && (message.contains("http-403")
+        || message.contains("HTTP 403"));
   }
 
   private void writeEvidence(
@@ -855,12 +1139,18 @@ public final class FreshProductFlow {
       WorkloadMcpJourney.McpProof mcpProof,
       PersistenceRestartJourney.RestartProof restartProof,
       boolean revocationDenied,
+      boolean calendarRevocationDenied,
       boolean regrantRestored,
       boolean sameHumanSubjectAfterRegrant,
       boolean samePersonRefAfterRegrant,
-      List<CollaborationJourney.PassProof> collaborationPasses) {
+      boolean spaceRevocationRestored,
+      boolean foreignOrganizationDenied,
+      List<CollaborationJourney.PassProof> collaborationPasses,
+      boolean releaseMcp,
+      String openClawVersion) {
     ObjectNode evidence = http.mapper().createObjectNode();
-    evidence.put("schemaVersion", "weave.test-app-product-flow/v2");
+    evidence.put("schemaVersion", releaseMcp
+        ? "weave.test-app-product-flow/v3-release" : "weave.test-app-product-flow/v2");
     evidence.put("startedAt", startedAt.toString());
     evidence.put("completedAt", Instant.now().toString());
     evidence.put("candidateCommit", environment.candidateCommit());
@@ -872,11 +1162,25 @@ public final class FreshProductFlow {
     evidence.put("ownerEmailSha256", Hashing.sha256(ownerEmail));
     evidence.put("memberEmailSha256", Hashing.sha256(memberEmail));
     evidence.put("outsiderEmailSha256", Hashing.sha256(outsiderEmail));
-    evidence.put("cellRefSha256", Hashing.sha256(cellRef));
+    if (releaseMcp) {
+      evidence.put("releaseBindingRefSha256", Hashing.sha256(cellRef));
+      evidence.put("arcCellCreated", false);
+      evidence.put("sameReleaseBindingAfterRestart", true);
+      evidence.put("openClawClientVersion", openClawVersion);
+      evidence.put("openClawFilesInvoked", true);
+      evidence.put("openClawCalendarInvoked", true);
+      evidence.put("calendarMcpWriteParity", true);
+      evidence.put("openClawCalendarWriteParity", true);
+    } else {
+      evidence.put("cellRefSha256", Hashing.sha256(cellRef));
+    }
     evidence.put("activation", "keycloak-required-actions-real-chromium");
     evidence.put("humanOAuth", "authorization_code_pkce_s256");
     evidence.put("workloadOAuth", "client_credentials_private_key_jwt");
     evidence.put("mcpTool", mcpProof.toolName());
+    evidence.put("calendarMcpAgenda", true);
+    evidence.put("calendarMcpWrongScopeDenied", true);
+    evidence.put("calendarMcpRevocationDenied", calendarRevocationDenied);
     evidence.put("serverProjection", mcpProof.serverProjection());
     evidence.put("canonicalResourceSeen", mcpProof.canonicalResourceSeen());
     evidence.put("postgresRestartObserved", restartProof.postgresRestartObserved());
@@ -884,8 +1188,10 @@ public final class FreshProductFlow {
         "runtimeStateRestartObserved", restartProof.runtimeStateRestartObserved());
     evidence.put(
         "runtimeStateFixtureRestored", restartProof.runtimeStateFixtureRestored());
-    evidence.put("sameJpaCellAfterRestart", true);
-    evidence.put("sameMcpCellAfterRestart", true);
+    if (!releaseMcp) {
+      evidence.put("sameJpaCellAfterRestart", true);
+      evidence.put("sameMcpCellAfterRestart", true);
+    }
     evidence.put(
         "persistenceRestartEvidenceSha256",
         "sha256:" + restartProof.evidenceSha256());
@@ -893,6 +1199,11 @@ public final class FreshProductFlow {
     evidence.put("regrantRestored", regrantRestored);
     evidence.put("sameHumanSubjectAfterRegrant", sameHumanSubjectAfterRegrant);
     evidence.put("samePersonRefAfterRegrant", samePersonRefAfterRegrant);
+    evidence.put("spaceRevocationRestored", spaceRevocationRestored);
+    evidence.put("foreignOrganizationDenied", foreignOrganizationDenied);
+    evidence.put("administratorSessionRevocationDenied", true);
+    evidence.put("reauthenticationAfterSessionRevocation", true);
+    evidence.put("uninitializedChatLogoutDenied", true);
     if (collaborationPasses.size() != 2
         || collaborationPasses.get(0).pass() != 1
         || collaborationPasses.get(1).pass() != 2
@@ -910,10 +1221,10 @@ public final class FreshProductFlow {
     selectedProviders.put("chat", "weave-native");
     selectedProviders.put("files", "weave-native");
     selectedProviders.put("calendar", "weave-native");
-    ObjectNode northboundFacades = collaboration.putObject("northboundFacades");
-    northboundFacades.put("matrix", true);
-    northboundFacades.put("webdav", true);
-    northboundFacades.put("caldav", true);
+    ObjectNode northboundContracts = collaboration.putObject("northboundContracts");
+    northboundContracts.put("matrix", "matrix-client-server");
+    northboundContracts.put("files", "weave-user-api");
+    northboundContracts.put("calendar", "weave-user-api");
     collaboration.put("southboundProviderDependencyObserved", false);
     ObjectNode identityHashes = collaboration.putObject("identityRefHashes");
     identityHashes.put("author", collaborationPasses.get(0).authorIdentityRefHash());

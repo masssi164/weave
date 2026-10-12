@@ -242,18 +242,7 @@ public class KeycloakIdentityAdminClient {
   }
 
   public ProviderMember requireMember(String organizationId, String subject) {
-    JsonNode user =
-        json(
-            request(
-                HttpMethod.GET,
-                adminPath("/users/" + path(subject)),
-                null,
-                null,
-                200));
-    if (isServiceAccount(user) || !isOrganizationMember(organizationId, subject)) {
-      throw new KeycloakAdminException(404, "Keycloak organization member is unavailable");
-    }
-    return toMember(organizationId, user);
+    return toMember(organizationId, currentMemberUser(organizationId, subject));
   }
 
   public ProviderMember updateMember(
@@ -278,7 +267,7 @@ public class KeycloakIdentityAdminClient {
     return requireMember(organizationId, subject);
   }
 
-  public void revokeSessions(String organizationId, String subject) {
+  public Instant revokeSessions(String organizationId, String subject) {
     requireMember(organizationId, subject);
     request(
         HttpMethod.POST,
@@ -286,15 +275,29 @@ public class KeycloakIdentityAdminClient {
         "",
         MediaType.APPLICATION_JSON,
         204);
+    JsonNode user = currentMemberUser(organizationId, subject);
+    JsonNode notBefore = user.path("notBefore");
+    if (!notBefore.isIntegralNumber()) {
+      throw invalidLogoutEpoch();
+    }
+    try {
+      long epochSeconds = Long.parseLong(notBefore.toString());
+      if (epochSeconds <= 0) {
+        throw invalidLogoutEpoch();
+      }
+      return Instant.ofEpochSecond(epochSeconds);
+    } catch (NumberFormatException | java.time.DateTimeException invalid) {
+      throw invalidLogoutEpoch();
+    }
   }
 
   /**
    * Removes every Weave access projection before disabling the identity. The Keycloak user is
    * deliberately retained for audit/recovery and is never hard-deleted.
    */
-  public void offboard(String organizationId, String subject) {
+  public Instant offboard(String organizationId, String subject) {
     requireMember(organizationId, subject);
-    revokeSessions(organizationId, subject);
+    Instant issuerNotBefore = revokeSessions(organizationId, subject);
     request(
         HttpMethod.DELETE,
         adminPath(
@@ -303,6 +306,29 @@ public class KeycloakIdentityAdminClient {
         null,
         204);
     setEnabled(subject, false);
+    return issuerNotBefore;
+  }
+
+  private JsonNode currentMemberUser(String organizationId, String subject) {
+    JsonNode user =
+        json(
+            request(
+                HttpMethod.GET,
+                adminPath("/users/" + path(subject)),
+                null,
+                null,
+                200));
+    if (!subject.equals(user.path("id").asString(""))
+        || isServiceAccount(user)
+        || !isOrganizationMember(organizationId, subject)) {
+      throw new KeycloakAdminException(404, "Keycloak organization member is unavailable");
+    }
+    return user;
+  }
+
+  private KeycloakAdminException invalidLogoutEpoch() {
+    return new KeycloakAdminException(
+        502, "Keycloak session-revocation metadata is unavailable", "member-session-revocation");
   }
 
   public void applyRole(String subject, String role) {

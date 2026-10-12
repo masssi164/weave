@@ -6,7 +6,7 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
   @human-ready-native-collaboration
   Scenario: Isolated collaboration proves the native default without external providers
     Given Chat Files and Calendar select weave-native in the isolated stack
-    When two members use Matrix WebDAV and CalDAV across a PostgreSQL and backend restart
+    When members use Matrix and the generated Files and Calendar User APIs across a PostgreSQL and backend restart
     Then encrypted Chat file revisions and calendar revisions remain available
     And the outsider remains denied before and after restart
     And no Synapse MAS or Nextcloud runtime dependency is observed

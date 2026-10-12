@@ -21,6 +21,9 @@ public class ApiAccessDeniedHandler implements AccessDeniedHandler {
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
             AccessDeniedException accessDeniedException) throws IOException, ServletException {
+        if (MatrixClientSecurityErrorWriter.writeAccessDenied(request, response)) {
+            return;
+        }
         errorResponseWriter.write(
                 request,
                 response,

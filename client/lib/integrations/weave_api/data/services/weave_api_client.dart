@@ -1,20 +1,20 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
-import 'package:weave/generated/openapi_models.dart' as openapi;
+import 'package:weave/generated/user_api/api.dart' as user_api;
 import 'package:weave/integrations/weave_api/data/dtos/organization_manifest_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/dtos/platform_status_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/dtos/provider_stack_openapi_mappers.dart';
 import 'package:weave/integrations/weave_api/data/dtos/workspace_capabilities_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/dtos/workspace_home_response_dto.dart';
-import 'package:weave/integrations/weave_api/data/services/weave_api_uri_builder.dart';
+import 'package:weave/integrations/weave_api/data/services/weave_user_api_client.dart';
 
 enum IdentitySessionReconcileResult { unchanged, reauthorizationRequired }
 
@@ -34,17 +34,17 @@ abstract interface class WeaveApiClient {
     required String accessToken,
   });
 
+  Future<MemberSpaceAccessSnapshot> fetchMemberSpaces({
+    required Uri baseUrl,
+    required String accessToken,
+  });
+
   Future<WorkspaceHomeSnapshot> fetchWorkspaceHome({
     required Uri baseUrl,
     required String accessToken,
   });
 
   Future<MatrixE2eeDiagnostic> fetchMatrixE2eeDiagnostic({
-    required Uri baseUrl,
-    required String accessToken,
-  });
-
-  Future<ProviderStackSnapshot> fetchProviderStackStatus({
     required Uri baseUrl,
     required String accessToken,
   });
@@ -75,25 +75,61 @@ class HttpWeaveApiClient implements WeaveApiClient {
 
   final http.Client _httpClient;
 
+  user_api.ApiClient _client(Uri baseUrl, String accessToken) =>
+      weaveUserApiClient(
+        apiBaseUrl: baseUrl,
+        accessToken: accessToken,
+        httpClient: _httpClient,
+      );
+
+  Future<T> _read<T>(
+    Future<T?> Function() operation, {
+    required String failureMessage,
+    required String invalidPayloadMessage,
+  }) async {
+    try {
+      final value = await operation().timeout(const Duration(seconds: 5));
+      if (value == null) throw AppFailure.unknown(invalidPayloadMessage);
+      return value;
+    } on AppFailure {
+      rethrow;
+    } on user_api.ApiException catch (error) {
+      if (error.code == 401 || error.code == 403) {
+        throw AppFailure.unknown(
+          'The Weave backend rejected the current session.',
+          cause: error.code,
+        );
+      }
+      throw AppFailure.unknown(failureMessage, cause: error.code);
+    } on TimeoutException {
+      throw const AppFailure.unknown(
+        'Unable to reach the Weave backend right now.',
+      );
+    } on ArgumentError {
+      rethrow;
+    } catch (error) {
+      throw AppFailure.unknown(
+        'Unable to decode a Weave backend response right now.',
+        cause: error,
+      );
+    }
+  }
+
   @override
   Future<IdentitySessionReconcileResult> reconcileIdentitySession({
     required Uri baseUrl,
     required String accessToken,
   }) async {
-    final payload = await _postJson(
-      requestUri: _identitySessionReconcileUri(baseUrl),
-      accessToken: accessToken,
+    final response = await _read(
+      () => user_api.IdentitySessionApi(
+        _client(baseUrl, accessToken),
+      ).reconcileIdentitySession(),
       failureMessage:
           'The Weave backend failed to reconcile organization access.',
       invalidPayloadMessage:
           'The Weave backend returned an invalid identity-session reconciliation payload.',
-      decodeFailureMessage:
-          'Unable to decode identity-session reconciliation from the Weave backend.',
     );
-    final response = openapi.IdentitySessionReconcileResponse.fromJson(
-      payload.json,
-    );
-    final result = switch (response.state) {
+    final result = switch (response.state.value) {
       'unchanged' => IdentitySessionReconcileResult.unchanged,
       'access_updated' =>
         IdentitySessionReconcileResult.reauthorizationRequired,
@@ -115,18 +151,16 @@ class HttpWeaveApiClient implements WeaveApiClient {
     required Uri baseUrl,
     required String accessToken,
   }) async {
-    final payload = await _getJson(
-      requestUri: _organizationManifestUri(baseUrl),
-      accessToken: accessToken,
+    final response = await _read(
+      () => user_api.WorkspaceApi(
+        _client(baseUrl, accessToken),
+      ).organizationManifest(),
       failureMessage:
           'The Weave backend failed to return the organization manifest.',
       invalidPayloadMessage:
           'The Weave backend returned an invalid organization manifest payload.',
-      decodeFailureMessage:
-          'Unable to decode the organization manifest from the Weave backend.',
     );
-
-    return openapi.OrganizationManifestResponse.fromJson(payload).toSnapshot();
+    return response.toSnapshot();
   }
 
   @override
@@ -134,18 +168,89 @@ class HttpWeaveApiClient implements WeaveApiClient {
     required Uri baseUrl,
     required String accessToken,
   }) async {
-    final payload = await _getJson(
-      requestUri: _workspaceCapabilitiesUri(baseUrl),
-      accessToken: accessToken,
+    final response = await _read(
+      () => user_api.WorkspaceApi(_client(baseUrl, accessToken)).capabilities(),
       failureMessage:
           'The Weave backend failed to return workspace capabilities.',
       invalidPayloadMessage:
           'The Weave backend returned an invalid workspace capabilities payload.',
-      decodeFailureMessage:
-          'Unable to decode workspace capabilities from the Weave backend.',
     );
+    return response.toSnapshot();
+  }
 
-    return openapi.WorkspaceCapabilitiesResponse.fromJson(payload).toSnapshot();
+  @override
+  Future<MemberSpaceAccessSnapshot> fetchMemberSpaces({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    final api = user_api.SpacesUserApi(_client(baseUrl, accessToken));
+    final refs = <String>{};
+    String? cursor;
+    // A malformed or cycling cursor must not turn a partial list into access.
+    for (var page = 0; page < 100; page++) {
+      final response = await _read(
+        () => api.listSpaces(afterSpaceRef: cursor, limit: 100),
+        failureMessage: 'The Weave backend failed to list member Spaces.',
+        invalidPayloadMessage: 'The Weave backend returned no member Spaces.',
+      );
+      for (final space in response.spaces) {
+        if (space.spaceRef.trim().isEmpty) {
+          throw const AppFailure.unknown(
+            'The Weave backend returned an invalid Space reference.',
+          );
+        }
+        refs.add(space.spaceRef);
+      }
+      final next = response.nextAfterSpaceRef;
+      if (next == null) {
+        break;
+      }
+      if (next.isEmpty || next == cursor || page == 99) {
+        throw const AppFailure.unknown(
+          'The Weave backend returned an invalid Spaces cursor.',
+        );
+      }
+      cursor = next;
+    }
+
+    var defaultReadable = false;
+    if (refs.contains(MemberSpaceAccessSnapshot.defaultSpaceRef)) {
+      try {
+        final response = await api
+            .getSpace(MemberSpaceAccessSnapshot.defaultSpaceRef)
+            .timeout(const Duration(seconds: 5));
+        defaultReadable =
+            response?.spaceRef == MemberSpaceAccessSnapshot.defaultSpaceRef;
+        if (!defaultReadable) {
+          throw const AppFailure.unknown(
+            'The Weave backend returned an invalid default Space.',
+          );
+        }
+      } on user_api.ApiException catch (error) {
+        if (error.code == 401 || error.code == 403) {
+          throw AppFailure.unknown(
+            'The Weave backend rejected the current session.',
+            cause: error.code,
+          );
+        }
+        if (error.code != 404) {
+          throw AppFailure.unknown(
+            'The Weave backend failed to read the default Space.',
+            cause: error.code,
+          );
+        }
+        // A grant may be revoked between list and read.
+        refs.remove(MemberSpaceAccessSnapshot.defaultSpaceRef);
+      } on TimeoutException {
+        throw const AppFailure.unknown(
+          'Unable to reach the Weave backend right now.',
+        );
+      }
+    }
+    return MemberSpaceAccessSnapshot(
+      visibleSpaceRefs: Set.unmodifiable(refs),
+      defaultSpaceReadable: defaultReadable,
+    );
   }
 
   @override
@@ -153,16 +258,12 @@ class HttpWeaveApiClient implements WeaveApiClient {
     required Uri baseUrl,
     required String accessToken,
   }) async {
-    final payload = await _getJson(
-      requestUri: _workspaceHomeUri(baseUrl),
-      accessToken: accessToken,
-      failureMessage: 'The Weave backend failed to return Weave Home.',
-      invalidPayloadMessage:
-          'The Weave backend returned an invalid Weave Home payload.',
-      decodeFailureMessage: 'Unable to decode Weave Home from the backend.',
+    final response = await _read(
+      () => user_api.WorkspaceApi(_client(baseUrl, accessToken)).home(),
+      failureMessage: 'Weave Home could not be loaded right now.',
+      invalidPayloadMessage: 'The backend returned no Weave Home snapshot.',
     );
-
-    return openapi.WorkspaceHomeResponse.fromJson(payload).toSnapshot();
+    return response.toSnapshot();
   }
 
   @override
@@ -170,35 +271,15 @@ class HttpWeaveApiClient implements WeaveApiClient {
     required Uri baseUrl,
     required String accessToken,
   }) async {
-    final payload = await _getJson(
-      requestUri: _platformStatusUri(baseUrl),
-      accessToken: accessToken,
+    final response = await _read(
+      () => user_api.PlatformApi(
+        _client(baseUrl, accessToken),
+      ).getPlatformStatus(),
       failureMessage: 'The Weave backend failed to return platform status.',
       invalidPayloadMessage:
-          'The Weave backend returned an invalid platform status payload.',
-      decodeFailureMessage:
-          'Unable to decode platform status from the Weave backend.',
+          'The Weave backend returned an invalid platform status response.',
     );
-
-    return PlatformStatusResponseDto.fromJson(payload).toMatrixDiagnostic();
-  }
-
-  @override
-  Future<ProviderStackSnapshot> fetchProviderStackStatus({
-    required Uri baseUrl,
-    required String accessToken,
-  }) async {
-    final payload = await _getJson(
-      requestUri: _providerStatusUri(baseUrl),
-      accessToken: accessToken,
-      failureMessage: 'The Weave backend failed to return provider status.',
-      invalidPayloadMessage:
-          'The Weave backend returned an invalid provider status payload.',
-      decodeFailureMessage:
-          'Unable to decode provider status from the Weave backend.',
-    );
-
-    return openapi.ProviderRegistryResponse.fromJson(payload).toSnapshot();
+    return response.toMatrixDiagnostic();
   }
 
   @override
@@ -208,21 +289,15 @@ class HttpWeaveApiClient implements WeaveApiClient {
     required String workspaceId,
     required String channelId,
   }) async {
-    final payload = await _getJson(
-      requestUri: _devopsSummaryUri(
-        baseUrl,
-        workspaceId: workspaceId,
-        channelId: channelId,
-      ),
-      accessToken: accessToken,
+    final response = await _read(
+      () => user_api.DevOpsFacadeApi(
+        _client(baseUrl, accessToken),
+      ).summary(workspaceId, channelId),
       failureMessage: 'The Weave backend failed to return DevOps readiness.',
       invalidPayloadMessage:
           'The Weave backend returned an invalid DevOps readiness payload.',
-      decodeFailureMessage:
-          'Unable to decode DevOps readiness from the Weave backend.',
     );
-
-    return openapi.DevopsSummaryResponse.fromJson(payload).toSnapshot();
+    return response.toSnapshot();
   }
 
   @override
@@ -230,17 +305,15 @@ class HttpWeaveApiClient implements WeaveApiClient {
     required Uri baseUrl,
     required String accessToken,
   }) async {
-    final payload = await _getJson(
-      requestUri: _officeCapabilitiesUri(baseUrl),
-      accessToken: accessToken,
+    final response = await _read(
+      () => user_api.OfficeFacadeApi(
+        _client(baseUrl, accessToken),
+      ).getOfficeCapabilities(),
       failureMessage: 'The Weave backend failed to return Office capabilities.',
       invalidPayloadMessage:
           'The Weave backend returned an invalid Office capabilities payload.',
-      decodeFailureMessage:
-          'Unable to decode Office capabilities from the Weave backend.',
     );
-
-    return openapi.OfficeCapabilitiesResponse.fromJson(payload).toSnapshot();
+    return response.toSnapshot();
   }
 
   @override
@@ -250,193 +323,59 @@ class HttpWeaveApiClient implements WeaveApiClient {
     required String fileId,
     required String requestedMode,
   }) async {
-    final payload = await _postJson(
-      requestUri: _officeLaunchUri(baseUrl),
-      accessToken: accessToken,
-      body: {'fileId': fileId, 'requestedMode': requestedMode},
-      failureMessage: 'The Weave backend refused the Office launch request.',
-      invalidPayloadMessage:
+    final apiClient = _client(baseUrl, accessToken);
+    try {
+      final response = await user_api.OfficeFacadeApi(apiClient)
+          .launch(
+            user_api.OfficeLaunchRequest(
+              fileId: fileId,
+              requestedMode: requestedMode,
+            ),
+          )
+          .timeout(const Duration(seconds: 5));
+      if (response == null) {
+        throw const AppFailure.unknown(
           'The Weave backend returned an invalid Office launch payload.',
-      decodeFailureMessage:
-          'Unable to decode Office launch from the Weave backend.',
-      failClosedStatusCodes: const {503},
-    );
-
-    if (payload.failClosed) {
-      return officeLaunchFailClosedSnapshot(payload.json);
-    }
-
-    return openapi.OfficeLaunchResponse.fromJson(payload.json).toSnapshot();
-  }
-
-  Future<Map<String, dynamic>> _getJson({
-    required Uri requestUri,
-    required String accessToken,
-    required String failureMessage,
-    required String invalidPayloadMessage,
-    required String decodeFailureMessage,
-  }) async {
-    late http.Response response;
-    try {
-      response = await _httpClient
-          .get(
-            requestUri,
-            headers: {
-              'Accept': 'application/json',
-              'Authorization': 'Bearer $accessToken',
-            },
-          )
-          .timeout(const Duration(seconds: 5));
-    } catch (error) {
-      throw AppFailure.unknown(
-        'Unable to reach the Weave backend right now.',
-        cause: error,
-      );
-    }
-
-    if (response.statusCode == 401 || response.statusCode == 403) {
-      throw const AppFailure.unknown(
-        'The Weave backend rejected the current session.',
-      );
-    }
-
-    if (response.statusCode != 200) {
-      throw AppFailure.unknown(failureMessage, cause: response.statusCode);
-    }
-
-    try {
-      final payload = jsonDecode(response.body);
-      if (payload is! Map<String, dynamic>) {
-        throw AppFailure.unknown(invalidPayloadMessage);
+        );
       }
-
-      return payload;
-    } on AppFailure {
-      rethrow;
-    } catch (error) {
-      throw AppFailure.unknown(decodeFailureMessage, cause: error);
-    }
-  }
-
-  Future<_HttpJsonPayload> _postJson({
-    required Uri requestUri,
-    required String accessToken,
-    Map<String, Object?>? body,
-    required String failureMessage,
-    required String invalidPayloadMessage,
-    required String decodeFailureMessage,
-    Set<int> failClosedStatusCodes = const {},
-  }) async {
-    late http.Response response;
-    try {
-      final headers = <String, String>{
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $accessToken',
-      };
-      if (body != null) {
-        headers['Content-Type'] = 'application/json';
-      }
-      response = await _httpClient
-          .post(
-            requestUri,
-            headers: headers,
-            body: body == null ? null : jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 5));
-    } catch (error) {
-      throw AppFailure.unknown(
-        'Unable to reach the Weave backend right now.',
-        cause: error,
-      );
-    }
-
-    if (response.statusCode == 401 || response.statusCode == 403) {
-      throw const AppFailure.unknown(
-        'The Weave backend rejected the current session.',
-      );
-    }
-
-    final failClosed = failClosedStatusCodes.contains(response.statusCode);
-    if (response.statusCode != 200 && !failClosed) {
-      throw AppFailure.unknown(failureMessage, cause: response.statusCode);
-    }
-
-    try {
-      final payload = jsonDecode(response.body);
-      if (payload is! Map<String, dynamic>) {
-        if (failClosed) {
-          return const _HttpJsonPayload(json: {}, failClosed: true);
+      return response.toSnapshot();
+    } on user_api.ApiException catch (error) {
+      if (error.code == 503) {
+        user_api.ApiErrorResponse? errorResponse;
+        try {
+          final decoded = await apiClient.deserializeAsync(
+            error.message ?? '',
+            'ApiErrorResponse',
+          );
+          if (decoded is user_api.ApiErrorResponse) {
+            errorResponse = decoded;
+          }
+        } catch (_) {
+          // A malformed error body still leaves the Office launch fail-closed.
         }
-        throw AppFailure.unknown(invalidPayloadMessage);
+        return officeLaunchFailClosedSnapshot(errorResponse);
       }
-
-      return _HttpJsonPayload(json: payload, failClosed: failClosed);
+      if (error.code == 401 || error.code == 403) {
+        throw AppFailure.unknown(
+          'The Weave backend rejected the current session.',
+          cause: error.code,
+        );
+      }
+      throw AppFailure.unknown(
+        'The Weave backend refused the Office launch request.',
+        cause: error.code,
+      );
     } on AppFailure {
       rethrow;
+    } on TimeoutException {
+      throw const AppFailure.unknown(
+        'Unable to reach the Weave backend right now.',
+      );
     } catch (error) {
-      if (failClosed) {
-        return const _HttpJsonPayload(json: {}, failClosed: true);
-      }
-      throw AppFailure.unknown(decodeFailureMessage, cause: error);
+      throw AppFailure.unknown(
+        'Unable to decode Office launch from the Weave backend.',
+        cause: error,
+      );
     }
   }
-
-  Uri _organizationManifestUri(Uri baseUrl) {
-    return weaveApiUri(baseUrl, const ['organization', 'manifest']);
-  }
-
-  Uri _identitySessionReconcileUri(Uri baseUrl) {
-    return weaveApiUri(baseUrl, const [
-      'v1',
-      'identity',
-      'session',
-      'reconcile',
-    ]);
-  }
-
-  Uri _workspaceCapabilitiesUri(Uri baseUrl) {
-    return weaveApiUri(baseUrl, const ['workspace', 'capabilities']);
-  }
-
-  Uri _workspaceHomeUri(Uri baseUrl) {
-    return weaveApiUri(baseUrl, const ['workspace', 'home']);
-  }
-
-  Uri _platformStatusUri(Uri baseUrl) {
-    return weaveApiUri(baseUrl, const ['platform', 'status']);
-  }
-
-  Uri _providerStatusUri(Uri baseUrl) {
-    return weaveApiUri(baseUrl, const ['providers', 'status']);
-  }
-
-  Uri _devopsSummaryUri(
-    Uri baseUrl, {
-    required String workspaceId,
-    required String channelId,
-  }) {
-    return weaveApiUri(baseUrl, [
-      'workspaces',
-      workspaceId,
-      'channels',
-      channelId,
-      'devops',
-      'summary',
-    ]);
-  }
-
-  Uri _officeCapabilitiesUri(Uri baseUrl) {
-    return weaveApiUri(baseUrl, const ['office', 'capabilities']);
-  }
-
-  Uri _officeLaunchUri(Uri baseUrl) {
-    return weaveApiUri(baseUrl, const ['office', 'launch']);
-  }
-}
-
-class _HttpJsonPayload {
-  const _HttpJsonPayload({required this.json, required this.failClosed});
-
-  final Map<String, dynamic> json;
-  final bool failClosed;
 }

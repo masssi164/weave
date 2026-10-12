@@ -44,15 +44,12 @@ class ApplyServerConfigurationChanges {
       );
     }
 
-    if (result.nextcloudBaseUrlChanged) {
+    if (result.backendApiBaseUrlChanged) {
       await _filesSessionPort.disconnect();
       _workspaceInvalidationPort.invalidate(
         integration: WorkspaceIntegration.files,
         reason: IntegrationInvalidationReason.filesConfigurationChanged,
       );
-    }
-
-    if (result.backendApiBaseUrlChanged) {
       _workspaceInvalidationPort.invalidate(
         integration: WorkspaceIntegration.weaveBackend,
         reason: IntegrationInvalidationReason.backendApiBaseUrlChanged,

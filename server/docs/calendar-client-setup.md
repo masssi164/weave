@@ -1,6 +1,10 @@
 # Calendar client setup
 
-Weave provides one CalDAV/iCalendar data plane under `/caldav/**` for the Flutter Calendar product surface and compatible native clients. `/api/calendar/**` remains the authenticated control plane for scope discovery, readiness, setup, credential lifecycle, and future signed profile delivery. Neither client path talks directly to a provider CalDAV endpoint.
+Status: historical compatibility research, outside the #1470 release. The
+current Flutter Calendar product uses the generated User Calendar API. Public
+`/caldav/**` and its setup/credential routes are disabled by default; only an
+explicit compatibility environment can enable them. The descriptions below
+record prior design and security constraints, not a current setup workflow.
 
 ## Research findings
 
@@ -8,7 +12,7 @@ Weave provides one CalDAV/iCalendar data plane under `/caldav/**` for the Flutte
 
 Apple supports a Calendar configuration profile payload (`PayloadType = com.apple.caldav.account`) for iOS, iPadOS, macOS, Shared iPad user channel, and visionOS. The payload can carry the CalDAV host, port, SSL flag, principal URL, account description, username, and optionally a password. Apple documents that omitted passwords are entered by the user during install.
 
-Active product implications:
+Historical design implications:
 
 - A Weave profile download can produce a `.mobileconfig` for Apple platforms.
 - The profile must be generated per user and should be signed before end-user release to avoid scary installation warnings and tampering concerns.
@@ -21,7 +25,7 @@ Active product implications:
 
 Android does not provide a universal OS-level CalDAV profile install equivalent. DAVx5 is the practical open CalDAV/CardDAV sync adapter. DAVx5 can be launched with explicit intents or `davx5://`, `caldav(s)://`, and `carddav(s)://` links, and can use the Nextcloud login flow so each client receives its own app password. ICS/webcal subscriptions are a separate one-way path; DAVx5 recommends ICSx5 for HTTP/Webcal `.ics` subscriptions.
 
-Active product implications:
+Historical design implications:
 
 - Weave should expose a secret-free DAVx5 setup URL and copyable CalDAV discovery URL.
 - Android two-way sync depends on DAVx5 or another CalDAV sync adapter, not on Android Calendar alone.
@@ -36,7 +40,7 @@ Desktop support is fragmented:
 - GNOME/KDE calendar stacks can use CalDAV through their account/calendar integrations.
 - Outlook on Windows generally does not support CalDAV natively without an add-in; read-only ICS/webcal can help for subscription-only use cases.
 
-Active product implications:
+Historical design implications:
 
 - Provide copyable CalDAV discovery/principal URLs and username for manual setup.
 - Provide a future read-only webcal/ICS feed for clients that cannot do CalDAV, backed by revocable tokens.
@@ -46,13 +50,16 @@ Active product implications:
 
 Provider app passwords are southbound implementation details and are never distributed to member clients. Weave issues per-device, capability-scoped CalDAV credentials at its own facade boundary and stores only strong hashes of their one-time secrets.
 
-Active product implications:
+Historical design implications:
 
 - External clients use a revocable, expiring Weave-scoped credential accepted at the CalDAV boundary.
 - The backend must never expose its service-account CalDAV credential to users or generated profiles.
 - Credential issuance, use, revocation, and denial-after-revoke are audited and covered by live protocol evidence.
 
 ## First backend slice
+
+The routes in this historical slice require the explicit public DAV
+compatibility flag and are absent from the current generated User API.
 
 `GET /api/calendar/client-setup` now exposes authenticated, secret-free setup metadata:
 

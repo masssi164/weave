@@ -1,0 +1,79 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.massimotter.weave'
+version = '0.1.0'
+
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+
+def generatorVersion = '7.17.0'
+def adminContract = rootProject.file('contracts/openapi/weave-admin-openapi.json')
+def generatedRoot = layout.buildDirectory.dir('generated/openapi-admin')
+def comparisonRoot = layout.buildDirectory.dir('generated/openapi-admin-comparison')
+def generatorArguments = { output ->
+    ['generate', '-g', 'java', '-i', adminContract.absolutePath,
+     '-o', output.get().asFile.absolutePath,
+     '--additional-properties',
+     'library=native,serializationLibrary=jackson,dateLibrary=java8,hideGenerationTimestamp=true,' +
+     'sourceFolder=src/main/java,invokerPackage=com.massimotter.weave.adminapi.invoker,' +
+     'apiPackage=com.massimotter.weave.adminapi.api,modelPackage=com.massimotter.weave.adminapi.model,' +
+     'apiDocs=false,apiTests=false,modelDocs=false,modelTests=false']
+}
+
+configurations { openApiGenerator }
+
+dependencies {
+    openApiGenerator "org.openapitools:openapi-generator-cli:${generatorVersion}"
+    api 'com.fasterxml.jackson.core:jackson-databind:2.20.1'
+    api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.20.1'
+    api 'javax.annotation:javax.annotation-api:1.3.2'
+    api 'com.google.code.findbugs:jsr305:3.0.2'
+    api 'org.openapitools:jackson-databind-nullable:0.2.7'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.12.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.12.2'
+}
+
+tasks.register('generateAdminApiClient', JavaExec) {
+    group = 'build'
+    description = 'Generate the pinned JVM Admin HTTP client from the server-owned OpenAPI artifact.'
+    classpath = configurations.openApiGenerator
+    mainClass = 'org.openapitools.codegen.OpenAPIGenerator'
+    args generatorArguments(generatedRoot)
+    inputs.file(adminContract)
+    inputs.property('generatorVersion', generatorVersion)
+    outputs.dir(generatedRoot)
+    doFirst { delete(generatedRoot) }
+}
+
+tasks.register('generateAdminApiClientComparison', JavaExec) {
+    group = 'verification'
+    description = 'Regenerate the Admin client independently for reproducibility verification.'
+    classpath = configurations.openApiGenerator
+    mainClass = 'org.openapitools.codegen.OpenAPIGenerator'
+    args generatorArguments(comparisonRoot)
+    inputs.file(adminContract)
+    inputs.property('generatorVersion', generatorVersion)
+    outputs.dir(comparisonRoot)
+    doFirst { delete(comparisonRoot) }
+}
+
+tasks.register('checkAdminApiClientReproducible') {
+    group = 'verification'
+    description = 'Check generated JVM Admin routes/models cover the artifact and reproduce byte for byte.'
+    dependsOn tasks.named('generateAdminApiClient'), tasks.named('generateAdminApiClientComparison')
+    inputs.file(adminContract)
+    inputs.file(rootProject.file('tools/check_jvm_api_client.py'))
+    doLast {
+        exec {
+            commandLine 'python3', rootProject.file('tools/check_jvm_api_client.py'),
+                    adminContract.absolutePath, generatedRoot.get().asFile.absolutePath,
+                    comparisonRoot.get().asFile.absolutePath, 'admin'
+        }
+    }
+}
+
+sourceSets.main.java.srcDir(generatedRoot.map { it.dir('src/main/java') })
+tasks.named('compileJava') { dependsOn tasks.named('generateAdminApiClient') }
+tasks.named('test') { useJUnitPlatform() }
+tasks.named('check') { dependsOn tasks.named('checkAdminApiClientReproducible') }

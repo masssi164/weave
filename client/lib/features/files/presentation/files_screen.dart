@@ -5,11 +5,15 @@ import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
+import 'package:weave/features/app/presentation/workspace_capability_recovery_presenter.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 class FilesScreen extends ConsumerStatefulWidget {
@@ -23,6 +27,26 @@ class FilesScreen extends ConsumerStatefulWidget {
 
 class _FilesScreenState extends ConsumerState<FilesScreen> {
   String? _requestedInitialPath;
+  bool _didInvalidateInitialFiles = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didInvalidateInitialFiles) {
+      return;
+    }
+    _didInvalidateInitialFiles = true;
+    // A newly opened authorized screen must not reuse retained member content.
+    if (ref
+            .read(workspaceCapabilitySnapshotProvider)
+            .asData
+            ?.value
+            .files
+            .isReady ==
+        true) {
+      ref.invalidate(filesProvider);
+    }
+  }
 
   @override
   void didUpdateWidget(covariant FilesScreen oldWidget) {
@@ -35,13 +59,31 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final asyncFiles = ref.watch(filesProvider);
-    _syncInitialPath(asyncFiles);
+    ref.listen(workspaceCapabilitySnapshotProvider, (previous, next) {
+      final wasReady = previous?.asData?.value.files.isReady == true;
+      final isReady = next.asData?.value.files.isReady == true;
+      if (wasReady && !isReady) {
+        // The blocked view never watches Files, so it cannot show old content.
+        _requestedInitialPath = null;
+      }
+      if (!wasReady && isReady) {
+        // Grant restoration must fetch current content before it is shown.
+        ref.invalidate(filesProvider);
+        _requestedInitialPath = null;
+      }
+    });
+    final capabilitySnapshot = ref.watch(workspaceCapabilitySnapshotProvider);
+    final filesReady = capabilitySnapshot.asData?.value.files.isReady == true;
+    // A blocked member must not start a Files session or issue a directory read.
+    final asyncFiles = filesReady ? ref.watch(filesProvider) : null;
+    if (asyncFiles != null) {
+      _syncInitialPath(asyncFiles);
+    }
 
     return CustomScrollView(
       slivers: [
         SliverAppBar.large(title: Text(l10n.filesScreenTitle)),
-        ...switch (asyncFiles) {
+        ...switch (capabilitySnapshot) {
           AsyncLoading() => <Widget>[
             _fillStateSliver(
               child: LoadingState(
@@ -58,17 +100,50 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                 guidance: l10n.filesErrorGuidance,
                 retryLabel: l10n.retryButton,
                 onRetry: () {
-                  ref.invalidate(filesProvider);
+                  ref
+                    ..invalidate(weaveApiWorkspaceCapabilitySnapshotProvider)
+                    ..invalidate(weaveApiMemberSpacesProvider);
                 },
               ),
             ),
           ],
-          AsyncData(:final value) => _buildStateSlivers(
-            context,
-            ref,
-            l10n,
-            value,
-          ),
+          AsyncData(:final value) when !value.files.isReady => <Widget>[
+            _fillStateSliver(
+              child: _FilesCapabilityBody(
+                capability: value.files,
+                onRetry: () => ref
+                  ..invalidate(weaveApiWorkspaceCapabilitySnapshotProvider)
+                  ..invalidate(weaveApiMemberSpacesProvider),
+              ),
+            ),
+          ],
+          AsyncData() => switch (asyncFiles!) {
+            AsyncLoading() => <Widget>[
+              _fillStateSliver(
+                child: LoadingState(
+                  message: l10n.filesLoadingLabel,
+                  hint: l10n.filesLoadingHint,
+                  icon: Icons.folder_outlined,
+                ),
+              ),
+            ],
+            AsyncError() => <Widget>[
+              _fillStateSliver(
+                child: ErrorState(
+                  message: l10n.filesLoadErrorTitle,
+                  guidance: l10n.filesErrorGuidance,
+                  retryLabel: l10n.retryButton,
+                  onRetry: () => ref.invalidate(filesProvider),
+                ),
+              ),
+            ],
+            AsyncData(:final value) => _buildStateSlivers(
+              context,
+              ref,
+              l10n,
+              value,
+            ),
+          },
         },
       ],
     );
@@ -180,12 +255,6 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
             message: l10n.filesDisconnectedTitle,
             guidance: l10n.filesDisconnectedMessage,
             icon: Icons.cloud_off_outlined,
-            actionLabel: l10n.filesConnectButton,
-            onAction: state.isBusy
-                ? null
-                : () {
-                    ref.read(filesProvider.notifier).connect();
-                  },
           ),
         );
       case FilesConnectionStatus.invalid:
@@ -193,7 +262,14 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
           child: ErrorState(
             message: l10n.filesSessionExpiredTitle,
             guidance: l10n.filesInvalidSessionMessage,
-            retryLabel: l10n.filesReconnectButton,
+          ),
+        );
+      case FilesConnectionStatus.unavailable:
+        return _fillStateSliver(
+          child: ErrorState(
+            message: l10n.filesUnavailableTitle,
+            guidance: connectionState.message ?? l10n.filesUnavailableGuidance,
+            retryLabel: l10n.retryButton,
             onRetry: state.isBusy
                 ? null
                 : () {
@@ -287,6 +363,39 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   }
 }
 
+class _FilesCapabilityBody extends StatelessWidget {
+  const _FilesCapabilityBody({required this.capability, required this.onRetry});
+
+  final WorkspaceCapabilityState capability;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final recovery = workspaceCapabilityRecoveryPresentation(l10n, capability);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: EmptyState(
+          message: l10n.filesUnavailableTitle,
+          guidance: recovery.recovery,
+          icon: Icons.folder_off_outlined,
+          actionLabel: l10n.retryButton,
+          onAction: onRetry,
+          semanticLabel: recovery.semanticLabel(l10n, l10n.navFiles),
+        ),
+      ),
+    );
+  }
+}
+
+String? _localizedFilesFailure(FilesFailure? failure, AppLocalizations l10n) {
+  if (failure?.type == FilesFailureType.sessionRequired) {
+    return l10n.filesInvalidSessionMessage;
+  }
+  return failure?.message;
+}
+
 class _StaleDirectoryNotice extends StatelessWidget {
   const _StaleDirectoryNotice({required this.failure, required this.onRefresh});
 
@@ -297,7 +406,7 @@ class _StaleDirectoryNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final failureMessage = failure.message;
+    final failureMessage = _localizedFilesFailure(failure, l10n)!;
 
     return Semantics(
       container: true,
@@ -406,32 +515,36 @@ class _DirectoryToolbar extends ConsumerWidget {
               semanticLabel: l10n.filesRefreshCurrentFolderSemantic,
               child: Text(l10n.filesRefreshButton),
             ),
-            AccessibleButton(
-              outlined: true,
-              onPressed: state.isBusy
-                  ? null
-                  : () async {
-                      final folderName = await showDialog<String>(
-                        context: context,
-                        builder: (context) => const _CreateFolderDialog(),
-                      );
-                      if (folderName == null) {
-                        return;
-                      }
-                      ref.read(filesProvider.notifier).createFolder(folderName);
-                    },
-              semanticLabel: l10n.filesCreateFolderCurrentFolderSemantic,
-              child: Text(l10n.filesCreateFolderButton),
-            ),
-            AccessibleButton(
-              onPressed: state.isBusy
-                  ? null
-                  : () {
-                      ref.read(filesProvider.notifier).pickAndUpload();
-                    },
-              semanticLabel: l10n.filesUploadCurrentFolderSemantic,
-              child: Text(l10n.filesUploadButton),
-            ),
+            if (listing?.allows('createFolder') == true)
+              AccessibleButton(
+                outlined: true,
+                onPressed: state.isBusy
+                    ? null
+                    : () async {
+                        final folderName = await showDialog<String>(
+                          context: context,
+                          builder: (context) => const _CreateFolderDialog(),
+                        );
+                        if (folderName == null) {
+                          return;
+                        }
+                        ref
+                            .read(filesProvider.notifier)
+                            .createFolder(folderName);
+                      },
+                semanticLabel: l10n.filesCreateFolderCurrentFolderSemantic,
+                child: Text(l10n.filesCreateFolderButton),
+              ),
+            if (listing?.allows('upload') == true)
+              AccessibleButton(
+                onPressed: state.isBusy
+                    ? null
+                    : () {
+                        ref.read(filesProvider.notifier).pickAndUpload();
+                      },
+                semanticLabel: l10n.filesUploadCurrentFolderSemantic,
+                child: Text(l10n.filesUploadButton),
+              ),
           ],
         ),
       ],
@@ -479,7 +592,8 @@ class _EntryActionStatusCard extends StatelessWidget {
                 actionStatus.destination ?? l10n.filesExportUserVisibleFallback,
               ),
       FilesEntryActionPhase.failed =>
-        actionStatus.failure?.message ?? l10n.filesEntryActionFailedMessage,
+        _localizedFilesFailure(actionStatus.failure, l10n) ??
+            l10n.filesEntryActionFailedMessage,
     };
     final icon = switch (actionStatus.phase) {
       FilesEntryActionPhase.createdFolder => Icons.check_circle_outline,
@@ -548,7 +662,7 @@ class _UploadStatusCard extends StatelessWidget {
             ? l10n.filesUploadCompletedUnknownMessage
             : l10n.filesUploadCompletedMessage(fileName),
       FilesUploadPhase.failed =>
-        uploadStatus.failure?.message ??
+        _localizedFilesFailure(uploadStatus.failure, l10n) ??
             (fileName == null
                 ? l10n.filesUploadFailedUnknownMessage
                 : l10n.filesUploadFailedMessage(fileName)),
@@ -727,6 +841,7 @@ class _ConnectionCard extends ConsumerWidget {
         connectionState.accountLabel ?? l10n.filesProductTitle,
       ),
       FilesConnectionStatus.invalid => l10n.filesConnectionInvalid,
+      FilesConnectionStatus.unavailable => l10n.filesConnectionUnavailable,
       FilesConnectionStatus.disconnected => l10n.filesConnectionDisconnected,
       FilesConnectionStatus.misconfigured => l10n.filesConnectionMisconfigured,
     };
@@ -747,42 +862,19 @@ class _ConnectionCard extends ConsumerWidget {
                 body: l10n.filesProductBoundaryBody,
               ),
             ],
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                if (connectionState.status != FilesConnectionStatus.connected)
-                  AccessibleButton(
-                    onPressed: state.isBusy
-                        ? null
-                        : () {
-                            ref.read(filesProvider.notifier).connect();
-                          },
-                    semanticLabel:
-                        connectionState.status == FilesConnectionStatus.invalid
-                        ? l10n.filesReconnectButton
-                        : l10n.filesConnectButton,
-                    child: Text(
-                      connectionState.status == FilesConnectionStatus.invalid
-                          ? l10n.filesReconnectButton
-                          : l10n.filesConnectButton,
-                    ),
-                  ),
-                if (connectionState.status == FilesConnectionStatus.connected ||
-                    connectionState.status == FilesConnectionStatus.invalid)
-                  AccessibleButton(
-                    outlined: true,
-                    onPressed: state.isBusy
-                        ? null
-                        : () {
-                            ref.read(filesProvider.notifier).disconnect();
-                          },
-                    semanticLabel: l10n.filesDisconnectButton,
-                    child: Text(l10n.filesDisconnectButton),
-                  ),
-              ],
-            ),
+            if (connectionState.status ==
+                FilesConnectionStatus.unavailable) ...[
+              const SizedBox(height: 16),
+              AccessibleButton(
+                onPressed: state.isBusy
+                    ? null
+                    : () {
+                        ref.read(filesProvider.notifier).connect();
+                      },
+                semanticLabel: l10n.retryButton,
+                child: Text(l10n.retryButton),
+              ),
+            ],
           ],
         ),
       ),
@@ -911,37 +1003,6 @@ class _CreateFolderDialogState extends State<_CreateFolderDialog> {
   }
 }
 
-class _DeleteEntryDialog extends StatelessWidget {
-  const _DeleteEntryDialog({required this.entry});
-
-  final FileEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-
-    return AlertDialog(
-      title: Text(l10n.filesDeleteEntryDialogTitle(entry.name)),
-      content: Text(l10n.filesDeleteEntryDialogMessage),
-      actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.of(context).pop(false);
-          },
-          child: Text(l10n.filesCancelButton),
-        ),
-        FilledButton.tonalIcon(
-          onPressed: () {
-            Navigator.of(context).pop(true);
-          },
-          icon: const Icon(Icons.delete_outline),
-          label: Text(l10n.filesDeleteButton),
-        ),
-      ],
-    );
-  }
-}
-
 class _FileEntryTile extends ConsumerWidget {
   const _FileEntryTile({required this.entry, required this.isBusy});
 
@@ -973,7 +1034,7 @@ class _FileEntryTile extends ConsumerWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!entry.isDirectory)
+            if (!entry.isDirectory && entry.allows('download'))
               IconButton(
                 tooltip: l10n.filesExportEntrySemantic(entry.name),
                 onPressed: isBusy
@@ -983,27 +1044,11 @@ class _FileEntryTile extends ConsumerWidget {
                       },
                 icon: const Icon(Icons.file_download_outlined),
               ),
-            IconButton(
-              tooltip: l10n.filesDeleteEntrySemantic(entry.name),
-              onPressed: isBusy
-                  ? null
-                  : () async {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => _DeleteEntryDialog(entry: entry),
-                      );
-                      if (confirmed != true) {
-                        return;
-                      }
-                      ref.read(filesProvider.notifier).deleteEntry(entry);
-                    },
-              icon: const Icon(Icons.delete_outline),
-            ),
             if (entry.isDirectory)
               const ExcludeSemantics(child: Icon(Icons.chevron_right)),
           ],
         ),
-        onTap: !entry.isDirectory || isBusy
+        onTap: !entry.isDirectory || !entry.allows('listChildren') || isBusy
             ? null
             : () {
                 ref.read(filesProvider.notifier).openDirectory(entry.path);

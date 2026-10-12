@@ -117,16 +117,41 @@ void main() {
     expect(
       scenarioNames,
       containsAll(<String>[
-        'Authenticated member discovers standard protocol entrypoints',
-        'Files WebDAV proof is separated from remaining client and native cutover',
-        'PROPFIND Depth 0 and 1 list Weave-owned resources with WebDAV properties',
-        'calendar-multiget returns selected calendar objects',
-        'OIDC-provisioned member can connect to Matrix',
-        'Matrix identity is independently authorized for an RTC slot',
-        'MCP Calls catalog stays empty until MatrixRTC authorization is current',
-        'Files native setup returns Weave WebDAV endpoint and Weave device credentials only',
+        'The approved consolidation release governs architecture evidence',
+        'Current client boundaries separate generated HTTP, native Matrix, and private adapters',
+        'Separate User and Admin OpenAPI artifacts govern current HTTP access',
+        'Superseded architecture stays historical while current safeguards remain',
+        'Weaver workload access is bounded while private Runner work is deferred',
+        'Provider replacement dry-run remains a prerequisite rather than cutover proof',
       ]),
     );
+
+    const currentScopeTags = <String>{
+      '@enterprise-target-decision-lock',
+      '@enterprise-target-open-standard-northbound',
+      '@enterprise-target-openapi-control-plane-only',
+      '@enterprise-target-no-transitional-compatibility',
+      '@weave-v01-agent-runtime-control-policy',
+    };
+    const supersededEvidencePaths = <String>{
+      'docs/architecture.md',
+      'docs/architecture/adr-004-server-openapi-contract-authority.md',
+      'docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md',
+      'docs/architecture/adr-007-persistence-entity-strategy.md',
+    };
+    for (final mapping in mappings.where(
+      (mapping) => currentScopeTags.contains(mapping.tag),
+    )) {
+      expect(mapping.evidenceMode, acceptance.EvidenceMode.offlineSpec);
+      expect(
+        mapping.additionalEvidence
+            .map((evidence) => evidence.path)
+            .toSet()
+            .intersection(supersededEvidencePaths),
+        isEmpty,
+        reason: '${mapping.tag} must not cite superseded architecture as proof',
+      );
+    }
   });
 
   test('mapping guard fails a newly added unmapped scenario', () {

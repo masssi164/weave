@@ -1,11 +1,11 @@
 # Calendar Feature Instructions
 
-`calendar` owns CalDAV parsing and normalization before event data reaches UI code.
+`calendar` consumes the generated Weave User Calendar API and maps its typed values into presentation models. CalDAV belongs inside Server provider adapters.
 
 Rules:
-- keep CalDAV payload parsing, DTOs, and repository code in `data/`
+- keep generated transport mapping and repository code in `data/`; do not add handwritten HTTP DTOs
 - model normalized event data in `domain/` before presentation consumes it
-- do not make presentation widgets responsible for reparsing raw CalDAV fields
+- do not make presentation widgets responsible for reparsing raw protocol fields
 
 Recurrence and time:
 - treat recurrence and timezone handling as correctness-sensitive

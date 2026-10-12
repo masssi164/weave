@@ -1,34 +1,36 @@
 name: Full Compose E2E
-run-name: Full Compose E2E ${{ github.event.pull_request.head.sha || github.sha }}
+run-name: Full Compose E2E ${{ github.sha }}
 
 on:
   push:
-    branches: [dev, dogfood]
-  pull_request:
-    branches: [dev, dogfood]
-    types: [opened, synchronize, reopened, ready_for_review]
-  merge_group:
-  workflow_dispatch:
+    branches: [dogfood]
 
 permissions:
   actions: read
   contents: read
 
 concurrency:
-  group: full-compose-e2e-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: weave-live-mac-mini-exclusive
+  cancel-in-progress: false
 
 jobs:
   full-compose-e2e:
     name: Full Compose E2E
+    if: github.ref == 'refs/heads/dogfood'
     runs-on: [self-hosted, macOS, ARM64, weave-live]
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
       DOCKER_DEFAULT_PLATFORM: linux/amd64
-      WEAVE_CANDIDATE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-      WEAVE_IMAGE_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
+      WEAVE_IMAGE_SOURCE_COMMIT: ${{ github.sha }}
       WEAVE_TEST_APP_RUN_ID: e2e-${{ github.run_id }}-${{ github.run_attempt }}
+      WEAVE_TEST_APP_RELEASE_MCP: "true"
+      WEAVE_TEST_APP_PUBLIC_DOMAIN: weave.localhost
+      WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/weave-specs
+      WEAVE_TEST_APP_NATIVE_RUNNER: ${{ github.workspace }}/weave/client/tool/run_native_qualification.py
+      WEAVE_NATIVE_SIGNING_TEAM: ${{ vars.WEAVE_NATIVE_SIGNING_TEAM }}
+      WEAVE_NATIVE_SIGNING_BUNDLE_ID: ${{ vars.WEAVE_NATIVE_SIGNING_BUNDLE_ID }}
       WEAVE_TEST_APP_OUTPUT_ROOT: ${{ github.workspace }}/weave/build/test-app
 
     steps:
@@ -41,6 +43,7 @@ jobs:
           }
 
       - name: Check out exact source
+        id: exact_source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ env.WEAVE_CANDIDATE_COMMIT }}
@@ -93,20 +96,59 @@ jobs:
         working-directory: weave
         run: |
           set -euo pipefail
+          git fetch --no-tags origin dogfood
+          git merge-base --is-ancestor "$WEAVE_CANDIDATE_COMMIT" origin/dogfood
           [[ "$(git rev-parse HEAD)" == "$WEAVE_CANDIDATE_COMMIT" ]]
           [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]]
+
+      - name: Configure mandatory native acceptance
+        run: |
+          set -euo pipefail
+          [[ -n "$WEAVE_NATIVE_SIGNING_TEAM" && -n "$WEAVE_NATIVE_SIGNING_BUNDLE_ID" ]] || {
+            echo "::error::Native signing variables are not configured."
+            exit 1
+          }
+          native_ca_root="$HOME/.local/share/weave/native-acceptance-ca"
+          [[ -d "$native_ca_root" && ! -L "$native_ca_root" ]] || {
+            echo "::error::The runner user's trusted native acceptance CA is unavailable."
+            exit 1
+          }
+          echo "WEAVE_TEST_APP_NATIVE_CA_ROOT=$native_ca_root" >> "$GITHUB_ENV"
+
+      - name: Verify native Accessibility trust
+        working-directory: weave
+        run: swift client/tool/native_macos_appauth_driver.swift --check-accessibility
 
       - name: Run full isolated product flow
         working-directory: weave
         run: ./gradlew --no-daemon specCorpusConformance testApp
 
-      - name: Upload support-safe E2E evidence
+      - name: Finish exact isolated teardown
+        if: always() && steps.exact_source.outcome == 'success'
+        working-directory: weave
+        run: |
+          python3 -m unittest gradle/scripts/finalize_test_app_ci_test.py
+          python3 gradle/scripts/finalize_test_app_ci.py
+
+      - name: Verify support-safe E2E diagnostics
         if: always()
+        id: evidence_safety
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          if [[ -d build/test-app ]]; then
+            while IFS= read -r -d '' diagnostics_dir; do
+              bash infra/weave-workspace/live-stack-failure-diagnostics.sh --verify "${diagnostics_dir}"
+            done < <(find build/test-app -type d -name failure-diagnostics -print0)
+          fi
+
+      - name: Upload support-safe E2E evidence
+        if: always() && steps.evidence_safety.outcome == 'success'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: full-compose-e2e-${{ env.WEAVE_CANDIDATE_COMMIT }}
+          name: full-compose-e2e-${{ env.WEAVE_CANDIDATE_COMMIT }}-attempt-${{ github.run_attempt }}
           path: weave/build/test-app/**
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
 
   deploy-dogfood:
@@ -192,10 +234,30 @@ jobs:
           ./gradlew --no-daemon dogfoodUp
           echo "DOGFOOD_COMPOSE_DEPLOY_RESULT status=passed commit=${DOGFOOD_COMMIT}"
 
+      - name: Record exact deployment identity
+        working-directory: weave
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          if sha != os.environ["DOGFOOD_COMMIT"]:
+              raise SystemExit("Dogfood deployment source mismatch")
+          output = Path("build/evidence/dogfood-compose/deployment-result.json")
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(json.dumps({
+              "schemaVersion": "weave.dogfood-deployment/v1", "candidateCommit": sha,
+              "sourceTree": subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], text=True).strip(),
+              "specificationCommit": json.loads(Path("specs/weave-specs.lock.json").read_text())["specCorpus"]["gitCommit"],
+              "qualificationRunId": int(os.environ["GITHUB_RUN_ID"]), "status": "passed",
+              "supportSafe": True, "containsSecretValues": False,
+          }, indent=2) + "\n")
+          PY
+
       - name: Upload support-safe deployment result
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: dogfood-compose-${{ env.DOGFOOD_COMMIT }}
+          name: dogfood-compose-${{ env.DOGFOOD_COMMIT }}-attempt-${{ github.run_attempt }}
           path: weave/build/evidence/dogfood-compose
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14

@@ -1,97 +1,41 @@
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
-import 'package:weave/generated/openapi_models.dart' as openapi;
+import 'package:weave/generated/user_api/api.dart' as openapi;
 
 extension WorkspaceCapabilitiesResponseMapper
     on openapi.WorkspaceCapabilitiesResponse {
   WorkspaceCapabilitySnapshot toSnapshot() {
     return WorkspaceCapabilitySnapshot(
-      shellAccess: _requiredCapability(
-        shellAccess,
-        'shellAccess',
-      ).toCapabilityState(WorkspaceCapability.shellAccess),
-      chat: _requiredCapability(
-        chat,
-        'chat',
-      ).toCapabilityState(WorkspaceCapability.chat),
-      files: _requiredCapability(
-        files,
-        'files',
-      ).toCapabilityState(WorkspaceCapability.files),
-      calendar: _requiredCapability(
-        calendar,
-        'calendar',
-      ).toCapabilityState(WorkspaceCapability.calendar),
-      boards: _requiredCapability(
-        boards,
-        'boards',
-      ).toCapabilityState(WorkspaceCapability.boards),
-      meetingsCalls: _optionalCapability(
-        meetingsCalls,
-        enabled: false,
-        readiness: 'unavailable',
-        policyState: 'disabled',
-      ).toCapabilityState(WorkspaceCapability.meetingsCalls),
-      documentsCollaboration: _optionalCapability(
-        documentsCollaboration,
-        enabled: false,
-        readiness: 'unavailable',
-        policyState: 'disabled',
-      ).toCapabilityState(WorkspaceCapability.documentsCollaboration),
-      decisionsEvidence: _optionalCapability(
-        decisionsEvidence,
-        enabled: true,
-        readiness: 'ready',
-        policyState: 'allowed',
-      ).toCapabilityState(WorkspaceCapability.decisionsEvidence),
-      manualsHelp: _optionalCapability(
-        manualsHelp,
-        enabled: true,
-        readiness: 'ready',
-        policyState: 'allowed',
-      ).toCapabilityState(WorkspaceCapability.manualsHelp),
-      releaseEvidence: _optionalCapability(
-        releaseEvidence,
-        enabled: true,
-        readiness: 'ready',
-        policyState: 'allowed',
-      ).toCapabilityState(WorkspaceCapability.releaseEvidence),
-      adminControlPlane: _optionalCapability(
-        adminControlPlane,
-        enabled: true,
-        readiness: 'ready',
-        policyState: 'allowed',
-      ).toCapabilityState(WorkspaceCapability.adminControlPlane),
-      agentRuntimeControl: _optionalCapability(
-        agentRuntimeControl,
-        enabled: false,
-        readiness: 'unavailable',
-        policyState: 'disabled',
-      ).toCapabilityState(WorkspaceCapability.agentRuntimeControl),
+      shellAccess: shellAccess.toCapabilityState(
+        WorkspaceCapability.shellAccess,
+      ),
+      chat: chat.toCapabilityState(WorkspaceCapability.chat),
+      files: files.toCapabilityState(WorkspaceCapability.files),
+      calendar: calendar.toCapabilityState(WorkspaceCapability.calendar),
+      boards: boards.toCapabilityState(WorkspaceCapability.boards),
+      meetingsCalls: meetingsCalls.toCapabilityState(
+        WorkspaceCapability.meetingsCalls,
+      ),
+      documentsCollaboration: documentsCollaboration.toCapabilityState(
+        WorkspaceCapability.documentsCollaboration,
+      ),
+      decisionsEvidence: decisionsEvidence.toCapabilityState(
+        WorkspaceCapability.decisionsEvidence,
+      ),
+      manualsHelp: manualsHelp.toCapabilityState(
+        WorkspaceCapability.manualsHelp,
+      ),
+      releaseEvidence: releaseEvidence.toCapabilityState(
+        WorkspaceCapability.releaseEvidence,
+      ),
+      adminControlPlane: adminControlPlane.toCapabilityState(
+        WorkspaceCapability.adminControlPlane,
+      ),
+      agentRuntimeControl: agentRuntimeControl.toCapabilityState(
+        WorkspaceCapability.agentRuntimeControl,
+      ),
     );
   }
-}
-
-openapi.WorkspaceCapabilityStatusResponse _requiredCapability(
-  openapi.WorkspaceCapabilityStatusResponse? value,
-  String key,
-) {
-  if (value != null) return value;
-  throw AppFailure.unknown('wcap_001', cause: 'wcap_field:$key');
-}
-
-openapi.WorkspaceCapabilityStatusResponse _optionalCapability(
-  openapi.WorkspaceCapabilityStatusResponse? value, {
-  required bool enabled,
-  required String readiness,
-  required String policyState,
-}) {
-  return value ??
-      openapi.WorkspaceCapabilityStatusResponse(
-        enabled: enabled,
-        readiness: readiness,
-        policyState: policyState,
-      );
 }
 
 String _requiredReadiness(String? value) {
@@ -105,15 +49,15 @@ extension WorkspaceCapabilityStatusResponseMapper
     return WorkspaceCapabilityState(
       capability: capability,
       readiness: (enabled ?? false)
-          ? _parseReadiness(_requiredReadiness(readiness))
+          ? _parseReadiness(_requiredReadiness(readiness?.value))
           : WorkspaceCapabilityReadiness.unavailable,
       policyState: _parsePolicyState(
-        policyState ?? ((enabled ?? false) ? 'allowed' : 'disabled'),
+        policyState?.value ?? ((enabled ?? false) ? 'allowed' : 'disabled'),
       ),
       profileKey: profileKey,
       memberImpact: memberImpact,
       supportRef: supportRef,
-      grantedCapabilities: grantedCapabilities ?? const <String>[],
+      grantedCapabilities: grantedCapabilities,
     );
   }
 
