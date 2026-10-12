@@ -894,6 +894,7 @@ services:
       keycloak-realm-migration-receipt-check:
         condition: service_completed_successfully
     environment:
+      WEAVE_CANDIDATE_COMMIT: ${WEAVE_CANDIDATE_COMMIT:?prepared deployment descriptor required}
       SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}
       spring.security.oauth2.resourceserver.jwt.issuer-uri: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
       weave.security.required-audience: ${WEAVE_API_URL:?API URL required}

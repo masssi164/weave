@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import json
 import re
 import subprocess
 import sys
@@ -291,6 +292,25 @@ def assert_retired_cleanup_is_bounded() -> None:
     assert "tls" not in serialized and "/Users/" not in serialized
 
 
+def assert_serving_candidate_rendered(context) -> None:
+    # Render only: no image build, container creation, or persistent state access.
+    command = [*context.compose_base_command, "config", "--no-env-resolution", "--format", "json"]
+    environment = {**os.environ, **context.env}
+    result = subprocess.run(command, env=environment, text=True, capture_output=True, check=True)
+    services = json.loads(result.stdout)["services"]
+    candidate = context.env["WEAVE_CANDIDATE_COMMIT"]
+    for name in ("backend", "schema-init", "schema-receipt-check"):
+        assert services[name]["environment"]["WEAVE_CANDIDATE_COMMIT"] == candidate, (
+            f"{context.environment} {name} lost exact initializer/serving candidate identity")
+    # MCP is a separate HTTP consumer without a datasource/schema guard. Its
+    # existing resource identity must still match the same deployment candidate.
+    assert services["mcp"]["labels"]["com.massimotter.weave.candidate-commit"] == candidate
+    environment["WEAVE_CANDIDATE_COMMIT"] = ""
+    missing = subprocess.run(command, env=environment, text=True, capture_output=True)
+    assert missing.returncode != 0, "missing serving candidate must fail closed during Compose rendering"
+    assert "WEAVE_CANDIDATE_COMMIT" in missing.stderr
+
+
 def main() -> int:
     assert compose_runtime_module.COLLABORATION_CONTROL_BUDGET_SECONDS == 240
     assert compose_runtime_module.COLLABORATION_SUBPROCESS_TIMEOUT_SECONDS == 30
@@ -439,6 +459,8 @@ def main() -> int:
         prod = load_context(
             "prod", ROOT, str(materialize_example("prod", root / "prod.env"))
         )
+        assert_serving_candidate_rendered(dogfood)
+        assert_serving_candidate_rendered(prod)
         assert dogfood.env["WEAVE_API_HOST"] == "api.weave.test"
         assert dogfood.env["WEAVE_API_HOST"] != dogfood.env["WEAVE_MATRIX_HOST"]
         assert prod.env["WEAVE_API_HOST"] == "api.weave.example"
@@ -484,6 +506,7 @@ def main() -> int:
             isolated = load_context(
                 "e2e", ROOT, str(materialize_example("e2e", root / "e2e.env"))
             )
+            assert_serving_candidate_rendered(isolated)
             assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
             assert _image_digest(isolated) == "sha256:" + "b" * 64
             assert isolated.env["WEAVE_RUNTIME_STATE_IMAGE"] == "sha256:" + "c" * 64
