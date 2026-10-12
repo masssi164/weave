@@ -9,7 +9,6 @@ import 'package:weave/features/app/domain/ports/files_session_port.dart';
 import 'package:weave/features/app/domain/ports/identity_session_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
 import 'package:weave/features/app/domain/ports/workspace_invalidation_port.dart';
-import 'package:weave/features/app/domain/use_cases/apply_server_configuration_changes.dart';
 import 'package:weave/features/app/domain/use_cases/resolve_app_bootstrap.dart';
 import 'package:weave/features/app/domain/use_cases/reconcile_identity_session.dart';
 import 'package:weave/features/app/domain/use_cases/restart_workspace_setup.dart';
@@ -117,16 +116,6 @@ final restartWorkspaceSetupProvider = Provider<RestartWorkspaceSetup>((ref) {
     workspaceInvalidationPort: ref.watch(workspaceInvalidationPortProvider),
   );
 });
-
-final applyServerConfigurationChangesProvider =
-    Provider<ApplyServerConfigurationChanges>((ref) {
-      return ApplyServerConfigurationChanges(
-        authPort: ref.watch(appAuthPortProvider),
-        chatSessionPort: ref.watch(chatSessionPortProvider),
-        filesSessionPort: ref.watch(filesSessionPortProvider),
-        workspaceInvalidationPort: ref.watch(workspaceInvalidationPortProvider),
-      );
-    });
 
 class _RepositoryAppAuthPort implements AppAuthPort {
   const _RepositoryAppAuthPort(this._repository);

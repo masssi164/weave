@@ -5,13 +5,11 @@ import 'package:weave/features/app/domain/ports/chat_session_port.dart';
 import 'package:weave/features/app/domain/ports/files_session_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
 import 'package:weave/features/app/domain/ports/workspace_invalidation_port.dart';
-import 'package:weave/features/app/domain/use_cases/apply_server_configuration_changes.dart';
 import 'package:weave/features/app/domain/use_cases/restart_workspace_setup.dart';
 import 'package:weave/features/app/domain/use_cases/sign_out_workspace.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
-import 'package:weave/features/server_config/domain/entities/server_configuration_save_result.dart';
 
 import '../../../../helpers/server_config_test_data.dart';
 
@@ -256,129 +254,6 @@ void main() {
             WorkspaceIntegration.weaveBackend,
           ),
           IntegrationInvalidationReason.restartSetup,
-        );
-      },
-    );
-  });
-
-  group('ApplyServerConfigurationChanges', () {
-    test('clears only Matrix state when the homeserver changes', () async {
-      final authPort = _FakeAppAuthPort();
-      final chatSessionPort = _FakeChatSessionPort();
-      final filesSessionPort = _FakeFilesSessionPort();
-      final workspaceInvalidationPort = _FakeWorkspaceInvalidationPort();
-      final useCase = ApplyServerConfigurationChanges(
-        authPort: authPort,
-        chatSessionPort: chatSessionPort,
-        filesSessionPort: filesSessionPort,
-        workspaceInvalidationPort: workspaceInvalidationPort,
-      );
-
-      await useCase.call(
-        ServerConfigurationSaveResult(
-          configuration: buildTestConfiguration(),
-          authConfigurationChanged: false,
-          matrixHomeserverChanged: true,
-          backendApiBaseUrlChanged: false,
-        ),
-      );
-
-      expect(authPort.clearLocalSessionCalls, 0);
-      expect(chatSessionPort.clearSessionCalls, 1);
-      expect(filesSessionPort.disconnectCalls, 0);
-      expect(
-        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.chat),
-        IntegrationInvalidationReason.chatConfigurationChanged,
-      );
-    });
-
-    test('clears Files when the User API base URL changes', () async {
-      final authPort = _FakeAppAuthPort();
-      final chatSessionPort = _FakeChatSessionPort();
-      final filesSessionPort = _FakeFilesSessionPort();
-      final workspaceInvalidationPort = _FakeWorkspaceInvalidationPort();
-      final useCase = ApplyServerConfigurationChanges(
-        authPort: authPort,
-        chatSessionPort: chatSessionPort,
-        filesSessionPort: filesSessionPort,
-        workspaceInvalidationPort: workspaceInvalidationPort,
-      );
-
-      await useCase.call(
-        ServerConfigurationSaveResult(
-          configuration: buildTestConfiguration(),
-          authConfigurationChanged: false,
-          matrixHomeserverChanged: false,
-          backendApiBaseUrlChanged: true,
-        ),
-      );
-
-      expect(authPort.clearLocalSessionCalls, 0);
-      expect(chatSessionPort.clearSessionCalls, 0);
-      expect(filesSessionPort.disconnectCalls, 1);
-      expect(
-        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.files),
-        IntegrationInvalidationReason.filesConfigurationChanged,
-      );
-    });
-
-    test('records app auth invalidation when auth settings change', () async {
-      final authPort = _FakeAppAuthPort();
-      final workspaceInvalidationPort = _FakeWorkspaceInvalidationPort();
-      final useCase = ApplyServerConfigurationChanges(
-        authPort: authPort,
-        chatSessionPort: _FakeChatSessionPort(),
-        filesSessionPort: _FakeFilesSessionPort(),
-        workspaceInvalidationPort: workspaceInvalidationPort,
-      );
-
-      await useCase.call(
-        ServerConfigurationSaveResult(
-          configuration: buildTestConfiguration(),
-          authConfigurationChanged: true,
-          matrixHomeserverChanged: false,
-          backendApiBaseUrlChanged: false,
-        ),
-      );
-
-      expect(authPort.clearLocalSessionCalls, 1);
-      expect(
-        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.appAuth),
-        IntegrationInvalidationReason.authConfigurationChanged,
-      );
-      expect(
-        workspaceInvalidationPort.lastReasonFor(
-          WorkspaceIntegration.weaveBackend,
-        ),
-        IntegrationInvalidationReason.authConfigurationChanged,
-      );
-    });
-
-    test(
-      'records weaveBackend invalidation when backend API URL changes',
-      () async {
-        final workspaceInvalidationPort = _FakeWorkspaceInvalidationPort();
-        final useCase = ApplyServerConfigurationChanges(
-          authPort: _FakeAppAuthPort(),
-          chatSessionPort: _FakeChatSessionPort(),
-          filesSessionPort: _FakeFilesSessionPort(),
-          workspaceInvalidationPort: workspaceInvalidationPort,
-        );
-
-        await useCase.call(
-          ServerConfigurationSaveResult(
-            configuration: buildTestConfiguration(),
-            authConfigurationChanged: false,
-            matrixHomeserverChanged: false,
-            backendApiBaseUrlChanged: true,
-          ),
-        );
-
-        expect(
-          workspaceInvalidationPort.lastReasonFor(
-            WorkspaceIntegration.weaveBackend,
-          ),
-          IntegrationInvalidationReason.backendApiBaseUrlChanged,
         );
       },
     );
