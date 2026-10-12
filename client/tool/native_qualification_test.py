@@ -40,6 +40,21 @@ class NativeQualificationTest(unittest.TestCase):
                 with self.assertRaises(ios.NativeFailure) as caught: ios.wait_for_flutter_shell(process, log, 'initial')
                 self.assertEqual((caught.exception.category, caught.exception.stage), (category, phase))
 
+    def test_onboarding_auth_classifications_preserve_only_existing_public_codes(self):
+        template = ('NATIVE_PRODUCT_STAGE phase=onboarding-failed actor=A authState=recoverable_error '
+                    'visibleState=handoff_ready errorCode={} organizationCount=0 handoffCount=1 '
+                    'readyCount=0 signInCount=0 workspaceCount=0')
+        codes = ['WEAVE-SSO-CANCELLED', 'WEAVE-SSO-CONFIGURATION-MISSING', 'WEAVE-SSO-NOT-COMPLETE',
+                 'WEAVE-SESSION-STORAGE-FAILED', 'WEAVE-SSO-UNSUPPORTED-DEVICE', 'WEAVE-SSO-UNKNOWN',
+                 'WEAVE-MOBILE-OFFLINE-SESSION-DENIED', 'WEAVE-WORKSPACE-BOOTSTRAP-NOT-READY']
+        for code in codes:
+            with self.subTest(code=code):
+                record = template.format(code)
+                self.assertEqual(ios.onboarding_diagnostics(record), [record])
+                for private in [code + '-private', code + ' account=value', 'https://private.invalid',
+                                code + '\r', 'private@example.invalid', code + 'x' * 81]:
+                    self.assertEqual(ios.onboarding_diagnostics(template.format(private)), [])
+
     def setUp(self):
         # Failure transcript retention must remain inside this test's owned
         # disposable client directory, never the real workspace build outputs.

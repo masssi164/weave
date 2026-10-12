@@ -143,7 +143,7 @@ def onboarding_diagnostics(output: str) -> list[str]:
                r'actor=(?:A|B|unavailable) '
                r'authState=(?:handoff_received|platform_config_loaded|ready_for_sso|sso_in_progress|authenticated|workspace_bootstrap_loading|session_restored|workspace_ready|recoverable_error|terminal_setup_error|unavailable) '
                r'visibleState=(?:handoff_ready|handoff_error|authenticated_redirect|unavailable) '
-               r'errorCode=(?:none|WEAVE-APP-START-DISCOVERY-INVALID|WEAVE-APP-START-DISCOVERY-FAILED|WEAVE-APP-START-TIMEOUT|WEAVE-APP-START-TLS-FAILED|WEAVE-APP-START-DNS-FAILED|WEAVE-APP-START-NETWORK-FAILED|WEAVE-LAN-UNREACHABLE|WEAVE-HANDOFF-INVALID|PlatformException|StateError|FormatException|unavailable) '
+               r'errorCode=(?:none|WEAVE-APP-START-DISCOVERY-INVALID|WEAVE-APP-START-DISCOVERY-FAILED|WEAVE-APP-START-TIMEOUT|WEAVE-APP-START-TLS-FAILED|WEAVE-APP-START-DNS-FAILED|WEAVE-APP-START-NETWORK-FAILED|WEAVE-LAN-UNREACHABLE|WEAVE-HANDOFF-INVALID|WEAVE-SSO-CANCELLED|WEAVE-SSO-CONFIGURATION-MISSING|WEAVE-SSO-NOT-COMPLETE|WEAVE-SESSION-STORAGE-FAILED|WEAVE-SSO-UNSUPPORTED-DEVICE|WEAVE-SSO-UNKNOWN|WEAVE-MOBILE-OFFLINE-SESSION-DENIED|WEAVE-WORKSPACE-BOOTSTRAP-NOT-READY|PlatformException|StateError|FormatException|unavailable) '
                + ' '.join(name + r'Count=[0-9]{1,3}' for name in ('organization', 'handoff', 'ready', 'signIn', 'workspace')) + ')')
     records = []
     for line in output.split('\n'):

@@ -25,6 +25,7 @@ import 'package:weave/features/auth/data/repositories/oidc_auth_session_reposito
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
+import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/domain/entities/auth_session.dart';
 import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
@@ -94,6 +95,49 @@ void _nativeProductDiagnostic(String message) => emitNativeProductDiagnostic(
     const String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID'),
   ),
 );
+
+void emitNativeAuthFailureDiagnostic(
+  AuthFailure failure, {
+  required bool simulatorDriver,
+}) {
+  final cause = failure.cause;
+  final appFailure = cause is AppFailure ? cause : null;
+  final nestedCause = appFailure?.cause ?? cause;
+  final platform = nestedCause is FlutterAppAuthPlatformException
+      ? nestedCause
+      : null;
+  final backendStatus =
+      nestedCause is int && nestedCause >= 100 && nestedCause <= 599
+      ? nestedCause.toString()
+      : 'unavailable';
+  final backendFailure = switch (appFailure?.message) {
+    'The Weave backend rejected the current session.' => 'session-rejected',
+    'Unable to reach the Weave backend right now.' => 'timeout',
+    'The Weave backend failed to reconcile organization access.' =>
+      'request-failed',
+    'The Weave backend returned an invalid identity-session reconciliation payload.' =>
+      'invalid-payload',
+    'The Weave backend returned an unknown identity-session reconciliation state.' =>
+      'unknown-state',
+    _ => 'none',
+  };
+  String safeCode(String? value) =>
+      value != null && RegExp(r'^[A-Za-z0-9_.-]{1,80}$').hasMatch(value)
+      ? value
+      : 'unavailable';
+  emitNativeProductDiagnostic(
+    'NATIVE_PRODUCT_STAGE phase=auth-failed '
+    'category=${failure.type.name} causeType=${cause.runtimeType} '
+    'appFailureType=${appFailure?.type.name ?? 'none'} '
+    'nestedCauseType=${nestedCause.runtimeType} '
+    'backendFailure=$backendFailure backendStatus=$backendStatus '
+    'appAuthCode=${safeCode(platform?.code)} '
+    'nativeType=${safeCode(platform?.platformErrorDetails.type)} '
+    'nativeCode=${safeCode(platform?.platformErrorDetails.code)} '
+    'nativeDomain=${safeCode(platform?.platformErrorDetails.domain)}',
+    simulatorDriver: simulatorDriver,
+  );
+}
 
 String nativeBootstrapDiagnostic({
   required String asyncState,
@@ -1462,41 +1506,11 @@ Future<void> _waitForWorkspaceAfterSignIn(
     }
     final failure = state.failure;
     if (failure != null) {
-      final cause = failure.cause;
-      final appFailure = cause is AppFailure ? cause : null;
-      final nestedCause = appFailure?.cause ?? cause;
-      final platform = nestedCause is FlutterAppAuthPlatformException
-          ? nestedCause
-          : null;
-      final backendStatus =
-          nestedCause is int && nestedCause >= 100 && nestedCause <= 599
-          ? nestedCause.toString()
-          : 'unavailable';
-      final backendFailure = switch (appFailure?.message) {
-        'The Weave backend rejected the current session.' => 'session-rejected',
-        'Unable to reach the Weave backend right now.' => 'timeout',
-        'The Weave backend failed to reconcile organization access.' =>
-          'request-failed',
-        'The Weave backend returned an invalid identity-session reconciliation payload.' =>
-          'invalid-payload',
-        'The Weave backend returned an unknown identity-session reconciliation state.' =>
-          'unknown-state',
-        _ => 'none',
-      };
-      String safeCode(String? value) =>
-          value != null && RegExp(r'^[A-Za-z0-9_.-]{1,80}$').hasMatch(value)
-          ? value
-          : 'unavailable';
-      _nativeProductDiagnostic(
-        'NATIVE_PRODUCT_STAGE phase=auth-failed '
-        'category=${failure.type.name} causeType=${cause.runtimeType} '
-        'appFailureType=${appFailure?.type.name ?? 'none'} '
-        'nestedCauseType=${nestedCause.runtimeType} '
-        'backendFailure=$backendFailure backendStatus=$backendStatus '
-        'appAuthCode=${safeCode(platform?.code)} '
-        'nativeType=${safeCode(platform?.platformErrorDetails.type)} '
-        'nativeCode=${safeCode(platform?.platformErrorDetails.code)} '
-        'nativeDomain=${safeCode(platform?.platformErrorDetails.domain)}',
+      emitNativeAuthFailureDiagnostic(
+        failure,
+        simulatorDriver: _usesSimulatorDriver(
+          const String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID'),
+        ),
       );
       fail('Native OIDC sign-in failed (${failure.type.name}).');
     }

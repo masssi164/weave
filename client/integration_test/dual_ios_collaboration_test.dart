@@ -32,6 +32,7 @@ import 'package:weave/integrations/rust_matrix_core/presentation/providers/matri
 import 'system_browser_auth_e2e_test.dart'
     show
         emitNativeProductDiagnostic,
+        emitNativeAuthFailureDiagnostic,
         requireActualNativeBearerExpiry,
         requireNativeExpiredBearerDenied;
 import 'helpers/test_config.dart';
@@ -112,7 +113,7 @@ String nativeDualOnboardingDiagnostic({
       'actor=${known(role, {'A', 'B'})} '
       'authState=${known(authState, MemberAuthOnboardingStage.values.map((state) => state.serialized).toSet())} '
       'visibleState=${known(visibleState, {'handoff_ready', 'handoff_error', 'authenticated_redirect'})} '
-      'errorCode=${known(errorCode, {'none', 'WEAVE-APP-START-DISCOVERY-INVALID', 'WEAVE-APP-START-DISCOVERY-FAILED', 'WEAVE-APP-START-TIMEOUT', 'WEAVE-APP-START-TLS-FAILED', 'WEAVE-APP-START-DNS-FAILED', 'WEAVE-APP-START-NETWORK-FAILED', 'WEAVE-LAN-UNREACHABLE', 'WEAVE-HANDOFF-INVALID', 'PlatformException', 'StateError', 'FormatException'})} '
+      'errorCode=${known(errorCode, {'none', 'WEAVE-APP-START-DISCOVERY-INVALID', 'WEAVE-APP-START-DISCOVERY-FAILED', 'WEAVE-APP-START-TIMEOUT', 'WEAVE-APP-START-TLS-FAILED', 'WEAVE-APP-START-DNS-FAILED', 'WEAVE-APP-START-NETWORK-FAILED', 'WEAVE-LAN-UNREACHABLE', 'WEAVE-HANDOFF-INVALID', 'WEAVE-SSO-CANCELLED', 'WEAVE-SSO-CONFIGURATION-MISSING', 'WEAVE-SSO-NOT-COMPLETE', 'WEAVE-SESSION-STORAGE-FAILED', 'WEAVE-SSO-UNSUPPORTED-DEVICE', 'WEAVE-SSO-UNKNOWN', 'WEAVE-MOBILE-OFFLINE-SESSION-DENIED', 'WEAVE-WORKSPACE-BOOTSTRAP-NOT-READY', 'PlatformException', 'StateError', 'FormatException'})} '
       '${['organization', 'handoff', 'ready', 'signIn', 'workspace'].map((name) => '${name}Count=${(counts[name] ?? 0).clamp(0, 999)}').join(' ')}';
 }
 
@@ -137,6 +138,10 @@ Future<void> _reportOnboardingFailure(
   final container = ProviderScope.containerOf(
     tester.element(find.byType(WeaveApp)),
   );
+  final failure = container.read(authFlowControllerProvider).failure;
+  if (failure != null) {
+    emitNativeAuthFailureDiagnostic(failure, simulatorDriver: true);
+  }
   final store = container.read(preferencesStoreProvider);
   Future<Map<String, dynamic>> read(String key) async {
     final raw = await store.getString(key);
