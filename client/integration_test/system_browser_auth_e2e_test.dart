@@ -126,6 +126,21 @@ String nativeBootstrapDiagnostic({
       'disposable=$disposable offline=$offline';
 }
 
+void safelyReportNativeBootstrapFailure({
+  required void Function() report,
+  required void Function() unavailable,
+}) {
+  try {
+    report();
+  } catch (_) {
+    try {
+      unavailable();
+    } catch (_) {
+      // Reporting must never replace the original integration failure.
+    }
+  }
+}
+
 void _reportNativeBootstrapFailure(WidgetTester tester, TestConfig config) {
   final root = find.byType(WeaveApp);
   var asyncState = 'unavailable';
@@ -1336,7 +1351,12 @@ Future<ProviderContainer> _openWeaveSession(
       ValueKey('weave.workspace.home'),
     ], timeout: const Duration(minutes: 1));
   } catch (_) {
-    _reportNativeBootstrapFailure(tester, config);
+    safelyReportNativeBootstrapFailure(
+      report: () => _reportNativeBootstrapFailure(tester, config),
+      unavailable: () => _nativeProductDiagnostic(
+        'NATIVE_PRODUCT_STAGE phase=shell-bootstrap-diagnostic-unavailable',
+      ),
+    );
     rethrow;
   }
   if (requireFreshSignIn) {

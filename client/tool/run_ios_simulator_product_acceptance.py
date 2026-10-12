@@ -39,7 +39,8 @@ XCODE_VERSION = '26.5'
 XCODE_BUILD = '17F42'
 IOS_SIMULATOR_SDK_VERSION = '26.5'
 SAFE_PRODUCT_STAGES = {
-    'shell-ready', 'shell-bootstrap-failed', 'driver-attached', 'sign-in-tapped', 'appauth-requested', 'auth-failed',
+    'shell-ready', 'shell-bootstrap-failed', 'shell-bootstrap-diagnostic-unavailable',
+    'driver-attached', 'sign-in-tapped', 'appauth-requested', 'auth-failed',
     'appauth-pending', 'workspace-ready', 'files-start', 'files-passed',
     'calendar-start', 'calendar-agenda-failed', 'calendar-passed',
     'matrix-start', 'matrix-open-failed', 'matrix-admission',

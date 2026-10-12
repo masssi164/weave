@@ -823,7 +823,7 @@ void main() {
         if dart is None:
             self.skipTest('Dart SDK unavailable')
         source = (Path(__file__).resolve().parents[1] / 'integration_test/system_browser_auth_e2e_test.dart').read_text()
-        helper = source.split('String nativeBootstrapDiagnostic(', 1)[1].split('\nvoid _reportNativeBootstrapFailure(', 1)[0]
+        helper = source.split('String nativeBootstrapDiagnostic(', 1)[1].split('\nvoid safelyReportNativeBootstrapFailure(', 1)[0]
         with tempfile.TemporaryDirectory() as name:
             probe = Path(name) / 'bootstrap.dart'
             probe.write_text('String nativeBootstrapDiagnostic(' + helper + '''
@@ -876,6 +876,45 @@ void main() {
         with redirect_stdout(output):
             ios.emit_phase_stages('initial', '\n'.join(record.replace('rootCount=1', f'rootCount={i}') for i in range(10)), '')
         self.assertEqual(output.getvalue().count('IOS_FLUTTER_DIAGNOSTIC'), 3)
+
+    def test_actual_bootstrap_reporter_preserves_original_failure_identity(self):
+        dart = shutil.which('dart')
+        if dart is None:
+            self.skipTest('Dart SDK unavailable')
+        source = (Path(__file__).resolve().parents[1] / 'integration_test/system_browser_auth_e2e_test.dart').read_text()
+        helper = source.split('void safelyReportNativeBootstrapFailure(', 1)[1].split('\nvoid _reportNativeBootstrapFailure(', 1)[0]
+        with tempfile.TemporaryDirectory() as name:
+            probe = Path(name) / 'reporter.dart'
+            probe.write_text('void safelyReportNativeBootstrapFailure(' + helper + '''
+void main() {
+  for (final reportThrows in [false, true]) {
+    for (final fallbackThrows in [false, true]) {
+      final original = StateError('original integration failure');
+      var reports = 0;
+      var fallbacks = 0;
+      try {
+        try { throw original; }
+        catch (_) {
+          safelyReportNativeBootstrapFailure(report: () {
+            reports++;
+            if (reportThrows) throw StateError('reporting failure');
+          }, unavailable: () {
+            fallbacks++;
+            if (fallbackThrows) throw StateError('fallback failure');
+          });
+          rethrow;
+        }
+      } catch (observed) {
+        if (!identical(observed, original)) throw StateError('original failure replaced');
+      }
+      if (reports != 1 || fallbacks != (reportThrows ? 1 : 0)) throw StateError('unexpected reporting invocation');
+    }
+  }
+}
+''')
+            result = subprocess.run([dart, 'run', str(probe)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, '')
 
     def test_initial_process_stop_requires_exact_identity_and_absence(self):
         executable = Path('/owned/device/Runner.app/Runner')
