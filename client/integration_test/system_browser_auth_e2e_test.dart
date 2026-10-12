@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -56,6 +57,38 @@ import 'package:weave/generated/user_api/api.dart' as user_api;
 import 'package:weave/main.dart';
 
 import 'helpers/test_config.dart';
+
+// test_api routes test-zone prints into result messages. flutter drive consumes
+// the final result rather than streaming those messages to the native driver.
+// Only these existing bounded native diagnostics bypass that captured zone.
+void emitNativeProductDiagnostic(
+  String message, {
+  required bool simulatorDriver,
+}) {
+  if (message.length > 2048 ||
+      message.contains('\n') ||
+      message.contains('\r') ||
+      ![
+        'NATIVE_PRODUCT_STAGE ',
+        'NATIVE_PRODUCT_INITIAL_RESULT ',
+        'NATIVE_PRODUCT_SIGN_IN_RESULT ',
+      ].any(message.startsWith)) {
+    throw ArgumentError('Unsupported native diagnostic record.');
+  }
+  if (simulatorDriver) {
+    // ignore: avoid_print
+    Zone.root.run(() => print(message));
+  } else {
+    debugPrint(message);
+  }
+}
+
+void _nativeProductDiagnostic(String message) => emitNativeProductDiagnostic(
+  message,
+  simulatorDriver: _usesSimulatorDriver(
+    const String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID'),
+  ),
+);
 
 // flutter drive preserves the simulator installation between process phases;
 // select the same journey formerly selected by flutter test --plain-name.
@@ -173,7 +206,7 @@ void main() {
         matrixCryptoSessionCoordinatorProvider,
       );
       try {
-        debugPrint('NATIVE_PRODUCT_STAGE phase=files-start');
+        _nativeProductDiagnostic('NATIVE_PRODUCT_STAGE phase=files-start');
         expect(
           (await files.restoreConnection()).status,
           FilesConnectionStatus.connected,
@@ -203,21 +236,21 @@ void main() {
           uploaded,
         );
         expect(download.bytes, orderedEquals(fileBytes));
-        debugPrint('NATIVE_PRODUCT_STAGE phase=files-passed');
+        _nativeProductDiagnostic('NATIVE_PRODUCT_STAGE phase=files-passed');
 
-        debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-start');
+        _nativeProductDiagnostic('NATIVE_PRODUCT_STAGE phase=calendar-start');
         final scopes = await calendar.loadScopes();
         expect(scopes.scopes, isNotEmpty);
         CalendarEventList agenda;
         try {
           agenda = await calendar.loadEvents(scope: scopes.scopes.first);
         } on CalendarFailure catch (error) {
-          debugPrint(
+          _nativeProductDiagnostic(
             'NATIVE_PRODUCT_STAGE phase=calendar-agenda-failed kind=${error.kind.name}',
           );
           rethrow;
         } catch (error) {
-          debugPrint(
+          _nativeProductDiagnostic(
             'NATIVE_PRODUCT_STAGE phase=calendar-agenda-failed type=${error.runtimeType}',
           );
           rethrow;
@@ -252,14 +285,14 @@ void main() {
         expect((await calendar.readEvent(updated.id)).title, updated.title);
         await calendar.deleteEvent(updated.id, etag: updated.etag);
         await expectLater(calendar.readEvent(updated.id), throwsA(anything));
-        debugPrint('NATIVE_PRODUCT_STAGE phase=calendar-passed');
+        _nativeProductDiagnostic('NATIVE_PRODUCT_STAGE phase=calendar-passed');
 
-        debugPrint('NATIVE_PRODUCT_STAGE phase=matrix-start');
+        _nativeProductDiagnostic('NATIVE_PRODUCT_STAGE phase=matrix-start');
         MatrixCryptoSession matrix;
         try {
           matrix = await coordinator.open(allowInteractiveSignIn: false);
         } on ChatFailure catch (error) {
-          debugPrint(
+          _nativeProductDiagnostic(
             'NATIVE_PRODUCT_STAGE phase=matrix-open-failed '
             'type=${error.type.name} code=${error.message} '
             'causeType=${error.cause.runtimeType} '
@@ -281,7 +314,7 @@ void main() {
                   api,
                 ).capabilities();
                 final chat = capabilities?.chat;
-                debugPrint(
+                _nativeProductDiagnostic(
                   'NATIVE_PRODUCT_STAGE phase=matrix-admission '
                   'identityPresent=${identity?.subject?.isNotEmpty == true} '
                   'issuerMatches=${identity?.identityIssuer == config.issuerUrl.toString()} '
@@ -293,7 +326,7 @@ void main() {
                 );
               }
             } catch (diagnosticFailure) {
-              debugPrint(
+              _nativeProductDiagnostic(
                 'NATIVE_PRODUCT_STAGE phase=matrix-admission-diagnostic-failed '
                 'type=${diagnosticFailure.runtimeType}',
               );
@@ -301,13 +334,13 @@ void main() {
           }
           rethrow;
         } on RustMatrixCoreBridgeException catch (error) {
-          debugPrint(
+          _nativeProductDiagnostic(
             'NATIVE_PRODUCT_STAGE phase=matrix-open-failed '
             'type=RustMatrixCoreBridgeException code=${error.code}',
           );
           rethrow;
         } catch (error) {
-          debugPrint(
+          _nativeProductDiagnostic(
             'NATIVE_PRODUCT_STAGE phase=matrix-open-failed '
             'type=${error.runtimeType}',
           );
@@ -323,7 +356,7 @@ void main() {
         expect(room.id, startsWith('!'));
         await chat.sendMessage(roomId: room.id, message: marker);
         await _requireBusinessRoomReadback(chat, room.id, marker);
-        debugPrint('NATIVE_PRODUCT_STAGE phase=matrix-passed');
+        _nativeProductDiagnostic('NATIVE_PRODUCT_STAGE phase=matrix-passed');
 
         await tester.tap(
           find.descendant(
@@ -349,7 +382,9 @@ void main() {
         );
         await tester.pump(const Duration(seconds: 1));
         expect(find.byType(ChatScreen), findsOneWidget);
-        debugPrint('NATIVE_PRODUCT_STAGE phase=navigation-passed');
+        _nativeProductDiagnostic(
+          'NATIVE_PRODUCT_STAGE phase=navigation-passed',
+        );
 
         final refreshed = await container
             .read(authSessionRepositoryProvider)
@@ -360,7 +395,7 @@ void main() {
               ),
             );
         expect(refreshed.isAuthenticated, isTrue);
-        debugPrint('NATIVE_PRODUCT_STAGE phase=refresh-passed');
+        _nativeProductDiagnostic('NATIVE_PRODUCT_STAGE phase=refresh-passed');
         await coordinator.disposePreservingCryptoState();
         final reopened = await coordinator.open(allowInteractiveSignIn: false);
         expect(reopened.userId, matrix.userId);
@@ -374,7 +409,9 @@ void main() {
           uploaded.id,
         );
         expect((await calendar.loadScopes()).scopes, isNotEmpty);
-        debugPrint('NATIVE_PRODUCT_STAGE phase=session-reopen-passed');
+        _nativeProductDiagnostic(
+          'NATIVE_PRODUCT_STAGE phase=session-reopen-passed',
+        );
 
         await coordinator.disposePreservingCryptoState();
         await tester.pumpWidget(const SizedBox.shrink());
@@ -409,7 +446,9 @@ void main() {
             room.id,
             marker,
           );
-          debugPrint('NATIVE_PRODUCT_STAGE phase=app-state-restored');
+          _nativeProductDiagnostic(
+            'NATIVE_PRODUCT_STAGE phase=app-state-restored',
+          );
           await (await _nativeCheckpoint(nativeTestRunId)).writeAsString(
             jsonEncode({
               'fileId': uploaded.id,
@@ -432,7 +471,7 @@ void main() {
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pumpAndSettle();
 
-        debugPrint(
+        _nativeProductDiagnostic(
           'NATIVE_PRODUCT_INITIAL_RESULT status=passed login=single '
           'files=generated-upload-read calendar=generated-crud matrix=native '
           'businessRoomSendRead=true '
@@ -495,7 +534,9 @@ void main() {
           checkpoint['roomId'] as String,
           checkpoint['roomMessage'] as String,
         );
-        debugPrint('NATIVE_PRODUCT_STAGE phase=process-restart-restored');
+        _nativeProductDiagnostic(
+          'NATIVE_PRODUCT_STAGE phase=process-restart-restored',
+        );
 
         // This is the real bearer issued by the first process's native PKCE
         // login. It is used only for denial probes, never to establish a session.
@@ -547,7 +588,9 @@ void main() {
           matrix.deviceId,
           deviceProof!,
         );
-        debugPrint('NATIVE_PRODUCT_STAGE phase=expired-bearer-denied');
+        _nativeProductDiagnostic(
+          'NATIVE_PRODUCT_STAGE phase=expired-bearer-denied',
+        );
         final leave = await container
             .read(weaveApiHttpClientProvider)
             .post(
@@ -578,7 +621,9 @@ void main() {
             ),
           ),
         );
-        debugPrint('NATIVE_PRODUCT_STAGE phase=own-room-leave-denied');
+        _nativeProductDiagnostic(
+          'NATIVE_PRODUCT_STAGE phase=own-room-leave-denied',
+        );
 
         await container.read(authFlowControllerProvider.notifier).signOut();
         await _waitFor(
@@ -653,13 +698,15 @@ void main() {
           expect(revokedMatrix.statusCode, 401);
           expect(jsonDecode(revokedMatrix.body)['errcode'], 'M_UNKNOWN_TOKEN');
         }
-        debugPrint('NATIVE_PRODUCT_STAGE phase=logout-denial-passed');
+        _nativeProductDiagnostic(
+          'NATIVE_PRODUCT_STAGE phase=logout-denial-passed',
+        );
       } finally {
         await coordinator.disposePreservingCryptoState();
       }
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
-      debugPrint(
+      _nativeProductDiagnostic(
         'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed login=single '
         'files=generated-upload-read calendar=generated-crud matrix=native '
         'businessRoomSendRead=true refresh=true sessionReopen=true '
@@ -960,7 +1007,7 @@ Future<void> _waitForSimulatorDriver(WidgetTester tester, String runId) async {
     if (await barrier.exists()) {
       await barrier.delete();
       _simulatorDriverAttached = true;
-      debugPrint('NATIVE_PRODUCT_STAGE phase=driver-attached');
+      _nativeProductDiagnostic('NATIVE_PRODUCT_STAGE phase=driver-attached');
       return;
     }
     await tester.pump(const Duration(milliseconds: 250));
@@ -1217,7 +1264,7 @@ Future<ProviderContainer> _openWeaveSession(
     await tester.pump();
     expect(tester.widget<AccessibleButton>(signIn).onPressed, isNotNull);
   }
-  debugPrint(
+  _nativeProductDiagnostic(
     'NATIVE_PRODUCT_STAGE phase=shell-ready issuerPort=${config.issuerUrl.port}',
   );
   await _waitForSimulatorDriver(tester, nativeTestRunId);
@@ -1230,7 +1277,7 @@ Future<ProviderContainer> _openWeaveSession(
     }
     await tester.pump();
     final started = authContainer.read(authFlowControllerProvider);
-    debugPrint(
+    _nativeProductDiagnostic(
       'NATIVE_PRODUCT_STAGE phase=sign-in-tapped '
       'busy=${started.isBusy} failure=${started.failure?.type.name ?? 'none'}',
     );
@@ -1245,7 +1292,7 @@ Future<ProviderContainer> _openWeaveSession(
   // The production FlutterAppAuthOidcClient owns the system-browser transition.
   // The native acceptance runner must complete the IdP interaction without
   // injecting tokens into this app or replacing the AppAuth callback.
-  debugPrint('NATIVE_PRODUCT_STAGE phase=workspace-ready');
+  _nativeProductDiagnostic('NATIVE_PRODUCT_STAGE phase=workspace-ready');
   return ProviderScope.containerOf(tester.element(find.byType(WeaveApp)));
 }
 
@@ -1266,7 +1313,9 @@ Future<void> _waitForWorkspaceAfterSignIn(
     }
     final state = container.read(authFlowControllerProvider);
     if (state.isBusy && !requestReported) {
-      debugPrint('NATIVE_PRODUCT_STAGE phase=appauth-requested busy=true');
+      _nativeProductDiagnostic(
+        'NATIVE_PRODUCT_STAGE phase=appauth-requested busy=true',
+      );
       requestReported = true;
     }
     final failure = state.failure;
@@ -1296,7 +1345,7 @@ Future<void> _waitForWorkspaceAfterSignIn(
           value != null && RegExp(r'^[A-Za-z0-9_.-]{1,80}$').hasMatch(value)
           ? value
           : 'unavailable';
-      debugPrint(
+      _nativeProductDiagnostic(
         'NATIVE_PRODUCT_STAGE phase=auth-failed '
         'category=${failure.type.name} causeType=${cause.runtimeType} '
         'appFailureType=${appFailure?.type.name ?? 'none'} '
@@ -1313,7 +1362,7 @@ Future<void> _waitForWorkspaceAfterSignIn(
         DateTime.now().isAfter(
           deadline.subtract(const Duration(minutes: 4, seconds: 45)),
         )) {
-      debugPrint(
+      _nativeProductDiagnostic(
         'NATIVE_PRODUCT_STAGE phase=appauth-pending busy=${state.isBusy} '
         'signInVisible=${find.byKey(const ValueKey('weave.auth.sign-in')).evaluate().isNotEmpty} '
         'bootstrap=${container.read(appBootstrapProvider).maybeWhen(data: (value) => value.phase.name, orElse: () => 'pending')}',

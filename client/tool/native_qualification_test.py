@@ -669,6 +669,51 @@ void main() {
             result = subprocess.run([dart, 'run', str(probe)], capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_actual_native_diagnostic_bypasses_only_simulator_print_capture(self):
+        dart = shutil.which('dart')
+        if dart is None:
+            self.skipTest('Dart SDK unavailable')
+        source = (Path(__file__).resolve().parents[1] / 'integration_test/system_browser_auth_e2e_test.dart').read_text()
+        helper = source.split('void emitNativeProductDiagnostic(', 1)[1].split('\nvoid _nativeProductDiagnostic(', 1)[0]
+        with tempfile.TemporaryDirectory() as name:
+            probe = Path(name) / 'diagnostic.dart'
+            probe.write_text("import 'dart:async';\n" +
+                             'void debugPrint(String message) => print(message);\n' +
+                             'void emitNativeProductDiagnostic(' + helper + '''
+void main() {
+  final captured = <String>[];
+  runZoned(() {
+    print('ordinary-private-output');
+    emitNativeProductDiagnostic('NATIVE_PRODUCT_STAGE phase=shell-ready', simulatorDriver: true);
+    emitNativeProductDiagnostic('NATIVE_PRODUCT_STAGE phase=workspace-ready', simulatorDriver: true);
+    emitNativeProductDiagnostic('NATIVE_PRODUCT_INITIAL_RESULT status=passed', simulatorDriver: true);
+    emitNativeProductDiagnostic('NATIVE_PRODUCT_SIGN_IN_RESULT status=passed', simulatorDriver: true);
+    emitNativeProductDiagnostic('NATIVE_PRODUCT_STAGE phase=files-start', simulatorDriver: false);
+    for (final invalid in ['ordinary-private-output',
+        'NATIVE_PRODUCT_STAGE phase=shell-ready\\nprivate-output',
+        'NATIVE_PRODUCT_STAGE phase=shell-ready\\rprivate-output',
+        'NATIVE_PRODUCT_STAGE ' + 'x' * 2049]) {
+      var rejected = false;
+      try { emitNativeProductDiagnostic(invalid, simulatorDriver: true); }
+      on ArgumentError { rejected = true; }
+      if (!rejected) throw StateError('unsafe diagnostic accepted');
+    }
+  }, zoneSpecification: ZoneSpecification(print: (_, __, ___, message) => captured.add(message)));
+  if (captured.length != 2 || captured[0] != 'ordinary-private-output' ||
+      captured[1] != 'NATIVE_PRODUCT_STAGE phase=files-start') {
+    throw StateError('unexpected test zone capture');
+  }
+}
+''')
+            result = subprocess.run([dart, 'run', str(probe)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.splitlines(), [
+                'NATIVE_PRODUCT_STAGE phase=shell-ready',
+                'NATIVE_PRODUCT_STAGE phase=workspace-ready',
+                'NATIVE_PRODUCT_INITIAL_RESULT status=passed',
+                'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed'])
+            self.assertNotIn('private-output', result.stdout + result.stderr)
+
     def test_initial_process_stop_requires_exact_identity_and_absence(self):
         executable = Path('/owned/device/Runner.app/Runner')
         for before, after, expected in [('101', '', None), ('102', '', 'initial-process-identity-changed'),
