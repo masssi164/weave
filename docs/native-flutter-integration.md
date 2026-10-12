@@ -1,5 +1,7 @@
 # Native Flutter integration acceptance for #1533
 
+Current October release acceptance additionally requires [#1592](https://github.com/masssi164/weave/issues/1592): two concurrent independent iOS Simulator applications, actual Flutter UI collaboration and exact-candidate evidence. The historical results below retain their original scope; they do not qualify that newer requirement. Native macOS remains mandatory.
+
 Status: **local native and exact-head unattended CI passed; #1533 is integrated
 on protected dev; subsequent source acceptance is tracked in exact checks and stories**.
 
