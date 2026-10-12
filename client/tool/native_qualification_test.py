@@ -19,6 +19,27 @@ import run_native_qualification as qualification
 
 
 class NativeQualificationTest(unittest.TestCase):
+    def test_onboarding_diagnostics_are_exact_bounded_and_classify_executed_ui_failure(self):
+        record = ('NATIVE_PRODUCT_STAGE phase=onboarding-failed actor=A authState=ready_for_sso '
+                  'visibleState=handoff_ready errorCode=none organizationCount=0 handoffCount=1 '
+                  'readyCount=1 signInCount=0 workspaceCount=0')
+        self.assertEqual(ios.onboarding_diagnostics(record), [record])
+        self.assertEqual(ios.onboarding_diagnostics('flutter: ' + record), [record])
+        self.assertEqual(ios.onboarding_diagnostics(record + '\n' + record), [record])
+        for bad in [record + ' private=credential', 'private ' + record, 'flutter: flutter: ' + record,
+                    record + '\r', record.replace('Count=1', 'Count=1000'), record.replace('actor=A', 'actor=secret'),
+                    record.replace('errorCode=none', 'errorCode=https://private.invalid/token')]:
+            self.assertEqual(ios.onboarding_diagnostics(bad), [])
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / 'flutter.log'
+            process = unittest.mock.Mock();process.poll.return_value = 1
+            for marker, category, phase in [(record, 'integration', 'initial-onboarding'),
+                (record.replace('errorCode=none', 'errorCode=WEAVE-APP-START-TLS-FAILED'), 'infrastructure', 'initial-onboarding'),
+                ('host failed without UI evidence', 'infrastructure', 'initial-app-start')]:
+                log.write_text(marker + '\n')
+                with self.assertRaises(ios.NativeFailure) as caught: ios.wait_for_flutter_shell(process, log, 'initial')
+                self.assertEqual((caught.exception.category, caught.exception.stage), (category, phase))
+
     def setUp(self):
         # Failure transcript retention must remain inside this test's owned
         # disposable client directory, never the real workspace build outputs.

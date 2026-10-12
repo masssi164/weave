@@ -20,6 +20,11 @@ import 'package:weave/features/onboarding/presentation/member_handoff_screen.dar
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 import '../../helpers/in_memory_stores.dart';
+import '../../../integration_test/dual_ios_collaboration_test.dart'
+    show
+        nativeDualHandoffSignIn,
+        nativeDualOnboardingDiagnostic,
+        safelyReportDualOnboardingFailure;
 
 class _ThrowingDiscoverOrganizationAccess
     implements DiscoverOrganizationAccess {
@@ -81,6 +86,70 @@ class _ReadyResolveAppBootstrap implements ResolveAppBootstrap {
 }
 
 void main() {
+  test('dual onboarding diagnostics bound counts and discard private values', () {
+    final safe = nativeDualOnboardingDiagnostic(
+      role: 'A',
+      authState: 'ready_for_sso',
+      visibleState: 'handoff_ready',
+      errorCode: 'none',
+      counts: {'organization': -1, 'handoff': 10000, 'ready': 1, 'signIn': 1},
+    );
+    expect(
+      safe,
+      contains(
+        'actor=A authState=ready_for_sso visibleState=handoff_ready errorCode=none',
+      ),
+    );
+    expect(
+      safe,
+      contains(
+        'organizationCount=0 handoffCount=999 readyCount=1 signInCount=1 workspaceCount=0',
+      ),
+    );
+    final private = nativeDualOnboardingDiagnostic(
+      role: 'private-role',
+      authState: 'private-token',
+      visibleState: 'https://private.invalid',
+      errorCode: 'private-password',
+      counts: {},
+    );
+    expect(private, isNot(contains('private')));
+    expect(
+      private,
+      contains(
+        'actor=unavailable authState=unavailable visibleState=unavailable errorCode=unavailable',
+      ),
+    );
+  });
+
+  test(
+    'diagnostic failures preserve the original onboarding assertion',
+    () async {
+      final original = StateError('original UI assertion');
+      Future<void> failing() async {
+        try {
+          throw original;
+        } catch (_) {
+          await safelyReportDualOnboardingFailure(
+            report: () async => throw StateError('reporter failure'),
+            unavailable: () => throw StateError('fallback failure'),
+          );
+          rethrow;
+        }
+      }
+
+      await expectLater(failing(), throwsA(same(original)));
+      var reported = false;
+      await safelyReportDualOnboardingFailure(
+        report: () async {
+          reported = true;
+        },
+        unavailable: () => fail('successful report must not invoke fallback'),
+      );
+      expect(reported, isTrue);
+    },
+  );
+
   group('MemberHandoffScreen', () {
     testWidgets(
       'shows handoff-ready UI and records visible state after success',
@@ -124,6 +193,8 @@ void main() {
         expect(find.text('Workspace ready for sign-in'), findsOneWidget);
         expect(find.textContaining('massimo-dogfood'), findsOneWidget);
         expect(find.text('Sign In'), findsOneWidget);
+        expect(nativeDualHandoffSignIn('Sign In'), findsOneWidget);
+        expect(nativeDualHandoffSignIn('Anmelden'), findsNothing);
 
         final rawVisibleState = preferencesStore.rawString(
           dogfoodVisibleStateStorageKey,
@@ -189,6 +260,7 @@ void main() {
 
       expect(signIn.callCount, 1);
       expect(signIn.isInteractiveSignInSupported, isTrue);
+      expect(nativeDualHandoffSignIn('Sign In'), findsNothing);
 
       final rawAuthState = preferencesStore.rawString(
         dogfoodAuthStateStorageKey,

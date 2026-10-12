@@ -363,6 +363,7 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
     else:
         (documents / '.weave-owned-fixture').write_text('Owned disposable document directory\n')
     runtime_fixture = {'role': role, 'entryUri': actor['entryUri'], 'runId': input_data['runId'],
+                       'organizationOrigin': input_data['publicOrigin'],
                        'sharedSpaceRef': input_data['sharedSpaceRef'], 'storageDigest': storage_digest,
                        'peerDisplayName': next(peer['displayName'] for peer in input_data['actors'] if peer['role'] != role),
                        'initialFileName': initial_name, 'replacementFileName': replacement_name,

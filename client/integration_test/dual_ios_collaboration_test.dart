@@ -10,6 +10,11 @@ import 'package:integration_test/integration_test.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
+import 'package:weave/core/persistence/shared_preferences_store.dart';
+import 'package:weave/core/widgets/success_state.dart';
+import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
+import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
 import 'package:weave/features/chat/data/repositories/matrix_device_identity_repository.dart';
@@ -79,6 +84,103 @@ void _stage(String stage) => emitNativeProductDiagnostic(
   'NATIVE_PRODUCT_STAGE phase=$stage',
   simulatorDriver: true,
 );
+
+Finder nativeDualHandoffSignIn(String label) => find.descendant(
+  of: find.descendant(
+    of: find.byType(MemberHandoffScreen),
+    matching: find.byType(SuccessState),
+  ),
+  matching: find.byWidgetPredicate(
+    (widget) =>
+        widget is AccessibleButton &&
+        widget.onPressed != null &&
+        widget.semanticLabel == label,
+  ),
+);
+
+String nativeDualOnboardingDiagnostic({
+  required String role,
+  required String authState,
+  required String visibleState,
+  required String errorCode,
+  required Map<String, int> counts,
+}) {
+  String known(String value, Set<String> allowed) =>
+      allowed.contains(value) ? value : 'unavailable';
+  return 'NATIVE_PRODUCT_STAGE phase=onboarding-failed '
+      'actor=${known(role, {'A', 'B'})} '
+      'authState=${known(authState, MemberAuthOnboardingStage.values.map((state) => state.serialized).toSet())} '
+      'visibleState=${known(visibleState, {'handoff_ready', 'handoff_error', 'authenticated_redirect'})} '
+      'errorCode=${known(errorCode, {'none', 'WEAVE-APP-START-DISCOVERY-INVALID', 'WEAVE-APP-START-DISCOVERY-FAILED', 'WEAVE-APP-START-TIMEOUT', 'WEAVE-APP-START-TLS-FAILED', 'WEAVE-APP-START-DNS-FAILED', 'WEAVE-APP-START-NETWORK-FAILED', 'WEAVE-LAN-UNREACHABLE', 'WEAVE-HANDOFF-INVALID', 'PlatformException', 'StateError', 'FormatException'})} '
+      '${['organization', 'handoff', 'ready', 'signIn', 'workspace'].map((name) => '${name}Count=${(counts[name] ?? 0).clamp(0, 999)}').join(' ')}';
+}
+
+Future<void> safelyReportDualOnboardingFailure({
+  required Future<void> Function() report,
+  required void Function() unavailable,
+}) async {
+  try {
+    await report();
+  } catch (_) {
+    try {
+      unavailable();
+    } catch (_) {}
+  }
+}
+
+Future<void> _reportOnboardingFailure(
+  WidgetTester tester,
+  String role,
+  String signInLabel,
+) async {
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(WeaveApp)),
+  );
+  final store = container.read(preferencesStoreProvider);
+  Future<Map<String, dynamic>> read(String key) async {
+    final raw = await store.getString(key);
+    if (raw == null || raw.length > 16384) return {};
+    return jsonDecode(raw) as Map<String, dynamic>;
+  }
+
+  final auth = await read(dogfoodAuthStateStorageKey);
+  final visible = await read(dogfoodVisibleStateStorageKey);
+  final consumed = await read(lastHandoffConsumedStorageKey);
+  emitNativeProductDiagnostic(
+    nativeDualOnboardingDiagnostic(
+      role: role,
+      authState: auth['state'] is String
+          ? auth['state'] as String
+          : 'unavailable',
+      visibleState: visible['state'] is String
+          ? visible['state'] as String
+          : 'unavailable',
+      errorCode:
+          (visible['errorCode'] ??
+                  consumed['errorCode'] ??
+                  auth['errorCode'] ??
+                  'none')
+              .toString(),
+      counts: {
+        'organization': find.byType(OrganizationAccessScreen).evaluate().length,
+        'handoff': find.byType(MemberHandoffScreen).evaluate().length,
+        'ready': find
+            .descendant(
+              of: find.byType(MemberHandoffScreen),
+              matching: find.byType(SuccessState),
+            )
+            .evaluate()
+            .length,
+        'signIn': nativeDualHandoffSignIn(signInLabel).evaluate().length,
+        'workspace': find
+            .byKey(const ValueKey('weave.workspace.home'))
+            .evaluate()
+            .length,
+      },
+    ),
+    simulatorDriver: true,
+  );
+}
 
 Future<void> _wait(
   WidgetTester tester,
@@ -157,13 +259,52 @@ void main() {
             l10n.setupOrganizationContinueButton,
           ),
         );
-        final signIn = find.byKey(const ValueKey('weave.auth.sign-in'));
-        await _wait(
-          tester,
-          () => signIn.evaluate().isNotEmpty,
-          const Duration(seconds: 90),
-        );
-        expect(signIn, findsOneWidget);
+        final signIn = nativeDualHandoffSignIn(l10n.signInButton);
+        try {
+          await _wait(
+            tester,
+            () => signIn.evaluate().length == 1,
+            const Duration(seconds: 90),
+          );
+          expect(signIn, findsOneWidget);
+          final onboardingContainer = ProviderScope.containerOf(
+            tester.element(find.byType(WeaveApp)),
+          );
+          final rawState = await onboardingContainer
+              .read(preferencesStoreProvider)
+              .getString(dogfoodAuthStateStorageKey);
+          expect(rawState, isNotNull);
+          expect(
+            (jsonDecode(rawState!) as Map<String, dynamic>)['state'],
+            'ready_for_sso',
+          );
+          final selected = await onboardingContainer.read(
+            savedServerConfigurationProvider.future,
+          );
+          expect(selected, isNotNull);
+          expect(selected!.validatedManifest, isNotNull);
+          expect(selected.manifestValidatedAt, isNotNull);
+          final expectedOrigin = Uri.parse(
+            fixture['organizationOrigin'] as String,
+          );
+          expect(selected.organizationOrigin, isNotNull);
+          expect(selected.organizationOrigin!.path, anyOf('', '/'));
+          expect(expectedOrigin.path, anyOf('', '/'));
+          expect(
+            selected.organizationOrigin!.replace(path: '').toString(),
+            expectedOrigin.replace(path: '').toString(),
+          );
+        } catch (_) {
+          await safelyReportDualOnboardingFailure(
+            report: () => _reportOnboardingFailure(
+              tester,
+              role,
+              l10n.signInButton,
+            ).timeout(const Duration(seconds: 5)),
+            unavailable: () => _stage('onboarding-diagnostic-unavailable'),
+          );
+          rethrow;
+        }
         expect(
           find.byKey(const ValueKey('weave.workspace.home')),
           findsNothing,

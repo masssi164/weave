@@ -138,7 +138,27 @@ def failure_marker(category: str, stage: str, reason: str) -> None:
     print(f'NATIVE_IOS_FAILURE category={category} phase={stage} reason={reason} supportSafe=true', flush=True)
 
 
+def onboarding_diagnostics(output: str) -> list[str]:
+    pattern = (r'(?:flutter: )?(NATIVE_PRODUCT_STAGE phase=onboarding-failed '
+               r'actor=(?:A|B|unavailable) '
+               r'authState=(?:handoff_received|platform_config_loaded|ready_for_sso|sso_in_progress|authenticated|workspace_bootstrap_loading|session_restored|workspace_ready|recoverable_error|terminal_setup_error|unavailable) '
+               r'visibleState=(?:handoff_ready|handoff_error|authenticated_redirect|unavailable) '
+               r'errorCode=(?:none|WEAVE-APP-START-DISCOVERY-INVALID|WEAVE-APP-START-DISCOVERY-FAILED|WEAVE-APP-START-TIMEOUT|WEAVE-APP-START-TLS-FAILED|WEAVE-APP-START-DNS-FAILED|WEAVE-APP-START-NETWORK-FAILED|WEAVE-LAN-UNREACHABLE|WEAVE-HANDOFF-INVALID|PlatformException|StateError|FormatException|unavailable) '
+               + ' '.join(name + r'Count=[0-9]{1,3}' for name in ('organization', 'handoff', 'ready', 'signIn', 'workspace')) + ')')
+    records = []
+    for line in output.split('\n'):
+        match = re.fullmatch(pattern, line)
+        if match is not None and match[1] not in records:
+            records.append(match[1])
+        if len(records) >= 3:
+            break
+    return records
+
+
 def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> None:
+    if phase in {'initial', 'restore'}:
+        for marker in onboarding_diagnostics(flutter_output):
+            print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} {marker} supportSafe=true', flush=True)
     patterns = [
         (flutter_output, r'NATIVE_PRODUCT_STAGE phase=[a-z-]+', SAFE_PRODUCT_STAGES),
         (browser_output, r'NATIVE_IOS_BROWSER_STAGE phase=[a-z-]+', SAFE_BROWSER_STAGES),
@@ -426,9 +446,16 @@ def wait_for_flutter_shell(process, log_path: Path, phase: str, timeout: float =
     # the subprocess stdout offset. Seeking its shared writer would corrupt it.
     with log_path.open() as observer:
         tail = ''
+        onboarding = []
         while time.monotonic() < deadline:
             observed = tail + observer.read(65536)
+            onboarding = onboarding or onboarding_diagnostics(observed)
             if process.poll() is not None:
+                if onboarding:
+                    network = any('errorCode=' + code + ' ' in onboarding[0] for code in
+                                  ('WEAVE-APP-START-TIMEOUT', 'WEAVE-APP-START-TLS-FAILED', 'WEAVE-APP-START-DNS-FAILED', 'WEAVE-APP-START-NETWORK-FAILED', 'WEAVE-LAN-UNREACHABLE'))
+                    raise NativeFailure('infrastructure' if network else 'integration', phase + '-onboarding',
+                                        'discovery-network-failed' if network else 'ready-sso-not-observed')
                 raise NativeFailure('infrastructure', phase + '-app-start', 'integration-app-exited-before-readiness')
             if 'NATIVE_PRODUCT_STAGE phase=shell-ready' in observed:
                 print(f'NATIVE_IOS_APP_START_RESULT status=ready phase={phase} supportSafe=true', flush=True)
