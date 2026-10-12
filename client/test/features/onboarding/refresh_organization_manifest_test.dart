@@ -82,7 +82,14 @@ void main() {
       expect(result.validatedManifest!['domains'][1]['state'], 'unavailable');
       expect(repository.saved, same(result));
       expect(result.manifestValidatedAt, now);
-      expect(result.hasMatrixOAuthConfiguration, isFalse);
+      expect(
+        result.oidcIssuerUrl,
+        Uri.parse(response['oidc']['issuer'] as String),
+      );
+      expect(
+        result.oidcClientRegistration.clientId,
+        response['oidc']['clientId'],
+      );
     },
   );
 

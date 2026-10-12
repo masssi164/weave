@@ -54,7 +54,7 @@ void main() {
       loaded.serviceEndpoints.matrixHomeserverUrl,
       configuration.serviceEndpoints.matrixHomeserverUrl,
     );
-    expect(loaded.hasMatrixOAuthConfiguration, isFalse);
+    expect(jsonEncode(raw), isNot(contains('matrixOAuth')));
     expect(jsonEncode(raw), isNot(contains('accessToken')));
     expect(jsonEncode(raw), isNot(contains('refreshToken')));
   });
@@ -70,8 +70,6 @@ void main() {
           serviceEndpoints: configuration.serviceEndpoints.copyWith(
             backendApiBaseUrl: Uri.parse('https://other.example/api'),
           ),
-          matrixOAuthIssuer: Uri.parse('https://other.example'),
-          matrixOAuthClientId: 'separate-client',
         ),
       );
       final loaded = (await repo.loadConfiguration())!;
@@ -80,7 +78,7 @@ void main() {
         loaded.serviceEndpoints.backendApiBaseUrl,
         configuration.serviceEndpoints.backendApiBaseUrl,
       );
-      expect(loaded.hasMatrixOAuthConfiguration, isFalse);
+      expect(loaded.oidcClientRegistration.clientId, 'weave-app');
     },
   );
   for (final version in [1, 2]) {
@@ -101,7 +99,7 @@ void main() {
         );
         expect(loaded.validatedManifest, isNull);
         expect(loaded.oidcIssuerUrl, Uri.parse('https://auth.home.internal'));
-        expect(loaded.hasMatrixOAuthConfiguration, isFalse);
+        expect(loaded.oidcClientRegistration.clientId, 'weave-app');
         await expectLater(
           repository(store).saveConfiguration(loaded),
           throwsA(isA<AppFailure>()),
@@ -124,31 +122,35 @@ void main() {
       },
     );
   }
-  test(
-    'v2 cached manifest migrates without obsolete endpoint overrides',
-    () async {
-      final configuration = buildTestConfiguration();
-      final raw = legacy()
-        ..['validatedManifest'] = configuration.validatedManifest
-        ..['manifestValidatedAt'] = configuration.manifestValidatedAt!
-            .toIso8601String()
-        ..['nextcloudBaseUrl'] = 'https://provider.example/dav'
-        ..['matrixOAuthIssuer'] = 'https://separate.example'
-        ..['matrixOAuthClientId'] = 'separate-client'
-        ..['oidcIssuerUrl'] = 'https://obsolete.example';
-      final store = InMemoryPreferencesStore({
-        serverConfigurationStorageKey: jsonEncode(raw),
-      });
-      final repo = repository(store);
-      final loaded = (await repo.loadConfiguration())!;
-      expect(loaded.oidcIssuerUrl, configuration.oidcIssuerUrl);
-      await repo.saveConfiguration(loaded);
-      final saved = (await store.getString(serverConfigurationStorageKey))!;
-      expect(saved, isNot(contains('nextcloudBaseUrl')));
-      expect(saved, isNot(contains('matrixOAuth')));
-      expect(saved, isNot(contains('obsolete.example')));
-    },
-  );
+  for (final version in [2, 3]) {
+    test(
+      'v$version cached manifest ignores separate Matrix OAuth overrides',
+      () async {
+        final configuration = buildTestConfiguration();
+        final raw = legacy()
+          ..['schemaVersion'] = version
+          ..['validatedManifest'] = configuration.validatedManifest
+          ..['manifestValidatedAt'] = configuration.manifestValidatedAt!
+              .toIso8601String()
+          ..['nextcloudBaseUrl'] = 'https://provider.example/dav'
+          ..['matrixOAuthIssuer'] = 'https://separate.example'
+          ..['matrixOAuthClientId'] = 'separate-client'
+          ..['oidcIssuerUrl'] = 'https://obsolete.example';
+        final store = InMemoryPreferencesStore({
+          serverConfigurationStorageKey: jsonEncode(raw),
+        });
+        final repo = repository(store);
+        final loaded = (await repo.loadConfiguration())!;
+        expect(loaded.oidcIssuerUrl, configuration.oidcIssuerUrl);
+        expect(loaded.oidcClientRegistration.clientId, 'weave-app');
+        await repo.saveConfiguration(loaded);
+        final saved = (await store.getString(serverConfigurationStorageKey))!;
+        expect(saved, isNot(contains('nextcloudBaseUrl')));
+        expect(saved, isNot(contains('matrixOAuth')));
+        expect(saved, isNot(contains('obsolete.example')));
+      },
+    );
+  }
   for (final invalid in [
     'origin',
     'issuer',
