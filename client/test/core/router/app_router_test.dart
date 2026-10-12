@@ -108,6 +108,16 @@ class _FakeServerConfigurationRepository
   }
 }
 
+class _HeldServerConfigurationRepository
+    extends _FakeServerConfigurationRepository {
+  _HeldServerConfigurationRepository({required super.configuration});
+  final pendingLoad = Completer<ServerConfiguration?>();
+  bool hold = false;
+  @override
+  Future<ServerConfiguration?> loadConfiguration() =>
+      hold ? pendingLoad.future : super.loadConfiguration();
+}
+
 AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
   return const AsyncData(
     WorkspaceConnectionState(
@@ -338,6 +348,7 @@ void main() {
       ResolveAppBootstrap? resolver,
       SignInWithOidc? interactiveSignIn,
       bool useHandoffDiscoveryFixture = false,
+      ServerConfigurationRepository? configurationRepository,
     }) {
       final container = ProviderContainer.test(
         overrides: [
@@ -362,9 +373,11 @@ void main() {
               ),
             ),
           serverConfigurationRepositoryProvider.overrideWith(
-            (ref) => _FakeServerConfigurationRepository(
-              configuration: configuration,
-            ),
+            (ref) =>
+                configurationRepository ??
+                _FakeServerConfigurationRepository(
+                  configuration: configuration,
+                ),
           ),
           secureStoreProvider.overrideWithValue(
             secureStore ?? InMemorySecureStore(),
@@ -670,6 +683,7 @@ void main() {
       'needsSignIn',
       'error',
       'thrown-error',
+      'data-loading',
     ]) {
       testWidgets('retained ready route blocks refresh and resolves $outcome', (
         tester,
@@ -705,6 +719,7 @@ void main() {
           resolver.next.complete(switch (outcome) {
             'needsSetup' => const BootstrapState.needsSetup(),
             'needsSignIn' => const BootstrapState.needsSignIn(),
+            'data-loading' => const BootstrapState.loading(),
             _ => const BootstrapState.error(
               AppFailure.validation('Blocked refresh'),
             ),
@@ -715,7 +730,11 @@ void main() {
         } else {
           await retry;
         }
-        await tester.pumpAndSettle();
+        if (outcome == 'data-loading') {
+          await tester.pump(const Duration(milliseconds: 100));
+        } else {
+          await tester.pumpAndSettle();
+        }
         expect(container.read(appRouterProvider), same(router));
         expect(find.byType(HomeScreen), findsNothing);
         expect(
@@ -826,6 +845,59 @@ void main() {
         },
       );
     }
+
+    testWidgets(
+      'held authenticated profile cannot record readiness during a newer bootstrap refresh',
+      (tester) async {
+        final configuration = buildTestConfiguration();
+        final repository = _HeldServerConfigurationRepository(
+          configuration: configuration,
+        );
+        final resolver = _ControlledBootstrapResolver(
+          initial: const BootstrapState.ready(),
+        );
+        final store = InMemoryPreferencesStore();
+        final container = createContainer(
+          configuration: configuration,
+          resolver: resolver,
+          configurationRepository: repository,
+          preferencesStore: store,
+        );
+        addTearDown(container.dispose);
+        await container.read(appBootstrapProvider.future);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        repository.hold = true;
+        container
+            .read(appRouterProvider)
+            .go('/join?organization_origin=https%3A%2F%2Fweave.home.internal');
+        await tester.pump(const Duration(milliseconds: 100));
+        final retry = container.read(appBootstrapProvider.notifier).retry();
+        await tester.pump();
+        repository.pendingLoad.complete(configuration);
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(
+          store.rawString(dogfoodAuthStateStorageKey),
+          isNull,
+          reason:
+              'A prior ready snapshot must not authorize proof after a newer refresh starts',
+        );
+        expect(find.byType(HomeScreen), findsNothing);
+        expect(repository.configuration, same(configuration));
+        resolver.next.complete(const BootstrapState.needsSignIn());
+        await retry;
+        await tester.pumpAndSettle();
+        expect(find.byType(HomeScreen), findsNothing);
+        expect(store.rawString(dogfoodAuthStateStorageKey), isNull);
+        expect(repository.configuration, same(configuration));
+        expect(tester.takeException(), isNull);
+      },
+    );
 
     for (final target in [
       'https://weave.home.internal',

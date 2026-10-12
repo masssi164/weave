@@ -273,7 +273,8 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
     if (bootstrap.value?.isResolved == true) _hasResolvedBootstrap = true;
 
     Widget? gate;
-    if (bootstrap.isLoading) {
+    if (bootstrap.isLoading ||
+        bootstrap.value?.phase == BootstrapPhase.loading) {
       gate = const BootstrapGate.loading();
     } else if (bootstrap.hasError) {
       gate = BootstrapGate.error(

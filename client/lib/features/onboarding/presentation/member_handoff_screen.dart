@@ -105,6 +105,14 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         .read(serverConfigurationRepositoryProvider)
         .loadConfiguration();
     if (!mounted) return true;
+    final currentBootstrap = ref.read(appBootstrapProvider);
+    if (currentBootstrap.isLoading ||
+        currentBootstrap.hasError ||
+        currentBootstrap.value?.phase != BootstrapPhase.ready) {
+      throw const AppFailure.bootstrap(
+        'The organization workspace is not ready.',
+      );
+    }
     final origin = selected?.organizationOrigin;
     final incoming = access.organizationOrigin;
     if (origin == null ||
