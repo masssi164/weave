@@ -1,3 +1,9 @@
+import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
@@ -23,6 +29,7 @@ class _FakeServerConfigurationRepository
   _FakeServerConfigurationRepository({required this.loadConfigurationHandler});
 
   Future<ServerConfiguration?> Function() loadConfigurationHandler;
+  Future<void> Function(ServerConfiguration)? saveConfigurationHandler;
 
   @override
   Future<ServerConfiguration?> loadConfiguration() {
@@ -30,7 +37,9 @@ class _FakeServerConfigurationRepository
   }
 
   @override
-  Future<void> saveConfiguration(ServerConfiguration configuration) async {}
+  Future<void> saveConfiguration(ServerConfiguration configuration) async {
+    await saveConfigurationHandler?.call(configuration);
+  }
 
   @override
   Future<void> clearConfiguration() async {}
@@ -69,13 +78,16 @@ void main() {
       required ServerConfigurationRepository repository,
       InMemorySecureStore? secureStore,
       _FakeOidcClient? oidcClient,
+      AppStartDiscoveryClient? discoveryClient,
     }) {
       return ProviderContainer.test(
         overrides: [
           appStartDiscoveryClientProvider.overrideWith(
-            (ref) => buildTestDiscoveryClient(
-              ref.watch(serverConfigurationRepositoryProvider),
-            ),
+            (ref) =>
+                discoveryClient ??
+                buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
           ),
           serverConfigurationRepositoryProvider.overrideWith(
             (ref) => repository,
@@ -91,6 +103,77 @@ void main() {
       );
     }
 
+    for (final successful in [true, false]) {
+      test(
+        successful
+            ? 'bootstrap publishes refreshed canonical API endpoint to retained profile consumers'
+            : 'failed bootstrap refresh preserves the existing profile consumer authority',
+        () async {
+          var stored = buildTestConfiguration();
+          final previous = stored;
+          final updatedApi = Uri.parse('https://api-v2.home.internal/api');
+          final manifest = Map<String, dynamic>.from(stored.validatedManifest!)
+            ..['userApiBaseUrl'] = updatedApi.toString();
+          final repository =
+              _FakeServerConfigurationRepository(
+                  loadConfigurationHandler: () async => stored,
+                )
+                ..saveConfigurationHandler = (value) async {
+                  stored = value;
+                };
+          final secure = InMemorySecureStore();
+          await secure.write(
+            authSessionStorageKey,
+            AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+          );
+          final container = createContainer(
+            repository: repository,
+            secureStore: secure,
+            discoveryClient: AppStartDiscoveryClient(
+              httpClient: MockClient((request) async {
+                expect(
+                  request.url,
+                  Uri.parse('https://weave.home.internal/api/platform/config'),
+                );
+                return http.Response(
+                  successful ? jsonEncode(manifest) : '{}',
+                  successful ? 200 : 503,
+                  headers: {'content-type': 'application/json'},
+                );
+              }),
+            ),
+          );
+          addTearDown(container.dispose);
+          final subscription = container.listen(
+            savedServerConfigurationProvider,
+            (_, _) {},
+          );
+          addTearDown(subscription.close);
+          expect(
+            await container.read(savedServerConfigurationProvider.future),
+            same(previous),
+          );
+          final bootstrap = await container.read(appBootstrapProvider.future);
+          final observed = await container.read(
+            savedServerConfigurationProvider.future,
+          );
+          if (successful) {
+            expect(bootstrap.phase, BootstrapPhase.ready);
+            expect(stored.serviceEndpoints.backendApiBaseUrl, updatedApi);
+            expect(observed!.serviceEndpoints.backendApiBaseUrl, updatedApi);
+            final session = await container.read(
+              weaveAuthenticatedSessionProvider.future,
+            );
+            expect(session, isNotNull);
+            expect(session!.apiBaseUrl, updatedApi);
+          } else {
+            expect(bootstrap.phase, BootstrapPhase.error);
+            expect(stored, same(previous));
+            expect(observed, same(previous));
+          }
+        },
+      );
+    }
     test('returns needsSetup when no saved configuration exists', () async {
       final container = createContainer(
         repository: _FakeServerConfigurationRepository(

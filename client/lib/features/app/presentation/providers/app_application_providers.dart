@@ -1,3 +1,4 @@
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/domain/use_cases/refresh_organization_manifest.dart';
@@ -85,7 +86,15 @@ final resolveAppBootstrapProvider = Provider<ResolveAppBootstrap>((ref) {
     chatSessionPort: ref.watch(chatSessionPortProvider),
     reconcileIdentitySession: ref.watch(reconcileIdentitySessionProvider),
     serverConfigurationPort: ref.watch(serverConfigurationPortProvider),
-    refreshOrganizationManifest: refresh.call,
+    refreshOrganizationManifest: (configuration) async {
+      final refreshed = await refresh.call(configuration);
+      // The accepted manifest has been persisted; retained API consumers must
+      // observe its current derived transport values before bootstrap is ready.
+      if (ref.mounted) {
+        ref.invalidate(savedServerConfigurationProvider);
+      }
+      return refreshed;
+    },
   );
 });
 
