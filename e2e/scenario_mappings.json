@@ -496,19 +496,18 @@
       "tag": "@weave-v01-org-manifest-client-admin-split",
       "scenario": "Organization manifest keeps member client separate from admin console",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java",
+      "executableTest": "client/test/features/onboarding/discover_organization_access_test.dart",
       "evidenceMarkers": [
         "V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT"
       ],
       "additionalEvidence": [
         {
-          "path": "client/test/integrations/weave_api/data/services/weave_api_client_test.dart",
+          "path": "client/test/features/onboarding/refresh_organization_manifest_test.dart",
           "fragments": [
-            "fetches org manifest for member client without admin console leakage",
-            "fetchOrganizationManifest",
-            "safeForMemberClient",
-            "whitelistingOwnedByAdminConsole",
-            "MemberCapabilityState.disabledByPolicy"
+            "refresh uses sole generated config operation",
+            "preserves domain-local states",
+            "fails closed on fresh",
+            "cached identity mismatch fails closed"
           ]
         },
         {

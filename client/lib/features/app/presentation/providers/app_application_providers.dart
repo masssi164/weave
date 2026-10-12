@@ -1,3 +1,6 @@
+import 'package:http/http.dart' as http;
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
+import 'package:weave/features/onboarding/domain/use_cases/refresh_organization_manifest.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
@@ -65,12 +68,25 @@ final reconcileIdentitySessionProvider = Provider<ReconcileIdentitySession>((
   );
 });
 
+final appStartDiscoveryClientProvider = Provider<AppStartDiscoveryClient>((
+  ref,
+) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  return AppStartDiscoveryClient(httpClient: client);
+});
+
 final resolveAppBootstrapProvider = Provider<ResolveAppBootstrap>((ref) {
+  final refresh = RefreshOrganizationManifest(
+    discoveryClient: ref.watch(appStartDiscoveryClientProvider),
+    repository: ref.watch(serverConfigurationRepositoryProvider),
+  );
   return ResolveAppBootstrap(
     authPort: ref.watch(appAuthPortProvider),
     chatSessionPort: ref.watch(chatSessionPortProvider),
     reconcileIdentitySession: ref.watch(reconcileIdentitySessionProvider),
     serverConfigurationPort: ref.watch(serverConfigurationPortProvider),
+    refreshOrganizationManifest: refresh.call,
   );
 });
 

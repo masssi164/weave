@@ -1,3 +1,4 @@
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -183,6 +184,11 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           filesRepositoryProvider.overrideWithValue(repository),
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
+            ),
+          ),
           serverConfigurationRepositoryProvider.overrideWith(
             (ref) =>
                 _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -233,6 +239,11 @@ void main() {
         final container = ProviderContainer(
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -275,6 +286,11 @@ void main() {
         final container = ProviderContainer(
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -316,6 +332,11 @@ void main() {
         final container = ProviderContainer(
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -371,6 +392,11 @@ void main() {
         final container = ProviderContainer(
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -418,6 +444,11 @@ void main() {
         final container = ProviderContainer(
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -491,6 +522,11 @@ void main() {
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
             filesImportPickerProvider.overrideWithValue(picker),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -549,6 +585,11 @@ void main() {
             filesRepositoryProvider.overrideWithValue(repository),
             filesImportPickerProvider.overrideWithValue(
               _FakeFilesImportPicker(null),
+            ),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
             ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
@@ -618,6 +659,11 @@ void main() {
                 ),
               ),
             ),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -684,6 +730,11 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           filesRepositoryProvider.overrideWithValue(repository),
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
+            ),
+          ),
           serverConfigurationRepositoryProvider.overrideWith(
             (ref) =>
                 _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -737,6 +788,11 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           filesRepositoryProvider.overrideWithValue(repository),
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
+            ),
+          ),
           serverConfigurationRepositoryProvider.overrideWith(
             (ref) =>
                 _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -786,6 +842,11 @@ void main() {
         overrides: [
           filesRepositoryProvider.overrideWithValue(repository),
           filesExportSaverProvider.overrideWithValue(saver),
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
+            ),
+          ),
           serverConfigurationRepositoryProvider.overrideWith(
             (ref) =>
                 _FakeServerConfigurationRepository(buildTestConfiguration()),

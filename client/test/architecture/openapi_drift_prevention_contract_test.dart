@@ -419,14 +419,6 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
   ),
   LegacyFence(
     path:
-        'lib/integrations/weave_api/data/dtos/organization_manifest_response_dto.dart',
-    issue: '#908',
-    reason:
-        'Manifest validation messages are support diagnostics until typed '
-        'localized recovery states replace displayable strings.',
-  ),
-  LegacyFence(
-    path:
         'lib/integrations/weave_api/data/dtos/platform_status_response_dto.dart',
     issue: '#904',
     reason:

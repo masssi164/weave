@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:weave/features/server_config/data/dtos/server_configuration_dto.dart';
 import 'package:weave/features/server_config/data/services/service_endpoint_deriver.dart';
@@ -34,7 +35,9 @@ class SharedPreferencesServerConfigurationRepository
       if (decoded is! Map<String, dynamic>) {
         throw const FormatException('Invalid saved configuration');
       }
-      if (decoded['schemaVersion'] != 2) {
+      if (decoded['schemaVersion'] != 2 &&
+          !(decoded['schemaVersion'] == 1 &&
+              decoded['organizationOrigin'] != null)) {
         // A v1 Matrix URL could name a concrete provider. Keep the saved
         // value intact for support, but require a new OrgManifest handoff.
         return null;
@@ -42,9 +45,25 @@ class SharedPreferencesServerConfigurationRepository
       final dto = ServerConfigurationDto.fromJson(decoded);
       final issuerUrl = _deriver.parseIssuerUrl(dto.oidcIssuerUrl);
       final configuration = dto.toConfiguration();
+      if (configuration.organizationOrigin != null) {
+        const OrganizationAccessParser().parse(
+          configuration.organizationOrigin!,
+        );
+      }
       final clientId = _requiredClientId(
         configuration.oidcClientRegistration.clientId,
       );
+      if (configuration.organizationOrigin != null &&
+          configuration.validatedManifest == null) {
+        // Origin-bearing legacy profiles are only migration input. Bootstrap
+        // resolves OrgManifest before authentication or any endpoint is used.
+        return configuration.copyWith(
+          oidcIssuerUrl: issuerUrl,
+          oidcClientRegistration: configuration.oidcClientRegistration.copyWith(
+            clientId: clientId,
+          ),
+        );
+      }
       final backendApiUrl = _deriver.parseServiceUrl(
         configuration.serviceEndpoints.backendApiBaseUrl.toString(),
         fieldName: 'the backend API URL',

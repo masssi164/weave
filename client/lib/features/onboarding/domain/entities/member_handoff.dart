@@ -74,8 +74,15 @@ class OrganizationAccessParser {
 
   Uri? _directOrganizationOrigin(Uri uri) {
     final rawOrigin = switch ((uri.scheme, uri.host, uri.path)) {
-      ('', '', '/join') =>
-        uri.queryParameters.length == 1
+      ('', '', '/join') ||
+      ('weave', 'join', '' || '/') ||
+      ('weave', '', '/join') =>
+        !uri.hasFragment &&
+                uri.userInfo.isEmpty &&
+                uri.queryParameters.length == 1 &&
+                uri.queryParametersAll.values.every(
+                  (values) => values.length == 1,
+                )
             ? uri.queryParameters['organization_origin']
             : null,
       ('https', _, '' || '/') when !uri.hasQuery && !uri.hasFragment =>
@@ -91,6 +98,7 @@ class OrganizationAccessParser {
         !parsed.isAbsolute ||
         parsed.scheme != 'https' ||
         parsed.host.isEmpty ||
+        (parsed.hasPort && (parsed.port < 1 || parsed.port > 65535)) ||
         parsed.userInfo.isNotEmpty ||
         parsed.hasQuery ||
         parsed.hasFragment ||

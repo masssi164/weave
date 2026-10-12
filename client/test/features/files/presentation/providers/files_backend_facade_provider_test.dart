@@ -1,3 +1,4 @@
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -159,6 +160,11 @@ void main() {
     test('uses the generated User API repository for release members', () {
       final container = ProviderContainer(
         overrides: [
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
+            ),
+          ),
           serverConfigurationRepositoryProvider.overrideWithValue(
             _FakeServerConfigurationRepository(buildTestConfiguration()),
           ),

@@ -204,10 +204,18 @@ void main() {
       'lib/integrations/weave_api/data/dtos/workspace_home_response_dto.dart',
     ).readAsString();
     final organizationManifest = await File(
-      'lib/integrations/weave_api/data/dtos/organization_manifest_response_dto.dart',
+      'lib/features/onboarding/domain/use_cases/discover_organization_access.dart',
     ).readAsString();
 
-    expect(client, contains('.organizationManifest()'));
+    expect(client, isNot(contains('.organizationManifest()')));
+    expect(
+      RegExp(
+        r'user_api\.PlatformApi\(\s*client,?\s*\)',
+      ).hasMatch(organizationManifest),
+      isTrue,
+    );
+    expect(organizationManifest, contains('.configWithHttpInfo()'));
+    expect(organizationManifest, contains("json['schemaVersion'] != 2"));
     expect(client, contains('.capabilities()'));
     expect(client, contains('user_api.WorkspaceApi('));
     expect(client, contains('.home()'));
@@ -216,11 +224,7 @@ void main() {
       workspaceHome,
       contains("package:weave/generated/user_api/api.dart"),
     );
-    for (final source in <String>[
-      workspaceCapabilities,
-      workspaceHome,
-      organizationManifest,
-    ]) {
+    for (final source in <String>[workspaceCapabilities, workspaceHome]) {
       expect(source, isNot(contains('class ')));
       expect(source, contains('extension '));
       expect(source, contains('package:weave/generated/user_api/api.dart'));

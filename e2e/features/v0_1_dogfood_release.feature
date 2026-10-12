@@ -52,8 +52,8 @@ Feature: Weave v0.1 dogfood production release
   @weave-v01-org-manifest-client-admin-split
   Scenario: Organization manifest keeps member client separate from admin console
     Given an organization has configured Keycloak federation, provider categories, capability profiles, and whitelists in the Admin Console
-    When a member opens Weave with an organization auth URL, invite link, or deep link and completes SSO
-    Then the Weave Client receives a support-safe organization manifest and effective capability states
+    When a member opens Weave with an organization origin, invite link, or deep link and completes SSO
+    Then the Weave Client resolves the generated Platform API OrgManifest v2 with member-safe domain states
     And member-visible states follow the pinned provider-neutral CapabilityState contract
     And provider setup, endpoint rotation, readiness diagnostics, secrets, and provider/tool/agent whitelisting stay in the Admin Console
 

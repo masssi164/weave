@@ -237,11 +237,16 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           if (!usePersistedConfiguration)
-            serverConfigurationRepositoryProvider.overrideWith(
-              (ref) => _FakeServerConfigurationRepository(
-                configuration: configuration,
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
               ),
             ),
+          serverConfigurationRepositoryProvider.overrideWith(
+            (ref) => _FakeServerConfigurationRepository(
+              configuration: configuration,
+            ),
+          ),
           secureStoreProvider.overrideWithValue(
             secureStore ?? InMemorySecureStore(),
           ),

@@ -1,3 +1,4 @@
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -123,6 +124,11 @@ void main() {
   ProviderContainer container(http.Client transport) {
     final result = ProviderContainer(
       overrides: [
+        appStartDiscoveryClientProvider.overrideWith(
+          (ref) => buildTestDiscoveryClient(
+            ref.watch(serverConfigurationRepositoryProvider),
+          ),
+        ),
         serverConfigurationRepositoryProvider.overrideWithValue(configuration),
         authSessionRepositoryProvider.overrideWithValue(auth),
         appBootstrapProvider.overrideWith(_ReadyBootstrap.new),
@@ -143,6 +149,11 @@ void main() {
   ProviderContainer capabilityContainer(http.Client transport) {
     final result = ProviderContainer(
       overrides: [
+        appStartDiscoveryClientProvider.overrideWith(
+          (ref) => buildTestDiscoveryClient(
+            ref.watch(serverConfigurationRepositoryProvider),
+          ),
+        ),
         serverConfigurationRepositoryProvider.overrideWithValue(configuration),
         authSessionRepositoryProvider.overrideWithValue(auth),
         appBootstrapProvider.overrideWith(_ReadyBootstrap.new),

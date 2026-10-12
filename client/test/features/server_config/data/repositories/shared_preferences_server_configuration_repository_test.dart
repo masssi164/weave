@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod/riverpod.dart';
@@ -12,6 +13,69 @@ import '../../../../helpers/server_config_test_data.dart';
 
 void main() {
   group('SharedPreferencesServerConfigurationRepository', () {
+    test(
+      'persists recovery origin and validated v2 manifest in existing store without tokens',
+      () async {
+        final store = InMemoryPreferencesStore();
+        final container = ProviderContainer.test(
+          overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+        );
+        addTearDown(container.dispose);
+        final repository = container.read(
+          serverConfigurationRepositoryProvider,
+        );
+        final manifest =
+            jsonDecode(
+                  File(
+                    'test/fixtures/org_manifest_v2_valid.json',
+                  ).readAsStringSync(),
+                )
+                as Map<String, dynamic>;
+        final when = DateTime.utc(2026, 10, 12);
+        await repository.saveConfiguration(
+          buildTestConfiguration().copyWith(
+            organizationOrigin: Uri.parse('https://weave.example'),
+            validatedManifest: manifest,
+            manifestValidatedAt: when,
+          ),
+        );
+        final loaded = await repository.loadConfiguration();
+        expect(loaded!.organizationOrigin, Uri.parse('https://weave.example'));
+        expect(loaded.validatedManifest, manifest);
+        expect(loaded.manifestValidatedAt, when);
+        final stored = await store.getString(serverConfigurationStorageKey);
+        expect(stored, isNot(contains('accessToken')));
+        expect(stored, isNot(contains('refreshToken')));
+      },
+    );
+
+    test(
+      'origin-bearing legacy profile is recoverable input for manifest migration',
+      () async {
+        final raw =
+            jsonDecode(
+                  encodeTestConfiguration(
+                    schemaVersion: 1,
+                    matrixHomeserverUrl: 'https://provider.example/private',
+                  ),
+                )
+                as Map<String, dynamic>;
+        raw['organizationOrigin'] = 'https://weave.example';
+        final store = InMemoryPreferencesStore({
+          serverConfigurationStorageKey: jsonEncode(raw),
+        });
+        final container = ProviderContainer.test(
+          overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+        );
+        addTearDown(container.dispose);
+        final loaded = await container
+            .read(serverConfigurationRepositoryProvider)
+            .loadConfiguration();
+        expect(loaded!.organizationOrigin, Uri.parse('https://weave.example'));
+        expect(loaded.validatedManifest, isNull);
+      },
+    );
+
     test('saves and reloads the same configuration', () async {
       final store = InMemoryPreferencesStore();
       final container = ProviderContainer.test(

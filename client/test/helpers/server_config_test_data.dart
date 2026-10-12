@@ -1,3 +1,7 @@
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
+import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'dart:convert';
 
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
@@ -14,8 +18,32 @@ ServerConfiguration buildTestConfiguration({
   String matrixOAuthIssuer = 'https://auth.home.internal/realms/weave',
   String? matrixOAuthClientId = 'weave-matrix-app',
   String backendApiBaseUrl = 'https://api.home.internal/api',
+  bool withManifest = true,
 }) {
   return ServerConfiguration(
+    organizationOrigin: withManifest
+        ? Uri.parse('https://weave.home.internal')
+        : null,
+    validatedManifest: withManifest
+        ? {
+            'schemaVersion': 2,
+            'organizationOrigin': 'https://weave.home.internal',
+            'userApiBaseUrl': backendApiBaseUrl,
+            'oidc': {'issuer': issuerUrl, 'clientId': clientId.trim()},
+            'protocols': {'matrixClientServerBaseUrl': matrixHomeserverUrl},
+            'releasePosture': 'development',
+            'domains': [
+              for (final domain in ['identity', 'chat', 'files', 'calendar'])
+                {
+                  'domain': domain,
+                  'state': 'available',
+                  'capabilities': <String>[],
+                },
+            ],
+            'recoveryActions': <Object>[],
+          }
+        : null,
+    manifestValidatedAt: withManifest ? DateTime.now().toUtc() : null,
     providerType: providerType,
     oidcIssuerUrl: Uri.parse(issuerUrl),
     oidcClientRegistration: OidcClientRegistration.manual(clientId: clientId),
@@ -73,3 +101,12 @@ Map<String, Object> buildStoredConfiguration({
     ),
   };
 }
+
+AppStartDiscoveryClient buildTestDiscoveryClient(
+  ServerConfigurationRepository repository,
+) => AppStartDiscoveryClient(
+  httpClient: MockClient((request) async {
+    final configuration = await repository.loadConfiguration();
+    return http.Response(jsonEncode(configuration!.validatedManifest), 200);
+  }),
+);

@@ -72,6 +72,11 @@ void main() {
     }) {
       return ProviderContainer.test(
         overrides: [
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
+            ),
+          ),
           serverConfigurationRepositoryProvider.overrideWith(
             (ref) => repository,
           ),

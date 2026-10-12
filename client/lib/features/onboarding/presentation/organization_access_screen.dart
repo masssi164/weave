@@ -141,7 +141,13 @@ class _OrganizationAccessScreenState extends State<OrganizationAccessScreen> {
 }
 
 Uri? _organizationAccessUri(String raw) {
-  final parsed = Uri.tryParse(raw.trim());
+  final input = raw.trim();
+  // Only a bare hostname (optionally with a port) gains an HTTPS scheme.
+  // Explicit schemes, credentials, paths and invitation context remain intact.
+  final bareHost = RegExp(
+    r'^[a-zA-Z0-9.-]+(?::[0-9]{1,5})?/?$',
+  ).hasMatch(input);
+  final parsed = Uri.tryParse(bareHost ? 'https://$input' : input);
   if (parsed == null || !parsed.isAbsolute || parsed.host.isEmpty) return null;
   if (parsed.scheme != 'https' && parsed.scheme != 'weave') return null;
   if (parsed.userInfo.isNotEmpty) return null;
@@ -153,7 +159,11 @@ Uri? _organizationAccessUri(String raw) {
           (parsed.host == 'join' || parsed.path == AppRoutes.join))) {
     return parsed;
   }
-  if (parsed.scheme != 'https' || parsed.hasQuery || parsed.hasFragment) {
+  if (parsed.scheme != 'https' ||
+      parsed.hasQuery ||
+      parsed.hasFragment ||
+      (parsed.path.isNotEmpty && parsed.path != '/') ||
+      (parsed.hasPort && (parsed.port < 1 || parsed.port > 65535))) {
     return null;
   }
 

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:http/http.dart' as http;
@@ -45,6 +46,9 @@ class DiscoverOrganizationAccess {
       );
       await _repository.saveConfiguration(
         ServerConfiguration(
+          organizationOrigin: access.organizationOrigin,
+          validatedManifest: appStart.manifest,
+          manifestValidatedAt: DateTime.now().toUtc(),
           providerType: OidcProviderType.oidc,
           oidcIssuerUrl: appStart.oidcIssuerUrl,
           oidcClientRegistration: OidcClientRegistration.manual(
@@ -176,12 +180,14 @@ String supportSafeHandoffErrorCode(Object error) {
 
 class AppStartConfiguration {
   const AppStartConfiguration({
+    required this.manifest,
     required this.oidcIssuerUrl,
     required this.oidcClientId,
     required this.userApiBaseUrl,
     required this.matrixClientServerBaseUrl,
   });
 
+  final Map<String, dynamic> manifest;
   final Uri oidcIssuerUrl;
   final String oidcClientId;
   final Uri userApiBaseUrl;
@@ -217,7 +223,9 @@ class AppStartDiscoveryClient {
         basePath: uri.replace(path: '', query: null, fragment: null).toString(),
       )..client = _httpClient;
       _headers(access).forEach(client.addDefaultHeader);
-      response = await user_api.PlatformApi(client).configWithHttpInfo();
+      response = await user_api.PlatformApi(
+        client,
+      ).configWithHttpInfo().timeout(const Duration(seconds: 15));
     } catch (error) {
       throw AppFailure.bootstrap(
         '${_transportErrorCode(error)}: The workspace start configuration could not be reached.',
@@ -232,7 +240,7 @@ class AppStartDiscoveryClient {
     }
 
     final payload = _decodeJsonObject(response.body);
-    return _configurationFromJson(payload, access);
+    return validateManifest(payload, access);
   }
 
   Map<String, String> _headers(OrganizationAccess access) {
@@ -318,7 +326,7 @@ class AppStartDiscoveryClient {
     );
   }
 
-  AppStartConfiguration _configurationFromJson(
+  AppStartConfiguration validateManifest(
     Map<String, dynamic> json,
     OrganizationAccess access,
   ) {
@@ -355,8 +363,10 @@ class AppStartDiscoveryClient {
       json['organizationOrigin'],
       fieldName: 'organizationOrigin',
     );
-    if (_apiOrigin(organizationOrigin) !=
-        _apiOrigin(access.organizationOrigin)) {
+    if ((organizationOrigin.path.isNotEmpty &&
+            organizationOrigin.path != '/') ||
+        _apiOrigin(organizationOrigin) !=
+            _apiOrigin(access.organizationOrigin)) {
       throw const AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: organizationOrigin must match the handoff origin.',
       );
@@ -399,6 +409,7 @@ class AppStartDiscoveryClient {
     final transportProtocols = transport.protocols;
 
     return AppStartConfiguration(
+      manifest: jsonDecode(jsonEncode(json)) as Map<String, dynamic>,
       oidcIssuerUrl: _uri(transportOidc.issuer, fieldName: 'oidc.issuer'),
       oidcClientId: _clientId(transportOidc.clientId),
       userApiBaseUrl: _uri(

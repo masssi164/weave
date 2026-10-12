@@ -57,6 +57,7 @@ void main() {
   test(
     'manual server URI discovers without synthetic invitation metadata',
     () async {
+      // V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT: sole generated v2 bootstrap contract.
       final repository = _RecordingServerConfigurationRepository();
       final evidenceStore = _RecordingPreferencesStore();
       final httpClient = MockClient((request) async {

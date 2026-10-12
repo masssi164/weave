@@ -1,9 +1,9 @@
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
-import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
 import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
@@ -122,29 +122,6 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
     required Uri baseUrl,
     required String accessToken,
   }) async => IdentitySessionReconcileResult.unchanged;
-
-  @override
-  Future<OrganizationManifestSnapshot> fetchOrganizationManifest({
-    required Uri baseUrl,
-    required String accessToken,
-  }) async {
-    return OrganizationManifestSnapshot(
-      manifestVersion: 'org-manifest-v1',
-      organizationId: 'test',
-      displayName: 'Test',
-      organizationAuthUrl: Uri.parse(
-        'https://auth.example.invalid/realms/weave',
-      ),
-      supportSafe: true,
-      providerConfigurationExposed: false,
-      diagnosticsExposed: false,
-      whitelistingOwner: 'organization-admin-console',
-      clientResponsibilities: const [],
-      adminConsoleResponsibilities: const [],
-      memberCapabilityStates: const {},
-      capabilities: snapshot,
-    );
-  }
 
   @override
   Future<WorkspaceCapabilitySnapshot> fetchWorkspaceCapabilities({
@@ -302,6 +279,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) => _FakeServerConfigurationRepository(
                 configuration: buildTestConfiguration(),

@@ -112,6 +112,7 @@ void main() {
 
         final container = ProviderContainer.test(
           overrides: [
+            appStartDiscoveryClientProvider.overrideWithValue(discoveryClient),
             authSessionRepositoryProvider.overrideWithValue(authRepository),
             identitySessionPortProvider.overrideWithValue(
               FakeIdentitySessionPort(),

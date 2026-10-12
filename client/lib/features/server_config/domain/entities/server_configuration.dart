@@ -8,9 +8,16 @@ class ServerConfiguration {
     required this.oidcIssuerUrl,
     required this.oidcClientRegistration,
     required this.serviceEndpoints,
+    this.organizationOrigin,
+    this.validatedManifest,
+    this.manifestValidatedAt,
     this.matrixOAuthIssuer,
     this.matrixOAuthClientId,
   });
+
+  final Uri? organizationOrigin;
+  final Map<String, dynamic>? validatedManifest;
+  final DateTime? manifestValidatedAt;
 
   final OidcProviderType providerType;
   final Uri oidcIssuerUrl;
@@ -24,6 +31,9 @@ class ServerConfiguration {
       matrixOAuthIssuer != null && matrixOAuthClientId != null;
 
   ServerConfiguration copyWith({
+    Uri? organizationOrigin,
+    Map<String, dynamic>? validatedManifest,
+    DateTime? manifestValidatedAt,
     OidcProviderType? providerType,
     Uri? oidcIssuerUrl,
     OidcClientRegistration? oidcClientRegistration,
@@ -32,6 +42,9 @@ class ServerConfiguration {
     String? matrixOAuthClientId,
   }) {
     return ServerConfiguration(
+      organizationOrigin: organizationOrigin ?? this.organizationOrigin,
+      validatedManifest: validatedManifest ?? this.validatedManifest,
+      manifestValidatedAt: manifestValidatedAt ?? this.manifestValidatedAt,
       providerType: providerType ?? this.providerType,
       oidcIssuerUrl: oidcIssuerUrl ?? this.oidcIssuerUrl,
       oidcClientRegistration:

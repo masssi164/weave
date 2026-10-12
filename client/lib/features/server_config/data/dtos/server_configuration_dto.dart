@@ -13,6 +13,9 @@ class ServerConfigurationDto {
     required this.oidcClientId,
     required this.matrixHomeserverUrl,
     required this.backendApiBaseUrl,
+    this.organizationOrigin,
+    this.validatedManifest,
+    this.manifestValidatedAt,
     this.matrixOAuthIssuer,
     this.matrixOAuthClientId,
   });
@@ -21,6 +24,11 @@ class ServerConfigurationDto {
     ServerConfiguration configuration,
   ) {
     return ServerConfigurationDto(
+      organizationOrigin: configuration.organizationOrigin?.toString(),
+      validatedManifest: configuration.validatedManifest,
+      manifestValidatedAt: configuration.manifestValidatedAt
+          ?.toUtc()
+          .toIso8601String(),
       providerType: configuration.providerType.name,
       oidcIssuerUrl: configuration.oidcIssuerUrl.toString(),
       oidcClientRegistrationMode:
@@ -37,6 +45,9 @@ class ServerConfigurationDto {
 
   factory ServerConfigurationDto.fromJson(Map<String, dynamic> json) {
     return ServerConfigurationDto(
+      organizationOrigin: json['organizationOrigin'] as String?,
+      validatedManifest: json['validatedManifest'] as Map<String, dynamic>?,
+      manifestValidatedAt: json['manifestValidatedAt'] as String?,
       providerType: json['providerType'] as String,
       oidcIssuerUrl: json['oidcIssuerUrl'] as String,
       oidcClientRegistrationMode: json['oidcClientRegistrationMode'] as String,
@@ -48,6 +59,9 @@ class ServerConfigurationDto {
     );
   }
 
+  final String? organizationOrigin;
+  final Map<String, dynamic>? validatedManifest;
+  final String? manifestValidatedAt;
   final String providerType;
   final String oidcIssuerUrl;
   final String oidcClientRegistrationMode;
@@ -59,6 +73,13 @@ class ServerConfigurationDto {
 
   ServerConfiguration toConfiguration() {
     return ServerConfiguration(
+      organizationOrigin: organizationOrigin == null
+          ? null
+          : Uri.parse(organizationOrigin!),
+      validatedManifest: validatedManifest,
+      manifestValidatedAt: manifestValidatedAt == null
+          ? null
+          : DateTime.parse(manifestValidatedAt!),
       providerType: OidcProviderType.values.byName(providerType),
       oidcIssuerUrl: Uri.parse(oidcIssuerUrl),
       oidcClientRegistration: OidcClientRegistration(
@@ -83,6 +104,10 @@ class ServerConfigurationDto {
   Map<String, dynamic> toJson() {
     return {
       'schemaVersion': 2,
+      if (organizationOrigin != null) 'organizationOrigin': organizationOrigin,
+      if (validatedManifest != null) 'validatedManifest': validatedManifest,
+      if (manifestValidatedAt != null)
+        'manifestValidatedAt': manifestValidatedAt,
       'providerType': providerType,
       'oidcIssuerUrl': oidcIssuerUrl,
       'oidcClientRegistrationMode': oidcClientRegistrationMode,

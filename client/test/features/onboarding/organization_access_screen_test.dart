@@ -75,6 +75,38 @@ void main() {
     expect(find.textContaining('workspace='), findsNothing);
   });
 
+  for (final input in ['weave.example', 'weave.example:8443']) {
+    testWidgets('normalizes bare host $input to HTTPS', (tester) async {
+      await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), input);
+      await tester.tap(find.text('Continue to organization'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining(Uri.encodeQueryComponent('https://$input/')),
+        findsOneWidget,
+      );
+    });
+  }
+  for (final input in [
+    'http://weave.example',
+    'https://user:pass@weave.example',
+    'weave.example:99999',
+    'weave.example/private',
+    'weave.example?token=secret',
+  ]) {
+    testWidgets('rejects unsafe or ambiguous organization input $input', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), input);
+      await tester.tap(find.text('Continue to organization'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('resolved:'), findsNothing);
+    });
+  }
+
   testWidgets('meets accessible tap-target and labeling guidelines', (
     tester,
   ) async {

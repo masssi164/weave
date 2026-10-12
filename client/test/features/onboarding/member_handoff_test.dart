@@ -18,6 +18,37 @@ void main() {
       expect(access.organizationLabel, 'weave.example');
     });
 
+    test(
+      'accepts registered secret-free app link with only organization recovery origin',
+      () {
+        for (final link in [
+          'weave://join?organization_origin=https%3A%2F%2Fweave.example%3A8443',
+          'weave:/join?organization_origin=https%3A%2F%2Fweave.example%3A8443',
+        ]) {
+          final access = const OrganizationAccessParser().parse(
+            Uri.parse(link),
+          );
+          expect(
+            access.organizationOrigin,
+            Uri.parse('https://weave.example:8443/'),
+          );
+          expect(access.handoff, isNull);
+        }
+      },
+    );
+    test('rejects secret-bearing or ambiguous origin-only app links', () {
+      for (final link in [
+        'weave://join?organization_origin=https%3A%2F%2Fweave.example&token=secret',
+        'weave://join?organization_origin=https%3A%2F%2Fweave.example&organization_origin=https%3A%2F%2Fother.example',
+        'weave://join?organization_origin=https%3A%2F%2Fweave.example#secret',
+      ]) {
+        expect(
+          () => const OrganizationAccessParser().parse(Uri.parse(link)),
+          throwsA(isA<AppFailure>()),
+        );
+      }
+    });
+
     test('preserves real completion-link metadata as optional context', () {
       final access = const OrganizationAccessParser().parse(
         Uri.parse(
