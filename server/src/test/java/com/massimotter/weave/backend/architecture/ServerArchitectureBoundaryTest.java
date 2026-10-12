@@ -516,7 +516,9 @@ class ServerArchitectureBoundaryTest {
                         .toList())
                 .containsExactlyInAnyOrder(
                         "SchemaAuthorityInitializer.java",
-                        "SchemaCatalogFingerprint.java");
+                        "SchemaCatalogFingerprint.java",
+                        "MigrationCatalogReference.java",
+                        "ServingSchemaAuthorityGuard.java");
     }
 
     @Test
