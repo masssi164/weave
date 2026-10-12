@@ -23,7 +23,7 @@ public final class SchemaAuthorityInitializer {
 
   public static final String EPOCH = "weave-flyway-v1";
   public static final String MODEL_ID = "WEAVE-ARCH-RELATIONAL-CORE-MODEL";
-  public static final String RECEIPT_FORMAT = "weave.schema-init-receipt/v4";
+  public static final String RECEIPT_FORMAT = "weave.schema-init-receipt/v5";
   private static final Pattern COMMIT = Pattern.compile("[0-9a-f]{40}");
   private static final String MIGRATION_LOCATION = "classpath:db/migration";
   private static final int INITIALIZATION_LOCK_TIMEOUT_SECONDS = 60;
@@ -60,7 +60,7 @@ public final class SchemaAuthorityInitializer {
     // the complete one-shot operation so two initializers cannot race outside Flyway.
     try (Connection lockConnection = DriverManager.getConnection(url, username, password)) {
       acquireSchemaInitializationLock(lockConnection);
-      runLocked(url, username, password, candidate, receipt);
+      runLocked(url, username, password, candidate, receipt, required(environment, "WEAVE_SCHEMA_RUNTIME_ROLE"));
     }
   }
 
@@ -69,64 +69,131 @@ public final class SchemaAuthorityInitializer {
       String username,
       String password,
       String candidate,
-      Path receipt) throws Exception {
+      Path receipt,
+      String runtimeRole) throws Exception {
+    if (!runtimeRole.matches("[A-Za-z_][A-Za-z0-9_]{0,62}")
+        || runtimeRole.equals(username)) {
+      throw new IllegalStateException("migration and runtime roles must be distinct bounded identifiers");
+    }
     Flyway flyway = Flyway.configure()
         .dataSource(url, username, password)
         .locations(MIGRATION_LOCATION)
         .baselineOnMigrate(false)
         .cleanDisabled(true)
+        .outOfOrder(false)
+        .validateOnMigrate(true)
+        .validateMigrationNaming(true)
+        .ignoreMigrationPatterns(new String[0])
         .load();
 
     // Flyway owns DDL and its PostgreSQL history/checksums. A non-empty schema without
     // Flyway history intentionally fails here instead of being silently baselined.
-    var migration = flyway.migrate();
-    flyway.validate();
-    String targetSchemaVersion = migration.targetSchemaVersion;
-    if (targetSchemaVersion == null) {
-      var currentMigration = flyway.info().current();
-      targetSchemaVersion =
-          currentMigration == null || currentMigration.getVersion() == null
-              ? null
-              : currentMigration.getVersion().getVersion();
+    // Pending reviewed migrations are legitimate before an upgrade; missing or changed
+    // applied history is still rejected. The post-migration validation ignores nothing.
+    Flyway.configure().dataSource(url, username, password).locations(MIGRATION_LOCATION)
+        .baselineOnMigrate(false).cleanDisabled(true).outOfOrder(false)
+        .validateMigrationNaming(true).ignoreMigrationPatterns("*:pending").load().validate();
+    var previous = flyway.info().current();
+    SchemaCatalogFingerprint.Snapshot previousCatalog;
+    SchemaCatalogFingerprint.Snapshot previousLegacyV2;
+    try (Connection connection = DriverManager.getConnection(url, username, password)) {
+      previousCatalog = SchemaCatalogFingerprint.inspect(connection);
+      previousLegacyV2 = SchemaCatalogFingerprint.inspectLegacyV2(connection);
     }
-
-    Map<String, Object> properties = new LinkedHashMap<>();
-    properties.put("spring.config.name", "schema-init");
-    properties.put("spring.main.web-application-type", "none");
-    properties.put("spring.datasource.url", url);
-    properties.put("spring.datasource.username", username);
-    properties.put("spring.datasource.password", password);
-    properties.put("spring.datasource.driver-class-name", "org.postgresql.Driver");
-    properties.put("spring.jpa.open-in-view", "false");
-    properties.put("spring.jpa.hibernate.ddl-auto", "validate");
-    properties.put("spring.flyway.enabled", "false");
-
-    try (ConfigurableApplicationContext context = application(properties).run();
-         Connection connection = DriverManager.getConnection(url, username, password)) {
-      SchemaCatalogFingerprint.Snapshot validated = SchemaCatalogFingerprint.inspect(connection);
-      if (!validated.tables().contains("weave_schema_authority")) {
-        throw new IllegalStateException("authority marker table is absent after Flyway migration");
-      }
-      SchemaAuthorityJpaRepository markers = context.getBean(SchemaAuthorityJpaRepository.class);
-      var existingMarkers = markers.findAll();
-      if (!existingMarkers.isEmpty()) {
-        if (existingMarkers.size() != 1
-            || !EPOCH.equals(existingMarkers.getFirst().epoch())
-            || !MODEL_ID.equals(existingMarkers.getFirst().relationalModelId())
-            || !validated.sha256().equals(existingMarkers.getFirst().catalogFingerprint())) {
-          throw new IllegalStateException(
-              "schema catalog fingerprint does not match the completed authority marker");
+    try (MigrationCatalogReference reference = new MigrationCatalogReference(url, username, password)) {
+      if (previous != null) {
+        var expectedPrevious = reference.atVersion(previous.getVersion());
+        requireCatalog(previousCatalog, expectedPrevious);
+        try (var connection = DriverManager.getConnection(url, username, password)) {
+          requirePreviousMarker(connection, previousCatalog.sha256(), previousLegacyV2.sha256());
         }
       }
-      markers.deleteAllInBatch();
-      markers.saveAndFlush(new SchemaAuthorityJpaEntity(
-          EPOCH, MODEL_ID, candidate, validated.sha256(), Instant.now()));
-      writeReceipt(
-          receipt,
-          candidate,
-          migration.migrationsExecuted,
-          targetSchemaVersion,
-          validated);
+      var migration = flyway.migrate();
+      flyway.validate();
+      String targetSchemaVersion = migration.targetSchemaVersion;
+      if (targetSchemaVersion == null) {
+        var currentMigration = flyway.info().current();
+        targetSchemaVersion =
+            currentMigration == null || currentMigration.getVersion() == null
+                ? null
+                : currentMigration.getVersion().getVersion();
+      }
+
+      Map<String, Object> properties = new LinkedHashMap<>();
+      properties.put("spring.config.name", "schema-init");
+      properties.put("spring.main.web-application-type", "none");
+      properties.put("spring.datasource.url", url);
+      properties.put("spring.datasource.username", username);
+      properties.put("spring.datasource.password", password);
+      properties.put("spring.datasource.driver-class-name", "org.postgresql.Driver");
+      properties.put("spring.jpa.open-in-view", "false");
+      properties.put("spring.jpa.hibernate.ddl-auto", "validate");
+      properties.put("spring.flyway.enabled", "false");
+
+      try (ConfigurableApplicationContext context = application(properties).run();
+           Connection connection = DriverManager.getConnection(url, username, password)) {
+        SchemaCatalogFingerprint.Snapshot validated = SchemaCatalogFingerprint.inspect(connection);
+        requireCatalog(validated, reference.atVersion(null));
+        if (!validated.tables().contains("weave_schema_authority")) {
+          throw new IllegalStateException("authority marker table is absent after Flyway migration");
+        }
+        SchemaAuthorityJpaRepository markers = context.getBean(SchemaAuthorityJpaRepository.class);
+        var existingMarkers = markers.findAll();
+        if (!existingMarkers.isEmpty()) {
+          if (existingMarkers.size() != 1
+              || !EPOCH.equals(existingMarkers.getFirst().epoch())
+              || !MODEL_ID.equals(existingMarkers.getFirst().relationalModelId())
+              || !COMMIT.matcher(existingMarkers.getFirst().candidateCommit()).matches()
+              || existingMarkers.getFirst().completedAt() == null
+              // A v2 marker may be upgraded only after full v3 physical comparison with
+              // the clean prior migration chain. This never accepts arbitrary stale values.
+              || (!previousCatalog.sha256().equals(existingMarkers.getFirst().catalogFingerprint())
+                  && !previousLegacyV2.sha256().equals(existingMarkers.getFirst().catalogFingerprint()))) {
+            throw new IllegalStateException(
+                "schema catalog fingerprint does not match the completed authority marker");
+          }
+        }
+        protectAuthorityTables(connection, runtimeRole);
+        markers.deleteAllInBatch();
+        markers.saveAndFlush(new SchemaAuthorityJpaEntity(
+            EPOCH, MODEL_ID, candidate, validated.sha256(), Instant.now()));
+        writeReceipt(
+            receipt,
+            candidate,
+            migration.migrationsExecuted,
+            targetSchemaVersion,
+            validated);
+      }
+    }
+  }
+
+  private static void requirePreviousMarker(Connection connection, String current, String legacy) throws Exception {
+    try (var statement = connection.createStatement(); var rows = statement.executeQuery(
+        "select epoch,relational_model_id,candidate_commit,catalog_fingerprint,completed_at_utc "
+            + "from weave_schema_authority")) {
+      if (!rows.next()) return; // Trusted immutable Flyway history is independently checked.
+      if (!EPOCH.equals(rows.getString(1)) || !MODEL_ID.equals(rows.getString(2))
+          || rows.getString(3) == null || !COMMIT.matcher(rows.getString(3)).matches()
+          || (!current.equals(rows.getString(4)) && !legacy.equals(rows.getString(4)))
+          || rows.getTimestamp(5) == null || rows.next()) {
+        throw new IllegalStateException("schema catalog fingerprint does not match the completed authority marker");
+      }
+    }
+  }
+
+  private static void protectAuthorityTables(Connection connection, String runtimeRole) throws Exception {
+    try (var statement = connection.createStatement()) {
+      String quotedRole = "\"" + runtimeRole + "\"";
+      statement.execute("revoke all privileges on flyway_schema_history,weave_schema_authority from public");
+      statement.execute("revoke all privileges on flyway_schema_history,weave_schema_authority from " + quotedRole);
+      statement.execute("grant select on flyway_schema_history,weave_schema_authority to " + quotedRole);
+    }
+  }
+
+  private static void requireCatalog(SchemaCatalogFingerprint.Snapshot observed,
+      SchemaCatalogFingerprint.Snapshot expected) {
+    if (!observed.sha256().equals(expected.sha256())) {
+      throw new IllegalStateException("schema catalog fingerprint differs from reviewed migrations");
     }
   }
 

@@ -35,6 +35,31 @@ TOOLCHAIN = {
     "xcodeBuild": "17F42", "iosSimulatorSdkVersion": "26.5", "rustToolchain": "1.95.0",
     "rustCompilerVersion": "rustc 1.95.0 (1234567 2026-01-01)",
 }
+def dual_ios_proof():
+    start, end = "2026-10-12T10:00:00Z", "2026-10-12T10:05:00Z"
+    proof = {
+        "status": "passed", "appBuildSha256": "f" * 64,
+        "actors": [
+            {"role": role, "simulatorId": uid, "processId": pid,
+             "identityDigest": identity * 64, "matrixDeviceDigest": device * 64,
+             "storageDigest": storage * 64, "startedAt": start, "endedAt": end}
+            for role, uid, pid, identity, device, storage in (
+                ("A", "00000000-0000-0000-0000-000000000001", 101, "1", "3", "5"),
+                ("B", "00000000-0000-0000-0000-000000000002", 102, "2", "4", "6"))
+        ],
+        "overlap": {"startedAt": "2026-10-12T10:01:00Z", "endedAt": "2026-10-12T10:04:00Z"},
+        "scenarios": {name: {"status": "passed", "evidence": "flutter-ui", "actors": ["A", "B"]}
+                      for name in ("authentication", "chat", "calendar", "files", "authorization", "recovery", "accessibility")},
+        "encryption": {"policyRequired": False, "status": "not-required", "plaintextFallback": False},
+        "cleanupComplete": True,
+    }
+    proof["scenarios"]["authorization"].update({
+        "deniedIdentityDigest": "7" * 64,
+        "denials": {"chat": "passed", "files": "passed", "calendar": "passed"},
+    })
+    return proof
+
+
 HUMAN = "\n".join(
     [
         "Weave human test v1",
@@ -54,10 +79,10 @@ HUMAN = "\n".join(
 class MainPromotionEvidenceTest(unittest.TestCase):
     def test_native_qualification_requires_both_platforms_exact_identity_and_cleanup(self) -> None:
         valid = {
-            "schemaVersion": "weave.native-qualification/v1", "candidateCommit": SHA,
+            "schemaVersion": "weave.native-qualification/v2", "candidateCommit": SHA,
             "sourceTree": OTHER, "specificationCommit": "c" * 40,
             "macos": {"status": "passed"}, "toolchain": TOOLCHAIN,
-            "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim"},
+            "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim", "collaboration": dual_ios_proof()},
             "cleanupComplete": True, "supportSafe": True, "containsSecretValues": False,
         }
         self.assertTrue(native_qualification_passed(valid, SHA, OTHER, "c" * 40))
@@ -71,6 +96,38 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         for outcome in ("failed", "not-available", "skipped"):
             self.assertFalse(native_qualification_passed({**valid, "iosSimulator": {
                 "status": outcome, "rustTarget": "aarch64-apple-ios-sim"}}, SHA, OTHER, "c" * 40))
+
+    def test_dual_ios_rejects_single_sequential_reused_and_api_only_evidence(self) -> None:
+        from tools.verify_main_promotion_evidence import dual_ios_collaboration_passed
+        self.assertTrue(dual_ios_collaboration_passed(dual_ios_proof()))
+        bad = []
+        single = dual_ios_proof(); single["actors"] = single["actors"][:1]; bad.append(single)
+        for key in ("simulatorId", "processId", "identityDigest", "matrixDeviceDigest", "storageDigest"):
+            reused = dual_ios_proof(); reused["actors"][1][key] = reused["actors"][0][key]; bad.append(reused)
+        sequential = dual_ios_proof(); sequential["actors"][1]["startedAt"] = "2026-10-12T10:04:30Z"; bad.append(sequential)
+        for name in ("authentication", "chat", "calendar", "files", "authorization", "recovery", "accessibility"):
+            missing = dual_ios_proof(); del missing["scenarios"][name]; bad.append(missing)
+            failed = dual_ios_proof(); failed["scenarios"][name]["status"] = "not-run"; bad.append(failed)
+            api = dual_ios_proof(); api["scenarios"][name]["evidence"] = "api-only"; bad.append(api)
+        for role in ([], {}, None):
+            malformed = dual_ios_proof(); malformed["actors"][0]["role"] = role; bad.append(malformed)
+        for name in ("authentication", "chat", "calendar", "files", "authorization", "recovery", "accessibility"):
+            unbound = dual_ios_proof(); unbound["scenarios"][name].pop("actors"); bad.append(unbound)
+        for key in ("deniedIdentityDigest", "denials"):
+            missing_denial = dual_ios_proof(); missing_denial["scenarios"]["authorization"].pop(key); bad.append(missing_denial)
+        same_identity = dual_ios_proof(); same_identity["scenarios"]["authorization"]["deniedIdentityDigest"] = "1" * 64; bad.append(same_identity)
+        unencrypted = dual_ios_proof(); unencrypted["encryption"]["policyRequired"] = True; bad.append(unencrypted)
+        downgrade = dual_ios_proof(); downgrade["encryption"]["plaintextFallback"] = True; bad.append(downgrade)
+        dirty = dual_ios_proof(); dirty["cleanupComplete"] = False; bad.append(dirty)
+        for index, proof in enumerate(bad):
+            self.assertFalse(dual_ios_collaboration_passed(proof), index)
+
+    def test_historical_single_simulator_schema_cannot_qualify_new_release(self) -> None:
+        value = {"schemaVersion": "weave.native-qualification/v1", "candidateCommit": SHA,
+                 "sourceTree": OTHER, "specificationCommit": "c" * 40, "toolchain": TOOLCHAIN,
+                 "macos": {"status": "passed"}, "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim"},
+                 "cleanupComplete": True, "supportSafe": True, "containsSecretValues": False}
+        self.assertFalse(native_qualification_passed(value, SHA, OTHER, "c" * 40))
 
     def test_native_toolchain_missing_malformed_or_inconsistent_fails_closed(self) -> None:
         from tools.verify_main_promotion_evidence import native_toolchain_recorded
@@ -144,9 +201,9 @@ class MainPromotionEvidenceTest(unittest.TestCase):
                "path": ".github/workflows/live-stack-e2e.yml"}
         jobs = [{"name": name, "conclusion": "success"} for name in
                 ("Full Compose E2E", "Deploy dogfood with Compose")]
-        native = {"schemaVersion": "weave.native-qualification/v1", "candidateCommit": SHA,
+        native = {"schemaVersion": "weave.native-qualification/v2", "candidateCommit": SHA,
                   "sourceTree": tree, "specificationCommit": spec, "macos": {"status": "passed"}, "toolchain": TOOLCHAIN,
-                  "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim"},
+                  "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim", "collaboration": dual_ios_proof()},
                   "cleanupComplete": True, "supportSafe": True, "containsSecretValues": False}
         teardown = {"candidateCommit": SHA, "dryRun": False, "ownershipLabelsVerified": True,
                     "remainingOwnedResources": 0, "remainingContainerCount": 0,

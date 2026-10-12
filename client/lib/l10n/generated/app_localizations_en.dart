@@ -3632,4 +3632,43 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chatParticipantsSearchFailure =>
       'People could not be loaded. Try searching again.';
+
+  @override
+  String get filesSpaceLabel => 'Files location';
+
+  @override
+  String get filesPrivateSpace => 'My private files';
+
+  @override
+  String get filesSharedOrganizationSpace => 'Shared organization files';
+
+  @override
+  String get filesUnavailableSpace => 'Space no longer available';
+
+  @override
+  String filesReplaceEntrySemantic(String name) {
+    return 'Replace content of $name';
+  }
+
+  @override
+  String filesContentUpdating(String name) {
+    return 'Updating $name…';
+  }
+
+  @override
+  String filesContentUpdated(String name) {
+    return 'Updated $name.';
+  }
+
+  @override
+  String filesOpenEntrySemantic(String name) {
+    return 'Open $name';
+  }
+
+  @override
+  String get filesPreviewFailed => 'The file could not be opened. Try again.';
+
+  @override
+  String get filesPreviewUnsupported =>
+      'This file cannot be viewed here. Use Export to open it in another app.';
 }

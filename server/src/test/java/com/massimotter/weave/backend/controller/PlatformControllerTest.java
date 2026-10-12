@@ -38,7 +38,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @WebMvcTest(
-        controllers = {PlatformController.class, HealthController.class},
+        controllers = {PlatformController.class, HealthController.class, MemberEntryController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
         OrganizationIdentityContextResolver.class,
@@ -64,6 +64,23 @@ import static org.assertj.core.api.Assertions.assertThat;
         "weave.workspace.calendar.enabled=true"
 })
 class PlatformControllerTest {
+
+    @Test
+    void browserCompletionUsesOnlyCanonicalOriginWithoutForwardingActivationSecrets() throws Exception {
+        String html = mockMvc.perform(get("/join").param("code", "do-not-forward")
+                        .param("organization_origin", "https://attacker.invalid"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(html).contains("weave://join?organization_origin=https%3A%2F%2Fweave.test",
+                "id=\"organization-origin\"", "role=\"img\"", "Open Weave")
+                .doesNotContain("do-not-forward", "attacker.invalid", "auth.weave.test", "clientId", "password");
+        mockMvc.perform(get("/").header("Accept-Language", "de"))
+                .andExpect(status().isOk());
+        assertThat(mockMvc.perform(get("/").header("Accept-Language", "de"))
+                .andReturn().getResponse().getContentAsString()).contains("Weave öffnen", "lang=\"de\"");
+    }
 
     @Autowired
     private MockMvc mockMvc;

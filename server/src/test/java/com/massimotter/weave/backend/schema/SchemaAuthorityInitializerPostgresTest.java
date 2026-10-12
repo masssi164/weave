@@ -92,6 +92,46 @@ class SchemaAuthorityInitializerPostgresTest {
   }
 
   @Test
+  void missingOrSharedRuntimeRoleCannotPublishReceipt(@TempDir Path directory) throws Exception {
+    Environment environment = environment("missing_role", directory);
+    var values = new LinkedHashMap<>(environment.values());
+    values.remove("WEAVE_SCHEMA_RUNTIME_ROLE");
+    assertThatThrownBy(() -> SchemaAuthorityInitializer.run(values))
+        .hasMessageContaining("WEAVE_SCHEMA_RUNTIME_ROLE");
+    values.put("WEAVE_SCHEMA_RUNTIME_ROLE", POSTGRES.getUsername());
+    assertThatThrownBy(() -> SchemaAuthorityInitializer.run(values))
+        .hasMessageContaining("distinct");
+    assertThat(Files.exists(environment.receipt())).isFalse();
+  }
+
+  @Test
+  void rejectsMalformedStaleAndHistoricalReceipt(@TempDir Path directory) throws Exception {
+    Environment environment = environment("receipt_types", directory);
+    SchemaAuthorityInitializer.run(environment.values());
+    String original = Files.readString(environment.receipt());
+    for (String field : List.of("supportSafe", "secretValuesIncluded", "migrationsExecuted", "tableCount")) {
+      var malformed = (tools.jackson.databind.node.ObjectNode) new ObjectMapper().readTree(original);
+      malformed.put(field, "true");
+      Files.writeString(environment.receipt(), malformed.toString());
+      assertThatThrownBy(() -> SchemaReceiptVerifier.verify(environment.values()))
+          .hasMessageContaining("malformed");
+    }
+    for (String field : List.of("candidateCommit", "schemaVersion", "completedAtUtc")) {
+      var malformed = (tools.jackson.databind.node.ObjectNode) new ObjectMapper().readTree(original);
+      malformed.put(field, switch (field) {
+        case "candidateCommit" -> "b".repeat(40);
+        case "schemaVersion" -> "weave.schema-init-receipt/v4";
+        default -> "2099-01-01T00:00:00Z";
+      });
+      Files.writeString(environment.receipt(), malformed.toString());
+      assertThatThrownBy(() -> SchemaReceiptVerifier.verify(environment.values()))
+          .isInstanceOf(IllegalStateException.class);
+    }
+    Files.writeString(environment.receipt(), original);
+    SchemaReceiptVerifier.verify(environment.values());
+  }
+
+  @Test
   void serializesConcurrentInitializersAcrossMigrationValidationAndReceipt(
       @TempDir Path directory) throws Exception {
     Environment first = environment("concurrent", directory, "schema-init-first.json");
@@ -182,6 +222,22 @@ class SchemaAuthorityInitializerPostgresTest {
     Flyway previousFlyway = flyway(environment, previous);
     previousFlyway.migrate();
     assertThat(previousFlyway.info().current().getVersion()).isEqualTo(previous);
+    try (var connection = connection(environment);
+        var marker = connection.prepareStatement("insert into weave_schema_authority "
+            + "(epoch,relational_model_id,candidate_commit,catalog_fingerprint,completed_at_utc) "
+            + "values (?,?,?,?,CURRENT_TIMESTAMP)");
+        var statement = connection.createStatement()) {
+      marker.setString(1, SchemaAuthorityInitializer.EPOCH);
+      marker.setString(2, SchemaAuthorityInitializer.MODEL_ID);
+      marker.setString(3, "b".repeat(40));
+      marker.setString(4, SchemaCatalogFingerprint.inspectLegacyV2(connection).sha256());
+      marker.executeUpdate();
+      statement.execute("insert into weave_files_user_resources "
+          + "(organization_ref,file_id,binding_revision,space_ref,parent_file_id,canonical_path,active_path_key,"
+          + "object_kind,owner_principal_ref,lifecycle_state,created_at_utc,modified_at_utc,version) "
+          + "values ('org:legacy','file:legacy',1,'workspace-default','file:root','/legacy','/legacy',"
+          + "'FILE','user:alice','ACTIVE',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,0)");
+    }
 
     SchemaAuthorityInitializer.run(environment.values());
     var upgraded = receipt(environment);
@@ -189,6 +245,13 @@ class SchemaAuthorityInitializerPostgresTest {
     assertThat(upgraded.path("targetSchemaVersion").asText()).isEqualTo(latest.getVersion());
     assertThat(flyway(environment, null).info().current().getVersion()).isEqualTo(latest);
     SchemaReceiptVerifier.verify(environment.values());
+    try (var connection = connection(environment); var statement = connection.createStatement();
+        var rows = statement.executeQuery("select visibility_scope,owner_principal_ref "
+            + "from weave_files_user_resources where file_id='file:legacy'")) {
+      assertThat(rows.next()).isTrue();
+      assertThat(rows.getString(1)).isEqualTo("PRIVATE");
+      assertThat(rows.getString(2)).isEqualTo("user:alice");
+    }
 
     SchemaAuthorityInitializer.run(environment.values());
     assertThat(receipt(environment).path("migrationsExecuted").asInt()).isZero();
@@ -214,6 +277,128 @@ class SchemaAuthorityInitializerPostgresTest {
             .executeQuery()) {
       rows.next();
       assertThat(rows.getInt(1)).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void rejectsManualDdlWithoutMarkerAndCleansOwnedReference(@TempDir Path directory) throws Exception {
+    Environment environment = environment("unmarked_drift", directory);
+    flyway(environment, MigrationVersion.fromVersion("12")).migrate();
+    try (var connection = connection(environment); var statement = connection.createStatement()) {
+      statement.execute("alter table weave_files_user_resources add column manual_drift integer");
+    }
+    assertThatThrownBy(() -> SchemaAuthorityInitializer.run(environment.values()))
+        .isInstanceOf(IllegalStateException.class).hasMessageContaining("fingerprint");
+    assertThat(flyway(environment, null).info().current().getVersion().getVersion()).isEqualTo("12");
+    assertThat(Files.exists(environment.receipt())).isFalse();
+    try (var connection = connection(environment); var statement = connection.createStatement()) {
+      statement.execute("alter table weave_files_user_resources drop column manual_drift");
+      statement.execute("create table sql_unexpected_owned_object(id integer)");
+    }
+    assertThatThrownBy(() -> SchemaAuthorityInitializer.run(environment.values()))
+        .hasMessageContaining("fingerprint");
+    try (var connection = connection(environment); var statement = connection.createStatement();
+        var rows = statement.executeQuery("select count(*) from pg_namespace "
+            + "where nspname like 'weave_catalog_reference_%'")) {
+      rows.next();
+      assertThat(rows.getInt(1)).isZero();
+    }
+  }
+
+  @Test
+  void rejectsColumnWidthAndForeignKeyActionDriftBeforeUpgrade(@TempDir Path directory) throws Exception {
+    Environment environment = environment("typed_drift", directory);
+    flyway(environment, MigrationVersion.fromVersion("12")).migrate();
+    try (var connection = connection(environment); var statement = connection.createStatement()) {
+      statement.execute("alter table weave_files_user_resources alter column owner_principal_ref type varchar(254)");
+    }
+    assertThatThrownBy(() -> SchemaAuthorityInitializer.run(environment.values()))
+        .hasMessageContaining("fingerprint");
+    try (var connection = connection(environment); var statement = connection.createStatement()) {
+      statement.execute("alter table weave_files_user_resources alter column owner_principal_ref type varchar(255)");
+      try (var rows = statement.executeQuery("select rel.relname,pc.conname from pg_constraint pc "
+          + "join pg_class rel on rel.oid=pc.conrelid join pg_namespace ns on ns.oid=rel.relnamespace "
+          + "where pc.contype='f' and ns.nspname=current_schema() limit 1")) {
+        assertThat(rows.next()).isTrue();
+        String table = rows.getString(1), constraint = rows.getString(2);
+        try (var change = connection.createStatement()) {
+          change.execute("alter table \"" + table + "\" drop constraint \"" + constraint + "\"");
+          change.execute("alter table \"" + table + "\" add constraint \"" + constraint
+              + "\" foreign key(category) references weave_provider_selections(category) on delete cascade");
+        }
+      }
+    }
+    assertThatThrownBy(() -> SchemaAuthorityInitializer.run(environment.values()))
+        .hasMessageContaining("fingerprint");
+    assertThat(flyway(environment, null).info().current().getVersion().getVersion()).isEqualTo("12");
+  }
+
+  @Test
+  void servingRoleMustLackDdlIncludingInheritedOwnership(@TempDir Path directory) throws Exception {
+    Environment environment = environment("runtime_role", directory);
+    SchemaAuthorityInitializer.run(environment.values());
+    String role = "weave_runtime_" + UUID.randomUUID().toString().replace("-", "");
+    String schema;
+    try (var connection = connection(environment); var statement = connection.createStatement()) {
+      schema = connection.getSchema();
+      assertThatThrownBy(() -> ServingSchemaAuthorityGuard.requireDmlOnly(connection))
+          .hasMessageContaining("DDL capability");
+      statement.execute("create role " + role + " login password 'test-only-runtime'");
+      statement.execute("revoke create on database " + POSTGRES.getDatabaseName() + " from public");
+      statement.execute("grant usage on schema " + schema + " to " + role);
+      statement.execute("grant select,insert,update,delete on all tables in schema " + schema + " to " + role);
+    }
+    try {
+      var runtimeEnvironment = new LinkedHashMap<>(environment.values());
+      runtimeEnvironment.put("WEAVE_SCHEMA_RUNTIME_ROLE", role);
+      SchemaAuthorityInitializer.run(runtimeEnvironment);
+      var markerRepository = org.mockito.Mockito.mock(
+          com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaRepository.class);
+      var acceptedMarker = new com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaEntity(
+          SchemaAuthorityInitializer.EPOCH, SchemaAuthorityInitializer.MODEL_ID, CANDIDATE,
+          receipt(environment).path("catalogFingerprint").asText(), java.time.Instant.now());
+      org.mockito.Mockito.when(markerRepository.findAll()).thenReturn(List.of(acceptedMarker));
+      var settings = new org.springframework.core.env.StandardEnvironment();
+      var values = new LinkedHashMap<String, Object>();
+      values.put("weave.deployment.profile", "dogfood");
+      values.put("weave.candidate.commit", CANDIDATE);
+      settings.getPropertySources().addFirst(new org.springframework.core.env.MapPropertySource("test", values));
+      var source = new org.springframework.jdbc.datasource.DriverManagerDataSource(
+          environment.url(), role, "test-only-runtime");
+      var guard = new ServingSchemaAuthorityGuard(source, markerRepository, settings);
+      guard.afterSingletonsInstantiated();
+      values.put("weave.candidate.commit", "b".repeat(40));
+      assertThatThrownBy(guard::afterSingletonsInstantiated).hasMessageContaining("exact candidate");
+      values.put("weave.candidate.commit", CANDIDATE);
+      try (var connection = connection(environment); var statement = connection.createStatement()) {
+        statement.execute("create index unexpected_runtime_drift on weave_schema_authority(candidate_commit)");
+      }
+      assertThatThrownBy(guard::afterSingletonsInstantiated)
+          .hasRootCauseMessage("serving schema catalog fingerprint differs from accepted authority");
+      try (var connection = connection(environment); var statement = connection.createStatement()) {
+        statement.execute("drop index unexpected_runtime_drift");
+      }
+      try (var connection = DriverManager.getConnection(environment.url(), role, "test-only-runtime")) {
+        ServingSchemaAuthorityGuard.requireDmlOnly(connection);
+        assertThatThrownBy(() -> connection.createStatement().execute("delete from weave_schema_authority"))
+            .hasMessageContaining("permission denied");
+        assertThatThrownBy(() -> connection.createStatement().execute("delete from flyway_schema_history"))
+            .hasMessageContaining("permission denied");
+        assertThatThrownBy(() -> connection.createStatement().execute("create table forbidden(id int)"))
+            .hasMessageContaining("permission denied");
+      }
+      try (var connection = connection(environment); var statement = connection.createStatement()) {
+        statement.execute("grant " + POSTGRES.getUsername() + " to " + role);
+      }
+      try (var connection = DriverManager.getConnection(environment.url(), role, "test-only-runtime")) {
+        assertThatThrownBy(() -> ServingSchemaAuthorityGuard.requireDmlOnly(connection))
+            .hasMessageContaining("DDL capability");
+      }
+    } finally {
+      try (var connection = connection(environment); var statement = connection.createStatement()) {
+        statement.execute("drop owned by " + role);
+        statement.execute("drop role " + role);
+      }
     }
   }
 
@@ -274,7 +459,7 @@ class SchemaAuthorityInitializerPostgresTest {
     values.put("WEAVE_PERSISTENCE_PASSWORD", POSTGRES.getPassword());
     values.put("WEAVE_CANDIDATE_COMMIT", CANDIDATE);
     values.put("WEAVE_SCHEMA_INIT_RECEIPT_FILE", receipt.toString());
-    return new Environment(url, receipt, values);
+    return new Environment(url, receipt, SchemaAuthorityTestSupport.withRuntimeRole(values));
   }
 
   private record Environment(String url, Path receipt, Map<String, String> values) {

@@ -20,7 +20,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Fixed-shape PostgreSQL catalog projection used only by the schema authority boundary. */
 final class SchemaCatalogFingerprint {
 
-  static final String FORMAT = "weave.schema-catalog/v2";
+  static final String FORMAT = "weave.schema-catalog/v3";
 
   private static final String TEXT_TYPE = "(?:character varying|varchar|text)";
   private static final String STRING_LITERAL = "(?:[eE])?'(?:''|[^'])*'";
@@ -49,31 +49,47 @@ final class SchemaCatalogFingerprint {
     if (schema == null || schema.isBlank()) {
       schema = "public";
     }
+    return inspect(connection, schema);
+  }
+
+  static Snapshot inspectLegacyV2(Connection connection) throws Exception {
+    return inspect(connection, connection.getSchema(), true);
+  }
+
+  static Snapshot inspect(Connection connection, String projectionSchema) throws Exception {
+    return inspect(connection, projectionSchema, false);
+  }
+
+  private static Snapshot inspect(Connection connection, String projectionSchema, boolean legacyV2) throws Exception {
+    String schema = connection.getSchema();
     DatabaseMetaData metadata = connection.getMetaData();
     Map<String, Map<String, Object>> tables = new TreeMap<>();
     try (ResultSet rows = metadata.getTables(connection.getCatalog(), schema, "%", new String[] {"TABLE"})) {
       while (rows.next()) {
         String table = rows.getString("TABLE_NAME");
         if (table != null
-            && !table.startsWith("pg_")
-            && !table.startsWith("sql_")
+            && (!legacyV2 || (!table.startsWith("pg_") && !table.startsWith("sql_")))
             && !"flyway_schema_history".equals(table)) {
-          tables.put(table, tableProjection(metadata, connection, schema, table));
+          tables.put(table, tableProjection(metadata, connection, schema, projectionSchema, table, legacyV2));
         }
       }
     }
     Map<String, Object> projection = new LinkedHashMap<>();
-    projection.put("format", FORMAT);
-    projection.put("schema", schema);
+    projection.put("format", legacyV2 ? "weave.schema-catalog/v2" : FORMAT);
+    projection.put("schema", projectionSchema);
     projection.put("tables", tables);
     byte[] canonical =
-        new JsonCanonicalizer(new ObjectMapper().writeValueAsString(projection)).getEncodedUTF8();
+        new JsonCanonicalizer(new ObjectMapper().writeValueAsString(projection)
+            .replace(schema + ".", projectionSchema + ".")
+            .replace("\\\"" + schema + "\\\".", "\\\"" + projectionSchema + "\\\"."))
+            .getEncodedUTF8();
     String fingerprint = hex(MessageDigest.getInstance("SHA-256").digest(canonical));
     return new Snapshot(fingerprint, new String(canonical, StandardCharsets.UTF_8), List.copyOf(tables.keySet()));
   }
 
   private static Map<String, Object> tableProjection(
-      DatabaseMetaData metadata, Connection connection, String schema, String table)
+      DatabaseMetaData metadata, Connection connection, String schema, String projectionSchema, String table,
+      boolean legacyV2)
       throws SQLException {
     Map<String, Object> projection = new LinkedHashMap<>();
     List<Map<String, Object>> columns = new ArrayList<>();
@@ -82,6 +98,10 @@ final class SchemaCatalogFingerprint {
         Map<String, Object> column = new LinkedHashMap<>();
         column.put("name", rows.getString("COLUMN_NAME"));
         column.put("type", normalizeType(rows.getString("TYPE_NAME")));
+        if (!legacyV2) {
+          column.put("size", rows.getInt("COLUMN_SIZE"));
+          column.put("scale", rows.getInt("DECIMAL_DIGITS"));
+        }
         column.put("nullable", rows.getInt("NULLABLE") != DatabaseMetaData.columnNoNulls);
         column.put("default", normalizeDefault(rows.getString("COLUMN_DEF")));
         column.put("position", rows.getInt("ORDINAL_POSITION"));
@@ -108,6 +128,13 @@ final class SchemaCatalogFingerprint {
         Map<String, Object> key = new LinkedHashMap<>();
         key.put("name", safe(rows.getString("FK_NAME")));
         key.put("column", rows.getString("FKCOLUMN_NAME"));
+        if (!legacyV2) {
+          String target = rows.getString("PKTABLE_SCHEM");
+          key.put("targetSchema", schema.equals(target) ? projectionSchema : safe(target));
+          key.put("updateRule", rows.getShort("UPDATE_RULE"));
+          key.put("deleteRule", rows.getShort("DELETE_RULE"));
+          key.put("deferrability", rows.getShort("DEFERRABILITY"));
+        }
         key.put("targetTable", rows.getString("PKTABLE_NAME"));
         key.put("targetColumn", rows.getString("PKCOLUMN_NAME"));
         key.put("position", rows.getShort("KEY_SEQ"));

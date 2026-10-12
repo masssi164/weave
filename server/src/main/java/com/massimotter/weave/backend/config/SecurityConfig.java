@@ -70,6 +70,7 @@ public class SecurityConfig {
                                 "/actuator/metrics/**",
                                 "/error").permitAll()
                         .requestMatchers("/api/health/**", "/api/platform/config", "/api/platform/status").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/", "/join").permitAll()
                         .requestMatchers("/api/v1/agent-runtime/trust/jwks.json").permitAll()
                         .requestMatchers("/.well-known/matrix/client", "/.well-known/weave").permitAll()
                         .requestMatchers(HttpMethod.GET,

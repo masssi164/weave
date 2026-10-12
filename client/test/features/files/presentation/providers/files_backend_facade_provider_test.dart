@@ -514,6 +514,7 @@ void main() {
             expect(jsonDecode(request.body), {
               'parentFileId': BackendFilesRepository.rootFileId,
               'name': 'Reports',
+              'spaceRef': null,
             });
             return http.Response(
               jsonEncode(
@@ -577,6 +578,182 @@ void main() {
       },
     );
 
+    test(
+      'explicit Space applies to root and descendants inherit parent',
+      () async {
+        const folderId = 'file:123e4567-e89b-12d3-a456-426614174001';
+        final files = repository(
+          MockClient((request) async {
+            final parent = request.url.queryParameters['parentId'];
+            if (parent == BackendFilesRepository.rootFileId) {
+              expect(
+                request.url.queryParameters['spaceRef'],
+                'workspace-default',
+              );
+              return http.Response(
+                _listing(
+                  items: [
+                    _item(
+                      id: folderId,
+                      name: 'Reports',
+                      path: '/Reports',
+                      kind: 'folder',
+                      actions: ['inspect', 'listChildren'],
+                    ),
+                  ],
+                ),
+                200,
+              );
+            }
+            expect(parent, folderId);
+            expect(
+              request.url.queryParameters.containsKey('spaceRef'),
+              isFalse,
+            );
+            return http.Response(_listing(parentId: folderId), 200);
+          }),
+        );
+        await files.listDirectory('/Reports', spaceRef: 'workspace-default');
+      },
+    );
+    test(
+      'Space root folder and upload use generated scope parameters',
+      () async {
+        final files = repository(
+          MockClient((request) async {
+            if (request.method == 'GET') {
+              expect(
+                request.url.queryParameters['spaceRef'],
+                'workspace-default',
+              );
+              return http.Response(_listing(), 200);
+            }
+            if (request.url.path.endsWith('/folders')) {
+              expect(jsonDecode(request.body)['spaceRef'], 'workspace-default');
+              return http.Response(
+                jsonEncode(
+                  _item(name: 'Reports', path: '/Reports', kind: 'folder'),
+                ),
+                200,
+              );
+            }
+            expect(
+              request.url.queryParameters['spaceRef'],
+              'workspace-default',
+            );
+            return http.Response(jsonEncode(_item()), 200);
+          }),
+        );
+        await files.createFolder(
+          parentPath: '/',
+          name: 'Reports',
+          spaceRef: 'workspace-default',
+        );
+        await files.uploadFile(
+          '/',
+          FileUploadRequest(
+            fileName: 'notes.txt',
+            sizeInBytes: 3,
+            byteStream: Stream.value([1, 2, 3]),
+          ),
+          spaceRef: 'workspace-default',
+        );
+      },
+    );
+    for (final status in [200, 412]) {
+      test(
+        'replacement uses verified content ETag and handles HTTP $status',
+        () async {
+          final bytes = [1, 2, 3];
+          final digest = sha256.convert(bytes);
+          var writes = 0;
+          final files = repository(
+            MockClient((request) async {
+              if (request.method == 'GET' &&
+                  !request.url.path.endsWith('/content')) {
+                return http.Response(
+                  _listing(
+                    items: [
+                      _item(actions: ['inspect', 'download', 'updateContent']),
+                    ],
+                  ),
+                  200,
+                );
+              }
+              if (request.method == 'GET') {
+                return http.Response.bytes(
+                  bytes,
+                  200,
+                  headers: {
+                    'content-length': '3',
+                    'content-type': 'text/plain',
+                    'content-digest':
+                        'sha-256=:${base64.encode(digest.bytes)}:',
+                    'etag': '"sha256-$digest"',
+                  },
+                );
+              }
+              writes++;
+              expect(request.method, 'PUT');
+              expect(request.headers['if-match'], '"sha256-$digest"');
+              expect(request.headers['if-match'], isNot('sha256:revision'));
+              expect(
+                request.headers['idempotency-key'],
+                hasLength(greaterThanOrEqualTo(16)),
+              );
+              expect(request.bodyBytes, [4, 5, 6]);
+              return http.Response(
+                status == 200
+                    ? jsonEncode(
+                        _item(
+                          actions: ['inspect', 'download', 'updateContent'],
+                        ),
+                      )
+                    : '{}',
+                status,
+              );
+            }),
+          );
+          final entry = (await files.listDirectory('/')).entries.single;
+          final operation = files.replaceContent(
+            entry,
+            FileUploadRequest(
+              fileName: 'replacement.txt',
+              sizeInBytes: 3,
+              byteStream: Stream.value([4, 5, 6]),
+            ),
+          );
+          if (status == 200) {
+            expect((await operation).id, entry.id);
+          } else {
+            await expectLater(operation, throwsA(isA<FilesFailure>()));
+          }
+          expect(writes, 1);
+        },
+      );
+    }
+    test('replacement without server permission performs no request', () async {
+      var calls = 0;
+      final files = repository(
+        MockClient((request) async {
+          calls++;
+          return http.Response(_listing(items: [_item()]), 200);
+        }),
+      );
+      final entry = (await files.listDirectory('/')).entries.single;
+      await expectLater(
+        files.replaceContent(
+          entry,
+          FileUploadRequest(
+            fileName: 'notes.txt',
+            sizeInBytes: 1,
+            byteStream: Stream.value([4]),
+          ),
+        ),
+        throwsA(isA<FilesFailure>()),
+      );
+      expect(calls, 1);
+    });
     test('folder retry preserves its original idempotency key', () async {
       authSessionRepository.refreshedState = AuthState.authenticated(
         buildTestAuthSession(accessToken: 'fresh-token'),

@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:weave/features/files/domain/entities/file_download.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -482,10 +484,50 @@ class _DirectoryToolbar extends ConsumerWidget {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final listing = state.directoryListing;
+    final spaces =
+        ref
+            .watch(weaveApiMemberSpacesProvider)
+            .asData
+            ?.value
+            ?.visibleSpaceRefs ??
+        const <String>{};
+    final selectedSpace = state.rootSpaceRef;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        InputDecorator(
+          decoration: InputDecoration(labelText: l10n.filesSpaceLabel),
+          child: DropdownButton<String>(
+            key: const Key('files-space-selector'),
+            value: selectedSpace ?? '',
+            isExpanded: true,
+            items: [
+              DropdownMenuItem(value: '', child: Text(l10n.filesPrivateSpace)),
+              for (final space in spaces.toList()..sort())
+                DropdownMenuItem(
+                  value: space,
+                  child: Text(
+                    space == 'workspace-default'
+                        ? l10n.filesSharedOrganizationSpace
+                        : space,
+                  ),
+                ),
+              if (selectedSpace != null && !spaces.contains(selectedSpace))
+                DropdownMenuItem(
+                  value: selectedSpace,
+                  enabled: false,
+                  child: Text(l10n.filesUnavailableSpace),
+                ),
+            ],
+            onChanged: state.isBusy
+                ? null
+                : (value) => ref
+                      .read(filesProvider.notifier)
+                      .selectRootSpace(value == '' ? null : value),
+          ),
+        ),
+        const SizedBox(height: 16),
         _PathBreadcrumbs(path: state.currentPath, isBusy: state.isBusy),
         const SizedBox(height: 12),
         Wrap(
@@ -563,6 +605,12 @@ class _EntryActionStatusCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final entryName = actionStatus.entryName;
     final message = switch (actionStatus.phase) {
+      FilesEntryActionPhase.replacingContent => l10n.filesContentUpdating(
+        entryName ?? l10n.filesScreenTitle,
+      ),
+      FilesEntryActionPhase.replacedContent => l10n.filesContentUpdated(
+        entryName ?? l10n.filesScreenTitle,
+      ),
       FilesEntryActionPhase.idle => '',
       FilesEntryActionPhase.creatingFolder =>
         entryName == null
@@ -596,6 +644,7 @@ class _EntryActionStatusCard extends StatelessWidget {
             l10n.filesEntryActionFailedMessage,
     };
     final icon = switch (actionStatus.phase) {
+      FilesEntryActionPhase.replacedContent => Icons.check_circle_outline,
       FilesEntryActionPhase.createdFolder => Icons.check_circle_outline,
       FilesEntryActionPhase.deletedEntry => Icons.check_circle_outline,
       FilesEntryActionPhase.exportedEntry => Icons.check_circle_outline,
@@ -617,7 +666,8 @@ class _EntryActionStatusCard extends StatelessWidget {
               Expanded(child: Text(message, style: theme.textTheme.bodyMedium)),
               if (actionStatus.phase == FilesEntryActionPhase.creatingFolder ||
                   actionStatus.phase == FilesEntryActionPhase.deletingEntry ||
-                  actionStatus.phase == FilesEntryActionPhase.exportingEntry)
+                  actionStatus.phase == FilesEntryActionPhase.exportingEntry ||
+                  actionStatus.phase == FilesEntryActionPhase.replacingContent)
                 const Padding(
                   padding: EdgeInsetsDirectional.only(start: 12),
                   child: SizedBox(
@@ -1003,6 +1053,87 @@ class _CreateFolderDialogState extends State<_CreateFolderDialog> {
   }
 }
 
+class _FilePreview extends ConsumerWidget {
+  const _FilePreview({
+    required this.entry,
+    required this.rootSpaceRef,
+    required this.download,
+  });
+  final FileEntry entry;
+  final String? rootSpaceRef;
+  final Future<FileDownload> download;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final current = ref.watch(filesProvider).asData?.value;
+    final stillAvailable =
+        current?.rootSpaceRef == rootSpaceRef &&
+        current?.directoryListing?.entries.any(
+              (item) => item.id == entry.id && item.allows('download'),
+            ) ==
+            true;
+    return AlertDialog(
+      title: Text(entry.name),
+      content: SizedBox(
+        width: 560,
+        child: !stillAvailable
+            ? Text(l10n.filesUnavailableSpace)
+            : FutureBuilder<FileDownload>(
+                future: download,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) return Text(l10n.filesPreviewFailed);
+                  final file = snapshot.data;
+                  if (file == null) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (file.mediaType == 'text/plain' &&
+                      file.bytes.length <= 512 * 1024) {
+                    try {
+                      final text = utf8.decode(
+                        file.bytes,
+                        allowMalformed: false,
+                      );
+                      return SingleChildScrollView(
+                        child: SelectableText(
+                          text,
+                          key: const Key('files-preview-content'),
+                        ),
+                      );
+                    } on FormatException {
+                      return Text(l10n.filesPreviewUnsupported);
+                    }
+                  }
+                  if (const {
+                        'image/png',
+                        'image/jpeg',
+                        'image/gif',
+                        'image/webp',
+                      }.contains(file.mediaType) &&
+                      file.bytes.length <= 5 * 1024 * 1024) {
+                    return Image.memory(
+                      file.bytes,
+                      key: const Key('files-preview-content'),
+                      semanticLabel: entry.name,
+                      cacheWidth: 2048,
+                      errorBuilder: (_, error, stack) =>
+                          Text(l10n.filesPreviewFailed),
+                    );
+                  }
+                  return Text(l10n.filesPreviewUnsupported);
+                },
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(MaterialLocalizations.of(context).closeButtonLabel),
+        ),
+      ],
+    );
+  }
+}
+
 class _FileEntryTile extends ConsumerWidget {
   const _FileEntryTile({required this.entry, required this.isBusy});
 
@@ -1021,6 +1152,7 @@ class _FileEntryTile extends ConsumerWidget {
       button: entry.isDirectory,
       label: _semanticLabel(l10n, entry, subtitle),
       child: ListTile(
+        key: ValueKey('files-entry-${entry.id}'),
         contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         leading: ExcludeSemantics(
           child: Icon(
@@ -1036,6 +1168,40 @@ class _FileEntryTile extends ConsumerWidget {
           children: [
             if (!entry.isDirectory && entry.allows('download'))
               IconButton(
+                key: ValueKey('files-open-${entry.id}'),
+                tooltip: l10n.filesOpenEntrySemantic(entry.name),
+                onPressed: isBusy
+                    ? null
+                    : () => showDialog<void>(
+                        context: context,
+                        builder: (_) => _FilePreview(
+                          entry: entry,
+                          rootSpaceRef: ref
+                              .read(filesProvider)
+                              .asData
+                              ?.value
+                              .rootSpaceRef,
+                          download: ref
+                              .read(filesProvider.notifier)
+                              .downloadForPreview(entry),
+                        ),
+                      ),
+                icon: const Icon(Icons.visibility_outlined),
+              ),
+            if (!entry.isDirectory && entry.allows('updateContent'))
+              IconButton(
+                key: ValueKey('files-update-${entry.id}'),
+                tooltip: l10n.filesReplaceEntrySemantic(entry.name),
+                onPressed: isBusy
+                    ? null
+                    : () => ref
+                          .read(filesProvider.notifier)
+                          .pickAndReplace(entry),
+                icon: const Icon(Icons.upload_file_outlined),
+              ),
+            if (!entry.isDirectory && entry.allows('download'))
+              IconButton(
+                key: ValueKey('files-export-${entry.id}'),
                 tooltip: l10n.filesExportEntrySemantic(entry.name),
                 onPressed: isBusy
                     ? null
