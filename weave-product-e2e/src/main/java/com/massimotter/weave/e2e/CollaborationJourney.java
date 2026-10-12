@@ -993,51 +993,75 @@ final class CollaborationJourney {
   }
 
   private void control(String command, String marker) {
-    Path output = environment.evidenceFile().resolveSibling(".collaboration-control.log");
+    control(command, marker, environment.persistenceRestartCommand(),
+        Path.of("client", "build", "private-ios-qualification"),
+        environment.runId(), environment.candidateCommit());
+  }
+
+  static void control(String command, String marker, Path script, Path privateParent,
+      String runId, String candidate) {
+    if (!Set.of("collaboration-restart-proof", "chat-provider-stop-proof", "chat-provider-start-proof")
+        .contains(command) || !candidate.matches("[0-9a-f]{40}")) {
+      throw new ProductFlowException("collaboration service control identity was invalid");
+    }
+    Path output = null;
     Process process = null;
+    boolean passed = false;
     try {
-      Files.deleteIfExists(output);
-      Files.createFile(output);
-      try {
-        Files.setPosixFilePermissions(output, OWNER_FILE_PERMISSIONS);
-      } catch (UnsupportedOperationException ignored) {
-        // The parent evidence directory remains private.
+      Path parent = privateParent.toAbsolutePath().normalize();
+      if (Files.isSymbolicLink(parent)) {
+        throw new IOException("private control diagnostic parent is a symlink");
       }
-      process =
-          new ProcessBuilder(
-                  "bash",
-                  environment.persistenceRestartCommand().toString(),
-                  "e2e",
-                  command)
-              .redirectErrorStream(true)
-              .redirectOutput(output.toFile())
-              .start();
+      Files.createDirectories(parent, PosixFilePermissions.asFileAttribute(
+          PosixFilePermissions.fromString("rwx------")));
+      if (!parent.toRealPath().equals(parent)
+          || !Files.getPosixFilePermissions(parent).equals(PosixFilePermissions.fromString("rwx------"))
+          || !Files.getOwner(parent).equals(Files.getOwner(Path.of(".").toAbsolutePath()))) {
+        throw new IOException("private control diagnostic parent is not owned and private");
+      }
+      output = Files.createTempFile(parent,
+          "collaboration-" + candidate.substring(0, 12) + "-" + Hashing.sha256(runId).substring(0, 12) + "-",
+          ".log", PosixFilePermissions.asFileAttribute(OWNER_FILE_PERMISSIONS));
+      process = new ProcessBuilder("bash", script.toString(), "e2e", command)
+          .redirectErrorStream(true).redirectOutput(output.toFile()).start();
       if (!process.waitFor(PROCESS_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
         throw BoundedProcessTree.terminatePreservingFailure(
-            process,
-            PROCESS_CLEANUP_TIMEOUT,
-            new ProductFlowException(
-                "collaboration service control exceeded its bounded timeout"));
+            process, PROCESS_CLEANUP_TIMEOUT,
+            new ProductFlowException("collaboration service control exceeded its bounded timeout"));
       }
       String diagnostic = Files.readString(output, StandardCharsets.UTF_8);
       if (process.exitValue() != 0 || !diagnostic.contains(marker)) {
-        throw new ProductFlowException(
-            "collaboration service control failed reason="
-                + supportSafeControlFailure(diagnostic));
+        throw new ProductFlowException("collaboration service control failed reason="
+            + supportSafeControlFailure(diagnostic));
       }
+      passed = true;
     } catch (IOException failure) {
       throw new ProductFlowException("collaboration service control could not execute", failure);
     } catch (InterruptedException interrupted) {
       throw BoundedProcessTree.interruptedFailure(
-          process,
-          PROCESS_CLEANUP_TIMEOUT,
-          "collaboration service control was interrupted",
-          interrupted);
+          process, PROCESS_CLEANUP_TIMEOUT, "collaboration service control was interrupted", interrupted);
     } finally {
-      try {
-        Files.deleteIfExists(output);
-      } catch (IOException ignored) {
-        // Support-safe command output remains inside the private run directory.
+      if (output != null) {
+        if (passed) {
+          try {
+            Files.delete(output);
+          } catch (IOException failure) {
+            throw new ProductFlowException("private successful control diagnostic cleanup failed", failure);
+          }
+        } else {
+          // Failed transcripts remain only in the existing non-uploaded private
+          // scope. Public output contains a fixed category and basename only.
+          String reason = "unspecified";
+          try {
+            reason = supportSafeControlFailure(Files.readString(output, StandardCharsets.UTF_8));
+          } catch (IOException ignored) {
+            // Preserve the original execution failure if diagnostics are unreadable.
+          }
+          int exit = process != null && !process.isAlive() ? process.exitValue() : -1;
+          System.out.println("WEAVE_COLLABORATION_CONTROL_DIAGNOSTIC status=failed command=" + command
+              + " exitCode=" + exit + " reason=" + reason
+              + " privateDiagnostic=" + output.getFileName() + " supportSafe=true");
+        }
       }
     }
   }
@@ -1055,7 +1079,7 @@ final class CollaborationJourney {
             "collaboration service restart identity did not advance exactly",
                 "restart-identity");
     return allowlisted.entrySet().stream()
-        .filter(entry -> diagnostic.contains("WEAVE_COMPOSE_ERROR " + entry.getKey()))
+        .filter(entry -> diagnostic.lines().anyMatch(line -> line.equals("WEAVE_COMPOSE_ERROR " + entry.getKey())))
         .map(Map.Entry::getValue)
         .findFirst()
         .orElse("unspecified");
