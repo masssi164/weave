@@ -1174,6 +1174,34 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void standardDirectoryFiltersCurrentSpaceParticipantsAndNeverExposesPrivateIdentityMetadata() throws Exception {
+        var identities = List.of("directory-b", "directory-c").stream()
+                .map(subject -> new MatrixFacadeClientStateStore.IdentityProjection(
+                        "tenant-default", "https://auth.example.invalid/realms/acme",
+                        "@" + subject + ":api.weave.test", "user:" + subject, "user:" + subject, Instant.now()))
+                .toList();
+        when(stateStore.identityProjections(eq("tenant-default"),
+                eq("https://auth.example.invalid/realms/acme"), eq(""), eq(100))).thenReturn(identities);
+        when(chatDomainFacadeService.canDiscoverParticipant(any(), any())).thenAnswer(call ->
+                ((com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity) call.getArgument(1))
+                        .actorRef().value().equals("user:directory-b"));
+        var response = mockMvc.perform(post("/_matrix/client/v3/user_directory/search")
+                        .with(workspaceJwt())
+                        .contentType("application/json").content("{\"search_term\":\"directory-\",\"limit\":10}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.results.length()").value(1))
+                .andExpect(jsonPath("$.limited").value(false)).andReturn();
+        assertThat(response.getResponse().getContentAsString())
+                .doesNotContain("directory-c", "authorizationPrincipalRef", "identityIssuer", "actorRef");
+        org.mockito.Mockito.doReturn(false).when(chatDomainFacadeService).canDiscoverParticipant(any(), any());
+        mockMvc.perform(post("/_matrix/client/v3/user_directory/search").with(workspaceJwt())
+                        .contentType("application/json").content("{\"search_term\":\"directory-\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.results").isEmpty());
+        mockMvc.perform(post("/_matrix/client/v3/user_directory/search").with(workspaceJwt())
+                        .contentType("application/json").content("{\"search_term\":\"directory-\",\"limit\":1000}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void roomLifecycleStateAndProfileProjectCanonicalChat() throws Exception {
         stubConversation();
         when(chatDomainFacadeService.createConversation(

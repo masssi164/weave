@@ -892,6 +892,21 @@ public class ChatDomainFacadeService {
                 .anyMatch(key -> key.equalsIgnoreCase(selectedProviderKey));
     }
 
+    /** Directory discovery uses the same current Space checks as conversation invitations. */
+    public void requireParticipantDiscovery(Jwt jwt) {
+        requireRead(jwt, "chat-participant-discovery");
+    }
+
+    public boolean canDiscoverParticipant(Jwt jwt, ChatResolvedIdentity candidate) {
+        requireParticipantDiscovery(jwt);
+        ChatRequestContext caller = requestContext(jwt);
+        if (!caller.tenantId().equals(candidate.tenantId())
+                || !caller.identityIssuer().equals(candidate.identityIssuer())) return false;
+        return currentSpacePermission(new ChatRequestContext(caller.tenantId(), caller.contextId(),
+                candidate.identityIssuer(), candidate.actorRef(), candidate.authorizationPrincipalRef()),
+                ContextPermission.VIEW);
+    }
+
     private void requireRead(Jwt jwt, String operation) {
         workspaceCapabilityService.requireCapability(jwt, "chat.read", "chat", operation);
         requireContextPermission(jwt, ContextPermission.VIEW);

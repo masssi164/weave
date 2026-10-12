@@ -34,6 +34,33 @@ import static org.mockito.Mockito.when;
 class MatrixFacadeClientStateServicePersistenceTest {
 
     @Test
+    void directoryProjectionIsBoundedOrderedAndIsolatedByOrganizationAndIssuer() {
+        DriverManagerDataSource source = dataSource();
+        com.massimotter.weave.backend.testing.JpaTestDatabase.initializeSchema(source);
+        var store = stateStore(source);
+        Instant now = Instant.now();
+        for (String user : List.of("@b:weave.test", "@a:weave.test")) {
+            store.saveIdentityProjection(new MatrixFacadeClientStateStore.IdentityProjection(
+                    "directory-org", "https://auth.weave.test/realms/weave", user,
+                    "user:" + user, "user:" + user, now));
+        }
+        store.saveIdentityProjection(new MatrixFacadeClientStateStore.IdentityProjection(
+                "other-org", "https://auth.weave.test/realms/weave", "@foreign:weave.test",
+                "user:foreign", "user:foreign", now));
+        store.saveIdentityProjection(new MatrixFacadeClientStateStore.IdentityProjection(
+                "directory-org", "https://other-auth.weave.test/realms/weave", "@other:weave.test",
+                "user:other", "user:other", now));
+        assertThat(store.identityProjections("directory-org", "https://auth.weave.test/realms/weave", "", 1))
+                .extracting(MatrixFacadeClientStateStore.IdentityProjection::matrixUserId)
+                .containsExactly("@a:weave.test");
+        assertThat(store.identityProjections("directory-org", "https://auth.weave.test/realms/weave", "@a:weave.test", 100))
+                .extracting(MatrixFacadeClientStateStore.IdentityProjection::matrixUserId)
+                .containsExactly("@b:weave.test");
+        assertThatThrownBy(() -> store.identityProjections("directory-org", "https://auth.weave.test/realms/weave", "", 101))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void memberCutoffSurvivesRestartAndAllowsOnlyLaterIssuedBearerForExactIdentity() {
         DriverManagerDataSource dataSource = dataSource();
         com.massimotter.weave.backend.testing.JpaTestDatabase.initializeSchema(dataSource);
