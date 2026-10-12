@@ -6,7 +6,7 @@ import 'package:weave/features/app/presentation/providers/app_application_provid
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration_save_result.dart';
-import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 
 class AuthFlowState {
   const AuthFlowState({required this.isBusy, this.failure});

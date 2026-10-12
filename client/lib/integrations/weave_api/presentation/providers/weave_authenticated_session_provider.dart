@@ -5,7 +5,7 @@ import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
-import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 
 class WeaveAuthenticatedSession {
   const WeaveAuthenticatedSession({

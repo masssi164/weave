@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/application_identity/domain/client_build_identity.dart';
 import 'package:weave/core/application_identity/presentation/providers/client_build_identity_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
-import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 class SupportDiagnosticsCard extends ConsumerWidget {

@@ -15,7 +15,7 @@ import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/profile/presentation/widgets/profile_summary_card.dart';
-import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/features/shell/data/repositories/shared_preferences_shell_module_preferences_repository.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
