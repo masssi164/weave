@@ -13,6 +13,8 @@ import os
 from pathlib import Path
 import re
 import shutil
+import socket
+import select
 import subprocess
 import time
 import queue
@@ -77,6 +79,126 @@ def cleanup_owned_devices(devices: list[str]) -> bool:
     except (OSError, RuntimeError, ValueError, KeyError, subprocess.TimeoutExpired):
         complete = False
     return complete
+
+
+class OwnedFaultRelay:
+    """Run-owned CONNECT transport: forwards encrypted bytes without TLS termination.
+
+    Only the selected test authority may be reached. Blocking closes A's actual
+    sockets; no HTTP product response, session or application result is invented.
+    """
+    def __init__(self, authorities: set[str]):
+        if not authorities or any(not re.fullmatch(r'[a-z0-9.-]+:[1-9][0-9]{0,4}', item) for item in authorities):
+            raise ios.NativeFailure('infrastructure', 'dual-network', 'invalid-owned-authority')
+        self.authorities = frozenset(authorities)
+        self._stop = threading.Event()
+        self._blocked = threading.Event()
+        self._lock = threading.Lock()
+        self._sockets = set()
+        self._workers = []
+        self.forwarded = 0
+        self.blocked = 0
+        self.rejected = 0
+        self.listener = socket.socket()
+        self.listener.bind(('127.0.0.1', 0))
+        self.listener.listen(16)
+        self.listener.settimeout(0.25)
+        self.port = self.listener.getsockname()[1]
+        self._thread = threading.Thread(target=self._accept, daemon=True)
+        self._thread.start()
+
+    def _accept(self):
+        while not self._stop.is_set():
+            try: client, _ = self.listener.accept()
+            except socket.timeout: continue
+            except OSError: break
+            with self._lock:
+                self._sockets.add(client)
+                worker = threading.Thread(target=self._forward, args=(client,), daemon=True)
+                self._workers.append(worker)
+            worker.start()
+
+    def _forward(self, client):
+        upstream = None
+        try:
+            client.settimeout(5)
+            header = bytearray()
+            while b'\r\n\r\n' not in header and len(header) < 8192:
+                packet = client.recv(1)
+                if not packet: return
+                header.extend(packet)
+            request = bytes(header).split(b'\r\n', 1)[0]
+            match = re.fullmatch(rb'CONNECT ([a-z0-9.-]+:[1-9][0-9]{0,4}) HTTP/1\.[01]', request)
+            if match is None or match[1].decode('ascii') not in self.authorities:
+                with self._lock: self.rejected += 1
+                return
+            if self._blocked.is_set():
+                with self._lock: self.blocked += 1
+                return
+            host, port = match[1].decode('ascii').rsplit(':', 1)
+            upstream = socket.create_connection((host, int(port)), timeout=10)
+            with self._lock:
+                self._sockets.add(upstream)
+                self.forwarded += 1
+            if self._blocked.is_set():
+                with self._lock: self.blocked += 1
+                return
+            client.sendall(b'HTTP/1.1 200 Connection Established\r\n\r\n')
+            client.setblocking(False); upstream.setblocking(False)
+            while not self._stop.is_set() and not self._blocked.is_set():
+                readable, _, _ = select.select([client, upstream], [], [], 0.25)
+                for source in readable:
+                    data = source.recv(65536)
+                    if not data: return
+                    destination = upstream if source is client else client
+                    destination.settimeout(5); destination.sendall(data); destination.setblocking(False)
+        except (OSError, ValueError):
+            pass  # Connection loss is the actual fault; raw traffic is never logged.
+        finally:
+            for connection in (client, upstream):
+                if connection is not None:
+                    with self._lock: self._sockets.discard(connection)
+                    connection.close()
+
+    def interrupt(self):
+        self._blocked.set()
+        with self._lock:
+            connections = list(self._sockets)
+            self.blocked += len(connections) // 2
+        for connection in connections:
+            try: connection.shutdown(socket.SHUT_RDWR)
+            except OSError: pass
+
+    def restore(self):
+        self._blocked.clear()
+
+    def close(self):
+        self._stop.set(); self.listener.close(); self.interrupt()
+        self._thread.join(timeout=5)
+        for worker in self._workers: worker.join(timeout=5)
+        if self._thread.is_alive() or any(worker.is_alive() for worker in self._workers):
+            raise ios.NativeFailure('infrastructure', 'dual-network-cleanup', 'owned-transport-still-active')
+
+
+def actor_proxy_environment(env: dict, relay: OwnedFaultRelay) -> dict:
+    selected = dict(env)
+    proxy = 'http://127.0.0.1:' + str(relay.port)
+    for name in ('http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY'):
+        selected['SIMCTL_CHILD_' + name] = proxy
+    for name in ('no_proxy', 'NO_PROXY'):
+        selected['SIMCTL_CHILD_' + name] = ''
+    return selected
+
+
+def proxy_authorities(input_data: dict, env: dict) -> set[str]:
+    from urllib.parse import urlsplit
+    result = set()
+    for url in (input_data['publicOrigin'], env['WEAVE_NATIVE_API_BASE_URL'], env['WEAVE_NATIVE_MATRIX_URL']):
+        parsed = urlsplit(url)
+        if parsed.scheme != 'https' or parsed.hostname not in {'weave.localhost', 'api.weave.localhost', 'matrix.weave.localhost'} or parsed.username is not None:
+            raise ios.NativeFailure('infrastructure', 'dual-network', 'non-owned-product-authority')
+        result.add(parsed.hostname + ':' + str(parsed.port or 443))
+    return result
 
 
 def now() -> str:
@@ -414,6 +536,7 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
     evidence = {'status': 'failed', 'actors': [], 'scenarios': {name: {'status': 'not-run'} for name in SCENARIOS},
                 'encryption': {'policyRequired': True, 'status': 'not-run', 'plaintextFallback': False}, 'cleanupComplete': False}
     devices = []
+    relays = {}
     try:
         with ios.private_run_directory() as temporary:
             runtime, device = ios.select_runtime()
@@ -435,6 +558,9 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
             ios.run(['xcodebuild', 'build-for-testing', '-project', str(ios.CLIENT / 'tool/ios_browser_driver/BrowserDriver.xcodeproj'),
                      '-scheme', 'BrowserDriver', '-destination', 'platform=iOS Simulator,id=' + devices[0],
                      '-derivedDataPath', str(derived), 'CODE_SIGNING_ALLOWED=NO'], env=env)
+            authorities = proxy_authorities(input_data, env)
+            for role in ('A', 'B'):
+                relays[role] = OwnedFaultRelay(authorities)
             ready = queue.Queue()
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                 try:
@@ -443,7 +569,7 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
                         scope = temporary / actor['role']; scope.mkdir(mode=0o700)
                         products = scope / 'Build/Products'; shutil.copytree(derived / 'Build/Products', products)
                         runtime_client = scope / 'client'; actor_runtime_copy(ios.CLIENT, runtime_client)
-                        tasks.append(executor.submit(run_actor, actor, udid, runtime_client, products, scope, app, input_data, env, evidence['appBuildSha256'], ready))
+                        tasks.append(executor.submit(run_actor, actor, udid, runtime_client, products, scope, app, input_data, actor_proxy_environment(env, relays[actor['role']]), evidence['appBuildSha256'], ready))
                     scopes = {}
                     deadline = time.monotonic() + 540
                     while len(scopes) < 2:
@@ -487,7 +613,11 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
             evidence['status'] = 'passed'
             return 0
     finally:
-        evidence['cleanupComplete'] = cleanup_owned_devices(devices)
+        relay_cleanup = True
+        for relay in relays.values():
+            try: relay.close()
+            except BaseException: relay_cleanup = False
+        evidence['cleanupComplete'] = cleanup_owned_devices(devices) and relay_cleanup
         if not evidence['cleanupComplete']:
             evidence['status'] = 'failed'
         output_path.write_text(json.dumps(evidence, indent=2) + '\n')

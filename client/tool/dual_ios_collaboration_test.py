@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 import sys
+import socket
+import threading
 import tempfile
 import unittest
 from unittest import mock
@@ -15,6 +17,68 @@ import run_ios_simulator_product_acceptance as ios
 
 
 class DualIosCollaborationTest(unittest.TestCase):
+    def test_actor_proxy_is_private_per_process_and_cannot_select_foreign_authority(self):
+        first, second = mock.Mock(port=1234), mock.Mock(port=4321)
+        inherited = {'HTTP_PROXY': 'inherited-host-proxy', 'NO_PROXY': '.localhost', 'ordinary': 'kept'}
+        a, b = dual.actor_proxy_environment(inherited, first), dual.actor_proxy_environment(inherited, second)
+        self.assertEqual(a['SIMCTL_CHILD_https_proxy'], 'http://127.0.0.1:1234')
+        self.assertEqual(b['SIMCTL_CHILD_HTTPS_PROXY'], 'http://127.0.0.1:4321')
+        self.assertEqual(a['SIMCTL_CHILD_NO_PROXY'], '')
+        self.assertEqual(inherited, {'HTTP_PROXY': 'inherited-host-proxy', 'NO_PROXY': '.localhost', 'ordinary': 'kept'})
+        env = {'WEAVE_NATIVE_API_BASE_URL': 'https://api.weave.localhost/api', 'WEAVE_NATIVE_MATRIX_URL': 'https://api.weave.localhost'}
+        self.assertEqual(dual.proxy_authorities({'publicOrigin': 'https://weave.localhost'}, env), {'weave.localhost:443', 'api.weave.localhost:443'})
+        for value in ['http://api.weave.localhost', 'https://foreign.invalid', 'https://credential@api.weave.localhost']:
+            with self.assertRaises(ios.NativeFailure):
+                dual.proxy_authorities({'publicOrigin': 'https://weave.localhost'}, dict(env, WEAVE_NATIVE_MATRIX_URL=value))
+
+    def test_owned_transport_forwards_bytes_and_fault_is_independent(self):
+        listener = socket.socket(); listener.bind(('127.0.0.1', 0)); listener.listen(8)
+        listener.settimeout(0.25)
+        stop = threading.Event(); handlers = []
+        def echo(connection):
+            with connection:
+                connection.settimeout(3)
+                try:
+                    while packet := connection.recv(4096): connection.sendall(packet)
+                except OSError: pass
+        def accept():
+            while not stop.is_set():
+                try: connection, _ = listener.accept()
+                except socket.timeout: continue
+                except OSError: break
+                thread = threading.Thread(target=echo, args=(connection,), daemon=True)
+                handlers.append(thread); thread.start()
+        server = threading.Thread(target=accept, daemon=True); server.start()
+        authority = '127.0.0.1:' + str(listener.getsockname()[1])
+        a, b = dual.OwnedFaultRelay({authority}), dual.OwnedFaultRelay({authority})
+        sockets = []
+        def connect(relay, target=authority):
+            connection = socket.create_connection(('127.0.0.1', relay.port), timeout=3)
+            sockets.append(connection)
+            connection.sendall(('CONNECT ' + target + ' HTTP/1.1\r\nHost: ' + target + '\r\n\r\n').encode())
+            return connection
+        try:
+            first, second = connect(a), connect(b)
+            for connection in (first, second): self.assertIn(b'200 Connection Established', connection.recv(4096))
+            payload = b'\x16\x03\x03opaque-encrypted-record\x00'
+            first.sendall(payload); self.assertEqual(first.recv(4096), payload)
+            a.interrupt()
+            self.assertEqual(first.recv(4096), b'')
+            rejected = connect(a); self.assertEqual(rejected.recv(4096), b'')
+            second.sendall(payload); self.assertEqual(second.recv(4096), payload)
+            a.restore(); restored = connect(a)
+            self.assertIn(b'200 Connection Established', restored.recv(4096))
+            restored.sendall(payload); self.assertEqual(restored.recv(4096), payload)
+            foreign = connect(b, 'foreign.invalid:443'); self.assertEqual(foreign.recv(4096), b'')
+            self.assertEqual(b.rejected, 1)
+            self.assertGreater(a.blocked, 0)
+            self.assertEqual(a.forwarded, 2); self.assertEqual(b.forwarded, 1)
+        finally:
+            for connection in sockets: connection.close()
+            a.close(); b.close(); stop.set(); listener.close(); server.join(timeout=3)
+            for handler in handlers: handler.join(timeout=3)
+        self.assertFalse(server.is_alive())
+
     def test_private_json_publish_is_atomic_owner_only_and_never_overwrites(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'denial.json'
