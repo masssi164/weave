@@ -701,5 +701,92 @@ else:
                 execute.assert_not_called()
 
 
+class PrivateIosCleanupTest(unittest.TestCase):
+    def test_run_directory_has_persistent_private_parent_even_after_failure(self):
+        with tempfile.TemporaryDirectory() as root:
+            client = Path(root)
+            clock = [0.0]
+            with patch.object(ios, 'CLIENT', client), patch.object(ios.time, 'monotonic', side_effect=lambda: clock[0]), patch.object(ios.time, 'sleep', side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+                with self.assertRaisesRegex(RuntimeError, 'original journey failure'):
+                    with ios.private_run_directory() as directory:
+                        (directory / 'initial.xcresult').mkdir()
+                        self.assertEqual(directory.parent.stat().st_mode & 0o777, 0o700)
+                        raise RuntimeError('original journey failure')
+                self.assertFalse(directory.exists())
+                self.assertTrue(directory.parent.is_dir())
+                self.assertEqual(directory.parent.stat().st_mode & 0o777, 0o700)
+
+    def test_cleanup_retries_late_owned_result_recreation_without_touching_sibling(self):
+        with tempfile.TemporaryDirectory() as root:
+            parent = Path(root)
+            parent.chmod(0o700)
+            owned = parent / 'owned'
+            owned.mkdir()
+            sibling = parent / 'other-run'
+            sibling.mkdir()
+            info = parent.stat()
+            clock = [0.0]
+            recreated = [False]
+            def pause(delay):
+                clock[0] += delay
+                if clock[0] >= 0.5 and not recreated[0]:
+                    (owned / 'initial.xcresult').mkdir(parents=True)
+                    recreated[0] = True
+            with patch.object(ios.time, 'monotonic', side_effect=lambda: clock[0]), patch.object(ios.time, 'sleep', side_effect=pause):
+                ios.cleanup_private_run(owned, (info.st_dev, info.st_ino), quiet_seconds=1)
+            self.assertTrue(recreated[0])
+            self.assertFalse(owned.exists())
+            self.assertTrue(sibling.exists())
+            self.assertGreaterEqual(clock[0], 1.75)
+
+    def test_repeated_writer_or_removal_error_fails_cleanup(self):
+        with tempfile.TemporaryDirectory() as root:
+            parent = Path(root)
+            parent.chmod(0o700)
+            owned = parent / 'owned'
+            owned.mkdir()
+            info = parent.stat()
+            clock = [0.0]
+            with patch.object(ios.time, 'monotonic', side_effect=lambda: clock[0]), patch.object(ios.time, 'sleep', side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)), patch.object(ios.shutil, 'rmtree', side_effect=PermissionError):
+                with self.assertRaisesRegex(ios.NativeFailure, 'owned-run-removal-timeout'):
+                    ios.cleanup_private_run(owned, (info.st_dev, info.st_ino), timeout=1)
+            self.assertTrue(owned.exists())
+            self.assertEqual(parent.stat().st_mode & 0o777, 0o700)
+
+    def test_symlink_owned_path_and_changed_parent_are_rejected(self):
+        with tempfile.TemporaryDirectory() as root:
+            parent = Path(root)
+            parent.chmod(0o700)
+            target = parent / 'other-run'
+            target.mkdir()
+            owned = parent / 'owned'
+            owned.symlink_to(target, target_is_directory=True)
+            info = parent.stat()
+            with self.assertRaisesRegex(ios.NativeFailure, 'unsafe-owned-run-path'):
+                ios.cleanup_private_run(owned, (info.st_dev, info.st_ino))
+            self.assertTrue(target.exists())
+            with self.assertRaisesRegex(ios.NativeFailure, 'private-parent-changed'):
+                ios.cleanup_private_run(owned, (info.st_dev, info.st_ino + 1))
+
+    def test_private_parent_symlink_is_rejected_without_changing_target_mode(self):
+        with tempfile.TemporaryDirectory() as root:
+            client = Path(root)
+            (client / 'build').mkdir()
+            target = client / 'target'
+            target.mkdir(mode=0o755)
+            (client / 'build/private-ios-qualification').symlink_to(target, target_is_directory=True)
+            with patch.object(ios, 'CLIENT', client), self.assertRaisesRegex(ios.NativeFailure, 'unsafe-private-parent'):
+                ios.verified_private_parent()
+            self.assertEqual(target.stat().st_mode & 0o777, 0o755)
+
+    def test_successful_body_cannot_hide_cleanup_failure(self):
+        with tempfile.TemporaryDirectory() as root:
+            with patch.object(ios, 'CLIENT', Path(root)), patch.object(ios, 'cleanup_private_run', side_effect=ios.NativeFailure('infrastructure', 'artifact-cleanup', 'owned-run-removal-timeout')):
+                with self.assertRaisesRegex(ios.NativeFailure, 'owned-run-removal-timeout'):
+                    with ios.private_run_directory() as directory:
+                        self.assertTrue(directory.exists())
+                self.assertEqual(directory.parent.stat().st_mode & 0o777, 0o700)
+
+
 if __name__ == '__main__':
     unittest.main()

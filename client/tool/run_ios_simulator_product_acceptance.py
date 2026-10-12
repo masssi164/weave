@@ -7,12 +7,14 @@ temporary directory. Only bounded support-safe outcome markers are emitted.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import json
 import os
 import platform
 import plistlib
 import shutil
 import signal
+import stat
 import re
 import subprocess
 import tempfile
@@ -55,6 +57,75 @@ class NativeFailure(RuntimeError):
         self.stage = stage
         self.reason = reason
         super().__init__(f'{category}: {stage}: {reason}')
+
+
+def verified_private_parent() -> Path:
+    parent = CLIENT / 'build/private-ios-qualification'
+    # Never follow an existing build/private directory symlink. The persistent
+    # private ancestor protects even artifacts recreated by asynchronous Xcode
+    # writers after the run directory has been removed.
+    for directory in (parent.parent, parent):
+        directory.mkdir(exist_ok=True)
+        if directory.is_symlink() or not directory.is_dir():
+            raise NativeFailure('infrastructure', 'artifact-cleanup', 'unsafe-private-parent')
+    descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        if os.fstat(descriptor).st_uid != os.getuid():
+            raise NativeFailure('infrastructure', 'artifact-cleanup', 'unowned-private-parent')
+        os.fchmod(descriptor, 0o700)
+    finally:
+        os.close(descriptor)
+    return parent
+
+
+def cleanup_private_run(directory: Path, parent_identity: tuple[int, int], *,
+                        timeout: float = 15, quiet_seconds: float = 2) -> None:
+    parent = directory.parent
+    deadline = time.monotonic() + timeout
+    absent_since = None
+    while time.monotonic() < deadline:
+        descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            info = os.fstat(descriptor)
+            if (info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700
+                    or (info.st_dev, info.st_ino) != parent_identity):
+                raise NativeFailure('infrastructure', 'artifact-cleanup', 'private-parent-changed')
+            try:
+                entry = os.stat(directory.name, dir_fd=descriptor, follow_symlinks=False)
+            except FileNotFoundError:
+                if absent_since is None:
+                    absent_since = time.monotonic()
+                if time.monotonic() - absent_since >= quiet_seconds:
+                    # Bounded absence is not proof of writer quiescence. Keep the
+                    # verified 0700 parent permanently, including on cleanup failure.
+                    print('NATIVE_IOS_PRIVATE_CLEANUP_RESULT status=passed scope=owned-run privateParent=retained supportSafe=true', flush=True)
+                    return
+            else:
+                absent_since = None
+                if not stat.S_ISDIR(entry.st_mode) or entry.st_uid != os.getuid():
+                    raise NativeFailure('infrastructure', 'artifact-cleanup', 'unsafe-owned-run-path')
+                try:
+                    shutil.rmtree(directory.name, dir_fd=descriptor)
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    # A result writer can race removal. Retry only this owned path.
+                    pass
+        finally:
+            os.close(descriptor)
+        time.sleep(0.25)
+    raise NativeFailure('infrastructure', 'artifact-cleanup', 'owned-run-removal-timeout')
+
+
+@contextmanager
+def private_run_directory():
+    parent = verified_private_parent()
+    info = parent.lstat()
+    directory = Path(tempfile.mkdtemp(prefix='weave-ios-qualification-', dir=parent))
+    try:
+        yield directory
+    finally:
+        cleanup_private_run(directory, (info.st_dev, info.st_ino))
 
 
 def failure_marker(category: str, stage: str, reason: str) -> None:
@@ -570,8 +641,7 @@ def main() -> int:
     env['PATH'] = os.pathsep.join([str(ROOT / 'tools/ios-simulator-xcrun'), str(Path(rustup).parent), env['PATH']])
     udid = None
     cleanup_complete = False
-    with tempfile.TemporaryDirectory(prefix='weave-ios-qualification-') as name:
-        temporary = Path(name)
+    with private_run_directory() as temporary:
         temporary.chmod(0o700)
         try:
             created = run(['xcrun', 'simctl', 'create', temporary.name, device, runtime]).strip()
