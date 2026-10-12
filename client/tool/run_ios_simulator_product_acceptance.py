@@ -114,6 +114,50 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
                 print(f'IOS_POST_SUBMIT_DIAGNOSTIC journey={phase} {line} supportSafe=true', flush=True)
             if len(states) >= 6:
                 break
+    # The integration test already emits bounded classification fields. Preserve
+    # only its complete ordered record, then map unknown codes/types to unavailable.
+    # Never copy exception messages, OAuth response data, or debug descriptions.
+    if phase in {'initial', 'restore'}:
+        fields = ('category', 'causeType', 'appFailureType', 'nestedCauseType',
+                  'backendFailure', 'backendStatus', 'appAuthCode', 'nativeType',
+                  'nativeCode', 'nativeDomain')
+        pattern = r'NATIVE_PRODUCT_STAGE phase=auth-failed ' + ' '.join(
+            name + r'=([A-Za-z0-9_.-]{1,80})' for name in fields)
+        auth_types = {'cancelled', 'configuration', 'protocol', 'storage', 'unsupportedPlatform', 'unknown'}
+        app_types = {'bootstrap', 'storage', 'validation', 'unknown', 'none'}
+        runtime_types = {'FlutterAppAuthPlatformException', 'FlutterAppAuthUserCancelledException',
+                         'AppFailure', 'AuthFailure', 'PlatformException', 'StateError',
+                         'FormatException', 'TimeoutException', 'SocketException',
+                         'int', 'String', 'Null', '_Exception', '_TypeError', '_ClientSocketException'}
+        backend_types = {'session-rejected', 'timeout', 'request-failed', 'invalid-payload', 'unknown-state', 'none'}
+        appauth_codes = {'authorize_failed', 'authorize_and_exchange_code_failed',
+                        'discovery_failed', 'token_failed', 'end_session_failed'}
+        domains = {'org.openid.appauth.general', 'org.openid.appauth.oauth_token',
+                   'org.openid.appauth.oauth_authorization', 'org.openid.appauth.oauth_registration',
+                   'org.openid.appauth.resourceserver', 'org.openid.appauth.remote-http',
+                   'NSURLErrorDomain', 'NSCocoaErrorDomain', 'NSPOSIXErrorDomain', 'kCFErrorDomainCFNetwork'}
+        allowed = {'category': auth_types, 'causeType': runtime_types, 'appFailureType': app_types,
+                   'nestedCauseType': runtime_types, 'backendFailure': backend_types,
+                   'appAuthCode': appauth_codes, 'nativeType': domains, 'nativeDomain': domains}
+        classifications = set()
+        for line in flutter_output.split('\n'):
+            match = re.fullmatch(pattern, line)
+            if match is None:
+                continue
+            values = dict(zip(fields, match.groups()))
+            for name, valid in allowed.items():
+                if values[name] not in valid:
+                    values[name] = 'unavailable'
+            if not re.fullmatch(r'[1-5][0-9]{2}', values['backendStatus']):
+                values['backendStatus'] = 'unavailable'
+            if not re.fullmatch(r'-?[0-9]{1,6}', values['nativeCode']):
+                values['nativeCode'] = 'unavailable'
+            record = ' '.join(name + '=' + values[name] for name in fields)
+            if record not in classifications:
+                classifications.add(record)
+                print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} phase=auth-failed {record} supportSafe=true', flush=True)
+            if len(classifications) >= 3:
+                break
     # Preserve fixed Flutter failure categories/static frames as well. Raw
     # messages can include endpoint, account or bearer data and stay private.
     flutter_category = None

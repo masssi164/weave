@@ -125,6 +125,61 @@ class NativeQualificationTest(unittest.TestCase):
         self.assertIn('phase=password-return-submitted supportSafe=true', output.getvalue())
         self.assertNotIn('private-', output.getvalue())
 
+    def test_auth_failure_classification_is_exact_bounded_and_private_safe(self):
+        safe = ('NATIVE_PRODUCT_STAGE phase=auth-failed category=protocol '
+                'causeType=FlutterAppAuthPlatformException appFailureType=none '
+                'nestedCauseType=FlutterAppAuthPlatformException backendFailure=none '
+                'backendStatus=unavailable appAuthCode=authorize_and_exchange_code_failed '
+                'nativeType=org.openid.appauth.general nativeCode=-3 nativeDomain=NSURLErrorDomain')
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', safe + '\n' + safe, '')
+        self.assertEqual(output.getvalue().count('IOS_FLUTTER_DIAGNOSTIC'), 1)
+        self.assertIn('phase=auth-failed category=protocol', output.getvalue())
+        self.assertIn('nativeCode=-3 nativeDomain=NSURLErrorDomain supportSafe=true', output.getvalue())
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('restore', safe.replace('category=protocol', 'category=storage')
+                .replace('causeType=FlutterAppAuthPlatformException', 'causeType=AppFailure')
+                .replace('appFailureType=none', 'appFailureType=bootstrap')
+                .replace('nestedCauseType=FlutterAppAuthPlatformException', 'nestedCauseType=int')
+                .replace('backendFailure=none', 'backendFailure=session-rejected')
+                .replace('backendStatus=unavailable', 'backendStatus=403'), '')
+        self.assertIn('backendFailure=session-rejected backendStatus=403', output.getvalue())
+        unsafe = [safe + ' private-password', '00:01 +1: ' + safe, safe + '\rprivate-data',
+                  safe.replace('protocol', 'private@example.invalid'),
+                  safe.replace('category=protocol', 'category=' + 'x' * 81),
+                  safe.replace('nativeCode=-3', 'nativeCode=invalid value'),
+                  safe.replace('phase=auth-failed', 'phase=private-phase'),
+                  safe.replace('causeType=', 'debugDescription='),
+                  safe.replace(' category=', '  category=')]
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', '\n'.join(unsafe), '')
+        self.assertNotIn('IOS_FLUTTER_DIAGNOSTIC', output.getvalue())
+        self.assertNotIn('private-', output.getvalue())
+        self.assertNotIn('example.invalid', output.getvalue())
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('restore', safe.replace('causeType=FlutterAppAuthPlatformException',
+                'causeType=privatePassword').replace('nativeDomain=NSURLErrorDomain',
+                'nativeDomain=privateDomain').replace('backendStatus=unavailable',
+                'backendStatus=999').replace('nativeCode=-3', 'nativeCode=1234567'), '')
+        self.assertIn('causeType=unavailable', output.getvalue())
+        self.assertIn('backendStatus=unavailable', output.getvalue())
+        self.assertIn('nativeCode=unavailable nativeDomain=unavailable', output.getvalue())
+        self.assertNotIn('privatePassword', output.getvalue())
+        self.assertNotIn('privateDomain', output.getvalue())
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', '\n'.join(
+                safe.replace('nativeCode=-3', f'nativeCode={i}') for i in range(10)), '')
+        self.assertEqual(output.getvalue().count('IOS_FLUTTER_DIAGNOSTIC'), 3)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('private-journey', safe, '')
+        self.assertNotIn('IOS_FLUTTER_DIAGNOSTIC', output.getvalue())
+
     def test_runtime_must_be_available_and_apple_silicon(self):
         for entry in [
             {'identifier': ios.RUNTIME, 'isAvailable': False, 'supportedArchitectures': ['arm64']},
