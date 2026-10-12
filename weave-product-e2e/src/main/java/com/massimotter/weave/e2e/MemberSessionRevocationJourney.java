@@ -149,7 +149,7 @@ final class MemberSessionRevocationJourney {
 
   private void requireFilesAvailable(String token) {
     try {
-      if (!"file:root".equals(files.listFilesItems(null, bearer(token)).getParentFileId())) {
+      if (!"file:root".equals(files.listFilesItems(null, null, bearer(token)).getParentFileId())) {
         throw new ProductFlowException("member session returned an invalid Files root");
       }
     } catch (com.massimotter.weave.userapi.invoker.ApiException failure) {
@@ -158,7 +158,7 @@ final class MemberSessionRevocationJourney {
   }
 
   private void requireFilesDenied(String token) {
-    try { files.listFilesItems(null, bearer(token)); }
+    try { files.listFilesItems(null, null, bearer(token)); }
     catch (com.massimotter.weave.userapi.invoker.ApiException denied) {
       if (denied.getCode() == 401) return;
       throw new ProductFlowException("revoked User session returned HTTP " + denied.getCode());

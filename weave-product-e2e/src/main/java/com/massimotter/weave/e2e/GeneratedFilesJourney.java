@@ -42,7 +42,7 @@ final class GeneratedFilesJourney {
 
   void requireRootAvailable(String token, String stage) {
     try {
-      FilesUserListResponse root = files.listFilesItems(null, bearer(token));
+      FilesUserListResponse root = files.listFilesItems(null, null, bearer(token));
       if (!"file:root".equals(root.getParentFileId())) {
         throw new ProductFlowException(stage + " returned an invalid Files root");
       }
@@ -61,7 +61,7 @@ final class GeneratedFilesJourney {
     try {
       source = Files.createTempFile("weave-user-files-", ".bin");
       Files.write(source, content);
-      FilesUserListResponse root = files.listFilesItems(null, bearer(memberToken));
+      FilesUserListResponse root = files.listFilesItems(null, null, bearer(memberToken));
       if (!"file:root".equals(root.getParentFileId())
           || !root.getAllowedActions().contains("upload")) {
         throw new ProductFlowException("generated Files root is not writable for the member");
@@ -69,12 +69,12 @@ final class GeneratedFilesJourney {
       stage = "upload";
       FilesUserItemResponse created =
           files.uploadFilesItemContent(
-              root.getParentFileId(), name, "*", idempotencyKey, source.toFile(),
+              root.getParentFileId(), name, "*", idempotencyKey, source.toFile(), null,
               "application/octet-stream", bearer(memberToken));
       stage = "idempotent-replay";
       FilesUserItemResponse replayed =
           files.uploadFilesItemContent(
-              root.getParentFileId(), name, "*", idempotencyKey, source.toFile(),
+              root.getParentFileId(), name, "*", idempotencyKey, source.toFile(), null,
               "application/octet-stream", bearer(memberToken));
       if (created == null || !created.getFileId().equals(replayed.getFileId())
           || !created.getRevision().equals(replayed.getRevision())) {
@@ -84,7 +84,7 @@ final class GeneratedFilesJourney {
       Files.write(source, new byte[] {42});
       try {
         files.uploadFilesItemContent(
-            root.getParentFileId(), name, "*", idempotencyKey, source.toFile(),
+            root.getParentFileId(), name, "*", idempotencyKey, source.toFile(), null,
             "application/octet-stream", bearer(memberToken));
         throw new ProductFlowException("generated Files accepted changed content under the same key");
       } catch (ApiException conflict) {
@@ -122,7 +122,7 @@ final class GeneratedFilesJourney {
       source = Files.createTempFile("weave-user-mcp-", ".txt");
       Files.write(source, content);
       FilesUserItemResponse created = files.uploadFilesItemContent(
-          "file:root", name, "*", "generated-mcp-upload-" + suffix, source.toFile(),
+          "file:root", name, "*", "generated-mcp-upload-" + suffix, source.toFile(), null,
           "text/plain", bearer(memberToken));
       if (created == null || !name.equals(created.getName())
           || created.getFileId() == null || created.getFileId().isBlank()
@@ -149,7 +149,7 @@ final class GeneratedFilesJourney {
 
   void verify(Proof proof, String memberToken, String outsiderToken) {
     try {
-      FilesUserListResponse root = files.listFilesItems(null, bearer(memberToken));
+      FilesUserListResponse root = files.listFilesItems(null, null, bearer(memberToken));
       if (root == null || root.getItems().stream()
           .noneMatch(item -> proof.fileId().equals(item.getFileId())
               && proof.name().equals(item.getName()))) {
@@ -225,7 +225,7 @@ final class GeneratedFilesJourney {
       Files.writeString(source, "foreign organization must not write");
       try {
         files.uploadFilesItemContent("file:root", name, "*",
-            "foreign-denied-" + Hashing.sha256(name).substring(0, 24), source.toFile(),
+            "foreign-denied-" + Hashing.sha256(name).substring(0, 24), source.toFile(), null,
             "text/plain", bearer(foreignToken));
         throw new ProductFlowException("foreign organization wrote a primary File");
       } catch (ApiException denial) {
@@ -234,7 +234,7 @@ final class GeneratedFilesJourney {
               "foreign organization Files write returned HTTP " + denial.getCode());
         }
       }
-      FilesUserListResponse root = files.listFilesItems(null, bearer(memberToken));
+      FilesUserListResponse root = files.listFilesItems(null, null, bearer(memberToken));
       if (root.getItems().stream().anyMatch(item -> name.equals(item.getName()))
           || root.getItems().stream().noneMatch(item -> proof.fileId().equals(item.getFileId()))) {
         throw new ProductFlowException("foreign Files denial changed primary state");
@@ -254,7 +254,7 @@ final class GeneratedFilesJourney {
       source = Files.createTempFile("weave-collaboration-file-", ".txt");
       Files.writeString(source, content, StandardCharsets.UTF_8);
       FilesUserItemResponse created = files.uploadFilesItemContent(
-          "file:root", name, "*", key, source.toFile(), "text/plain", bearer(ownerToken));
+          "file:root", name, "*", key, source.toFile(), null, "text/plain", bearer(ownerToken));
       if (created == null || created.getFileId() == null || created.getFileId().isBlank()
           || created.getRevision() == null || created.getRevision().isBlank()
           || !name.equals(created.getName())) {

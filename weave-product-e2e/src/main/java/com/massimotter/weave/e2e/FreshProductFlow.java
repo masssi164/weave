@@ -32,8 +32,10 @@ import java.util.Set;
 /**
  * One-process Fresh product proof.
  *
- * <p>Human passwords, action links, OAuth tokens, and private JWKs are held only in this process.
- * The only durable output is an allowlisted support-safe evidence document.
+ * <p>Human passwords, action links, OAuth tokens, and private JWKs stay private. Native browser
+ * qualification receives temporary owner-only fixtures outside the uploaded evidence tree;
+ * the owning process removes them after execution. The only durable public output is an
+ * allowlisted support-safe evidence document.
  */
 public final class FreshProductFlow {
   private static final Set<PosixFilePermission> OWNER_FILE_PERMISSIONS =
@@ -152,7 +154,7 @@ public final class FreshProductFlow {
       awaitChatReadiness(ownerSession.accessToken());
 
       Instant memberInvitedAt = Instant.now();
-      inviteActor(
+      MemberInvitationResponse memberInvitation = inviteActor(
           organizationId,
           memberEmail,
           "Weave E2E Member",
@@ -439,7 +441,9 @@ public final class FreshProductFlow {
         // real logout after all JVM journeys that need that owner's SSO state.
         new MemberSessionRevocationJourney(environment, http).prove(
             browser, organizationId, ownerEmail, ownerPassword);
-        runNativeAuthorizedJourney(ownerEmail, ownerPassword);
+        runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
+            memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
+            outsiderEmail, outsiderPassword, outsiderSession.subject(), outsiderSession.accessToken());
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
             release.bindingRef(), mcpProof, restartProof, revocationDenied,
             calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
@@ -533,7 +537,9 @@ public final class FreshProductFlow {
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
         new MemberSessionRevocationJourney(environment, http).prove(
             browser, organizationId, ownerEmail, ownerPassword);
-        runNativeAuthorizedJourney(ownerEmail, ownerPassword);
+        runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
+            memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
+            outsiderEmail, outsiderPassword, outsiderSession.subject(), outsiderSession.accessToken());
 
         writeEvidence(
             startedAt,
@@ -569,7 +575,10 @@ public final class FreshProductFlow {
     }
   }
 
-  private void runNativeAuthorizedJourney(String memberEmail, String memberPassword) {
+  private void runNativeAuthorizedJourney(
+      String memberEmail, String memberPassword, String ownerSubject,
+      String peerEmail, String peerPassword, String peerSubject, String invitationHandle,
+      String outsiderEmail, String outsiderPassword, String outsiderSubject, String outsiderAccessToken) {
     String runner = System.getProperty("weave.e2e.native-runner", "");
     if (runner.isBlank()) {
       return;
@@ -582,7 +591,35 @@ public final class FreshProductFlow {
     process.environment().put("WEAVE_NATIVE_MATRIX_URL", environment.apiOrigin().toString());
     process.environment().put("WEAVE_NATIVE_CA", environment.caCertificate().toString());
     process.inheritIO();
+    Path privateInput = Path.of("client", "build", "private-ios-qualification",
+        "dual-ios-input-" + environment.runId() + ".json");
+    boolean privateInputCreated = false;
     try {
+      Path parent = privateInput.getParent();
+      if (Files.isSymbolicLink(parent.getParent()) || Files.isSymbolicLink(parent)
+          || Files.isSymbolicLink(privateInput)) {
+        throw new ProductFlowException("native private input path is unsafe");
+      }
+      Files.createDirectories(parent);
+      Files.setPosixFilePermissions(parent, PosixFilePermissions.fromString("rwx------"));
+      Map<String, Object> input = Map.of(
+          "schemaVersion", "weave.dual-ios-input/v1",
+          "runId", environment.runId(),
+          "publicOrigin", environment.productOrigin().toString(),
+          "sharedSpaceRef", "workspace-default",
+          "actors", List.of(
+              Map.of("role", "A", "email", memberEmail, "password", memberPassword,
+                  "identityRef", ownerSubject, "entryUri", environment.productOrigin().getRawAuthority()),
+              Map.of("role", "B", "email", peerEmail, "password", peerPassword,
+                  "identityRef", peerSubject, "invitationHandle", invitationHandle,
+                  "entryUri", nativeCompletionLink())),
+          "unauthorized", Map.of("email", outsiderEmail, "password", outsiderPassword,
+              "identityRef", outsiderSubject, "accessToken", outsiderAccessToken));
+      // This fixture is private input, never qualification evidence or an upload artifact.
+      Files.writeString(privateInput, http.mapper().writeValueAsString(input),
+          StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.CREATE_NEW);
+      privateInputCreated = true;
+      setPrivatePermissions(privateInput);
       int status = process.start().waitFor();
       if (status != 0) {
         throw new ProductFlowException("native Flutter acceptance failed");
@@ -594,6 +631,13 @@ public final class FreshProductFlow {
       throw new ProductFlowException("native Flutter acceptance was interrupted");
     } finally {
       process.environment().remove("WEAVE_NATIVE_MEMBER_PASSWORD");
+      try {
+        if (privateInputCreated) {
+          Files.deleteIfExists(privateInput);
+        }
+      } catch (IOException failure) {
+        throw new ProductFlowException("native private input cleanup failed", failure);
+      }
     }
   }
 
@@ -602,7 +646,30 @@ public final class FreshProductFlow {
         .bootstrapOwner(readBootstrapToken(), "test-app-owner-" + runHash(), email);
   }
 
-  private void inviteActor(
+  private String nativeCompletionLink() {
+    JsonHttpClient.Response response = http.send("public native completion page", "GET",
+        environment.productOrigin().resolve("/join"), Map.of("Accept", "text/html"),
+        null, null, Set.of(200));
+    return nativeCompletionLinkFromPage(new String(response.body(), StandardCharsets.UTF_8),
+        environment.productOrigin());
+  }
+
+  static String nativeCompletionLinkFromPage(String html, URI publicOrigin) {
+    var links = java.util.regex.Pattern.compile(
+        "<a id=\"open-weave\" href=\"([^\"]{1,2048})\">").matcher(html);
+    if (!links.find()) {
+      throw new ProductFlowException("public native completion link is missing");
+    }
+    String link = links.group(1).replace("&amp;", "&");
+    if (links.find() || !link.startsWith("weave://join?organization_origin=")
+        || !java.net.URLDecoder.decode(link.substring(link.indexOf('=') + 1),
+            StandardCharsets.UTF_8).equals(publicOrigin.toString())) {
+      throw new ProductFlowException("public native completion link is invalid");
+    }
+    return link;
+  }
+
+  private MemberInvitationResponse inviteActor(
       String organizationId,
       String email,
       String displayName,
@@ -622,6 +689,7 @@ public final class FreshProductFlow {
         || !email.equalsIgnoreCase(invitation.getEmail())) {
       throw new ProductFlowException(role + " invitation projection is invalid");
     }
+    return invitation;
   }
 
   private void setWeaverEntitlement(
