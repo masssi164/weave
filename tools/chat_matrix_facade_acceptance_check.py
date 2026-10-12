@@ -63,7 +63,8 @@ def require_matrix_repository_contracts() -> None:
     )
     require(
         "client/lib/features/chat/data/repositories/native_matrix_chat_repository.dart",
-        "class NativeMatrixChatRepository implements ChatRepository",
+        "class NativeMatrixChatRepository",
+        "implements ChatRepository, ChatParticipantRepository",
         "RustMatrixCoreBridge",
         "loadRooms",
         "loadRoomMessages",
@@ -85,10 +86,10 @@ def require_matrix_repository_contracts() -> None:
         "RoomSecurityRefresh::PreSend",
     )
     require(
-        "client/test/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator_test.dart",
-        "ordinary Chat access establishes Matrix through the Weave SSO context",
-        "a different organization cannot reuse the saved Matrix session",
-        "wrong OIDC issuer or audience never starts Matrix sign-in",
+        "client/test/integrations/rust_matrix_core/data/services/weave_member_matrix_session_coordinator_test.dart",
+        "opens the native Matrix client with the current Weave member token",
+        "loss of current organization access drops the live Matrix client",
+        "a changed manifest endpoint drops live Matrix access",
     )
     require(
         "client/test/features/chat/chat_screen_test.dart",
