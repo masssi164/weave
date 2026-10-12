@@ -76,6 +76,20 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
                 print(f'IOS_DIAGNOSTIC journey={phase} {marker} supportSafe=true', flush=True)
             if len(seen) >= 40:
                 return
+    # Only complete fixed-format numeric control diagnostics may leave the
+    # private transcript. Do not retain labels, values or trailing messages.
+    if phase in {'initial', 'restore'}:
+        counts = set()
+        pattern = (r'NATIVE_IOS_PROVIDER_CONTROLS phase=(content|username|password) '
+                   r'leafWebViews=([0-9]{1,3}) usernameFields=([0-9]{1,3}) '
+                   r'passwordFields=([0-9]{1,3}) submitButtons=([0-9]{1,3})')
+        for line in browser_output.splitlines():
+            match = re.fullmatch(pattern, line)
+            if match and match.groups() not in counts:
+                counts.add(match.groups())
+                print(f'IOS_PROVIDER_DIAGNOSTIC journey={phase} {line} supportSafe=true', flush=True)
+            if len(counts) >= 6:
+                break
     # Preserve fixed Flutter failure categories/static frames as well. Raw
     # messages can include endpoint, account or bearer data and stay private.
     flutter_category = None
