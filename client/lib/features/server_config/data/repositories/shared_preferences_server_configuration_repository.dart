@@ -35,15 +35,16 @@ class SharedPreferencesServerConfigurationRepository
       if (decoded is! Map<String, dynamic>) {
         throw const FormatException('Invalid saved configuration');
       }
-      if (decoded['schemaVersion'] != 2 &&
-          !(decoded['schemaVersion'] == 1 &&
-              decoded['organizationOrigin'] != null)) {
+      if (![1, 2, 3].contains(decoded['schemaVersion']) ||
+          decoded['organizationOrigin'] == null) {
         // A v1 Matrix URL could name a concrete provider. Keep the saved
         // value intact for support, but require a new OrgManifest handoff.
         return null;
       }
       final dto = ServerConfigurationDto.fromJson(decoded);
-      final issuerUrl = _deriver.parseIssuerUrl(dto.oidcIssuerUrl);
+      final issuerUrl = _deriver.parseIssuerUrl(
+        dto.configuration.oidcIssuerUrl.toString(),
+      );
       final configuration = dto.toConfiguration();
       if (configuration.organizationOrigin != null) {
         const OrganizationAccessParser().parse(
@@ -71,16 +72,14 @@ class SharedPreferencesServerConfigurationRepository
       final matrixUrl = _deriver.parseMatrixHomeserverUrl(
         configuration.serviceEndpoints.matrixHomeserverUrl.toString(),
       );
-      return _validateMatrixOAuth(
-        configuration.copyWith(
-          oidcIssuerUrl: issuerUrl,
-          oidcClientRegistration: configuration.oidcClientRegistration.copyWith(
-            clientId: clientId,
-          ),
-          serviceEndpoints: configuration.serviceEndpoints.copyWith(
-            matrixHomeserverUrl: matrixUrl,
-            backendApiBaseUrl: backendApiUrl,
-          ),
+      return configuration.copyWith(
+        oidcIssuerUrl: issuerUrl,
+        oidcClientRegistration: configuration.oidcClientRegistration.copyWith(
+          clientId: clientId,
+        ),
+        serviceEndpoints: configuration.serviceEndpoints.copyWith(
+          matrixHomeserverUrl: matrixUrl,
+          backendApiBaseUrl: backendApiUrl,
         ),
       );
     } on AppFailure {
@@ -96,17 +95,7 @@ class SharedPreferencesServerConfigurationRepository
   @override
   Future<void> saveConfiguration(ServerConfiguration configuration) async {
     try {
-      final endpoints = configuration.serviceEndpoints;
-      final normalized = configuration.copyWith(
-        serviceEndpoints: endpoints.copyWith(
-          matrixHomeserverUrl: _deriver.parseMatrixHomeserverUrl(
-            endpoints.matrixHomeserverUrl.toString(),
-          ),
-        ),
-      );
-      final dto = ServerConfigurationDto.fromConfiguration(
-        _validateMatrixOAuth(normalized),
-      );
+      final dto = ServerConfigurationDto.fromConfiguration(configuration);
       await _store.setString(serverConfigurationStorageKey, dto.encode());
     } on AppFailure {
       rethrow;
@@ -138,34 +127,5 @@ class SharedPreferencesServerConfigurationRepository
       );
     }
     return trimmed;
-  }
-
-  ServerConfiguration _validateMatrixOAuth(ServerConfiguration configuration) {
-    final issuer = configuration.matrixOAuthIssuer;
-    final clientId = configuration.matrixOAuthClientId;
-    if ((issuer == null) != (clientId == null)) {
-      throw const AppFailure.validation(
-        'The Matrix OAuth issuer and client ID must be configured together.',
-      );
-    }
-    if (issuer == null) return configuration;
-    if (issuer.scheme != 'https' ||
-        issuer.host.isEmpty ||
-        issuer.userInfo.isNotEmpty ||
-        issuer.hasQuery ||
-        issuer.hasFragment) {
-      throw const AppFailure.validation(
-        'The Matrix OAuth issuer must be a credential-free HTTPS URL.',
-      );
-    }
-    final normalizedClientId = clientId!.trim();
-    if (normalizedClientId.isEmpty ||
-        normalizedClientId ==
-            configuration.oidcClientRegistration.clientId.trim()) {
-      throw const AppFailure.validation(
-        'Matrix OAuth requires a separate registered client ID.',
-      );
-    }
-    return configuration.copyWith(matrixOAuthClientId: normalizedClientId);
   }
 }

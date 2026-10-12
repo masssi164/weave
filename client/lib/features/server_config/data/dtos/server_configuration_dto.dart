@@ -1,128 +1,81 @@
 import 'dart:convert';
 
+import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 
+/// Persists one canonical manifest; transport values are derived on load.
 class ServerConfigurationDto {
-  const ServerConfigurationDto({
-    required this.providerType,
-    required this.oidcIssuerUrl,
-    required this.oidcClientRegistrationMode,
-    required this.oidcClientId,
-    required this.matrixHomeserverUrl,
-    required this.backendApiBaseUrl,
-    this.organizationOrigin,
-    this.validatedManifest,
-    this.manifestValidatedAt,
-    this.matrixOAuthIssuer,
-    this.matrixOAuthClientId,
-  });
+  const ServerConfigurationDto._(this.configuration);
 
   factory ServerConfigurationDto.fromConfiguration(
     ServerConfiguration configuration,
   ) {
-    return ServerConfigurationDto(
-      organizationOrigin: configuration.organizationOrigin?.toString(),
-      validatedManifest: configuration.validatedManifest,
-      manifestValidatedAt: configuration.manifestValidatedAt
-          ?.toUtc()
-          .toIso8601String(),
-      providerType: configuration.providerType.name,
-      oidcIssuerUrl: configuration.oidcIssuerUrl.toString(),
-      oidcClientRegistrationMode:
-          configuration.oidcClientRegistration.mode.name,
-      oidcClientId: configuration.oidcClientRegistration.clientId,
-      matrixHomeserverUrl: configuration.serviceEndpoints.matrixHomeserverUrl
-          .toString(),
-      backendApiBaseUrl: configuration.serviceEndpoints.backendApiBaseUrl
-          .toString(),
-      matrixOAuthIssuer: configuration.matrixOAuthIssuer?.toString(),
-      matrixOAuthClientId: configuration.matrixOAuthClientId,
+    final origin = configuration.organizationOrigin;
+    final manifest = configuration.validatedManifest;
+    final validatedAt = configuration.manifestValidatedAt;
+    if (origin == null || manifest == null || validatedAt == null) {
+      throw const AppFailure.validation(
+        'A validated organization manifest is required before saving a profile.',
+      );
+    }
+    final access = const OrganizationAccessParser().parse(origin);
+    final canonical = AppStartDiscoveryClient.parseManifest(manifest, access);
+    return ServerConfigurationDto._(
+      canonical.toServerConfiguration(origin, validatedAt: validatedAt),
     );
   }
 
   factory ServerConfigurationDto.fromJson(Map<String, dynamic> json) {
-    return ServerConfigurationDto(
-      organizationOrigin: json['organizationOrigin'] as String?,
-      validatedManifest: json['validatedManifest'] as Map<String, dynamic>?,
-      manifestValidatedAt: json['manifestValidatedAt'] as String?,
-      providerType: json['providerType'] as String,
-      oidcIssuerUrl: json['oidcIssuerUrl'] as String,
-      oidcClientRegistrationMode: json['oidcClientRegistrationMode'] as String,
-      oidcClientId: json['oidcClientId'] as String,
-      matrixHomeserverUrl: json['matrixHomeserverUrl'] as String,
-      backendApiBaseUrl: json['backendApiBaseUrl'] as String,
-      matrixOAuthIssuer: json['matrixOAuthIssuer'] as String?,
-      matrixOAuthClientId: json['matrixOAuthClientId'] as String?,
-    );
-  }
-
-  final String? organizationOrigin;
-  final Map<String, dynamic>? validatedManifest;
-  final String? manifestValidatedAt;
-  final String providerType;
-  final String oidcIssuerUrl;
-  final String oidcClientRegistrationMode;
-  final String oidcClientId;
-  final String matrixHomeserverUrl;
-  final String backendApiBaseUrl;
-  final String? matrixOAuthIssuer;
-  final String? matrixOAuthClientId;
-
-  ServerConfiguration toConfiguration() {
-    return ServerConfiguration(
-      organizationOrigin: organizationOrigin == null
-          ? null
-          : Uri.parse(organizationOrigin!),
-      validatedManifest: validatedManifest,
-      manifestValidatedAt: manifestValidatedAt == null
-          ? null
-          : DateTime.parse(manifestValidatedAt!),
-      providerType: OidcProviderType.values.byName(providerType),
-      oidcIssuerUrl: Uri.parse(oidcIssuerUrl),
-      oidcClientRegistration: OidcClientRegistration(
-        mode: OidcClientRegistrationMode.values.byName(
-          oidcClientRegistrationMode,
+    final origin = Uri.parse(json['organizationOrigin'] as String);
+    final access = const OrganizationAccessParser().parse(origin);
+    final manifest = json['validatedManifest'] as Map<String, dynamic>?;
+    if (manifest != null) {
+      final canonical = AppStartDiscoveryClient.parseManifest(manifest, access);
+      return ServerConfigurationDto._(
+        canonical.toServerConfiguration(
+          origin,
+          validatedAt: DateTime.parse(json['manifestValidatedAt'] as String),
         ),
-        clientId: oidcClientId,
+      );
+    }
+    if (json['schemaVersion'] == 3) {
+      throw const AppFailure.validation(
+        'The saved organization manifest is missing.',
+      );
+    }
+    // One-way migration input only. Refresh resolves the manifest before auth,
+    // preserving the old identity binding while discarding provider overrides.
+    return ServerConfigurationDto._(
+      ServerConfiguration(
+        organizationOrigin: origin,
+        providerType: OidcProviderType.oidc,
+        oidcIssuerUrl: Uri.parse(json['oidcIssuerUrl'] as String),
+        oidcClientRegistration: OidcClientRegistration.manual(
+          clientId: json['oidcClientId'] as String,
+        ),
+        serviceEndpoints: ServiceEndpoints(
+          matrixHomeserverUrl: Uri.parse(json['matrixHomeserverUrl'] as String),
+          backendApiBaseUrl: Uri.parse(json['backendApiBaseUrl'] as String),
+        ),
       ),
-      serviceEndpoints: ServiceEndpoints(
-        matrixHomeserverUrl: Uri.parse(matrixHomeserverUrl),
-        backendApiBaseUrl: Uri.parse(backendApiBaseUrl),
-      ),
-      matrixOAuthIssuer: matrixOAuthIssuer == null
-          ? null
-          : Uri.parse(matrixOAuthIssuer!),
-      matrixOAuthClientId: matrixOAuthClientId,
     );
   }
 
-  String encode() => jsonEncode(toJson());
+  final ServerConfiguration configuration;
 
-  Map<String, dynamic> toJson() {
-    return {
-      'schemaVersion': 2,
-      if (organizationOrigin != null) 'organizationOrigin': organizationOrigin,
-      if (validatedManifest != null) 'validatedManifest': validatedManifest,
-      if (manifestValidatedAt != null)
-        'manifestValidatedAt': manifestValidatedAt,
-      'providerType': providerType,
-      'oidcIssuerUrl': oidcIssuerUrl,
-      'oidcClientRegistrationMode': oidcClientRegistrationMode,
-      'oidcClientId': oidcClientId,
-      'matrixHomeserverUrl': matrixHomeserverUrl,
-      'backendApiBaseUrl': backendApiBaseUrl,
-      if (matrixOAuthIssuer != null) 'matrixOAuthIssuer': matrixOAuthIssuer,
-      if (matrixOAuthClientId != null)
-        'matrixOAuthClientId': matrixOAuthClientId,
-    };
-  }
+  ServerConfiguration toConfiguration() => configuration;
 
-  static ServerConfigurationDto decode(String raw) {
-    return ServerConfigurationDto.fromJson(
-      jsonDecode(raw) as Map<String, dynamic>,
-    );
-  }
+  String encode() => jsonEncode({
+    'schemaVersion': 3,
+    'organizationOrigin': configuration.organizationOrigin.toString(),
+    'validatedManifest': configuration.validatedManifest,
+    'manifestValidatedAt': configuration.manifestValidatedAt!
+        .toUtc()
+        .toIso8601String(),
+  });
 }

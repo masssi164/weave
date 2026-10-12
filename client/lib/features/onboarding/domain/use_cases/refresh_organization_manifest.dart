@@ -2,7 +2,6 @@ import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
-import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 
 /// Refreshes the same public generated PlatformApi contract after authentication.
@@ -80,10 +79,8 @@ class RefreshOrganizationManifest {
   ServerConfiguration _derivedConfiguration(
     ServerConfiguration saved,
     AppStartConfiguration current,
-  ) => saved.copyWith(
-    serviceEndpoints: ServiceEndpoints(
-      backendApiBaseUrl: current.userApiBaseUrl,
-      matrixHomeserverUrl: current.matrixClientServerBaseUrl,
-    ),
+  ) => current.toServerConfiguration(
+    saved.organizationOrigin!,
+    validatedAt: saved.manifestValidatedAt,
   );
 }

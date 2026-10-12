@@ -45,19 +45,9 @@ class DiscoverOrganizationAccess {
         access,
       );
       await _repository.saveConfiguration(
-        ServerConfiguration(
-          organizationOrigin: access.organizationOrigin,
-          validatedManifest: appStart.manifest,
-          manifestValidatedAt: DateTime.now().toUtc(),
-          providerType: OidcProviderType.oidc,
-          oidcIssuerUrl: appStart.oidcIssuerUrl,
-          oidcClientRegistration: OidcClientRegistration.manual(
-            clientId: appStart.oidcClientId,
-          ),
-          serviceEndpoints: ServiceEndpoints(
-            matrixHomeserverUrl: appStart.matrixClientServerBaseUrl,
-            backendApiBaseUrl: appStart.userApiBaseUrl,
-          ),
+        appStart.toServerConfiguration(
+          access.organizationOrigin,
+          validatedAt: DateTime.now().toUtc(),
         ),
       );
       await _recordAccessEvidence(access, result: 'saved_configuration');
@@ -192,6 +182,24 @@ class AppStartConfiguration {
   final String oidcClientId;
   final Uri userApiBaseUrl;
   final Uri matrixClientServerBaseUrl;
+
+  ServerConfiguration toServerConfiguration(
+    Uri origin, {
+    required DateTime? validatedAt,
+  }) => ServerConfiguration(
+    organizationOrigin: origin,
+    validatedManifest: manifest,
+    manifestValidatedAt: validatedAt,
+    providerType: OidcProviderType.oidc,
+    oidcIssuerUrl: oidcIssuerUrl,
+    oidcClientRegistration: OidcClientRegistration.manual(
+      clientId: oidcClientId,
+    ),
+    serviceEndpoints: ServiceEndpoints(
+      matrixHomeserverUrl: matrixClientServerBaseUrl,
+      backendApiBaseUrl: userApiBaseUrl,
+    ),
+  );
 }
 
 class AppStartDiscoveryClient {
@@ -329,6 +337,12 @@ class AppStartDiscoveryClient {
   AppStartConfiguration validateManifest(
     Map<String, dynamic> json,
     OrganizationAccess access,
+  ) => parseManifest(json, access);
+
+  // The persisted cache and network response use the same strict contract.
+  static AppStartConfiguration parseManifest(
+    Map<String, dynamic> json,
+    OrganizationAccess access,
   ) {
     _requireExactKeys(json, const {
       'schemaVersion',
@@ -423,7 +437,10 @@ class AppStartDiscoveryClient {
     );
   }
 
-  Map<String, dynamic> _object(Object? value, {required String fieldName}) {
+  static Map<String, dynamic> _object(
+    Object? value, {
+    required String fieldName,
+  }) {
     if (value is Map<String, dynamic>) {
       return value;
     }
@@ -432,7 +449,10 @@ class AppStartDiscoveryClient {
     );
   }
 
-  void _requireExactKeys(Map<String, dynamic> value, Set<String> allowed) {
+  static void _requireExactKeys(
+    Map<String, dynamic> value,
+    Set<String> allowed,
+  ) {
     final unexpected = value.keys.where((key) => !allowed.contains(key));
     if (unexpected.isNotEmpty) {
       throw const AppFailure.validation(
@@ -441,7 +461,7 @@ class AppStartDiscoveryClient {
     }
   }
 
-  void _validateDomains(Object? value) {
+  static void _validateDomains(Object? value) {
     if (value is! List) {
       throw const AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: domains must be an array.',
@@ -512,7 +532,7 @@ class AppStartDiscoveryClient {
     }
   }
 
-  void _validateRecoveryActions(Object? value) {
+  static void _validateRecoveryActions(Object? value) {
     if (value is! List) {
       throw const AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: recoveryActions must be an array.',
@@ -535,13 +555,13 @@ class AppStartDiscoveryClient {
     }
   }
 
-  Uri _apiOrigin(Uri backendApiBaseUrl) => Uri(
+  static Uri _apiOrigin(Uri backendApiBaseUrl) => Uri(
     scheme: backendApiBaseUrl.scheme,
     host: backendApiBaseUrl.host,
     port: backendApiBaseUrl.hasPort ? backendApiBaseUrl.port : null,
   );
 
-  Uri _uri(Object? rawValue, {required String fieldName}) {
+  static Uri _uri(Object? rawValue, {required String fieldName}) {
     final value = rawValue is Uri
         ? rawValue.toString()
         : rawValue is String && rawValue.trim().isNotEmpty
@@ -576,7 +596,10 @@ class AppStartDiscoveryClient {
     return uri;
   }
 
-  String _clientId(Object? rawValue, {String fieldName = 'oidc.clientId'}) {
+  static String _clientId(
+    Object? rawValue, {
+    String fieldName = 'oidc.clientId',
+  }) {
     if (rawValue is! String || rawValue.trim().isEmpty) {
       throw AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: $fieldName is required.',
