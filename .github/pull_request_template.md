@@ -19,10 +19,11 @@ Quality Reset rule: product behavior and product claims require repo-local specs
 
 ## Branch, target lane, and release path
 
-- Target lane: dev / future/* / rc/* / main exception
-- [ ] Branch started from the correct lane (`dev`, `future/*`, `rc/*`, or `main` for hotfix/main exception)
+- Target lane: dev / dogfood / main / future/* / rc/* / main exception
+- [ ] Branch started from the correct lane (`dev` for normal work and Dogfood promotion, `dogfood` for normal Main promotion, `future/*` or `rc/*` when applicable, or `main` for an emergency hotfix)
 - [ ] Linked issue(s) or explicit spec/evidence note are listed above
-- [ ] `main` target is only an `rc/*` promotion or documented emergency `hotfix/*` exception
+- [ ] Normal promotion follows `dev` → `dogfood` → HIL → `main`; `main` verifies unchanged-candidate automated, deployment, physical-preparation and explicit human evidence
+- [ ] An emergency `hotfix/*` targeting `main` is explicitly declared `main exception` and its return to `dev` is documented
 - [ ] Production release is not implied by this merge
 
 ## Spec impact
