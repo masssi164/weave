@@ -210,7 +210,18 @@ ALTER SCHEMA public OWNER TO :"migration_user";
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 REVOKE CREATE ON SCHEMA public FROM :"backend_user";
 GRANT USAGE ON SCHEMA public TO :"backend_user";
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO :"backend_user";
+-- Product DML must never grant write authority over migration history or receipts.
+SELECT format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE %I.%I TO %I',
+  n.nspname, c.relname, :'backend_user')
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+  AND c.relname NOT IN ('flyway_schema_history', 'weave_schema_authority') \gexec
+SELECT format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE %I.%I FROM %I', n.nspname, c.relname, :'backend_user')
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' AND c.relname IN ('flyway_schema_history', 'weave_schema_authority') \gexec
+SELECT format('GRANT SELECT ON TABLE %I.%I TO %I', n.nspname, c.relname, :'backend_user')
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' AND c.relname IN ('flyway_schema_history', 'weave_schema_authority') \gexec
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO :"backend_user";
 ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_user" IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"backend_user";

@@ -1,6 +1,5 @@
 package com.massimotter.weave.backend.schema;
 
-import com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaEntity;
 import com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaRepository;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -59,12 +58,14 @@ public final class SchemaAuthorityInitializer {
     // fingerprint and receipt happen afterwards. Hold one schema-scoped session lock over
     // the complete one-shot operation so two initializers cannot race outside Flyway.
     try (Connection lockConnection = DriverManager.getConnection(url, username, password)) {
+      lockConnection.setClientInfo("ApplicationName", "weave-schema-authority-init");
       acquireSchemaInitializationLock(lockConnection);
-      runLocked(url, username, password, candidate, receipt, required(environment, "WEAVE_SCHEMA_RUNTIME_ROLE"));
+      runLocked(lockConnection, url, username, password, candidate, receipt, required(environment, "WEAVE_SCHEMA_RUNTIME_ROLE"));
     }
   }
 
   private static void runLocked(
+      Connection lockConnection,
       String url,
       String username,
       String password,
@@ -154,15 +155,30 @@ public final class SchemaAuthorityInitializer {
           }
         }
         protectAuthorityTables(connection, runtimeRole);
-        markers.deleteAllInBatch();
-        markers.saveAndFlush(new SchemaAuthorityJpaEntity(
-            EPOCH, MODEL_ID, candidate, validated.sha256(), Instant.now()));
-        writeReceipt(
-            receipt,
-            candidate,
-            migration.migrationsExecuted,
-            targetSchemaVersion,
-            validated);
+        // The acceptance lock's own session commits the marker. Terminating it
+        // cannot leave a different connection publishing authority without a lock.
+        lockConnection.setAutoCommit(false);
+        Instant completed;
+        try (var delete = lockConnection.createStatement();
+             var insert = lockConnection.prepareStatement(
+                 "insert into weave_schema_authority "
+                     + "(epoch,relational_model_id,candidate_commit,catalog_fingerprint,completed_at_utc) "
+                     + "values (?,?,?,?,clock_timestamp()) returning completed_at_utc")) {
+          delete.executeUpdate("delete from weave_schema_authority");
+          insert.setString(1, EPOCH);
+          insert.setString(2, MODEL_ID);
+          insert.setString(3, candidate);
+          insert.setString(4, validated.sha256());
+          try (var rows = insert.executeQuery()) {
+            if (!rows.next()) throw new IllegalStateException("schema authority completion was not written");
+            completed = rows.getTimestamp(1).toInstant();
+          }
+          writeReceipt(lockConnection, url, username, password, receipt, candidate, migration.migrationsExecuted,
+              targetSchemaVersion, validated, completed);
+        } catch (Exception failure) {
+          try { lockConnection.rollback(); } catch (Exception rollback) { failure.addSuppressed(rollback); }
+          throw failure;
+        }
       }
     }
   }
@@ -221,11 +237,16 @@ public final class SchemaAuthorityInitializer {
   }
 
   private static void writeReceipt(
+      Connection lockConnection,
+      String url,
+      String username,
+      String password,
       Path receipt,
       String candidate,
       int migrationsExecuted,
       String targetSchemaVersion,
-      SchemaCatalogFingerprint.Snapshot snapshot) throws Exception {
+      SchemaCatalogFingerprint.Snapshot snapshot,
+      Instant completed) throws Exception {
     Path parent = receipt.getParent();
     if (parent == null || !Files.isDirectory(parent)) {
       throw new IllegalStateException("schema receipt parent directory is unavailable");
@@ -246,23 +267,74 @@ public final class SchemaAuthorityInitializer {
     value.put(
         "catalogProjection",
         new ObjectMapper().readTree(snapshot.canonicalJson()));
-    value.put("completedAtUtc", Instant.now().toString());
+    value.put("completedAtUtc", completed.toString());
     value.put("secretValuesIncluded", false);
     byte[] serialized = new ObjectMapper().writeValueAsString(value).getBytes(StandardCharsets.UTF_8);
     Path temporary = Files.createTempFile(parent, ".schema-init-", ".json");
+    boolean published = false;
+    boolean completedPublication = false;
     try {
       Files.write(
           temporary,
           serialized,
           StandardOpenOption.TRUNCATE_EXISTING,
           StandardOpenOption.WRITE);
+      requireHeldAcceptanceLock(lockConnection);
+      lockConnection.commit();
+      requireCommittedMarker(lockConnection, candidate, snapshot.sha256(), completed);
       Files.move(
           temporary,
           receipt,
           java.nio.file.StandardCopyOption.ATOMIC_MOVE,
           java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      published = true;
+      requireHeldAcceptanceLock(lockConnection);
+      requireCommittedMarker(lockConnection, candidate, snapshot.sha256(), completed);
+      completedPublication = true;
     } finally {
+      if (published && !completedPublication) {
+        cleanupOwnReceipt(lockConnection, url, username, password, receipt, serialized);
+      }
       Files.deleteIfExists(temporary);
+    }
+  }
+
+  static void cleanupOwnReceipt(Connection failedSession, String url, String username,
+      String password, Path receipt, byte[] ownBytes) throws Exception {
+    // A lost session no longer serializes filesystem publication. Reuse the
+    // existing acceptance lock for bounded cleanup before comparing/unlinking.
+    failedSession.close();
+    try (var cleanup = DriverManager.getConnection(url, username, password)) {
+      acquireSchemaInitializationLock(cleanup);
+      if (Files.isRegularFile(receipt) && !Files.isSymbolicLink(receipt)
+          && java.util.Arrays.equals(Files.readAllBytes(receipt), ownBytes)) {
+        Files.delete(receipt);
+      }
+    }
+  }
+
+  private static void requireHeldAcceptanceLock(Connection connection) throws Exception {
+    try (var statement = connection.createStatement(); var rows = statement.executeQuery(
+        "select exists(select 1 from pg_locks where locktype='advisory' and granted "
+            + "and pid=pg_backend_pid() and classid=(hashtext(current_database())::bigint & 4294967295)::oid "
+            + "and objid=(hashtext(coalesce(current_schema(),'public'))::bigint & 4294967295)::oid and objsubid=2)")) {
+      if (!rows.next() || !rows.getBoolean(1)) {
+        throw new IllegalStateException("schema acceptance lock was lost before receipt publication");
+      }
+    }
+  }
+
+  private static void requireCommittedMarker(Connection connection, String candidate,
+      String fingerprint, Instant completed) throws Exception {
+    try (var query = connection.prepareStatement("select epoch,relational_model_id,candidate_commit,"
+        + "catalog_fingerprint,completed_at_utc from weave_schema_authority")) {
+      try (var rows = query.executeQuery()) {
+        if (!rows.next() || !EPOCH.equals(rows.getString(1)) || !MODEL_ID.equals(rows.getString(2))
+            || !candidate.equals(rows.getString(3)) || !fingerprint.equals(rows.getString(4))
+            || !completed.equals(rows.getTimestamp(5).toInstant()) || rows.next()) {
+          throw new IllegalStateException("schema receipt does not match its committed authority completion");
+        }
+      }
     }
   }
 
