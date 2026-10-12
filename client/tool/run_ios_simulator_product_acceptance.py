@@ -7,12 +7,15 @@ temporary directory. Only bounded support-safe outcome markers are emitted.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import json
 import os
 import platform
 import plistlib
 import shutil
 import signal
+import stat
+import sys
 import re
 import subprocess
 import tempfile
@@ -25,6 +28,8 @@ from run_native_product_acceptance import restart_disposable_services, stop_flut
 
 CLIENT = Path(__file__).resolve().parents[1]
 ROOT = CLIENT.parent
+sys.path.insert(0, str(ROOT / 'tools'))
+import ios_simulator_xcrun as simulator_vm
 RUNTIME = 'com.apple.CoreSimulator.SimRuntime.iOS-26-5'
 DEVICE = 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro'
 BUNDLE = 'com.massimotter.weave'
@@ -34,7 +39,8 @@ XCODE_VERSION = '26.5'
 XCODE_BUILD = '17F42'
 IOS_SIMULATOR_SDK_VERSION = '26.5'
 SAFE_PRODUCT_STAGES = {
-    'shell-ready', 'driver-attached', 'sign-in-tapped', 'appauth-requested', 'auth-failed',
+    'shell-ready', 'shell-bootstrap-failed', 'shell-bootstrap-diagnostic-unavailable',
+    'driver-attached', 'sign-in-tapped', 'appauth-requested', 'auth-failed',
     'appauth-pending', 'workspace-ready', 'files-start', 'files-passed',
     'calendar-start', 'calendar-agenda-failed', 'calendar-passed',
     'matrix-start', 'matrix-open-failed', 'matrix-admission',
@@ -45,7 +51,7 @@ SAFE_PRODUCT_STAGES = {
 }
 SAFE_BROWSER_STAGES = {
     'driver-started', 'sign-in-tapped', 'app-wait-started', 'app-observed', 'issuer-observed',
-    'username-submitted', 'password-submitted', 'password-save-declined', 'auth-completion-observed',
+    'username-submitted', 'password-submitted', 'password-save-declined', 'auth-completion-observed', 'password-return-submitted',
 }
 
 
@@ -55,6 +61,75 @@ class NativeFailure(RuntimeError):
         self.stage = stage
         self.reason = reason
         super().__init__(f'{category}: {stage}: {reason}')
+
+
+def verified_private_parent() -> Path:
+    parent = CLIENT / 'build/private-ios-qualification'
+    # Never follow an existing build/private directory symlink. The persistent
+    # private ancestor protects even artifacts recreated by asynchronous Xcode
+    # writers after the run directory has been removed.
+    for directory in (parent.parent, parent):
+        directory.mkdir(exist_ok=True)
+        if directory.is_symlink() or not directory.is_dir():
+            raise NativeFailure('infrastructure', 'artifact-cleanup', 'unsafe-private-parent')
+    descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        if os.fstat(descriptor).st_uid != os.getuid():
+            raise NativeFailure('infrastructure', 'artifact-cleanup', 'unowned-private-parent')
+        os.fchmod(descriptor, 0o700)
+    finally:
+        os.close(descriptor)
+    return parent
+
+
+def cleanup_private_run(directory: Path, parent_identity: tuple[int, int], *,
+                        timeout: float = 15, quiet_seconds: float = 2) -> None:
+    parent = directory.parent
+    deadline = time.monotonic() + timeout
+    absent_since = None
+    while time.monotonic() < deadline:
+        descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            info = os.fstat(descriptor)
+            if (info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700
+                    or (info.st_dev, info.st_ino) != parent_identity):
+                raise NativeFailure('infrastructure', 'artifact-cleanup', 'private-parent-changed')
+            try:
+                entry = os.stat(directory.name, dir_fd=descriptor, follow_symlinks=False)
+            except FileNotFoundError:
+                if absent_since is None:
+                    absent_since = time.monotonic()
+                if time.monotonic() - absent_since >= quiet_seconds:
+                    # Bounded absence is not proof of writer quiescence. Keep the
+                    # verified 0700 parent permanently, including on cleanup failure.
+                    print('NATIVE_IOS_PRIVATE_CLEANUP_RESULT status=passed scope=owned-run privateParent=retained supportSafe=true', flush=True)
+                    return
+            else:
+                absent_since = None
+                if not stat.S_ISDIR(entry.st_mode) or entry.st_uid != os.getuid():
+                    raise NativeFailure('infrastructure', 'artifact-cleanup', 'unsafe-owned-run-path')
+                try:
+                    shutil.rmtree(directory.name, dir_fd=descriptor)
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    # A result writer can race removal. Retry only this owned path.
+                    pass
+        finally:
+            os.close(descriptor)
+        time.sleep(0.25)
+    raise NativeFailure('infrastructure', 'artifact-cleanup', 'owned-run-removal-timeout')
+
+
+@contextmanager
+def private_run_directory():
+    parent = verified_private_parent()
+    info = parent.lstat()
+    directory = Path(tempfile.mkdtemp(prefix='weave-ios-qualification-', dir=parent))
+    try:
+        yield directory
+    finally:
+        cleanup_private_run(directory, (info.st_dev, info.st_ino))
 
 
 def failure_marker(category: str, stage: str, reason: str) -> None:
@@ -76,6 +151,29 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
                 print(f'IOS_DIAGNOSTIC journey={phase} {marker} supportSafe=true', flush=True)
             if len(seen) >= 40:
                 return
+    if phase in {'initial', 'restore'}:
+        # The producer maps unknown enums to unavailable and bounds counts.
+        # Require its entire ordered record; never forward error text or config.
+        enums = {
+            'asyncState': 'loading|error|data|unavailable',
+            'bootstrapPhase': 'loading|needsSetup|needsSignIn|ready|error|unavailable',
+            'failureType': 'none|bootstrap|storage|validation|unknown|unavailable',
+            'causeType': 'none|AppFailure|AuthFailure|PlatformException|StateError|FormatException|TimeoutException|SocketException|FlutterAppAuthPlatformException|unavailable',
+            'platformCode': '-?[0-9]{1,6}|unavailable',
+            'lifecycle': 'resumed|inactive|hidden|paused|detached|unavailable',
+        }
+        pattern = r'(?:flutter: )?(NATIVE_PRODUCT_STAGE phase=shell-bootstrap-failed '
+        pattern += ' '.join(key + r'=(?:' + values + r')' for key, values in enums.items())
+        pattern += ' ' + ' '.join(key + r'Count=[0-9]{1,3}' for key in ('root', 'bootstrapGate', 'error', 'loading', 'onboarding', 'signIn', 'workspace'))
+        pattern += ' ' + ' '.join(key + r'=(?:true|false)' for key in ('simulatorDriver', 'productEnabled', 'disposable', 'offline')) + ')'
+        records = set()
+        for line in flutter_output.split('\n'):
+            match = re.fullmatch(pattern, line)
+            if match is not None and match[1] not in records:
+                records.add(match[1])
+                print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} {match[1]} supportSafe=true', flush=True)
+            if len(records) >= 3:
+                break
     # Only complete fixed-format numeric control diagnostics may leave the
     # private transcript. Do not retain labels, values or trailing messages.
     if phase in {'initial', 'restore'}:
@@ -113,6 +211,52 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
                 states.add(match.groups())
                 print(f'IOS_POST_SUBMIT_DIAGNOSTIC journey={phase} {line} supportSafe=true', flush=True)
             if len(states) >= 6:
+                break
+    # The integration test already emits bounded classification fields. Preserve
+    # only its complete ordered record, then map unknown codes/types to unavailable.
+    # Never copy exception messages, OAuth response data, or debug descriptions.
+    if phase in {'initial', 'restore'}:
+        fields = ('category', 'causeType', 'appFailureType', 'nestedCauseType',
+                  'backendFailure', 'backendStatus', 'appAuthCode', 'nativeType',
+                  'nativeCode', 'nativeDomain')
+        # flutter drive relays the simulator's literal OS log prefix. Accept
+        # only that fixed framing in addition to flutter test's unprefixed line.
+        pattern = r'(?:flutter: )?NATIVE_PRODUCT_STAGE phase=auth-failed ' + ' '.join(
+            name + r'=([A-Za-z0-9_.-]{1,80})' for name in fields)
+        auth_types = {'cancelled', 'configuration', 'protocol', 'storage', 'unsupportedPlatform', 'unknown'}
+        app_types = {'bootstrap', 'storage', 'validation', 'unknown', 'none'}
+        runtime_types = {'FlutterAppAuthPlatformException', 'FlutterAppAuthUserCancelledException',
+                         'AppFailure', 'AuthFailure', 'PlatformException', 'StateError',
+                         'FormatException', 'TimeoutException', 'SocketException',
+                         'int', 'String', 'Null', '_Exception', '_TypeError', '_ClientSocketException'}
+        backend_types = {'session-rejected', 'timeout', 'request-failed', 'invalid-payload', 'unknown-state', 'none'}
+        appauth_codes = {'authorize_failed', 'authorize_and_exchange_code_failed',
+                        'discovery_failed', 'token_failed', 'end_session_failed'}
+        domains = {'org.openid.appauth.general', 'org.openid.appauth.oauth_token',
+                   'org.openid.appauth.oauth_authorization', 'org.openid.appauth.oauth_registration',
+                   'org.openid.appauth.resourceserver', 'org.openid.appauth.remote-http',
+                   'NSURLErrorDomain', 'NSCocoaErrorDomain', 'NSPOSIXErrorDomain', 'kCFErrorDomainCFNetwork'}
+        allowed = {'category': auth_types, 'causeType': runtime_types, 'appFailureType': app_types,
+                   'nestedCauseType': runtime_types, 'backendFailure': backend_types,
+                   'appAuthCode': appauth_codes, 'nativeType': domains, 'nativeDomain': domains}
+        classifications = set()
+        for line in flutter_output.split('\n'):
+            match = re.fullmatch(pattern, line)
+            if match is None:
+                continue
+            values = dict(zip(fields, match.groups()))
+            for name, valid in allowed.items():
+                if values[name] not in valid:
+                    values[name] = 'unavailable'
+            if not re.fullmatch(r'[1-5][0-9]{2}', values['backendStatus']):
+                values['backendStatus'] = 'unavailable'
+            if not re.fullmatch(r'-?[0-9]{1,6}', values['nativeCode']):
+                values['nativeCode'] = 'unavailable'
+            record = ' '.join(name + '=' + values[name] for name in fields)
+            if record not in classifications:
+                classifications.add(record)
+                print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} phase=auth-failed {record} supportSafe=true', flush=True)
+            if len(classifications) >= 3:
                 break
     # Preserve fixed Flutter failure categories/static frames as well. Raw
     # messages can include endpoint, account or bearer data and stay private.
@@ -174,6 +318,15 @@ def command_stage(arguments: list[str]) -> str:
     return 'native-tool'
 
 
+def retain_private_diagnostic(contents: str) -> Path:
+    # Reuse the existing owned private diagnostic scope, never uploaded evidence.
+    diagnostics = verified_private_parent()
+    with tempfile.NamedTemporaryFile(mode='w', prefix='command-', suffix='.log', dir=diagnostics, delete=False) as log:
+        os.fchmod(log.fileno(), 0o600)
+        log.write(contents)
+        return Path(log.name)
+
+
 def run(arguments: list[str], *, env=None, timeout=900) -> str:
     child_env = (os.environ if env is None else env).copy()
     child_env.pop('WEAVE_NATIVE_MEMBER_EMAIL', None)
@@ -191,15 +344,8 @@ def run(arguments: list[str], *, env=None, timeout=900) -> str:
         # This helper executes builds/simctl only. UI transcripts are separately
         # contained inside the private per-run directory. Keep build failure
         # output locally for diagnosis, outside the uploaded testApp artifacts.
-        diagnostics = CLIENT / 'build/private-ios-qualification'
-        diagnostics.mkdir(mode=0o700, parents=True, exist_ok=True)
-        if diagnostics.is_symlink():
-            raise RuntimeError('Native diagnostic directory is a symlink')
-        diagnostics.chmod(0o700)
-        with tempfile.NamedTemporaryFile(mode='w', prefix='command-', suffix='.log', dir=diagnostics, delete=False) as log:
-            log.write(stdout + stderr)
-            os.chmod(log.name, 0o600)
-        print(f'NATIVE_IOS_COMMAND_RESULT status=failed command={Path(arguments[0]).name} privateDiagnostic={Path(log.name).name}', flush=True)
+        diagnostic = retain_private_diagnostic(stdout + stderr)
+        print(f'NATIVE_IOS_COMMAND_RESULT status=failed command={Path(arguments[0]).name} privateDiagnostic={diagnostic.name}', flush=True)
         stage = command_stage(arguments)
         failure_marker('infrastructure', stage, 'command-exit-failed')
         raise NativeFailure('infrastructure', stage, 'command-exit-failed')
@@ -319,7 +465,7 @@ def exact_simulator_app_pids(processes: str, executable: Path) -> set[str]:
     return matches
 
 
-def simulator_app_pid(udid: str) -> str:
+def simulator_app_executable(udid: str) -> Path:
     app = Path(run(['xcrun', 'simctl', 'get_app_container', udid, BUNDLE, 'app']).strip()).resolve(strict=True)
     if f'/CoreSimulator/Devices/{udid}/' not in str(app):
         raise NativeFailure('infrastructure', 'driver-attach', 'integration-app-container-mismatch')
@@ -328,12 +474,82 @@ def simulator_app_pid(udid: str) -> str:
     if (metadata.get('CFBundleIdentifier') != BUNDLE or not isinstance(executable, str)
             or not re.fullmatch(r'[A-Za-z0-9_-]+', executable) or not (app / executable).is_file()):
         raise NativeFailure('infrastructure', 'driver-attach', 'integration-executable-identity-invalid')
-    pids = exact_simulator_app_pids(run(['/bin/ps', '-axo', 'pid=,comm=']), app / executable)
+    return app / executable
+
+
+def simulator_app_pid(udid: str) -> str:
+    executable = simulator_app_executable(udid)
+    pids = exact_simulator_app_pids(run(['/bin/ps', '-axo', 'pid=,comm=']), executable)
     print(f'NATIVE_IOS_PROCESS_IDENTITY matchingCount={min(len(pids), 9)} unique={str(len(pids) == 1).lower()} supportSafe=true', flush=True)
     if len(pids) != 1:
         reason = 'integration-process-unavailable' if not pids else 'integration-process-ambiguous'
         raise NativeFailure('infrastructure', 'driver-attach', reason)
     return next(iter(pids))
+
+
+def owned_vm_service_uri(message: str) -> str:
+    if not message.startswith(simulator_vm.VM_EVENT_PREFIX):
+        raise NativeFailure('infrastructure', 'vm-service', 'invalid-owned-vm-event')
+    uri = message.removeprefix(simulator_vm.VM_EVENT_PREFIX)
+    # urlparse normalizes CR/LF; reject them and every non-URI byte first.
+    if not re.fullmatch(r'http://127\.0\.0\.1:[0-9]{1,5}/[A-Za-z0-9_=/.-]{0,511}', uri):
+        raise NativeFailure('infrastructure', 'vm-service', 'invalid-owned-vm-uri')
+    parsed = urlparse(uri)
+    try:
+        port = parsed.port
+    except ValueError:
+        port = None
+    if (parsed.scheme != 'http' or parsed.hostname != '127.0.0.1'
+            or port is None or not 1 <= port <= 65535
+            or parsed.netloc != f'127.0.0.1:{port}' or parsed.query or parsed.fragment
+            or not re.fullmatch(r'/[A-Za-z0-9_=/.-]{0,511}', parsed.path)):
+        raise NativeFailure('infrastructure', 'vm-service', 'invalid-owned-vm-uri')
+    return uri
+
+
+def discover_owned_vm_service(udid: str, pid: str, started_at: str, timeout: float = 45) -> str:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if simulator_app_pid(udid) != pid:
+            raise NativeFailure('infrastructure', 'vm-service', 'owned-process-replaced')
+        message = simulator_vm.query_vm_service_event(udid, int(pid), started_at)
+        if message is not None:
+            uri = owned_vm_service_uri(message)
+            if simulator_app_pid(udid) != pid:
+                raise NativeFailure('infrastructure', 'vm-service', 'owned-process-replaced')
+            return uri
+        time.sleep(0.25)
+    raise NativeFailure('infrastructure', 'vm-service', 'owned-vm-event-timeout')
+
+
+def start_phase_app(udid: str, env: dict[str, str]) -> tuple[str, str]:
+    run(['make', 'ios-simulator-product-e2e', 'native_simulator_action=build'], env=env, timeout=1800)
+    run(['xcrun', 'simctl', 'install', udid, str(CLIENT / 'build/ios/iphonesimulator/Runner.app')], env=env)
+    started_at = simulator_vm.log_start_timestamp()
+    # FlutterDriver.connect resumes PauseStart after its one log subscription is
+    # installed. No auth callback/session is injected through this debug service.
+    launch = run(['xcrun', 'simctl', 'launch', udid, BUNDLE, '--enable-dart-profiling',
+                  '--disable-vm-service-publication', '--start-paused'], env=env).strip()
+    match = re.fullmatch(re.escape(BUNDLE) + r': ([1-9][0-9]{0,9})', launch)
+    if match is None:
+        raise NativeFailure('infrastructure', 'vm-service', 'invalid-owned-launch-identity')
+    pid = match.group(1)
+    return pid, discover_owned_vm_service(udid, pid, started_at)
+
+
+def terminate_initial_app(udid: str, expected_pid: str, timeout: float = 10) -> None:
+    executable = simulator_app_executable(udid)
+    snapshot = run(['/bin/ps', '-axo', 'pid=,comm='])
+    if exact_simulator_app_pids(snapshot, executable) != {expected_pid}:
+        raise NativeFailure('infrastructure', 'process-restart', 'initial-process-identity-changed')
+    run(['xcrun', 'simctl', 'terminate', udid, BUNDLE])
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not exact_simulator_app_pids(run(['/bin/ps', '-axo', 'pid=,comm=']), executable):
+            print('NATIVE_IOS_PROCESS_RESTART_RESULT status=stopped previousProcessAbsent=true supportSafe=true', flush=True)
+            return
+        time.sleep(0.25)
+    raise NativeFailure('infrastructure', 'process-restart', 'initial-process-remained-running')
 
 
 def release_driver_barrier(flutter, driver, log_path: Path, udid: str, pid: str, barrier: Path, phase: str, timeout: float = 90) -> None:
@@ -373,7 +589,7 @@ def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path
     deadline = time.monotonic() + timeout
     pending = ''
     discard_line = False
-    with log_path.open(errors='replace') as observer:
+    with log_path.open(errors='replace', newline='') as observer:
         while time.monotonic() < deadline:
             if driver.poll() is not None:
                 return False
@@ -386,7 +602,9 @@ def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path
                         discard_line = True
                         pending = ''
                 if complete:
-                    if not discard_line and pending.rstrip('\r\n') == 'NATIVE_PRODUCT_STAGE phase=workspace-ready':
+                    if not discard_line and pending.removesuffix('\n') in {
+                            'NATIVE_PRODUCT_STAGE phase=workspace-ready',
+                            'flutter: NATIVE_PRODUCT_STAGE phase=workspace-ready'}:
                         observed = True
                     pending = ''
                     discard_line = False
@@ -404,7 +622,7 @@ def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path
     raise NativeFailure('integration', phase + '-auth-completion', 'native-workspace-completion-timeout')
 
 
-def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: dict[str, str], fixture: dict) -> None:
+def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: dict[str, str], fixture: dict, *, previous_pid: str | None = None) -> str:
     plans = list((derived / 'Build/Products').glob('*.xctestrun'))
     bundles = list((derived / 'Build/Products').glob('**/BrowserDriver.xctest'))
     if len(plans) != 1 or len(bundles) != 1:
@@ -420,9 +638,13 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
         flutter = None
         driver = None
         barrier = None
+        phase_succeeded = False
         try:
             barrier = simulator_driver_barrier(udid, env['WEAVE_NATIVE_TEST_RUN_ID'])
-            flutter = subprocess.Popen(['make', 'ios-simulator-product-e2e'], cwd=CLIENT, env=env, stdout=flutter_log, stderr=subprocess.STDOUT, start_new_session=True)
+            launched_pid, vm_uri = start_phase_app(udid, env)
+            flutter = subprocess.Popen(['make', 'ios-simulator-product-e2e', 'native_simulator_action=attach',
+                                        'native_simulator_vm_uri=' + vm_uri], cwd=CLIENT, env=env,
+                                       stdout=flutter_log, stderr=subprocess.STDOUT, start_new_session=True)
             # This is a different target from the preflight app. Its compile,
             # install and launch must complete before the authentication clock.
             wait_for_flutter_shell(flutter, temporary / f'flutter-{phase}.log', phase)
@@ -433,6 +655,12 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
                 barrier.unlink(missing_ok=True)
                 barrier = actual_barrier
             pid = simulator_app_pid(udid)
+            if pid != launched_pid:
+                raise NativeFailure('infrastructure', 'vm-service', 'owned-process-replaced')
+            if previous_pid is not None:
+                if pid == previous_pid:
+                    raise NativeFailure('infrastructure', 'process-restart', 'restore-process-not-replaced')
+                print('NATIVE_IOS_PROCESS_RESTART_RESULT status=relaunched distinctProcess=true supportSafe=true', flush=True)
             driver_deadline = time.monotonic() + 420
             driver = subprocess.Popen(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]), '-destination', f'platform=iOS Simulator,id={udid}', '-resultBundlePath', str(temporary / f'{phase}.xcresult'), '-parallel-testing-enabled', 'NO', '-maximum-concurrent-test-simulator-destinations', '1'], cwd=CLIENT, env=env, stdout=browser_log, stderr=subprocess.STDOUT, start_new_session=True)
             release_driver_barrier(flutter, driver, temporary / f'browser-{phase}.log', udid, pid, barrier, phase)
@@ -467,6 +695,8 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
             if phase == 'restore' and 'NATIVE_PRODUCT_STAGE phase=expired-bearer-denied' not in observed:
                 raise NativeFailure('integration', 'restore-authorization', 'expired-session-denial-missing')
             print(f'NATIVE_IOS_PRODUCT_RESULT status=passed phase={phase} supportSafe=true', flush=True)
+            phase_succeeded = True
+            return pid
         except subprocess.TimeoutExpired as failure:
             if failure.cmd and failure.cmd[0] == 'xcodebuild':
                 browser_log.seek(0)
@@ -485,19 +715,42 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
             failure_marker('infrastructure', phase + '-runner', 'native-tool-unavailable')
             raise NativeFailure('infrastructure', phase + '-runner', 'native-tool-unavailable') from failure
         finally:
+            # Capture observed exit codes before our cleanup signals; a live
+            # peer's teardown exit must not be misreported as the original cause.
+            exit_codes = {name: process.poll() if process is not None else None
+                          for name, process in (('make', flutter), ('xcodebuild', driver))}
+            def retain_phase_diagnostics() -> None:
+                # Independent descriptors avoid changing a still-live peer's
+                # stdout offset. Preserve the original failure before cleanup.
+                for command, path in (('make', temporary / f'flutter-{phase}.log'),
+                                      ('xcodebuild', temporary / f'browser-{phase}.log')):
+                    transcript = path.read_text(errors='replace')
+                    if transcript:
+                        diagnostic = retain_private_diagnostic(transcript)
+                        status = exit_codes[command]
+                        code = str(status) if isinstance(status, int) and -999 <= status <= 999 else 'unavailable'
+                        print(f'NATIVE_IOS_COMMAND_RESULT status=failed command={command} phase={phase} exitCode={code} privateDiagnostic={diagnostic.name}', flush=True)
             try:
                 try:
-                    if driver is not None:
-                        stop_flutter_process_group(driver)
+                    if not phase_succeeded:
+                        retain_phase_diagnostics()
                 finally:
-                    if flutter is not None:
-                        stop_flutter_process_group(flutter)
+                    try:
+                        if driver is not None:
+                            stop_flutter_process_group(driver)
+                    finally:
+                        if flutter is not None:
+                            stop_flutter_process_group(flutter)
             finally:
-                # Retain only allowlisted diagnostic stages even if tool startup
-                # or cleanup failed; stages never substitute for passing tests.
+                # Export only allowlisted stages even if tool startup or cleanup
+                # failed; private transcripts never become uploaded evidence.
                 flutter_log.seek(0)
                 browser_log.seek(0)
-                emit_phase_stages(phase, flutter_log.read(), browser_log.read())
+                flutter_observed = flutter_log.read()
+                browser_observed = browser_log.read()
+                if phase_succeeded and sys.exc_info()[0] is not None:
+                    retain_phase_diagnostics()
+                emit_phase_stages(phase, flutter_observed, browser_observed)
                 private_fixture.unlink(missing_ok=True)
                 completion.unlink(missing_ok=True)
                 if barrier is not None:
@@ -526,8 +779,7 @@ def main() -> int:
     env['PATH'] = os.pathsep.join([str(ROOT / 'tools/ios-simulator-xcrun'), str(Path(rustup).parent), env['PATH']])
     udid = None
     cleanup_complete = False
-    with tempfile.TemporaryDirectory(prefix='weave-ios-qualification-') as name:
-        temporary = Path(name)
+    with private_run_directory() as temporary:
         temporary.chmod(0o700)
         try:
             created = run(['xcrun', 'simctl', 'create', temporary.name, device, runtime]).strip()
@@ -564,9 +816,12 @@ def main() -> int:
             derived = temporary / 'derived'
             run(['xcodebuild', 'build-for-testing', '-project', str(CLIENT / 'tool/ios_browser_driver/BrowserDriver.xcodeproj'), '-scheme', 'BrowserDriver', '-destination', f'platform=iOS Simulator,id={udid}', '-derivedDataPath', str(derived), 'CODE_SIGNING_ALLOWED=NO'], env=env)
             fixture = {'email': os.environ['WEAVE_NATIVE_MEMBER_EMAIL'], 'password': os.environ['WEAVE_NATIVE_MEMBER_PASSWORD'], 'issuerHost': 'auth.weave.localhost', 'appBundleIdentifier': BUNDLE}
-            execute_phase('initial', udid, derived, temporary, env, fixture)
+            initial_pid = execute_phase('initial', udid, derived, temporary, env, fixture)
+            # drive preserves installation/storage; qualification still requires
+            # a proven process stop before service restart and a distinct launch.
+            terminate_initial_app(udid, initial_pid)
             restart_disposable_services(env)
-            execute_phase('restore', udid, derived, temporary, env, fixture)
+            execute_phase('restore', udid, derived, temporary, env, fixture, previous_pid=initial_pid)
         finally:
             if udid:
                 # Delete only the device whose identity this process created.
