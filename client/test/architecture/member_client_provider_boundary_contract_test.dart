@@ -179,11 +179,25 @@ void main() {
   test(
     'member bootstrap and Boards surfaces do not expose provider controls',
     () {
-      final serverForm = File(
-        'lib/features/server_config/presentation/widgets/server_configuration_form.dart',
+      final accessScreen = File(
+        'lib/features/onboarding/presentation/organization_access_screen.dart',
       ).readAsStringSync();
-      expect(serverForm, isNot(contains('serverConfigurationNextcloudLabel')));
-      expect(serverForm, isNot(contains('updateNextcloudBaseUrl')));
+      expect(accessScreen, contains('setupOrganizationUriLabel'));
+      for (final manualControl in [
+        'ServerConfigurationForm',
+        'serverConfigurationIssuerLabel',
+        'serverConfigurationClientIdLabel',
+        'serverConfigurationBackendApiLabel',
+        'serverConfigurationMatrixLabel',
+      ]) {
+        expect(accessScreen, isNot(contains(manualControl)));
+      }
+      expect(
+        File(
+          'lib/features/server_config/presentation/widgets/server_configuration_form.dart',
+        ).existsSync(),
+        isFalse,
+      );
 
       final boards = File(
         'lib/features/boards/presentation/boards_workspace_screen.dart',

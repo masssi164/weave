@@ -14,7 +14,7 @@ import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/services/files_export_saver.dart';
 import 'package:weave/features/files/domain/services/files_import_picker.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 
 enum FilesUploadPhase { idle, picking, uploading, completed, failed }
 

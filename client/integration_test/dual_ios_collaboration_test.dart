@@ -18,7 +18,7 @@ import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
 import 'package:weave/features/onboarding/presentation/organization_access_screen.dart';
-import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 import 'package:weave/main.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';

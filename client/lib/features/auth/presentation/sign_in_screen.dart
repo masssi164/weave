@@ -14,7 +14,7 @@ import 'package:weave/features/auth/presentation/auth_failure_message.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
-import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 final lastHandoffConsumedProvider = FutureProvider<Map<String, Object?>?>((

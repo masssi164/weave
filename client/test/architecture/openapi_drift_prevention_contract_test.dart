@@ -218,22 +218,6 @@ const _memberProviderGraphAllowlist = <LegacyFence>[
         'member Settings or primary Chat routes.',
   ),
   LegacyFence(
-    path:
-        'lib/features/server_config/presentation/providers/server_configuration_form_controller.dart',
-    issue: '#908',
-    reason:
-        'Member setup still carries Matrix/Nextcloud legacy fields until the '
-        'handoff and setup copy are provider-neutralized.',
-  ),
-  LegacyFence(
-    path:
-        'lib/features/server_config/presentation/widgets/server_configuration_form.dart',
-    issue: '#908',
-    reason:
-        'Member setup UI still carries Matrix/Nextcloud legacy fields until the '
-        'handoff and setup copy are provider-neutralized.',
-  ),
-  LegacyFence(
     path: 'lib/features/shell/presentation/shell_workspace_status.dart',
     issue: '#906',
     reason:
