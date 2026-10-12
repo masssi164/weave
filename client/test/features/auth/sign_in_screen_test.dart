@@ -1,3 +1,4 @@
+import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -35,6 +36,11 @@ void main() {
     ) async {
       final container = ProviderContainer.test(
         overrides: [
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
+            ),
+          ),
           preferencesStoreProvider.overrideWith(
             (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
           ),
@@ -72,6 +78,11 @@ void main() {
 
       final container = ProviderContainer.test(
         overrides: [
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
+            ),
+          ),
           preferencesStoreProvider.overrideWith(
             (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
           ),
@@ -139,6 +150,11 @@ void main() {
         });
         final container = ProviderContainer.test(
           overrides: [
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             preferencesStoreProvider.overrideWith((ref) => preferencesStore),
             signInWithOidcProvider.overrideWithValue(
               const _FailingSignInWithOidc(

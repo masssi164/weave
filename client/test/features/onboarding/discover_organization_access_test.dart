@@ -54,6 +54,81 @@ class _RecordingPreferencesStore implements PreferencesStore {
 }
 
 void main() {
+  for (final hint in ['platform_config_url', 'discovery_url']) {
+    test('$hint cannot change the canonical bootstrap request', () async {
+      final requests = <Uri>[];
+      final client = AppStartDiscoveryClient(
+        httpClient: MockClient((request) async {
+          requests.add(request.url);
+          expect(
+            request.url,
+            Uri.parse('https://weave.test:44443/api/platform/config'),
+          );
+          expect(request.followRedirects, isFalse);
+          return http.Response(
+            jsonEncode(
+              _manifest(
+                organizationOrigin: 'https://weave.test:44443',
+                userApiBaseUrl: 'https://api.weave.test:44443/api',
+                issuer: 'https://auth.weave.test:44443/realms/weave',
+                matrixClientServerBaseUrl: 'https://matrix.weave.test:44443',
+              ),
+            ),
+            200,
+          );
+        }),
+      );
+      final link = Uri(
+        scheme: 'weave',
+        host: 'join',
+        queryParameters: {
+          'handoff_ref': 'handoff-valid-123',
+          'org': 'acme',
+          'workspace': 'main',
+          'organization_origin': 'https://weave.test:44443',
+          hint: 'https://attacker.invalid/api/platform/config',
+        },
+      );
+      final result = await client.fetch(
+        const OrganizationAccessParser().parse(link),
+      );
+      expect(requests, [
+        Uri.parse('https://weave.test:44443/api/platform/config'),
+      ]);
+      expect(result.userApiBaseUrl.host, 'api.weave.test');
+    });
+  }
+  test(
+    'canonical bootstrap refuses redirects rather than changing authority',
+    () async {
+      final requests = <Uri>[];
+      final client = AppStartDiscoveryClient(
+        httpClient: MockClient((request) async {
+          requests.add(request.url);
+          expect(request.followRedirects, isFalse);
+          return http.Response(
+            '',
+            302,
+            headers: {
+              'location': 'https://attacker.invalid/api/platform/config',
+            },
+          );
+        }),
+      );
+      await expectLater(
+        client.fetch(
+          const OrganizationAccessParser().parse(
+            Uri.parse('https://weave.test:44443'),
+          ),
+        ),
+        throwsA(isA<AppFailure>()),
+      );
+      expect(requests, [
+        Uri.parse('https://weave.test:44443/api/platform/config'),
+      ]);
+    },
+  );
+
   test(
     'manual server URI discovers without synthetic invitation metadata',
     () async {
@@ -185,7 +260,7 @@ void main() {
   });
 
   test(
-    'retries app-start discovery on product origin after api DNS failure',
+    'legacy alternate endpoint cannot substitute a matching-origin manifest',
     () async {
       final repository = _RecordingServerConfigurationRepository();
       final evidenceStore = _RecordingPreferencesStore();
@@ -193,9 +268,16 @@ void main() {
       final httpClient = MockClient((request) async {
         requests.add(request.url);
         if (request.url.host == 'api.weave.test') {
-          throw http.ClientException(
-            'Failed host lookup: api.weave.test',
-            request.url,
+          return http.Response(
+            jsonEncode(
+              _manifest(
+                organizationOrigin: 'https://weave.test:44443',
+                userApiBaseUrl: 'https://attacker.invalid/api',
+                issuer: 'https://attacker.invalid/oidc',
+                matrixClientServerBaseUrl: 'https://attacker.invalid',
+              ),
+            ),
+            200,
           );
         }
         expect(
@@ -227,7 +309,6 @@ void main() {
       );
 
       expect(requests.map((uri) => uri.toString()), [
-        'https://api.weave.test:44443/api/platform/config',
         'https://weave.test:44443/api/platform/config',
       ]);
       expect(repository.saved, isNotNull);
@@ -368,10 +449,7 @@ void main() {
     final httpClient = MockClient((_) async => http.Response(fixture, 200));
 
     final config = await AppStartDiscoveryClient(httpClient: httpClient).fetch(
-      OrganizationAccess(
-        organizationOrigin: Uri.parse('https://weave.local/'),
-        platformConfigUrl: Uri.parse('https://weave.local/api/platform/config'),
-      ),
+      OrganizationAccess(organizationOrigin: Uri.parse('https://weave.local/')),
     );
 
     expect(config.userApiBaseUrl.toString(), 'https://api.weave.local/api');
@@ -399,9 +477,6 @@ void main() {
       AppStartDiscoveryClient(httpClient: client).fetch(
         OrganizationAccess(
           organizationOrigin: Uri.parse('https://weave.example/'),
-          platformConfigUrl: Uri.parse(
-            'https://weave.example/api/platform/config',
-          ),
         ),
       ),
       throwsA(
@@ -431,9 +506,6 @@ void main() {
       AppStartDiscoveryClient(httpClient: client).fetch(
         OrganizationAccess(
           organizationOrigin: Uri.parse('https://weave.example/'),
-          platformConfigUrl: Uri.parse(
-            'https://weave.example/api/platform/config',
-          ),
         ),
       ),
       throwsA(
@@ -456,9 +528,6 @@ void main() {
       AppStartDiscoveryClient(httpClient: httpClient).fetch(
         OrganizationAccess(
           organizationOrigin: Uri.parse('https://weave.local/'),
-          platformConfigUrl: Uri.parse(
-            'https://weave.local/api/platform/config',
-          ),
         ),
       ),
       throwsA(

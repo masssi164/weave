@@ -202,6 +202,21 @@ class AppStartConfiguration {
   );
 }
 
+/// Keep generated PlatformApi requests on the selected organization authority.
+class _CanonicalBootstrapTransport extends http.BaseClient {
+  _CanonicalBootstrapTransport(this.delegate, this.canonical);
+  final http.Client delegate;
+  final Uri canonical;
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    if (request.url != canonical || request.method != 'GET') {
+      throw http.ClientException('Unexpected bootstrap endpoint.', request.url);
+    }
+    request.followRedirects = false;
+    return delegate.send(request);
+  }
+}
+
 class AppStartDiscoveryClient {
   const AppStartDiscoveryClient({required http.Client httpClient})
     : _httpClient = httpClient;
@@ -209,16 +224,17 @@ class AppStartDiscoveryClient {
   final http.Client _httpClient;
 
   Future<AppStartConfiguration> fetch(OrganizationAccess access) async {
-    final primaryUri = access.platformConfigUrl;
-    try {
-      return await _fetchFrom(primaryUri, access);
-    } on AppFailure catch (error) {
-      final fallbackUri = _productOriginPlatformConfigUrl(access);
-      if (!_shouldRetryOnProductOrigin(error, primaryUri, fallbackUri)) {
-        rethrow;
-      }
-      return _fetchFrom(fallbackUri, access);
+    final origin = _uri(
+      access.organizationOrigin,
+      fieldName: 'organizationOrigin',
+    );
+    if ((origin.path.isNotEmpty && origin.path != '/') ||
+        (origin.hasPort && (origin.port < 1 || origin.port > 65535))) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: organizationOrigin must be a secure origin.',
+      );
     }
+    return _fetchFrom(origin.replace(path: '/api/platform/config'), access);
   }
 
   Future<AppStartConfiguration> _fetchFrom(
@@ -229,7 +245,7 @@ class AppStartDiscoveryClient {
     try {
       final client = user_api.ApiClient(
         basePath: uri.replace(path: '', query: null, fragment: null).toString(),
-      )..client = _httpClient;
+      )..client = _CanonicalBootstrapTransport(_httpClient, uri);
       _headers(access).forEach(client.addDefaultHeader);
       response = await user_api.PlatformApi(
         client,
@@ -260,37 +276,6 @@ class AppStartDiscoveryClient {
         'X-Weave-Handoff-Run-Id': handoff.runId,
       },
     };
-  }
-
-  Uri _productOriginPlatformConfigUrl(OrganizationAccess access) => Uri(
-    scheme: access.organizationOrigin.scheme,
-    host: access.organizationOrigin.host,
-    port: access.organizationOrigin.hasPort
-        ? access.organizationOrigin.port
-        : null,
-    path: '/api/platform/config',
-  );
-
-  bool _shouldRetryOnProductOrigin(
-    AppFailure error,
-    Uri primaryUri,
-    Uri fallbackUri,
-  ) {
-    if (primaryUri == fallbackUri) {
-      return false;
-    }
-    final code = _errorCode(error);
-    return code == 'WEAVE-APP-START-DNS-FAILED' ||
-        code == 'WEAVE-APP-START-TLS-FAILED' ||
-        code == 'WEAVE-APP-START-NETWORK-FAILED' ||
-        code == 'WEAVE-APP-START-TIMEOUT';
-  }
-
-  String _errorCode(AppFailure error) {
-    final separator = error.message.indexOf(':');
-    return separator > 0
-        ? error.message.substring(0, separator)
-        : error.message;
   }
 
   String _transportErrorCode(Object error) {

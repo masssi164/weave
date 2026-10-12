@@ -38,7 +38,6 @@ class _SuccessfulDiscoverOrganizationAccess
   _SuccessfulDiscoverOrganizationAccess(MemberHandoff handoff)
     : access = OrganizationAccess(
         organizationOrigin: handoff.productBaseUrl,
-        platformConfigUrl: handoff.platformConfigUrl,
         handoff: handoff,
       );
 
@@ -97,9 +96,6 @@ void main() {
                   runId: 's32-massimo-dogfood',
                   organizationSlug: 'massimo-dogfood',
                   workspaceSlug: 'home',
-                  platformConfigUrl: Uri.parse(
-                    'https://weave.test:44443/api/platform/config',
-                  ),
                   productBaseUrl: Uri.parse('https://weave.test:44443'),
                 ),
               ),
@@ -163,9 +159,6 @@ void main() {
                 runId: 's32-massimo-dogfood',
                 organizationSlug: 'massimo-dogfood',
                 workspaceSlug: 'home',
-                platformConfigUrl: Uri.parse(
-                  'https://weave.test:44443/api/platform/config',
-                ),
                 productBaseUrl: Uri.parse('https://weave.test:44443'),
               ),
             ),
@@ -241,9 +234,6 @@ void main() {
                   runId: 's32-massimo-dogfood',
                   organizationSlug: 'massimo-dogfood',
                   workspaceSlug: 'home',
-                  platformConfigUrl: Uri.parse(
-                    'https://weave.test:44443/api/platform/config',
-                  ),
                   productBaseUrl: Uri.parse('https://weave.test:44443'),
                 ),
               ),
@@ -319,9 +309,6 @@ void main() {
                 runId: 's32-massimo-dogfood',
                 organizationSlug: 'massimo-dogfood',
                 workspaceSlug: 'home',
-                platformConfigUrl: Uri.parse(
-                  'https://weave.test:44443/api/platform/config',
-                ),
                 productBaseUrl: Uri.parse('https://weave.test:44443'),
               ),
             ),
