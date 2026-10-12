@@ -5894,6 +5894,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'People could not be loaded. Try searching again.'**
   String get chatParticipantsSearchFailure;
+
+  /// No description provided for @filesSpaceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Files location'**
+  String get filesSpaceLabel;
+
+  /// No description provided for @filesPrivateSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'My private files'**
+  String get filesPrivateSpace;
+
+  /// No description provided for @filesSharedOrganizationSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared organization files'**
+  String get filesSharedOrganizationSpace;
+
+  /// No description provided for @filesUnavailableSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Space no longer available'**
+  String get filesUnavailableSpace;
+
+  /// No description provided for @filesReplaceEntrySemantic.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace content of {name}'**
+  String filesReplaceEntrySemantic(String name);
+
+  /// No description provided for @filesContentUpdating.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating {name}…'**
+  String filesContentUpdating(String name);
+
+  /// No description provided for @filesContentUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated {name}.'**
+  String filesContentUpdated(String name);
+
+  /// No description provided for @filesOpenEntrySemantic.
+  ///
+  /// In en, this message translates to:
+  /// **'Open {name}'**
+  String filesOpenEntrySemantic(String name);
+
+  /// No description provided for @filesPreviewFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The file could not be opened. Try again.'**
+  String get filesPreviewFailed;
+
+  /// No description provided for @filesPreviewUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This file cannot be viewed here. Use Export to open it in another app.'**
+  String get filesPreviewUnsupported;
 }
 
 class _AppLocalizationsDelegate

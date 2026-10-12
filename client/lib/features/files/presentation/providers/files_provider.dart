@@ -1,3 +1,5 @@
+import 'package:weave/features/files/domain/entities/file_download.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
@@ -24,6 +26,8 @@ enum FilesEntryActionPhase {
   deletedEntry,
   exportingEntry,
   exportedEntry,
+  replacingContent,
+  replacedContent,
   failed,
 }
 
@@ -81,6 +85,7 @@ class FilesViewState {
     this.directoryFailure,
     this.uploadStatus = const FilesUploadStatus.idle(),
     this.entryActionStatus = const FilesEntryActionStatus.idle(),
+    this.rootSpaceRef,
     this.isBusy = false,
   });
 
@@ -89,11 +94,14 @@ class FilesViewState {
   final FilesFailure? directoryFailure;
   final FilesUploadStatus uploadStatus;
   final FilesEntryActionStatus entryActionStatus;
+  final String? rootSpaceRef;
   final bool isBusy;
 
   String get currentPath => directoryListing?.path ?? '/';
 
   FilesViewState copyWith({
+    String? rootSpaceRef,
+    bool clearRootSpaceRef = false,
     FilesConnectionState? connectionState,
     DirectoryListing? directoryListing,
     FilesFailure? directoryFailure,
@@ -106,6 +114,9 @@ class FilesViewState {
     bool clearEntryActionStatus = false,
   }) {
     return FilesViewState(
+      rootSpaceRef: clearRootSpaceRef
+          ? null
+          : rootSpaceRef ?? this.rootSpaceRef,
       connectionState: connectionState ?? this.connectionState,
       directoryListing: clearDirectoryListing
           ? null
@@ -125,9 +136,31 @@ class FilesViewState {
 }
 
 class FilesController extends AsyncNotifier<FilesViewState> {
+  String? _selectedRootSpaceRef;
+  int _directorySequence = 0;
+
   @override
   Future<FilesViewState> build() async {
     ref.watch(integrationInvalidationProvider(WorkspaceIntegration.files));
+    ref.listen(weaveApiMemberSpacesProvider, (_, next) {
+      final selected = _selectedRootSpaceRef;
+      if (selected == null || next.isLoading) return;
+      if (next.asData?.value?.visibleSpaceRefs.contains(selected) != true) {
+        _directorySequence++;
+        final current = _currentStateOrNull();
+        if (current != null) {
+          state = AsyncData(
+            current.copyWith(
+              clearDirectoryListing: true,
+              isBusy: false,
+              directoryFailure: const FilesFailure.permissionDenied(
+                'This Space is no longer available.',
+              ),
+            ),
+          );
+        }
+      }
+    });
     await ref.watch(savedServerConfigurationProvider.future);
     return _loadInitialState();
   }
@@ -148,7 +181,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
         state = AsyncData(FilesViewState(connectionState: connectionState));
         return;
       }
-      final listing = await _repository.listDirectory('/');
+      final listing = await _listDirectory('/');
       state = AsyncData(
         FilesViewState(
           connectionState: connectionState,
@@ -199,6 +232,153 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     }
   }
 
+  Future<void> selectRootSpace(String? spaceRef) async {
+    final current = _currentStateOrNull();
+    if (current == null || current.isBusy) return;
+    if (spaceRef != null &&
+        ref
+                .read(weaveApiMemberSpacesProvider)
+                .asData
+                ?.value
+                ?.visibleSpaceRefs
+                .contains(spaceRef) !=
+            true) {
+      state = AsyncData(
+        current.copyWith(
+          clearDirectoryListing: true,
+          directoryFailure: const FilesFailure.permissionDenied(
+            'This Space is not available.',
+          ),
+        ),
+      );
+      return;
+    }
+    _selectedRootSpaceRef = spaceRef;
+    state = AsyncData(
+      current.copyWith(
+        rootSpaceRef: spaceRef,
+        clearRootSpaceRef: spaceRef == null,
+        clearDirectoryListing: true,
+        clearDirectoryFailure: true,
+        clearUploadStatus: true,
+        clearEntryActionStatus: true,
+      ),
+    );
+    await _loadDirectory('/');
+  }
+
+  Future<DirectoryListing> _listDirectory(String path) {
+    final repository = _repository;
+    if (repository is FilesSpaceRepository) {
+      return (repository as FilesSpaceRepository).listDirectory(
+        path,
+        spaceRef: _selectedRootSpaceRef,
+      );
+    }
+    if (_selectedRootSpaceRef != null) {
+      throw const FilesFailure.unsupportedPlatform(
+        'Shared Files is not available.',
+      );
+    }
+    return repository.listDirectory(path);
+  }
+
+  Future<void> _uploadFile(
+    String path,
+    FileUploadRequest request, {
+    FileUploadProgressCallback? onProgress,
+  }) {
+    final repository = _repository;
+    if (repository is FilesSpaceRepository) {
+      return (repository as FilesSpaceRepository).uploadFile(
+        path,
+        request,
+        spaceRef: _selectedRootSpaceRef,
+        onProgress: onProgress,
+      );
+    }
+    if (_selectedRootSpaceRef != null) {
+      throw const FilesFailure.unsupportedPlatform(
+        'Shared Files is not available.',
+      );
+    }
+    return repository.uploadFile(path, request, onProgress: onProgress);
+  }
+
+  Future<void> pickAndReplace(FileEntry entry) async {
+    final current = _currentStateOrNull();
+    final repository = _repository;
+    if (current == null || current.isBusy || !entry.allows('updateContent')) {
+      return;
+    }
+    if (repository is! FilesContentReplacementRepository) return;
+    final sequence = _directorySequence;
+    state = AsyncData(
+      current.copyWith(
+        isBusy: true,
+        entryActionStatus: FilesEntryActionStatus(
+          phase: FilesEntryActionPhase.replacingContent,
+          entryName: entry.name,
+        ),
+      ),
+    );
+    try {
+      final request = await _importPicker.pickFile();
+      if (sequence != _directorySequence || !ref.mounted) return;
+      if (request == null) {
+        state = AsyncData(current.copyWith(isBusy: false));
+        return;
+      }
+      await (repository as FilesContentReplacementRepository).replaceContent(
+        entry,
+        request,
+      );
+      if (sequence != _directorySequence || !ref.mounted) return;
+      final listing = await _listDirectory(current.currentPath);
+      if (sequence != _directorySequence || !ref.mounted) return;
+      state = AsyncData(
+        current.copyWith(
+          directoryListing: listing,
+          isBusy: false,
+          entryActionStatus: FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.replacedContent,
+            entryName: entry.name,
+          ),
+        ),
+      );
+    } on FilesFailure catch (failure) {
+      if (sequence != _directorySequence || !ref.mounted) return;
+      state = AsyncData(
+        current.copyWith(
+          isBusy: false,
+          clearDirectoryListing:
+              failure.type == FilesFailureType.permissionDenied ||
+              failure.type == FilesFailureType.invalidCredentials,
+          entryActionStatus: FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.failed,
+            entryName: entry.name,
+            failure: failure,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (sequence != _directorySequence || !ref.mounted) return;
+      state = AsyncData(
+        current.copyWith(
+          isBusy: false,
+          entryActionStatus: FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.failed,
+            entryName: entry.name,
+            failure: FilesFailure.unknown(
+              'Unable to update the file.',
+              cause: error,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> refresh() =>
       _loadDirectory(_currentStateOrNull()?.currentPath ?? '/');
 
@@ -225,6 +405,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
       return;
     }
 
+    final sequence = _directorySequence;
     state = AsyncData(
       current.copyWith(
         isBusy: true,
@@ -237,6 +418,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     try {
       request = await _importPicker.pickFile();
     } on FilesFailure catch (failure) {
+      if (sequence != _directorySequence || !ref.mounted) return;
       state = AsyncData(
         current.copyWith(
           isBusy: false,
@@ -248,6 +430,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
       );
       return;
     } catch (error) {
+      if (sequence != _directorySequence || !ref.mounted) return;
       state = AsyncData(
         current.copyWith(
           isBusy: false,
@@ -263,6 +446,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
       return;
     }
 
+    if (sequence != _directorySequence || !ref.mounted) return;
     if (request == null) {
       state = AsyncData(
         current.copyWith(isBusy: false, clearUploadStatus: true),
@@ -284,12 +468,14 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     );
 
     try {
-      await _repository.uploadFile(
+      await _uploadFile(
         directoryPath,
         uploadRequest,
         onProgress: (uploadedBytes, totalBytes) {
           final latest = _currentStateOrNull();
-          if (latest == null) {
+          if (latest == null ||
+              sequence != _directorySequence ||
+              !ref.mounted) {
             return;
           }
           state = AsyncData(
@@ -304,7 +490,9 @@ class FilesController extends AsyncNotifier<FilesViewState> {
           );
         },
       );
-      final listing = await _repository.listDirectory(directoryPath);
+      if (sequence != _directorySequence || !ref.mounted) return;
+      final listing = await _listDirectory(directoryPath);
+      if (sequence != _directorySequence || !ref.mounted) return;
       final latest = _currentStateOrNull() ?? current;
       state = AsyncData(
         latest.copyWith(
@@ -320,6 +508,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
         ),
       );
     } on FilesFailure catch (failure) {
+      if (sequence != _directorySequence || !ref.mounted) return;
       final latest = _currentStateOrNull() ?? current;
       state = AsyncData(
         latest.copyWith(
@@ -345,6 +534,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
 
   Future<void> createFolder(String rawName) async {
     final current = _currentStateOrNull();
+    final sequence = _directorySequence;
     if (current == null || current.isBusy) {
       return;
     }
@@ -392,11 +582,26 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     );
 
     try {
-      await mutationRepository.createFolder(
-        parentPath: directoryPath,
-        name: folderName,
-      );
-      final listing = await _repository.listDirectory(directoryPath);
+      if (mutationRepository is FilesSpaceRepository) {
+        await (mutationRepository as FilesSpaceRepository).createFolder(
+          parentPath: directoryPath,
+          name: folderName,
+          spaceRef: _selectedRootSpaceRef,
+        );
+      } else {
+        if (_selectedRootSpaceRef != null) {
+          throw const FilesFailure.unsupportedPlatform(
+            'Shared Files is not available.',
+          );
+        }
+        await mutationRepository.createFolder(
+          parentPath: directoryPath,
+          name: folderName,
+        );
+      }
+      if (sequence != _directorySequence || !ref.mounted) return;
+      final listing = await _listDirectory(directoryPath);
+      if (sequence != _directorySequence || !ref.mounted) return;
       final latest = _currentStateOrNull() ?? current;
       state = AsyncData(
         latest.copyWith(
@@ -410,6 +615,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
         ),
       );
     } on FilesFailure catch (failure) {
+      if (sequence != _directorySequence || !ref.mounted) return;
       final latest = _currentStateOrNull() ?? current;
       state = AsyncData(
         latest.copyWith(
@@ -469,7 +675,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
 
     try {
       await mutationRepository.deleteEntry(entry);
-      final listing = await _repository.listDirectory(directoryPath);
+      final listing = await _listDirectory(directoryPath);
       final latest = _currentStateOrNull() ?? current;
       state = AsyncData(
         latest.copyWith(
@@ -506,8 +712,33 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     }
   }
 
+  Future<FileDownload> downloadForPreview(FileEntry entry) async {
+    final current = _currentStateOrNull();
+    final repository = _exportRepositoryOrNull();
+    final sequence = _directorySequence;
+    if (current == null ||
+        repository == null ||
+        entry.isDirectory ||
+        !entry.allows('download')) {
+      throw const FilesFailure.permissionDenied('This file cannot be opened.');
+    }
+    final download = await repository.downloadFile(entry);
+    if (!ref.mounted ||
+        sequence != _directorySequence ||
+        _currentStateOrNull()?.directoryListing?.entries.any(
+              (item) => item.id == entry.id,
+            ) !=
+            true) {
+      throw const FilesFailure.permissionDenied(
+        'This file is no longer available.',
+      );
+    }
+    return download;
+  }
+
   Future<void> exportEntry(FileEntry entry) async {
     final current = _currentStateOrNull();
+    final sequence = _directorySequence;
     if (current == null || current.isBusy) {
       return;
     }
@@ -556,7 +787,9 @@ class FilesController extends AsyncNotifier<FilesViewState> {
 
     try {
       final download = await exportRepository.downloadFile(entry);
+      if (sequence != _directorySequence || !ref.mounted) return;
       final result = await _exportSaver.save(download);
+      if (sequence != _directorySequence || !ref.mounted) return;
       final latest = _currentStateOrNull() ?? current;
       state = AsyncData(
         latest.copyWith(
@@ -572,6 +805,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
         ),
       );
     } on FilesFailure catch (failure) {
+      if (sequence != _directorySequence || !ref.mounted) return;
       final latest = _currentStateOrNull() ?? current;
       state = AsyncData(
         latest.copyWith(
@@ -596,6 +830,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
   }
 
   Future<void> _loadDirectory(String path) async {
+    final sequence = ++_directorySequence;
     final current = _currentStateOrNull();
     if (current != null) {
       state = AsyncData(
@@ -606,7 +841,8 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     }
 
     try {
-      final listing = await _repository.listDirectory(path);
+      final listing = await _listDirectory(path);
+      if (sequence != _directorySequence || !ref.mounted) return;
       final baseState = current ?? await _loadInitialState();
       state = AsyncData(
         baseState.copyWith(
@@ -616,6 +852,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
         ),
       );
     } on FilesFailure catch (failure) {
+      if (sequence != _directorySequence || !ref.mounted) return;
       final baseState = current ?? await _loadInitialState();
       if (failure.type == FilesFailureType.invalidCredentials) {
         state = AsyncData(
@@ -643,7 +880,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     }
 
     try {
-      final listing = await _repository.listDirectory('/');
+      final listing = await _listDirectory('/');
       return FilesViewState(
         connectionState: connectionState,
         directoryListing: listing,

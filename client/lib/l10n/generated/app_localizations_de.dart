@@ -3683,4 +3683,44 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get chatParticipantsSearchFailure =>
       'Personen konnten nicht geladen werden. Versuche die Suche erneut.';
+
+  @override
+  String get filesSpaceLabel => 'Dateibereich';
+
+  @override
+  String get filesPrivateSpace => 'Meine privaten Dateien';
+
+  @override
+  String get filesSharedOrganizationSpace => 'Gemeinsame Organisationsdateien';
+
+  @override
+  String get filesUnavailableSpace => 'Bereich nicht mehr verfügbar';
+
+  @override
+  String filesReplaceEntrySemantic(String name) {
+    return 'Inhalt von $name ersetzen';
+  }
+
+  @override
+  String filesContentUpdating(String name) {
+    return '$name wird aktualisiert…';
+  }
+
+  @override
+  String filesContentUpdated(String name) {
+    return '$name wurde aktualisiert.';
+  }
+
+  @override
+  String filesOpenEntrySemantic(String name) {
+    return '$name öffnen';
+  }
+
+  @override
+  String get filesPreviewFailed =>
+      'Die Datei konnte nicht geöffnet werden. Bitte erneut versuchen.';
+
+  @override
+  String get filesPreviewUnsupported =>
+      'Diese Datei kann hier nicht angezeigt werden. Mit Export kann sie in einer anderen App geöffnet werden.';
 }

@@ -1,3 +1,4 @@
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -128,6 +129,13 @@ void main() {
               DiscoverOrganizationAccess(
                 repository: serverConfigurationRepository,
                 discoveryClient: discoveryClient,
+              ),
+            ),
+            // This scenario uses a private Files repository, without shared Spaces.
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => const MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: {},
+                defaultSpaceReadable: false,
               ),
             ),
             filesRepositoryProvider.overrideWithValue(filesRepository),

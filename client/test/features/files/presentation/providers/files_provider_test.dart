@@ -1,3 +1,5 @@
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'dart:async';
 import 'dart:typed_data';
@@ -27,7 +29,9 @@ class _FakeFilesRepository
     implements
         FilesRepository,
         FilesEntryMutationRepository,
-        FilesExportRepository {
+        FilesExportRepository,
+        FilesSpaceRepository,
+        FilesContentReplacementRepository {
   _FakeFilesRepository({
     required this.restoreConnectionHandler,
     required this.connectHandler,
@@ -37,8 +41,20 @@ class _FakeFilesRepository
     this.createFolderHandler,
     this.deleteEntryHandler,
     this.downloadFileHandler,
+    this.replaceContentHandler,
+    this.spaceDirectoryHandler,
   });
 
+  final Future<FileEntry> Function(FileEntry, FileUploadRequest)?
+  replaceContentHandler;
+  final Future<DirectoryListing> Function(String, String?)?
+  spaceDirectoryHandler;
+  @override
+  Future<FileEntry> replaceContent(
+    FileEntry entry,
+    FileUploadRequest request, {
+    FileUploadProgressCallback? onProgress,
+  }) => replaceContentHandler!(entry, request);
   final Future<FilesConnectionState> Function() restoreConnectionHandler;
   final Future<FilesConnectionState> Function() connectHandler;
   final Future<void> Function() disconnectHandler;
@@ -61,14 +77,15 @@ class _FakeFilesRepository
   Future<void> disconnect() => disconnectHandler();
 
   @override
-  Future<DirectoryListing> listDirectory(String path) =>
-      listDirectoryHandler(path);
+  Future<DirectoryListing> listDirectory(String path, {String? spaceRef}) =>
+      spaceDirectoryHandler?.call(path, spaceRef) ?? listDirectoryHandler(path);
 
   @override
   Future<void> uploadFile(
     String directoryPath,
     FileUploadRequest request, {
     FileUploadProgressCallback? onProgress,
+    String? spaceRef,
   }) {
     return uploadFileHandler?.call(directoryPath, request, onProgress) ??
         Future<void>.value();
@@ -78,6 +95,7 @@ class _FakeFilesRepository
   Future<FileEntry> createFolder({
     required String parentPath,
     required String name,
+    String? spaceRef,
   }) {
     final handler = createFolderHandler;
     if (handler != null) {
@@ -158,6 +176,220 @@ class _FakeServerConfigurationRepository
 
 void main() {
   group('FilesController', () {
+    for (final denied in [false, true]) {
+      test(
+        'native picker replacement ${denied ? 'denial clears content' : 'succeeds and refreshes'}',
+        () async {
+          const entry = FileEntry(
+            id: 'file-id',
+            name: 'notes.txt',
+            path: '/notes.txt',
+            isDirectory: false,
+            allowedActions: {'download', 'updateContent'},
+          );
+          var replacements = 0;
+          final repository = _FakeFilesRepository(
+            restoreConnectionHandler: () async =>
+                FilesConnectionState.connected(
+                  baseUrl: Uri.parse('https://api.home.internal/api'),
+                  accountLabel: 'alice',
+                ),
+            connectHandler: () async => throw UnimplementedError(),
+            disconnectHandler: () async {},
+            listDirectoryHandler: (path) async =>
+                DirectoryListing(path: path, entries: [entry]),
+            replaceContentHandler: (selected, request) async {
+              replacements++;
+              expect(selected.id, entry.id);
+              expect(request.fileName, 'selected.txt');
+              expect(
+                await request.byteStream.expand((chunk) => chunk).toList(),
+                [4, 5, 6],
+              );
+              if (denied) {
+                throw const FilesFailure.permissionDenied('Access revoked.');
+              }
+              return entry;
+            },
+          );
+          final container = ProviderContainer(
+            overrides: [
+              filesRepositoryProvider.overrideWithValue(repository),
+              filesImportPickerProvider.overrideWithValue(
+                _FakeFilesImportPicker(
+                  FileUploadRequest(
+                    fileName: 'selected.txt',
+                    sizeInBytes: 3,
+                    byteStream: Stream.value([4, 5, 6]),
+                  ),
+                ),
+              ),
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+              ),
+              serverConfigurationRepositoryProvider.overrideWith(
+                (ref) => _FakeServerConfigurationRepository(
+                  buildTestConfiguration(),
+                ),
+              ),
+            ],
+          );
+          addTearDown(container.dispose);
+          await container.read(filesProvider.future);
+          await container.read(filesProvider.notifier).pickAndReplace(entry);
+          final state = container.read(filesProvider).requireValue;
+          expect(replacements, 1);
+          expect(
+            state.entryActionStatus.phase,
+            denied
+                ? FilesEntryActionPhase.failed
+                : FilesEntryActionPhase.replacedContent,
+          );
+          expect(state.directoryListing == null, denied);
+          expect(state.isBusy, false);
+        },
+      );
+    }
+    test(
+      'authorized Space selects root; unknown Space clears private listing',
+      () async {
+        final scopes = <String?>[];
+        final repository = _FakeFilesRepository(
+          restoreConnectionHandler: () async => FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://api.home.internal/api'),
+            accountLabel: 'alice',
+          ),
+          connectHandler: () async => throw UnimplementedError(),
+          disconnectHandler: () async {},
+          listDirectoryHandler: (path) async =>
+              DirectoryListing(path: path, entries: []),
+          spaceDirectoryHandler: (path, scope) async {
+            scopes.add(scope);
+            return DirectoryListing(path: path, entries: []);
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => const MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: {'workspace-default'},
+                defaultSpaceReadable: true,
+              ),
+            ),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        await container.read(weaveApiMemberSpacesProvider.future);
+        await container.read(filesProvider.future);
+        await container
+            .read(filesProvider.notifier)
+            .selectRootSpace('workspace-default');
+        expect(scopes, [null, 'workspace-default']);
+        expect(
+          container.read(filesProvider).requireValue.rootSpaceRef,
+          'workspace-default',
+        );
+        await container.read(filesProvider.notifier).selectRootSpace('unknown');
+        expect(scopes, [null, 'workspace-default']);
+        expect(
+          container.read(filesProvider).requireValue.directoryListing,
+          isNull,
+        );
+        expect(
+          container.read(filesProvider).requireValue.directoryFailure?.type,
+          FilesFailureType.permissionDenied,
+        );
+      },
+    );
+    test('revoked Space cannot republish a late replacement result', () async {
+      const entry = FileEntry(
+        id: 'shared',
+        name: 'shared.txt',
+        path: '/shared.txt',
+        isDirectory: false,
+        allowedActions: {'download', 'updateContent'},
+      );
+      final pending = Completer<FileEntry>();
+      final started = Completer<void>();
+      var visible = <String>{'workspace-default'};
+      final repository = _FakeFilesRepository(
+        restoreConnectionHandler: () async => FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://api.home.internal/api'),
+          accountLabel: 'alice',
+        ),
+        connectHandler: () async => throw UnimplementedError(),
+        disconnectHandler: () async {},
+        listDirectoryHandler: (path) async =>
+            DirectoryListing(path: path, entries: [entry]),
+        replaceContentHandler: (entry, request) {
+          started.complete();
+          return pending.future;
+        },
+      );
+      final container = ProviderContainer(
+        overrides: [
+          filesRepositoryProvider.overrideWithValue(repository),
+          filesImportPickerProvider.overrideWithValue(
+            _FakeFilesImportPicker(
+              FileUploadRequest(
+                fileName: 'shared.txt',
+                sizeInBytes: 1,
+                byteStream: Stream.value([1]),
+              ),
+            ),
+          ),
+          weaveApiMemberSpacesProvider.overrideWith(
+            (ref) async => MemberSpaceAccessSnapshot(
+              visibleSpaceRefs: visible,
+              defaultSpaceReadable: visible.isNotEmpty,
+            ),
+          ),
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
+            ),
+          ),
+          serverConfigurationRepositoryProvider.overrideWith(
+            (ref) =>
+                _FakeServerConfigurationRepository(buildTestConfiguration()),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(weaveApiMemberSpacesProvider.future);
+      await container.read(filesProvider.future);
+      await container
+          .read(filesProvider.notifier)
+          .selectRootSpace('workspace-default');
+      final replacing = container
+          .read(filesProvider.notifier)
+          .pickAndReplace(entry);
+      await started.future;
+      visible = {};
+      container.invalidate(weaveApiMemberSpacesProvider);
+      await container.read(weaveApiMemberSpacesProvider.future);
+      pending.complete(entry);
+      await replacing;
+      final state = container.read(filesProvider).requireValue;
+      expect(state.directoryListing, isNull);
+      expect(state.directoryFailure?.type, FilesFailureType.permissionDenied);
+      expect(
+        state.entryActionStatus.phase,
+        isNot(FilesEntryActionPhase.replacedContent),
+      );
+    });
     test('restores the saved session and loads the root directory', () async {
       final repository = _FakeFilesRepository(
         restoreConnectionHandler: () async => FilesConnectionState.connected(

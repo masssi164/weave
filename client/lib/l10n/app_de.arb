@@ -1196,5 +1196,43 @@
   },
   "chatParticipantsLabel": "Personen hinzufügen",
   "chatParticipantsHelp": "Personen in deiner Organisation nach Namen suchen.",
-  "chatParticipantsSearchFailure": "Personen konnten nicht geladen werden. Versuche die Suche erneut."
+  "chatParticipantsSearchFailure": "Personen konnten nicht geladen werden. Versuche die Suche erneut.",
+  "filesSpaceLabel": "Dateibereich",
+  "filesPrivateSpace": "Meine privaten Dateien",
+  "filesSharedOrganizationSpace": "Gemeinsame Organisationsdateien",
+  "filesUnavailableSpace": "Bereich nicht mehr verfügbar",
+  "filesReplaceEntrySemantic": "Inhalt von {name} ersetzen",
+  "filesContentUpdating": "{name} wird aktualisiert…",
+  "filesContentUpdated": "{name} wurde aktualisiert.",
+  "@filesReplaceEntrySemantic": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@filesContentUpdating": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@filesContentUpdated": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesOpenEntrySemantic": "{name} öffnen",
+  "filesPreviewFailed": "Die Datei konnte nicht geöffnet werden. Bitte erneut versuchen.",
+  "filesPreviewUnsupported": "Diese Datei kann hier nicht angezeigt werden. Mit Export kann sie in einer anderen App geöffnet werden.",
+  "@filesOpenEntrySemantic": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }
