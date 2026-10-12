@@ -43,6 +43,24 @@ public final class SchemaReceiptVerifier {
       throw new IllegalStateException("schema receipt is unavailable");
     }
     JsonNode value = new ObjectMapper().readTree(Files.readString(receipt));
+    if (!value.isObject() || !value.path("supportSafe").isBoolean()
+        || !value.path("secretValuesIncluded").isBoolean()
+        || !value.path("migrationsExecuted").isIntegralNumber()
+        || !value.path("migrationsExecuted").canConvertToInt()
+        || !value.path("tableCount").isIntegralNumber()
+        || !value.path("tableCount").canConvertToInt()) {
+      throw new IllegalStateException("schema receipt has malformed evidence types");
+    }
+    for (String name : List.of("schemaVersion", "authority", "epoch", "relationalModelId",
+        "candidateCommit", "targetSchemaVersion", "catalogFingerprintFormat", "catalogFingerprint", "completedAtUtc")) {
+      if (!value.path(name).isTextual() || value.path(name).asText().isBlank()) {
+        throw new IllegalStateException("schema receipt has malformed identity");
+      }
+    }
+    java.time.Instant completed = java.time.Instant.parse(value.path("completedAtUtc").asText());
+    if (completed.isAfter(java.time.Instant.now().plusSeconds(60))) {
+      throw new IllegalStateException("schema receipt completion is in the future");
+    }
     List<String> tables = new ArrayList<>();
     JsonNode tableValues = value.path("tables");
     if (!tableValues.isArray()) {

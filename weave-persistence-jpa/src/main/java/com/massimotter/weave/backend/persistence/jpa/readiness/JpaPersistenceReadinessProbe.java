@@ -56,7 +56,7 @@ public final class JpaPersistenceReadinessProbe {
       }
       var markers = schemaAuthority.findAll();
       return markers.size() == 1
-          && Objects.equals(markers.getFirst().epoch(), "weave-code-first-v1")
+          && Objects.equals(markers.getFirst().epoch(), "weave-flyway-v1")
           && Objects.equals(
               markers.getFirst().relationalModelId(), "WEAVE-ARCH-RELATIONAL-CORE-MODEL")
           && Objects.equals(markers.getFirst().candidateCommit(), candidateCommit)

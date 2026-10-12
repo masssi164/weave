@@ -210,14 +210,14 @@ class CanonicalPostgresBackupRestoreTest {
 
   private static Environment environment(
       PostgreSQLContainer<?> postgres,
-      Path receipt) {
+      Path receipt) throws Exception {
     Map<String, String> values = new LinkedHashMap<>();
     values.put("WEAVE_PERSISTENCE_URL", postgres.getJdbcUrl());
     values.put("WEAVE_PERSISTENCE_USERNAME", postgres.getUsername());
     values.put("WEAVE_PERSISTENCE_PASSWORD", postgres.getPassword());
     values.put("WEAVE_CANDIDATE_COMMIT", CANDIDATE);
     values.put("WEAVE_SCHEMA_INIT_RECEIPT_FILE", receipt.toString());
-    return new Environment(receipt, values);
+    return new Environment(receipt, SchemaAuthorityTestSupport.withRuntimeRole(values));
   }
 
   private static DriverManagerDataSource dataSource(PostgreSQLContainer<?> postgres) {
