@@ -439,11 +439,12 @@ public final class FreshProductFlow {
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
         // Native Calendar writes use the owner's normal User session. Run its
         // real logout after all JVM journeys that need that owner's SSO state.
+        NativeActorNames nativeNames = nativeActorNames(ownerSession, memberSession);
         new MemberSessionRevocationJourney(environment, http).prove(
             browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
             memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
-            browser, outsiderSession, organizationId, adminSession, memberSession, personRef);
+            browser, outsiderSession, organizationId, adminSession, memberSession, personRef, nativeNames);
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
             release.bindingRef(), mcpProof, restartProof, revocationDenied,
             calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
@@ -535,11 +536,12 @@ public final class FreshProductFlow {
             memberSession.accessToken(), personRef, generatedFilesProof.fileId());
         spaceRevocationRestored = true;
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
+        NativeActorNames nativeNames = nativeActorNames(ownerSession, memberSession);
         new MemberSessionRevocationJourney(environment, http).prove(
             browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
             memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
-            browser, outsiderSession, organizationId, adminSession, memberSession, personRef);
+            browser, outsiderSession, organizationId, adminSession, memberSession, personRef, nativeNames);
 
         writeEvidence(
             startedAt,
@@ -579,7 +581,8 @@ public final class FreshProductFlow {
       String memberEmail, String memberPassword, String ownerSubject,
       String peerEmail, String peerPassword, String peerSubject, String invitationHandle,
       OidcBrowserJourney browser, OidcBrowserJourney.TokenSet outsiderSession, String organizationId,
-      OidcBrowserJourney.TokenSet nativeAdminSession, OidcBrowserJourney.TokenSet nativePeerSession, String nativePeerAccountRef) {
+      OidcBrowserJourney.TokenSet nativeAdminSession, OidcBrowserJourney.TokenSet nativePeerSession, String nativePeerAccountRef,
+      NativeActorNames nativeNames) {
     String runner = System.getProperty("weave.e2e.native-runner", "");
     if (runner.isBlank()) {
       return;
@@ -613,13 +616,14 @@ public final class FreshProductFlow {
       Map<String, Object> input = Map.of(
           "schemaVersion", "weave.dual-ios-input/v1",
           "runId", environment.runId(),
-          "publicOrigin", environment.productOrigin().toString(),
+          "publicOrigin", rootOrigin(environment.productOrigin()).toString(),
           "sharedSpaceRef", "workspace-default",
           "actors", List.of(
               Map.of("role", "A", "email", memberEmail, "password", memberPassword,
-                  "identityRef", ownerSubject, "entryUri", environment.productOrigin().getRawAuthority()),
+                  "identityRef", ownerSubject, "displayName", nativeNames.owner(),
+                  "entryUri", environment.productOrigin().getRawAuthority()),
               Map.of("role", "B", "email", peerEmail, "password", peerPassword,
-                  "identityRef", peerSubject, "invitationHandle", invitationHandle,
+                  "identityRef", peerSubject, "displayName", nativeNames.peer(), "invitationHandle", invitationHandle,
                   "entryUri", nativeCompletionLink())),
           "unauthorized", Map.of("identityRef", outsiderSession.subject()));
       // This fixture is private input, never qualification evidence or an upload artifact.
@@ -789,6 +793,41 @@ public final class FreshProductFlow {
     return value;
   }
 
+  record NativeActorNames(String owner, String peer) {}
+
+  private NativeActorNames nativeActorNames(OidcBrowserJourney.TokenSet owner,
+      OidcBrowserJourney.TokenSet peer) {
+    GeneratedProfileHomeApi profiles = new GeneratedProfileHomeApi(environment);
+    return requireNativeActorNames(profiles.readProfile(owner.accessToken()),
+        profiles.readProfile(peer.accessToken()),
+        accountId(environment.issuer().toString(), owner.subject()),
+        accountId(environment.issuer().toString(), peer.subject()));
+  }
+
+  static NativeActorNames requireNativeActorNames(
+      com.massimotter.weave.userapi.model.ProductProfileResponse owner,
+      com.massimotter.weave.userapi.model.ProductProfileResponse peer,
+      String ownerAccount, String peerAccount) {
+    if (owner == null || peer == null || ownerAccount.equals(peerAccount)
+        || !ownerAccount.equals(owner.getUserId()) || !peerAccount.equals(peer.getUserId())
+        || owner.getDisplayName() == null || owner.getDisplayName().isBlank()
+        || peer.getDisplayName() == null || peer.getDisplayName().isBlank()
+        || owner.getDisplayName().equals(peer.getDisplayName())) {
+      throw new ProductFlowException("native canonical profile identity or name is invalid");
+    }
+    return new NativeActorNames(owner.getDisplayName(), peer.getDisplayName());
+  }
+
+  private static URI rootOrigin(URI origin) {
+    if (!"https".equals(origin.getScheme()) || origin.getHost() == null
+        || origin.getPort() == 0 || origin.getPort() > 65535
+        || origin.getRawUserInfo() != null || origin.getRawQuery() != null || origin.getRawFragment() != null
+        || !origin.getPath().isEmpty() && !"/".equals(origin.getPath())) {
+      throw new ProductFlowException("public native completion origin is invalid");
+    }
+    return URI.create("https://" + origin.getRawAuthority());
+  }
+
   private String nativeCompletionLink() {
     JsonHttpClient.Response response = http.send("public native completion page", "GET",
         environment.productOrigin().resolve("/join"), Map.of("Accept", "text/html"),
@@ -804,9 +843,17 @@ public final class FreshProductFlow {
       throw new ProductFlowException("public native completion link is missing");
     }
     String link = links.group(1).replace("&amp;", "&");
-    if (links.find() || !link.startsWith("weave://join?organization_origin=")
-        || !java.net.URLDecoder.decode(link.substring(link.indexOf('=') + 1),
-            StandardCharsets.UTF_8).equals(publicOrigin.toString())) {
+    try {
+      URI parsed = URI.create(link);
+      String query = parsed.getRawQuery();
+      if (links.find() || !"weave".equals(parsed.getScheme()) || !"join".equals(parsed.getRawAuthority())
+          || !parsed.getPath().isEmpty() || parsed.getRawFragment() != null
+          || query == null || !query.startsWith("organization_origin=") || query.contains("&")
+          || !rootOrigin(URI.create(java.net.URLDecoder.decode(query.substring(query.indexOf('=') + 1),
+              StandardCharsets.UTF_8))).equals(rootOrigin(publicOrigin))) {
+        throw new ProductFlowException("public native completion link is invalid");
+      }
+    } catch (IllegalArgumentException invalid) {
       throw new ProductFlowException("public native completion link is invalid");
     }
     return link;

@@ -231,7 +231,9 @@ def private_input(path: Path, run_id: str) -> dict:
     actors = data.get('actors', [])
     if (data.get('schemaVersion') != 'weave.dual-ios-input/v1' or data.get('runId') != run_id
             or len(actors) != 2 or [a.get('role') for a in actors] != ['A', 'B']
-            or any(not a.get('email') or not a.get('password') or not a.get('identityRef') for a in actors)
+            or any(not a.get('email') or not a.get('password') or not a.get('identityRef')
+                   or not isinstance(a.get('displayName'), str) or not a['displayName'].strip() for a in actors)
+            or actors[0]['displayName'] == actors[1]['displayName']
             or actors[0]['identityRef'] == actors[1]['identityRef']):
         raise ios.NativeFailure('infrastructure', 'dual-fixture', 'independent-actors-required')
     # B must originate from the real public completion page, not an invented
@@ -245,8 +247,11 @@ def private_input(path: Path, run_id: str) -> dict:
             or parsed.username is not None or parsed.query or parsed.fragment):
         raise ios.NativeFailure('infrastructure', 'dual-fixture', 'disposable-public-origin-required')
     entry = urlsplit(actors[1]['entryUri'])
-    if (entry.scheme != 'weave' or entry.netloc != 'join' or entry.path or entry.fragment
-            or parse_qsl(entry.query, keep_blank_values=True) != [('organization_origin', origin)]):
+    fields = parse_qsl(entry.query, keep_blank_values=True)
+    joined = urlsplit(fields[0][1]) if len(fields) == 1 and fields[0][0] == 'organization_origin' else None
+    if (entry.scheme != 'weave' or entry.netloc != 'join' or entry.path or entry.fragment or '&' in entry.query
+            or joined is None or joined.scheme != parsed.scheme or joined.netloc != parsed.netloc
+            or joined.path not in ('', '/') or joined.query or joined.fragment or joined.username is not None):
         raise ios.NativeFailure('infrastructure', 'dual-fixture', 'invitation-completion-link-invalid')
     return data
 
@@ -350,7 +355,7 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
         (documents / '.weave-owned-fixture').write_text('Owned disposable document directory\n')
     runtime_fixture = {'role': role, 'entryUri': actor['entryUri'], 'runId': input_data['runId'],
                        'sharedSpaceRef': input_data['sharedSpaceRef'], 'storageDigest': storage_digest,
-                       'peerDisplayName': 'Weave E2E Member' if role == 'A' else 'Weave E2E Owner',
+                       'peerDisplayName': next(peer['displayName'] for peer in input_data['actors'] if peer['role'] != role),
                        'initialFileName': initial_name, 'replacementFileName': replacement_name,
                        'initialContent': initial_content, 'replacementContent': replacement_content}
     fixture_path = support / 'weave-dual-ios-input.json'

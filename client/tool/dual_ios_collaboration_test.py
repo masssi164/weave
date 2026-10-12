@@ -176,15 +176,19 @@ class DualIosCollaborationTest(unittest.TestCase):
             path = parent / 'fixture.json'
             value = {'schemaVersion': 'weave.dual-ios-input/v1', 'runId': 'owned-run',
                      'publicOrigin': 'https://weave.localhost', 'actors': [
-                         {'role': 'A', 'email': 'a@example.invalid', 'password': 'private-a', 'identityRef': 'a', 'entryUri': 'weave.localhost'},
-                         {'role': 'B', 'email': 'b@example.invalid', 'password': 'private-b', 'identityRef': 'b', 'entryUri': 'weave://join?organization_origin=https%3A%2F%2Fweave.localhost'}]}
+                         {'role': 'A', 'email': 'a@example.invalid', 'password': 'private-a', 'identityRef': 'a', 'displayName': 'Current owner', 'entryUri': 'weave.localhost'},
+                         {'role': 'B', 'email': 'b@example.invalid', 'password': 'private-b', 'identityRef': 'b', 'displayName': 'Current peer', 'entryUri': 'weave://join?organization_origin=https%3A%2F%2Fweave.localhost'}]}
             def write():
                 path.write_text(json.dumps(value));path.chmod(0o600)
             write()
             self.assertEqual(dual.private_input(path, 'owned-run'), value)
-            for field, bad in [('identityRef', 'a'), ('entryUri', ''), ('role', 'A'),
+            value['actors'][1]['entryUri'] += '%2F';write()
+            self.assertEqual(dual.private_input(path, 'owned-run'), value)
+            value['actors'][1]['entryUri'] = value['actors'][1]['entryUri'][:-3]
+            for field, bad in [('displayName', ''), ('displayName', 'Current owner'), ('identityRef', 'a'), ('entryUri', ''), ('role', 'A'),
                                ('entryUri', 'weave://join?organization_origin=https%3A%2F%2Fforeign.example'),
                                ('entryUri', value['actors'][1]['entryUri'] + '&private_token=private'),
+                               ('entryUri', value['actors'][1]['entryUri'] + '&'),
                                ('entryUri', value['actors'][1]['entryUri'] + '#foreign')]:
                 old = value['actors'][1][field];value['actors'][1][field] = bad;write()
                 with self.assertRaises(ios.NativeFailure): dual.private_input(path, 'owned-run')
