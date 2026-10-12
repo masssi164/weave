@@ -24,6 +24,7 @@ import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
 import com.massimotter.weave.backend.matrix.MatrixDeviceProofService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolException;
+import com.massimotter.weave.backend.service.MemberDisplayNameQuery;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -80,6 +81,7 @@ public class MatrixClientServerProjectionController {
     private final MatrixE2eeStateService matrixE2eeStateService;
     private final MatrixDeviceProofService matrixDeviceProofService;
     private final String facadeBaseUrl;
+    private final MemberDisplayNameQuery memberDisplayNames;
 
     public MatrixClientServerProjectionController(
             ChatDomainFacadeService chatDomainFacadeService,
@@ -87,12 +89,14 @@ public class MatrixClientServerProjectionController {
             MatrixFacadeClientStateService matrixClientStateService,
             MatrixE2eeStateService matrixE2eeStateService,
             MatrixDeviceProofService matrixDeviceProofService,
+            MemberDisplayNameQuery memberDisplayNames,
             @Value("${weave.matrix.facade.base-url:https://api.weave.test}") String facadeBaseUrl) {
         this.chatDomainFacadeService = chatDomainFacadeService;
         this.matrixProtocolCoreService = matrixProtocolCoreService;
         this.matrixClientStateService = matrixClientStateService;
         this.matrixE2eeStateService = matrixE2eeStateService;
         this.matrixDeviceProofService = matrixDeviceProofService;
+        this.memberDisplayNames = memberDisplayNames;
         this.facadeBaseUrl = facadeBaseUrl.replaceAll("/+$", "");
     }
 
@@ -303,7 +307,8 @@ public class MatrixClientServerProjectionController {
         }
         int limit = number.intValue();
         String query = term.trim().toLowerCase(Locale.ROOT);
-        List<Map<String, Object>> results = new ArrayList<>();
+        List<com.massimotter.weave.backend.matrix.MatrixFacadeClientStateStore.IdentityProjection> admitted = new ArrayList<>();
+        boolean scanLimited = true;
         String after = "";
         for (int pageNumber = 0; pageNumber < 10; pageNumber++) {
             var page = matrixClientStateService.registeredIdentities(identity, after, 100);
@@ -320,15 +325,28 @@ public class MatrixClientServerProjectionController {
                         new com.massimotter.weave.backend.chat.domain.ChatActorRef(candidate.actorRef())),
                         candidate.authorizationPrincipalRef());
                 if (!identity.userId().equals(candidate.matrixUserId())
-                        && candidate.matrixUserId().toLowerCase(Locale.ROOT).contains(query)
+                        && candidate.actorRef().startsWith("user:")
                         && chatDomainFacadeService.canDiscoverParticipant(jwt, resolved)) {
-                    if (results.size() == limit) return Map.of("results", results, "limited", true);
-                    results.add(Map.of("user_id", candidate.matrixUserId()));
+                    admitted.add(candidate);
                 }
             }
-            if (page.size() < 100) return Map.of("results", results, "limited", false);
+            if (page.size() < 100) { scanLimited = false; break; }
         }
-        return Map.of("results", results, "limited", true);
+        if (admitted.isEmpty()) return Map.of("results", List.of(), "limited", scanLimited);
+        // Hydrate only admitted members, using the existing canonical profile/identity query.
+        // No email, provider endpoint, role or raw identity is projected to Matrix clients.
+        var names = memberDisplayNames.displayNames(jwt, admitted.stream()
+                .map(candidate -> candidate.actorRef().substring("user:".length())).distinct().toList());
+        List<Map<String, Object>> results = new ArrayList<>();
+        for (var candidate : admitted) {
+            String name = names.get(candidate.actorRef().substring("user:".length()));
+            if (name != null && (name.toLowerCase(Locale.ROOT).contains(query)
+                    || candidate.matrixUserId().toLowerCase(Locale.ROOT).contains(query))) {
+                if (results.size() == limit) return Map.of("results", results, "limited", true);
+                results.add(Map.of("user_id", candidate.matrixUserId(), "display_name", name));
+            }
+        }
+        return Map.of("results", results, "limited", scanLimited);
     }
 
     private Map<String, Object> createRoom(Jwt jwt, MatrixFacadeClientStateService.MatrixIdentity identity, Map<String, Object> body, String idempotencyKey) { String title = firstText(body.get("name"), body.get("room_alias_name"), "Conversation"); String kind = Boolean.TRUE.equals(body.get("is_direct")) ? "direct" : "channel"; List<ChatResolvedIdentity> invitedIdentities = new ArrayList<>(); Object rawInvite = body.get("invite"); if (rawInvite instanceof List<?> invite) for (Object value : invite) { if (!(value instanceof String matrixUserId)) throw new MatrixProtocolException("M_BAD_JSON", "Matrix invite identities are invalid."); invitedIdentities.add(matrixClientStateService.identityForMatrixUserId(matrixUserId, identity.tenantId(), identity.identityIssuer()).orElseThrow(() -> new MatrixProtocolException("M_NOT_FOUND", "The invited Matrix identity is not registered with Weave."))); } String transactionId = createRoomTransactionId(identity, idempotencyKey, contextId(jwt)); ChatEncryptionState initialEncryption = initialEncryption(body); ChatConversation conversation = chatDomainFacadeService.createConversation(transactionId, title, kind, invitedIdentities, initialEncryption, jwt); return Map.of("room_id", matrixProtocolCoreService.roomId(conversation.conversationId())); }
