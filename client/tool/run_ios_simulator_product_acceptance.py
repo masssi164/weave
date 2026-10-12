@@ -45,7 +45,7 @@ SAFE_PRODUCT_STAGES = {
 }
 SAFE_BROWSER_STAGES = {
     'driver-started', 'sign-in-tapped', 'app-wait-started', 'app-observed', 'issuer-observed',
-    'username-submitted', 'password-submitted',
+    'username-submitted', 'password-submitted', 'password-save-declined', 'auth-completion-observed',
 }
 
 
@@ -80,7 +80,7 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
     # private transcript. Do not retain labels, values or trailing messages.
     if phase in {'initial', 'restore'}:
         counts = set()
-        pattern = (r'NATIVE_IOS_PROVIDER_CONTROLS phase=(content|username|password) '
+        pattern = (r'NATIVE_IOS_PROVIDER_CONTROLS phase=(content|username|password|post-submit) '
                    r'leafWebViews=([0-9]{1,3}) usernameFields=([0-9]{1,3}) '
                    r'passwordFields=([0-9]{1,3}) submitButtons=([0-9]{1,3})')
         for line in browser_output.splitlines():
@@ -89,6 +89,16 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
                 counts.add(match.groups())
                 print(f'IOS_PROVIDER_DIAGNOSTIC journey={phase} {line} supportSafe=true', flush=True)
             if len(counts) >= 6:
+                break
+    if phase in {'initial', 'restore'}:
+        states = set()
+        for line in browser_output.splitlines():
+            match = re.fullmatch(
+                r'NATIVE_IOS_POST_SUBMIT_STATE phase=pending issuerSurfaces=([0-9]{1,3}) providerErrors=([0-9]{1,3}) appAlertCount=([0-9]{1,3}) systemAlertCount=([0-9]{1,3})', line)
+            if match and match.groups() not in states:
+                states.add(match.groups())
+                print(f'IOS_POST_SUBMIT_DIAGNOSTIC journey={phase} {line} supportSafe=true', flush=True)
+            if len(states) >= 6:
                 break
     # Preserve fixed Flutter failure categories/static frames as well. Raw
     # messages can include endpoint, account or bearer data and stay private.
@@ -121,6 +131,8 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
             category = 'target-not-running'
         elif 'Target application did not start' in line:
             category = 'target-start-timeout'
+        elif 'Native workspace did not follow identity-provider submission' in line:
+            category = 'native-auth-completion-timeout'
         elif 'Production browser did not complete' in line:
             category = 'browser-timeout'
         marker = (location.group(1), category)
@@ -330,12 +342,62 @@ def release_driver_barrier(flutter, driver, log_path: Path, udid: str, pid: str,
     raise NativeFailure('infrastructure', phase + '-driver-attach', 'driver-attachment-timeout')
 
 
+def prepare_workspace_completion(temporary: Path, phase: str) -> Path:
+    if phase not in {'initial', 'restore'} or temporary.is_symlink():
+        raise NativeFailure('infrastructure', 'auth-completion', 'unsafe-completion-scope')
+    completion = temporary.resolve(strict=True) / f'workspace-{phase}.ready'
+    if completion.is_symlink() or (completion.exists() and not completion.is_file()):
+        raise NativeFailure('infrastructure', 'auth-completion', 'unsafe-completion-path')
+    completion.unlink(missing_ok=True)
+    return completion
+
+
+def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path, phase: str, timeout: float = 360) -> bool:
+    # Independent read handle preserves the subprocess writer's offset. The
+    # private IPC file carries no token/callback; its only producer is the exact
+    # real Flutter workspace assertion. A submitted form is insufficient.
+    deadline = time.monotonic() + timeout
+    pending = ''
+    discard_line = False
+    with log_path.open(errors='replace') as observer:
+        while time.monotonic() < deadline:
+            if driver.poll() is not None:
+                return False
+            observed = False
+            for fragment in observer.read(65536).splitlines(keepends=True):
+                complete = fragment.endswith('\n')
+                if not discard_line:
+                    pending += fragment
+                    if len(pending) > 4096:
+                        discard_line = True
+                        pending = ''
+                if complete:
+                    if not discard_line and pending.rstrip('\r\n') == 'NATIVE_PRODUCT_STAGE phase=workspace-ready':
+                        observed = True
+                    pending = ''
+                    discard_line = False
+            if observed:
+                if flutter.poll() is not None or driver.poll() is not None:
+                    raise NativeFailure('integration', phase + '-auth-completion', 'process-exited-before-completion-signal')
+                descriptor = os.open(completion, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                with os.fdopen(descriptor, 'w') as signal:
+                    signal.write('workspace-ready\n')
+                print(f'NATIVE_IOS_AUTH_COMPLETION_SIGNAL phase={phase} source=flutter-workspace-assertion supportSafe=true', flush=True)
+                return True
+            if flutter.poll() is not None:
+                raise NativeFailure('integration', phase + '-product', 'integration-app-exited-before-workspace')
+            time.sleep(0.25)
+    raise NativeFailure('integration', phase + '-auth-completion', 'native-workspace-completion-timeout')
+
+
 def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: dict[str, str], fixture: dict) -> None:
     plans = list((derived / 'Build/Products').glob('*.xctestrun'))
     bundles = list((derived / 'Build/Products').glob('**/BrowserDriver.xctest'))
     if len(plans) != 1 or len(bundles) != 1:
         raise NativeFailure('infrastructure', 'browser-driver-build', 'missing-test-plan-or-bundle')
+    completion = prepare_workspace_completion(temporary, phase)
     fixture['phase'] = phase
+    fixture['nativeAuthCompletionPath'] = str(completion)
     private_fixture = bundles[0] / 'private-member.json'
     private_fixture.write_text(json.dumps(fixture))
     private_fixture.chmod(0o600)
@@ -357,9 +419,17 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
                 barrier.unlink(missing_ok=True)
                 barrier = actual_barrier
             pid = simulator_app_pid(udid)
+            driver_deadline = time.monotonic() + 420
             driver = subprocess.Popen(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]), '-destination', f'platform=iOS Simulator,id={udid}', '-resultBundlePath', str(temporary / f'{phase}.xcresult'), '-parallel-testing-enabled', 'NO', '-maximum-concurrent-test-simulator-destinations', '1'], cwd=CLIENT, env=env, stdout=browser_log, stderr=subprocess.STDOUT, start_new_session=True)
             release_driver_barrier(flutter, driver, temporary / f'browser-{phase}.log', udid, pid, barrier, phase)
-            driver_status = driver.wait(timeout=420)
+            completion_relayed = True
+            if phase == 'initial':
+                completion_relayed = relay_workspace_completion(
+                    flutter, driver, temporary / f'flutter-{phase}.log', completion, phase,
+                    timeout=max(0, driver_deadline - time.monotonic()))
+            driver_status = driver.wait(timeout=max(1, driver_deadline - time.monotonic()))
+            if not driver_status and not completion_relayed:
+                raise NativeFailure('integration', phase + '-auth-completion', 'browser-exited-before-workspace-proof')
             if driver_status:
                 browser_log.seek(0)
                 browser_observed = browser_log.read()
@@ -378,6 +448,8 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
             browser_expected = 'phase=form-submitted' if phase == 'initial' else 'phase=logout'
             if driver_status or flutter_status or expected not in observed or not re.search(r'All tests passed|[1-9][0-9]* tests? passed\.', observed) or f'NATIVE_IOS_BROWSER_RESULT status=passed {browser_expected}' not in browser_observed:
                 raise NativeFailure('integration', phase + '-product', 'live-assertion-or-browser-proof-missing')
+            if phase == 'initial' and 'NATIVE_IOS_BROWSER_STAGE phase=auth-completion-observed' not in browser_observed:
+                raise NativeFailure('integration', 'initial-auth-completion', 'native-workspace-completion-proof-missing')
             if phase == 'restore' and 'NATIVE_PRODUCT_STAGE phase=expired-bearer-denied' not in observed:
                 raise NativeFailure('integration', 'restore-authorization', 'expired-session-denial-missing')
             print(f'NATIVE_IOS_PRODUCT_RESULT status=passed phase={phase} supportSafe=true', flush=True)
@@ -413,6 +485,7 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
                 browser_log.seek(0)
                 emit_phase_stages(phase, flutter_log.read(), browser_log.read())
                 private_fixture.unlink(missing_ok=True)
+                completion.unlink(missing_ok=True)
                 if barrier is not None:
                     barrier.unlink(missing_ok=True)
 
