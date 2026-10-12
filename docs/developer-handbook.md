@@ -71,7 +71,7 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `generatedApiCi` | Compatibility aggregate for contract and all consumer verification. |
 | `mcpCi` | Separate MCP process, security, schema, and architecture checks. |
 | `testAppContract` | Compile/unit/ArchUnit checks for the framework-free Fresh product-flow driver. |
-| `testApp` | Disposable invitation, browser activation, PKCE, generated User API Files/Calendar, Weave Matrix facade, MCP, revocation, restart, and exact-cleanup proof. It does not exercise the native Flutter UI or provider migration. |
+| `testApp` | Default invocation proves disposable invitation, browser activation, PKCE, generated User API Files/Calendar, Weave Matrix facade, MCP, revocation, restart, and exact cleanup. Dogfood qualification enables the native runner to additionally execute mandatory real Flutter macOS and iOS Simulator journeys. Provider migration is separate. |
 | `adminCi` | Admin console npm CI path. |
 | `infraStatic` | Compose, renderer, lifecycle, secret, and infrastructure contract checks. |
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
