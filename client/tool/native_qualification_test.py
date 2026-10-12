@@ -5,6 +5,8 @@ import io
 from contextlib import redirect_stdout
 import os
 import plistlib
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -133,7 +135,7 @@ class NativeQualificationTest(unittest.TestCase):
                 'nativeType=org.openid.appauth.general nativeCode=-3 nativeDomain=NSURLErrorDomain')
         output = io.StringIO()
         with redirect_stdout(output):
-            ios.emit_phase_stages('initial', safe + '\n' + safe, '')
+            ios.emit_phase_stages('initial', safe + '\nflutter: ' + safe, '')
         self.assertEqual(output.getvalue().count('IOS_FLUTTER_DIAGNOSTIC'), 1)
         self.assertIn('phase=auth-failed category=protocol', output.getvalue())
         self.assertIn('nativeCode=-3 nativeDomain=NSURLErrorDomain supportSafe=true', output.getvalue())
@@ -147,6 +149,7 @@ class NativeQualificationTest(unittest.TestCase):
                 .replace('backendStatus=unavailable', 'backendStatus=403'), '')
         self.assertIn('backendFailure=session-rejected backendStatus=403', output.getvalue())
         unsafe = [safe + ' private-password', '00:01 +1: ' + safe, safe + '\rprivate-data',
+                  'flutter: flutter: ' + safe, 'flutter: ' + safe + ' private-password',
                   safe.replace('protocol', 'private@example.invalid'),
                   safe.replace('category=protocol', 'category=' + 'x' * 81),
                   safe.replace('nativeCode=-3', 'nativeCode=invalid value'),
@@ -308,6 +311,9 @@ class NativeQualificationTest(unittest.TestCase):
         for text in ['NATIVE_PRODUCT_STAGE phase=workspace-ready',
                      'NATIVE_PRODUCT_STAGE phase=workspace-ready token=private-token\n',
                      'prefix NATIVE_PRODUCT_STAGE phase=workspace-ready\n',
+                     'flutter: flutter: NATIVE_PRODUCT_STAGE phase=workspace-ready\n',
+                     'flutter: NATIVE_PRODUCT_STAGE phase=workspace-ready private-token\n',
+                     'flutter: NATIVE_PRODUCT_STAGE phase=workspace-ready\r\n',
                      'x' * 5000 + 'NATIVE_PRODUCT_STAGE phase=workspace-ready\n']:
             with self.subTest(text=text[:30]), tempfile.TemporaryDirectory() as name:
                 path = Path(name) / 'flutter.log'
@@ -320,6 +326,21 @@ class NativeQualificationTest(unittest.TestCase):
                     with self.assertRaisesRegex(ios.NativeFailure, 'native-workspace-completion-timeout'):
                         ios.relay_workspace_completion(flutter, driver, path, completion, 'initial', timeout=2)
                 self.assertFalse(completion.exists())
+
+    def test_drive_log_prefix_preserves_only_genuine_workspace_proof(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / 'flutter.log'
+            path.write_text('flutter: NATIVE_PRODUCT_STAGE phase=workspace-ready\n')
+            completion = ios.prepare_workspace_completion(Path(name), 'initial')
+            flutter = unittest.mock.Mock()
+            driver = unittest.mock.Mock()
+            flutter.poll.return_value = driver.poll.return_value = None
+            output = io.StringIO()
+            with redirect_stdout(output):
+                self.assertTrue(ios.relay_workspace_completion(flutter, driver, path, completion, 'initial'))
+                ios.emit_phase_stages('initial', path.read_text(), '')
+            self.assertEqual(completion.read_text(), 'workspace-ready\n')
+            self.assertIn('IOS_DIAGNOSTIC journey=initial NATIVE_PRODUCT_STAGE phase=workspace-ready', output.getvalue())
 
     def test_workspace_relay_waits_for_split_marker_completed_newline(self):
         with tempfile.TemporaryDirectory() as name:
@@ -487,37 +508,135 @@ class NativeQualificationTest(unittest.TestCase):
 import json, os, sys
 if sys.argv[1] == 'devices':
     print(json.dumps([{'id': 'phone', 'emulator': False}, {'id': 'macos', 'emulator': False}, {'id': 'owned-sim', 'emulator': True}]))
-elif sys.argv[1] == 'test':
+elif sys.argv[1] in ('test', 'drive'):
     arg = next(item for item in sys.argv if item.startswith('--dart-define-from-file='))
     with open(arg.split('=', 1)[1]) as source, open(os.environ['HANDOFF_PROBE_OUTPUT'], 'w') as output:
         values=json.load(source)
         values['_probe_reporter']=sys.argv[sys.argv.index('--reporter')+1] if '--reporter' in sys.argv else 'default-buffered-github'
+        values['_probe_command']=sys.argv[1]
+        values['_probe_keep_app']='--keep-app-running' in sys.argv
+        values['_probe_driver']=next((a for a in sys.argv if a.startswith('--driver=')), '')
         json.dump(values, output)
 else:
     sys.exit(2)
 """)
             flutter.chmod(0o755)
-            for target, device, expected in [('physical-device-auth-e2e', 'phone', 'false'),
-                                             ('physical-device-product-e2e', 'phone', 'false'),
-                                             ('physical-device-product-e2e', 'macos', 'false'),
-                                             ('ios-simulator-product-e2e', 'owned-sim', 'true')]:
-                with self.subTest(target=target, device=device):
+            for target, device, expected, phase in [('physical-device-auth-e2e', 'phone', 'false', 'initial'),
+                                                    ('physical-device-product-e2e', 'phone', 'false', 'initial'),
+                                                    ('physical-device-product-e2e', 'macos', 'false', 'restore'),
+                                                    ('ios-simulator-product-e2e', 'owned-sim', 'true', 'initial'),
+                                                    ('ios-simulator-product-e2e', 'owned-sim', 'true', 'restore'),
+                                                    ('ios-simulator-product-e2e', 'owned-sim', 'true', 'unsupported')]:
+                with self.subTest(target=target, device=device, phase=phase):
                     env = os.environ.copy()
                     env.update({'PATH': str(temporary) + os.pathsep + env['PATH'],
                                 'CI': 'true', 'GITHUB_ACTIONS': 'true', 'TERM': 'dumb',
                                 'WEAVE_PHYSICAL_DEVICE_ID': device, 'WEAVE_IOS_SIMULATOR_ID': 'owned-sim',
                                 'WEAVE_NATIVE_EXPECT_SIMULATOR': 'true', 'WEAVE_NATIVE_TEST_RUN_ID': 'existing-run-id',
+                                'WEAVE_DEVICE_PRODUCT_PHASE': phase,
                                 'WEAVE_DEVICE_DISPOSABLE_STACK': 'true',
                                 'WEAVE_DEVICE_API_BASE_URL': 'https://api.weave.localhost/api',
                                 'WEAVE_DEVICE_OIDC_ISSUER_URL': 'https://auth.weave.localhost/realms/weave',
                                 'HANDOFF_PROBE_OUTPUT': str(temporary / 'defines.json')})
+                    (temporary / 'defines.json').unlink(missing_ok=True)
                     result = ios.subprocess.run(['make', target], cwd=Path(__file__).resolve().parents[1], env=env,
                                                 capture_output=True, text=True)
+                    if phase == 'unsupported':
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertFalse((temporary / 'defines.json').exists())
+                        continue
                     self.assertEqual(result.returncode, 0, result.stderr)
                     defines = json.loads((temporary / 'defines.json').read_text())
                     self.assertEqual(defines['WEAVE_NATIVE_EXPECT_SIMULATOR'], expected)
                     self.assertEqual(defines['WEAVE_NATIVE_TEST_RUN_ID'], 'existing-run-id')
-                    self.assertEqual(defines['_probe_reporter'], 'expanded')
+                    if expected == 'true':
+                        self.assertEqual(defines['_probe_command'], 'drive')
+                        self.assertTrue(defines['_probe_keep_app'])
+                        self.assertEqual(defines['_probe_driver'], '--driver=test_driver/integration_test.dart')
+                        self.assertEqual(defines['WEAVE_DEVICE_PRODUCT_PHASE'], phase)
+                    else:
+                        self.assertEqual(defines['_probe_command'], 'test')
+                        self.assertFalse(defines['_probe_keep_app'])
+                        self.assertEqual(defines['_probe_reporter'], 'expanded')
+
+    def test_actual_dart_phase_selection_keeps_non_simulator_journeys(self):
+        dart = shutil.which('dart')
+        if dart is None:
+            self.skipTest('Dart SDK unavailable')
+        source = (Path(__file__).resolve().parents[1] / 'integration_test/system_browser_auth_e2e_test.dart').read_text()
+        helper = source.split('bool nativeProductPhaseEnabled(', 1)[1].split('\nvoid main()', 1)[0]
+        with tempfile.TemporaryDirectory() as name:
+            probe = Path(name) / 'phase.dart'
+            probe.write_text('bool nativeProductPhaseEnabled(' + helper + '''
+void main() {
+  const cases = [
+    (true, 'initial', 'initial', true), (true, 'initial', 'restore', false),
+    (true, 'restore', 'initial', false), (true, 'restore', 'restore', true),
+    (true, '', 'initial', false), (true, 'unsupported', 'restore', false),
+    (false, 'initial', 'restore', true), (false, 'restore', 'initial', true),
+    (false, '', 'initial', true), (false, 'unsupported', 'restore', true),
+  ];
+  for (final (simulator, selected, journey, expected) in cases) {
+    if (nativeProductPhaseEnabled(simulator: simulator, selected: selected, journey: journey) != expected) {
+      throw StateError('phase selection mismatch');
+    }
+  }
+}
+''')
+            result = subprocess.run([dart, 'run', str(probe)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_initial_process_stop_requires_exact_identity_and_absence(self):
+        executable = Path('/owned/device/Runner.app/Runner')
+        for before, after, expected in [('101', '', None), ('102', '', 'initial-process-identity-changed'),
+                                        ('101', '101', 'initial-process-remained-running'),
+                                        ('101', '102', 'initial-process-remained-running')]:
+            with self.subTest(before=before, after=after):
+                def command(args):
+                    if args[0] == '/bin/ps':
+                        return next(snapshots)
+                    self.assertEqual(args, ['xcrun', 'simctl', 'terminate', 'owned', ios.BUNDLE])
+                    return ''
+                snapshots = iter([f'{before} {executable}', f'{after} {executable}' if after else ''])
+                with patch.object(ios, 'simulator_app_executable', return_value=executable), \
+                        patch.object(ios, 'run', side_effect=command), \
+                        patch.object(ios.time, 'monotonic', side_effect=[0, 0, 11]), \
+                        patch.object(ios.time, 'sleep'), redirect_stdout(io.StringIO()):
+                    if expected is None:
+                        ios.terminate_initial_app('owned', '101')
+                    else:
+                        with self.assertRaises(ios.NativeFailure) as raised:
+                            ios.terminate_initial_app('owned', '101')
+                        self.assertEqual(raised.exception.reason, expected)
+
+    def test_restore_rejects_reused_process_before_native_driver_launch(self):
+        for pid in ('101', '102'):
+            with self.subTest(pid=pid), tempfile.TemporaryDirectory() as name:
+                temporary = Path(name)
+                derived = temporary / 'derived'
+                products = derived / 'Build/Products'
+                (products / 'BrowserDriver.xctest').mkdir(parents=True)
+                (products / 'test.xctestrun').touch()
+                flutter = unittest.mock.Mock()
+                flutter.poll.return_value = None
+                output = io.StringIO()
+                with patch.object(ios.subprocess, 'Popen', side_effect=[flutter, OSError('private detail')]) as launch, \
+                        patch.object(ios, 'stop_flutter_process_group'), \
+                        patch.object(ios, 'simulator_driver_barrier', return_value=temporary / 'ready'), \
+                        patch.object(ios, 'wait_for_flutter_shell'), \
+                        patch.object(ios, 'simulator_app_pid', return_value=pid), redirect_stdout(output):
+                    with self.assertRaises(ios.NativeFailure) as raised:
+                        ios.execute_phase('restore', 'owned', derived, temporary,
+                                          {'WEAVE_NATIVE_TEST_RUN_ID': 'test-run'}, {}, previous_pid='101')
+                if pid == '101':
+                    self.assertEqual(raised.exception.reason, 'restore-process-not-replaced')
+                    self.assertEqual(launch.call_count, 1)
+                else:
+                    self.assertEqual(raised.exception.reason, 'native-tool-unavailable')
+                    self.assertEqual(launch.call_count, 2)
+                    self.assertIn('status=relaunched distinctProcess=true', output.getvalue())
+                self.assertFalse((products / 'BrowserDriver.xctest/private-member.json').exists())
+                self.assertNotIn('private detail', output.getvalue())
 
     def test_exact_executable_identity_excludes_other_apps_devices_and_arguments(self):
         app = Path('/Users/runner/Library/Developer/CoreSimulator/Devices/owned/data/Containers/Bundle/Application/app/Runner.app')

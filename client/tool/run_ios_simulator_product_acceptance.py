@@ -192,7 +192,9 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
         fields = ('category', 'causeType', 'appFailureType', 'nestedCauseType',
                   'backendFailure', 'backendStatus', 'appAuthCode', 'nativeType',
                   'nativeCode', 'nativeDomain')
-        pattern = r'NATIVE_PRODUCT_STAGE phase=auth-failed ' + ' '.join(
+        # flutter drive relays the simulator's literal OS log prefix. Accept
+        # only that fixed framing in addition to flutter test's unprefixed line.
+        pattern = r'(?:flutter: )?NATIVE_PRODUCT_STAGE phase=auth-failed ' + ' '.join(
             name + r'=([A-Za-z0-9_.-]{1,80})' for name in fields)
         auth_types = {'cancelled', 'configuration', 'protocol', 'storage', 'unsupportedPlatform', 'unknown'}
         app_types = {'bootstrap', 'storage', 'validation', 'unknown', 'none'}
@@ -434,7 +436,7 @@ def exact_simulator_app_pids(processes: str, executable: Path) -> set[str]:
     return matches
 
 
-def simulator_app_pid(udid: str) -> str:
+def simulator_app_executable(udid: str) -> Path:
     app = Path(run(['xcrun', 'simctl', 'get_app_container', udid, BUNDLE, 'app']).strip()).resolve(strict=True)
     if f'/CoreSimulator/Devices/{udid}/' not in str(app):
         raise NativeFailure('infrastructure', 'driver-attach', 'integration-app-container-mismatch')
@@ -443,12 +445,32 @@ def simulator_app_pid(udid: str) -> str:
     if (metadata.get('CFBundleIdentifier') != BUNDLE or not isinstance(executable, str)
             or not re.fullmatch(r'[A-Za-z0-9_-]+', executable) or not (app / executable).is_file()):
         raise NativeFailure('infrastructure', 'driver-attach', 'integration-executable-identity-invalid')
-    pids = exact_simulator_app_pids(run(['/bin/ps', '-axo', 'pid=,comm=']), app / executable)
+    return app / executable
+
+
+def simulator_app_pid(udid: str) -> str:
+    executable = simulator_app_executable(udid)
+    pids = exact_simulator_app_pids(run(['/bin/ps', '-axo', 'pid=,comm=']), executable)
     print(f'NATIVE_IOS_PROCESS_IDENTITY matchingCount={min(len(pids), 9)} unique={str(len(pids) == 1).lower()} supportSafe=true', flush=True)
     if len(pids) != 1:
         reason = 'integration-process-unavailable' if not pids else 'integration-process-ambiguous'
         raise NativeFailure('infrastructure', 'driver-attach', reason)
     return next(iter(pids))
+
+
+def terminate_initial_app(udid: str, expected_pid: str, timeout: float = 10) -> None:
+    executable = simulator_app_executable(udid)
+    snapshot = run(['/bin/ps', '-axo', 'pid=,comm='])
+    if exact_simulator_app_pids(snapshot, executable) != {expected_pid}:
+        raise NativeFailure('infrastructure', 'process-restart', 'initial-process-identity-changed')
+    run(['xcrun', 'simctl', 'terminate', udid, BUNDLE])
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not exact_simulator_app_pids(run(['/bin/ps', '-axo', 'pid=,comm=']), executable):
+            print('NATIVE_IOS_PROCESS_RESTART_RESULT status=stopped previousProcessAbsent=true supportSafe=true', flush=True)
+            return
+        time.sleep(0.25)
+    raise NativeFailure('infrastructure', 'process-restart', 'initial-process-remained-running')
 
 
 def release_driver_barrier(flutter, driver, log_path: Path, udid: str, pid: str, barrier: Path, phase: str, timeout: float = 90) -> None:
@@ -488,7 +510,7 @@ def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path
     deadline = time.monotonic() + timeout
     pending = ''
     discard_line = False
-    with log_path.open(errors='replace') as observer:
+    with log_path.open(errors='replace', newline='') as observer:
         while time.monotonic() < deadline:
             if driver.poll() is not None:
                 return False
@@ -501,7 +523,9 @@ def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path
                         discard_line = True
                         pending = ''
                 if complete:
-                    if not discard_line and pending.rstrip('\r\n') == 'NATIVE_PRODUCT_STAGE phase=workspace-ready':
+                    if not discard_line and pending.removesuffix('\n') in {
+                            'NATIVE_PRODUCT_STAGE phase=workspace-ready',
+                            'flutter: NATIVE_PRODUCT_STAGE phase=workspace-ready'}:
                         observed = True
                     pending = ''
                     discard_line = False
@@ -519,7 +543,7 @@ def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path
     raise NativeFailure('integration', phase + '-auth-completion', 'native-workspace-completion-timeout')
 
 
-def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: dict[str, str], fixture: dict) -> None:
+def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: dict[str, str], fixture: dict, *, previous_pid: str | None = None) -> str:
     plans = list((derived / 'Build/Products').glob('*.xctestrun'))
     bundles = list((derived / 'Build/Products').glob('**/BrowserDriver.xctest'))
     if len(plans) != 1 or len(bundles) != 1:
@@ -548,6 +572,10 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
                 barrier.unlink(missing_ok=True)
                 barrier = actual_barrier
             pid = simulator_app_pid(udid)
+            if previous_pid is not None:
+                if pid == previous_pid:
+                    raise NativeFailure('infrastructure', 'process-restart', 'restore-process-not-replaced')
+                print('NATIVE_IOS_PROCESS_RESTART_RESULT status=relaunched distinctProcess=true supportSafe=true', flush=True)
             driver_deadline = time.monotonic() + 420
             driver = subprocess.Popen(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]), '-destination', f'platform=iOS Simulator,id={udid}', '-resultBundlePath', str(temporary / f'{phase}.xcresult'), '-parallel-testing-enabled', 'NO', '-maximum-concurrent-test-simulator-destinations', '1'], cwd=CLIENT, env=env, stdout=browser_log, stderr=subprocess.STDOUT, start_new_session=True)
             release_driver_barrier(flutter, driver, temporary / f'browser-{phase}.log', udid, pid, barrier, phase)
@@ -582,6 +610,7 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
             if phase == 'restore' and 'NATIVE_PRODUCT_STAGE phase=expired-bearer-denied' not in observed:
                 raise NativeFailure('integration', 'restore-authorization', 'expired-session-denial-missing')
             print(f'NATIVE_IOS_PRODUCT_RESULT status=passed phase={phase} supportSafe=true', flush=True)
+            return pid
         except subprocess.TimeoutExpired as failure:
             if failure.cmd and failure.cmd[0] == 'xcodebuild':
                 browser_log.seek(0)
@@ -678,9 +707,12 @@ def main() -> int:
             derived = temporary / 'derived'
             run(['xcodebuild', 'build-for-testing', '-project', str(CLIENT / 'tool/ios_browser_driver/BrowserDriver.xcodeproj'), '-scheme', 'BrowserDriver', '-destination', f'platform=iOS Simulator,id={udid}', '-derivedDataPath', str(derived), 'CODE_SIGNING_ALLOWED=NO'], env=env)
             fixture = {'email': os.environ['WEAVE_NATIVE_MEMBER_EMAIL'], 'password': os.environ['WEAVE_NATIVE_MEMBER_PASSWORD'], 'issuerHost': 'auth.weave.localhost', 'appBundleIdentifier': BUNDLE}
-            execute_phase('initial', udid, derived, temporary, env, fixture)
+            initial_pid = execute_phase('initial', udid, derived, temporary, env, fixture)
+            # drive preserves installation/storage; qualification still requires
+            # a proven process stop before service restart and a distinct launch.
+            terminate_initial_app(udid, initial_pid)
             restart_disposable_services(env)
-            execute_phase('restore', udid, derived, temporary, env, fixture)
+            execute_phase('restore', udid, derived, temporary, env, fixture, previous_pid=initial_pid)
         finally:
             if udid:
                 # Delete only the device whose identity this process created.

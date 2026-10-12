@@ -57,6 +57,14 @@ import 'package:weave/main.dart';
 
 import 'helpers/test_config.dart';
 
+// flutter drive preserves the simulator installation between process phases;
+// select the same journey formerly selected by flutter test --plain-name.
+bool nativeProductPhaseEnabled({
+  required bool simulator,
+  required String selected,
+  required String journey,
+}) => !simulator || selected == journey;
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   // The macOS accessibility service can activate after testWidgets records
@@ -83,6 +91,9 @@ void main() {
   );
   const disposableStack = bool.fromEnvironment('WEAVE_DEVICE_DISPOSABLE_STACK');
   const nativeTestRunId = String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID');
+  const productPhase = String.fromEnvironment('WEAVE_DEVICE_PRODUCT_PHASE');
+  final simulatorProduct =
+      productEnabled && _usesSimulatorDriver(nativeTestRunId);
   final config = TestConfig.fromEnvironment();
 
   test('native acceptance requires an explicitly selected live journey', () {
@@ -110,6 +121,9 @@ void main() {
       );
     }
     expect(config.offlineContractOnly, isFalse);
+    if (simulatorProduct) {
+      expect(productPhase, isIn(['initial', 'restore']));
+    }
   });
 
   testWidgets(
@@ -131,7 +145,7 @@ void main() {
         'pkce=true workspaceRestored=true refresh=true supportSafe=true',
       );
     },
-    skip: !enabled,
+    skip: !enabled || simulatorProduct,
     timeout: const Timeout(Duration(minutes: 7)),
   );
 
@@ -433,7 +447,13 @@ void main() {
         await coordinator.disposePreservingCryptoState();
       }
     },
-    skip: !productEnabled,
+    skip:
+        !productEnabled ||
+        !nativeProductPhaseEnabled(
+          simulator: simulatorProduct,
+          selected: productPhase,
+          journey: 'initial',
+        ),
     timeout: const Timeout(Duration(minutes: 12)),
   );
 
@@ -647,7 +667,13 @@ void main() {
         'supportSafe=true',
       );
     },
-    skip: !productEnabled,
+    skip:
+        !productEnabled ||
+        !nativeProductPhaseEnabled(
+          simulator: simulatorProduct,
+          selected: productPhase,
+          journey: 'restore',
+        ),
     timeout: const Timeout(Duration(minutes: 8)),
   );
 
