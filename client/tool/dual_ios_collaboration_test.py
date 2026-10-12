@@ -30,6 +30,29 @@ class DualIosCollaborationTest(unittest.TestCase):
         self.assertNotEqual(rejected.returncode, 0)
         self.assertIn('Could not find an option named "--reporter".', rejected.stderr)
 
+    def test_coordinator_missing_real_ui_ack_still_fails_at_action_deadline(self):
+        # An idle peer may remain alive, but no action gets extra proof time.
+        for phase, expected_action in [('initial', 'chat-create-send'), ('restore', 'restore-readback')]:
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                scopes = {}
+                for role, pid in [('A', '123'), ('B', '456')]:
+                    support = root / role
+                    support.mkdir()
+                    scopes[role] = (support, role, pid, support)
+                task = mock.Mock()
+                task.done.return_value = False
+                with mock.patch.object(dual.ios, 'simulator_app_pid', side_effect=lambda role: {'A': '123', 'B': '456'}[role]), \
+                     mock.patch.object(dual.time, 'monotonic', side_effect=[0, 179.999, 180]), \
+                     mock.patch.object(dual.time, 'sleep'):
+                    with self.assertRaises(ios.NativeFailure) as failure:
+                        dual.run_ui_commands(scopes, [task], {}, {}, phase=phase)
+                self.assertEqual(failure.exception.reason, 'actual-ui-command-proof-missing')
+                command = json.loads((scopes['A'][0] / 'weave-dual-ios-command.json').read_text())
+                self.assertEqual(command['action'], expected_action)
+                self.assertFalse((scopes['B'][0] / 'weave-dual-ios-command.json').exists())
+                task.result.assert_not_called()
+
     def test_restart_proof_requires_distinct_processes_real_flags_and_safe_intervals(self):
         proof = {'role': 'B', 'identityDigest': 'a' * 64, 'matrixDeviceDigest': 'b' * 64, 'storageDigest': 'c' * 64,
                  'recovery': {key: True for key in ['network', 'background', 'processRestored', 'persistentReadback', 'expiryRefresh', 'logoutIndependent', 'grantRegrantReadback']}}

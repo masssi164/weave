@@ -42,6 +42,7 @@ import 'package:weave/features/files/presentation/providers/files_repository_pro
 const _runId = String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID');
 const _simulator = bool.fromEnvironment('WEAVE_NATIVE_EXPECT_SIMULATOR');
 const _disposable = bool.fromEnvironment('WEAVE_DEVICE_DISPOSABLE_STACK');
+const _actorTestBudget = Duration(minutes: 30);
 
 Future<void> _writePrivateJson(File destination, Object value) async {
   final staging = File('${destination.path}.tmp');
@@ -469,14 +470,21 @@ void main() {
       String? fileId = prior?['resources']?['fileId'] as String?;
       String? fileRevision = recovery['fileRevision'] as String?;
       while (true) {
-        await _wait(tester, () {
-          if (!commandFile.existsSync()) return false;
-          final value =
-              jsonDecode(commandFile.readAsStringSync())
-                  as Map<String, dynamic>;
-          return value['sequence'] is int &&
-              (value['sequence'] as int) > sequence;
-        }, const Duration(minutes: 3));
+        await _wait(
+          tester,
+          () {
+            if (!commandFile.existsSync()) return false;
+            final value =
+                jsonDecode(commandFile.readAsStringSync())
+                    as Map<String, dynamic>;
+            return value['sequence'] is int &&
+                (value['sequence'] as int) > sequence;
+          },
+          // Idle actors must survive the peer's legitimate readiness and action
+          // work. Coordinator readiness/actions keep their existing deadlines;
+          // this wait stays bounded by the unchanged whole-actor test budget.
+          _actorTestBudget,
+        );
         final command =
             jsonDecode(await commandFile.readAsString())
                 as Map<String, dynamic>;
@@ -1253,7 +1261,7 @@ void main() {
         if (action == 'finish' || action == 'restart-checkpoint') break;
       }
     },
-    timeout: const Timeout(Duration(minutes: 30)),
+    timeout: const Timeout(_actorTestBudget),
   );
 }
 
