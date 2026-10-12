@@ -338,6 +338,99 @@ class SchemaAuthorityInitializerPostgresTest {
   }
 
   @Test
+  void rejectsExternalFunctionTriggerRulesAndRowSecurityForInitializerAndServing(@TempDir Path directory)
+      throws Exception {
+    Environment environment = environment("behavior_drift", directory);
+    SchemaAuthorityInitializer.run(environment.values());
+    var guard = servingGuard(environment);
+    guard.afterSingletonsInstantiated();
+    String externalFunction = "probe_trigger_" + UUID.randomUUID().toString().replace("-", "");
+    try (var connection = connection(environment); var statement = connection.createStatement()) {
+      statement.execute("create function public." + externalFunction
+          + "() returns trigger language plpgsql as $$begin return null; end$$");
+    }
+    String[] additions = {
+        "create trigger unexpected_trigger before insert on weave_files_user_resources "
+            + "for each row execute function public." + externalFunction + "()",
+        "create rule unexpected_rule as on insert to weave_files_user_resources do instead nothing",
+        "alter table weave_files_user_resources enable row level security",
+        "alter table weave_files_user_resources force row level security",
+        "create policy unexpected_policy on weave_files_user_resources using (false)"
+    };
+    String[] removals = {
+        "drop trigger unexpected_trigger on weave_files_user_resources",
+        "drop rule unexpected_rule on weave_files_user_resources",
+        "alter table weave_files_user_resources disable row level security",
+        "alter table weave_files_user_resources no force row level security",
+        "drop policy unexpected_policy on weave_files_user_resources"
+    };
+    try {
+      for (int index = 0; index < additions.length; index++) {
+        try (var connection = connection(environment); var statement = connection.createStatement()) {
+          statement.execute(additions[index]);
+          if (index == 0) {
+            // This cross-schema function actually suppresses the owned table's INSERT.
+            assertThat(statement.executeUpdate("insert into weave_files_user_resources "
+                + "(organization_ref,file_id,binding_revision,space_ref,parent_file_id,canonical_path,active_path_key,"
+                + "object_kind,owner_principal_ref,lifecycle_state,created_at_utc,modified_at_utc,version) "
+                + "values ('org:probe','file:probe',1,'workspace-default','file:root','/probe','/probe',"
+                + "'FILE','user:probe','ACTIVE',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,0)")).isZero();
+          }
+        }
+        assertThatThrownBy(() -> SchemaAuthorityInitializer.run(environment.values()))
+            .hasMessageContaining("fingerprint");
+        assertThatThrownBy(guard::afterSingletonsInstantiated)
+            .hasRootCauseMessage("serving schema catalog fingerprint differs from accepted authority");
+        try (var connection = connection(environment); var statement = connection.createStatement()) {
+          statement.execute(removals[index]);
+        }
+        guard.afterSingletonsInstantiated();
+      }
+    } finally {
+      try (var connection = connection(environment); var statement = connection.createStatement()) {
+        statement.execute("drop function public." + externalFunction + "() cascade");
+      }
+    }
+  }
+
+  @Test
+  void rejectsPartitionKindDriftForInitializerAndServing(@TempDir Path directory) throws Exception {
+    Environment environment = environment("partition_drift", directory);
+    SchemaAuthorityInitializer.run(environment.values());
+    var guard = servingGuard(environment);
+    try (var connection = connection(environment); var statement = connection.createStatement()) {
+      statement.execute("alter table weave_schema_authority rename to original_authority");
+      statement.execute("create table weave_schema_authority (like original_authority including all) partition by hash(epoch)");
+      statement.execute("create table authority_partition partition of weave_schema_authority for values with (modulus 1,remainder 0)");
+      statement.execute("insert into weave_schema_authority select * from original_authority");
+      statement.execute("drop table original_authority");
+      String runtime = environment.values().get("WEAVE_SCHEMA_RUNTIME_ROLE");
+      statement.execute("revoke insert,update,delete on weave_schema_authority from " + runtime);
+      var catalog = new ObjectMapper().readTree(SchemaCatalogFingerprint.inspect(connection).canonicalJson());
+      assertThat(catalog.path("tables").path("weave_schema_authority").path("kind").asText()).isEqualTo("p");
+    }
+    assertThatThrownBy(() -> SchemaAuthorityInitializer.run(environment.values()))
+        .hasMessageContaining("fingerprint");
+    assertThatThrownBy(guard::afterSingletonsInstantiated)
+        .hasRootCauseMessage("serving schema catalog fingerprint differs from accepted authority");
+  }
+
+  private ServingSchemaAuthorityGuard servingGuard(Environment environment) throws Exception {
+    var markerRepository = org.mockito.Mockito.mock(
+        com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaRepository.class);
+    var marker = new com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaEntity(
+        SchemaAuthorityInitializer.EPOCH, SchemaAuthorityInitializer.MODEL_ID, CANDIDATE,
+        receipt(environment).path("catalogFingerprint").asText(), java.time.Instant.now());
+    org.mockito.Mockito.when(markerRepository.findAll()).thenReturn(List.of(marker));
+    var settings = new org.springframework.core.env.StandardEnvironment();
+    settings.getPropertySources().addFirst(new org.springframework.core.env.MapPropertySource("test", Map.of(
+        "weave.deployment.profile", "dogfood", "weave.candidate.commit", CANDIDATE)));
+    var source = new org.springframework.jdbc.datasource.DriverManagerDataSource(
+        environment.url(), environment.values().get("WEAVE_SCHEMA_RUNTIME_ROLE"), "test-only-runtime");
+    return new ServingSchemaAuthorityGuard(source, markerRepository, settings);
+  }
+
+  @Test
   void terminatedProbeOwnedLockConnectionReleasesInitializer(@TempDir Path directory) throws Exception {
     Environment environment = environment("terminated_lock", directory);
     var executor = Executors.newSingleThreadExecutor();

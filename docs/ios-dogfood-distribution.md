@@ -1,6 +1,6 @@
 # iOS dogfood for active development
 
-Dogfood is a fast development loop, not a release-distribution system. Human testing requires successful Full Compose E2E, native macOS and Apple Silicon iOS Simulator qualification, successful Dogfood deployment, and a prepared physical iPhone build for the same exact protected `dogfood` SHA and pinned specification. There is no Candidate Cut, Fresh Start, TestFlight upload, environment approval, or release manifest in this loop.
+Dogfood is a fast development loop, not a release-distribution system. Human testing requires successful Full Compose E2E, native macOS and two concurrent independent Apple Silicon iOS Simulator Flutter UI qualification, successful Dogfood deployment, and a prepared physical iPhone build for the same exact protected `dogfood` SHA and pinned specification. There is no Candidate Cut, Fresh Start, TestFlight upload, environment approval, or release manifest in this loop.
 
 The protected dogfood push deploys Compose after all mandatory automated qualification but does not automatically start
 an iPhone signing job. This keeps the branch green independently of the macOS background runner's
@@ -14,7 +14,7 @@ The preparation sequence is:
 1. verify successful exact-SHA Compose/macOS/iOS qualification and Dogfood deployment;
 2. start the dogfood stack through `./gradlew dogfoodUp`;
 3. start it a second time and prove that the CA and leaf certificate fingerprints did not change;
-4. optionally create or resend the first-owner invitation and leave its activation link only in private Mailpit at `https://mail.weave.test:44443`;
+4. optionally create or resend the first-owner invitation and leave its activation link only in private Mailpit at the reviewed `WEAVE_MAILPIT_URL` (`https://mail.weave.test` in the standard-port Dogfood example);
 5. build the exact commit with development signing in the interactive user session, install it
    over the existing app, and launch the handoff on the paired iPhone.
 
@@ -57,7 +57,7 @@ Installation is preparation, not a human-test result. The tester opens the invit
 - Weaver/MCP discovery, grant, `files.search`, resource open, revoke with immediate rejection, regrant, and restored access when that surface is available;
 - VoiceOver labels/order, keyboard/focus behavior where applicable, and identity/session continuity after relaunch.
 
-A missing Calls or Weaver surface is recorded as `blocked`, never invented as a pass. Human outcomes remain tester statements; automated E2E and installation evidence do not replace them.
+Missing mandatory release journeys are recorded as `blocked`, never invented as a pass. Calls and private Runner infrastructure remain outside this release acceptance scope. Human outcomes remain tester statements; automated E2E and installation evidence do not replace them.
 
 Contract marker: `HUMAN_TESTING_HAS_NO_MANIFEST_GATE`.
 

@@ -282,6 +282,9 @@ def dual_ios_collaboration_passed(value: object) -> bool:
 
 
 def native_qualification_passed(value: dict, sha: str, tree: str, spec: str) -> bool:
+    if not isinstance(value, dict) or any(not isinstance(value.get(platform), dict)
+                                          for platform in ("macos", "iosSimulator")):
+        return False
     return (
         value.get("schemaVersion") == "weave.native-qualification/v2"
         and value.get("candidateCommit") == sha

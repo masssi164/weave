@@ -61,6 +61,10 @@ class ImpactTest(unittest.TestCase):
             'client/tool/ios_browser_driver/BrowserDriver.swift',
             'client/tool/run_ios_simulator_product_acceptance.py',
             'client/tool/native_qualification_test.py',
+            'client/tool/dual_ios_collaboration_test.py',
+            'client/tool/run_dual_ios_collaboration.py',
+            'client/tool/run_native_qualification.py',
+            'client/integration_test/dual_ios_collaboration_test.dart',
         )
         self.assertEqual(impact.CLIENT_NON_CONSUMER_INPUTS, frozenset(native_inputs))
         for paths in ([path] for path in native_inputs):
