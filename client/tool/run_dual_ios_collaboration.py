@@ -97,6 +97,7 @@ class OwnedFaultRelay:
         self._sockets = set()
         self._workers = []
         self.forwarded = 0
+        self.forwarded_bytes = 0
         self.blocked = 0
         self.rejected = 0
         self.listener = socket.socket()
@@ -152,6 +153,7 @@ class OwnedFaultRelay:
                     if not data: return
                     destination = upstream if source is client else client
                     destination.settimeout(5); destination.sendall(data); destination.setblocking(False)
+                    with self._lock: self.forwarded_bytes += len(data)
         except (OSError, ValueError):
             pass  # Connection loss is the actual fault; raw traffic is never logged.
         finally:
@@ -268,9 +270,10 @@ def actor_result(path: Path, role: str, expected_identity: str, storage_digest: 
         proof = data.get('scenarios', {}).get(scenario)
         evidence = 'server-denial' if scenario == 'authorization' else 'flutter-ui'
         if scenario == 'authorization':
-            if (not isinstance(proof, dict) or set(proof) != {'status', 'evidence', 'deniedIdentityDigest', 'denials'}
+            if (not isinstance(proof, dict) or set(proof) != {'status', 'evidence', 'deniedIdentityDigest', 'resourceDigest', 'denials'}
                     or proof['status'] != 'passed' or proof['evidence'] not in {'server-denial', 'flutter-ui'}
                     or not DIGEST.fullmatch(proof['deniedIdentityDigest'])
+                    or not DIGEST.fullmatch(proof['resourceDigest'])
                     or proof['deniedIdentityDigest'] == data['identityDigest']
                     or proof['denials'] != {'chat': 'passed', 'files': 'passed', 'calendar': 'passed'}):
                 raise ios.NativeFailure('integration', 'dual-authorization', 'third-identity-denial-proof-missing')
@@ -282,6 +285,29 @@ def actor_result(path: Path, role: str, expected_identity: str, storage_digest: 
             or encryption['status'] != ('passed' if encryption['policyRequired'] else 'not-required')):
         raise ios.NativeFailure('integration', 'dual-encryption', 'room-policy-proof-missing')
     return data
+
+
+def recovery_actor_proof(proof: dict, initial_pid: str, restored_pid: str,
+                         initial_started: str, initial_ended: str, restored_started: str, restored_ended: str) -> dict:
+    state = proof.get('recovery', {})
+    required = ['network', 'background', 'processRestored', 'persistentReadback', 'expiryRefresh', 'logoutIndependent']
+    if (any(state.get(name) is not True for name in required)
+            or (proof['role'] == 'B' and state.get('grantRegrantReadback') is not True)
+            or not re.fullmatch(r'[1-9][0-9]{0,9}', initial_pid)
+            or not re.fullmatch(r'[1-9][0-9]{0,9}', restored_pid) or initial_pid == restored_pid):
+        raise ios.NativeFailure('integration', 'dual-recovery', 'actual-recovery-proof-missing')
+    try:
+        times = [datetime.fromisoformat(value) for value in (initial_started, initial_ended, restored_started, restored_ended)]
+        if any(value.utcoffset() is None for value in times) or not times[0] < times[1] <= times[2] < times[3]:
+            raise ValueError()
+    except (TypeError, ValueError):
+        raise ios.NativeFailure('infrastructure', 'dual-recovery', 'actual-process-interval-invalid') from None
+    return {'role': proof['role'], 'initialProcessId': int(initial_pid), 'restoredProcessId': int(restored_pid),
+            'initialStartedAt': initial_started, 'initialEndedAt': initial_ended,
+            'restoredStartedAt': restored_started, 'restoredEndedAt': restored_ended, 'previousProcessAbsent': True,
+            'restoredIdentityDigest': proof['identityDigest'], 'restoredMatrixDeviceDigest': proof['matrixDeviceDigest'],
+            'restoredStorageDigest': proof['storageDigest'], 'expiryDenied': state['expiryRefresh'],
+            'refreshObserved': state['expiryRefresh'], 'logoutIndependent': state['logoutIndependent']}
 
 
 def actor_runtime_copy(client: Path, destination: Path) -> None:
@@ -298,7 +324,7 @@ def actor_runtime_copy(client: Path, destination: Path) -> None:
 
 
 def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: Path, app: Path,
-              input_data: dict, env: dict, build_digest: str, ready: queue.Queue) -> dict:
+              input_data: dict, env: dict, build_digest: str, ready: queue.Queue, restart_barrier: threading.Barrier, restart_gate: threading.Event) -> dict:
     role = actor['role']
     ios.run(['xcrun', 'simctl', 'install', udid, str(app)], env=env)
     container = Path(ios.run(['xcrun', 'simctl', 'get_app_container', udid, ios.BUNDLE, 'data'], env=env).strip()).resolve(strict=True)
@@ -371,16 +397,63 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
                 raise ios.NativeFailure('integration', 'dual-product', 'flutter-ui-failed')
             if ios.simulator_app_pid(udid) != pid:
                 raise ios.NativeFailure('infrastructure', 'dual-process', 'owned-process-replaced')
+            checkpoint = json.loads((support / 'weave-dual-ios-ack.json').read_text())
+            if checkpoint.get('action') != 'restart-checkpoint' or checkpoint.get('status') != 'passed':
+                raise ios.NativeFailure('integration', 'dual-process-restart', 'actual-ui-checkpoint-missing')
+            stop_flutter_process_group(flutter); flutter = None
+            stop_flutter_process_group(driver); driver = None
+            # Both actual initial UIs finish before either app is stopped. The
+            # same signed binary restores its own production Keychain/profile.
+            deadline = time.monotonic() + 120
+            while not restart_gate.wait(timeout=0.25):
+                if _CANCELLED.is_set() or time.monotonic() >= deadline:
+                    raise ios.NativeFailure('infrastructure', 'dual-process-restart', 'restart-coordination-unavailable')
+            restart_barrier.wait(timeout=120)
+            old_pid = pid
+            initial_started = started
+            initial_ended = now()
+            ios.terminate_initial_app(udid, old_pid)
+            runtime_fixture.update({'phase': 'restore', 'lastSequence': checkpoint['sequence']})
+            staging = fixture_path.with_name('weave-dual-ios-restore.json')
+            publish_private_json(staging, runtime_fixture)
+            staging.replace(fixture_path)
+            started_at = ios.simulator_vm.log_start_timestamp()
+            launch = ios.run(['xcrun', 'simctl', 'launch', udid, ios.BUNDLE, '--enable-dart-profiling',
+                              '--disable-vm-service-publication', '--start-paused'], env=env).strip()
+            match = re.fullmatch(re.escape(ios.BUNDLE) + r': ([1-9][0-9]{0,9})', launch)
+            if match is None or match[1] == old_pid:
+                raise ios.NativeFailure('infrastructure', 'dual-process-restart', 'distinct-owned-process-missing')
+            pid = match[1]
+            if ios.simulator_app_pid(udid) != pid:
+                raise ios.NativeFailure('infrastructure', 'dual-process-restart', 'restored-process-identity-changed')
+            started = now()
+            uri = ios.discover_owned_vm_service(udid, pid, started_at)
+            with (temporary / 'flutter-restore.log').open('w+') as restored_log:
+                flutter = track_process(subprocess.Popen(['flutter', 'drive', '--no-pub', '--reporter', 'expanded', '--keep-app-running',
+                                            '--driver=test_driver/integration_test.dart', '--target=integration_test/dual_ios_collaboration_test.dart',
+                                            '--use-existing-app=' + uri, '-d', udid], cwd=runtime, env=env,
+                                           stdout=restored_log, stderr=subprocess.STDOUT, start_new_session=True))
+                ios.wait_for_flutter_shell(flutter, temporary / 'flutter-restore.log', 'restore')
+                ready.put((role, support, udid, pid, products))
+                if flutter.wait(timeout=900) != 0:
+                    raise ios.NativeFailure('integration', 'dual-restored-product', 'flutter-ui-failed')
+            if ios.simulator_app_pid(udid) != pid:
+                raise ios.NativeFailure('infrastructure', 'dual-process-restart', 'restored-process-replaced')
             proof = actor_result(support / 'weave-dual-ios-result.json', role, actor['identityRef'], storage_digest)
+            ended = now()
+            recovery = recovery_actor_proof(proof, old_pid, pid, initial_started, initial_ended, started, ended)
             succeeded = True
-            return {'role': role, 'simulatorId': udid, 'processId': int(pid), 'identityDigest': proof['identityDigest'],
+            return {'role': role, 'simulatorId': udid, 'processId': int(old_pid), 'identityDigest': proof['identityDigest'],
                     'matrixDeviceDigest': proof['matrixDeviceDigest'], 'storageDigest': storage_digest,
-                    'startedAt': started, 'endedAt': now(), 'scenarios': proof['scenarios'], 'encryption': proof['encryption']}
+                    'startedAt': initial_started, 'endedAt': initial_ended, 'scenarios': proof['scenarios'], 'encryption': proof['encryption'],
+                    'recovery': recovery}
         finally:
             try:
                 if not succeeded:
                     for command, process, path in (('flutter', flutter, temporary / 'flutter-initial.log'),
+                                                   ('flutter', flutter, temporary / 'flutter-restore.log'),
                                                    ('xcodebuild', driver, temporary / 'browser-initial.log')):
+                        if not path.is_file(): continue
                         contents = path.read_text(errors='replace')
                         if contents:
                             diagnostic = ios.retain_private_diagnostic(contents)
@@ -397,9 +470,28 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
                             stop_flutter_process_group(flutter)
                     finally:
                         ios.emit_phase_stages('initial', (temporary / 'flutter-initial.log').read_text(), (temporary / 'browser-initial.log').read_text())
+                        if (temporary / 'flutter-restore.log').is_file():
+                            ios.emit_phase_stages('restore', (temporary / 'flutter-restore.log').read_text(), '')
 
 
-def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict) -> None:
+def perform_owned_lifecycle(scope: tuple, action: str, env: dict) -> None:
+    support, udid, pid, products = scope
+    if action not in {'background', 'foreground'} or ios.simulator_app_pid(udid) != pid:
+        raise ios.NativeFailure('infrastructure', 'dual-lifecycle', 'owned-process-mismatch')
+    plans = list(products.glob('*.xctestrun')); bundles = list(products.glob('**/BrowserDriver.xctest'))
+    if len(plans) != 1 or len(bundles) != 1:
+        raise ios.NativeFailure('infrastructure', 'dual-lifecycle', 'owned-test-plan-missing')
+    private = bundles[0] / 'private-member.json'
+    private.write_text(json.dumps({'phase': 'lifecycle', 'action': action})); private.chmod(0o600)
+    ios.run(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
+             '-destination', 'platform=iOS Simulator,id=' + udid, '-parallel-testing-enabled', 'NO',
+             '-only-testing:BrowserDriver/BrowserDriver/testNativeLifecycle',
+             '-resultBundlePath', str(products.parent.parent / ('lifecycle-' + action + '.xcresult'))], env=env, timeout=90)
+    if ios.simulator_app_pid(udid) != pid:
+        raise ios.NativeFailure('infrastructure', 'dual-lifecycle', 'owned-process-replaced')
+
+
+def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict, phase: str = 'initial', relays: dict | None = None) -> dict:
     # Existing Python runner coordinates actual Flutter gestures using only
     # owned private files. Commands cannot inject results/auth/session data.
     steps = [('A', 'chat-create-send'), ('B', 'chat-open-reply'), ('A', 'chat-observe'),
@@ -409,14 +501,40 @@ def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict) -> N
              ('A', 'files-replace'), ('A', 'files-export-updated'), ('B', 'files-open-updated'), ('B', 'files-export-updated'),
              ('A', 'authorization'), ('B', 'authorization'),
              ('A', 'calendar-delete'), ('B', 'calendar-observe-deleted'),
-             ('A', 'recovery'), ('B', 'recovery'), ('A', 'finish'), ('B', 'finish')]
+             ('A', 'network-ready'), ('B', 'network-ready'),
+             ('A', 'network-disconnected'), ('B', 'network-peer-online'),
+             ('A', 'network-resume'), ('B', 'network-peer-readback'),
+             ('B', 'background-peer-send'), ('A', 'background-catchup'),
+             ('A', 'restart-checkpoint'), ('B', 'restart-checkpoint')]
+    start_sequence = 1
+    if phase == 'restore':
+        start_sequence = len(steps) + 1
+        steps = [('A', 'restore-readback'), ('B', 'restore-readback'), ('B', 'grant-revocation-readback'),
+                 ('A', 'expiry-refresh'), ('B', 'expiry-refresh'), ('A', 'logout'), ('B', 'peer-logout-independent'),
+                 ('A', 'recovery'), ('B', 'recovery'), ('A', 'finish'), ('B', 'finish')]
+    network = {}
+    peer_bytes_before = 0
+    restored_bytes_before = 0
     def verify_both_live():
         for _, udid, pid, _products in scopes.values():
             if ios.simulator_app_pid(udid) != pid:
                 raise ios.NativeFailure('infrastructure', 'dual-process', 'owned-process-replaced')
-    for sequence, (role, action) in enumerate(steps, 1):
+    for sequence, (role, action) in enumerate(steps, start_sequence):
         verify_both_live()
         support, udid, pid, products = scopes[role]
+        if action == 'network-disconnected':
+            if relays is None or any(relay.forwarded_bytes == 0 for relay in relays.values()):
+                raise ios.NativeFailure('infrastructure', 'dual-network', 'actual-actor-transport-not-observed')
+            network['actorAForwardedBytes'] = relays['A'].forwarded_bytes
+            relays['A'].interrupt()
+            network['affectedConnections'] = relays['A'].blocked
+        if action == 'network-peer-online': peer_bytes_before = relays['B'].forwarded_bytes
+        if action == 'network-resume':
+            restored_bytes_before = relays['A'].forwarded_bytes
+            relays['A'].restore()
+        if action == 'background-peer-send': perform_owned_lifecycle(scopes['A'], 'background', env)
+        if action == 'background-catchup': perform_owned_lifecycle(scopes['A'], 'foreground', env)
+        if action == 'grant-revocation-readback': network['currentGrantRevocation'] = authorize_ui_resources(scopes, input_data, kind='grant-revocation')
         if action == 'authorization' and role == 'A':
             authorize_ui_resources(scopes, input_data)
         if action in {'files-export', 'files-export-updated'}:
@@ -436,7 +554,7 @@ def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict) -> N
             raise ios.NativeFailure('infrastructure', 'dual-command', 'unsafe-private-command')
         staging.write_text(json.dumps({'sequence': sequence, 'action': action})); staging.chmod(0o600)
         staging.replace(target)
-        deadline = time.monotonic() + 120
+        deadline = time.monotonic() + (420 if action == 'expiry-refresh' else 180)
         picker_executed = False
         while True:
             for task in tasks:
@@ -461,16 +579,31 @@ def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict) -> N
                 proof = json.loads(ack.read_text())
                 if proof == {'sequence': sequence, 'action': action, 'status': 'passed'}:
                     verify_both_live()
+                    if action == 'network-disconnected':
+                        network.update({'userApiFailureObserved': True, 'matrixSendFailureObserved': True, 'affectedConnections': relays['A'].blocked})
+                    if action == 'network-peer-online':
+                        count = relays['B'].forwarded_bytes - peer_bytes_before
+                        if count <= 0:
+                            raise ios.NativeFailure('infrastructure', 'dual-network', 'peer-actual-transport-not-observed')
+                        network['actorBForwardedBytesDuringInterruption'] = count
+                        network['peerUiContinuityObserved'] = True
+                    if action == 'network-resume':
+                        if relays['A'].forwarded_bytes <= restored_bytes_before:
+                            raise ios.NativeFailure('infrastructure', 'dual-network', 'restored-actual-transport-not-observed')
+                        network.update({'restoreObserved': True, 'matrixRetryObserved': True})
+                    if action == 'network-peer-readback': network['peerReceptionObserved'] = True
+                    if action == 'grant-revocation-readback': network['currentGrantRevocation'].update({'uiReadback': True, 'evidence': 'server-denial-and-flutter-readback'})
                     print(f'NATIVE_IOS_DUAL_UI_RESULT actor={role} action={action} status=passed supportSafe=true', flush=True)
                     break
             if time.monotonic() >= deadline:
                 raise ios.NativeFailure('integration', 'dual-' + action.split('-')[0], 'actual-ui-command-proof-missing')
             time.sleep(0.25)
+    return network
 
 
 def publish_private_json(path: Path, value: dict) -> None:
     """Publish complete owner-only bytes without replacing any existing file."""
-    staging = path.with_suffix('.tmp')
+    staging = path.with_name(path.name + '.tmp')
     descriptor = os.open(staging, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     try:
         with os.fdopen(descriptor, 'w') as output:
@@ -492,7 +625,7 @@ def require_picker_request(request: dict, sequence: int, action: str, run_id: st
     return mode, name
 
 
-def authorize_ui_resources(scopes: dict, input_data: dict) -> None:
+def authorize_ui_resources(scopes: dict, input_data: dict, kind: str = 'authorization') -> dict:
     partial = [json.loads((scopes[role][0] / 'weave-dual-ios-result.json').read_text()) for role in ('A', 'B')]
     for index, role in enumerate(('A', 'B')):
         identity = hashlib.sha256(input_data['actors'][index]['identityRef'].encode()).hexdigest()
@@ -501,8 +634,8 @@ def authorize_ui_resources(scopes: dict, input_data: dict) -> None:
     if partial[0]['resources'] != partial[1]['resources']:
         raise ios.NativeFailure('integration', 'dual-authorization', 'shared-ui-resource-mismatch')
     parent = ios.verified_private_parent()
-    request = parent / ('dual-ios-authorization-request-' + input_data['runId'] + '.json')
-    proof = parent / ('dual-ios-authorization-proof-' + input_data['runId'] + '.json')
+    request = parent / ('dual-ios-' + kind + '-request-' + input_data['runId'] + '.json')
+    proof = parent / ('dual-ios-' + kind + '-proof-' + input_data['runId'] + '.json')
     if request.exists() or request.is_symlink() or proof.exists() or proof.is_symlink():
         raise ios.NativeFailure('infrastructure', 'dual-authorization', 'stale-private-denial-exchange')
     content = {'runId': input_data['runId'], 'spaceRef': input_data['sharedSpaceRef'],
@@ -516,16 +649,26 @@ def authorize_ui_resources(scopes: dict, input_data: dict) -> None:
     if proof.is_symlink() or proof.stat().st_size > 1024 or proof.stat().st_mode & 0o777 != 0o600:
         raise ios.NativeFailure('infrastructure', 'dual-authorization', 'unsafe-private-denial-proof')
     denial = json.loads(proof.read_text())
-    expected = {'status': 'passed', 'evidence': 'server-denial',
-                'deniedIdentityDigest': hashlib.sha256(input_data['unauthorized']['identityRef'].encode()).hexdigest(),
-                'denials': {'chat': 'passed', 'files': 'passed', 'calendar': 'passed'}}
-    if denial != expected or denial['deniedIdentityDigest'] in {actor['identityDigest'] for actor in partial}:
-        raise ios.NativeFailure('integration', 'dual-authorization', 'third-identity-denial-proof-missing')
+    if kind == 'authorization':
+        expected = {'status': 'passed', 'evidence': 'server-denial',
+                    'deniedIdentityDigest': hashlib.sha256(input_data['unauthorized']['identityRef'].encode()).hexdigest(),
+                    'resourceDigest': hashlib.sha256(partial[0]['resources']['fileId'].encode()).hexdigest(),
+                    'denials': {'chat': 'passed', 'files': 'passed', 'calendar': 'passed'}}
+        if denial != expected or denial['deniedIdentityDigest'] in {actor['identityDigest'] for actor in partial}:
+            raise ios.NativeFailure('integration', 'dual-authorization', 'third-identity-denial-proof-missing')
+    elif kind == 'grant-revocation':
+        expected = {'status': 'passed', 'evidence': 'server-denial', 'resourceDigest': hashlib.sha256(partial[0]['resources']['fileId'].encode()).hexdigest(),
+                    'deniedIdentityDigest': partial[1]['identityDigest'], 'denied': True, 'regrantRestored': True}
+        if denial != expected:
+            raise ios.NativeFailure('integration', 'dual-authorization', 'current-grant-revocation-proof-missing')
+    else:
+        raise ios.NativeFailure('infrastructure', 'dual-authorization', 'unsupported-private-exchange')
     for support, udid, pid, _products in scopes.values():
         if ios.simulator_app_pid(udid) != pid:
             raise ios.NativeFailure('infrastructure', 'dual-authorization', 'owned-process-replaced')
-        destination = support / 'weave-dual-ios-denial.json'
+        destination = support / ('weave-dual-ios-denial.json' if kind == 'authorization' else 'weave-dual-ios-grant-proof.json')
         publish_private_json(destination, denial)
+    return denial
 
 
 def qualify(input_path: Path, output_path: Path, env: dict) -> int:
@@ -562,6 +705,8 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
             for role in ('A', 'B'):
                 relays[role] = OwnedFaultRelay(authorities)
             ready = queue.Queue()
+            restart_barrier = threading.Barrier(2)
+            restart_gate = threading.Event()
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                 try:
                     tasks = []
@@ -569,7 +714,7 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
                         scope = temporary / actor['role']; scope.mkdir(mode=0o700)
                         products = scope / 'Build/Products'; shutil.copytree(derived / 'Build/Products', products)
                         runtime_client = scope / 'client'; actor_runtime_copy(ios.CLIENT, runtime_client)
-                        tasks.append(executor.submit(run_actor, actor, udid, runtime_client, products, scope, app, input_data, actor_proxy_environment(env, relays[actor['role']]), evidence['appBuildSha256'], ready))
+                        tasks.append(executor.submit(run_actor, actor, udid, runtime_client, products, scope, app, input_data, actor_proxy_environment(env, relays[actor['role']]), evidence['appBuildSha256'], ready, restart_barrier, restart_gate))
                     scopes = {}
                     deadline = time.monotonic() + 540
                     while len(scopes) < 2:
@@ -583,7 +728,19 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
                         except queue.Empty:
                             continue
                         scopes[role] = (support, udid, pid, products)
-                    run_ui_commands(scopes, tasks, env, input_data)
+                    network_proof = run_ui_commands(scopes, tasks, env, input_data, relays=relays)
+                    restart_gate.set()
+                    scopes = {}
+                    deadline = time.monotonic() + 240
+                    while len(scopes) < 2:
+                        if time.monotonic() >= deadline:
+                            raise ios.NativeFailure('integration', 'dual-process-restart', 'restored-actor-readiness-timeout')
+                        for task in tasks:
+                            if task.done(): task.result()
+                        try: role, support, udid, pid, products = ready.get(timeout=0.25)
+                        except queue.Empty: continue
+                        scopes[role] = (support, udid, pid, products)
+                    restored_proof = run_ui_commands(scopes, tasks, env, input_data, phase='restore')
                     evidence['actors'] = [task.result() for task in tasks]
                 except BaseException:
                     stop_owned_processes()
@@ -592,11 +749,22 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
             for key in ('simulatorId', 'processId', 'identityDigest', 'matrixDeviceDigest', 'storageDigest'):
                 if actors[0][key] == actors[1][key]:
                     raise ios.NativeFailure('integration', 'dual-isolation', 'actor-identity-collision')
+            all_pids = [actor['recovery'][key] for actor in actors for key in ('initialProcessId', 'restoredProcessId')]
+            if len(set(all_pids)) != 4:
+                raise ios.NativeFailure('integration', 'dual-isolation', 'actor-process-collision')
             started = max(actor['startedAt'] for actor in actors)
             ended = min(actor['endedAt'] for actor in actors)
             if datetime.fromisoformat(started) >= datetime.fromisoformat(ended):
                 raise ios.NativeFailure('integration', 'dual-concurrency', 'live-overlap-missing')
             evidence['overlap'] = {'startedAt': started, 'endedAt': ended}
+            initial_started = max(actor['recovery']['initialStartedAt'] for actor in actors)
+            initial_ended = min(actor['recovery']['initialEndedAt'] for actor in actors)
+            if datetime.fromisoformat(initial_started) >= datetime.fromisoformat(initial_ended):
+                raise ios.NativeFailure('integration', 'dual-concurrency', 'initial-live-overlap-missing')
+            network_proof['interruptedActor'] = 'A'
+            evidence['recovery'] = {'actors': [actor['recovery'] for actor in actors],
+                                    'initialOverlap': {'startedAt': initial_started, 'endedAt': initial_ended},
+                                    'network': network_proof, 'currentGrantRevocation': restored_proof['currentGrantRevocation']}
             evidence['scenarios'] = {name: {'status': 'passed', 'evidence': 'server-denial' if name == 'authorization' else 'flutter-ui',
                                            'actors': ['A', 'B']} for name in SCENARIOS}
             denial = actors[0]['scenarios']['authorization']
@@ -608,7 +776,7 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
             if actors[0]['encryption'] != actors[1]['encryption']:
                 raise ios.NativeFailure('integration', 'dual-encryption', 'room-policy-proof-missing')
             evidence['encryption'] = actors[0]['encryption']
-            evidence['actors'] = [{key: value for key, value in actor.items() if key not in {'scenarios', 'encryption'}}
+            evidence['actors'] = [{key: value for key, value in actor.items() if key not in {'scenarios', 'encryption', 'recovery'}}
                                   for actor in actors]
             evidence['status'] = 'passed'
             return 0

@@ -1199,6 +1199,27 @@ Future<void> _requireExpiredBearerDenied(
   }
 }
 
+// Shared independent denial oracle; callers supply only their actual resolved
+// canonical configuration and native session/device, never an injected session.
+Future<void> requireActualNativeBearerExpiry(String token) =>
+    _waitForActualBearerExpiry(token);
+
+Future<void> requireNativeExpiredBearerDenied(
+  ProviderContainer container,
+  TestConfig config,
+  String expiredToken,
+  String freshToken,
+  String deviceId,
+  String deviceProof,
+) => _requireExpiredBearerDenied(
+  container,
+  config,
+  expiredToken,
+  freshToken,
+  deviceId,
+  deviceProof,
+);
+
 Future<String> _waitForEncryptedMessage(
   ChatRepository chat,
   String roomId,

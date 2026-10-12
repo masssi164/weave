@@ -24,7 +24,15 @@ import 'package:weave/main.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 import 'package:weave/integrations/rust_matrix_core/presentation/providers/matrix_crypto_session_provider.dart';
 
-import 'system_browser_auth_e2e_test.dart' show emitNativeProductDiagnostic;
+import 'system_browser_auth_e2e_test.dart'
+    show
+        emitNativeProductDiagnostic,
+        requireActualNativeBearerExpiry,
+        requireNativeExpiredBearerDenied;
+import 'helpers/test_config.dart';
+import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_client_provider.dart';
+import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 
 const _runId = String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID');
 const _simulator = bool.fromEnvironment('WEAVE_NATIVE_EXPECT_SIMULATOR');
@@ -115,59 +123,86 @@ void main() {
       expect(fixture['role'], isIn(['A', 'B']));
       expect(fixture['runId'], _runId);
       final role = fixture['role'] as String;
+      final phase = fixture['phase'] ?? 'initial';
+      expect(phase, isIn(['initial', 'restore']));
+      final restoring = phase == 'restore';
+      final resultFile = File('${support.path}/weave-dual-ios-result.json');
+      final prior = restoring
+          ? jsonDecode(await resultFile.readAsString()) as Map<String, dynamic>
+          : null;
       final entry = fixture['entryUri'] as String;
       expect(entry, isNotEmpty);
       // No configuration, repositories, authentication services or native picker
       // overrides: the same product bootstrap handles public host and invite input.
       await tester.pumpWidget(const ProviderScope(child: WeaveApp()));
-      await _wait(
-        tester,
-        () => find.byType(OrganizationAccessScreen).evaluate().isNotEmpty,
-        const Duration(seconds: 90),
-      );
-      final l10n = AppLocalizations.of(
-        tester.element(find.byType(OrganizationAccessScreen)),
-      );
-      final field = find.descendant(
-        of: find.byType(OrganizationAccessScreen),
-        matching: find.byType(TextField),
-      );
-      expect(field, findsOneWidget);
-      await tester.enterText(field, entry);
-      await _tap(
-        tester,
-        find.widgetWithText(
-          AccessibleButton,
-          l10n.setupOrganizationContinueButton,
-        ),
-      );
-      final signIn = find.byKey(const ValueKey('weave.auth.sign-in'));
-      await _wait(
-        tester,
-        () => signIn.evaluate().isNotEmpty,
-        const Duration(seconds: 90),
-      );
-      expect(signIn, findsOneWidget);
-      expect(find.byKey(const ValueKey('weave.workspace.home')), findsNothing);
-      _stage('shell-ready');
-      final barrier = File('${support.path}/weave-native-driver-$_runId.ready');
-      await _wait(
-        tester,
-        () => barrier.existsSync(),
-        const Duration(minutes: 2),
-      );
-      await barrier.delete();
-      _stage('driver-attached');
-      // Actual XCTest taps the accessible Sign In control and supplies credentials
-      // exclusively to the real issuer web form through ASWebAuthenticationSession.
-      await _wait(
-        tester,
-        () => find
-            .byKey(const ValueKey('weave.workspace.home'))
-            .evaluate()
-            .isNotEmpty,
-        const Duration(minutes: 5),
-      );
+      if (!restoring) {
+        await _wait(
+          tester,
+          () => find.byType(OrganizationAccessScreen).evaluate().isNotEmpty,
+          const Duration(seconds: 90),
+        );
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(OrganizationAccessScreen)),
+        );
+        final field = find.descendant(
+          of: find.byType(OrganizationAccessScreen),
+          matching: find.byType(TextField),
+        );
+        expect(field, findsOneWidget);
+        await tester.enterText(field, entry);
+        await _tap(
+          tester,
+          find.widgetWithText(
+            AccessibleButton,
+            l10n.setupOrganizationContinueButton,
+          ),
+        );
+        final signIn = find.byKey(const ValueKey('weave.auth.sign-in'));
+        await _wait(
+          tester,
+          () => signIn.evaluate().isNotEmpty,
+          const Duration(seconds: 90),
+        );
+        expect(signIn, findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('weave.workspace.home')),
+          findsNothing,
+        );
+        _stage('shell-ready');
+        final barrier = File(
+          '${support.path}/weave-native-driver-$_runId.ready',
+        );
+        await _wait(
+          tester,
+          () => barrier.existsSync(),
+          const Duration(minutes: 2),
+        );
+        await barrier.delete();
+        _stage('driver-attached');
+        // Actual XCTest taps the accessible Sign In control and supplies credentials
+        // exclusively to the real issuer web form through ASWebAuthenticationSession.
+        await _wait(
+          tester,
+          () => find
+              .byKey(const ValueKey('weave.workspace.home'))
+              .evaluate()
+              .isNotEmpty,
+          const Duration(minutes: 5),
+        );
+      } else {
+        await _wait(
+          tester,
+          () => find
+              .byKey(const ValueKey('weave.workspace.home'))
+              .evaluate()
+              .isNotEmpty,
+          const Duration(seconds: 90),
+        );
+        expect(find.byType(OrganizationAccessScreen), findsNothing);
+        expect(find.byKey(const ValueKey('weave.auth.sign-in')), findsNothing);
+        _stage('process-restart-restored');
+        _stage('shell-ready');
+      }
       _stage('workspace-ready');
       final container = ProviderScope.containerOf(
         tester.element(find.byType(WeaveApp)),
@@ -195,6 +230,10 @@ void main() {
       final subject = claims['sub'] as String;
       expect(subject, isNotEmpty);
       final scenarios = <String, Map<String, dynamic>>{
+        if (prior != null)
+          for (final entry
+              in (prior['scenarios'] as Map<String, dynamic>).entries)
+            entry.key: Map<String, dynamic>.from(entry.value as Map),
         'authentication': {'status': 'passed', 'evidence': 'flutter-ui'},
       };
       await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
@@ -223,7 +262,30 @@ void main() {
       device = await store.read(matrixDeviceIdentityStorageKey);
       expect(device, isNotNull);
       expect(device, isNotEmpty);
-      final resources = <String, Object>{};
+      final resources = <String, Object>{
+        if (prior != null)
+          ...Map<String, Object>.from(prior['resources'] as Map),
+      };
+      final recovery = <String, dynamic>{
+        if (prior != null)
+          ...Map<String, dynamic>.from(prior['recovery'] as Map),
+        'processRestored': restoring,
+      };
+      if (prior != null) {
+        expect(
+          prior['identityDigest'],
+          sha256.convert(utf8.encode(subject)).toString(),
+        );
+        expect(
+          prior['matrixDeviceDigest'],
+          sha256.convert(utf8.encode(device!)).toString(),
+        );
+        expect(prior['storageDigest'], fixture['storageDigest']);
+        expect(
+          recovery['organizationOrigin'],
+          configuration.organizationOrigin.toString(),
+        );
+      }
       final result = {
         'role': role,
         'identityDigest': sha256.convert(utf8.encode(subject)).toString(),
@@ -231,11 +293,12 @@ void main() {
         'storageDigest': fixture['storageDigest'],
         'scenarios': scenarios,
         'resources': resources,
+        'recovery': recovery,
+        if (prior != null) 'encryption': prior['encryption'],
       };
-      final resultFile = File('${support.path}/weave-dual-ios-result.json');
       await _writePrivateJson(resultFile, result);
       final commandFile = File('${support.path}/weave-dual-ios-command.json');
-      var sequence = 0;
+      var sequence = restoring ? fixture['lastSequence'] as int : 0;
       String? eventId;
       const conversation = 'Weave UI $_runId';
       const messageA = 'A UI $_runId';
@@ -246,8 +309,8 @@ void main() {
       final replacementName = fixture['replacementFileName'] as String;
       final initialContent = fixture['initialContent'] as String;
       final replacementContent = fixture['replacementContent'] as String;
-      String? fileId;
-      String? fileRevision;
+      String? fileId = prior?['resources']?['fileId'] as String?;
+      String? fileRevision = recovery['fileRevision'] as String?;
       while (true) {
         await _wait(tester, () {
           if (!commandFile.existsSync()) return false;
@@ -646,6 +709,12 @@ void main() {
                     as Map<String, dynamic>;
             expect(proof['status'], 'passed');
             expect(proof['evidence'], 'server-denial');
+            expect(
+              proof['resourceDigest'],
+              sha256
+                  .convert(utf8.encode(resources['fileId'] as String))
+                  .toString(),
+            );
             expect(proof['denials'], {
               'chat': 'passed',
               'files': 'passed',
@@ -656,10 +725,332 @@ void main() {
               isNot(result['identityDigest']),
             );
             scenarios['authorization'] = proof;
-          case 'recovery':
-            throw TestFailure(
-              'Independent actual transport and process recovery proof is incomplete.',
+          case 'network-ready':
+            await _openDualRoom(tester, conversation);
+          case 'network-disconnected':
+            expect(role, 'A');
+            await tester.enterText(
+              find.byType(TextField).last,
+              'A recoverable $_runId',
             );
+            await _tap(
+              tester,
+              find.widgetWithText(
+                FilledButton,
+                _copy(tester).chatRoomSendButton,
+              ),
+            );
+            await _wait(
+              tester,
+              () => find.byType(MaterialBanner).evaluate().isNotEmpty,
+              const Duration(seconds: 90),
+            );
+            expect(
+              find.descendant(
+                of: find.byType(MaterialBanner),
+                matching: find.widgetWithText(
+                  TextButton,
+                  _copy(tester).chatRoomRetrySendAction,
+                ),
+              ),
+              findsOneWidget,
+            );
+            // This independent transport probe is a real generated User request,
+            // not the UI outcome; the native failed-send banner is the oracle.
+            await expectLater(
+              container.read(filesRepositoryProvider).listDirectory('/'),
+              throwsA(anything),
+            );
+          case 'network-peer-online':
+            expect(role, 'B');
+            await _send(tester, 'B remains online $_runId');
+          case 'network-resume':
+            expect(role, 'A');
+            await _tap(
+              tester,
+              find.descendant(
+                of: find.byType(MaterialBanner),
+                matching: find.widgetWithText(
+                  TextButton,
+                  _copy(tester).chatRoomRetrySendAction,
+                ),
+              ),
+            );
+            await _wait(
+              tester,
+              () =>
+                  find.byType(MaterialBanner).evaluate().isEmpty &&
+                  _message('A recoverable $_runId').evaluate().length == 1 &&
+                  _message('B remains online $_runId').evaluate().length == 1,
+              const Duration(seconds: 90),
+            );
+            recovery['network'] = true;
+          case 'network-peer-readback':
+            expect(role, 'B');
+            await _wait(
+              tester,
+              () =>
+                  _message('A recoverable $_runId').evaluate().length == 1 &&
+                  _message('B remains online $_runId').evaluate().length == 1,
+              const Duration(seconds: 90),
+            );
+            recovery['network'] = true;
+          case 'background-peer-send':
+            expect(role, 'B');
+            await _send(tester, 'B background catchup $_runId');
+            recovery['background'] = true;
+          case 'background-catchup':
+            expect(role, 'A');
+            await _wait(
+              tester,
+              () =>
+                  _message('B background catchup $_runId').evaluate().length ==
+                  1,
+              const Duration(seconds: 90),
+            );
+            recovery['background'] = true;
+          case 'restart-checkpoint':
+            expect(restoring, isFalse);
+            expect(
+              scenarios.keys,
+              containsAll(['chat', 'calendar', 'files', 'authorization']),
+            );
+            recovery['organizationOrigin'] = configuration.organizationOrigin
+                .toString();
+            recovery['fileRevision'] = fileRevision;
+            await store.write(
+              'dual_native_expiry_$_runId',
+              session.session!.accessToken,
+            );
+            _stage('restart-checkpoint-ready');
+          case 'restore-readback':
+            expect(restoring, isTrue);
+            await _tap(tester, find.text(conversation));
+            await _wait(
+              tester,
+              () =>
+                  _message(messageA).evaluate().length == 1 &&
+                  _message(messageB).evaluate().length == 1,
+              const Duration(seconds: 90),
+            );
+            for (final retained in [
+              'A recoverable $_runId',
+              'B remains online $_runId',
+              'B background catchup $_runId',
+            ]) {
+              await _wait(
+                tester,
+                () => _message(retained).evaluate().length == 1,
+                const Duration(seconds: 90),
+              );
+            }
+            _orderedMessages(tester, messageA, messageB);
+            await tester.pageBack();
+            await _selectSharedFiles(
+              tester,
+              container,
+              fixture['sharedSpaceRef'] as String,
+            );
+            final entry = container
+                .read(filesProvider)
+                .requireValue
+                .directoryListing!
+                .entries
+                .where((entry) => entry.name == fileName)
+                .single;
+            expect(entry.id, fileId);
+            expect(entry.revision, fileRevision);
+            await _filePreview(tester, entry.id, replacementContent);
+            recovery['persistentReadback'] = true;
+            _stage('process-restart-product-readback');
+          case 'grant-revocation-readback':
+            expect(role, 'B');
+            final proofFile = File(
+              '${support.path}/weave-dual-ios-grant-proof.json',
+            );
+            final grant =
+                jsonDecode(await proofFile.readAsString())
+                    as Map<String, dynamic>;
+            expect(grant['status'], 'passed');
+            expect(grant['deniedIdentityDigest'], result['identityDigest']);
+            expect(
+              grant['resourceDigest'],
+              sha256.convert(utf8.encode(fileId!)).toString(),
+            );
+            expect(grant['denied'], isTrue);
+            expect(grant['regrantRestored'], isTrue);
+            await _selectSharedFiles(
+              tester,
+              container,
+              fixture['sharedSpaceRef'] as String,
+            );
+            final entry = container
+                .read(filesProvider)
+                .requireValue
+                .directoryListing!
+                .entries
+                .where((entry) => entry.name == fileName)
+                .single;
+            expect(entry.id, fileId);
+            await _filePreview(tester, entry.id, replacementContent);
+            recovery['grantRegrantReadback'] = true;
+          case 'expiry-refresh':
+            expect(restoring, isTrue);
+            final expired = await store.read('dual_native_expiry_$_runId');
+            expect(expired, isNotEmpty);
+            await requireActualNativeBearerExpiry(expired!);
+            final authConfiguration = AuthConfiguration(
+              issuer: configuration.oidcIssuerUrl,
+              clientId: configuration.oidcClientRegistration.clientId,
+            );
+            final before = await container
+                .read(authSessionRepositoryProvider)
+                .restoreSession(authConfiguration);
+            final refreshed = await container
+                .read(authSessionRepositoryProvider)
+                .refreshSession(authConfiguration);
+            expect(refreshed.isAuthenticated, isTrue);
+            expect(
+              refreshed.session!.accessToken,
+              isNot(before.session!.accessToken),
+            );
+            final matrix = await container
+                .read(matrixCryptoSessionCoordinatorProvider)
+                .open(allowInteractiveSignIn: false);
+            final proof = await store.read(
+              'matrix_member_device_proof_v1_${matrix.profileKey}',
+            );
+            expect(proof, isNotEmpty);
+            await requireNativeExpiredBearerDenied(
+              container,
+              TestConfig(
+                issuerUrl: configuration.oidcIssuerUrl,
+                clientId: configuration.oidcClientRegistration.clientId,
+                matrixHomeserverUrl:
+                    configuration.serviceEndpoints.matrixHomeserverUrl,
+                backendApiBaseUrl:
+                    configuration.serviceEndpoints.backendApiBaseUrl,
+                offlineContractOnly: false,
+              ),
+              expired,
+              refreshed.session!.accessToken,
+              matrix.deviceId,
+              proof!,
+            );
+            await store.delete('dual_native_expiry_$_runId');
+            // The normal User UI must still read the actual shared file after
+            // refresh; successful token exchange alone is not product evidence.
+            await _selectSharedFiles(
+              tester,
+              container,
+              fixture['sharedSpaceRef'] as String,
+            );
+            await _filePreview(tester, fileId!, replacementContent);
+            recovery['expiryRefresh'] = true;
+            _stage('expired-bearer-denied');
+          case 'logout':
+            expect(role, 'A');
+            final authConfiguration = AuthConfiguration(
+              issuer: configuration.oidcIssuerUrl,
+              clientId: configuration.oidcClientRegistration.clientId,
+            );
+            final before = await container
+                .read(authSessionRepositoryProvider)
+                .restoreSession(authConfiguration);
+            expect(before.isAuthenticated, isTrue);
+            final retained = before.session!.accessToken;
+            final matrix = await container
+                .read(matrixCryptoSessionCoordinatorProvider)
+                .open(allowInteractiveSignIn: false);
+            final deviceProof = await store.read(
+              'matrix_member_device_proof_v1_${matrix.profileKey}',
+            );
+            expect(deviceProof, isNotEmpty);
+            await _navigate(tester, Icons.settings_outlined);
+            await _tap(
+              tester,
+              find.widgetWithText(
+                AccessibleButton,
+                _copy(tester).settingsSignOutButton,
+              ),
+            );
+            await _wait(
+              tester,
+              () => find
+                  .byKey(const ValueKey('weave.auth.sign-in'))
+                  .evaluate()
+                  .isNotEmpty,
+              const Duration(seconds: 60),
+            );
+            expect(
+              (await container
+                      .read(authSessionRepositoryProvider)
+                      .restoreSession(authConfiguration))
+                  .isAuthenticated,
+              isFalse,
+            );
+            await expectLater(
+              container.read(filesRepositoryProvider).listDirectory('/'),
+              throwsA(anything),
+            );
+            final denied = await container
+                .read(weaveApiHttpClientProvider)
+                .get(
+                  configuration.serviceEndpoints.matrixHomeserverUrl.resolve(
+                    '/_matrix/client/v3/account/whoami',
+                  ),
+                  headers: {
+                    'Authorization': 'Bearer $retained',
+                    'x-weave-matrix-device-id': matrix.deviceId,
+                    'x-weave-matrix-device-proof': deviceProof!,
+                  },
+                );
+            expect(denied.statusCode, 401);
+            expect(jsonDecode(denied.body)['errcode'], 'M_UNKNOWN_TOKEN');
+            expect(container.read(authFlowControllerProvider).isBusy, isFalse);
+            recovery['logoutIndependent'] = true;
+            _stage('logout-denial-passed');
+          case 'peer-logout-independent':
+            expect(role, 'B');
+            expect(
+              (await container
+                      .read(authSessionRepositoryProvider)
+                      .restoreSession(
+                        AuthConfiguration(
+                          issuer: configuration.oidcIssuerUrl,
+                          clientId:
+                              configuration.oidcClientRegistration.clientId,
+                        ),
+                      ))
+                  .isAuthenticated,
+              isTrue,
+            );
+            await _selectSharedFiles(
+              tester,
+              container,
+              fixture['sharedSpaceRef'] as String,
+            );
+            await _filePreview(tester, fileId!, replacementContent);
+            recovery['logoutIndependent'] = true;
+          case 'recovery':
+            for (final key in [
+              'network',
+              'background',
+              'processRestored',
+              'persistentReadback',
+              'expiryRefresh',
+              'logoutIndependent',
+            ]) {
+              expect(
+                recovery[key],
+                isTrue,
+                reason: 'Actual independent recovery proof is incomplete.',
+              );
+            }
+            scenarios['recovery'] = {
+              'status': 'passed',
+              'evidence': 'flutter-ui',
+            };
           case 'finish':
             expect(
               scenarios.keys.toSet(),
@@ -702,7 +1093,7 @@ void main() {
           'action': action,
           'status': 'passed',
         });
-        if (action == 'finish') break;
+        if (action == 'finish' || action == 'restart-checkpoint') break;
       }
     },
     timeout: const Timeout(Duration(minutes: 30)),
@@ -761,10 +1152,20 @@ Future<void> _filePreview(
 AppLocalizations _copy(WidgetTester tester) =>
     AppLocalizations.of(tester.element(find.byType(NavigationBar)));
 
-Future<void> _navigate(WidgetTester tester, IconData icon) => _tap(
-  tester,
-  find.descendant(of: find.byType(NavigationBar), matching: find.byIcon(icon)),
-);
+Future<void> _navigate(WidgetTester tester, IconData icon) {
+  final copy = _copy(tester);
+  final label = switch (icon) {
+    Icons.chat_bubble_outline => copy.navChat,
+    Icons.folder_outlined => copy.navFiles,
+    Icons.calendar_month_outlined => copy.navCalendar,
+    Icons.settings_outlined => copy.navSettings,
+    _ => throw TestFailure('Unsupported actual navigation destination.'),
+  };
+  return _tap(
+    tester,
+    find.descendant(of: find.byType(NavigationBar), matching: find.text(label)),
+  );
+}
 
 void _orderedMessages(WidgetTester tester, String first, String second) {
   expect(_message(first), findsOneWidget);
@@ -772,6 +1173,17 @@ void _orderedMessages(WidgetTester tester, String first, String second) {
   expect(
     tester.getCenter(_message(first)).dy,
     lessThan(tester.getCenter(_message(second)).dy),
+  );
+}
+
+Future<void> _openDualRoom(WidgetTester tester, String title) async {
+  if (find.byType(ChatRoomScreen).evaluate().isNotEmpty) return;
+  await _navigate(tester, Icons.chat_bubble_outline);
+  await _tap(tester, find.text(title));
+  await _wait(
+    tester,
+    () => find.byType(TextField).evaluate().isNotEmpty,
+    const Duration(seconds: 90),
   );
 }
 

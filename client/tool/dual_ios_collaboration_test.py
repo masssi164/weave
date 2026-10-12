@@ -17,6 +17,24 @@ import run_ios_simulator_product_acceptance as ios
 
 
 class DualIosCollaborationTest(unittest.TestCase):
+    def test_restart_proof_requires_distinct_processes_real_flags_and_safe_intervals(self):
+        proof = {'role': 'B', 'identityDigest': 'a' * 64, 'matrixDeviceDigest': 'b' * 64, 'storageDigest': 'c' * 64,
+                 'recovery': {key: True for key in ['network', 'background', 'processRestored', 'persistentReadback', 'expiryRefresh', 'logoutIndependent', 'grantRegrantReadback']}}
+        proof['recovery'].update({'privateToken': 'must-not-export', 'organizationOrigin': 'private-unused'})
+        times = ['2026-10-12T10:00:00+00:00', '2026-10-12T10:05:00+00:00', '2026-10-12T10:06:00+00:00', '2026-10-12T10:10:00+00:00']
+        result = dual.recovery_actor_proof(proof, '123', '456', *times)
+        self.assertEqual(result['restoredProcessId'], 456)
+        self.assertNotIn('must-not-export', json.dumps(result))
+        for name in ['network', 'background', 'processRestored', 'persistentReadback', 'expiryRefresh', 'logoutIndependent', 'grantRegrantReadback']:
+            for unavailable in [False, 1, None, 'true']:
+                proof['recovery'][name] = unavailable
+                with self.assertRaises(ios.NativeFailure): dual.recovery_actor_proof(proof, '123', '456', *times)
+            proof['recovery'][name] = True
+        for old, restored in [('123', '123'), ('0', '456'), ('123', '-1')]:
+            with self.assertRaises(ios.NativeFailure): dual.recovery_actor_proof(proof, old, restored, *times)
+        for invalid_times in [[times[1], times[0], times[2], times[3]], [times[0][:-6], *times[1:]], [times[0], times[1], times[1], times[1]]]:
+            with self.assertRaises(ios.NativeFailure): dual.recovery_actor_proof(proof, '123', '456', *invalid_times)
+
     def test_actor_proxy_is_private_per_process_and_cannot_select_foreign_authority(self):
         first, second = mock.Mock(port=1234), mock.Mock(port=4321)
         inherited = {'HTTP_PROXY': 'inherited-host-proxy', 'NO_PROXY': '.localhost', 'ordinary': 'kept'}
@@ -86,13 +104,13 @@ class DualIosCollaborationTest(unittest.TestCase):
             dual.publish_private_json(path, content)
             self.assertEqual(json.loads(path.read_text()), content)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-            self.assertFalse(path.with_suffix('.tmp').exists())
+            self.assertFalse(path.with_name(path.name + '.tmp').exists())
             with self.assertRaises(FileExistsError): dual.publish_private_json(path, {'status': 'changed'})
             self.assertEqual(json.loads(path.read_text()), content)
             path.unlink(); path.symlink_to(Path(directory) / 'foreign')
             with self.assertRaises(FileExistsError): dual.publish_private_json(path, content)
             self.assertFalse((Path(directory) / 'foreign').exists())
-            path.unlink(); path.with_suffix('.tmp').symlink_to(Path(directory) / 'foreign')
+            path.unlink(); path.with_name(path.name + '.tmp').symlink_to(Path(directory) / 'foreign')
             with self.assertRaises(FileExistsError): dual.publish_private_json(path, content)
 
     def test_picker_requests_bind_real_action_sequence_and_known_owned_file(self):
@@ -185,7 +203,7 @@ class DualIosCollaborationTest(unittest.TestCase):
                      'storageDigest': 'a' * 64, 'matrixDeviceDigest': 'b' * 64,
                      'scenarios': {scenario: {'status': 'passed', 'evidence': 'server-denial' if scenario == 'authorization' else 'flutter-ui'} for scenario in dual.SCENARIOS},
                      'encryption': {'policyRequired': True, 'status': 'passed', 'plaintextFallback': False}}
-            value['scenarios']['authorization'].update({'deniedIdentityDigest': 'c' * 64,
+            value['scenarios']['authorization'].update({'deniedIdentityDigest': 'c' * 64, 'resourceDigest': 'd' * 64,
                                                        'denials': {'chat': 'passed', 'files': 'passed', 'calendar': 'passed'}})
             def write():path.write_text(json.dumps(value))
             write();self.assertEqual(dual.actor_result(path, 'A', 'actual-subject', 'a' * 64), value)

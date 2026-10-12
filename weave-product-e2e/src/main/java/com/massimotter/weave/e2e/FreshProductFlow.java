@@ -443,7 +443,7 @@ public final class FreshProductFlow {
             browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
             memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
-            browser, outsiderSession, organizationId);
+            browser, outsiderSession, organizationId, adminSession, memberSession, personRef);
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
             release.bindingRef(), mcpProof, restartProof, revocationDenied,
             calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
@@ -539,7 +539,7 @@ public final class FreshProductFlow {
             browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
             memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
-            browser, outsiderSession, organizationId);
+            browser, outsiderSession, organizationId, adminSession, memberSession, personRef);
 
         writeEvidence(
             startedAt,
@@ -578,7 +578,8 @@ public final class FreshProductFlow {
   private void runNativeAuthorizedJourney(
       String memberEmail, String memberPassword, String ownerSubject,
       String peerEmail, String peerPassword, String peerSubject, String invitationHandle,
-      OidcBrowserJourney browser, OidcBrowserJourney.TokenSet outsiderSession, String organizationId) {
+      OidcBrowserJourney browser, OidcBrowserJourney.TokenSet outsiderSession, String organizationId,
+      OidcBrowserJourney.TokenSet nativeAdminSession, OidcBrowserJourney.TokenSet nativePeerSession, String nativePeerAccountRef) {
     String runner = System.getProperty("weave.e2e.native-runner", "");
     if (runner.isBlank()) {
       return;
@@ -595,13 +596,16 @@ public final class FreshProductFlow {
         "dual-ios-input-" + environment.runId() + ".json");
     Path authorizationRequest = privateInput.resolveSibling("dual-ios-authorization-request-" + environment.runId() + ".json");
     Path authorizationProof = privateInput.resolveSibling("dual-ios-authorization-proof-" + environment.runId() + ".json");
+    Path revocationRequest = privateInput.resolveSibling("dual-ios-grant-revocation-request-" + environment.runId() + ".json");
+    Path revocationProof = privateInput.resolveSibling("dual-ios-grant-revocation-proof-" + environment.runId() + ".json");
     boolean privateInputCreated = false;
     Process nativeProcess = null;
     try {
       Path parent = privateInput.getParent();
       if (Files.isSymbolicLink(parent.getParent()) || Files.isSymbolicLink(parent)
           || Files.isSymbolicLink(privateInput) || Files.exists(authorizationRequest, LinkOption.NOFOLLOW_LINKS)
-          || Files.exists(authorizationProof, LinkOption.NOFOLLOW_LINKS)) {
+          || Files.exists(authorizationProof, LinkOption.NOFOLLOW_LINKS)
+          || Files.exists(revocationRequest, LinkOption.NOFOLLOW_LINKS) || Files.exists(revocationProof, LinkOption.NOFOLLOW_LINKS)) {
         throw new ProductFlowException("native private input path is unsafe");
       }
       Files.createDirectories(parent);
@@ -625,6 +629,7 @@ public final class FreshProductFlow {
       setPrivatePermissions(privateInput);
       nativeProcess = process.start();
       boolean authorizationCompleted = false;
+      boolean revocationCompleted = false;
       while (!nativeProcess.waitFor(1, java.util.concurrent.TimeUnit.SECONDS)) {
         if (Files.exists(authorizationRequest, LinkOption.NOFOLLOW_LINKS)) {
           if (authorizationCompleted) {
@@ -648,6 +653,7 @@ public final class FreshProductFlow {
               + "/events/" + nativePath(resources.path("eventId").asString()), "code", "calendar-forbidden", bearer);
           Map<String, Object> proof = Map.of("status", "passed", "evidence", "server-denial",
               "deniedIdentityDigest", Hashing.sha256(outsiderSession.subject()),
+              "resourceDigest", Hashing.sha256(resources.path("fileId").asString()),
               "denials", Map.of("chat", "passed", "files", "passed", "calendar", "passed"));
           Path staging = Files.createTempFile(parent, "dual-ios-proof-", ".tmp");
           try {
@@ -659,6 +665,30 @@ public final class FreshProductFlow {
           }
           Files.delete(authorizationRequest);
           authorizationCompleted = true;
+        }
+        if (Files.exists(revocationRequest, LinkOption.NOFOLLOW_LINKS)) {
+          if (!authorizationCompleted || revocationCompleted) {
+            throw new ProductFlowException("native current grant exchange ordering was invalid");
+          }
+          JsonNode request = requireOwnedNativeAuthorizationRequest(revocationRequest, environment.runId(), ownerSubject, peerSubject);
+          nativeAdminSession = browser.refresh(nativeAdminSession);
+          nativePeerSession = browser.refresh(nativePeerSession);
+          String fileId = request.path("resources").path("fileId").asString();
+          new GeneratedSpacesJourney(environment).verifyRevocationAndVersionedRegrant(
+              nativeAdminSession.accessToken(), nativePeerSession.accessToken(), nativePeerAccountRef, fileId);
+          Map<String, Object> proof = Map.of("status", "passed", "evidence", "server-denial", "resourceDigest", Hashing.sha256(fileId),
+              "deniedIdentityDigest", Hashing.sha256(peerSubject), "denied", true, "regrantRestored", true);
+          Path staging = revocationProof.resolveSibling(revocationProof.getFileName() + ".tmp");
+          try {
+            Files.writeString(staging, tools.jackson.databind.json.JsonMapper.builder().build().writeValueAsString(proof),
+                java.nio.file.StandardOpenOption.CREATE_NEW, java.nio.file.StandardOpenOption.WRITE);
+            setPrivatePermissions(staging);
+            Files.move(staging, revocationProof, StandardCopyOption.ATOMIC_MOVE);
+          } finally {
+            Files.deleteIfExists(staging);
+          }
+          Files.delete(revocationRequest);
+          revocationCompleted = true;
         }
       }
       int status = nativeProcess.exitValue();
@@ -690,7 +720,7 @@ public final class FreshProductFlow {
         try {
           if (privateInputCreated) {
             IOException cleanupFailure = null;
-            for (Path owned : List.of(privateInput, authorizationRequest, authorizationProof)) {
+            for (Path owned : List.of(privateInput, authorizationRequest, authorizationProof, revocationRequest, revocationProof)) {
               try {
                 Files.deleteIfExists(owned);
               } catch (IOException failure) {

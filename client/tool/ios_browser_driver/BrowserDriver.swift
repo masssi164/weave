@@ -439,6 +439,33 @@ final class BrowserDriver: XCTestCase {
     XCTFail("Owned native document picker action did not complete")
   }
 
+  func testNativeLifecycle() throws {
+    continueAfterFailure = false
+    let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "private-member", withExtension: "json"))
+    let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+    guard fixture["phase"] as? String == "lifecycle" else {
+      throw XCTSkip("Lifecycle is a separate owned native UI action")
+    }
+    let action = try XCTUnwrap(fixture["action"] as? String)
+    let app = XCUIApplication(bundleIdentifier: "com.massimotter.weave")
+    if action == "background" {
+      XCTAssertEqual(app.state, .runningForeground)
+      XCUIDevice.shared.press(.home)
+      let deadline = Date().addingTimeInterval(10)
+      while Date() < deadline && app.state == .runningForeground { Thread.sleep(forTimeInterval: 0.25) }
+      XCTAssertTrue(app.state == .runningBackground || app.state == .runningBackgroundSuspended)
+      print("NATIVE_IOS_LIFECYCLE_STAGE phase=background-observed")
+    } else {
+      XCTAssertEqual(action, "foreground")
+      XCTAssertTrue(app.state == .runningBackground || app.state == .runningBackgroundSuspended)
+      app.activate()  // Post-auth lifecycle only; attach the same existing process.
+      let deadline = Date().addingTimeInterval(10)
+      while Date() < deadline && app.state != .runningForeground { Thread.sleep(forTimeInterval: 0.25) }
+      XCTAssertEqual(app.state, .runningForeground)
+      print("NATIVE_IOS_LIFECYCLE_STAGE phase=foreground-observed")
+    }
+  }
+
   func testProductionBrowser() throws {
     continueAfterFailure = false
     print("NATIVE_IOS_BROWSER_STAGE phase=driver-started")
