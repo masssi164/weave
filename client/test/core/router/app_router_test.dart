@@ -176,6 +176,41 @@ class _FakeCalendarRepository implements CalendarRepository {
 }
 
 void main() {
+  test('app-local reset consumes its control before canonical discovery', () {
+    final clean = canonicalDogfoodAppStateResetLink(
+      Uri.parse(
+        'weave://join?organization_origin=https%3A%2F%2Fweave.test%3A9443%2F&dogfood_reset=app_state',
+      ),
+    );
+    expect(clean, isNotNull);
+    expect(clean!.queryParameters, {
+      'organization_origin': 'https://weave.test:9443/',
+    });
+    expect(
+      initialLocationForDefaultRoute(clean.toString()),
+      '/join?organization_origin=https%3A%2F%2Fweave.test%3A9443%2F',
+    );
+  });
+
+  for (final link in [
+    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F',
+    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=destructive_uninstall',
+    'weave://join?profile=local-lan-dogfood&dogfood_reset=app_state',
+    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=app_state&profile=local-lan-dogfood',
+    'weave://join?organization_origin=http%3A%2F%2Fweave.test%2F&dogfood_reset=app_state',
+    'weave://join?organization_origin=https%3A%2F%2Fuser%3Asecret%40weave.test%2F&dogfood_reset=app_state',
+    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2Fapi&dogfood_reset=app_state',
+    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=app_state&dogfood_reset=app_state',
+    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F&organization_origin=https%3A%2F%2Fother.test%2F&dogfood_reset=app_state',
+    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=app_state#fragment',
+    'https://weave.test/join?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=app_state',
+    'weave://other?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=app_state',
+  ]) {
+    test('ordinary or invalid link cannot reset app state: $link', () {
+      expect(canonicalDogfoodAppStateResetLink(Uri.parse(link)), isNull);
+    });
+  }
+
   group('AppRouter', () {
     test('uses organization access as the normal launch route', () {
       expect(initialLocationForDefaultRoute('/'), AppRoutes.organizationAccess);

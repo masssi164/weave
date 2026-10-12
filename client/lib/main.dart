@@ -20,6 +20,7 @@ import 'package:weave/core/theme/app_theme_preference.dart';
 import 'package:weave/core/theme/app_theme_preference_provider.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
+import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
@@ -31,7 +32,32 @@ import 'package:weave/l10n/generated/app_localizations.dart';
 const _pendingDeepLinkKey = 'pending_deep_link_url';
 const _dogfoodResetQueryKey = 'dogfood_reset';
 const _dogfoodResetAppStateValue = 'app_state';
-const _dogfoodLocalProfile = 'local-lan-dogfood';
+
+/// Consumes the bounded app-local reset control only on a canonical app link.
+/// The clean link is validated before any preferences or session are removed.
+Uri? canonicalDogfoodAppStateResetLink(Uri uri) {
+  if (uri.scheme != 'weave' ||
+      uri.host != 'join' ||
+      (uri.path.isNotEmpty && uri.path != '/') ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasFragment ||
+      uri.queryParameters.length != 2 ||
+      uri.queryParametersAll.values.any((values) => values.length != 1) ||
+      uri.queryParameters[_dogfoodResetQueryKey] !=
+          _dogfoodResetAppStateValue ||
+      !uri.queryParameters.containsKey('organization_origin')) {
+    return null;
+  }
+  final cleanQuery = Map<String, String>.from(uri.queryParameters)
+    ..remove(_dogfoodResetQueryKey);
+  final cleanUri = uri.replace(queryParameters: cleanQuery);
+  try {
+    final access = const OrganizationAccessParser().parse(cleanUri);
+    return access.handoff == null ? cleanUri : null;
+  } on AppFailure {
+    return null;
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -164,9 +190,8 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
   }
 
   Future<bool> _resetDogfoodAppStateIfRequested(Uri uri) async {
-    if (uri.queryParameters[_dogfoodResetQueryKey] !=
-            _dogfoodResetAppStateValue ||
-        uri.queryParameters['profile'] != _dogfoodLocalProfile) {
+    final cleanUri = canonicalDogfoodAppStateResetLink(uri);
+    if (cleanUri == null) {
       return false;
     }
     final preferences = SharedPreferencesAsync();
@@ -194,9 +219,6 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
         await secureStorage.delete(key: key);
       } catch (_) {}
     }
-    final cleanQuery = Map<String, String>.from(uri.queryParameters)
-      ..remove(_dogfoodResetQueryKey);
-    final cleanUri = uri.replace(queryParameters: cleanQuery);
     try {
       await preferences.setString(_pendingDeepLinkKey, cleanUri.toString());
     } catch (_) {}
