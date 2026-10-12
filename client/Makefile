@@ -32,6 +32,10 @@ physical-device-auth-e2e:
 
 # GitHub's default reporter buffers test messages until completion. Native
 # browser coordination needs live readiness markers in the private transcript.
+# Simulator product phases use drive because test uninstalls on teardown;
+# the runner explicitly stops the retained application before the restore phase.
+# The runner builds and launches each phase paused, then drive attaches once to
+# the existing process without reopening Flutter's simulator log reader.
 native-browser-e2e:
 	@set -e; \
 	device_id="$${WEAVE_PHYSICAL_DEVICE_ID:-}"; \
@@ -60,9 +64,23 @@ native-browser-e2e:
 	  --arg WEAVE_TWO_DEVICE_MATRIX_RECOVERY_E2E "$${WEAVE_DEVICE_MATRIX_RECOVERY_E2E:-false}" \
 	  --arg WEAVE_DEVICE_DISPOSABLE_STACK "$${WEAVE_DEVICE_DISPOSABLE_STACK:-false}" \
 	  --arg WEAVE_NATIVE_EXPECT_SIMULATOR "$${WEAVE_NATIVE_EXPECT_SIMULATOR:-false}" \
+	  --arg WEAVE_DEVICE_PRODUCT_PHASE "$${WEAVE_DEVICE_PRODUCT_PHASE:-initial}" \
 	  --arg WEAVE_NATIVE_TEST_RUN_ID "$${WEAVE_NATIVE_TEST_RUN_ID:-}" \
 	  '$$ARGS.named' > "$$dart_defines_file"; \
-	if [ "$${WEAVE_DEVICE_PRODUCT_E2E:-false}" = "true" ]; then \
+	if [ "$${WEAVE_NATIVE_EXPECT_SIMULATOR:-false}" = "true" ] && [ "$${WEAVE_DEVICE_PRODUCT_E2E:-false}" = "true" ]; then \
+	  case "$${WEAVE_DEVICE_PRODUCT_PHASE:-initial}" in initial|restore) ;; *) echo 'Unsupported simulator product phase.' >&2; exit 2 ;; esac; \
+	  case '$(native_simulator_action)' in \
+	    build) flutter build ios --simulator --debug \
+	      --target=integration_test/system_browser_auth_e2e_test.dart --dart-define-from-file="$$dart_defines_file" ;; \
+	    attach) test -n '$(native_simulator_vm_uri)' || { echo 'Owned simulator VM service is required.' >&2; exit 2; }; \
+	      python3 -c 'import sys; sys.path.insert(0, "tool"); import run_ios_simulator_product_acceptance as native; native.owned_vm_service_uri(native.simulator_vm.VM_EVENT_PREFIX + sys.argv[1])' '$(native_simulator_vm_uri)'; \
+	      flutter drive --target=integration_test/system_browser_auth_e2e_test.dart \
+	        --driver=test_driver/integration_test.dart --keep-app-running \
+	        --use-existing-app='$(native_simulator_vm_uri)' -d "$$device_id" \
+	        --dart-define-from-file="$$dart_defines_file" ;; \
+	    *) echo 'Unsupported simulator runner action.' >&2; exit 2 ;; \
+	  esac; \
+	elif [ "$${WEAVE_DEVICE_PRODUCT_E2E:-false}" = "true" ]; then \
 	  if [ "$${WEAVE_DEVICE_PRODUCT_PHASE:-initial}" = "restore" ]; then \
 	    product_test='native process restart restores Files Calendar Matrix then logout'; \
 	  else \
