@@ -5,7 +5,7 @@ import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.model.PlatformConfigResponse;
+import com.massimotter.weave.backend.model.OrgManifestResponse;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import java.net.URI;
@@ -49,13 +49,13 @@ public class PlatformContractService {
         this.matrixFacadeServerName = matrixFacadeServerName;
     }
 
-    public PlatformConfigResponse config() {
-        return new PlatformConfigResponse(
+    public OrgManifestResponse config() {
+        return new OrgManifestResponse(
                 2,
-                platformProperties.publicBaseUrl(),
-                platformProperties.apiBaseUrl(),
-                new PlatformConfigResponse.Oidc(oidcIssuerUrl(), securityProperties.clientId()),
-                new PlatformConfigResponse.Protocols(
+                safeManifestUrl(platformProperties.publicBaseUrl(), "organizationOrigin"),
+                safeManifestUrl(platformProperties.apiBaseUrl(), "userApiBaseUrl"),
+                new OrgManifestResponse.Oidc(oidcIssuerUrl(), securityProperties.clientId()),
+                new OrgManifestResponse.Protocols(
                         advertisedMatrixFacadeUrl()),
                 releasePosture(),
                 List.of(
@@ -86,11 +86,11 @@ public class PlatformContractService {
         };
     }
 
-    private PlatformConfigResponse.DomainCapability domain(
+    private OrgManifestResponse.DomainCapability domain(
             String domain,
             boolean enabled,
             List<String> capabilities) {
-        return new PlatformConfigResponse.DomainCapability(
+        return new OrgManifestResponse.DomainCapability(
                 domain,
                 enabled ? "available" : "not_configured",
                 enabled ? capabilities : List.of(),
@@ -100,9 +100,26 @@ public class PlatformContractService {
     private String oidcIssuerUrl() {
         String configuredIssuer = resourceServerProperties.getJwt().getIssuerUri();
         if (hasText(configuredIssuer)) {
-            return configuredIssuer;
+            return safeManifestUrl(configuredIssuer, "oidc.issuer");
         }
-        return joinUrlPath(platformProperties.authBaseUrl(), "/realms/weave");
+        return safeManifestUrl(joinUrlPath(platformProperties.authBaseUrl(), "/realms/weave"), "oidc.issuer");
+    }
+
+    private String safeManifestUrl(String value, String field) {
+        try {
+            URI uri = URI.create(value.trim());
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
+                    || uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null) {
+                throw new IllegalArgumentException("Unsafe public origin");
+            }
+            return uri.toString();
+        } catch (IllegalArgumentException | NullPointerException invalidUrl) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "organization-manifest-invalid-public-url",
+                    "The organization connection configuration is unavailable.",
+                    Map.of("field", field, "diagnosticsRedacted", true));
+        }
     }
 
     private String advertisedMatrixFacadeUrl() {

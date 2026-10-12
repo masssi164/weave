@@ -68,6 +68,9 @@ class PlatformControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private OAuth2ResourceServerProperties resourceServerProperties;
+
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
@@ -80,6 +83,41 @@ class PlatformControllerTest {
     @BeforeEach
     void persistenceIsReady() {
         org.mockito.Mockito.when(persistenceHealth.isReady()).thenReturn(true);
+    }
+
+    @Test
+    void rejectsCredentialBearingOrNonHttpsDiscoveryIssuer() throws Exception {
+        String original = resourceServerProperties.getJwt().getIssuerUri();
+        try {
+            for (String issuer : java.util.List.of(
+                    "https://user:password@auth.weave.test/realms/weave",
+                    "https://auth.weave.test/realms/weave?token=private",
+                    "https://auth.weave.test/realms/weave#private",
+                    "http://auth.weave.test/realms/weave")) {
+                resourceServerProperties.getJwt().setIssuerUri(issuer);
+                var result = mockMvc.perform(get("/api/platform/config"))
+                        .andExpect(status().isServiceUnavailable())
+                        .andExpect(jsonPath("$.code").value("organization-manifest-invalid-public-url"))
+                        .andReturn();
+                assertThat(result.getResponse().getContentAsString())
+                        .doesNotContain("password", "token=private", "#private");
+            }
+        } finally {
+            resourceServerProperties.getJwt().setIssuerUri(original);
+        }
+    }
+
+    @Test
+    void fallsBackToConfiguredOrganizationAuthOriginWhenIssuerIsMissing() throws Exception {
+        String original = resourceServerProperties.getJwt().getIssuerUri();
+        try {
+            resourceServerProperties.getJwt().setIssuerUri(" ");
+            mockMvc.perform(get("/api/platform/config"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.oidc.issuer").value("https://auth.weave.test/realms/weave"));
+        } finally {
+            resourceServerProperties.getJwt().setIssuerUri(original);
+        }
     }
 
     @Test
