@@ -127,6 +127,13 @@ def private_input(path: Path, run_id: str) -> dict:
     return data
 
 
+def verify_result_path(path: Path, parent: Path, run_id: str) -> None:
+    if (path.parent.resolve() != parent.resolve()
+            or path.name != 'dual-ios-result-' + run_id + '.json'
+            or path.is_symlink() or path.exists()):
+        raise ios.NativeFailure('infrastructure', 'dual-result', 'unsafe-result-path')
+
+
 def actor_result(path: Path, role: str, expected_identity: str, storage_digest: str) -> dict:
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 8192:
         raise ios.NativeFailure('integration', 'dual-result', 'actor-proof-missing')
@@ -404,8 +411,7 @@ def main() -> int:
     run_id = os.environ['WEAVE_E2E_RUN_ID']
     if not re.fullmatch(r'[A-Za-z0-9-]{1,40}', run_id):
         raise ios.NativeFailure('infrastructure', 'dual-fixture', 'invalid-owned-run-id')
-    if args.output.parent.resolve() != parent.resolve() or args.output.is_symlink():
-        raise ios.NativeFailure('infrastructure', 'dual-result', 'unsafe-result-path')
+    verify_result_path(args.output, parent, run_id)
     rustup = shutil.which('rustup')
     if rustup is None:
         raise ios.NativeFailure('infrastructure', 'dual-toolchain', 'pinned-rustup-missing')

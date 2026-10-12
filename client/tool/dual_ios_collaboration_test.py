@@ -15,6 +15,19 @@ import run_ios_simulator_product_acceptance as ios
 
 
 class DualIosCollaborationTest(unittest.TestCase):
+    def test_result_path_cannot_overwrite_private_input_stale_or_foreign_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            owned = parent / 'dual-ios-result-owned-run.json'
+            dual.verify_result_path(owned, parent, 'owned-run')
+            for path in [parent / 'dual-ios-input-owned-run.json', parent / 'dual-ios-result-other-run.json',
+                         parent / 'foreign' / owned.name]:
+                with self.assertRaises(ios.NativeFailure): dual.verify_result_path(path, parent, 'owned-run')
+            owned.write_text('{}')
+            with self.assertRaises(ios.NativeFailure): dual.verify_result_path(owned, parent, 'owned-run')
+            owned.unlink(); owned.symlink_to(parent / 'absent')
+            with self.assertRaises(ios.NativeFailure): dual.verify_result_path(owned, parent, 'owned-run')
+
     def test_cleanup_attempts_both_devices_and_fails_closed_on_one_error(self):
         devices = ['owned-A', 'owned-B']
         deleted = []
