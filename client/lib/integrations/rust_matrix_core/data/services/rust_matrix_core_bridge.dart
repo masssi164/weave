@@ -354,6 +354,17 @@ class RustMatrixDecryptionDiagnostics {
   }
 }
 
+class RustMatrixMember {
+  const RustMatrixMember({required this.userId, required this.displayName});
+  factory RustMatrixMember.fromJson(Map<String, dynamic> json) =>
+      RustMatrixMember(
+        userId: _string(json['userId']),
+        displayName: _string(json['displayName']),
+      );
+  final String userId;
+  final String displayName;
+}
+
 class RustMatrixEncryptedRoom {
   const RustMatrixEncryptedRoom({
     required this.roomId,
@@ -622,6 +633,30 @@ class RustMatrixCoreBridge {
       ),
     );
   }
+
+  Future<List<RustMatrixMember>> searchMembers({
+    required String profileKey,
+    required String query,
+  }) async {
+    final result = await _native(
+      () => matrixSearchMembers(profileKey: profileKey, query: query),
+    );
+    return _mapList(result['members'], RustMatrixMember.fromJson);
+  }
+
+  Future<RustMatrixEncryptedRoom> createBusinessRoomWithMembers({
+    required String profileKey,
+    required String title,
+    required List<String> memberIds,
+  }) async => RustMatrixEncryptedRoom.fromJson(
+    await _native(
+      () => matrixCreateBusinessRoomWithMembers(
+        profileKey: profileKey,
+        title: title,
+        memberIds: memberIds,
+      ),
+    ),
+  );
 
   Future<List<RustMatrixMessageProjection>> loadRoomMessages({
     required String profileKey,

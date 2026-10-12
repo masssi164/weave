@@ -5876,6 +5876,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'For all-day events, the end date is the first day after the event.'**
   String get calendarAllDayExclusiveEnd;
+
+  /// No description provided for @chatParticipantsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Add people'**
+  String get chatParticipantsLabel;
+
+  /// No description provided for @chatParticipantsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Find people in your organization by name.'**
+  String get chatParticipantsHelp;
+
+  /// No description provided for @chatParticipantsSearchFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'People could not be loaded. Try searching again.'**
+  String get chatParticipantsSearchFailure;
 }
 
 class _AppLocalizationsDelegate

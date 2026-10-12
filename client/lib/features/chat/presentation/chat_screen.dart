@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -55,8 +57,11 @@ class _AdmittedChatScreen extends ConsumerWidget {
       final conversation = await showDialog<ChatConversation>(
         context: context,
         builder: (dialogContext) => _CreateConversationDialog(
-          onCreate: (title) =>
-              ref.read(chatProvider.notifier).createConversation(title: title),
+          onCreate: (title, participants) => ref
+              .read(chatProvider.notifier)
+              .createConversation(title: title, participants: participants),
+          onSearchMembers: (query) =>
+              ref.read(chatProvider.notifier).searchMembers(query),
         ),
       );
       if (conversation == null || !context.mounted) {
@@ -139,9 +144,17 @@ class _AdmittedChatScreen extends ConsumerWidget {
 }
 
 class _CreateConversationDialog extends StatefulWidget {
-  const _CreateConversationDialog({required this.onCreate});
+  const _CreateConversationDialog({
+    required this.onCreate,
+    required this.onSearchMembers,
+  });
 
-  final Future<ChatConversation> Function(String title) onCreate;
+  final Future<ChatConversation> Function(
+    String title,
+    List<ChatParticipant> participants,
+  )
+  onCreate;
+  final Future<List<ChatParticipant>> Function(String query) onSearchMembers;
 
   @override
   State<_CreateConversationDialog> createState() =>
@@ -150,14 +163,52 @@ class _CreateConversationDialog extends StatefulWidget {
 
 class _CreateConversationDialogState extends State<_CreateConversationDialog> {
   final _nameController = TextEditingController();
+  final _participantController = TextEditingController();
+  final _selected = <String, ChatParticipant>{};
+  List<ChatParticipant> _results = const [];
+  Timer? _searchTimer;
+  var _searchSequence = 0;
+  bool _searching = false;
+  bool _searchFailed = false;
+
   bool _submitting = false;
   bool _nameInvalid = false;
   bool _creationFailed = false;
 
   @override
   void dispose() {
+    _searchTimer?.cancel();
+    _searchSequence++;
+    _participantController.dispose();
     _nameController.dispose();
     super.dispose();
+  }
+
+  void _search(String query) {
+    _searchTimer?.cancel();
+    final sequence = ++_searchSequence;
+    setState(() {
+      _searchFailed = false;
+      _results = const [];
+      _searching = query.trim().isNotEmpty;
+    });
+    if (query.trim().isEmpty) return;
+    _searchTimer = Timer(const Duration(milliseconds: 250), () async {
+      try {
+        final result = await widget.onSearchMembers(query.trim());
+        if (!mounted || sequence != _searchSequence) return;
+        setState(() {
+          _results = result;
+          _searching = false;
+        });
+      } on Object {
+        if (!mounted || sequence != _searchSequence) return;
+        setState(() {
+          _searchFailed = true;
+          _searching = false;
+        });
+      }
+    });
   }
 
   Future<void> _submit() async {
@@ -179,7 +230,10 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
       _creationFailed = false;
     });
     try {
-      final conversation = await widget.onCreate(title);
+      final conversation = await widget.onCreate(
+        title,
+        _selected.values.toList(growable: false),
+      );
       if (mounted) {
         Navigator.of(context).pop(conversation);
       }
@@ -229,6 +283,55 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
               },
               onSubmitted: (_) => _submit(),
             ),
+            const SizedBox(height: 16),
+            TextField(
+              key: const Key('chat-create-conversation-participant-field'),
+              controller: _participantController,
+              enabled: !_submitting,
+              maxLength: 200,
+              decoration: InputDecoration(
+                labelText: l10n.chatParticipantsLabel,
+                helperText: l10n.chatParticipantsHelp,
+              ),
+              onChanged: _search,
+            ),
+            if (_selected.isNotEmpty)
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final member in _selected.values)
+                    InputChip(
+                      label: Text(member.displayName),
+                      onDeleted: _submitting
+                          ? null
+                          : () => setState(() {
+                              _selected.remove(member.userId);
+                            }),
+                    ),
+                ],
+              ),
+            if (_searching) const LinearProgressIndicator(),
+            if (_searchFailed)
+              Semantics(
+                liveRegion: true,
+                child: Text(l10n.chatParticipantsSearchFailure),
+              ),
+            for (final member in _results)
+              CheckboxListTile(
+                key: ValueKey('chat-participant-result-${member.userId}'),
+                title: Text(member.displayName),
+                subtitle: Text(member.userId),
+                value: _selected.containsKey(member.userId),
+                onChanged: _submitting
+                    ? null
+                    : (selected) => setState(() {
+                        if (selected == true) {
+                          _selected[member.userId] = member;
+                        } else {
+                          _selected.remove(member.userId);
+                        }
+                      }),
+              ),
             if (_creationFailed)
               Semantics(
                 container: true,

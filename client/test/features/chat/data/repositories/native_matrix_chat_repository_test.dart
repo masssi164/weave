@@ -105,6 +105,36 @@ class _FailingCreateBridge extends FakeRustMatrixCoreBridge {
   }
 }
 
+class _ParticipantBridge extends FakeRustMatrixCoreBridge {
+  List<String>? invited;
+  String? search;
+  @override
+  Future<List<RustMatrixMember>> searchMembers({
+    required String profileKey,
+    required String query,
+  }) async {
+    search = query;
+    return const [
+      RustMatrixMember(userId: '@member:api.weave.test', displayName: 'Member'),
+    ];
+  }
+
+  @override
+  Future<RustMatrixEncryptedRoom> createBusinessRoomWithMembers({
+    required String profileKey,
+    required String title,
+    required List<String> memberIds,
+  }) async {
+    invited = memberIds;
+    return RustMatrixEncryptedRoom(
+      roomId: '!shared:api.weave.test',
+      title: title,
+      unreadCount: 0,
+      encrypted: false,
+    );
+  }
+}
+
 void main() {
   late FakeMatrixCryptoSessionPort cryptoSession;
   late FakeRustMatrixCoreBridge bridge;
@@ -117,6 +147,23 @@ void main() {
       rustMatrixCoreBridge: rustBridge ?? bridge,
     );
   }
+
+  test(
+    'search and create forward current session and selected native members through SDK bridge',
+    () async {
+      final participantBridge = _ParticipantBridge();
+      final chat = repository(rustBridge: participantBridge);
+      final members = await chat.searchMembers(' Member ');
+      expect(participantBridge.search, 'Member');
+      expect(members.single.displayName, 'Member');
+      final conversation = await chat.createConversationWithParticipants(
+        title: 'Shared conversation',
+        participants: members,
+      );
+      expect(conversation.id, '!shared:api.weave.test');
+      expect(participantBridge.invited, ['@member:api.weave.test']);
+    },
+  );
 
   setUp(() {
     cryptoSession = FakeMatrixCryptoSessionPort();

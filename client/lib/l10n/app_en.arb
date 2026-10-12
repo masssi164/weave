@@ -4457,5 +4457,8 @@
         "type": "String"
       }
     }
-  }
+  },
+  "chatParticipantsLabel": "Add people",
+  "chatParticipantsHelp": "Find people in your organization by name.",
+  "chatParticipantsSearchFailure": "People could not be loaded. Try searching again."
 }

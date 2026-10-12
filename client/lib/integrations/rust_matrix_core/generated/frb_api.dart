@@ -127,6 +127,24 @@ Future<String> matrixCreateBusinessRoom({
   title: title,
 );
 
+Future<String> matrixSearchMembers({
+  required String profileKey,
+  required String query,
+}) => RustLib.instance.api.crateFrbApiMatrixSearchMembers(
+  profileKey: profileKey,
+  query: query,
+);
+
+Future<String> matrixCreateBusinessRoomWithMembers({
+  required String profileKey,
+  required String title,
+  required List<String> memberIds,
+}) => RustLib.instance.api.crateFrbApiMatrixCreateBusinessRoomWithMembers(
+  profileKey: profileKey,
+  title: title,
+  memberIds: memberIds,
+);
+
 Future<String> matrixRoomMessages({
   required String profileKey,
   required String roomId,

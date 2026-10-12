@@ -1,3 +1,4 @@
+import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 
@@ -17,4 +18,12 @@ abstract interface class ChatRepository {
   Future<void> signOut();
 
   Future<void> clearSession();
+}
+
+abstract interface class ChatParticipantRepository {
+  Future<List<ChatParticipant>> searchMembers(String query);
+  Future<ChatConversation> createConversationWithParticipants({
+    required String title,
+    required List<ChatParticipant> participants,
+  });
 }

@@ -3672,4 +3672,15 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get calendarAllDayExclusiveEnd =>
       'Bei ganztägigen Terminen ist das Enddatum der erste Tag nach dem Termin.';
+
+  @override
+  String get chatParticipantsLabel => 'Personen hinzufügen';
+
+  @override
+  String get chatParticipantsHelp =>
+      'Personen in deiner Organisation nach Namen suchen.';
+
+  @override
+  String get chatParticipantsSearchFailure =>
+      'Personen konnten nicht geladen werden. Versuche die Suche erneut.';
 }

@@ -3621,4 +3621,15 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get calendarAllDayExclusiveEnd =>
       'For all-day events, the end date is the first day after the event.';
+
+  @override
+  String get chatParticipantsLabel => 'Add people';
+
+  @override
+  String get chatParticipantsHelp =>
+      'Find people in your organization by name.';
+
+  @override
+  String get chatParticipantsSearchFailure =>
+      'People could not be loaded. Try searching again.';
 }

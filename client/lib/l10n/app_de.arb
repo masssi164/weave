@@ -1193,5 +1193,8 @@
         "type": "String"
       }
     }
-  }
+  },
+  "chatParticipantsLabel": "Personen hinzufügen",
+  "chatParticipantsHelp": "Personen in deiner Organisation nach Namen suchen.",
+  "chatParticipantsSearchFailure": "Personen konnten nicht geladen werden. Versuche die Suche erneut."
 }
