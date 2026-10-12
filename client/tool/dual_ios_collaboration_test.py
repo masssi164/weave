@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import sys
 import socket
+import shutil
+import subprocess
 import threading
 import tempfile
 import unittest
@@ -17,6 +19,17 @@ import run_ios_simulator_product_acceptance as ios
 
 
 class DualIosCollaborationTest(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('flutter'), 'Flutter CLI is required for real argument-parser validation')
+    def test_actual_flutter_drive_parser_accepts_both_phase_host_arguments(self):
+        # --help parses the actual command without launching, attaching or building.
+        command = dual.flutter_drive_command('http://127.0.0.1:12345/owned/', 'owned-disposable-simulator')
+        accepted = subprocess.run([*command, '--help'], capture_output=True, text=True, timeout=30)
+        self.assertEqual(accepted.returncode, 0)
+        rejected = subprocess.run([*command, '--reporter', 'expanded', '--help'],
+                                  capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn('Could not find an option named "--reporter".', rejected.stderr)
+
     def test_restart_proof_requires_distinct_processes_real_flags_and_safe_intervals(self):
         proof = {'role': 'B', 'identityDigest': 'a' * 64, 'matrixDeviceDigest': 'b' * 64, 'storageDigest': 'c' * 64,
                  'recovery': {key: True for key in ['network', 'background', 'processRestored', 'persistentReadback', 'expiryRefresh', 'logoutIndependent', 'grantRegrantReadback']}}

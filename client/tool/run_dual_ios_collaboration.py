@@ -315,6 +315,15 @@ def recovery_actor_proof(proof: dict, initial_pid: str, restored_pid: str,
             'refreshObserved': state['expiryRefresh'], 'logoutIndependent': state['logoutIndependent']}
 
 
+def flutter_drive_command(uri: str, udid: str) -> list[str]:
+    # drive uses a host integration driver, not flutter test's reporter flags.
+    # Live safe target markers already bypass test-zone buffering.
+    return ['flutter', 'drive', '--no-pub', '--keep-app-running',
+            '--driver=test_driver/integration_test.dart',
+            '--target=integration_test/dual_ios_collaboration_test.dart',
+            '--use-existing-app=' + uri, '-d', udid]
+
+
 def actor_runtime_copy(client: Path, destination: Path) -> None:
     """Separate mutable attach metadata; never run concurrent pub/build commands."""
     shutil.copytree(client, destination, ignore=shutil.ignore_patterns('build', '.git', '.dart_tool', 'private-*'))
@@ -380,9 +389,7 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
     succeeded = False
     with (temporary / 'flutter-initial.log').open('w+') as log, (temporary / 'browser-initial.log').open('w+') as browser_log:
         try:
-            flutter = track_process(subprocess.Popen(['flutter', 'drive', '--no-pub', '--reporter', 'expanded', '--keep-app-running',
-                                        '--driver=test_driver/integration_test.dart', '--target=integration_test/dual_ios_collaboration_test.dart',
-                                        '--use-existing-app=' + uri, '-d', udid], cwd=runtime, env=env,
+            flutter = track_process(subprocess.Popen(flutter_drive_command(uri, udid), cwd=runtime, env=env,
                                        stdout=log, stderr=subprocess.STDOUT, start_new_session=True))
             ios.wait_for_flutter_shell(flutter, temporary / 'flutter-initial.log', 'initial')
             barrier = ios.simulator_driver_barrier(udid, input_data['runId'])
@@ -434,9 +441,7 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
             started = now()
             uri = ios.discover_owned_vm_service(udid, pid, started_at)
             with (temporary / 'flutter-restore.log').open('w+') as restored_log:
-                flutter = track_process(subprocess.Popen(['flutter', 'drive', '--no-pub', '--reporter', 'expanded', '--keep-app-running',
-                                            '--driver=test_driver/integration_test.dart', '--target=integration_test/dual_ios_collaboration_test.dart',
-                                            '--use-existing-app=' + uri, '-d', udid], cwd=runtime, env=env,
+                flutter = track_process(subprocess.Popen(flutter_drive_command(uri, udid), cwd=runtime, env=env,
                                            stdout=restored_log, stderr=subprocess.STDOUT, start_new_session=True))
                 ios.wait_for_flutter_shell(flutter, temporary / 'flutter-restore.log', 'restore')
                 ready.put((role, support, udid, pid, products))
