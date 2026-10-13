@@ -38,6 +38,14 @@ TLS material lives outside Docker at the reviewed environment’s `WEAVE_TLS_ROO
 
 ## Before pressing Run
 
+Dispatch the workflow from the protected `dogfood` ref, with its current full commit as the input:
+
+```sh
+gh workflow run ios-dogfood.yml --ref dogfood -f candidate_sha=<full-dogfood-sha>
+```
+
+Preparation evidence is accepted only when the workflow producer itself has that exact commit and the `dogfood` branch. A matching run title or artifact identity cannot substitute for a trusted producer.
+
 - The iPhone is unlocked, paired with `weave-live-mac-mini`, reachable over the same WLAN, and Developer Mode is enabled.
 - The Weave Local Development CA is still fully trusted.
 - LAN DNS resolves `weave.test` and its subdomains to the dogfood host.

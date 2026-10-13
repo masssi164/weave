@@ -94,7 +94,6 @@ jobs:
           fi
 
       - name: Verify exact qualified dogfood tree
-        if: steps.candidate.outputs.lane == 'promotion'
         env:
           CANDIDATE: ${{ steps.candidate.outputs.sha }}
         run: |
@@ -107,7 +106,6 @@ jobs:
           echo "Candidate preserves qualified Dogfood; newer Dev work is independent."
 
       - name: Verify exact dogfood and separate human result
-        if: steps.candidate.outputs.lane == 'promotion'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.candidate.outputs.pr_number }}

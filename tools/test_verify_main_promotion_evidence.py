@@ -260,9 +260,65 @@ class MainPromotionEvidenceTest(unittest.TestCase):
                           {**TOOLCHAIN, "iosDeviceSdkVersion": True}):
             self.assertFalse(preparation_passed({**valid, "toolchain": toolchain}, SHA, OTHER, "c" * 40, 123, 1))
 
+    def test_latest_preparation_requires_exact_protected_producer_before_artifact_trust(self) -> None:
+        qualification = {"id": 123, "run_attempt": 1, "updated_at": "2026-10-07T11:00:00Z"}
+        trusted = {"id": 456, "run_attempt": 1, "display_title": f"Prepare Human Test {SHA}",
+                   "event": "workflow_dispatch", "path": ".github/workflows/ios-dogfood.yml",
+                   "head_sha": SHA, "head_branch": "dogfood", "status": "completed",
+                   "conclusion": "success", "created_at": "2026-10-07T12:00:00Z",
+                   "run_started_at": "2026-10-07T12:00:00Z"}
+        with patch("tools.verify_main_promotion_evidence.paged", return_value=[trusted]), \
+                patch("tools.verify_main_promotion_evidence.download_artifact", return_value=b"fixture"), \
+                patch("tools.verify_main_promotion_evidence.artifact_json", return_value={}), \
+                patch("tools.verify_main_promotion_evidence.preparation_passed", return_value=True):
+            self.assertEqual(prepared_run("masssi164/weave", SHA, OTHER, "c" * 40,
+                                          qualification, "fixture-token"), trusted)
+        for field, value in (("head_sha", OTHER), ("head_sha", None),
+                             ("head_branch", "dev"), ("head_branch", "hotfix/claim"),
+                             ("head_branch", None), ("conclusion", "failure"),
+                             ("status", "in_progress")):
+            latest = {**trusted, "id": 457, "created_at": "2026-10-07T13:00:00Z", field: value}
+            if value is None:
+                del latest[field]
+            with self.subTest(field=field, value=value), \
+                    patch("tools.verify_main_promotion_evidence.paged", return_value=[trusted, latest]), \
+                    patch("tools.verify_main_promotion_evidence.download_artifact", return_value=b"fixture") as download, \
+                    patch("tools.verify_main_promotion_evidence.artifact_json", return_value={}), \
+                    patch("tools.verify_main_promotion_evidence.preparation_passed", return_value=True):
+                with self.assertRaises(ValueError):
+                    prepared_run("masssi164/weave", SHA, OTHER, "c" * 40, qualification, "fixture-token")
+                download.assert_not_called()
+
+    def test_hotfix_name_cannot_skip_dogfood_tree_or_human_evidence(self) -> None:
+        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/main-promotion-gate.yml").read_text()
+        for name in ("Verify exact qualified dogfood tree", "Verify exact dogfood and separate human result"):
+            step = workflow.split(f"      - name: {name}\n", 1)[1].split("      - name:", 1)[0]
+            self.assertNotIn("        if:", step, name)
+        step = workflow.split("      - name: Verify exact qualified dogfood tree\n", 1)[1].split("      - name:", 1)[0]
+        script = "\n".join(line[10:] for line in step.split("        run: |\n", 1)[1].splitlines())
+        with tempfile.TemporaryDirectory() as directory:
+            def git(*args: str) -> str:
+                return subprocess.check_output(["git", "-C", directory, *args], text=True,
+                                               stderr=subprocess.DEVNULL).strip()
+            git("init", "--quiet")
+            git("config", "user.name", "Disposable hotfix gate test")
+            git("config", "user.email", "gate@example.invalid")
+            git("-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Qualified dogfood")
+            qualified = git("rev-parse", "HEAD")
+            git("update-ref", "refs/remotes/origin/dogfood", qualified)
+            git("checkout", "-b", "hotfix/unqualified", "--quiet")
+            Path(directory, "unqualified-change").write_text("source has changed")
+            git("add", "unqualified-change")
+            git("-c", "commit.gpgsign=false", "commit", "-m", "Unqualified hotfix")
+            result = subprocess.run(["bash", "-c", script], cwd=directory,
+                                    env={**os.environ, "CANDIDATE": git("rev-parse", "HEAD")},
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn("exact protected Dogfood tree", result.stderr)
+
     def test_preparation_cannot_reuse_an_earlier_qualification_attempt(self) -> None:
         qualification = {"id": 123, "run_attempt": 2, "updated_at": "2026-10-07T13:00:00Z"}
-        run = {"id": 456, "run_attempt": 1, "display_title": f"Prepare Human Test {SHA}",
+        run = {"id": 456, "run_attempt": 1, "head_sha": SHA, "head_branch": "dogfood", "display_title": f"Prepare Human Test {SHA}",
                "event": "workflow_dispatch", "path": ".github/workflows/ios-dogfood.yml",
                "status": "completed", "conclusion": "success", "created_at": "2026-10-07T12:00:00Z",
                "run_started_at": "2026-10-07T12:00:00Z"}

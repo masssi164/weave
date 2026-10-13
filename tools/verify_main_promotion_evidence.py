@@ -476,6 +476,10 @@ def prepared_run(repository: str, sha: str, tree: str, spec: str, qualification:
     if not matching:
         raise ValueError("Physical preparation evidence is absent")
     run = max(matching, key=lambda item: (item.get("created_at", ""), item.get("id", 0)))
+    # Select the latest relevant attempt before checking producer trust: never fall
+    # back to an older successful run when a newer attempt is failed or untrusted.
+    if run.get("head_sha") != sha or run.get("head_branch") != "dogfood":
+        raise ValueError("Latest physical preparation must run from the exact protected Dogfood commit")
     if run.get("status") != "completed" or run.get("conclusion") != "success":
         raise ValueError("Latest physical preparation did not succeed")
     if not qualification.get("updated_at") or not run.get("run_started_at") or run["run_started_at"] <= qualification["updated_at"]:
