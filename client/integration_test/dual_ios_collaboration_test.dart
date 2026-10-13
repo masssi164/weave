@@ -525,6 +525,7 @@ void main() {
         final action = command['action'] as String;
         final next = command['sequence'] as int;
         expect(next, greaterThan(sequence));
+        final actionDeadline = DateTime.now().add(const Duration(seconds: 180));
         switch (action) {
           case 'chat-create-send':
             expect(role, 'A');
@@ -532,7 +533,7 @@ void main() {
             try {
               name = await openNativeDualChatCreationDialog(
                 tester,
-                deadline: DateTime.now().add(const Duration(seconds: 180)),
+                deadline: actionDeadline,
               );
             } catch (_) {
               await safelyReportDualOnboardingFailure(
@@ -583,7 +584,11 @@ void main() {
               () => find.byType(ChatRoomScreen).evaluate().length == 1,
               const Duration(seconds: 90),
             );
-            await _send(tester, messageA);
+            await sendNativeDualChatMessage(
+              tester,
+              messageA,
+              deadline: actionDeadline,
+            );
           case 'chat-open-reply':
             expect(role, 'B');
             await _navigate(tester, Icons.home_outlined);
@@ -613,7 +618,11 @@ void main() {
               () => _message(messageA).evaluate().length == 1,
               const Duration(seconds: 90),
             );
-            await _send(tester, messageB);
+            await sendNativeDualChatMessage(
+              tester,
+              messageB,
+              deadline: actionDeadline,
+            );
             _orderedMessages(tester, messageA, messageB);
             result['encryption'] = await _observeRoomPolicy(tester, container);
             resources.addAll({
@@ -982,7 +991,11 @@ void main() {
             );
           case 'network-peer-online':
             expect(role, 'B');
-            await _send(tester, 'B remains online $_runId');
+            await sendNativeDualChatMessage(
+              tester,
+              'B remains online $_runId',
+              deadline: actionDeadline,
+            );
           case 'network-resume':
             expect(role, 'A');
             await _tap(
@@ -1016,7 +1029,11 @@ void main() {
             recovery['network'] = true;
           case 'background-peer-send':
             expect(role, 'B');
-            await _send(tester, 'B background catchup $_runId');
+            await sendNativeDualChatMessage(
+              tester,
+              'B background catchup $_runId',
+              deadline: actionDeadline,
+            );
             recovery['background'] = true;
           case 'background-catchup':
             expect(role, 'A');
@@ -1406,24 +1423,74 @@ Future<void> _openDualRoom(WidgetTester tester, String title) async {
   );
 }
 
-Future<void> _send(WidgetTester tester, String message) async {
+Future<void> sendNativeDualChatMessage(
+  WidgetTester tester,
+  String message, {
+  required DateTime deadline,
+}) async {
   final field = find.descendant(
     of: find.byType(ChatRoomScreen),
     matching: find.byType(TextField),
   );
-  expect(field, findsOneWidget);
-  await tester.enterText(field, message);
-  await _tap(
-    tester,
-    find.widgetWithText(FilledButton, _copy(tester).chatRoomSendButton),
+  final send = find.widgetWithText(
+    FilledButton,
+    AppLocalizations.of(
+      tester.element(find.byType(ChatRoomScreen)),
+    ).chatRoomSendButton,
   );
-  await _wait(
-    tester,
-    () =>
-        _message(message).evaluate().length == 1 &&
-        (tester.widget<TextField>(field).controller?.text.isEmpty ?? false),
-    const Duration(seconds: 60),
-  );
+  Duration remaining({Duration? maximum}) {
+    final available = deadline.difference(DateTime.now());
+    return maximum != null && maximum < available ? maximum : available;
+  }
+
+  bool controlsReady() =>
+      field.evaluate().length == 1 &&
+      tester.widget<TextField>(field).enabled != false &&
+      field.hitTestable().evaluate().length == 1 &&
+      send.evaluate().length == 1 &&
+      tester.widget<FilledButton>(send).onPressed != null &&
+      send.hitTestable().evaluate().length == 1;
+  try {
+    await _wait(tester, controlsReady, remaining());
+    if (!DateTime.now().isBefore(deadline)) {
+      throw TestFailure('The real Chat send action deadline expired.');
+    }
+    await tester.enterText(field, message);
+    await _wait(tester, controlsReady, remaining());
+    if (!DateTime.now().isBefore(deadline)) {
+      throw TestFailure('The real Chat send action deadline expired.');
+    }
+    await _tap(tester, send);
+    await _wait(
+      tester,
+      () =>
+          _message(message).evaluate().length == 1 &&
+          (tester.widget<TextField>(field).controller?.text.isEmpty ?? false),
+      remaining(maximum: const Duration(seconds: 60)),
+    );
+    if (!DateTime.now().isBefore(deadline)) {
+      throw TestFailure('The real Chat send proof missed its action deadline.');
+    }
+  } catch (_) {
+    await safelyReportDualOnboardingFailure(
+      report: () async {
+        final fields = field.evaluate().length;
+        final buttons = send.evaluate().length;
+        _stage(
+          'chat-send-failed composerCount=${fields.clamp(0, 999)} '
+          'composerEnabled=${fields == 1 && tester.widget<TextField>(field).enabled != false} '
+          'composerHittable=${field.hitTestable().evaluate().length == 1} '
+          'composerEmpty=${fields == 1 && (tester.widget<TextField>(field).controller?.text.isEmpty ?? false)} '
+          'sendCount=${buttons.clamp(0, 999)} '
+          'sendEnabled=${buttons == 1 && tester.widget<FilledButton>(send).onPressed != null} '
+          'sendHittable=${send.hitTestable().evaluate().length == 1} '
+          'messageCount=${_message(message).evaluate().length.clamp(0, 999)}',
+        );
+      },
+      unavailable: () {},
+    );
+    rethrow;
+  }
 }
 
 Future<void> _editTitle(WidgetTester tester, String title) async {
