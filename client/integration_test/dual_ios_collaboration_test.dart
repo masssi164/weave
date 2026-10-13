@@ -9,6 +9,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
+import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
+import 'package:weave/core/bootstrap/presentation/bootstrap_gate.dart';
+import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
+import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/features/shell/presentation/app_shell.dart';
+import 'package:weave/features/chat/presentation/chat_admission_gate.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/widgets/success_state.dart';
@@ -1499,11 +1507,59 @@ Future<void> sendNativeDualChatMessage(
           'sendHittable=${send.hitTestable().evaluate().length == 1} '
           'messageCount=${_message(message).evaluate().length.clamp(0, 999)}',
         );
+        final app = find.byType(WeaveApp, skipOffstage: false);
+        if (app.evaluate().length == 1) {
+          final container = ProviderScope.containerOf(tester.element(app));
+          emitNativeProductDiagnostic(
+            nativeDualChatSurfaceDiagnostic(
+              tester,
+              container.read(appBootstrapProvider),
+              container.read(workspaceCapabilitySnapshotProvider),
+            ),
+            simulatorDriver: true,
+          );
+        }
       },
       unavailable: () {},
     );
     rethrow;
   }
+}
+
+String nativeDualChatSurfaceDiagnostic(
+  WidgetTester tester,
+  AsyncValue<BootstrapState> bootstrap,
+  AsyncValue<WorkspaceCapabilitySnapshot> capabilities,
+) {
+  int count(Finder finder) => finder.evaluate().length.clamp(0, 999);
+  final error = bootstrap.error;
+  final errorClass = switch (error) {
+    AppFailure() => 'AppFailure',
+    StateError() => 'StateError',
+    FormatException() => 'FormatException',
+    null => 'none',
+    _ => 'unavailable',
+  };
+  return 'NATIVE_PRODUCT_STAGE phase=chat-send-surface '
+      'roomVisible=${count(find.byType(ChatRoomScreen))} '
+      'roomMounted=${count(find.byType(ChatRoomScreen, skipOffstage: false))} '
+      'shellVisible=${count(find.byType(AppShell))} '
+      'shellMounted=${count(find.byType(AppShell, skipOffstage: false))} '
+      'navigationVisible=${count(find.byType(NavigationBar))} '
+      'navigationMounted=${count(find.byType(NavigationBar, skipOffstage: false))} '
+      'gateVisible=${count(find.byType(BootstrapGate))} '
+      'chatAdmissionVisible=${count(find.byType(ChatAdmissionGate))} '
+      'chatAdmissionMounted=${count(find.byType(ChatAdmissionGate, skipOffstage: false))} '
+      'homeVisible=${count(find.byKey(const ValueKey('weave.workspace.home')))} '
+      'bootstrapLoading=${bootstrap.isLoading} '
+      'bootstrapError=${bootstrap.hasError} '
+      'bootstrapPhase=${bootstrap.value?.phase.name ?? 'unavailable'} '
+      'bootstrapFailure=${bootstrap.value?.failure?.type.name ?? 'none'} '
+      'bootstrapErrorClass=$errorClass '
+      'capabilitiesLoading=${capabilities.isLoading} '
+      'capabilitiesError=${capabilities.hasError} '
+      'chatReadiness=${capabilities.asData?.value.chat.readiness.name ?? 'unavailable'} '
+      'chatReady=${capabilities.asData?.value.chat.isReady == true}';
 }
 
 Future<void> _editTitle(WidgetTester tester, String title) async {
