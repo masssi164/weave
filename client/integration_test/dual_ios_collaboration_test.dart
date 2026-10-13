@@ -591,8 +591,11 @@ void main() {
             );
           case 'chat-open-reply':
             expect(role, 'B');
-            await _navigate(tester, Icons.home_outlined);
-            await _navigate(tester, Icons.chat_bubble_outline);
+            await navigateNativeDualDestination(tester, Icons.home_outlined);
+            await navigateNativeDualDestination(
+              tester,
+              Icons.chat_bubble_outline,
+            );
             await _wait(
               tester,
               () => find.text(conversation).evaluate().length == 1,
@@ -653,7 +656,10 @@ void main() {
           case 'calendar-create':
             expect(role, 'A');
             await tester.pageBack();
-            await _navigate(tester, Icons.calendar_month_outlined);
+            await navigateNativeDualDestination(
+              tester,
+              Icons.calendar_month_outlined,
+            );
             await _tap(
               tester,
               find.byTooltip(_copy(tester).calendarCreateButton),
@@ -670,7 +676,10 @@ void main() {
           case 'calendar-observe':
             expect(role, 'B');
             await tester.pageBack();
-            await _navigate(tester, Icons.calendar_month_outlined);
+            await navigateNativeDualDestination(
+              tester,
+              Icons.calendar_month_outlined,
+            );
             await _calendarReadback(tester, eventTitle, true);
             eventId = container
                 .read(calendarProvider)
@@ -852,7 +861,7 @@ void main() {
             await _filePreview(tester, fileId!, replacementContent);
           case 'files-open-updated':
             expect(role, 'B');
-            await _navigate(tester, Icons.home_outlined);
+            await navigateNativeDualDestination(tester, Icons.home_outlined);
             await _selectSharedFiles(
               tester,
               container,
@@ -1202,7 +1211,10 @@ void main() {
               'matrix_member_device_proof_v1_${matrix.profileKey}',
             );
             expect(deviceProof, isNotEmpty);
-            await _navigate(tester, Icons.settings_outlined);
+            await navigateNativeDualDestination(
+              tester,
+              Icons.settings_outlined,
+            );
             await _tap(
               tester,
               find.widgetWithText(
@@ -1341,7 +1353,7 @@ Future<void> _selectSharedFiles(
   ProviderContainer container,
   String spaceRef,
 ) async {
-  await _navigate(tester, Icons.folder_outlined);
+  await navigateNativeDualDestination(tester, Icons.folder_outlined);
   final selector = find.byKey(const Key('files-space-selector'));
   await _wait(
     tester,
@@ -1388,9 +1400,10 @@ Future<void> _filePreview(
 AppLocalizations _copy(WidgetTester tester) =>
     AppLocalizations.of(tester.element(find.byType(NavigationBar)));
 
-Future<void> _navigate(WidgetTester tester, IconData icon) {
+Future<void> navigateNativeDualDestination(WidgetTester tester, IconData icon) {
   final copy = _copy(tester);
   final label = switch (icon) {
+    Icons.home_outlined => copy.navHome,
     Icons.chat_bubble_outline => copy.navChat,
     Icons.folder_outlined => copy.navFiles,
     Icons.calendar_month_outlined => copy.navCalendar,
@@ -1414,7 +1427,7 @@ void _orderedMessages(WidgetTester tester, String first, String second) {
 
 Future<void> _openDualRoom(WidgetTester tester, String title) async {
   if (find.byType(ChatRoomScreen).evaluate().isNotEmpty) return;
-  await _navigate(tester, Icons.chat_bubble_outline);
+  await navigateNativeDualDestination(tester, Icons.chat_bubble_outline);
   await _tap(tester, find.text(title));
   await _wait(
     tester,

@@ -9,15 +9,70 @@ import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
 
 import '../helpers/fake_chat_repository.dart';
 import '../helpers/in_memory_stores.dart';
 import '../helpers/test_app.dart';
 
 import '../../integration_test/dual_ios_collaboration_test.dart'
-    show openNativeDualChatCreationDialog, sendNativeDualChatMessage;
+    show
+        navigateNativeDualDestination,
+        openNativeDualChatCreationDialog,
+        sendNativeDualChatMessage;
 
 void main() {
+  for (final locale in ['en', 'de']) {
+    testWidgets('actual localized Home/Chat navigation; locale=$locale', (
+      tester,
+    ) async {
+      var selected = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: Locale(locale),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              final copy = AppLocalizations.of(context);
+              return Scaffold(
+                body: Text('selected=$selected'),
+                bottomNavigationBar: NavigationBar(
+                  selectedIndex: selected,
+                  onDestinationSelected: (value) =>
+                      setState(() => selected = value),
+                  destinations: [
+                    NavigationDestination(
+                      icon: const Icon(Icons.home_outlined),
+                      label: copy.navHome,
+                    ),
+                    NavigationDestination(
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      label: copy.navChat,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await navigateNativeDualDestination(tester, Icons.chat_bubble_outline);
+      expect(
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        1,
+      );
+      expect(find.text('selected=1'), findsOneWidget);
+      await navigateNativeDualDestination(tester, Icons.home_outlined);
+      expect(
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        0,
+      );
+      expect(find.text('selected=0'), findsOneWidget);
+    });
+  }
+
   const conversation = ChatConversation(
     id: '!owned-room:example.invalid',
     title: 'Owned room',
