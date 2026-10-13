@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -21,6 +22,7 @@ import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -33,11 +35,36 @@ import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver
 import com.massimotter.weave.backend.testing.InMemoryMatrixFacadeClientStateStore;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class JwtDecoderConfigTest {
 
     private static final String ISSUER_URI = "https://auth.weave.test/realms/weave";
+
+    @Test
+    void boundedJwkRetrievalAdmitsValidSlowResponseAndReusesExistingKeyCache() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey, 900)) {
+            JwtDecoder decoder = jwtDecoder(jwksServer.jwkSetUri());
+            String token = signedToken(signingKey, ISSUER_URI);
+            assertThat(decoder.decode(token).getSubject()).isEqualTo("user-123");
+            assertThat(decoder.decode(token).getSubject()).isEqualTo("user-123");
+            assertThat(jwksServer.requests.get()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void signingKeyResponseBeyondBoundedBudgetFailsClosed() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey, 3000)) {
+            JwtDecoder decoder = jwtDecoder(jwksServer.jwkSetUri());
+            String token = signedToken(signingKey, ISSUER_URI);
+            assertThatThrownBy(() -> decoder.decode(token))
+                    .isInstanceOf(JwtException.class)
+                    .hasRootCauseInstanceOf(SocketTimeoutException.class);
+        }
+    }
 
     @Test
     void issuerEpochAheadOfBackendClockRejectsRetainedSignedBearerAndAdmitsLaterIssuance()
@@ -565,15 +592,30 @@ class JwtDecoderConfigTest {
     private static final class JwksServer implements AutoCloseable {
 
         private final HttpServer server;
+        private final AtomicInteger requests;
 
-        private JwksServer(HttpServer server) {
+        private JwksServer(HttpServer server, AtomicInteger requests) {
             this.server = server;
+            this.requests = requests;
         }
 
         static JwksServer start(RSAKey signingKey) throws IOException {
+            return start(signingKey, 0);
+        }
+
+        static JwksServer start(RSAKey signingKey, long responseDelayMillis) throws IOException {
+            AtomicInteger requests = new AtomicInteger();
             String jwksJson = new JWKSet(signingKey.toPublicJWK()).toString();
             HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             server.createContext("/jwks", exchange -> {
+                requests.incrementAndGet();
+                try {
+                    Thread.sleep(responseDelayMillis);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    exchange.close();
+                    return;
+                }
                 byte[] response = jwksJson.getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, response.length);
@@ -582,7 +624,7 @@ class JwtDecoderConfigTest {
                 }
             });
             server.start();
-            return new JwksServer(server);
+            return new JwksServer(server, requests);
         }
 
         String jwkSetUri() {
