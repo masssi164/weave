@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
@@ -18,6 +21,7 @@ import '../helpers/test_app.dart';
 import '../../integration_test/dual_ios_collaboration_test.dart'
     show
         navigateNativeDualDestination,
+        nativeDualChatSurfaceDiagnostic,
         openNativeDualChatCreationDialog,
         sendNativeDualChatMessage;
 
@@ -81,6 +85,74 @@ void main() {
     isInvite: false,
     isDirectMessage: false,
   );
+  testWidgets('private Chat snapshot distinguishes offstage and redacts errors', (
+    tester,
+  ) async {
+    final repository = FakeChatRepository();
+    Future<void> render(bool hidden) async {
+      await tester.pumpWidget(
+        createTestApp(
+          Offstage(
+            offstage: hidden,
+            child: const ChatRoomScreen(conversation: conversation),
+          ),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            preferencesStoreProvider.overrideWith(
+              (ref) => InMemoryPreferencesStore(),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await render(true);
+    final hidden = nativeDualChatSurfaceDiagnostic(
+      tester,
+      const AsyncLoading(),
+      const AsyncLoading(),
+    );
+    expect(hidden, contains('roomVisible=0 roomMounted=1'));
+    expect(hidden, contains('bootstrapLoading=true bootstrapError=false'));
+    await render(false);
+    const privateError = AppFailure.storage(
+      'private-account@example.invalid secret=https://example.invalid/token',
+    );
+    final visible = nativeDualChatSurfaceDiagnostic(
+      tester,
+      AsyncError(privateError, StackTrace.current),
+      AsyncError(privateError, StackTrace.current),
+    );
+    expect(visible, contains('roomVisible=1 roomMounted=1'));
+    expect(visible, contains('bootstrapError=true'));
+    expect(
+      visible,
+      contains(
+        'bootstrapErrorClass=AppFailure capabilitiesLoading=false capabilitiesError=true',
+      ),
+    );
+    expect(visible, isNot(contains('private-account')));
+    expect(visible, isNot(contains('secret')));
+    expect(visible, isNot(contains('https:')));
+    final resolved = nativeDualChatSurfaceDiagnostic(
+      tester,
+      const AsyncData(BootstrapState.error(AppFailure.validation('private'))),
+      const AsyncLoading(),
+    );
+    expect(
+      resolved,
+      contains('bootstrapPhase=error bootstrapFailure=validation'),
+    );
+    expect(resolved, isNot(contains('private')));
+    final unknown = nativeDualChatSurfaceDiagnostic(
+      tester,
+      AsyncError(Object(), StackTrace.current),
+      const AsyncLoading(),
+    );
+    expect(unknown, contains('bootstrapErrorClass=unavailable'));
+  });
+
   for (final denied in [false, true]) {
     testWidgets(
       'real delayed composer sends once and verifies proof; denied=$denied',
