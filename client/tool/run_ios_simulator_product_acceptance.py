@@ -194,6 +194,19 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
                 print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} {match[1]} supportSafe=true', flush=True)
             if len(records) >= 3:
                 break
+    if phase in {'initial', 'restore'}:
+        pattern = (r'(?:flutter: )?(NATIVE_PRODUCT_STAGE phase=chat-readiness-failed '
+                   r'chatPhase=(?:loading|content|empty|error|unsupported) '
+                   r'failureType=(?:none|cancelled|configuration|sessionRequired|unsupportedConfiguration|peerDevicePending|protocol|storage|unsupportedPlatform|unknown) '
+                   r'createCount=[0-9]{1,3} enabled=(?:true|false) hittable=(?:true|false) dialogCount=[0-9]{1,3})')
+        records = set()
+        for line in flutter_output.split('\n'):
+            match = re.fullmatch(pattern, line)
+            if match is not None and match[1] not in records:
+                records.add(match[1])
+                print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} {match[1]} supportSafe=true', flush=True)
+            if len(records) >= 3:
+                break
     # Only complete fixed-format numeric control diagnostics may leave the
     # private transcript. Do not retain labels, values or trailing messages.
     if phase in {'initial', 'restore'}:

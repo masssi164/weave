@@ -19,6 +19,7 @@ import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
 import 'package:weave/features/chat/data/repositories/matrix_device_identity_repository.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
+import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
@@ -209,6 +210,34 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.tap(finder);
   await tester.pump(const Duration(milliseconds: 250));
+}
+
+Future<Finder> openNativeDualChatCreationDialog(
+  WidgetTester tester, {
+  required DateTime deadline,
+}) async {
+  final create = find.byKey(const Key('chat-create-conversation-button'));
+  await _wait(tester, () {
+    return create.evaluate().length == 1 &&
+        tester.widget<IconButton>(create).onPressed != null &&
+        create.hitTestable().evaluate().length == 1;
+  }, deadline.difference(DateTime.now()));
+  if (!DateTime.now().isBefore(deadline)) {
+    throw TestFailure(
+      'The real Chat action deadline expired before activation.',
+    );
+  }
+  await _tap(tester, create);
+  final name = find.byKey(const Key('chat-create-conversation-name-field'));
+  await _wait(tester, () {
+    return name.evaluate().length == 1 &&
+        tester.widget<TextField>(name).enabled != false;
+  }, deadline.difference(DateTime.now()));
+  if (!DateTime.now().isBefore(deadline)) {
+    throw TestFailure('The real Chat dialog missed its action deadline.');
+  }
+  expect(name, findsOneWidget);
+  return name;
 }
 
 void main() {
@@ -499,14 +528,34 @@ void main() {
         switch (action) {
           case 'chat-create-send':
             expect(role, 'A');
-            await _tap(
-              tester,
-              find.byKey(const Key('chat-create-conversation-button')),
-            );
-            await tester.enterText(
-              find.byKey(const Key('chat-create-conversation-name-field')),
-              conversation,
-            );
+            late Finder name;
+            try {
+              name = await openNativeDualChatCreationDialog(
+                tester,
+                deadline: DateTime.now().add(const Duration(seconds: 180)),
+              );
+            } catch (_) {
+              await safelyReportDualOnboardingFailure(
+                report: () async {
+                  final state = container.read(chatProvider);
+                  final create = find.byKey(
+                    const Key('chat-create-conversation-button'),
+                  );
+                  final count = create.evaluate().length;
+                  _stage(
+                    'chat-readiness-failed chatPhase=${state.phase.name} '
+                    'failureType=${(state.failure ?? state.staleFailure)?.type.name ?? 'none'} '
+                    'createCount=${count.clamp(0, 999)} '
+                    'enabled=${count == 1 && tester.widget<IconButton>(create).onPressed != null} '
+                    'hittable=${create.hitTestable().evaluate().length == 1} '
+                    'dialogCount=${find.byKey(const Key('chat-create-conversation-name-field')).evaluate().length.clamp(0, 999)}',
+                  );
+                },
+                unavailable: () {},
+              );
+              rethrow;
+            }
+            await tester.enterText(name, conversation);
             final participant = find.byKey(
               const Key('chat-create-conversation-participant-field'),
             );

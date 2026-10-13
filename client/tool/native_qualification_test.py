@@ -55,6 +55,26 @@ class NativeQualificationTest(unittest.TestCase):
                                 code + '\r', 'private@example.invalid', code + 'x' * 81]:
                     self.assertEqual(ios.onboarding_diagnostics(template.format(private)), [])
 
+    def test_chat_readiness_diagnostics_are_fixed_bounded_and_private_safe(self):
+        marker = ('NATIVE_PRODUCT_STAGE phase=chat-readiness-failed chatPhase=loading '
+                  'failureType=none createCount=1 enabled=false hittable=true dialogCount=0')
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', marker + '\nflutter: ' + marker, '')
+        self.assertEqual(output.getvalue().count('IOS_FLUTTER_DIAGNOSTIC'), 1)
+        self.assertIn('enabled=false hittable=true dialogCount=0', output.getvalue())
+        for bad in [marker + ' private=value', 'private ' + marker, 'flutter: flutter: ' + marker,
+                    marker + '\r', marker.replace('loading', 'private@example.invalid'),
+                    marker.replace('failureType=none', 'failureType=https://private.invalid'),
+                    marker.replace('createCount=1', 'createCount=1000'),
+                    marker.replace('enabled=false', 'enabled=1'), marker.replace('dialogCount=0', 'dialogCount=-1')]:
+            output = io.StringIO()
+            with redirect_stdout(output): ios.emit_phase_stages('initial', bad, '')
+            self.assertNotIn('IOS_FLUTTER_DIAGNOSTIC', output.getvalue())
+        output = io.StringIO()
+        with redirect_stdout(output): ios.emit_phase_stages('foreign', marker, '')
+        self.assertNotIn('IOS_FLUTTER_DIAGNOSTIC', output.getvalue())
+
     def setUp(self):
         # Failure transcript retention must remain inside this test's owned
         # disposable client directory, never the real workspace build outputs.
