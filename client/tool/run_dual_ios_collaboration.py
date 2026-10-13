@@ -100,6 +100,9 @@ class OwnedFaultRelay:
         self.forwarded_bytes = 0
         self.blocked = 0
         self.rejected = 0
+        self.errors = {name: 0 for name in ('connect-read-timeout', 'connect-read-error',
+                       'upstream-connect-timeout', 'upstream-connect-error',
+                       'forwarding-timeout', 'forwarding-error')}
         self.listener = socket.socket()
         self.listener.bind(('127.0.0.1', 0))
         self.listener.listen(16)
@@ -121,6 +124,7 @@ class OwnedFaultRelay:
 
     def _forward(self, client):
         upstream = None
+        stage = 'connect-read'
         try:
             client.settimeout(5)
             header = bytearray()
@@ -137,6 +141,7 @@ class OwnedFaultRelay:
                 with self._lock: self.blocked += 1
                 return
             host, port = match[1].decode('ascii').rsplit(':', 1)
+            stage = 'upstream-connect'
             upstream = socket.create_connection((host, int(port)), timeout=10)
             with self._lock:
                 self._sockets.add(upstream)
@@ -144,6 +149,7 @@ class OwnedFaultRelay:
             if self._blocked.is_set():
                 with self._lock: self.blocked += 1
                 return
+            stage = 'forwarding'
             client.sendall(b'HTTP/1.1 200 Connection Established\r\n\r\n')
             client.setblocking(False); upstream.setblocking(False)
             while not self._stop.is_set() and not self._blocked.is_set():
@@ -154,13 +160,27 @@ class OwnedFaultRelay:
                     destination = upstream if source is client else client
                     destination.settimeout(5); destination.sendall(data); destination.setblocking(False)
                     with self._lock: self.forwarded_bytes += len(data)
+        except socket.timeout:
+            with self._lock: self.errors[stage + '-timeout'] += 1
         except (OSError, ValueError):
-            pass  # Connection loss is the actual fault; raw traffic is never logged.
+            with self._lock: self.errors[stage + '-error'] += 1
+            # Connection loss is the actual fault; raw traffic is never logged.
         finally:
             for connection in (client, upstream):
                 if connection is not None:
                     with self._lock: self._sockets.discard(connection)
                     connection.close()
+
+    def diagnostic(self, role: str) -> str:
+        if role not in {'A', 'B'}:
+            raise ValueError('Unknown private actor role')
+        with self._lock:
+            counters = {'connections': self.forwarded, 'forwardedBytes': self.forwarded_bytes,
+                        'blocked': self.blocked, 'rejected': self.rejected,
+                        'activeSockets': len(self._sockets), **self.errors}
+        # Fixed counters only: never addresses, CONNECT headers, TLS bytes or errors.
+        fields = ' '.join(key + '=' + str(min(999999999999, max(0, value))) for key, value in counters.items())
+        return 'NATIVE_IOS_RELAY_DIAGNOSTIC actor=' + role + ' ' + fields
 
     def interrupt(self):
         self._blocked.set()
@@ -793,6 +813,14 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
             evidence['status'] = 'passed'
             return 0
     finally:
+        if evidence['status'] != 'passed' and relays:
+            try:
+                transcript = '\n'.join(relays[role].diagnostic(role) for role in sorted(relays)) + '\n'
+                diagnostic = ios.retain_private_diagnostic(transcript)
+                print('NATIVE_IOS_RELAY_RESULT status=retained privateDiagnostic=' + diagnostic.name + ' supportSafe=true', flush=True)
+            except (OSError, ValueError, ios.NativeFailure):
+                # Diagnostics must never replace the original product failure.
+                print('NATIVE_IOS_RELAY_RESULT status=unavailable supportSafe=true', flush=True)
         relay_cleanup = True
         for relay in relays.values():
             try: relay.close()

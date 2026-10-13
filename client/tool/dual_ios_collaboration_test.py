@@ -127,11 +127,69 @@ class DualIosCollaborationTest(unittest.TestCase):
             self.assertEqual(b.rejected, 1)
             self.assertGreater(a.blocked, 0)
             self.assertEqual(a.forwarded, 2); self.assertEqual(b.forwarded, 1)
+            self.assertIn('forwardedBytes=', a.diagnostic('A'))
+            self.assertNotIn(authority, a.diagnostic('A'))
+            self.assertIn('rejected=1', b.diagnostic('B'))
         finally:
             for connection in sockets: connection.close()
             a.close(); b.close(); stop.set(); listener.close(); server.join(timeout=3)
             for handler in handlers: handler.join(timeout=3)
         self.assertFalse(server.is_alive())
+
+    def test_refused_upstream_records_only_a_fixed_error_counter(self):
+        reserved = socket.socket()
+        reserved.bind(('127.0.0.1', 0))
+        authority = '127.0.0.1:' + str(reserved.getsockname()[1])
+        reserved.close()
+        relay = dual.OwnedFaultRelay({authority})
+        try:
+            with socket.create_connection(('127.0.0.1', relay.port), timeout=3) as connection:
+                connection.sendall(('CONNECT ' + authority + ' HTTP/1.1\r\n\r\n').encode())
+                self.assertEqual(connection.recv(4096), b'')
+            record = relay.diagnostic('A')
+            self.assertIn('upstream-connect-error=1', record)
+            self.assertIn('connections=0', record)
+            self.assertNotIn(authority, record)
+            self.assertNotIn('Connection refused', record)
+            with self.assertRaises(ValueError): relay.diagnostic('private-actor')
+        finally:
+            relay.close()
+
+    def test_failed_actor_retains_private_relay_counters_before_cleanup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            client = Path(directory) / 'client'
+            client.mkdir()
+            output = Path(directory) / 'failed-result.json'
+            failure = ios.NativeFailure('integration', 'initial-product', 'owned-test-failure')
+            actors = [{'role': 'A'}, {'role': 'B'}]
+            with mock.patch.object(ios, 'CLIENT', client), \
+                 mock.patch.object(dual, 'private_input', return_value={'runId': 'owned-test', 'actors': actors}), \
+                 mock.patch.object(ios, 'select_runtime', return_value=('runtime', 'device')), \
+                 mock.patch.object(ios, 'run', return_value='11111111-1111-1111-1111-111111111111'), \
+                 mock.patch.object(dual, 'app_build_digest', return_value='a' * 64), \
+                 mock.patch.object(dual, 'proxy_authorities', return_value={'owned.invalid:443'}), \
+                 mock.patch.object(dual, 'actor_runtime_copy'), \
+                 mock.patch.object(dual.shutil, 'copytree'), \
+                 mock.patch.object(dual, 'run_actor', side_effect=failure), \
+                 mock.patch.object(dual, 'stop_owned_processes'), \
+                 mock.patch.object(dual, 'cleanup_owned_devices', return_value=True):
+                with self.assertRaises(ios.NativeFailure) as caught:
+                    dual.qualify(Path('unused-private-input'), output,
+                                 {'WEAVE_E2E_RUN_ID': 'owned-test', 'WEAVE_NATIVE_CA': 'owned-ca'})
+                self.assertIs(caught.exception, failure)
+            private = client / 'build/private-ios-qualification'
+            diagnostics = list(private.glob('command-*.log'))
+            self.assertEqual(len(diagnostics), 1)
+            self.assertEqual(private.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(diagnostics[0].stat().st_mode & 0o777, 0o600)
+            records = diagnostics[0].read_text().splitlines()
+            self.assertEqual(len(records), 2)
+            for role, record in zip(('A', 'B'), records):
+                self.assertRegex(record, '^NATIVE_IOS_RELAY_DIAGNOSTIC actor=' + role + r' (?:[A-Za-z-]+=[0-9]{1,12} ?)+$')
+                self.assertNotIn('owned.invalid', record)
+                self.assertNotIn('owned-test-failure', record)
+            self.assertTrue(json.loads(output.read_text())['cleanupComplete'])
+            self.assertNotIn('RELAY_DIAGNOSTIC', output.read_text())
 
     def test_private_json_publish_is_atomic_owner_only_and_never_overwrites(self):
         with tempfile.TemporaryDirectory() as directory:
