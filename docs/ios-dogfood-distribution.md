@@ -1,6 +1,6 @@
 # iOS dogfood for active development
 
-Dogfood is a fast development loop, not a release-distribution system. Human testing requires successful Full Compose E2E, native macOS and Apple Silicon iOS Simulator qualification, successful Dogfood deployment, and a prepared physical iPhone build for the same exact protected `dogfood` SHA and pinned specification. There is no Candidate Cut, Fresh Start, TestFlight upload, environment approval, or release manifest in this loop.
+Dogfood is a fast development loop, not a release-distribution system. Human testing requires successful Full Compose E2E, native macOS and two concurrent independent Apple Silicon iOS Simulator Flutter UI qualification, successful Dogfood deployment, and a prepared physical iPhone build for the same exact protected `dogfood` SHA and pinned specification. There is no Candidate Cut, Fresh Start, TestFlight upload, environment approval, or release manifest in this loop.
 
 The protected dogfood push deploys Compose after all mandatory automated qualification but does not automatically start
 an iPhone signing job. This keeps the branch green independently of the macOS background runner's
@@ -14,7 +14,7 @@ The preparation sequence is:
 1. verify successful exact-SHA Compose/macOS/iOS qualification and Dogfood deployment;
 2. start the dogfood stack through `./gradlew dogfoodUp`;
 3. start it a second time and prove that the CA and leaf certificate fingerprints did not change;
-4. optionally create or resend the first-owner invitation and leave its activation link only in private Mailpit at `https://mail.weave.test:44443`;
+4. optionally create or resend the first-owner invitation and leave its activation link only in private Mailpit at the reviewed `WEAVE_MAILPIT_URL` (`https://mail.weave.test` in the standard-port Dogfood example);
 5. build the exact commit with development signing in the interactive user session, install it
    over the existing app, and launch the handoff on the paired iPhone.
 
@@ -34,9 +34,17 @@ The installer defaults to `update_in_place`. It may uninstall only when a develo
 
 The active `Profile` configuration uses the Personal Team-compatible development entitlements: it preserves the Keychain application identity but omits Associated Domains, which Personal Development Teams cannot provision. The production `Release` configuration keeps the full Associated Domains entitlement. Dogfood login and handoff continue through the explicit AppAuth/custom-scheme path rather than universal links.
 
-TLS material lives outside Docker at `/Users/flotterotter/.weave/dogfood/generated/tls`. `dogfoodUp`, `dogfoodDown`, and `dogfoodReset` must not delete or rotate it. The Weave Local Development CA therefore normally needs to be installed and trusted on the iPhone only once.
+TLS material lives outside Docker at the reviewed environment’s `WEAVE_TLS_ROOT`. The physical entrypoint and TLS persistence workflow resolve it through `compose_env.load_context("dogfood", ...)`, using `WEAVE_ENV_FILE`. `dogfoodUp`, `dogfoodDown`, and `dogfoodReset` must not delete or rotate it. The Weave Local Development CA therefore normally needs to be installed and trusted on the iPhone only once.
 
 ## Before pressing Run
+
+Dispatch the workflow from the protected `dogfood` ref, with its current full commit as the input:
+
+```sh
+gh workflow run ios-dogfood.yml --ref dogfood -f candidate_sha=<full-dogfood-sha>
+```
+
+Preparation evidence is accepted only when the workflow producer itself has that exact commit and the `dogfood` branch. A matching run title or artifact identity cannot substitute for a trusted producer.
 
 - The iPhone is unlocked, paired with `weave-live-mac-mini`, reachable over the same WLAN, and Developer Mode is enabled.
 - The Weave Local Development CA is still fully trusted.
@@ -57,7 +65,7 @@ Installation is preparation, not a human-test result. The tester opens the invit
 - Weaver/MCP discovery, grant, `files.search`, resource open, revoke with immediate rejection, regrant, and restored access when that surface is available;
 - VoiceOver labels/order, keyboard/focus behavior where applicable, and identity/session continuity after relaunch.
 
-A missing Calls or Weaver surface is recorded as `blocked`, never invented as a pass. Human outcomes remain tester statements; automated E2E and installation evidence do not replace them.
+Missing mandatory release journeys are recorded as `blocked`, never invented as a pass. Calls and private Runner infrastructure remain outside this release acceptance scope. Human outcomes remain tester statements; automated E2E and installation evidence do not replace them.
 
 Contract marker: `HUMAN_TESTING_HAS_NO_MANIFEST_GATE`.
 
@@ -74,3 +82,8 @@ tools/dogfood_iphone_entry.sh --run --reset-mode update_in_place --transport wif
 ```
 
 Use `tools/dogfood_ios_session_restore_smoke.sh` after login when support-safe automated evidence of a successful session restore is useful. It does not read or export Keychain secrets.
+
+
+The physical entrypoint reads the same reviewed environment’s `WEAVE_PUBLIC_URL` as its single organization origin. It derives `/api/platform/config` there and launches `weave://join?organization_origin=...`; it never accepts separate API, auth, or platform-config overrides. Ports come from the reviewed environment, including installations using 80/443 or configurable bindings. `dogfood_handoff_bundle.py --product-base-url https://example.org/` remains a URL-only offline bundle override. This replaces the former `product_base_url`/`platform_config_url` handoff hints and fixed 44080/44443 defaults; historical Sprint 31 runbooks describe that retired path.
+
+The bundle records the exact source, pinned specification, preparation run and support-safe handoff reference outside the member URL. The configured CA certificate file is the manual trust setup source, not an assumed HTTP download endpoint. A `trusted` flag is a prerequisite only: physical preparation succeeds only after the installed app writes fresh typed `saved_configuration`, `handoff_ready`, and `ready_for_sso` evidence for the canonical origin after this launch. Saved configuration follows the real device HTTPS OrgManifest fetch and validation. Stale preferences, failed discovery, obsolete handoff identifiers, and candidate/specification mismatch block preparation. Preparation still does not establish human acceptance or completed SSO/product journeys.

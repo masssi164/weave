@@ -687,7 +687,7 @@ function normalizeControlPlane(
     organization: {
       id: controlPlane.organizationId ?? "weave-dogfood",
       displayName: controlPlane.displayName ?? "Weave Dogfood",
-      manifestUrl: "/api/organization/manifest",
+      manifestUrl: "/api/platform/config",
       authIssuerUrl: oidcIssuerUrl,
     },
     providerConfigSource:
@@ -1557,7 +1557,7 @@ export const sampleControlPlane: ControlPlaneResponse = {
   organization: {
     id: "weave-dogfood",
     displayName: "Weave Dogfood",
-    manifestUrl: "/api/organization/manifest",
+    manifestUrl: "/api/platform/config",
     authIssuerUrl: "https://auth.weave.test/realms/weave",
   },
   providerConfigSource: "admin-control-plane-selected-provider-mappings",

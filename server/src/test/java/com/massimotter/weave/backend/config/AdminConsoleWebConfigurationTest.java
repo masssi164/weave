@@ -52,7 +52,6 @@ class AdminConsoleWebConfigurationTest {
     @Test
     void neverUsesTheSpaFallbackForControlProtocolManagementOrSecurityRoutes() throws Exception {
         for (String path : new String[] {
-                "/",
                 "/future-server-route",
                 "/api/not-a-route",
                 "/mcp/not-a-route",
@@ -74,6 +73,14 @@ class AdminConsoleWebConfigurationTest {
 
     @Test
     void existingPublicApiAndActuatorRoutesKeepTheirNativeHandlers() throws Exception {
+        for (String path : new String[] {"/", "/join"}) {
+            mockMvc.perform(get(path))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+                    .andExpect(content().string(containsString("id=\"open-weave\"")))
+                    .andExpect(content().string(not(containsString(FIXTURE_TEXT))));
+        }
+
         mockMvc.perform(get("/api/platform/config"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))

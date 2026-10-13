@@ -214,9 +214,150 @@ def native_toolchain_recorded(value: object) -> bool:
                    "rustc " + value["rustToolchain"] + " (")
 
 
-def native_qualification_passed(value: dict, sha: str, tree: str, spec: str) -> bool:
+def dual_ios_recovery_passed(value: object, actors: list[dict], authorization: dict) -> bool:
+    """Require real process/transport recovery bound to the initial UI actors."""
+    if not isinstance(value, dict):
+        return False
+    restored = value.get("actors")
+    if (not isinstance(restored, list) or len(restored) != 2
+            or not all(isinstance(actor, dict) for actor in restored)
+            or {actor.get("role") for actor in restored if isinstance(actor.get("role"), str)} != {"A", "B"}):
+        return False
+    initial = {actor["role"]: actor for actor in actors}
+    all_pids = [actor["processId"] for actor in actors]
+    try:
+        def timestamp(record: dict, key: str) -> datetime:
+            result = datetime.fromisoformat(record[key].replace("Z", "+00:00"))
+            if result.tzinfo is None:
+                raise ValueError("Execution time needs a timezone")
+            return result
+
+        start, end = (timestamp(value["initialOverlap"], key) for key in ("startedAt", "endedAt"))
+        if start >= end:
+            return False
+        for actor in restored:
+            previous = initial[actor["role"]]
+            pid = actor.get("restoredProcessId")
+            if (type(pid) is not int or pid <= 0 or pid in all_pids
+                    or type(actor.get("initialProcessId")) is not int
+                    or actor.get("initialProcessId") != previous["processId"]):
+                return False
+            all_pids.append(pid)
+            first_start, first_end, next_start, next_end = (
+                timestamp(actor, key) for key in (
+                    "initialStartedAt", "initialEndedAt", "restoredStartedAt", "restoredEndedAt"))
+            if (first_start != timestamp(previous, "startedAt")
+                    or first_end != timestamp(previous, "endedAt")
+                    or not first_start <= start < end <= first_end <= next_start < next_end):
+                return False
+            for key in ("identityDigest", "matrixDeviceDigest", "storageDigest"):
+                if actor.get("restored" + key[0].upper() + key[1:]) != previous[key]:
+                    return False
+            if any(actor.get(key) is not True for key in (
+                    "previousProcessAbsent", "expiryDenied", "refreshObserved", "logoutIndependent")):
+                return False
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return False
+    network = value.get("network")
+    if not isinstance(network, dict) or network.get("interruptedActor") != "A":
+        return False
+    for key in ("affectedConnections", "actorAForwardedBytes", "actorBForwardedBytesDuringInterruption"):
+        if type(network.get(key)) is not int or network[key] <= 0:
+            return False
+    if any(network.get(key) is not True for key in (
+            "userApiFailureObserved", "matrixSendFailureObserved", "peerUiContinuityObserved",
+            "restoreObserved", "matrixRetryObserved", "peerReceptionObserved")):
+        return False
+    grant = value.get("currentGrantRevocation")
+    resource = authorization.get("resourceDigest")
     return (
-        value.get("schemaVersion") == "weave.native-qualification/v1"
+        isinstance(grant, dict)
+        and isinstance(resource, str) and re.fullmatch(r"[0-9a-f]{64}", resource) is not None
+        and grant.get("status") == "passed"
+        and grant.get("evidence") == "server-denial-and-flutter-readback"
+        and grant.get("resourceDigest") == resource
+        and grant.get("deniedIdentityDigest") == initial["B"]["identityDigest"]
+        and all(grant.get(key) is True for key in ("denied", "regrantRestored", "uiReadback"))
+    )
+
+
+def dual_ios_collaboration_passed(value: object) -> bool:
+    """Reject single-client or incomplete proof for the accepted October release."""
+    if not isinstance(value, dict) or value.get("status") != "passed":
+        return False
+    digest = re.compile(r"[0-9a-f]{64}")
+    app_digest = value.get("appBuildSha256")
+    if not isinstance(app_digest, str) or not digest.fullmatch(app_digest):
+        return False
+    actors = value.get("actors")
+    if not isinstance(actors, list) or len(actors) != 2 or not all(isinstance(a, dict) for a in actors):
+        return False
+    roles = [actor.get("role") for actor in actors]
+    if not all(isinstance(role, str) for role in roles) or set(roles) != {"A", "B"}:
+        return False
+    for key in ("simulatorId", "identityDigest", "matrixDeviceDigest", "storageDigest"):
+        values = [actor.get(key) for actor in actors]
+        if not all(isinstance(item, str) for item in values) or len(set(values)) != 2:
+            return False
+        pattern = re.compile(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}") if key == "simulatorId" else digest
+        if not all(pattern.fullmatch(item) for item in values):
+            return False
+    processes = [actor.get("processId") for actor in actors]
+    if not all(type(pid) is int and pid > 0 for pid in processes) or len(set(processes)) != 2:
+        return False
+    try:
+        def interval(record: dict) -> tuple[datetime, datetime]:
+            start, end = (datetime.fromisoformat(record[key].replace("Z", "+00:00"))
+                          for key in ("startedAt", "endedAt"))
+            if start.tzinfo is None or end.tzinfo is None or start >= end:
+                raise ValueError("Invalid execution interval")
+            return start, end
+        overlap_start, overlap_end = interval(value["overlap"])
+        for actor in actors:
+            start, end = interval(actor)
+            if not start <= overlap_start < overlap_end <= end:
+                return False
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return False
+    scenarios = value.get("scenarios")
+    if not isinstance(scenarios, dict):
+        return False
+    for name in ("authentication", "chat", "calendar", "files", "authorization", "recovery", "accessibility"):
+        result = scenarios.get(name)
+        if not isinstance(result, dict) or result.get("status") != "passed":
+            return False
+        if result.get("actors") != ["A", "B"]:
+            return False
+        if name == "authorization":
+            denied_identity = result.get("deniedIdentityDigest")
+            if (result.get("evidence") not in ("flutter-ui", "server-denial")
+                    or not isinstance(denied_identity, str)
+                    or not digest.fullmatch(denied_identity)
+                    or denied_identity in {actor["identityDigest"] for actor in actors}
+                    or result.get("denials") != {"chat": "passed", "files": "passed", "calendar": "passed"}):
+                return False
+        elif result.get("evidence") != "flutter-ui":
+            return False
+    encryption = value.get("encryption")
+    if not isinstance(encryption, dict) or type(encryption.get("policyRequired")) is not bool:
+        return False
+    if encryption.get("plaintextFallback") is not False:
+        return False
+    if encryption.get("status") != ("passed" if encryption["policyRequired"] else "not-required"):
+        return False
+    recovery = value.get("recovery")
+    if (not isinstance(recovery, dict) or recovery.get("initialOverlap") != value.get("overlap")
+            or not dual_ios_recovery_passed(recovery, actors, scenarios["authorization"])):
+        return False
+    return value.get("cleanupComplete") is True
+
+
+def native_qualification_passed(value: dict, sha: str, tree: str, spec: str) -> bool:
+    if not isinstance(value, dict) or any(not isinstance(value.get(platform), dict)
+                                          for platform in ("macos", "iosSimulator")):
+        return False
+    return (
+        value.get("schemaVersion") == "weave.native-qualification/v2"
         and value.get("candidateCommit") == sha
         and value.get("sourceTree") == tree
         and value.get("specificationCommit") == spec
@@ -224,6 +365,7 @@ def native_qualification_passed(value: dict, sha: str, tree: str, spec: str) -> 
         and value.get("macos", {}).get("status") == "passed"
         and value.get("iosSimulator", {}).get("status") == "passed"
         and value.get("iosSimulator", {}).get("rustTarget") == "aarch64-apple-ios-sim"
+        and dual_ios_collaboration_passed(value.get("iosSimulator", {}).get("collaboration"))
         and value.get("cleanupComplete") is True
         and value.get("supportSafe") is True
         and value.get("containsSecretValues") is False
@@ -334,6 +476,10 @@ def prepared_run(repository: str, sha: str, tree: str, spec: str, qualification:
     if not matching:
         raise ValueError("Physical preparation evidence is absent")
     run = max(matching, key=lambda item: (item.get("created_at", ""), item.get("id", 0)))
+    # Select the latest relevant attempt before checking producer trust: never fall
+    # back to an older successful run when a newer attempt is failed or untrusted.
+    if run.get("head_sha") != sha or run.get("head_branch") != "dogfood":
+        raise ValueError("Latest physical preparation must run from the exact protected Dogfood commit")
     if run.get("status") != "completed" or run.get("conclusion") != "success":
         raise ValueError("Latest physical preparation did not succeed")
     if not qualification.get("updated_at") or not run.get("run_started_at") or run["run_started_at"] <= qualification["updated_at"]:

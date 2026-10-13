@@ -41,6 +41,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation libs.springdoc.webmvc.api
     implementation libs.jcs
+    implementation libs.zxing.core
     implementation libs.ical4j
     implementation libs.flyway.core
     implementation libs.flyway.postgresql

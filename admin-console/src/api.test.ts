@@ -420,6 +420,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
 
     const controlPlane = await api.getControlPlane();
 
+    expect(controlPlane.organization.manifestUrl).toBe("/api/platform/config");
     expect(JSON.stringify(controlPlane)).not.toMatch(
       /weaverRuntimeProjection|weaverEligibilityPreview|weaverDistributionPolicy|obsolete/,
     );

@@ -10,9 +10,9 @@
 
 part of weave_user_api;
 
-class PlatformConfigResponse {
-  /// Returns a new [PlatformConfigResponse] instance.
-  PlatformConfigResponse({
+class OrgManifestResponse {
+  /// Returns a new [OrgManifestResponse] instance.
+  OrgManifestResponse({
     this.domains = const [],
     required this.oidc,
     required this.organizationOrigin,
@@ -42,7 +42,7 @@ class PlatformConfigResponse {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is PlatformConfigResponse &&
+      other is OrgManifestResponse &&
           _deepEquality.equals(other.domains, domains) &&
           other.oidc == oidc &&
           other.organizationOrigin == organizationOrigin &&
@@ -66,7 +66,7 @@ class PlatformConfigResponse {
 
   @override
   String toString() =>
-      'PlatformConfigResponse[domains=$domains, oidc=$oidc, organizationOrigin=$organizationOrigin, protocols=$protocols, recoveryActions=$recoveryActions, releasePosture=$releasePosture, schemaVersion=$schemaVersion, userApiBaseUrl=$userApiBaseUrl]';
+      'OrgManifestResponse[domains=$domains, oidc=$oidc, organizationOrigin=$organizationOrigin, protocols=$protocols, recoveryActions=$recoveryActions, releasePosture=$releasePosture, schemaVersion=$schemaVersion, userApiBaseUrl=$userApiBaseUrl]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -81,10 +81,10 @@ class PlatformConfigResponse {
     return json;
   }
 
-  /// Returns a new [PlatformConfigResponse] instance and imports its values from
+  /// Returns a new [OrgManifestResponse] instance and imports its values from
   /// [value] if it's a [Map], null otherwise.
   // ignore: prefer_constructors_over_static_methods
-  static PlatformConfigResponse? fromJson(dynamic value) {
+  static OrgManifestResponse? fromJson(dynamic value) {
     if (value is Map) {
       final json = value.cast<String, dynamic>();
 
@@ -94,14 +94,14 @@ class PlatformConfigResponse {
       assert(() {
         requiredKeys.forEach((key) {
           assert(json.containsKey(key),
-              'Required key "PlatformConfigResponse[$key]" is missing from JSON.');
+              'Required key "OrgManifestResponse[$key]" is missing from JSON.');
           assert(json[key] != null,
-              'Required key "PlatformConfigResponse[$key]" has a null value in JSON.');
+              'Required key "OrgManifestResponse[$key]" has a null value in JSON.');
         });
         return true;
       }());
 
-      return PlatformConfigResponse(
+      return OrgManifestResponse(
         domains: DomainCapability.listFromJson(json[r'domains']),
         oidc: Oidc.fromJson(json[r'oidc'])!,
         organizationOrigin:
@@ -116,14 +116,14 @@ class PlatformConfigResponse {
     return null;
   }
 
-  static List<PlatformConfigResponse> listFromJson(
+  static List<OrgManifestResponse> listFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final result = <PlatformConfigResponse>[];
+    final result = <OrgManifestResponse>[];
     if (json is List && json.isNotEmpty) {
       for (final row in json) {
-        final value = PlatformConfigResponse.fromJson(row);
+        final value = OrgManifestResponse.fromJson(row);
         if (value != null) {
           result.add(value);
         }
@@ -132,12 +132,12 @@ class PlatformConfigResponse {
     return result.toList(growable: growable);
   }
 
-  static Map<String, PlatformConfigResponse> mapFromJson(dynamic json) {
-    final map = <String, PlatformConfigResponse>{};
+  static Map<String, OrgManifestResponse> mapFromJson(dynamic json) {
+    final map = <String, OrgManifestResponse>{};
     if (json is Map && json.isNotEmpty) {
       json = json.cast<String, dynamic>(); // ignore: parameter_assignments
       for (final entry in json.entries) {
-        final value = PlatformConfigResponse.fromJson(entry.value);
+        final value = OrgManifestResponse.fromJson(entry.value);
         if (value != null) {
           map[entry.key] = value;
         }
@@ -146,17 +146,17 @@ class PlatformConfigResponse {
     return map;
   }
 
-  // maps a json object with a list of PlatformConfigResponse-objects as value to a dart map
-  static Map<String, List<PlatformConfigResponse>> mapListFromJson(
+  // maps a json object with a list of OrgManifestResponse-objects as value to a dart map
+  static Map<String, List<OrgManifestResponse>> mapListFromJson(
     dynamic json, {
     bool growable = false,
   }) {
-    final map = <String, List<PlatformConfigResponse>>{};
+    final map = <String, List<OrgManifestResponse>>{};
     if (json is Map && json.isNotEmpty) {
       // ignore: parameter_assignments
       json = json.cast<String, dynamic>();
       for (final entry in json.entries) {
-        map[entry.key] = PlatformConfigResponse.listFromJson(
+        map[entry.key] = OrgManifestResponse.listFromJson(
           entry.value,
           growable: growable,
         );

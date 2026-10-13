@@ -32,8 +32,10 @@ import java.util.Set;
 /**
  * One-process Fresh product proof.
  *
- * <p>Human passwords, action links, OAuth tokens, and private JWKs are held only in this process.
- * The only durable output is an allowlisted support-safe evidence document.
+ * <p>Human passwords, action links, OAuth tokens, and private JWKs stay private. Native browser
+ * qualification receives temporary owner-only fixtures outside the uploaded evidence tree;
+ * the owning process removes them after execution. The only durable public output is an
+ * allowlisted support-safe evidence document.
  */
 public final class FreshProductFlow {
   private static final Set<PosixFilePermission> OWNER_FILE_PERMISSIONS =
@@ -152,7 +154,7 @@ public final class FreshProductFlow {
       awaitChatReadiness(ownerSession.accessToken());
 
       Instant memberInvitedAt = Instant.now();
-      inviteActor(
+      MemberInvitationResponse memberInvitation = inviteActor(
           organizationId,
           memberEmail,
           "Weave E2E Member",
@@ -437,9 +439,12 @@ public final class FreshProductFlow {
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
         // Native Calendar writes use the owner's normal User session. Run its
         // real logout after all JVM journeys that need that owner's SSO state.
+        NativeActorNames nativeNames = nativeActorNames(ownerSession, memberSession);
         new MemberSessionRevocationJourney(environment, http).prove(
             browser, organizationId, ownerEmail, ownerPassword);
-        runNativeAuthorizedJourney(ownerEmail, ownerPassword);
+        runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
+            memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
+            browser, outsiderSession, organizationId, adminSession, memberSession, personRef, nativeNames);
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
             release.bindingRef(), mcpProof, restartProof, revocationDenied,
             calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
@@ -531,9 +536,12 @@ public final class FreshProductFlow {
             memberSession.accessToken(), personRef, generatedFilesProof.fileId());
         spaceRevocationRestored = true;
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
+        NativeActorNames nativeNames = nativeActorNames(ownerSession, memberSession);
         new MemberSessionRevocationJourney(environment, http).prove(
             browser, organizationId, ownerEmail, ownerPassword);
-        runNativeAuthorizedJourney(ownerEmail, ownerPassword);
+        runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
+            memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
+            browser, outsiderSession, organizationId, adminSession, memberSession, personRef, nativeNames);
 
         writeEvidence(
             startedAt,
@@ -569,7 +577,12 @@ public final class FreshProductFlow {
     }
   }
 
-  private void runNativeAuthorizedJourney(String memberEmail, String memberPassword) {
+  private void runNativeAuthorizedJourney(
+      String memberEmail, String memberPassword, String ownerSubject,
+      String peerEmail, String peerPassword, String peerSubject, String invitationHandle,
+      OidcBrowserJourney browser, OidcBrowserJourney.TokenSet outsiderSession, String organizationId,
+      OidcBrowserJourney.TokenSet nativeAdminSession, OidcBrowserJourney.TokenSet nativePeerSession, String nativePeerAccountRef,
+      NativeActorNames nativeNames) {
     String runner = System.getProperty("weave.e2e.native-runner", "");
     if (runner.isBlank()) {
       return;
@@ -582,8 +595,107 @@ public final class FreshProductFlow {
     process.environment().put("WEAVE_NATIVE_MATRIX_URL", environment.apiOrigin().toString());
     process.environment().put("WEAVE_NATIVE_CA", environment.caCertificate().toString());
     process.inheritIO();
+    Path privateInput = Path.of("client", "build", "private-ios-qualification",
+        "dual-ios-input-" + environment.runId() + ".json");
+    Path authorizationRequest = privateInput.resolveSibling("dual-ios-authorization-request-" + environment.runId() + ".json");
+    Path authorizationProof = privateInput.resolveSibling("dual-ios-authorization-proof-" + environment.runId() + ".json");
+    Path revocationRequest = privateInput.resolveSibling("dual-ios-grant-revocation-request-" + environment.runId() + ".json");
+    Path revocationProof = privateInput.resolveSibling("dual-ios-grant-revocation-proof-" + environment.runId() + ".json");
+    boolean privateInputCreated = false;
+    Process nativeProcess = null;
     try {
-      int status = process.start().waitFor();
+      Path parent = privateInput.getParent();
+      if (Files.isSymbolicLink(parent.getParent()) || Files.isSymbolicLink(parent)
+          || Files.isSymbolicLink(privateInput) || Files.exists(authorizationRequest, LinkOption.NOFOLLOW_LINKS)
+          || Files.exists(authorizationProof, LinkOption.NOFOLLOW_LINKS)
+          || Files.exists(revocationRequest, LinkOption.NOFOLLOW_LINKS) || Files.exists(revocationProof, LinkOption.NOFOLLOW_LINKS)) {
+        throw new ProductFlowException("native private input path is unsafe");
+      }
+      Files.createDirectories(parent);
+      Files.setPosixFilePermissions(parent, PosixFilePermissions.fromString("rwx------"));
+      Map<String, Object> input = Map.of(
+          "schemaVersion", "weave.dual-ios-input/v1",
+          "runId", environment.runId(),
+          "publicOrigin", rootOrigin(environment.productOrigin()).toString(),
+          "sharedSpaceRef", "workspace-default",
+          "actors", List.of(
+              Map.of("role", "A", "email", memberEmail, "password", memberPassword,
+                  "identityRef", ownerSubject, "displayName", nativeNames.owner(),
+                  "entryUri", environment.productOrigin().getRawAuthority()),
+              Map.of("role", "B", "email", peerEmail, "password", peerPassword,
+                  "identityRef", peerSubject, "displayName", nativeNames.peer(), "invitationHandle", invitationHandle,
+                  "entryUri", nativeCompletionLink())),
+          "unauthorized", Map.of("identityRef", outsiderSession.subject()));
+      // This fixture is private input, never qualification evidence or an upload artifact.
+      Files.writeString(privateInput, http.mapper().writeValueAsString(input),
+          StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.CREATE_NEW);
+      privateInputCreated = true;
+      setPrivatePermissions(privateInput);
+      nativeProcess = process.start();
+      boolean authorizationCompleted = false;
+      boolean revocationCompleted = false;
+      while (!nativeProcess.waitFor(1, java.util.concurrent.TimeUnit.SECONDS)) {
+        if (Files.exists(authorizationRequest, LinkOption.NOFOLLOW_LINKS)) {
+          if (authorizationCompleted) {
+            throw new ProductFlowException("native authorization request was repeated");
+          }
+          JsonNode request = requireOwnedNativeAuthorizationRequest(authorizationRequest, environment.runId(), ownerSubject, peerSubject);
+          outsiderSession = browser.refresh(outsiderSession);
+          var deniedActor = new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
+              .authenticatedUser(outsiderSession.accessToken());
+          if (!outsiderSession.subject().equals(deniedActor.getSubject())
+              || !organizationId.equals(deniedActor.getOrganizationId())) {
+            throw new ProductFlowException("native denied identity authority changed");
+          }
+          Map<String, String> bearer = Map.of("Authorization", "Bearer " + outsiderSession.accessToken());
+          JsonNode resources = request.path("resources");
+          requireNativeDenial("chat", "/_matrix/client/v3/rooms/" + nativePath(resources.path("roomId").asString())
+              + "/messages?dir=b&limit=1", "errcode", "M_FORBIDDEN", bearer);
+          requireNativeDenial("files", "/api/files/items/" + nativePath(resources.path("fileId").asString())
+              + "/content", "code", "files-forbidden", bearer);
+          requireNativeDenial("calendar", "/api/calendar/calendars/" + nativePath(resources.path("calendarId").asString())
+              + "/events/" + nativePath(resources.path("eventId").asString()), "code", "calendar-forbidden", bearer);
+          Map<String, Object> proof = Map.of("status", "passed", "evidence", "server-denial",
+              "deniedIdentityDigest", Hashing.sha256(outsiderSession.subject()),
+              "resourceDigest", Hashing.sha256(resources.path("fileId").asString()),
+              "denials", Map.of("chat", "passed", "files", "passed", "calendar", "passed"));
+          Path staging = Files.createTempFile(parent, "dual-ios-proof-", ".tmp");
+          try {
+            setPrivatePermissions(staging);
+            Files.writeString(staging, http.mapper().writeValueAsString(proof));
+            Files.move(staging, authorizationProof, StandardCopyOption.ATOMIC_MOVE);
+          } finally {
+            Files.deleteIfExists(staging);
+          }
+          Files.delete(authorizationRequest);
+          authorizationCompleted = true;
+        }
+        if (Files.exists(revocationRequest, LinkOption.NOFOLLOW_LINKS)) {
+          if (!authorizationCompleted || revocationCompleted) {
+            throw new ProductFlowException("native current grant exchange ordering was invalid");
+          }
+          JsonNode request = requireOwnedNativeAuthorizationRequest(revocationRequest, environment.runId(), ownerSubject, peerSubject);
+          nativeAdminSession = browser.refresh(nativeAdminSession);
+          nativePeerSession = browser.refresh(nativePeerSession);
+          String fileId = request.path("resources").path("fileId").asString();
+          new GeneratedSpacesJourney(environment).verifyRevocationAndVersionedRegrant(
+              nativeAdminSession.accessToken(), nativePeerSession.accessToken(), nativePeerAccountRef, fileId);
+          Map<String, Object> proof = Map.of("status", "passed", "evidence", "server-denial", "resourceDigest", Hashing.sha256(fileId),
+              "deniedIdentityDigest", Hashing.sha256(peerSubject), "denied", true, "regrantRestored", true);
+          Path staging = revocationProof.resolveSibling(revocationProof.getFileName() + ".tmp");
+          try {
+            Files.writeString(staging, tools.jackson.databind.json.JsonMapper.builder().build().writeValueAsString(proof),
+                java.nio.file.StandardOpenOption.CREATE_NEW, java.nio.file.StandardOpenOption.WRITE);
+            setPrivatePermissions(staging);
+            Files.move(staging, revocationProof, StandardCopyOption.ATOMIC_MOVE);
+          } finally {
+            Files.deleteIfExists(staging);
+          }
+          Files.delete(revocationRequest);
+          revocationCompleted = true;
+        }
+      }
+      int status = nativeProcess.exitValue();
       if (status != 0) {
         throw new ProductFlowException("native Flutter acceptance failed");
       }
@@ -594,6 +706,38 @@ public final class FreshProductFlow {
       throw new ProductFlowException("native Flutter acceptance was interrupted");
     } finally {
       process.environment().remove("WEAVE_NATIVE_MEMBER_PASSWORD");
+      try {
+        if (nativeProcess != null && nativeProcess.isAlive()) {
+          nativeProcess.destroy();
+          try {
+            if (!nativeProcess.waitFor(90, java.util.concurrent.TimeUnit.SECONDS)) {
+              nativeProcess.destroyForcibly();
+              throw new ProductFlowException("native qualification process cleanup is unverified");
+            }
+          } catch (InterruptedException interrupted) {
+            nativeProcess.destroyForcibly();
+            Thread.currentThread().interrupt();
+            throw new ProductFlowException("native qualification cleanup was interrupted");
+          }
+        }
+      } finally {
+        try {
+          if (privateInputCreated) {
+            IOException cleanupFailure = null;
+            for (Path owned : List.of(privateInput, authorizationRequest, authorizationProof, revocationRequest, revocationProof)) {
+              try {
+                Files.deleteIfExists(owned);
+              } catch (IOException failure) {
+                if (cleanupFailure == null) cleanupFailure = failure;
+                else cleanupFailure.addSuppressed(failure);
+              }
+            }
+            if (cleanupFailure != null) throw cleanupFailure;
+          }
+        } catch (IOException failure) {
+          throw new ProductFlowException("native private input cleanup failed", failure);
+        }
+      }
     }
   }
 
@@ -602,7 +746,120 @@ public final class FreshProductFlow {
         .bootstrapOwner(readBootstrapToken(), "test-app-owner-" + runHash(), email);
   }
 
-  private void inviteActor(
+  private void requireNativeDenial(String category, String path, String field, String code,
+      Map<String, String> bearer) {
+    JsonNode denial = http.json("native current third-identity " + category + " denial", "GET",
+        environment.apiOrigin().resolve(path), bearer, null, Set.of(403));
+    if (!code.equals(denial.path(field).asString())) {
+      throw new ProductFlowException("native " + category + " denial category was invalid");
+    }
+  }
+
+  private static String nativePath(String value) {
+    return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
+  }
+
+  static JsonNode requireOwnedNativeAuthorizationRequest(Path request, String runId,
+      String actorA, String actorB) throws IOException {
+    if (Files.isSymbolicLink(request.getParent())
+        || !Files.getPosixFilePermissions(request.getParent()).equals(PosixFilePermissions.fromString("rwx------"))
+        || Files.isSymbolicLink(request) || Files.size(request) > 4096
+        || !Files.getOwner(request).equals(Files.getOwner(request.getParent()))
+        || !Files.getPosixFilePermissions(request).equals(OWNER_FILE_PERMISSIONS)) {
+      throw new ProductFlowException("native authorization request ownership is invalid");
+    }
+    JsonNode value;
+    try {
+      value = tools.jackson.databind.json.JsonMapper.builder().build().readTree(Files.readString(request));
+    } catch (JacksonException invalid) {
+      throw new ProductFlowException("native authorization request encoding is invalid");
+    }
+    JsonNode resources = value.path("resources");
+    if (value.size() != 5 || !runId.equals(value.path("runId").asString())
+        || !"workspace-default".equals(value.path("spaceRef").asString())
+        || !Hashing.sha256(actorA).equals(value.path("actorA").asString())
+        || !Hashing.sha256(actorB).equals(value.path("actorB").asString())
+        || resources.size() != 7
+        || !("Weave UI " + runId).equals(resources.path("roomTitle").asString())
+        || !("weave-dual-initial-" + runId + ".txt").equals(resources.path("fileName").asString())
+        || !("Calendar UI " + runId + " updated").equals(resources.path("eventTitle").asString())) {
+      throw new ProductFlowException("native authorization request is not bound to owned UI resources");
+    }
+    for (String field : List.of("roomId", "fileId", "calendarId", "eventId")) {
+      if (!resources.path(field).asString().matches("[A-Za-z0-9!:_@.-]{1,512}")) {
+        throw new ProductFlowException("native UI resource identifier is invalid");
+      }
+    }
+    return value;
+  }
+
+  record NativeActorNames(String owner, String peer) {}
+
+  private NativeActorNames nativeActorNames(OidcBrowserJourney.TokenSet owner,
+      OidcBrowserJourney.TokenSet peer) {
+    GeneratedProfileHomeApi profiles = new GeneratedProfileHomeApi(environment);
+    return requireNativeActorNames(profiles.readProfile(owner.accessToken()),
+        profiles.readProfile(peer.accessToken()),
+        accountId(environment.issuer().toString(), owner.subject()),
+        accountId(environment.issuer().toString(), peer.subject()));
+  }
+
+  static NativeActorNames requireNativeActorNames(
+      com.massimotter.weave.userapi.model.ProductProfileResponse owner,
+      com.massimotter.weave.userapi.model.ProductProfileResponse peer,
+      String ownerAccount, String peerAccount) {
+    if (owner == null || peer == null || ownerAccount.equals(peerAccount)
+        || !ownerAccount.equals(owner.getUserId()) || !peerAccount.equals(peer.getUserId())
+        || owner.getDisplayName() == null || owner.getDisplayName().isBlank()
+        || peer.getDisplayName() == null || peer.getDisplayName().isBlank()
+        || owner.getDisplayName().equals(peer.getDisplayName())) {
+      throw new ProductFlowException("native canonical profile identity or name is invalid");
+    }
+    return new NativeActorNames(owner.getDisplayName(), peer.getDisplayName());
+  }
+
+  private static URI rootOrigin(URI origin) {
+    if (!"https".equals(origin.getScheme()) || origin.getHost() == null
+        || origin.getPort() == 0 || origin.getPort() > 65535
+        || origin.getRawUserInfo() != null || origin.getRawQuery() != null || origin.getRawFragment() != null
+        || !origin.getPath().isEmpty() && !"/".equals(origin.getPath())) {
+      throw new ProductFlowException("public native completion origin is invalid");
+    }
+    return URI.create("https://" + origin.getRawAuthority());
+  }
+
+  private String nativeCompletionLink() {
+    JsonHttpClient.Response response = http.send("public native completion page", "GET",
+        environment.productOrigin().resolve("/join"), Map.of("Accept", "text/html"),
+        null, null, Set.of(200));
+    return nativeCompletionLinkFromPage(new String(response.body(), StandardCharsets.UTF_8),
+        environment.productOrigin());
+  }
+
+  static String nativeCompletionLinkFromPage(String html, URI publicOrigin) {
+    var links = java.util.regex.Pattern.compile(
+        "<a id=\"open-weave\" href=\"([^\"]{1,2048})\">").matcher(html);
+    if (!links.find()) {
+      throw new ProductFlowException("public native completion link is missing");
+    }
+    String link = links.group(1).replace("&amp;", "&");
+    try {
+      URI parsed = URI.create(link);
+      String query = parsed.getRawQuery();
+      if (links.find() || !"weave".equals(parsed.getScheme()) || !"join".equals(parsed.getRawAuthority())
+          || !parsed.getPath().isEmpty() || parsed.getRawFragment() != null
+          || query == null || !query.startsWith("organization_origin=") || query.contains("&")
+          || !rootOrigin(URI.create(java.net.URLDecoder.decode(query.substring(query.indexOf('=') + 1),
+              StandardCharsets.UTF_8))).equals(rootOrigin(publicOrigin))) {
+        throw new ProductFlowException("public native completion link is invalid");
+      }
+    } catch (IllegalArgumentException invalid) {
+      throw new ProductFlowException("public native completion link is invalid");
+    }
+    return link;
+  }
+
+  private MemberInvitationResponse inviteActor(
       String organizationId,
       String email,
       String displayName,
@@ -622,6 +879,7 @@ public final class FreshProductFlow {
         || !email.equalsIgnoreCase(invitation.getEmail())) {
       throw new ProductFlowException(role + " invitation projection is invalid");
     }
+    return invitation;
   }
 
   private void setWeaverEntitlement(

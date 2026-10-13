@@ -16,15 +16,12 @@
 import * as runtime from '../runtime';
 import type {
   ApiErrorResponse,
-  OrganizationManifestResponse,
   WorkspaceCapabilitiesResponse,
   WorkspaceHomeResponse,
 } from '../models/index';
 import {
     ApiErrorResponseFromJSON,
     ApiErrorResponseToJSON,
-    OrganizationManifestResponseFromJSON,
-    OrganizationManifestResponseToJSON,
     WorkspaceCapabilitiesResponseFromJSON,
     WorkspaceCapabilitiesResponseToJSON,
     WorkspaceHomeResponseFromJSON,
@@ -67,21 +64,6 @@ export interface WorkspaceApiInterface {
      * Get Weave Home daily-work snapshot
      */
     home(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<WorkspaceHomeResponse>;
-
-    /**
-     * Returns the support-safe org manifest consumed by Weave Client after org URL discovery and SSO. Provider setup, endpoint rotation, diagnostics, policy authoring, and whitelisting remain owned by the Organization/Admin Console.
-     * @summary Get authenticated organization manifest
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof WorkspaceApiInterface
-     */
-    organizationManifestRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<OrganizationManifestResponse>>;
-
-    /**
-     * Returns the support-safe org manifest consumed by Weave Client after org URL discovery and SSO. Provider setup, endpoint rotation, diagnostics, policy authoring, and whitelisting remain owned by the Organization/Admin Console.
-     * Get authenticated organization manifest
-     */
-    organizationManifest(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<OrganizationManifestResponse>;
 
 }
 
@@ -165,45 +147,6 @@ export class WorkspaceApi extends runtime.BaseAPI implements WorkspaceApiInterfa
      */
     async home(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<WorkspaceHomeResponse> {
         const response = await this.homeRaw(initOverrides);
-        return await response.value();
-    }
-
-    /**
-     * Returns the support-safe org manifest consumed by Weave Client after org URL discovery and SSO. Provider setup, endpoint rotation, diagnostics, policy authoring, and whitelisting remain owned by the Organization/Admin Console.
-     * Get authenticated organization manifest
-     */
-    async organizationManifestRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<OrganizationManifestResponse>> {
-        const queryParameters: any = {};
-
-        const headerParameters: runtime.HTTPHeaders = {};
-
-        if (this.configuration && this.configuration.accessToken) {
-            const token = this.configuration.accessToken;
-            const tokenString = await token("bearer-jwt", []);
-
-            if (tokenString) {
-                headerParameters["Authorization"] = `Bearer ${tokenString}`;
-            }
-        }
-
-        let urlPath = `/api/organization/manifest`;
-
-        const response = await this.request({
-            path: urlPath,
-            method: 'GET',
-            headers: headerParameters,
-            query: queryParameters,
-        }, initOverrides);
-
-        return new runtime.JSONApiResponse(response, (jsonValue) => OrganizationManifestResponseFromJSON(jsonValue));
-    }
-
-    /**
-     * Returns the support-safe org manifest consumed by Weave Client after org URL discovery and SSO. Provider setup, endpoint rotation, diagnostics, policy authoring, and whitelisting remain owned by the Organization/Admin Console.
-     * Get authenticated organization manifest
-     */
-    async organizationManifest(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<OrganizationManifestResponse> {
-        const response = await this.organizationManifestRaw(initOverrides);
         return await response.value();
     }
 

@@ -1,18 +1,15 @@
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
-import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
-import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
 import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
-import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
-import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
@@ -31,7 +28,6 @@ import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
-import 'package:weave/features/server_config/domain/entities/server_configuration_save_result.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
@@ -230,29 +226,6 @@ class _StaticWeaveApiClient implements WeaveApiClient {
   }) async => IdentitySessionReconcileResult.unchanged;
 
   @override
-  Future<OrganizationManifestSnapshot> fetchOrganizationManifest({
-    required Uri baseUrl,
-    required String accessToken,
-  }) async {
-    return OrganizationManifestSnapshot(
-      manifestVersion: 'org-manifest-v1',
-      organizationId: 'test',
-      displayName: 'Test',
-      organizationAuthUrl: Uri.parse(
-        'https://auth.example.invalid/realms/weave',
-      ),
-      supportSafe: true,
-      providerConfigurationExposed: false,
-      diagnosticsExposed: false,
-      whitelistingOwner: 'organization-admin-console',
-      clientResponsibilities: const [],
-      adminConsoleResponsibilities: const [],
-      memberCapabilityStates: const {},
-      capabilities: snapshot,
-    );
-  }
-
-  @override
   Future<WorkspaceCapabilitySnapshot> fetchWorkspaceCapabilities({
     required Uri baseUrl,
     required String accessToken,
@@ -392,6 +365,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) => configurationRepository,
             ),
@@ -523,6 +501,11 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+              ),
               serverConfigurationRepositoryProvider.overrideWith(
                 (ref) => _FakeServerConfigurationRepository(
                   configuration: buildTestConfiguration(),
@@ -624,6 +607,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) => _FakeServerConfigurationRepository(
                 configuration: buildTestConfiguration(),
@@ -683,120 +671,5 @@ void main() {
       expect(chatRepository.signOutCalls, 1);
       expect(filesRepository.disconnectCalls, 1);
     });
-
-    testWidgets(
-      'changed Weave API marks files as needing recovery without dropping shell access',
-      (tester) async {
-        final secureStore = InMemorySecureStore({
-          authSessionStorageKey: AuthSessionDto.fromSession(
-            buildTestAuthSession(),
-          ).encode(),
-        });
-        final configurationRepository = _FakeServerConfigurationRepository(
-          configuration: buildTestConfiguration(),
-        );
-        final filesRepository = _MutableFilesRepository(
-          initialConnectionState: FilesConnectionState.connected(
-            baseUrl: Uri.parse('https://files.home.internal'),
-            accountLabel: 'alice',
-          ),
-          listings: const <String, DirectoryListing>{
-            '/': DirectoryListing(path: '/', entries: <FileEntry>[]),
-          },
-        );
-        final chatRepository = _MutableChatRepository(conversations: const []);
-        chatRepository.isConnected = true;
-
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [
-              serverConfigurationRepositoryProvider.overrideWith(
-                (ref) => configurationRepository,
-              ),
-              secureStoreProvider.overrideWithValue(secureStore),
-              oidcClientProvider.overrideWithValue(_FakeOidcClient()),
-              chatRepositoryProvider.overrideWithValue(chatRepository),
-              chatSecurityRepositoryProvider.overrideWithValue(
-                FakeChatSecurityRepository(),
-              ),
-              userProfileProvider.overrideWith((ref) async => null),
-              filesRepositoryProvider.overrideWithValue(filesRepository),
-              weaveApiClientProvider.overrideWithValue(
-                const _StaticWeaveApiClient(
-                  WorkspaceCapabilitySnapshot(
-                    shellAccess: WorkspaceCapabilityState(
-                      capability: WorkspaceCapability.shellAccess,
-                      readiness: WorkspaceCapabilityReadiness.ready,
-                    ),
-                    chat: WorkspaceCapabilityState(
-                      capability: WorkspaceCapability.chat,
-                      readiness: WorkspaceCapabilityReadiness.ready,
-                    ),
-                    files: WorkspaceCapabilityState(
-                      capability: WorkspaceCapability.files,
-                      readiness: WorkspaceCapabilityReadiness.blocked,
-                    ),
-                    calendar: WorkspaceCapabilityState(
-                      capability: WorkspaceCapability.calendar,
-                      readiness: WorkspaceCapabilityReadiness.unavailable,
-                    ),
-                    boards: WorkspaceCapabilityState(
-                      capability: WorkspaceCapability.boards,
-                      readiness: WorkspaceCapabilityReadiness.unavailable,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-            child: const WeaveApp(),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.byIcon(Icons.settings_outlined));
-        await tester.pumpAndSettle();
-
-        final container = ProviderScope.containerOf(
-          tester.element(find.byType(WeaveApp)),
-        );
-        final updatedConfiguration = buildTestConfiguration(
-          backendApiBaseUrl: 'https://api-2.home.internal/api',
-        );
-        await configurationRepository.saveConfiguration(updatedConfiguration);
-        await container
-            .read(authFlowControllerProvider.notifier)
-            .handleConfigurationSaved(
-              ServerConfigurationSaveResult(
-                configuration: updatedConfiguration,
-                authConfigurationChanged: false,
-                matrixHomeserverChanged: false,
-                backendApiBaseUrlChanged: true,
-              ),
-            );
-        await tester.pumpAndSettle();
-
-        final workspace = container
-            .read(workspaceConnectionStateProvider)
-            .requireValue;
-        final capabilities = container
-            .read(workspaceCapabilitySnapshotProvider)
-            .requireValue;
-
-        expect(workspace.shellAccessReady, isTrue);
-        expect(
-          workspace.files.status,
-          IntegrationConnectionStatus.disconnected,
-        );
-        expect(
-          workspace.files.lastInvalidation?.reason,
-          IntegrationInvalidationReason.filesConfigurationChanged,
-        );
-        expect(
-          capabilities.files.readiness,
-          WorkspaceCapabilityReadiness.blocked,
-        );
-        expect(filesRepository.disconnectCalls, 1);
-      },
-    );
   });
 }

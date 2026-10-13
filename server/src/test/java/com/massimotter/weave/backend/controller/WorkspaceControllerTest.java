@@ -15,7 +15,6 @@ import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
-import com.massimotter.weave.backend.service.OrganizationManifestService;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
@@ -38,7 +37,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -55,7 +53,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         SecurityConfig.class,
         com.massimotter.weave.backend.config.AdminApiSecurityConfiguration.class,
         WorkspaceCapabilityService.class,
-        OrganizationManifestService.class,
         WorkspaceReleaseReadinessService.class,
         WorkspaceHomeService.class,
         WorkspaceHomeRecentActivityService.class,
@@ -83,9 +80,6 @@ class WorkspaceControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private OAuth2ResourceServerProperties resourceServerProperties;
-
     @MockitoBean(name = "jwtDecoder")
     private JwtDecoder jwtDecoder;
 
@@ -111,143 +105,11 @@ class WorkspaceControllerTest {
     private SpaceAccessPort spaceAccessPort;
 
     @Test
-    void returnsOrganizationManifestForMemberClientWithoutAdminConsoleLeakage() throws Exception {
-        // V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT
-        // SUPPORT_SAFE_CAPABILITY_STATES_CONTRACT
+    void retiredOrganizationManifestIsNotAnAuthenticatedCompatibilityRoute() throws Exception {
         mockMvc.perform(get("/api/organization/manifest").with(jwt()
-                        .jwt(jwt -> jwt
-                                .subject("calendar-editor@example.invalid")
-                                .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("weave_tenant_id", "weave-dogfood")
-                                .claim("weave_organization_name", "Weave Dogfood")
-                                .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
+                        .jwt(jwt -> jwt.claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.manifestVersion").value("org-manifest-v1"))
-                .andExpect(jsonPath("$.organizationId").value("weave-dogfood"))
-                .andExpect(jsonPath("$.displayName").value("Weave Dogfood"))
-                .andExpect(jsonPath("$.organizationAuthUrl").value("https://auth.weave.test/realms/weave"))
-                .andExpect(jsonPath("$.supportSafe").value(true))
-                .andExpect(jsonPath("$.providerConfigurationExposed").value(false))
-                .andExpect(jsonPath("$.diagnosticsExposed").value(false))
-                .andExpect(jsonPath("$.whitelistingOwner").value("organization-admin-console"))
-                .andExpect(jsonPath("$.clientResponsibilities", hasItems(
-                        "accept organization auth URL, invite link, or deep link",
-                        "complete OIDC Authorization Code with PKCE through the organization authority",
-                        "consume effective organization manifest and capability states",
-                        "render only currently authorized and available member capabilities")))
-                .andExpect(jsonPath("$.adminConsoleResponsibilities", hasItems(
-                        "create and bootstrap organizations",
-                        "manage Keycloak identity, upstream federation, and selectable category providers",
-                        "manage provider endpoint URLs, rotation, readiness, and support-safe diagnostics",
-                        "manage users, groups, roles, capability profiles, and deny-by-default policy",
-                        "own provider, tool, and agent whitelisting plus privacy/compliance risk notes",
-                        "audit organization-wide defaults and administrative changes")))
-                .andExpect(jsonPath("$.memberCapabilityStates['platform-identity']").value("available"))
-                .andExpect(jsonPath("$.memberCapabilityStates['chat-channels']").value("available"))
-                .andExpect(jsonPath("$.memberCapabilityStates['calendar-events']").value("degraded"))
-                .andExpect(jsonPath("$.memberCapabilityStates['files-docs']").value("available"))
-                .andExpect(jsonPath("$.memberCapabilityStates['boards-tasks']").value("disabled_by_policy"))
-                .andExpect(jsonPath("$.memberCapabilityStates.meetings").doesNotExist())
-                .andExpect(jsonPath("$.memberCapabilityStates['forms-contacts']").doesNotExist())
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.productApiBasePath").value("/api/files"))
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.openApiTag").value("Files"))
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.supportSafe").value(true))
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.providerConfigurationExposed").value(false))
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'standard-protocol')]").isEmpty())
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'openapi')].readiness")
-                        .value(hasItem("data_plane_guarded")))
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'mcp')]").isEmpty())
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'native-os')]").isEmpty())
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.status")
-                        .value("member_oidc_session"))
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.lifecyclePaths").isEmpty())
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.secretMaterialReturned").value(false))
-                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'standard-protocol')]").isEmpty())
-                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'openapi')].readiness")
-                        .value(hasItem("data_plane_guarded")))
-                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.credentialLifecycle.status")
-                        .value("member_oidc_session"))
-                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.credentialLifecycle.lifecyclePaths").isEmpty())
-                .andExpect(jsonPath("$.clientAccessDiscovery.chat.openApiTag").value("Chat domain"))
-                .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'openapi')].name")
-                        .value(hasItem("Weave Chat control and context API")))
-                .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'openapi')].readiness")
-                        .value(hasItem("control_plane_available")))
-                .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'standard-protocol')].name")
-                        .value(hasItem("Weave Matrix Client-Server projection")))
-                .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'standard-protocol')].setupPath")
-                        .value(hasItem("/_matrix/client")))
-                .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'standard-protocol')].readiness")
-                        .value(hasItem("compatibility_guarded")))
-                .andExpect(jsonPath("$.clientAccessDiscovery.chat.credentialLifecycle.status")
-                        .value("member_oidc_session_guarded"))
-                .andExpect(jsonPath("$.clientAccessDiscovery.chat.credentialLifecycle.blockedUntil")
-                        .value(hasItems("Weave-owned Matrix client compatibility", "policy-governed E2EE qualification")))
-                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls']").doesNotExist())
-                .andExpect(jsonPath("$.capabilities.calendar.grantedCapabilities", hasItems("calendar.read")))
-                .andExpect(jsonPath("$.capabilities.agentRuntimeControl.policyState").value("disabled"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("matrix.weave.test"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("files.weave.test"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("nextcloud"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("provider.example"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("token="))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("secretref://"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("providerDiagnostics"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("/dav/files"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("/caldav"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("MatrixRTC"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("Authorization: Bearer"))));
-    }
-
-    @Test
-    void rejectsOrganizationManifestWhenAuthUrlWouldExposeUserInfo() throws Exception {
-        String originalIssuerUri = resourceServerProperties.getJwt().getIssuerUri();
-        resourceServerProperties.getJwt().setIssuerUri("https://user:pass@auth.weave.test/realms/weave");
-        try {
-            mockMvc.perform(get("/api/organization/manifest").with(jwt()
-                            .jwt(jwt -> jwt
-                                    .subject("calendar-editor@example.invalid")
-                                    .claim("iss", "https://auth.example.invalid/realms/acme")
-                                    .claim("weave_tenant_id", "weave-dogfood")
-                                    .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
-                            .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
-                    .andExpect(status().isServiceUnavailable())
-                    .andExpect(jsonPath("$.code").value("organization-manifest-invalid-auth-url"));
-        } finally {
-            resourceServerProperties.getJwt().setIssuerUri(originalIssuerUri);
-        }
-    }
-
-    @Test
-    void rejectsOrganizationManifestWhenAuthUrlIsMissing() throws Exception {
-        String originalIssuerUri = resourceServerProperties.getJwt().getIssuerUri();
-        resourceServerProperties.getJwt().setIssuerUri(" ");
-        try {
-            mockMvc.perform(get("/api/organization/manifest").with(jwt()
-                            .jwt(jwt -> jwt
-                                    .subject("calendar-editor@example.invalid")
-                                    .claim("iss", "https://auth.example.invalid/realms/acme")
-                                    .claim("weave_tenant_id", "weave-dogfood")
-                                    .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
-                            .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
-                    .andExpect(status().isServiceUnavailable())
-                    .andExpect(jsonPath("$.code").value("organization-manifest-invalid-auth-url"));
-        } finally {
-            resourceServerProperties.getJwt().setIssuerUri(originalIssuerUri);
-        }
-    }
-
-    @Test
-    void resolvesOrganizationManifestWithoutLegacyTenantAliasClaims() throws Exception {
-        mockMvc.perform(get("/api/organization/manifest").with(jwt()
-                        .jwt(jwt -> jwt
-                                .subject("calendar-editor@example.invalid")
-                                .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
-                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.organizationId").value("weave-dogfood"));
+                .andExpect(status().isNotFound());
     }
 
     @Test

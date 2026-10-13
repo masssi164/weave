@@ -20,7 +20,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Fixed-shape PostgreSQL catalog projection used only by the schema authority boundary. */
 final class SchemaCatalogFingerprint {
 
-  static final String FORMAT = "weave.schema-catalog/v2";
+  static final String FORMAT = "weave.schema-catalog/v3";
 
   private static final String TEXT_TYPE = "(?:character varying|varchar|text)";
   private static final String STRING_LITERAL = "(?:[eE])?'(?:''|[^'])*'";
@@ -49,39 +49,160 @@ final class SchemaCatalogFingerprint {
     if (schema == null || schema.isBlank()) {
       schema = "public";
     }
+    return inspect(connection, schema);
+  }
+
+  static Snapshot inspectLegacyV2(Connection connection) throws Exception {
+    return inspect(connection, connection.getSchema(), true);
+  }
+
+  static Snapshot inspect(Connection connection, String projectionSchema) throws Exception {
+    return inspect(connection, projectionSchema, false);
+  }
+
+  private static Snapshot inspect(Connection connection, String projectionSchema, boolean legacyV2) throws Exception {
+    String schema = connection.getSchema();
     DatabaseMetaData metadata = connection.getMetaData();
     Map<String, Map<String, Object>> tables = new TreeMap<>();
-    try (ResultSet rows = metadata.getTables(connection.getCatalog(), schema, "%", new String[] {"TABLE"})) {
+    try (ResultSet rows = metadata.getTables(connection.getCatalog(), schema, "%", legacyV2 ? new String[] {"TABLE"} : new String[] {"TABLE", "PARTITIONED TABLE"})) {
       while (rows.next()) {
         String table = rows.getString("TABLE_NAME");
         if (table != null
-            && !table.startsWith("pg_")
-            && !table.startsWith("sql_")
+            && (!legacyV2 || (!table.startsWith("pg_") && !table.startsWith("sql_")))
             && !"flyway_schema_history".equals(table)) {
-          tables.put(table, tableProjection(metadata, connection, schema, table));
+          tables.put(table, tableProjection(metadata, connection, schema, projectionSchema, table, legacyV2));
         }
       }
     }
     Map<String, Object> projection = new LinkedHashMap<>();
-    projection.put("format", FORMAT);
-    projection.put("schema", schema);
+    projection.put("format", legacyV2 ? "weave.schema-catalog/v2" : FORMAT);
+    projection.put("schema", projectionSchema);
     projection.put("tables", tables);
+    if (!legacyV2) projection.put("otherObjects", otherObjects(connection, schema));
     byte[] canonical =
-        new JsonCanonicalizer(new ObjectMapper().writeValueAsString(projection)).getEncodedUTF8();
+        new JsonCanonicalizer(new ObjectMapper().writeValueAsString(projection)
+            .replace(schema + ".", projectionSchema + ".")
+            .replace("\\\"" + schema + "\\\".", "\\\"" + projectionSchema + "\\\"."))
+            .getEncodedUTF8();
     String fingerprint = hex(MessageDigest.getInstance("SHA-256").digest(canonical));
     return new Snapshot(fingerprint, new String(canonical, StandardCharsets.UTF_8), List.copyOf(tables.keySet()));
   }
 
+  /** Owned schema objects outside JDBC's TABLE inventory must not escape catalog validation. */
+  private static Map<String, Object> otherObjects(Connection connection, String schema) throws SQLException {
+    Map<String, Object> objects = new LinkedHashMap<>();
+    // The accepted chain defines none of these behavior-changing objects. Presence
+    // is enough to reject drift; arguments, policy expressions and function bodies
+    // are deliberately excluded from support-safe catalog evidence.
+    objects.put("triggers", catalogRows(connection, schema, """
+        select c.relname as table_name,t.tgname as name,t.tgenabled::text as enabled,
+          fn.proname as function_name,fnns.nspname as function_schema
+        from pg_trigger t join pg_class c on c.oid=t.tgrelid
+          join pg_namespace n on n.oid=c.relnamespace
+          join pg_proc fn on fn.oid=t.tgfoid join pg_namespace fnns on fnns.oid=fn.pronamespace
+        where n.nspname=? and not t.tgisinternal order by c.relname,t.tgname
+        """));
+    objects.put("rules", catalogRows(connection, schema, """
+        select c.relname as table_name,r.rulename as name,r.ev_type::text as event,
+          r.ev_enabled::text as enabled,r.is_instead as instead
+        from pg_rewrite r join pg_class c on c.oid=r.ev_class
+          join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname=? and c.relkind not in ('v','m') order by c.relname,r.rulename
+        """));
+    objects.put("policies", catalogRows(connection, schema, """
+        select c.relname as table_name,p.polname as name,p.polcmd::text as command,
+          p.polpermissive as permissive
+        from pg_policy p join pg_class c on c.oid=p.polrelid
+          join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname=? order by c.relname,p.polname
+        """));
+    objects.put("views", catalogRows(connection, schema, """
+        select c.relname as name,c.relkind::text as kind,pg_get_viewdef(c.oid,true) as definition
+        from pg_class c join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname=? and c.relkind in ('v','m') order by c.relname
+        """));
+    objects.put("functions", catalogRows(connection, schema, """
+        select p.proname as name,p.prokind::text as kind,
+          pg_get_function_identity_arguments(p.oid) as arguments,
+          pg_get_function_result(p.oid) as result,l.lanname as language
+        from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+          join pg_language l on l.oid=p.prolang
+        where n.nspname=? order by p.proname,pg_get_function_identity_arguments(p.oid)
+        """));
+    objects.put("types", catalogRows(connection, schema, """
+        select t.typname as name,t.typtype::text as kind,
+          case when t.typtype='d' then format_type(t.typbasetype,t.typtypmod) else '' end as base_type,
+          t.typnotnull as not_null,coalesce(t.typdefault,'') as default_value,
+          coalesce((select string_agg(e.enumlabel,',' order by e.enumsortorder)
+            from pg_enum e where e.enumtypid=t.oid),'') as enum_labels,
+          coalesce((select string_agg(pg_get_constraintdef(c.oid,true),'|' order by c.conname)
+            from pg_constraint c where c.contypid=t.oid),'') as constraints
+        from pg_type t join pg_namespace n on n.oid=t.typnamespace
+        where n.nspname=? and t.typtype in ('e','d') order by t.typname
+        """));
+    objects.put("otherRelations", catalogRows(connection, schema, """
+        select c.relname as name,c.relkind::text as kind
+        from pg_class c join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname=? and c.relkind not in ('r','p','i','I','t','S','v','m') order by c.relname
+        """));
+    objects.put("sequences", catalogRows(connection, schema, """
+        select c.relname as name,s.seqstart as start,s.seqincrement as increment,
+          s.seqmax as maximum,s.seqmin as minimum,s.seqcache as cache,s.seqcycle as cycle
+        from pg_sequence s join pg_class c on c.oid=s.seqrelid
+          join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname=? order by c.relname
+        """));
+    return objects;
+  }
+
+  private static List<Map<String, Object>> catalogRows(Connection connection, String schema,
+      String query) throws SQLException {
+    List<Map<String, Object>> result = new ArrayList<>();
+    try (var statement = connection.prepareStatement(query)) {
+      statement.setString(1, schema);
+      try (var rows = statement.executeQuery()) {
+        var metadata = rows.getMetaData();
+        while (rows.next()) {
+          Map<String, Object> row = new LinkedHashMap<>();
+          for (int column = 1; column <= metadata.getColumnCount(); column++) {
+            Object value = rows.getObject(column);
+            row.put(metadata.getColumnLabel(column), value == null ? "" : value);
+          }
+          result.add(row);
+        }
+      }
+    }
+    return result;
+  }
+
   private static Map<String, Object> tableProjection(
-      DatabaseMetaData metadata, Connection connection, String schema, String table)
+      DatabaseMetaData metadata, Connection connection, String schema, String projectionSchema, String table,
+      boolean legacyV2)
       throws SQLException {
     Map<String, Object> projection = new LinkedHashMap<>();
+    if (!legacyV2) {
+      try (var statement = connection.prepareStatement("select c.relkind::text,c.relrowsecurity,c.relforcerowsecurity "
+          + "from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname=? and c.relname=?")) {
+        statement.setString(1, schema);
+        statement.setString(2, table);
+        try (var rows = statement.executeQuery()) {
+          if (!rows.next()) throw new SQLException("Catalog table classification is unavailable");
+          projection.put("kind", rows.getString(1));
+          projection.put("rowSecurity", rows.getBoolean(2));
+          projection.put("forceRowSecurity", rows.getBoolean(3));
+        }
+      }
+    }
     List<Map<String, Object>> columns = new ArrayList<>();
     try (ResultSet rows = metadata.getColumns(connection.getCatalog(), schema, table, "%")) {
       while (rows.next()) {
         Map<String, Object> column = new LinkedHashMap<>();
         column.put("name", rows.getString("COLUMN_NAME"));
         column.put("type", normalizeType(rows.getString("TYPE_NAME")));
+        if (!legacyV2) {
+          column.put("size", rows.getInt("COLUMN_SIZE"));
+          column.put("scale", rows.getInt("DECIMAL_DIGITS"));
+        }
         column.put("nullable", rows.getInt("NULLABLE") != DatabaseMetaData.columnNoNulls);
         column.put("default", normalizeDefault(rows.getString("COLUMN_DEF")));
         column.put("position", rows.getInt("ORDINAL_POSITION"));
@@ -108,6 +229,13 @@ final class SchemaCatalogFingerprint {
         Map<String, Object> key = new LinkedHashMap<>();
         key.put("name", safe(rows.getString("FK_NAME")));
         key.put("column", rows.getString("FKCOLUMN_NAME"));
+        if (!legacyV2) {
+          String target = rows.getString("PKTABLE_SCHEM");
+          key.put("targetSchema", schema.equals(target) ? projectionSchema : safe(target));
+          key.put("updateRule", rows.getShort("UPDATE_RULE"));
+          key.put("deleteRule", rows.getShort("DELETE_RULE"));
+          key.put("deferrability", rows.getShort("DEFERRABILITY"));
+        }
         key.put("targetTable", rows.getString("PKTABLE_NAME"));
         key.put("targetColumn", rows.getString("PKCOLUMN_NAME"));
         key.put("position", rows.getShort("KEY_SEQ"));

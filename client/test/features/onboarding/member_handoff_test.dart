@@ -3,6 +3,38 @@ import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 
 void main() {
+  test('HTTPS join retains a sole canonical organization origin and port', () {
+    final access = const OrganizationAccessParser().parse(
+      Uri.parse(
+        'https://weave.test:44443/join?organization_origin=https%3A%2F%2Fweave.test%3A44443',
+      ),
+    );
+    expect(access.organizationOrigin, Uri.parse('https://weave.test:44443/'));
+    expect(
+      access.platformConfigUrl,
+      Uri.parse('https://weave.test:44443/api/platform/config'),
+    );
+    expect(access.handoff, isNull);
+  });
+  for (final query in [
+    'handoff_ref=handoff-valid&org=acme&workspace=main&platform_config_url=https%3A%2F%2Fapi.provider.invalid%2Fapi%2Fplatform%2Fconfig',
+    'handoff_ref=handoff-valid&org=acme&workspace=main&product_base_url=http%3A%2F%2Fweave.test',
+    'handoff_ref=handoff-valid&org=acme&workspace=main&product_base_url=https%3A%2F%2Fweave.test%2Fprovider',
+    'handoff_ref=handoff-valid&org=acme&workspace=main&organization_origin=https%3A%2F%2Fweave.test&organization_origin=https%3A%2F%2Fattacker.invalid',
+  ]) {
+    test(
+      'invalid bootstrap origin or repeated invitation input is rejected: $query',
+      () {
+        expect(
+          () => const OrganizationAccessParser().parse(
+            Uri.parse('weave://join?$query'),
+          ),
+          throwsA(isA<AppFailure>()),
+        );
+      },
+    );
+  }
+
   group('OrganizationAccessParser', () {
     test('accepts a direct organization origin without a handoff', () {
       final access = const OrganizationAccessParser().parse(
@@ -16,6 +48,37 @@ void main() {
       );
       expect(access.handoff, isNull);
       expect(access.organizationLabel, 'weave.example');
+    });
+
+    test(
+      'accepts registered secret-free app link with only organization recovery origin',
+      () {
+        for (final link in [
+          'weave://join?organization_origin=https%3A%2F%2Fweave.example%3A8443',
+          'weave:/join?organization_origin=https%3A%2F%2Fweave.example%3A8443',
+        ]) {
+          final access = const OrganizationAccessParser().parse(
+            Uri.parse(link),
+          );
+          expect(
+            access.organizationOrigin,
+            Uri.parse('https://weave.example:8443/'),
+          );
+          expect(access.handoff, isNull);
+        }
+      },
+    );
+    test('rejects secret-bearing or ambiguous origin-only app links', () {
+      for (final link in [
+        'weave://join?organization_origin=https%3A%2F%2Fweave.example&token=secret',
+        'weave://join?organization_origin=https%3A%2F%2Fweave.example&organization_origin=https%3A%2F%2Fother.example',
+        'weave://join?organization_origin=https%3A%2F%2Fweave.example#secret',
+      ]) {
+        expect(
+          () => const OrganizationAccessParser().parse(Uri.parse(link)),
+          throwsA(isA<AppFailure>()),
+        );
+      }
     });
 
     test('preserves real completion-link metadata as optional context', () {
@@ -120,7 +183,7 @@ void main() {
       expect(handoff.productBaseUrl.toString(), 'https://weave.test:44443/');
       expect(
         handoff.platformConfigUrl.toString(),
-        'https://api.weave.test:44443/api/platform/config',
+        'https://weave.test:44443/api/platform/config',
       );
     });
 
@@ -135,7 +198,7 @@ void main() {
       expect(handoff.productBaseUrl.toString(), 'https://weave.test:44443/');
       expect(
         handoff.platformConfigUrl.toString(),
-        'https://api.weave.test:44443/api/platform/config',
+        'https://weave.test:44443/api/platform/config',
       );
     });
 
@@ -228,15 +291,19 @@ void main() {
       }
     });
 
-    test('rejects a discovery URL outside the generated User operation', () {
-      expect(
-        () => const MemberHandoffParser().parse(
+    test(
+      'legacy discovery path is ignored in favor of the organization origin',
+      () {
+        final handoff = const MemberHandoffParser().parse(
           Uri.parse(
             'weave:/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&product_base_url=https%3A%2F%2Fjoin.weave.example&platform_config_url=https%3A%2F%2Fapi.weave.example%2Fcustom%2Fmanifest',
           ),
-        ),
-        throwsA(isA<AppFailure>()),
-      );
-    });
+        );
+        expect(
+          handoff.platformConfigUrl,
+          Uri.parse('https://join.weave.example/api/platform/config'),
+        );
+      },
+    );
   });
 }

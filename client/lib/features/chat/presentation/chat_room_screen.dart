@@ -1,3 +1,4 @@
+import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -33,6 +34,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   ChatFailure? _failure;
   Set<String> _archivedMessageIds = <String>{};
   bool _loading = true;
+  bool _invitationAccepted = false;
   bool _sending = false;
   bool _archiving = false;
   bool _showingArchivedMessages = false;
@@ -45,6 +47,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   void initState() {
     super.initState();
     _composerController.addListener(_onComposerChanged);
+    if (widget.conversation.isInvite) {
+      _loading = false;
+      return;
+    }
     Future<void>.microtask(() async {
       await _restoreDraft();
       await _loadTimeline();
@@ -97,7 +103,52 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   String get _draftKey =>
       'chat.roomDraft.v1.${Uri.encodeComponent(widget.conversation.id)}';
 
+  Future<void> _acceptInvitation() async {
+    if (_loading) return;
+    final repository = ref.read(chatRepositoryProvider);
+    if (repository is! ChatInvitationRepository) {
+      setState(
+        () => _failure = const ChatFailure.unsupportedPlatform(
+          'Invitations are unavailable.',
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _failure = null;
+    });
+    try {
+      await (repository as ChatInvitationRepository).acceptInvitation(
+        widget.conversation.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _invitationAccepted = true;
+        _loading = false;
+      });
+      await _restoreDraft();
+      await _loadTimeline();
+    } on ChatFailure catch (failure) {
+      if (!mounted) return;
+      setState(() {
+        _failure = failure;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _failure = ChatFailure.unknown(
+          'Invitation acceptance failed.',
+          cause: error,
+        );
+        _loading = false;
+      });
+    }
+  }
+
   Future<void> _loadTimeline() async {
+    if (widget.conversation.isInvite && !_invitationAccepted) return;
     setState(() {
       _loading = true;
       _failure = null;
@@ -361,6 +412,48 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    if (widget.conversation.isInvite && !_invitationAccepted) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.conversation.title)),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(l10n.chatInvitationDescription),
+                if (_failure != null) ...[
+                  const SizedBox(height: 16),
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      _failure!.type == ChatFailureType.sessionRequired
+                          ? l10n.chatErrorSessionRequiredGuidance
+                          : l10n.chatInvitationFailed,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                FilledButton(
+                  key: const Key('chat-accept-invitation-button'),
+                  onPressed: _loading ? null : _acceptInvitation,
+                  child: Text(
+                    _loading
+                        ? l10n.chatInvitationJoining
+                        : l10n.chatInvitationAccept,
+                  ),
+                ),
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: CircularProgressIndicator(),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     if (_failure?.type == ChatFailureType.sessionRequired) {
       return Scaffold(
         appBar: AppBar(title: Text(l10n.chatScreenTitle)),

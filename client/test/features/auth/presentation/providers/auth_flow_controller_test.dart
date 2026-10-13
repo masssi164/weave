@@ -74,6 +74,11 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
+            ),
+          ),
           serverConfigurationRepositoryProvider.overrideWith(
             (ref) => _FakeServerConfigurationRepository(
               configuration: buildTestConfiguration(),
@@ -118,6 +123,11 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) => _FakeServerConfigurationRepository(
                 configuration: buildTestConfiguration(),

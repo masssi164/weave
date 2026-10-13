@@ -138,7 +138,10 @@ List<String> artifactPathsForGate(String gateName) {
         case 'productRealityClaimGateCheck':
             return ['docs/product-reality-foundation.md', 'release/product-reality-gates.json', 'tools/product_reality_claim_gate_check.py']
         case 'releaseEvidenceCheck':
-            return ['README.md', 'tools/fixtures/release_notes_unreleased.expected.md', 'release/sprint-29-human-validation']
+            return ['README.md', 'tools/fixtures/release_notes_unreleased.expected.md',
+                    'tools/verify_main_promotion_evidence.py', 'tools/test_verify_main_promotion_evidence.py',
+                    'tools/test_project_delivery_projection.py', 'client/tool/native_qualification_test.py',
+                    'tools/physical_iphone_human_evidence_test.py', 'release/accessibility-gate.json']
         case 'sprint31LanDogfoodCheck':
             return ['tools/weavectl', 'tools/sprint31_lan_dogfood_check.py', 'release/sprint-31-physical-iphone-lan-dogfood', 'docs/sprint-31-iphone-lan-dogfood-runbook.md']
         case 'dogfoodActivationMailCheckTest':

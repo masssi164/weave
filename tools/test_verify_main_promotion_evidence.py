@@ -35,6 +35,57 @@ TOOLCHAIN = {
     "xcodeBuild": "17F42", "iosSimulatorSdkVersion": "26.5", "rustToolchain": "1.95.0",
     "rustCompilerVersion": "rustc 1.95.0 (1234567 2026-01-01)",
 }
+def dual_ios_proof():
+    start, end = "2026-10-12T10:00:00Z", "2026-10-12T10:05:00Z"
+    proof = {
+        "status": "passed", "appBuildSha256": "f" * 64,
+        "actors": [
+            {"role": role, "simulatorId": uid, "processId": pid,
+             "identityDigest": identity * 64, "matrixDeviceDigest": device * 64,
+             "storageDigest": storage * 64, "startedAt": start, "endedAt": end}
+            for role, uid, pid, identity, device, storage in (
+                ("A", "00000000-0000-0000-0000-000000000001", 101, "1", "3", "5"),
+                ("B", "00000000-0000-0000-0000-000000000002", 102, "2", "4", "6"))
+        ],
+        "overlap": {"startedAt": "2026-10-12T10:01:00Z", "endedAt": "2026-10-12T10:04:00Z"},
+        "scenarios": {name: {"status": "passed", "evidence": "flutter-ui", "actors": ["A", "B"]}
+                      for name in ("authentication", "chat", "calendar", "files", "authorization", "recovery", "accessibility")},
+        "encryption": {"policyRequired": False, "status": "not-required", "plaintextFallback": False},
+        "cleanupComplete": True,
+    }
+    proof["scenarios"]["authorization"].update({
+        "deniedIdentityDigest": "7" * 64,
+        "resourceDigest": "8" * 64,
+        "denials": {"chat": "passed", "files": "passed", "calendar": "passed"},
+    })
+    proof["recovery"] = {
+        "actors": [{
+            "role": actor["role"], "initialProcessId": actor["processId"],
+            "restoredProcessId": actor["processId"] + 100,
+            "initialStartedAt": actor["startedAt"], "initialEndedAt": actor["endedAt"],
+            "restoredStartedAt": "2026-10-12T10:06:00Z", "restoredEndedAt": "2026-10-12T10:10:00Z",
+            "previousProcessAbsent": True, "expiryDenied": True,
+            "refreshObserved": True, "logoutIndependent": True,
+            **{"restored" + key[0].upper() + key[1:]: actor[key]
+               for key in ("identityDigest", "matrixDeviceDigest", "storageDigest")},
+        } for actor in proof["actors"]],
+        "initialOverlap": dict(proof["overlap"]),
+        "network": {
+            "interruptedActor": "A", "affectedConnections": 1,
+            "actorAForwardedBytes": 100, "actorBForwardedBytesDuringInterruption": 50,
+            **{key: True for key in ("userApiFailureObserved", "matrixSendFailureObserved",
+                                     "peerUiContinuityObserved", "restoreObserved",
+                                     "matrixRetryObserved", "peerReceptionObserved")},
+        },
+        "currentGrantRevocation": {
+            "status": "passed", "evidence": "server-denial-and-flutter-readback",
+            "resourceDigest": "8" * 64, "deniedIdentityDigest": "2" * 64,
+            "denied": True, "regrantRestored": True, "uiReadback": True,
+        },
+    }
+    return proof
+
+
 HUMAN = "\n".join(
     [
         "Weave human test v1",
@@ -52,12 +103,47 @@ HUMAN = "\n".join(
 
 
 class MainPromotionEvidenceTest(unittest.TestCase):
+    def test_physical_preparation_rejects_a_superseded_qualified_ancestor(self) -> None:
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/ios-dogfood.yml').read_text()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkout = root / 'checkout'
+            checkout.mkdir()
+            def git(*args: str) -> str:
+                return subprocess.check_output(['git', '-C', str(checkout), *args], text=True,
+                                               stderr=subprocess.DEVNULL).strip()
+            subprocess.run(['git', 'init', '--bare', '--quiet', str(root / 'origin.git')], check=True)
+            git('init', '--quiet')
+            git('config', 'user.name', 'Disposable preparation test')
+            git('config', 'user.email', 'gate@example.invalid')
+            git('-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'Qualified candidate')
+            stale = git('rev-parse', 'HEAD')
+            git('-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'New Dogfood candidate')
+            current = git('rev-parse', 'HEAD')
+            git('remote', 'add', 'origin', str(root / 'origin.git'))
+            git('push', '--quiet', 'origin', 'HEAD:refs/heads/dogfood')
+            for name, boundary in (
+                ('Verify current protected dogfood candidate', None),
+                ('Start dogfood twice and prove TLS identity is stable', './gradlew'),
+                ('Build, sign, install in place, and launch on physical iPhone', 'tools/dogfood_iphone_entry.sh'),
+            ):
+                step = workflow.split(f'      - name: {name}\n', 1)[1].split('      - name:', 1)[0]
+                script = '\n'.join(line[10:] for line in step.split('        run: |\n', 1)[1].splitlines())
+                if boundary:
+                    script = script.split(boundary, 1)[0]
+                for candidate, expected in ((stale, 1), (current, 0)):
+                    git('checkout', '--quiet', '--detach', candidate)
+                    result = subprocess.run(['bash', '-c', script], cwd=checkout,
+                                            env={**os.environ, 'DOGFOOD_COMMIT': candidate},
+                                            capture_output=True, text=True)
+                    self.assertEqual(result.returncode, expected, (name, result.stderr))
+
     def test_native_qualification_requires_both_platforms_exact_identity_and_cleanup(self) -> None:
         valid = {
-            "schemaVersion": "weave.native-qualification/v1", "candidateCommit": SHA,
+            "schemaVersion": "weave.native-qualification/v2", "candidateCommit": SHA,
             "sourceTree": OTHER, "specificationCommit": "c" * 40,
             "macos": {"status": "passed"}, "toolchain": TOOLCHAIN,
-            "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim"},
+            "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim", "collaboration": dual_ios_proof()},
             "cleanupComplete": True, "supportSafe": True, "containsSecretValues": False,
         }
         self.assertTrue(native_qualification_passed(valid, SHA, OTHER, "c" * 40))
@@ -71,6 +157,81 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         for outcome in ("failed", "not-available", "skipped"):
             self.assertFalse(native_qualification_passed({**valid, "iosSimulator": {
                 "status": outcome, "rustTarget": "aarch64-apple-ios-sim"}}, SHA, OTHER, "c" * 40))
+        for platform in ("macos", "iosSimulator"):
+            for malformed in (None, [], "passed"):
+                self.assertFalse(native_qualification_passed({**valid, platform: malformed}, SHA, OTHER, "c" * 40))
+
+    def test_dual_ios_rejects_single_sequential_reused_and_api_only_evidence(self) -> None:
+        from tools.verify_main_promotion_evidence import dual_ios_collaboration_passed
+        self.assertTrue(dual_ios_collaboration_passed(dual_ios_proof()))
+        bad = []
+        single = dual_ios_proof(); single["actors"] = single["actors"][:1]; bad.append(single)
+        for key in ("simulatorId", "processId", "identityDigest", "matrixDeviceDigest", "storageDigest"):
+            reused = dual_ios_proof(); reused["actors"][1][key] = reused["actors"][0][key]; bad.append(reused)
+        sequential = dual_ios_proof(); sequential["actors"][1]["startedAt"] = "2026-10-12T10:04:30Z"; bad.append(sequential)
+        for name in ("authentication", "chat", "calendar", "files", "authorization", "recovery", "accessibility"):
+            missing = dual_ios_proof(); del missing["scenarios"][name]; bad.append(missing)
+            failed = dual_ios_proof(); failed["scenarios"][name]["status"] = "not-run"; bad.append(failed)
+            api = dual_ios_proof(); api["scenarios"][name]["evidence"] = "api-only"; bad.append(api)
+        for role in ([], {}, None):
+            malformed = dual_ios_proof(); malformed["actors"][0]["role"] = role; bad.append(malformed)
+        for name in ("authentication", "chat", "calendar", "files", "authorization", "recovery", "accessibility"):
+            unbound = dual_ios_proof(); unbound["scenarios"][name].pop("actors"); bad.append(unbound)
+        for key in ("deniedIdentityDigest", "denials"):
+            missing_denial = dual_ios_proof(); missing_denial["scenarios"]["authorization"].pop(key); bad.append(missing_denial)
+        same_identity = dual_ios_proof(); same_identity["scenarios"]["authorization"]["deniedIdentityDigest"] = "1" * 64; bad.append(same_identity)
+        unencrypted = dual_ios_proof(); unencrypted["encryption"]["policyRequired"] = True; bad.append(unencrypted)
+        downgrade = dual_ios_proof(); downgrade["encryption"]["plaintextFallback"] = True; bad.append(downgrade)
+        dirty = dual_ios_proof(); dirty["cleanupComplete"] = False; bad.append(dirty)
+        for index, proof in enumerate(bad):
+            self.assertFalse(dual_ios_collaboration_passed(proof), index)
+
+    def test_historical_single_simulator_schema_cannot_qualify_new_release(self) -> None:
+        value = {"schemaVersion": "weave.native-qualification/v1", "candidateCommit": SHA,
+                 "sourceTree": OTHER, "specificationCommit": "c" * 40, "toolchain": TOOLCHAIN,
+                 "macos": {"status": "passed"}, "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim"},
+                 "cleanupComplete": True, "supportSafe": True, "containsSecretValues": False}
+        self.assertFalse(native_qualification_passed(value, SHA, OTHER, "c" * 40))
+
+    def test_dual_recovery_requires_real_restart_transport_and_current_resource_proof(self) -> None:
+        from tools.verify_main_promotion_evidence import dual_ios_collaboration_passed
+        valid = dual_ios_proof()
+        self.assertTrue(dual_ios_collaboration_passed(valid))
+        mutations = [
+            (("recovery",), None),
+            (("recovery", "actors"), []),
+            (("recovery", "actors", 0, "role"), []),
+            (("recovery", "actors", 0, "initialProcessId"), True),
+            (("recovery", "actors", 0, "restoredProcessId"), 101),
+            (("recovery", "actors", 1, "restoredProcessId"), 201),
+            (("recovery", "actors", 0, "restoredStartedAt"), "2026-10-12T10:04:00Z"),
+            (("recovery", "actors", 0, "restoredEndedAt"), "2026-10-12T10:10:00"),
+            (("recovery", "initialOverlap", "endedAt"), "2026-10-12T10:06:00Z"),
+            (("recovery", "network", "interruptedActor"), "B"),
+            (("recovery", "currentGrantRevocation", "resourceDigest"), "9" * 64),
+            (("recovery", "currentGrantRevocation", "deniedIdentityDigest"), "1" * 64),
+            (("recovery", "currentGrantRevocation", "evidence"), "api-only"),
+        ]
+        for key in ("restoredIdentityDigest", "restoredMatrixDeviceDigest", "restoredStorageDigest"):
+            mutations.append((("recovery", "actors", 0, key), "9" * 64))
+        for key in ("previousProcessAbsent", "expiryDenied", "refreshObserved", "logoutIndependent"):
+            mutations.append((("recovery", "actors", 0, key), False))
+        for key in ("affectedConnections", "actorAForwardedBytes", "actorBForwardedBytesDuringInterruption"):
+            for invalid in (0, True, "100"):
+                mutations.append((("recovery", "network", key), invalid))
+        for key in ("userApiFailureObserved", "matrixSendFailureObserved", "peerUiContinuityObserved",
+                    "restoreObserved", "matrixRetryObserved", "peerReceptionObserved"):
+            mutations.append((("recovery", "network", key), False))
+        for key in ("denied", "regrantRestored", "uiReadback"):
+            mutations.append((("recovery", "currentGrantRevocation", key), False))
+        for path, replacement in mutations:
+            with self.subTest(path=path, replacement=replacement):
+                malformed = copy.deepcopy(valid)
+                target = malformed
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = replacement
+                self.assertFalse(dual_ios_collaboration_passed(malformed))
 
     def test_native_toolchain_missing_malformed_or_inconsistent_fails_closed(self) -> None:
         from tools.verify_main_promotion_evidence import native_toolchain_recorded
@@ -99,9 +260,65 @@ class MainPromotionEvidenceTest(unittest.TestCase):
                           {**TOOLCHAIN, "iosDeviceSdkVersion": True}):
             self.assertFalse(preparation_passed({**valid, "toolchain": toolchain}, SHA, OTHER, "c" * 40, 123, 1))
 
+    def test_latest_preparation_requires_exact_protected_producer_before_artifact_trust(self) -> None:
+        qualification = {"id": 123, "run_attempt": 1, "updated_at": "2026-10-07T11:00:00Z"}
+        trusted = {"id": 456, "run_attempt": 1, "display_title": f"Prepare Human Test {SHA}",
+                   "event": "workflow_dispatch", "path": ".github/workflows/ios-dogfood.yml",
+                   "head_sha": SHA, "head_branch": "dogfood", "status": "completed",
+                   "conclusion": "success", "created_at": "2026-10-07T12:00:00Z",
+                   "run_started_at": "2026-10-07T12:00:00Z"}
+        with patch("tools.verify_main_promotion_evidence.paged", return_value=[trusted]), \
+                patch("tools.verify_main_promotion_evidence.download_artifact", return_value=b"fixture"), \
+                patch("tools.verify_main_promotion_evidence.artifact_json", return_value={}), \
+                patch("tools.verify_main_promotion_evidence.preparation_passed", return_value=True):
+            self.assertEqual(prepared_run("masssi164/weave", SHA, OTHER, "c" * 40,
+                                          qualification, "fixture-token"), trusted)
+        for field, value in (("head_sha", OTHER), ("head_sha", None),
+                             ("head_branch", "dev"), ("head_branch", "hotfix/claim"),
+                             ("head_branch", None), ("conclusion", "failure"),
+                             ("status", "in_progress")):
+            latest = {**trusted, "id": 457, "created_at": "2026-10-07T13:00:00Z", field: value}
+            if value is None:
+                del latest[field]
+            with self.subTest(field=field, value=value), \
+                    patch("tools.verify_main_promotion_evidence.paged", return_value=[trusted, latest]), \
+                    patch("tools.verify_main_promotion_evidence.download_artifact", return_value=b"fixture") as download, \
+                    patch("tools.verify_main_promotion_evidence.artifact_json", return_value={}), \
+                    patch("tools.verify_main_promotion_evidence.preparation_passed", return_value=True):
+                with self.assertRaises(ValueError):
+                    prepared_run("masssi164/weave", SHA, OTHER, "c" * 40, qualification, "fixture-token")
+                download.assert_not_called()
+
+    def test_hotfix_name_cannot_skip_dogfood_tree_or_human_evidence(self) -> None:
+        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/main-promotion-gate.yml").read_text()
+        for name in ("Verify exact qualified dogfood tree", "Verify exact dogfood and separate human result"):
+            step = workflow.split(f"      - name: {name}\n", 1)[1].split("      - name:", 1)[0]
+            self.assertNotIn("        if:", step, name)
+        step = workflow.split("      - name: Verify exact qualified dogfood tree\n", 1)[1].split("      - name:", 1)[0]
+        script = "\n".join(line[10:] for line in step.split("        run: |\n", 1)[1].splitlines())
+        with tempfile.TemporaryDirectory() as directory:
+            def git(*args: str) -> str:
+                return subprocess.check_output(["git", "-C", directory, *args], text=True,
+                                               stderr=subprocess.DEVNULL).strip()
+            git("init", "--quiet")
+            git("config", "user.name", "Disposable hotfix gate test")
+            git("config", "user.email", "gate@example.invalid")
+            git("-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Qualified dogfood")
+            qualified = git("rev-parse", "HEAD")
+            git("update-ref", "refs/remotes/origin/dogfood", qualified)
+            git("checkout", "-b", "hotfix/unqualified", "--quiet")
+            Path(directory, "unqualified-change").write_text("source has changed")
+            git("add", "unqualified-change")
+            git("-c", "commit.gpgsign=false", "commit", "-m", "Unqualified hotfix")
+            result = subprocess.run(["bash", "-c", script], cwd=directory,
+                                    env={**os.environ, "CANDIDATE": git("rev-parse", "HEAD")},
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn("exact protected Dogfood tree", result.stderr)
+
     def test_preparation_cannot_reuse_an_earlier_qualification_attempt(self) -> None:
         qualification = {"id": 123, "run_attempt": 2, "updated_at": "2026-10-07T13:00:00Z"}
-        run = {"id": 456, "run_attempt": 1, "display_title": f"Prepare Human Test {SHA}",
+        run = {"id": 456, "run_attempt": 1, "head_sha": SHA, "head_branch": "dogfood", "display_title": f"Prepare Human Test {SHA}",
                "event": "workflow_dispatch", "path": ".github/workflows/ios-dogfood.yml",
                "status": "completed", "conclusion": "success", "created_at": "2026-10-07T12:00:00Z",
                "run_started_at": "2026-10-07T12:00:00Z"}
@@ -144,9 +361,9 @@ class MainPromotionEvidenceTest(unittest.TestCase):
                "path": ".github/workflows/live-stack-e2e.yml"}
         jobs = [{"name": name, "conclusion": "success"} for name in
                 ("Full Compose E2E", "Deploy dogfood with Compose")]
-        native = {"schemaVersion": "weave.native-qualification/v1", "candidateCommit": SHA,
+        native = {"schemaVersion": "weave.native-qualification/v2", "candidateCommit": SHA,
                   "sourceTree": tree, "specificationCommit": spec, "macos": {"status": "passed"}, "toolchain": TOOLCHAIN,
-                  "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim"},
+                  "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim", "collaboration": dual_ios_proof()},
                   "cleanupComplete": True, "supportSafe": True, "containsSecretValues": False}
         teardown = {"candidateCommit": SHA, "dryRun": False, "ownershipLabelsVerified": True,
                     "remainingOwnedResources": 0, "remainingContainerCount": 0,

@@ -1,3 +1,4 @@
+import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
@@ -6,7 +7,11 @@ import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
-class NativeMatrixChatRepository implements ChatRepository {
+class NativeMatrixChatRepository
+    implements
+        ChatRepository,
+        ChatParticipantRepository,
+        ChatInvitationRepository {
   NativeMatrixChatRepository({
     required MatrixCryptoSessionPort matrixCryptoSessionCoordinator,
     RustMatrixCoreBridge rustMatrixCoreBridge = const RustMatrixCoreBridge(),
@@ -16,6 +21,27 @@ class NativeMatrixChatRepository implements ChatRepository {
   final MatrixCryptoSessionPort _matrixCryptoSessionCoordinator;
   final RustMatrixCoreBridge _rustMatrixCoreBridge;
   final Map<String, String> _latestEventByRoom = <String, String>{};
+
+  @override
+  Future<void> acceptInvitation(String roomId) async {
+    try {
+      final session = await _matrixCryptoSessionCoordinator.open();
+      await _rustMatrixCoreBridge.acceptRoomInvitation(
+        profileKey: session.profileKey,
+        roomId: roomId,
+      );
+    } on RustMatrixCoreBridgeException catch (error) {
+      if (isMatrixSessionExpiredCode(error.code)) {
+        throw const ChatFailure.sessionRequired(
+          'Sign in again before accepting the invitation.',
+        );
+      }
+      throw ChatFailure.protocol(
+        'The invitation could not be accepted.',
+        cause: error,
+      );
+    }
+  }
 
   @override
   Future<List<ChatConversation>> loadConversations() async {
@@ -35,7 +61,7 @@ class NativeMatrixChatRepository implements ChatRepository {
                   ? ChatConversationPreviewType.encrypted
                   : ChatConversationPreviewType.none,
               unreadCount: room.unreadCount,
-              isInvite: false,
+              isInvite: room.isInvite,
               isDirectMessage: false,
             ),
           )
@@ -63,7 +89,57 @@ class NativeMatrixChatRepository implements ChatRepository {
   }
 
   @override
-  Future<ChatConversation> createConversation({required String title}) async {
+  Future<List<ChatParticipant>> searchMembers(String query) async {
+    final normalized = query.trim();
+    if (normalized.isEmpty || normalized.runes.length > 200) return [];
+    try {
+      final session = await _matrixCryptoSessionCoordinator.open(
+        synchronize: false,
+      );
+      final members = await _rustMatrixCoreBridge.searchMembers(
+        profileKey: session.profileKey,
+        query: normalized,
+      );
+      return members
+          .where((member) => member.userId.isNotEmpty)
+          .map(
+            (member) => ChatParticipant(
+              userId: member.userId,
+              displayName: member.displayName.isEmpty
+                  ? member.userId
+                  : member.displayName,
+            ),
+          )
+          .toList(growable: false);
+    } on RustMatrixCoreBridgeException catch (error) {
+      if (isMatrixSessionExpiredCode(error.code) ||
+          error.code == 'M_FORBIDDEN') {
+        throw ChatFailure.sessionRequired(
+          'Chat access is no longer current. Retry with your Weave sign-in.',
+          cause: error,
+        );
+      }
+      throw ChatFailure.protocol(
+        'Weave Chat could not find members.',
+        cause: error,
+      );
+    }
+  }
+
+  @override
+  Future<ChatConversation> createConversationWithParticipants({
+    required String title,
+    required List<ChatParticipant> participants,
+  }) => _createConversation(title: title, participants: participants);
+
+  @override
+  Future<ChatConversation> createConversation({required String title}) =>
+      _createConversation(title: title, participants: const []);
+
+  Future<ChatConversation> _createConversation({
+    required String title,
+    required List<ChatParticipant> participants,
+  }) async {
     final normalizedTitle = title.trim();
     if (normalizedTitle.isEmpty || normalizedTitle.runes.length > 200) {
       throw const ChatFailure.configuration(
@@ -74,10 +150,18 @@ class NativeMatrixChatRepository implements ChatRepository {
       final session = await _matrixCryptoSessionCoordinator.open(
         synchronize: false,
       );
-      final room = await _rustMatrixCoreBridge.createBusinessRoom(
-        profileKey: session.profileKey,
-        title: normalizedTitle,
-      );
+      final room = participants.isEmpty
+          ? await _rustMatrixCoreBridge.createBusinessRoom(
+              profileKey: session.profileKey,
+              title: normalizedTitle,
+            )
+          : await _rustMatrixCoreBridge.createBusinessRoomWithMembers(
+              profileKey: session.profileKey,
+              title: normalizedTitle,
+              memberIds: participants
+                  .map((member) => member.userId)
+                  .toList(growable: false),
+            );
       if (room.roomId.isEmpty || room.encrypted) {
         throw const RustMatrixCoreBridgeException(
           'M_WEAVE_CHAT_CREATE_ROOM_INVALID',

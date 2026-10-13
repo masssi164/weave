@@ -5876,6 +5876,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'For all-day events, the end date is the first day after the event.'**
   String get calendarAllDayExclusiveEnd;
+
+  /// No description provided for @chatParticipantsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Add people'**
+  String get chatParticipantsLabel;
+
+  /// No description provided for @chatParticipantsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Find people in your organization by name.'**
+  String get chatParticipantsHelp;
+
+  /// No description provided for @chatParticipantsSearchFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'People could not be loaded. Try searching again.'**
+  String get chatParticipantsSearchFailure;
+
+  /// No description provided for @filesSpaceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Files location'**
+  String get filesSpaceLabel;
+
+  /// No description provided for @filesPrivateSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'My private files'**
+  String get filesPrivateSpace;
+
+  /// No description provided for @filesSharedOrganizationSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared organization files'**
+  String get filesSharedOrganizationSpace;
+
+  /// No description provided for @filesUnavailableSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Space no longer available'**
+  String get filesUnavailableSpace;
+
+  /// No description provided for @filesReplaceEntrySemantic.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace content of {name}'**
+  String filesReplaceEntrySemantic(String name);
+
+  /// No description provided for @filesContentUpdating.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating {name}…'**
+  String filesContentUpdating(String name);
+
+  /// No description provided for @filesContentUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated {name}.'**
+  String filesContentUpdated(String name);
+
+  /// No description provided for @filesOpenEntrySemantic.
+  ///
+  /// In en, this message translates to:
+  /// **'Open {name}'**
+  String filesOpenEntrySemantic(String name);
+
+  /// No description provided for @filesPreviewFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The file could not be opened. Try again.'**
+  String get filesPreviewFailed;
+
+  /// No description provided for @filesPreviewUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This file cannot be viewed here. Use Export to open it in another app.'**
+  String get filesPreviewUnsupported;
+
+  /// No description provided for @chatInvitationDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'You have been invited to this conversation. Join to read and send messages.'**
+  String get chatInvitationDescription;
+
+  /// No description provided for @chatInvitationAccept.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept invitation'**
+  String get chatInvitationAccept;
+
+  /// No description provided for @chatInvitationJoining.
+  ///
+  /// In en, this message translates to:
+  /// **'Joining…'**
+  String get chatInvitationJoining;
+
+  /// No description provided for @chatInvitationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The invitation could not be accepted. Check your access and try again.'**
+  String get chatInvitationFailed;
 }
 
 class _AppLocalizationsDelegate

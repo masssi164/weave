@@ -112,6 +112,11 @@ public class MatrixFacadeClientStateService {
         return projected;
     }
 
+    public List<MatrixFacadeClientStateStore.IdentityProjection> registeredIdentities(
+            MatrixIdentity identity, String afterUserId, int limit) {
+        return stateStore.identityProjections(identity.tenantId(), identity.identityIssuer(), afterUserId, limit);
+    }
+
     private void persistIdentityProjection(
             ScopedMatrixUser scopedUser,
             ChatResolvedIdentity identity) {

@@ -43,23 +43,6 @@ void main() {
     );
   });
 
-  test('generated enum map preserves typed capability states', () {
-    final manifest = user_api.OrganizationManifestResponse.fromJson({
-      'memberCapabilityStates': {'files': 'available'},
-    });
-
-    expect(
-      manifest?.memberCapabilityStates['files'],
-      user_api.OrganizationManifestResponseMemberCapabilityStatesEnum.available,
-    );
-    expect(
-      () => user_api.OrganizationManifestResponse.fromJson({
-        'memberCapabilityStates': {'files': 'unknown'},
-      }),
-      throwsFormatException,
-    );
-  });
-
   test('generated profile PATCH omits unset optional preferences', () {
     final request = user_api.UpdateProductProfileRequest(
       displayName: 'Alice Updated',

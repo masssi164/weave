@@ -619,6 +619,33 @@ class ChatDomainFacadeServiceTest {
                 .doesNotContain("xoxb-secret", "secret=raw", "secret-token", "Bear" + "er");
     }
 
+    @Test
+    void participantDiscoveryUsesCurrentDurableSpaceAccessAndRejectsForeignIdentities() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
+        SpaceAccessPort spaces = Mockito.mock(SpaceAccessPort.class);
+        String issuer = "https://auth.example/realms/weave";
+        when(spaces.allows("weave-dogfood", "context-isolated-test",
+                IdentityReferences.accountId(issuer, "member-123"), SpaceAccessPort.Permission.VIEW)).thenReturn(true);
+        when(spaces.allows("weave-dogfood", "context-isolated-test",
+                IdentityReferences.accountId(issuer, "peer"), SpaceAccessPort.Permission.VIEW)).thenReturn(true, false);
+        var service = new ChatDomainFacadeService(
+                new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections), selections, capabilities,
+                new InMemoryAuditEventPublisher(), Mockito.mock(ChatProviderPort.class), allowAllContexts(),
+                contextProperties(), OrganizationIdentityContextResolver.configured(contextProperties()), FIXED,
+                new DurableChatSpaceAccess(spaces));
+        var peer = new com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity(
+                new com.massimotter.weave.backend.chat.domain.ChatIdentityRef("weave-dogfood", issuer,
+                        new com.massimotter.weave.backend.chat.domain.ChatActorRef("user:peer")), "user:peer");
+        assertThat(service.canDiscoverParticipant(memberJwt(), peer)).isTrue();
+        assertThat(service.canDiscoverParticipant(memberJwt(), peer)).isFalse();
+        var outsider = new com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity(
+                new com.massimotter.weave.backend.chat.domain.ChatIdentityRef("foreign-org", issuer,
+                        new com.massimotter.weave.backend.chat.domain.ChatActorRef("user:peer")), "user:peer");
+        assertThat(service.canDiscoverParticipant(memberJwt(), outsider)).isFalse();
+    }
+
     private ChatDomainFacadeService service(
             ProviderSelectionRepository selections,
             boolean configuredProvider,

@@ -105,7 +105,107 @@ class _FailingCreateBridge extends FakeRustMatrixCoreBridge {
   }
 }
 
+class _ParticipantBridge extends FakeRustMatrixCoreBridge {
+  List<String>? invited;
+  String? search;
+  @override
+  Future<List<RustMatrixMember>> searchMembers({
+    required String profileKey,
+    required String query,
+  }) async {
+    search = query;
+    return const [
+      RustMatrixMember(userId: '@member:api.weave.test', displayName: 'Member'),
+    ];
+  }
+
+  @override
+  Future<RustMatrixEncryptedRoom> createBusinessRoomWithMembers({
+    required String profileKey,
+    required String title,
+    required List<String> memberIds,
+  }) async {
+    invited = memberIds;
+    return RustMatrixEncryptedRoom(
+      roomId: '!shared:api.weave.test',
+      title: title,
+      unreadCount: 0,
+      encrypted: false,
+    );
+  }
+}
+
+class _InvitationBridge extends FakeRustMatrixCoreBridge {
+  _InvitationBridge(this.error);
+  final String? error;
+  String? joined;
+  @override
+  Future<void> acceptRoomInvitation({
+    required String profileKey,
+    required String roomId,
+  }) async {
+    expect(profileKey, isNotEmpty);
+    joined = roomId;
+    if (error != null) throw RustMatrixCoreBridgeException(error!);
+  }
+}
+
 void main() {
+  for (final error in <String?>[null, 'M_FORBIDDEN', 'M_UNKNOWN_TOKEN']) {
+    test(
+      'accept invitation forwards active profile and preserves refusal $error',
+      () async {
+        final bridge = _InvitationBridge(error);
+        final repository = NativeMatrixChatRepository(
+          matrixCryptoSessionCoordinator: FakeMatrixCryptoSessionPort(),
+          rustMatrixCoreBridge: bridge,
+        );
+        final operation = repository.acceptInvitation('!invite:api.weave.test');
+        if (error == null) {
+          await operation;
+        } else {
+          await expectLater(
+            operation,
+            throwsA(
+              isA<ChatFailure>().having(
+                (value) => value.type,
+                'type',
+                error == 'M_UNKNOWN_TOKEN'
+                    ? ChatFailureType.sessionRequired
+                    : ChatFailureType.protocol,
+              ),
+            ),
+          );
+        }
+        expect(bridge.joined, '!invite:api.weave.test');
+      },
+    );
+  }
+  test('SDK invited membership remains visible as an invitation', () async {
+    final bridge = FakeRustMatrixCoreBridge()
+      ..rooms = const [
+        RustMatrixEncryptedRoom(
+          roomId: '!invite:api.weave.test',
+          title: 'Invitation',
+          unreadCount: 0,
+          encrypted: false,
+          isInvite: true,
+        ),
+      ];
+    final repository = NativeMatrixChatRepository(
+      matrixCryptoSessionCoordinator: FakeMatrixCryptoSessionPort(),
+      rustMatrixCoreBridge: bridge,
+    );
+    expect((await repository.loadConversations()).single.isInvite, isTrue);
+    expect(
+      RustMatrixEncryptedRoom.fromJson({
+        'roomId': '!invite:api.weave.test',
+        'membership': 'invited',
+      }).isInvite,
+      isTrue,
+    );
+  });
+
   late FakeMatrixCryptoSessionPort cryptoSession;
   late FakeRustMatrixCoreBridge bridge;
 
@@ -117,6 +217,23 @@ void main() {
       rustMatrixCoreBridge: rustBridge ?? bridge,
     );
   }
+
+  test(
+    'search and create forward current session and selected native members through SDK bridge',
+    () async {
+      final participantBridge = _ParticipantBridge();
+      final chat = repository(rustBridge: participantBridge);
+      final members = await chat.searchMembers(' Member ');
+      expect(participantBridge.search, 'Member');
+      expect(members.single.displayName, 'Member');
+      final conversation = await chat.createConversationWithParticipants(
+        title: 'Shared conversation',
+        participants: members,
+      );
+      expect(conversation.id, '!shared:api.weave.test');
+      expect(participantBridge.invited, ['@member:api.weave.test']);
+    },
+  );
 
   setUp(() {
     cryptoSession = FakeMatrixCryptoSessionPort();

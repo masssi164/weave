@@ -57,18 +57,32 @@ def render_caddy(context: ComposeContext) -> str:
 }}
 """
 
+    # TLS terminates at container port 443; the public redirect target retains
+    # the configured host port for installations using a nonstandard binding.
+    redirect_urls = [env[key] for key in (
+        "WEAVE_PUBLIC_URL", "WEAVE_API_URL", "WEAVE_AUTH_URL", "WEAVE_MATRIX_URL", "WEAVE_FILES_URL"
+    )]
+    if mailpit_block:
+        redirect_urls.append(env["WEAVE_MAILPIT_URL"])
+    redirects = "\n".join(
+        f"{_site(value).replace('https://', 'http://', 1)} {{\n"
+        f"  redir {_origin(value)}{{uri}} 308\n}}\n"
+        for value in dict.fromkeys(redirect_urls)
+    )
+
     return f"""{{
   admin off
   auto_https off
 }}
 
+{redirects}
 {public_site} {{
   tls /certs/cert.pem /certs/key.pem
   @internal path /api/internal/* /actuator/*
   handle @internal {{
     respond 404
   }}
-  handle_path /api/* {{
+  handle /api/* {{
     reverse_proxy {backend}
   }}
   handle_path /mcp* {{

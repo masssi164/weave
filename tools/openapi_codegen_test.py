@@ -66,7 +66,7 @@ class OpenApiGeneratedConsumerTest(unittest.TestCase):
 
     def test_user_manifest_advertises_only_the_credential_free_matrix_endpoint(self) -> None:
         schemas = json.loads(client.CONTRACT.read_text())["components"]["schemas"]
-        manifest = schemas["PlatformConfigResponse"]
+        manifest = schemas["OrgManifestResponse"]
         self.assertTrue({"oidc", "protocols", "userApiBaseUrl"}.issubset(manifest["required"]))
         self.assertEqual(
             {"matrixClientServerBaseUrl"},

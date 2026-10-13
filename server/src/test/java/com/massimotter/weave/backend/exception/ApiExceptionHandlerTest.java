@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.exception;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -15,6 +16,39 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 class ApiExceptionHandlerTest {
+
+  @Test
+  void limitsDiagnosticSourcesToStaticWeaveFramesWithoutMessagesOrFileNames() {
+    var failure = new org.springframework.dao.DuplicateKeyException("private SQL and identity");
+    failure.setStackTrace(new StackTraceElement[] {
+        new StackTraceElement("org.provider.PrivateIdentity", "secret", "private-file", 1),
+        new StackTraceElement("com.massimotter.weave.backend.store.Intent", "save", "private-file", 42),
+        new StackTraceElement("com.massimotter.weave.backend.store.Intent", "save", "other-file", 42),
+        new StackTraceElement("com.massimotter.weave.backend.store.Intent", "private\nvalue", "private-file", 43),
+        new StackTraceElement("com.massimotter.weave.backend.service.Invitation", "apply", "private-file", 44),
+        new StackTraceElement("com.massimotter.weave.backend.service.Invitation", "reconcile", "private-file", 45),
+        new StackTraceElement("com.massimotter.weave.backend.controller.Identity", "reconcile", "private-file", 46),
+        new StackTraceElement("com.massimotter.weave.backend.Extra", "extra", "private-file", 47)
+    });
+    assertThat(ApiExceptionHandler.failureSourceFrames(failure)).isEqualTo(
+        "com.massimotter.weave.backend.store.Intent.save:42,"
+            + "com.massimotter.weave.backend.service.Invitation.apply:44,"
+            + "com.massimotter.weave.backend.service.Invitation.reconcile:45,"
+            + "com.massimotter.weave.backend.controller.Identity.reconcile:46");
+    assertThat(ApiExceptionHandler.failureCauseTypes(failure))
+        .isEqualTo("org.springframework.dao.DuplicateKeyException");
+  }
+
+  @Test
+  void boundsCyclicCausesAndHandlesMissingProductFrames() {
+    var first = new IllegalStateException("private-first");
+    var second = new IllegalArgumentException("private-second", first);
+    first.initCause(second);
+    first.setStackTrace(new StackTraceElement[0]);
+    second.setStackTrace(new StackTraceElement[0]);
+    assertThat(ApiExceptionHandler.failureCauseTypes(first).split(",")).hasSize(8);
+    assertThat(ApiExceptionHandler.failureSourceFrames(first)).isEqualTo("unavailable");
+  }
 
   @Test
   void mapsIdentityProviderFailuresWithoutProviderPayloads() throws Exception {

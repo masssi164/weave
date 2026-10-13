@@ -1312,108 +1312,6 @@
         },
         "type": "object"
       },
-      "ClientAccessCredentialLifecycleResponse": {
-        "description": "Support-safe credential lifecycle summary for member, native, generic, and MCP clients.",
-        "properties": {
-          "blockedUntil": {
-            "description": "Support-safe blockers before this access surface can be called ready.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "lifecyclePaths": {
-            "description": "Weave-owned lifecycle paths or references only; never provider URLs or raw secret refs.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "secretMaterialReturned": {
-            "description": "Whether credentials or bearer tokens are returned in this manifest. Must remain false.",
-            "example": false,
-            "type": "boolean"
-          },
-          "status": {
-            "description": "Stable lifecycle posture.",
-            "example": "blocked_until_revocable_device_grants",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ClientAccessDiscoveryResponse": {
-        "description": "Support-safe discovery metadata for a Weave domain access surface.",
-        "properties": {
-          "credentialLifecycle": {
-            "$ref": "#/components/schemas/ClientAccessCredentialLifecycleResponse",
-            "description": "Credential and grant lifecycle posture for this domain."
-          },
-          "domain": {
-            "description": "Provider-neutral Weave domain key.",
-            "example": "files",
-            "type": "string"
-          },
-          "openApiTag": {
-            "description": "OpenAPI tag or contract group for generated clients and MCP allowlists.",
-            "example": "Files",
-            "type": "string"
-          },
-          "productApiBasePath": {
-            "description": "Weave-owned product API base path.",
-            "example": "/api/files",
-            "type": "string"
-          },
-          "providerConfigurationExposed": {
-            "description": "False: discovery must not expose raw provider setup or endpoint configuration.",
-            "example": false,
-            "type": "boolean"
-          },
-          "supportSafe": {
-            "description": "True when discovery excludes raw provider URLs, credentials, endpoint rotation data, and diagnostics.",
-            "type": "boolean"
-          },
-          "surfaces": {
-            "description": "Open-standard or native projection surfaces exposed over Weave domain truth.",
-            "items": {
-              "$ref": "#/components/schemas/ClientAccessProtocolSurfaceResponse"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ClientAccessProtocolSurfaceResponse": {
-        "description": "One Weave-owned client access projection for a domain facade.",
-        "properties": {
-          "kind": {
-            "description": "Surface kind, such as openapi, standard-protocol, native-os, mcp, or provider-adapter.",
-            "type": "string"
-          },
-          "name": {
-            "description": "Surface name in product-neutral terms.",
-            "example": "Weave WebDAV projection",
-            "type": "string"
-          },
-          "notes": {
-            "description": "Support-safe notes for generated clients and admins.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "readiness": {
-            "description": "Stable readiness posture for this surface.",
-            "example": "contract_ready",
-            "type": "string"
-          },
-          "setupPath": {
-            "description": "Weave-owned API, setup, status, or lifecycle path when one exists. Null means the surface is documented but not exposed yet.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ConnectorBoundarySummaryResponse": {
         "properties": {
           "publicSdkAvailable": {
@@ -2037,6 +1935,11 @@
             "type": "string"
           },
           "parentFileId": {
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          },
+          "spaceRef": {
             "maxLength": 255,
             "minLength": 0,
             "type": "string"
@@ -2737,95 +2640,7 @@
         ],
         "type": "object"
       },
-      "OrganizationManifestResponse": {
-        "description": "Authenticated organization manifest consumed by member Weave clients after org URL discovery and SSO.",
-        "properties": {
-          "adminConsoleResponsibilities": {
-            "description": "Responsibilities owned by the Organization/Admin Console.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "capabilities": {
-            "$ref": "#/components/schemas/WorkspaceCapabilitiesResponse",
-            "description": "Effective member capability snapshot; provider setup and diagnostics stay out of this contract."
-          },
-          "clientAccessDiscovery": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/ClientAccessDiscoveryResponse"
-            },
-            "description": "Support-safe domain access discovery for product APIs, standard-protocol projections, native setup, and governed MCP consumers.",
-            "type": "object"
-          },
-          "clientResponsibilities": {
-            "description": "Responsibilities owned by the member Weave Client.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "diagnosticsExposed": {
-            "description": "False: member clients must not receive admin/provider diagnostics.",
-            "type": "boolean"
-          },
-          "displayName": {
-            "description": "Member-visible organization name.",
-            "example": "Weave Dogfood",
-            "type": "string"
-          },
-          "generatedAt": {
-            "description": "When this support-safe manifest was generated.",
-            "format": "date-time",
-            "type": "string"
-          },
-          "manifestVersion": {
-            "description": "Contract version for the member-client manifest.",
-            "example": "org-manifest-v1",
-            "type": "string"
-          },
-          "memberCapabilityStates": {
-            "additionalProperties": {
-              "description": "Provider-neutral member capability states exposed by organization capability manifests.",
-              "enum": [
-                "available",
-                "disabled_by_policy",
-                "not_configured",
-                "degraded",
-                "unavailable",
-                "coming_later"
-              ],
-              "type": "string"
-            },
-            "description": "Stable member-visible capability states keyed by provider-neutral Weave domain. Values are available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later.",
-            "type": "object"
-          },
-          "organizationAuthUrl": {
-            "description": "The organization auth URL or invite/deep-link origin the member client may use for SSO.",
-            "type": "string"
-          },
-          "organizationId": {
-            "description": "Stable organization identifier; not a provider tenant secret.",
-            "example": "weave-dogfood",
-            "type": "string"
-          },
-          "providerConfigurationExposed": {
-            "description": "False: member clients must not receive raw provider setup or endpoint rotation configuration.",
-            "type": "boolean"
-          },
-          "supportSafe": {
-            "description": "True when the manifest excludes provider secrets, endpoint rotation data, and raw diagnostics.",
-            "type": "boolean"
-          },
-          "whitelistingOwner": {
-            "description": "Control plane that owns provider/tool/agent whitelisting.",
-            "example": "organization-admin-console",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "PlatformConfigResponse": {
+      "OrgManifestResponse": {
         "description": "Provider-neutral organization manifest consumed by Weave clients.",
         "properties": {
           "domains": {
@@ -5720,6 +5535,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Explicit shared Space for a root listing; omitted preserves private scope. Children inherit parent scope.",
+            "in": "query",
+            "name": "spaceRef",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -5983,6 +5807,15 @@
             "in": "query",
             "name": "parentId",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Explicit shared Space at the root; omitted preserves private scope.",
+            "in": "query",
+            "name": "spaceRef",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -7363,63 +7196,6 @@
         ]
       }
     },
-    "/api/organization/manifest": {
-      "get": {
-        "description": "Returns the support-safe org manifest consumed by Weave Client after org URL discovery and SSO. Provider setup, endpoint rotation, diagnostics, policy authoring, and whitelisting remain owned by the Organization/Admin Console.",
-        "operationId": "organizationManifest",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrganizationManifestResponse"
-                }
-              }
-            },
-            "description": "Support-safe organization manifest for the authenticated member client."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Bearer token is missing the weave:workspace scope."
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "Organization auth URL is invalid or support-unsafe."
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Get authenticated organization manifest",
-        "tags": [
-          "Workspace"
-        ]
-      }
-    },
     "/api/platform/config": {
       "get": {
         "operationId": "config",
@@ -7428,7 +7204,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PlatformConfigResponse"
+                  "$ref": "#/components/schemas/OrgManifestResponse"
                 }
               }
             },

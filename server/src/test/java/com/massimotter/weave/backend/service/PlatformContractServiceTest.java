@@ -13,6 +13,24 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PlatformContractServiceTest {
 
     @Test
+    void rejectsInvalidPublicOriginPathsAndPortsWithoutPublishingTheirValues() {
+        for (String origin : java.util.List.of("https://weave.test/other", "https://weave.test:0",
+                "https://weave.test:65536", "https://user:secret@weave.test")) {
+            PlatformContractService invalid = service(new MatrixChatProperties(false, null, null), true,
+                    new PlatformContractProperties(origin, null, null, null, null, null, null, null));
+            assertThatThrownBy(invalid::config)
+                    .isInstanceOf(com.massimotter.weave.backend.exception.ApiErrorException.class)
+                    .hasMessageContaining("configuration is unavailable")
+                    .hasMessageNotContaining(origin);
+        }
+        for (String origin : java.util.List.of("https://weave.test", "https://weave.test:8443/")) {
+            assertThat(service(new MatrixChatProperties(false, null, null), true,
+                    new PlatformContractProperties(origin, null, null, null, null, null, null, null))
+                    .config().organizationOrigin()).isEqualTo(origin);
+        }
+    }
+
+    @Test
     void reportsE2eeEnabledOnlyWhenAllValidationGatesPassAndChatIsEnabled() {
         PlatformContractService service = service(
                 new MatrixChatProperties(

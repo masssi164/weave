@@ -43,6 +43,7 @@ void main() {
         manifestText,
         contains('android:scheme="\${appAuthRedirectScheme}"'),
       );
+      expect(manifestText, isNot(contains('com.massimotter.weave.matrix')));
       expect(
         oidcText,
         contains("oidcRedirectScheme = 'com.massimotter.weave'"),

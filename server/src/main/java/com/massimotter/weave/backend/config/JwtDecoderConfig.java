@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
 import com.massimotter.weave.backend.security.MemberSessionCutoffService;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -28,6 +29,8 @@ import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.util.StringUtils;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.RestTemplate;
 
 @Configuration
 public class JwtDecoderConfig {
@@ -238,6 +241,13 @@ public class JwtDecoderConfig {
         var builder = StringUtils.hasText(jwkSetUri)
                 ? NimbusJwtDecoder.withJwkSetUri(jwkSetUri)
                 : NimbusJwtDecoder.withIssuerLocation(issuerUri);
+        // Keep signing-key retrieval bounded while allowing the identity service
+        // to respond under concurrent native authentication. Nimbus keeps its
+        // existing key cache; signature, claims and revocation validation follow.
+        var requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(2));
+        requestFactory.setReadTimeout(Duration.ofSeconds(2));
+        builder.restOperations(new RestTemplate(requestFactory));
         if (requiredType != null) {
             builder.jwtProcessorCustomizer(processor -> processor.setJWSTypeVerifier(
                     new DefaultJOSEObjectTypeVerifier<>(requiredType)));

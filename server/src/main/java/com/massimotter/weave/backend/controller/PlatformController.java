@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.config.RequestIdFilter;
-import com.massimotter.weave.backend.model.PlatformConfigResponse;
+import com.massimotter.weave.backend.model.OrgManifestResponse;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
 import com.massimotter.weave.backend.service.PlatformContractService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,8 +28,8 @@ public class PlatformController {
     @Operation(operationId = "config", summary = "Get public platform configuration")
     @ApiResponse(responseCode = "200", description = "Public platform configuration.",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                    schema = @Schema(implementation = PlatformConfigResponse.class)))
-    public PlatformConfigResponse config() {
+                    schema = @Schema(implementation = OrgManifestResponse.class)))
+    public OrgManifestResponse config() {
         return platformContractService.config();
     }
 

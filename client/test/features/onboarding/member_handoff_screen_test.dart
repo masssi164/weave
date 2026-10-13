@@ -1,5 +1,10 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
+import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +25,12 @@ import 'package:weave/features/onboarding/presentation/member_handoff_screen.dar
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 import '../../helpers/in_memory_stores.dart';
+import '../../helpers/server_config_test_data.dart';
+import '../../../integration_test/dual_ios_collaboration_test.dart'
+    show
+        nativeDualHandoffSignIn,
+        nativeDualOnboardingDiagnostic,
+        safelyReportDualOnboardingFailure;
 
 class _ThrowingDiscoverOrganizationAccess
     implements DiscoverOrganizationAccess {
@@ -38,7 +49,6 @@ class _SuccessfulDiscoverOrganizationAccess
   _SuccessfulDiscoverOrganizationAccess(MemberHandoff handoff)
     : access = OrganizationAccess(
         organizationOrigin: handoff.productBaseUrl,
-        platformConfigUrl: handoff.platformConfigUrl,
         handoff: handoff,
       );
 
@@ -74,15 +84,201 @@ class _FailingSignInWithOidc implements SignInWithOidc {
   }
 }
 
-class _ReadyResolveAppBootstrap implements ResolveAppBootstrap {
-  const _ReadyResolveAppBootstrap();
+class _SignInThenReadyResolveAppBootstrap implements ResolveAppBootstrap {
+  var calls = 0;
 
   @override
-  Future<BootstrapState> call() async => const BootstrapState.ready();
+  Future<BootstrapState> call() async => calls++ == 0
+      ? const BootstrapState.needsSignIn()
+      : const BootstrapState.ready();
 }
 
 void main() {
+  test('dual onboarding diagnostics bound counts and discard private values', () {
+    final safe = nativeDualOnboardingDiagnostic(
+      role: 'A',
+      authState: 'ready_for_sso',
+      visibleState: 'handoff_ready',
+      errorCode: 'none',
+      counts: {'organization': -1, 'handoff': 10000, 'ready': 1, 'signIn': 1},
+    );
+    expect(
+      safe,
+      contains(
+        'actor=A authState=ready_for_sso visibleState=handoff_ready errorCode=none',
+      ),
+    );
+    expect(
+      safe,
+      contains(
+        'organizationCount=0 handoffCount=999 readyCount=1 signInCount=1 workspaceCount=0',
+      ),
+    );
+    final private = nativeDualOnboardingDiagnostic(
+      role: 'private-role',
+      authState: 'private-token',
+      visibleState: 'https://private.invalid',
+      errorCode: 'private-password',
+      counts: {},
+    );
+    expect(private, isNot(contains('private')));
+    expect(
+      private,
+      contains(
+        'actor=unavailable authState=unavailable visibleState=unavailable errorCode=unavailable',
+      ),
+    );
+  });
+
+  test(
+    'diagnostic failures preserve the original onboarding assertion',
+    () async {
+      final original = StateError('original UI assertion');
+      Future<void> failing() async {
+        try {
+          throw original;
+        } catch (_) {
+          await safelyReportDualOnboardingFailure(
+            report: () async => throw StateError('reporter failure'),
+            unavailable: () => throw StateError('fallback failure'),
+          );
+          rethrow;
+        }
+      }
+
+      await expectLater(failing(), throwsA(same(original)));
+      var reported = false;
+      await safelyReportDualOnboardingFailure(
+        report: () async {
+          reported = true;
+        },
+        unavailable: () => fail('successful report must not invoke fallback'),
+      );
+      expect(reported, isTrue);
+    },
+  );
+
   group('MemberHandoffScreen', () {
+    for (final successful in [true, false]) {
+      testWidgets(
+        successful
+            ? 'publishes discovery-saved canonical profile to existing null subscribers before ready UI'
+            : 'failed discovery preserves the existing canonical profile subscription',
+        (tester) async {
+          final store = InMemoryPreferencesStore();
+          final container = ProviderContainer(
+            overrides: [
+              resolveAppBootstrapProvider.overrideWithValue(
+                _SignInThenReadyResolveAppBootstrap(),
+              ),
+              preferencesStoreProvider.overrideWith((ref) => store),
+              discoverOrganizationAccessProvider.overrideWith(
+                (ref) => DiscoverOrganizationAccess(
+                  repository: ref.watch(serverConfigurationRepositoryProvider),
+                  evidenceStore: store,
+                  discoveryClient: AppStartDiscoveryClient(
+                    httpClient: MockClient((request) async {
+                      expect(
+                        request.url,
+                        Uri.parse('https://weave.example/api/platform/config'),
+                      );
+                      return http.Response(
+                        successful
+                            ? jsonEncode(
+                                (jsonDecode(
+                                        File(
+                                          'test/fixtures/org_manifest_v2_valid.json',
+                                        ).readAsStringSync(),
+                                      )
+                                      as Map<String, dynamic>)
+                                  ..['organizationOrigin'] =
+                                      'https://weave.example',
+                              )
+                            : '{}',
+                        successful ? 200 : 503,
+                        headers: {'content-type': 'application/json'},
+                      );
+                    }),
+                  ),
+                ),
+              ),
+            ],
+          );
+          addTearDown(container.dispose);
+          if (!successful) {
+            await container
+                .read(serverConfigurationRepositoryProvider)
+                .saveConfiguration(buildTestConfiguration());
+          }
+          final subscription = container.listen(
+            savedServerConfigurationProvider,
+            (_, _) {},
+          );
+          addTearDown(subscription.close);
+          final previous = await container.read(
+            savedServerConfigurationProvider.future,
+          );
+          if (successful) {
+            expect(previous, isNull);
+          } else {
+            expect(previous, isNotNull);
+          }
+          await tester.pumpWidget(
+            UncontrolledProviderScope(
+              container: container,
+              child: MaterialApp(
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: MemberHandoffScreen(
+                  uri: Uri.parse('https://weave.example'),
+                ),
+              ),
+            ),
+          );
+          // The generated HTTP client consumes an asynchronous response stream;
+          // wait for its real event-loop work before inspecting the ready frame.
+          for (var attempt = 0; attempt < 50; attempt++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 10)),
+            );
+            await tester.pumpAndSettle();
+            final raw = store.rawString(dogfoodAuthStateStorageKey);
+            if (raw != null &&
+                {
+                  'ready_for_sso',
+                  'recoverable_error',
+                }.contains(jsonDecode(raw)['state'])) {
+              break;
+            }
+          }
+          final current = await container.read(
+            savedServerConfigurationProvider.future,
+          );
+          if (successful) {
+            expect(nativeDualHandoffSignIn('Sign In'), findsOneWidget);
+            expect(current, isNotNull);
+            expect(
+              current!.organizationOrigin,
+              Uri.parse('https://weave.example/'),
+            );
+            expect(current.validatedManifest, isNotNull);
+            expect(current.manifestValidatedAt, isNotNull);
+            expect(
+              jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
+              'ready_for_sso',
+            );
+          } else {
+            expect(nativeDualHandoffSignIn('Sign In'), findsNothing);
+            expect(current, same(previous));
+            expect(
+              jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
+              'recoverable_error',
+            );
+          }
+        },
+      );
+    }
+
     testWidgets(
       'shows handoff-ready UI and records visible state after success',
       (tester) async {
@@ -97,9 +293,6 @@ void main() {
                   runId: 's32-massimo-dogfood',
                   organizationSlug: 'massimo-dogfood',
                   workspaceSlug: 'home',
-                  platformConfigUrl: Uri.parse(
-                    'https://weave.test:44443/api/platform/config',
-                  ),
                   productBaseUrl: Uri.parse('https://weave.test:44443'),
                 ),
               ),
@@ -128,6 +321,8 @@ void main() {
         expect(find.text('Workspace ready for sign-in'), findsOneWidget);
         expect(find.textContaining('massimo-dogfood'), findsOneWidget);
         expect(find.text('Sign In'), findsOneWidget);
+        expect(nativeDualHandoffSignIn('Sign In'), findsOneWidget);
+        expect(nativeDualHandoffSignIn('Anmelden'), findsNothing);
 
         final rawVisibleState = preferencesStore.rawString(
           dogfoodVisibleStateStorageKey,
@@ -163,9 +358,6 @@ void main() {
                 runId: 's32-massimo-dogfood',
                 organizationSlug: 'massimo-dogfood',
                 workspaceSlug: 'home',
-                platformConfigUrl: Uri.parse(
-                  'https://weave.test:44443/api/platform/config',
-                ),
                 productBaseUrl: Uri.parse('https://weave.test:44443'),
               ),
             ),
@@ -196,6 +388,7 @@ void main() {
 
       expect(signIn.callCount, 1);
       expect(signIn.isInteractiveSignInSupported, isTrue);
+      expect(nativeDualHandoffSignIn('Sign In'), findsNothing);
 
       final rawAuthState = preferencesStore.rawString(
         dogfoodAuthStateStorageKey,
@@ -241,16 +434,13 @@ void main() {
                   runId: 's32-massimo-dogfood',
                   organizationSlug: 'massimo-dogfood',
                   workspaceSlug: 'home',
-                  platformConfigUrl: Uri.parse(
-                    'https://weave.test:44443/api/platform/config',
-                  ),
                   productBaseUrl: Uri.parse('https://weave.test:44443'),
                 ),
               ),
             ),
             signInWithOidcProvider.overrideWithValue(signIn),
             resolveAppBootstrapProvider.overrideWithValue(
-              const _ReadyResolveAppBootstrap(),
+              _SignInThenReadyResolveAppBootstrap(),
             ),
           ],
         );
@@ -319,9 +509,6 @@ void main() {
                 runId: 's32-massimo-dogfood',
                 organizationSlug: 'massimo-dogfood',
                 workspaceSlug: 'home',
-                platformConfigUrl: Uri.parse(
-                  'https://weave.test:44443/api/platform/config',
-                ),
                 productBaseUrl: Uri.parse('https://weave.test:44443'),
               ),
             ),

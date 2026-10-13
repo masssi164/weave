@@ -5,8 +5,7 @@ import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
-import 'package:weave/features/server_config/domain/entities/server_configuration_save_result.dart';
-import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 
 class AuthFlowState {
   const AuthFlowState({required this.isBusy, this.failure});
@@ -86,39 +85,6 @@ class AuthFlowController extends Notifier<AuthFlowState> {
         isBusy: false,
         failure: AuthFailure.unknown(
           'Unable to sign out right now.',
-          cause: error,
-        ),
-      );
-    }
-  }
-
-  Future<void> handleConfigurationSaved(
-    ServerConfigurationSaveResult result,
-  ) async {
-    ref.invalidate(savedServerConfigurationProvider);
-
-    if (!result.hasSessionImpact) {
-      return;
-    }
-
-    state = state.copyWith(isBusy: true, clearFailure: true);
-
-    try {
-      await ref.read(applyServerConfigurationChangesProvider).call(result);
-      await ref.read(appBootstrapProvider.notifier).retry();
-      state = state.copyWith(isBusy: false, clearFailure: true);
-    } on AuthFailure catch (failure) {
-      state = state.copyWith(isBusy: false, failure: failure);
-    } on ChatFailure catch (failure) {
-      state = state.copyWith(
-        isBusy: false,
-        failure: AuthFailure.storage(failure.message, cause: failure.cause),
-      );
-    } catch (error) {
-      state = state.copyWith(
-        isBusy: false,
-        failure: AuthFailure.unknown(
-          'Unable to apply the updated sign-in settings.',
           cause: error,
         ),
       );

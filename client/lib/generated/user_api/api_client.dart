@@ -298,12 +298,6 @@ class ApiClient {
           return ChatProviderMappingRecord.fromJson(value);
         case 'ChatReadiness':
           return ChatReadiness.fromJson(value);
-        case 'ClientAccessCredentialLifecycleResponse':
-          return ClientAccessCredentialLifecycleResponse.fromJson(value);
-        case 'ClientAccessDiscoveryResponse':
-          return ClientAccessDiscoveryResponse.fromJson(value);
-        case 'ClientAccessProtocolSurfaceResponse':
-          return ClientAccessProtocolSurfaceResponse.fromJson(value);
         case 'ConnectorBoundarySummaryResponse':
           return ConnectorBoundarySummaryResponse.fromJson(value);
         case 'ConsentCapabilityRegistryResponse':
@@ -390,10 +384,8 @@ class ApiClient {
           return OfficeProviderCandidateResponse.fromJson(value);
         case 'Oidc':
           return Oidc.fromJson(value);
-        case 'OrganizationManifestResponse':
-          return OrganizationManifestResponse.fromJson(value);
-        case 'PlatformConfigResponse':
-          return PlatformConfigResponse.fromJson(value);
+        case 'OrgManifestResponse':
+          return OrgManifestResponse.fromJson(value);
         case 'PlatformStatusResponse':
           return PlatformStatusResponse.fromJson(value);
         case 'ProductProfileResponse':

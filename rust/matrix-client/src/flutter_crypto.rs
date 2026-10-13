@@ -39,7 +39,7 @@ use matrix_sdk::{
     },
     store::RoomLoadSettings,
     utils::UrlOrQuery,
-    Client, HttpError, RefreshTokenError, Room, RoomMemberships, SessionMeta,
+    Client, HttpError, RefreshTokenError, Room, RoomMemberships, RoomState, SessionMeta,
 };
 use matrix_sdk_store_encryption::StoreCipher;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -1584,17 +1584,68 @@ pub async fn rooms(profile_key: String) -> String {
 }
 
 pub async fn create_encrypted_room(profile_key: String, title: String) -> String {
-    json_result(create_room_inner(&profile_key, &title, true).await)
+    json_result(create_room_inner(&profile_key, &title, true, &[]).await)
 }
 
 pub async fn create_business_room(profile_key: String, title: String) -> String {
-    json_result(create_room_inner(&profile_key, &title, false).await)
+    json_result(create_room_inner(&profile_key, &title, false, &[]).await)
+}
+
+pub async fn search_members(profile_key: String, query: String) -> String {
+    json_result(search_members_inner(&profile_key, &query).await)
+}
+
+async fn search_members_inner(profile_key: &str, query: &str) -> Result<Value, String> {
+    let query = query.trim();
+    if query.is_empty() || query.chars().count() > 200 {
+        return Err("M_INVALID_PARAM".to_string());
+    }
+    let gate = matrix_io_gate_for(profile_key)?;
+    let _guard = gate.lock().await;
+    let client = client_for(profile_key)?;
+    let response = client.search_users(query, 20).await.map_err(|error| {
+        matrix_sdk_error_code(
+            &matrix_sdk::Error::Http(Box::new(error)),
+            "M_WEAVE_CHAT_MEMBER_SEARCH",
+        )
+    })?;
+    Ok(json!({"members": response.results.into_iter()
+        .filter(|member| Some(member.user_id.as_ref()) != client.user_id())
+        .map(|member| json!({"userId": member.user_id.to_string(), "displayName": member.display_name}))
+        .collect::<Vec<_>>()}))
+}
+
+pub async fn create_business_room_with_members(
+    profile_key: String,
+    title: String,
+    member_ids: Vec<String>,
+) -> String {
+    json_result(create_room_inner(&profile_key, &title, false, &member_ids).await)
+}
+
+fn validated_invitees(member_ids: &[String]) -> Result<Vec<OwnedUserId>, String> {
+    if member_ids.is_empty() || member_ids.len() > 20 {
+        return Err("M_INVALID_PARAM".to_string());
+    }
+    let mut seen = BTreeSet::new();
+    member_ids
+        .iter()
+        .map(|id| {
+            let user =
+                OwnedUserId::try_from(id.as_str()).map_err(|_| "M_INVALID_PARAM".to_string())?;
+            if !seen.insert(user.clone()) {
+                return Err("M_INVALID_PARAM".to_string());
+            }
+            Ok(user)
+        })
+        .collect()
 }
 
 async fn create_room_inner(
     profile_key: &str,
     title: &str,
     encrypted: bool,
+    member_ids: &[String],
 ) -> Result<Value, String> {
     let title = title.trim();
     if title.is_empty() || title.chars().count() > 200 {
@@ -1607,6 +1658,9 @@ async fn create_room_inner(
         let mut request = CreateRoomRequest::new();
         request.name = Some(title.to_owned());
         request.preset = Some(RoomPreset::PrivateChat);
+        if !member_ids.is_empty() {
+            request.invite = validated_invitees(member_ids)?;
+        }
         if encrypted {
             request.initial_state = vec![InitialStateEvent::with_empty_state_key(
                 RoomEncryptionEventContent::with_recommended_defaults(),
@@ -1639,25 +1693,70 @@ async fn rooms_inner(profile_key: &str) -> Result<Value, String> {
     let _matrix_io_guard = matrix_io_gate.lock().await;
     let client = client_for(profile_key)?;
     let mut rooms = Vec::new();
-    for room in client.joined_rooms() {
-        let encrypted = room
-            .latest_encryption_state()
-            .await
-            .map_err(|_| "M_WEAVE_E2EE_ROOM_STATE".to_string())?
-            .is_encrypted();
-        let display_name = room
-            .display_name()
-            .await
-            .map(|name| name.to_string())
-            .unwrap_or_else(|_| room.room_id().to_string());
+    for room in client.rooms() {
+        let invited = room.state() == RoomState::Invited;
+        if !invited && room.state() != RoomState::Joined {
+            continue;
+        }
+        let encrypted = if invited {
+            room.encryption_state().is_encrypted()
+        } else {
+            room.latest_encryption_state()
+                .await
+                .map_err(|_| "M_WEAVE_E2EE_ROOM_STATE".to_string())?
+                .is_encrypted()
+        };
+        let display_name = if invited {
+            room.name().unwrap_or_else(|| room.room_id().to_string())
+        } else {
+            room.display_name()
+                .await
+                .map(|name| name.to_string())
+                .unwrap_or_else(|_| room.room_id().to_string())
+        };
         rooms.push(json!({
             "roomId": room.room_id().to_string(),
             "title": display_name,
             "unreadCount": room.num_unread_messages(),
             "encrypted": encrypted,
+            "membership": if invited { "invited" } else { "joined" },
         }));
     }
     Ok(json!({ "rooms": rooms }))
+}
+
+pub async fn accept_room_invitation(profile_key: String, room_id: String) -> String {
+    json_result(accept_room_invitation_inner(&profile_key, &room_id).await)
+}
+
+async fn accept_room_invitation_inner(profile_key: &str, room_id: &str) -> Result<Value, String> {
+    let parsed =
+        OwnedRoomId::try_from(room_id).map_err(|_| "M_WEAVE_CHAT_ROOM_NOT_FOUND".to_string())?;
+    {
+        let gate = matrix_io_gate_for(profile_key)?;
+        let _guard = gate.lock().await;
+        let client = client_for(profile_key)?;
+        let room = client
+            .get_room(&parsed)
+            .ok_or_else(|| "M_WEAVE_CHAT_ROOM_NOT_FOUND".to_string())?;
+        match room.state() {
+            RoomState::Invited => room
+                .join()
+                .await
+                .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_CHAT_JOIN_DENIED"))?,
+            RoomState::Joined => (),
+            _ => return Err("M_WEAVE_CHAT_JOIN_DENIED".to_string()),
+        }
+    }
+    sync_inner(profile_key).await?;
+    let client = client_for(profile_key)?;
+    let room = client
+        .get_room(&parsed)
+        .ok_or_else(|| "M_WEAVE_CHAT_ROOM_NOT_FOUND".to_string())?;
+    if room.state() != RoomState::Joined {
+        return Err("M_WEAVE_CHAT_JOIN_PENDING".to_string());
+    }
+    Ok(json!({"roomId": room_id, "membership": "joined"}))
 }
 
 pub async fn room_messages(profile_key: String, room_id: String, limit: u32) -> String {
@@ -1682,6 +1781,9 @@ async fn room_messages_inner(
     let room = client
         .get_room(&room_id)
         .ok_or_else(|| "M_NOT_FOUND".to_string())?;
+    if room.state() != RoomState::Joined {
+        return Err("M_WEAVE_CHAT_JOIN_REQUIRED".to_string());
+    }
     let encrypted = room
         .latest_encryption_state()
         .await
@@ -3223,5 +3325,19 @@ mod tests {
             diagnostics.reason_counts(),
             BTreeMap::from([("decryptionFailure", 1), ("unverifiedSenderDevice", 1),])
         );
+    }
+    #[test]
+    fn participant_invites_are_bounded_unique_and_typed_matrix_ids() {
+        let valid = vec!["@member:api.weave.test".to_owned()];
+        assert_eq!(validated_invitees(&valid).unwrap()[0].as_str(), valid[0]);
+        assert!(validated_invitees(&[]).is_err());
+        assert!(validated_invitees(&["https://provider.invalid/member".to_owned()]).is_err());
+        assert!(validated_invitees(&[valid[0].clone(), valid[0].clone()]).is_err());
+        assert!(validated_invitees(
+            &(0..21)
+                .map(|index| format!("@member{index}:api.weave.test"))
+                .collect::<Vec<_>>()
+        )
+        .is_err());
     }
 }

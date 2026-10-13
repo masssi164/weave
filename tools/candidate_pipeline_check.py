@@ -110,9 +110,18 @@ def main() -> int:
         "tools/dogfood_cert_persistence_smoke.py",
         "tools/dogfood_iphone_entry.sh",
         "./gradlew --no-daemon dogfoodUp",
-        "https://mail.weave.test:44443",
+        "load_context('dogfood'",
+        "env['WEAVE_MAILPIT_URL']",
     ):
         require(marker in prepare, f"Prepare Human Test is missing {marker!r}")
+    for step_name in (
+        "Verify current protected dogfood candidate",
+        "Start dogfood twice and prove TLS identity is stable",
+        "Build, sign, install in place, and launch on physical iPhone",
+    ):
+        step = prepare.split(f"      - name: {step_name}\n", 1)[1].split("      - name:", 1)[0]
+        require('[[ "$(git rev-parse origin/dogfood)" == "$DOGFOOD_COMMIT" ]]' in step,
+                f"{step_name} must reject a superseded candidate")
     for forbidden in ("TestFlight", "upload_to_testflight", "candidateManifestDigest", "environment:"):
         require(forbidden not in prepare, f"Prepare Human Test retains the retired gate {forbidden!r}")
     require("infra/weave-workspace/compose.sh dogfood bootstrap-owner" in owner, "first-owner invitation does not use the Server-owned Compose boundary")

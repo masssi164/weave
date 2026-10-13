@@ -10,8 +10,13 @@ class AppBootstrap extends _$AppBootstrap {
   Future<BootstrapState> build() => _resolve();
 
   Future<void> retry() async {
-    state = const AsyncLoading();
-    state = AsyncData(await _resolve());
+    state = const AsyncLoading<BootstrapState>();
+    try {
+      state = AsyncData(await _resolve());
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+      rethrow;
+    }
   }
 
   Future<BootstrapState> _resolve() =>
@@ -20,10 +25,10 @@ class AppBootstrap extends _$AppBootstrap {
 
 @Riverpod(keepAlive: true)
 BootstrapState resolvedBootstrapState(Ref ref) {
-  return ref
-      .watch(appBootstrapProvider)
-      .maybeWhen(
-        data: (state) => state,
-        orElse: () => const BootstrapState.loading(),
-      );
+  final bootstrap = ref.watch(appBootstrapProvider);
+  if (bootstrap.isLoading) return const BootstrapState.loading();
+  return bootstrap.maybeWhen(
+    data: (state) => state,
+    orElse: () => const BootstrapState.loading(),
+  );
 }

@@ -12,7 +12,7 @@
   },
   "serverControlPlane": {
     "organizationId": "weave-dogfood",
-    "manifestRoute": "/api/organization/manifest",
+    "manifestRoute": "/api/platform/config",
     "adminControlPlaneRoute": "/api/admin/control-plane",
     "providerRegistryRoute": "/api/admin/providers/status",
     "capabilityWhitelistRoute": "/api/admin/policies/capability-whitelist",

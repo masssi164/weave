@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Identity session", description = "Authenticated, provider-neutral identity bootstrap.")
 public class IdentitySessionController {
     public static final String PATH = "/api/v1/identity/session/reconcile";
+
+    private static final Logger LOG = LoggerFactory.getLogger(IdentitySessionController.class);
 
     private final MemberInvitationService invitations;
 
@@ -62,11 +66,21 @@ public class IdentitySessionController {
     })
     public ResponseEntity<IdentitySessionReconcileResponse> reconcile(
             @AuthenticationPrincipal Jwt jwt) {
-        IdentitySessionReconcileResponse response = invitations.reconcileAuthenticated(jwt)
-                ? IdentitySessionReconcileResponse.accessUpdated()
-                : IdentitySessionReconcileResponse.unchanged();
-        return ResponseEntity.ok()
-                .cacheControl(CacheControl.noStore())
-                .body(response);
+        long started = System.nanoTime();
+        String outcome = "failed";
+        LOG.info("WEAVE_IDENTITY_SESSION_DIAGNOSTIC operation=reconcile phase=started supportSafe=true");
+        try {
+            IdentitySessionReconcileResponse response = invitations.reconcileAuthenticated(jwt)
+                    ? IdentitySessionReconcileResponse.accessUpdated()
+                    : IdentitySessionReconcileResponse.unchanged();
+            outcome = "completed";
+            return ResponseEntity.ok()
+                    .cacheControl(CacheControl.noStore())
+                    .body(response);
+        } finally {
+            long elapsedMillis = Math.min(999999L, Math.max(0L, (System.nanoTime() - started) / 1000000L));
+            LOG.info("WEAVE_IDENTITY_SESSION_DIAGNOSTIC operation=reconcile phase=ended outcome={} elapsedMillis={} supportSafe=true",
+                    outcome, elapsedMillis);
+        }
     }
 }

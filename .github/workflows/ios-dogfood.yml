@@ -59,13 +59,13 @@ jobs:
           path: weave
           fetch-depth: 0
 
-      - name: Verify protected dogfood ancestry
+      - name: Verify current protected dogfood candidate
         working-directory: weave
         run: |
           set -euo pipefail
           git fetch --no-tags origin '+refs/heads/dogfood:refs/remotes/origin/dogfood'
           [[ "$(git rev-parse HEAD)" == "$DOGFOOD_COMMIT" ]]
-          git merge-base --is-ancestor "$DOGFOOD_COMMIT" origin/dogfood
+          [[ "$(git rev-parse origin/dogfood)" == "$DOGFOOD_COMMIT" ]]
 
       - name: Verify successful Full Compose E2E for the exact commit
         env:
@@ -158,9 +158,11 @@ jobs:
         working-directory: weave
         run: |
           set -euo pipefail
+          git fetch --no-tags origin '+refs/heads/dogfood:refs/remotes/origin/dogfood'
+          [[ "$(git rev-parse origin/dogfood)" == "$DOGFOOD_COMMIT" ]]
           ./gradlew --no-daemon dogfoodUp
           python3 tools/dogfood_cert_persistence_smoke.py \
-            --cert-dir /Users/flotterotter/.weave/dogfood/generated/tls \
+            --cert-dir "$(python3 tools/dogfood_handoff_bundle.py --print-context-json | python3 -c 'import json,sys; print(json.load(sys.stdin)["tlsRoot"])')" \
             --recreate-command "./gradlew --no-daemon dogfoodUp" \
             --output build/evidence/prepare-human-test/tls-persistence.json
 
@@ -200,17 +202,20 @@ jobs:
 
       - name: Build, sign, install in place, and launch on physical iPhone
         working-directory: weave
-        run: >-
-          tools/dogfood_iphone_entry.sh
-          --run
-          --device-id "$WEAVE_IOS_DEVICE_ID"
-          --build-mode profile
-          --reset-mode update_in_place
-          --transport wifi
-          --local-ca-trust trusted
-          --run-id "human-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          --handoff-ref "dogfood-${DOGFOOD_COMMIT}"
-          --evidence-dir "$WEAVE_DOGFOOD_EVIDENCE_DIR"
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin '+refs/heads/dogfood:refs/remotes/origin/dogfood'
+          [[ "$(git rev-parse origin/dogfood)" == "$DOGFOOD_COMMIT" ]]
+          tools/dogfood_iphone_entry.sh \
+            --run \
+            --device-id "$WEAVE_IOS_DEVICE_ID" \
+            --build-mode profile \
+            --reset-mode update_in_place \
+            --transport wifi \
+            --local-ca-trust trusted \
+            --run-id "human-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --handoff-ref "dogfood-${DOGFOOD_COMMIT}" \
+            --evidence-dir "$WEAVE_DOGFOOD_EVIDENCE_DIR"
 
       - name: Record exact physical preparation
         working-directory: weave
@@ -237,14 +242,24 @@ jobs:
           PY
 
       - name: Summarize tester handoff
+        working-directory: weave
         run: |
+          set -euo pipefail
+          mailpit_url="$(python3 - <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path('infra/weave-workspace/scripts').resolve()))
+          from compose_env import load_context
+          print(load_context('dogfood', Path('infra/weave-workspace').resolve()).env['WEAVE_MAILPIT_URL'])
+          PY
+          )"
           {
             echo "## Human test is ready"
             echo
             echo "- Compose, macOS and iOS qualification: passed for ${DOGFOOD_COMMIT} (run ${FULL_COMPOSE_E2E_RUN_ID})"
             echo "- Dogfood Compose: running"
             echo "- iPhone: updated in place with the development-signed build"
-            echo "- Invitation inbox: https://mail.weave.test:44443"
+            echo "- Invitation inbox: ${mailpit_url}"
             echo "- Delivery path: direct development Compose and in-place signing"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "PREPARE_HUMAN_TEST_RESULT status=passed commit=${DOGFOOD_COMMIT} install=update_in_place"

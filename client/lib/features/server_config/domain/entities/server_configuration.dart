@@ -8,37 +8,40 @@ class ServerConfiguration {
     required this.oidcIssuerUrl,
     required this.oidcClientRegistration,
     required this.serviceEndpoints,
-    this.matrixOAuthIssuer,
-    this.matrixOAuthClientId,
+    this.organizationOrigin,
+    this.validatedManifest,
+    this.manifestValidatedAt,
   });
+
+  final Uri? organizationOrigin;
+  final Map<String, dynamic>? validatedManifest;
+  final DateTime? manifestValidatedAt;
 
   final OidcProviderType providerType;
   final Uri oidcIssuerUrl;
   final OidcClientRegistration oidcClientRegistration;
   final ServiceEndpoints serviceEndpoints;
-  final Uri? matrixOAuthIssuer;
-  final String? matrixOAuthClientId;
 
   bool get hasCompleteAuthConfiguration => oidcClientRegistration.isComplete;
-  bool get hasMatrixOAuthConfiguration =>
-      matrixOAuthIssuer != null && matrixOAuthClientId != null;
 
   ServerConfiguration copyWith({
+    Uri? organizationOrigin,
+    Map<String, dynamic>? validatedManifest,
+    DateTime? manifestValidatedAt,
     OidcProviderType? providerType,
     Uri? oidcIssuerUrl,
     OidcClientRegistration? oidcClientRegistration,
     ServiceEndpoints? serviceEndpoints,
-    Uri? matrixOAuthIssuer,
-    String? matrixOAuthClientId,
   }) {
     return ServerConfiguration(
+      organizationOrigin: organizationOrigin ?? this.organizationOrigin,
+      validatedManifest: validatedManifest ?? this.validatedManifest,
+      manifestValidatedAt: manifestValidatedAt ?? this.manifestValidatedAt,
       providerType: providerType ?? this.providerType,
       oidcIssuerUrl: oidcIssuerUrl ?? this.oidcIssuerUrl,
       oidcClientRegistration:
           oidcClientRegistration ?? this.oidcClientRegistration,
       serviceEndpoints: serviceEndpoints ?? this.serviceEndpoints,
-      matrixOAuthIssuer: matrixOAuthIssuer ?? this.matrixOAuthIssuer,
-      matrixOAuthClientId: matrixOAuthClientId ?? this.matrixOAuthClientId,
     );
   }
 }

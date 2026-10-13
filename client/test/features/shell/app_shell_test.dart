@@ -137,6 +137,11 @@ void main() {
           preferencesStoreProvider.overrideWith(
             (ref) => preferencesStore ?? InMemoryPreferencesStore(),
           ),
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
+            ),
+          ),
           serverConfigurationRepositoryProvider.overrideWith(
             (ref) => _FakeServerConfigurationRepository(
               configuration: buildTestConfiguration(),
