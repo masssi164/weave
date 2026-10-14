@@ -1532,6 +1532,12 @@ String nativeDualChatSurfaceDiagnostic(
   AsyncValue<WorkspaceCapabilitySnapshot> capabilities,
 ) {
   int count(Finder finder) => finder.evaluate().length.clamp(0, 999);
+  final room = find.byType(ChatRoomScreen);
+  final copy = room.evaluate().length == 1
+      ? AppLocalizations.of(tester.element(room))
+      : null;
+  int withinRoom(Finder finder) =>
+      copy == null ? 0 : count(find.descendant(of: room, matching: finder));
   final error = bootstrap.error;
   final errorClass = switch (error) {
     AppFailure() => 'AppFailure',
@@ -1543,6 +1549,9 @@ String nativeDualChatSurfaceDiagnostic(
   return 'NATIVE_PRODUCT_STAGE phase=chat-send-surface '
       'roomVisible=${count(find.byType(ChatRoomScreen))} '
       'roomMounted=${count(find.byType(ChatRoomScreen, skipOffstage: false))} '
+      'sessionRequiredCount=${copy == null ? 0 : withinRoom(find.text(copy.chatErrorSessionRequiredGuidance))} '
+      'invitationCount=${withinRoom(find.byKey(const Key('chat-accept-invitation-button')))} '
+      'archiveReturnCount=${copy == null ? 0 : withinRoom(find.widgetWithText(OutlinedButton, copy.chatRoomActiveTimelineAction))} '
       'shellVisible=${count(find.byType(AppShell))} '
       'shellMounted=${count(find.byType(AppShell, skipOffstage: false))} '
       'navigationVisible=${count(find.byType(NavigationBar))} '

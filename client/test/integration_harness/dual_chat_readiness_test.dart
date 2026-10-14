@@ -153,6 +153,78 @@ void main() {
     expect(unknown, contains('bootstrapErrorClass=unavailable'));
   });
 
+  for (final locale in ['en', 'de']) {
+    for (final branch in ['session', 'invitation', 'archive']) {
+      testWidgets('private actual room branch; locale=$locale branch=$branch', (
+        tester,
+      ) async {
+        final repository = FakeChatRepository(
+          loadRoomTimelineHandler: (roomId) async {
+            if (branch == 'session') {
+              throw const ChatFailure.sessionRequired(
+                'private provider details',
+              );
+            }
+            return ChatRoomTimeline(
+              roomId: roomId,
+              roomTitle: 'Owned room',
+              isInvite: false,
+              canSendMessages: true,
+              messages: [],
+            );
+          },
+        );
+        final room = ChatConversation(
+          id: conversation.id,
+          title: conversation.title,
+          previewType: conversation.previewType,
+          unreadCount: 0,
+          isInvite: branch == 'invitation',
+          isDirectMessage: false,
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              chatRepositoryProvider.overrideWithValue(repository),
+              preferencesStoreProvider.overrideWith(
+                (ref) => InMemoryPreferencesStore(),
+              ),
+            ],
+            child: MaterialApp(
+              locale: Locale(locale),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: ChatRoomScreen(conversation: room),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        if (branch == 'archive') {
+          final copy = AppLocalizations.of(
+            tester.element(find.byType(ChatRoomScreen)),
+          );
+          await tester.tap(find.byTooltip(copy.chatRoomArchivedMessagesAction));
+          await tester.pumpAndSettle();
+        }
+        final diagnostic = nativeDualChatSurfaceDiagnostic(
+          tester,
+          const AsyncData(BootstrapState.ready()),
+          const AsyncLoading(),
+        );
+        expect(diagnostic, contains('roomVisible=1 roomMounted=1'));
+        expect(
+          diagnostic,
+          contains(
+            'sessionRequiredCount=${branch == 'session' ? 1 : 0} invitationCount=${branch == 'invitation' ? 1 : 0} archiveReturnCount=${branch == 'archive' ? 1 : 0}',
+          ),
+        );
+        expect(find.byType(TextField), findsNothing);
+        expect(diagnostic, isNot(contains('private')));
+        expect(diagnostic, isNot(contains(conversation.id)));
+      });
+    }
+  }
+
   for (final denied in [false, true]) {
     testWidgets(
       'real delayed composer sends once and verifies proof; denied=$denied',

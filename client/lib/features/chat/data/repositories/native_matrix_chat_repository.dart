@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
@@ -196,12 +199,14 @@ class NativeMatrixChatRepository
 
   @override
   Future<ChatRoomTimeline> loadRoomTimeline(String roomId) async {
+    var stage = 'open';
     try {
       // The native timeline read owns sync, to-device processing, cursor
       // acknowledgement, and message decryption as one receive transaction.
       final session = await _matrixCryptoSessionCoordinator.open(
         synchronize: false,
       );
+      stage = 'timeline';
       final projection = await _rustMatrixCoreBridge.loadRoomMessages(
         profileKey: session.profileKey,
         roomId: roomId,
@@ -223,7 +228,11 @@ class NativeMatrixChatRepository
             )
             .toList(growable: false),
       );
+    } on ChatFailure catch (error) {
+      _reportFailure('timeline', stage, error.type.name, error.message);
+      rethrow;
     } on RustMatrixCoreBridgeException catch (error) {
+      _reportFailure('timeline', stage, 'bridge', error.code);
       if (isMatrixSessionExpiredCode(error.code) ||
           error.code == 'M_FORBIDDEN' ||
           error.code == 'M_NOT_FOUND') {
@@ -244,16 +253,22 @@ class NativeMatrixChatRepository
     required String roomId,
     required String message,
   }) async {
+    var stage = 'open';
     try {
       final session = await _matrixCryptoSessionCoordinator.open(
         synchronize: false,
       );
+      stage = 'send';
       await _rustMatrixCoreBridge.sendText(
         profileKey: session.profileKey,
         roomId: roomId,
         body: message,
       );
+    } on ChatFailure catch (error) {
+      _reportFailure('send', stage, error.type.name, error.message);
+      rethrow;
     } on RustMatrixCoreBridgeException catch (error) {
+      _reportFailure('send', stage, 'bridge', error.code);
       if (isMatrixSessionExpiredCode(error.code) ||
           error.code == 'M_FORBIDDEN') {
         throw ChatFailure.sessionRequired(
@@ -325,6 +340,49 @@ class NativeMatrixChatRepository
   @override
   Future<void> clearSession() async {
     await _matrixCryptoSessionCoordinator.disposePreservingCryptoState();
+  }
+
+  void _reportFailure(
+    String operation,
+    String stage,
+    String type,
+    String code,
+  ) {
+    const allowedCodes = {
+      'M_UNKNOWN_TOKEN',
+      'M_MISSING_TOKEN',
+      'M_WEAVE_MATRIX_SESSION_EXPIRED',
+      'M_FORBIDDEN',
+      'M_NOT_FOUND',
+      'M_INVALID_PARAM',
+      'M_WEAVE_E2EE_PEER_DEVICE_PENDING',
+      'M_WEAVE_E2EE_SEND',
+      'M_WEAVE_MATRIX_MEMBER_SESSION',
+      'M_WEAVE_E2EE_TIMELINE',
+      'M_WEAVE_E2EE_SYNC',
+      'M_WEAVE_CHAT_SETUP_REQUIRED',
+      'M_WEAVE_MATRIX_MEMBER_SESSION_REQUIRED',
+      'M_WEAVE_MATRIX_ENDPOINT_UNCONFIRMED',
+      'M_WEAVE_MATRIX_SESSION_CHANGED',
+      'M_WEAVE_MATRIX_ACCESS_DENIED',
+      'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
+      'M_WEAVE_MATRIX_BINDING_INVALID',
+      'M_WEAVE_MATRIX_BINDING_MISMATCH',
+      'M_WEAVE_MATRIX_STORE_OWNER_MISMATCH',
+      'M_WEAVE_MATRIX_STORE_LOCKED',
+      'M_WEAVE_MATRIX_DEVICE_PROOF_INVALID',
+      'M_WEAVE_MATRIX_RETIRED_GRANT_CLEAR_FAILED',
+    };
+    try {
+      Zone.root.run(() {
+        debugPrint(
+          'WEAVE_NATIVE_CHAT_FAILURE operation=$operation stage=$stage type=$type '
+          'code=${allowedCodes.contains(code) ? code : 'unavailable'} supportSafe=true',
+        );
+      });
+    } catch (_) {
+      // Diagnostics cannot replace the original repository failure.
+    }
   }
 
   ChatMessage _messageFromProjection(
