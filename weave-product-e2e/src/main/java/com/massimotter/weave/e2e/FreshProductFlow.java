@@ -619,6 +619,7 @@ public final class FreshProductFlow {
           "schemaVersion", "weave.dual-ios-input/v1",
           "runId", environment.runId(),
           "publicOrigin", rootOrigin(environment.productOrigin()).toString(),
+          "organizationId", organizationId,
           "sharedSpaceRef", "workspace-default",
           "actors", List.of(
               Map.of("role", "A", "email", memberEmail, "password", memberPassword,
@@ -891,6 +892,7 @@ public final class FreshProductFlow {
     String a = "'" + actorA.replace("'", "''") + "'";
     String b = "'" + actorB.replace("'", "''") + "'";
     String n = "'" + serverName.replace("'", "''") + "'";
+    String account = "'" + accountId(issuer, actorB) + "'";
     String title = "'Weave UI " + runId.replace("'", "''") + "'";
     // Exact existing northbound representation for owned ASCII canonical IDs;
     // unsupported identifiers yield no authority row, never guessed decoding.
@@ -911,8 +913,9 @@ public final class FreshProductFlow {
         + " AND m.identity_issuer=" + i + " AND m.actor_ref='user:'||" + b + " AND m.membership_state='invited'), "
         + "(SELECT count(*) FROM weave_chat_memberships m JOIN owned o USING(conversation_id) WHERE m.tenant_id=" + t
         + " AND m.identity_issuer=" + i + " AND m.actor_ref='user:'||" + b + " AND m.membership_state='joined'), "
-        + "(SELECT count(*) FROM binding), (SELECT count(*) FROM weave_space_memberships g JOIN binding p USING(person_ref) "
-        + "JOIN owned o ON o.context_id=g.space_ref WHERE g.organization_ref=" + t + " AND g.lifecycle_state='ACTIVE'), (SELECT context_id='workspace-default' FROM owned) "
+        + "(SELECT count(*) FROM binding), (SELECT count(*) FROM weave_space_memberships g "
+        + "JOIN owned o ON o.context_id=g.space_ref WHERE g.organization_ref=" + t + " AND g.person_ref=" + account
+        + " AND g.lifecycle_state='ACTIVE'), (SELECT context_id='workspace-default' FROM owned) "
         + "WHERE (SELECT count(*) FROM owned)=1;\n\\else\n\\quit\n\\endif\nROLLBACK;";
   }
 

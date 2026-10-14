@@ -71,6 +71,11 @@ final class NativeChatFailureDiagnosticTest {
       assertThrows(IOException.class, () -> FreshProductFlow.nativeChatFailureDiagnostic(privateData));
     }
   }
+  @Test void canonicalMembershipRowsAreObservedWithoutLegacyBindingOrPermissionInference() throws Exception {
+    String diagnostic = FreshProductFlow.nativeChatFailureDiagnostic("1|1|1|0|0|1|t");
+    assertTrue(diagnostic.contains("personBindingRows=0 activeGrantRows=1"));
+    assertTrue(diagnostic.stripTrailing().endsWith("permissionDecision=unavailable"));
+  }
   @Test void queryIsReadOnlyAndRejectsControlDataBeforeExecution() throws Exception {
     String sql = FreshProductFlow.nativeChatFailureSql("!owned:weave.test", "organization", "https://issuer.test", "actor-A", "actor-B", "weave.test", "owned-run");
     assertTrue(sql.startsWith("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;"));

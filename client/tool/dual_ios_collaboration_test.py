@@ -37,15 +37,15 @@ class DualIosCollaborationTest(unittest.TestCase):
                         dual.actor_result(result, 'A', 'owned-actor', 'a' * 64)
                     raise stopped
                 self.fail('Unexpected native command')
-            data = {'runId': 'owned-test', 'publicOrigin': 'https://owned.invalid',
+            data = {'runId': 'owned-test', 'publicOrigin': 'https://owned.invalid', 'organizationId': 'owned-org',
                     'sharedSpaceRef': 'workspace-default', 'actors': [
                         {'role': 'A', 'displayName': 'Owned author'},
                         {'role': 'B', 'displayName': 'Owned peer'}]}
             with mock.patch.object(ios, 'run', side_effect=command), \
                  mock.patch.object(ios.simulator_vm, 'log_start_timestamp', return_value='owned-time'):
                 with self.assertRaises(ios.NativeFailure) as caught:
-                    dual.run_actor({'role': 'A', 'entryUri': 'https://owned.invalid'}, udid,
-                                   root, root, root, root / 'app', data, {}, 'a' * 64,
+                    dual.run_actor({'role': 'A', 'entryUri': 'https://owned.invalid', 'identityRef': 'owned-actor'}, udid,
+                                   root, root, root, root / 'app', data, {'WEAVE_NATIVE_ISSUER': 'https://issuer.test'}, 'a' * 64,
                                    None, None, None)
                 self.assertIs(caught.exception, stopped)
 
@@ -191,15 +191,21 @@ class DualIosCollaborationTest(unittest.TestCase):
             root.chmod(0o700)
             support = root / 'support'; support.mkdir(mode=0o700)
             input_path = root / 'input.json'
-            input_data = {'runId': 'owned-test', 'actors': [
+            input_data = {'runId': 'owned-test', 'organizationId': 'owned-org', 'actors': [
                 {'role': 'A', 'identityRef': 'actor-A'}, {'role': 'B', 'identityRef': 'actor-B'}]}
             result = support / 'weave-dual-ios-result.json'
             payload = {'role': 'A', 'identityDigest': hashlib.sha256(b'actor-A').hexdigest(),
+                       'identityIssuerDigest': hashlib.sha256(b'https://issuer.test').hexdigest(),
+                       'organizationDigest': hashlib.sha256(b'owned-org').hexdigest(),
                        'resources': {'roomId': '!owned:weave.test', 'roomTitle': 'private-displayed-name'},
                        'privateError': 'private-message-must-not-transfer'}
             result.write_text(json.dumps(payload)); result.chmod(0o600)
-            scopes = {'A': (support, 'owned-device', '123', support)}
-            dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40)
+            peer = root / 'peer'; peer.mkdir(mode=0o700)
+            peer_result = peer / 'weave-dual-ios-result.json'
+            peer_payload = dict(payload, role='B', identityDigest=hashlib.sha256(b'actor-B').hexdigest())
+            peer_result.write_text(json.dumps(peer_payload)); peer_result.chmod(0o600)
+            scopes = {'A': (support, 'owned-device', '123', support), 'B': (peer, 'owned-peer', '456', peer)}
+            dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40, 'https://issuer.test')
             snapshot = root / 'dual-ios-chat-failure-owned-test.json'
             self.assertEqual(snapshot.stat().st_mode & 0o777, 0o600)
             result.unlink()  # Owned app storage can now be deleted independently.
@@ -211,7 +217,7 @@ class DualIosCollaborationTest(unittest.TestCase):
             self.assertNotIn('private-message-must-not-transfer', snapshot.read_text())
             with self.assertRaises(FileExistsError):
                 result.write_text(json.dumps(payload)); result.chmod(0o600)
-                dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40)
+                dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40, 'https://issuer.test')
             self.assertEqual(json.loads(snapshot.read_text()), actual)
             snapshot.unlink()  # Existing host collector consumes then deletes it.
             result.write_text(json.dumps(payload)); result.chmod(0o600)
@@ -219,16 +225,37 @@ class DualIosCollaborationTest(unittest.TestCase):
                              dict(payload, resources={'roomId': '../private'})]:
                 result.write_text(json.dumps(mutation))
                 with self.assertRaises(ios.NativeFailure):
-                    dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40)
+                    dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40, 'https://issuer.test')
                 self.assertFalse(snapshot.exists())
+            result.write_text(json.dumps(payload))
+            for key, reason in [('identityDigest', 'actor-mismatch'), ('identityIssuerDigest', 'issuer-mismatch'),
+                                ('organizationDigest', 'organization-mismatch')]:
+                invalid_peer = dict(peer_payload, **{key: 'b' * 64})
+                peer_result.write_text(json.dumps(invalid_peer))
+                with self.assertRaises(ios.NativeFailure) as caught:
+                    dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40, 'https://issuer.test')
+                self.assertEqual(caught.exception.reason, reason)
+                self.assertFalse(snapshot.exists())
+            peer_result.write_text(json.dumps(peer_payload))
+            for key in ['identityDigest', 'identityIssuerDigest', 'organizationDigest']:
+                missing = dict(peer_payload); missing.pop(key)
+                peer_result.write_text(json.dumps(missing))
+                with self.assertRaises(ios.NativeFailure):
+                    dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40, 'https://issuer.test')
+                self.assertFalse(snapshot.exists())
+            peer_result.write_text(json.dumps(peer_payload))
+            peer_result.chmod(0o644)
+            with self.assertRaises(ios.NativeFailure):
+                dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40, 'https://issuer.test')
+            peer_result.chmod(0o600)
             result.write_text(json.dumps(payload)); result.chmod(0o644)
             with self.assertRaises(ios.NativeFailure) as caught:
-                dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40)
+                dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40, 'https://issuer.test')
             self.assertEqual(caught.exception.stage, 'dual-chat-snapshot')
             self.assertEqual(caught.exception.reason, 'unsafe-actor-result')
             result.unlink(); result.symlink_to(input_path)
             with self.assertRaises(ios.NativeFailure):
-                dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40)
+                dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40, 'https://issuer.test')
             self.assertFalse(snapshot.exists())
 
     def test_failed_actor_retains_private_relay_counters_before_cleanup(self):
@@ -360,6 +387,7 @@ class DualIosCollaborationTest(unittest.TestCase):
             parent = Path(directory); parent.chmod(0o700)
             path = parent / 'fixture.json'
             value = {'schemaVersion': 'weave.dual-ios-input/v1', 'runId': 'owned-run',
+                     'organizationId': 'owned-org',
                      'publicOrigin': 'https://weave.localhost', 'actors': [
                          {'role': 'A', 'email': 'a@example.invalid', 'password': 'private-a', 'identityRef': 'a', 'displayName': 'Current owner', 'entryUri': 'weave.localhost'},
                          {'role': 'B', 'email': 'b@example.invalid', 'password': 'private-b', 'identityRef': 'b', 'displayName': 'Current peer', 'entryUri': 'weave://join?organization_origin=https%3A%2F%2Fweave.localhost'}]}
@@ -367,6 +395,10 @@ class DualIosCollaborationTest(unittest.TestCase):
                 path.write_text(json.dumps(value));path.chmod(0o600)
             write()
             self.assertEqual(dual.private_input(path, 'owned-run'), value)
+            for invalid in [None, '', ' ']:
+                value['organizationId'] = invalid; write()
+                with self.assertRaises(ios.NativeFailure): dual.private_input(path, 'owned-run')
+            value['organizationId'] = 'owned-org'; write()
             value['actors'][1]['entryUri'] += '%2F';write()
             self.assertEqual(dual.private_input(path, 'owned-run'), value)
             value['actors'][1]['entryUri'] = value['actors'][1]['entryUri'][:-3]
