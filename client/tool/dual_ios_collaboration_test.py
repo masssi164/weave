@@ -19,6 +19,36 @@ import run_ios_simulator_product_acceptance as ios
 
 
 class DualIosCollaborationTest(unittest.TestCase):
+    def test_actor_prepares_owner_only_result_before_actual_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            udid = '11111111-1111-1111-1111-111111111111'
+            container = root / 'CoreSimulator' / 'Devices' / udid / 'data'
+            container.mkdir(parents=True)
+            stopped = ios.NativeFailure('infrastructure', 'owned-test', 'launch-stopped')
+            def command(args, **_kwargs):
+                if args[2] == 'install': return ''
+                if args[2] == 'get_app_container': return str(container)
+                if args[2] == 'launch':
+                    result = container / 'Library/Application Support/weave-dual-ios-result.json'
+                    self.assertEqual(json.loads(result.read_text()), {})
+                    self.assertEqual(result.stat().st_mode & 0o777, 0o600)
+                    with self.assertRaises(ios.NativeFailure):
+                        dual.actor_result(result, 'A', 'owned-actor', 'a' * 64)
+                    raise stopped
+                self.fail('Unexpected native command')
+            data = {'runId': 'owned-test', 'publicOrigin': 'https://owned.invalid',
+                    'sharedSpaceRef': 'workspace-default', 'actors': [
+                        {'role': 'A', 'displayName': 'Owned author'},
+                        {'role': 'B', 'displayName': 'Owned peer'}]}
+            with mock.patch.object(ios, 'run', side_effect=command), \
+                 mock.patch.object(ios.simulator_vm, 'log_start_timestamp', return_value='owned-time'):
+                with self.assertRaises(ios.NativeFailure) as caught:
+                    dual.run_actor({'role': 'A', 'entryUri': 'https://owned.invalid'}, udid,
+                                   root, root, root, root / 'app', data, {}, 'a' * 64,
+                                   None, None, None)
+                self.assertIs(caught.exception, stopped)
+
     @unittest.skipUnless(shutil.which('flutter'), 'Flutter CLI is required for real argument-parser validation')
     def test_actual_flutter_drive_parser_accepts_both_phase_host_arguments(self):
         # --help parses the actual command without launching, attaching or building.
@@ -188,57 +218,69 @@ class DualIosCollaborationTest(unittest.TestCase):
             for mutation in [dict(payload, role='B'), dict(payload, identityDigest='b' * 64),
                              dict(payload, resources={'roomId': '../private'})]:
                 result.write_text(json.dumps(mutation))
-                with self.assertRaises(ValueError):
+                with self.assertRaises(ios.NativeFailure):
                     dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40)
                 self.assertFalse(snapshot.exists())
             result.write_text(json.dumps(payload)); result.chmod(0o644)
-            with self.assertRaises(ValueError):
+            with self.assertRaises(ios.NativeFailure) as caught:
                 dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40)
+            self.assertEqual(caught.exception.stage, 'dual-chat-snapshot')
+            self.assertEqual(caught.exception.reason, 'unsafe-actor-result')
             result.unlink(); result.symlink_to(input_path)
-            with self.assertRaises(ValueError):
+            with self.assertRaises(ios.NativeFailure):
                 dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40)
             self.assertFalse(snapshot.exists())
 
     def test_failed_actor_retains_private_relay_counters_before_cleanup(self):
-        with tempfile.TemporaryDirectory() as directory:
-            client = Path(directory) / 'client'
-            client.mkdir()
-            output = Path(directory) / 'failed-result.json'
-            failure = ios.NativeFailure('integration', 'initial-product', 'owned-test-failure')
-            actors = [{'role': 'A'}, {'role': 'B'}]
-            def fail_diagnostic_output(*args, **kwargs):
-                if args and str(args[0]).startswith('NATIVE_IOS_CHAT_FAILURE_SNAPSHOT'):
-                    raise BrokenPipeError('private-output-error-must-not-replace-failure')
-            with mock.patch.object(ios, 'CLIENT', client), \
-                 mock.patch.object(dual, 'private_input', return_value={'runId': 'owned-test', 'actors': actors}), \
-                 mock.patch.object(ios, 'select_runtime', return_value=('runtime', 'device')), \
-                 mock.patch.object(ios, 'run', return_value='11111111-1111-1111-1111-111111111111'), \
-                 mock.patch.object(dual, 'app_build_digest', return_value='a' * 64), \
-                 mock.patch.object(dual, 'proxy_authorities', return_value={'owned.invalid:443'}), \
-                 mock.patch.object(dual, 'actor_runtime_copy'), \
-                 mock.patch.object(dual.shutil, 'copytree'), \
-                 mock.patch.object(dual, 'run_actor', side_effect=failure), \
-                 mock.patch.object(dual, 'retain_failure_room_reference', side_effect=RuntimeError('private-token-must-not-print')), \
-                 mock.patch('builtins.print', side_effect=fail_diagnostic_output), \
-                 mock.patch.object(dual, 'stop_owned_processes'), \
-                 mock.patch.object(dual, 'cleanup_owned_devices', return_value=True):
-                with self.assertRaises(ios.NativeFailure) as caught:
-                    dual.qualify(Path('unused-private-input'), output,
-                                 {'WEAVE_E2E_RUN_ID': 'owned-test', 'WEAVE_NATIVE_CA': 'owned-ca'})
-                self.assertIs(caught.exception, failure)
-            private = client / 'build/private-ios-qualification'
-            diagnostics = list(private.glob('command-*.log'))
-            self.assertEqual(len(diagnostics), 1)
-            self.assertEqual(private.stat().st_mode & 0o777, 0o700)
-            self.assertEqual(diagnostics[0].stat().st_mode & 0o777, 0o600)
-            records = diagnostics[0].read_text().splitlines()
-            self.assertEqual(len(records), 2)
-            for role, record in zip(('A', 'B'), records):
-                self.assertRegex(record, '^NATIVE_IOS_RELAY_DIAGNOSTIC actor=' + role + r' (?:[A-Za-z-]+=[0-9]{1,12} ?)+$')
-                self.assertNotIn('owned.invalid', record)
-                self.assertNotIn('owned-test-failure', record)
-            self.assertTrue(json.loads(output.read_text())['cleanupComplete'])
-            self.assertNotIn('RELAY_DIAGNOSTIC', output.read_text())
+        for transfer_failure, expected_stage in [
+            (RuntimeError('private-token-must-not-print'), 'unavailable'),
+            (ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'unsafe-actor-result'), 'unsafe-actor-result'),
+            (ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'private-token-must-not-print'), 'unavailable'),
+        ]:
+            with tempfile.TemporaryDirectory() as directory:
+                client = Path(directory) / 'client'
+                client.mkdir()
+                output = Path(directory) / 'failed-result.json'
+                failure = ios.NativeFailure('integration', 'initial-product', 'owned-test-failure')
+                actors = [{'role': 'A'}, {'role': 'B'}]
+                snapshot_markers = []
+                def fail_diagnostic_output(*args, **kwargs):
+                    if args and str(args[0]).startswith('NATIVE_IOS_CHAT_FAILURE_SNAPSHOT'):
+                        snapshot_markers.append(args[0])
+                        raise BrokenPipeError('private-output-error-must-not-replace-failure')
+                with mock.patch.object(ios, 'CLIENT', client), \
+                     mock.patch.object(dual, 'private_input', return_value={'runId': 'owned-test', 'actors': actors}), \
+                     mock.patch.object(ios, 'select_runtime', return_value=('runtime', 'device')), \
+                     mock.patch.object(ios, 'run', return_value='11111111-1111-1111-1111-111111111111'), \
+                     mock.patch.object(dual, 'app_build_digest', return_value='a' * 64), \
+                     mock.patch.object(dual, 'proxy_authorities', return_value={'owned.invalid:443'}), \
+                     mock.patch.object(dual, 'actor_runtime_copy'), \
+                     mock.patch.object(dual.shutil, 'copytree'), \
+                     mock.patch.object(dual, 'run_actor', side_effect=failure), \
+                     mock.patch.object(dual, 'retain_failure_room_reference', side_effect=transfer_failure), \
+                     mock.patch('builtins.print', side_effect=fail_diagnostic_output), \
+                     mock.patch.object(dual, 'stop_owned_processes'), \
+                     mock.patch.object(dual, 'cleanup_owned_devices', return_value=True):
+                    with self.assertRaises(ios.NativeFailure) as caught:
+                        dual.qualify(Path('unused-private-input'), output,
+                                     {'WEAVE_E2E_RUN_ID': 'owned-test', 'WEAVE_NATIVE_CA': 'owned-ca'})
+                    self.assertIs(caught.exception, failure)
+                self.assertEqual(snapshot_markers, [
+                    f'NATIVE_IOS_CHAT_FAILURE_SNAPSHOT status=unavailable stage={expected_stage} supportSafe=true'])
+                self.assertNotIn('private-token', ''.join(snapshot_markers))
+                private = client / 'build/private-ios-qualification'
+                diagnostics = list(private.glob('command-*.log'))
+                self.assertEqual(len(diagnostics), 1)
+                self.assertEqual(private.stat().st_mode & 0o777, 0o700)
+                self.assertEqual(diagnostics[0].stat().st_mode & 0o777, 0o600)
+                records = diagnostics[0].read_text().splitlines()
+                self.assertEqual(len(records), 2)
+                for role, record in zip(('A', 'B'), records):
+                    self.assertRegex(record, '^NATIVE_IOS_RELAY_DIAGNOSTIC actor=' + role + r' (?:[A-Za-z-]+=[0-9]{1,12} ?)+$')
+                    self.assertNotIn('owned.invalid', record)
+                    self.assertNotIn('owned-test-failure', record)
+                self.assertTrue(json.loads(output.read_text())['cleanupComplete'])
+                self.assertNotIn('RELAY_DIAGNOSTIC', output.read_text())
 
     def test_private_json_publish_is_atomic_owner_only_and_never_overwrites(self):
         with tempfile.TemporaryDirectory() as directory:

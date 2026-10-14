@@ -55,11 +55,14 @@ const _simulator = bool.fromEnvironment('WEAVE_NATIVE_EXPECT_SIMULATOR');
 const _disposable = bool.fromEnvironment('WEAVE_DEVICE_DISPOSABLE_STACK');
 const _actorTestBudget = Duration(minutes: 30);
 
-Future<void> _writePrivateJson(File destination, Object value) async {
+Future<void> writeNativeDualPrivateJson(File destination, Object value) async {
   final staging = File('${destination.path}.tmp');
   if (await FileSystemEntity.isLink(destination.path) ||
       await FileSystemEntity.isLink(staging.path)) {
     throw TestFailure('Unsafe private actor proof path.');
+  }
+  if (await destination.exists()) {
+    await destination.copy(staging.path);
   }
   await staging.writeAsString(jsonEncode(value), flush: true);
   await staging.rename(destination.path);
@@ -504,7 +507,7 @@ void main() {
         'recovery': recovery,
         if (prior != null) 'encryption': prior['encryption'],
       };
-      await _writePrivateJson(resultFile, result);
+      await writeNativeDualPrivateJson(resultFile, result);
       final commandFile = File('${support.path}/weave-dual-ios-command.json');
       var sequence = restoring ? fixture['lastSequence'] as int : 0;
       String? eventId;
@@ -619,7 +622,7 @@ void main() {
                   .id,
               'roomTitle': conversation,
             });
-            await _writePrivateJson(resultFile, result);
+            await writeNativeDualPrivateJson(resultFile, result);
           case 'chat-open-reply':
             expect(role, 'B');
             await navigateNativeDualDestination(tester, Icons.home_outlined);
@@ -796,7 +799,7 @@ void main() {
               container,
               fixture['sharedSpaceRef'] as String,
             );
-            await _writePrivateJson(
+            await writeNativeDualPrivateJson(
               File('${support.path}/weave-dual-ios-native-request.json'),
               {'sequence': next, 'mode': 'import', 'fileName': fileName},
             );
@@ -865,7 +868,7 @@ void main() {
           case 'files-replace':
             expect(role, 'A');
             expect(fileId, isNotNull);
-            await _writePrivateJson(
+            await writeNativeDualPrivateJson(
               File('${support.path}/weave-dual-ios-native-request.json'),
               {'sequence': next, 'mode': 'import', 'fileName': replacementName},
             );
@@ -937,7 +940,7 @@ void main() {
               isFalse,
               reason: 'An existing fixture cannot prove native export.',
             );
-            await _writePrivateJson(
+            await writeNativeDualPrivateJson(
               File('${support.path}/weave-dual-ios-native-request.json'),
               {'sequence': next, 'mode': 'export', 'fileName': fileName},
             );
@@ -1366,9 +1369,9 @@ void main() {
             });
           }
         }
-        await _writePrivateJson(resultFile, result);
+        await writeNativeDualPrivateJson(resultFile, result);
         final ack = File('${support.path}/weave-dual-ios-ack.json');
-        await _writePrivateJson(ack, {
+        await writeNativeDualPrivateJson(ack, {
           'sequence': sequence,
           'action': action,
           'status': 'passed',
