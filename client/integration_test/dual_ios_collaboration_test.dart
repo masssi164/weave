@@ -586,15 +586,7 @@ void main() {
               () => peer.evaluate().length == 1,
               const Duration(seconds: 60),
             );
-            expect(tester.widget<CheckboxListTile>(peer).onChanged, isNotNull);
-            expect(peer.hitTestable(), findsOneWidget);
-            expect(DateTime.now().isBefore(actionDeadline), isTrue);
-            await _tap(tester, peer);
-            await requireNativeDualPeerSelected(
-              tester,
-              peer,
-              deadline: actionDeadline,
-            );
+            await tapNativeDualPeer(tester, peer, deadline: actionDeadline);
             await _tap(
               tester,
               find.byKey(const Key('chat-create-conversation-submit-button')),
@@ -1470,6 +1462,18 @@ Future<void> _openDualRoom(WidgetTester tester, String title) async {
     () => find.byType(TextField).evaluate().isNotEmpty,
     const Duration(seconds: 90),
   );
+}
+
+Future<void> tapNativeDualPeer(
+  WidgetTester tester,
+  Finder peer, {
+  required DateTime deadline,
+}) async {
+  expect(peer, findsOneWidget);
+  expect(tester.widget<CheckboxListTile>(peer).onChanged, isNotNull);
+  expect(DateTime.now().isBefore(deadline), isTrue);
+  await _tap(tester, peer);
+  await requireNativeDualPeerSelected(tester, peer, deadline: deadline);
 }
 
 Future<void> requireNativeDualPeerSelected(
