@@ -225,6 +225,133 @@ void main() {
     }
   }
 
+  for (final inset in [0.0, 350.0, 380.0]) {
+    testWidgets(
+      'phone Chat send retains selected tab with keyboard inset=$inset',
+      (tester) async {
+        tester.view.physicalSize = const Size(1206, 2622);
+        tester.view.devicePixelRatio = 3;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetViewInsets);
+        final messages = <ChatMessage>[];
+        final repository = FakeChatRepository(
+          loadRoomTimelineHandler: (_) async => ChatRoomTimeline(
+            roomId: conversation.id,
+            roomTitle: conversation.title,
+            isInvite: false,
+            canSendMessages: true,
+            messages: List.of(messages),
+          ),
+          sendMessageHandler: ({required roomId, required message}) async {
+            await Future<void>.delayed(const Duration(milliseconds: 500));
+            messages.add(
+              ChatMessage(
+                id: 'owned-event',
+                senderId: 'owned-author',
+                senderDisplayName: 'Owned author',
+                sentAt: DateTime(2026),
+                isMine: true,
+                deliveryState: ChatMessageDeliveryState.sent,
+                contentType: ChatMessageContentType.text,
+                text: message,
+              ),
+            );
+          },
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            const ChatRoomScreen(conversation: conversation),
+            overrides: [
+              chatRepositoryProvider.overrideWithValue(repository),
+              preferencesStoreProvider.overrideWith(
+                (ref) => InMemoryPreferencesStore(),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        final tabs = DefaultTabController.of(
+          tester.element(find.byType(TabBar)),
+        );
+        expect(tabs.index, 0);
+        tester.view.viewInsets = FakeViewPadding(bottom: inset * 3);
+        await tester.pumpAndSettle();
+        await sendNativeDualChatMessage(
+          tester,
+          'Owned message',
+          deadline: DateTime.now().add(const Duration(seconds: 5)),
+        );
+        await tester.pumpAndSettle();
+        expect(repository.sendMessageCalls, 1);
+        expect(tabs.index, 0);
+        expect(find.text('Owned message'), findsOneWidget);
+        final composer = find.byType(TextField);
+        expect(composer, findsOneWidget);
+        expect(tester.widget<TextField>(composer).controller!.text, isEmpty);
+        expect(
+          nativeDualChatSurfaceDiagnostic(
+            tester,
+            const AsyncData(BootstrapState.ready()),
+            const AsyncLoading(),
+          ),
+          contains('workspaceTabCount=1 workspaceTabIndex=0'),
+        );
+      },
+    );
+  }
+
+  testWidgets('offscreen navigation target is scrolled then tapped once', (
+    tester,
+  ) async {
+    var selected = 1;
+    var taps = 0;
+    await tester.pumpWidget(
+      createTestApp(
+        StatefulBuilder(
+          builder: (context, setState) {
+            final copy = AppLocalizations.of(context);
+            return SingleChildScrollView(
+              child: Column(
+                children: [
+                  const SizedBox(height: 1200),
+                  NavigationBar(
+                    selectedIndex: selected,
+                    onDestinationSelected: (index) => setState(() {
+                      selected = index;
+                      taps++;
+                    }),
+                    destinations: [
+                      NavigationDestination(
+                        icon: const Icon(Icons.home_outlined),
+                        label: copy.navHome,
+                      ),
+                      NavigationDestination(
+                        icon: const Icon(Icons.chat_bubble_outline),
+                        label: copy.navChat,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final copy = AppLocalizations.of(
+      tester.element(find.byType(NavigationBar)),
+    );
+    final home = find.text(copy.navHome);
+    expect(home.hitTestable(), findsNothing);
+    await navigateNativeDualDestination(tester, Icons.home_outlined);
+    await tester.pumpAndSettle();
+    expect(selected, 0);
+    expect(taps, 1);
+    expect(home.hitTestable(), findsOneWidget);
+  });
+
   for (final denied in [false, true]) {
     testWidgets(
       'real delayed composer sends once and verifies proof; denied=$denied',

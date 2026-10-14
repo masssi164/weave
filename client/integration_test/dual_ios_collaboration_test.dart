@@ -215,7 +215,10 @@ Future<void> _wait(
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   expect(finder, findsOneWidget);
-  await tester.ensureVisible(finder);
+  // Aligning an already hittable target can move ancestor workspace tabs.
+  if (finder.hitTestable().evaluate().length != 1) {
+    await tester.ensureVisible(finder);
+  }
   await tester.tap(finder);
   await tester.pump(const Duration(milliseconds: 250));
 }
@@ -1538,6 +1541,10 @@ String nativeDualChatSurfaceDiagnostic(
       : null;
   int withinRoom(Finder finder) =>
       copy == null ? 0 : count(find.descendant(of: room, matching: finder));
+  final tabs = find.descendant(of: room, matching: find.byType(TabBar));
+  final tabIndex = tabs.evaluate().length == 1
+      ? DefaultTabController.maybeOf(tester.element(tabs))?.index
+      : null;
   final error = bootstrap.error;
   final errorClass = switch (error) {
     AppFailure() => 'AppFailure',
@@ -1552,6 +1559,7 @@ String nativeDualChatSurfaceDiagnostic(
       'sessionRequiredCount=${copy == null ? 0 : withinRoom(find.text(copy.chatErrorSessionRequiredGuidance))} '
       'invitationCount=${withinRoom(find.byKey(const Key('chat-accept-invitation-button')))} '
       'archiveReturnCount=${copy == null ? 0 : withinRoom(find.widgetWithText(OutlinedButton, copy.chatRoomActiveTimelineAction))} '
+      'workspaceTabCount=${count(tabs)} workspaceTabIndex=${tabIndex?.clamp(0, 999) ?? 'unavailable'} '
       'shellVisible=${count(find.byType(AppShell))} '
       'shellMounted=${count(find.byType(AppShell, skipOffstage: false))} '
       'navigationVisible=${count(find.byType(NavigationBar))} '
