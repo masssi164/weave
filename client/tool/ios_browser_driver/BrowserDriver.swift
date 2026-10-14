@@ -586,6 +586,7 @@ final class BrowserDriver: XCTestCase {
         print("NATIVE_IOS_BROWSER_STAGE phase=sign-in-tapped")
       }
     }
+    var usernameEntered = false
     var usernameSubmitted = false
     while Date() < deadline {
       // Do not steal foreground focus from the production authentication
@@ -648,14 +649,32 @@ final class BrowserDriver: XCTestCase {
             print("NATIVE_IOS_PROVIDER_CONTROLS phase=username-before usernameFields=\(min(fields.count, 999)) passwordFields=\(min(provider.secureTextFields.count, 999)) selectedFieldHittable=\(hittable)")
           }
           if !usernameSubmitted && fields.count == 1 && fields.element.isHittable {
-            fields.element.tap()
-            fields.element.typeText(fixture.email)
+            if !usernameEntered {
+              fields.element.tap()
+              fields.element.typeKey("a", modifierFlags: .command)
+              fields.element.typeText(XCUIKeyboardKey.delete.rawValue)
+              let editableEmpty = fields.element.value as? String == ""
+              print("NATIVE_IOS_PROVIDER_CONTROLS phase=username-cleared editableEmpty=\(editableEmpty)")
+              guard editableEmpty else {
+                XCTFail("Expected an empty editable username before assigned-identity entry")
+                return
+              }
+              fields.element.typeText(fixture.email)
+              usernameEntered = true
+              // Re-observe the issuer and its unique leaf before admitting a submit.
+              continue
+            }
             let readbackEqual = fields.element.value as? String == fixture.email
             print("NATIVE_IOS_PROVIDER_CONTROLS phase=username-after readbackEqual=\(readbackEqual)")
+            guard readbackEqual, Date() < deadline else { continue }
             let submit = provider.buttons.matching(NSPredicate(format: "label IN %@", Self.providerSubmitLabels))
             print("NATIVE_IOS_PROVIDER_CONTROLS phase=username leafWebViews=\(leaves.count) usernameFields=\(fields.count) passwordFields=\(provider.secureTextFields.count) submitButtons=\(submit.count)")
             XCTAssertEqual(submit.count, 1, "Expected one identity-provider submit control")
             XCTAssertTrue(submit.element.isHittable, "Identity-provider submit control must be accessible")
+            guard fields.count == 1, fields.element.isHittable,
+                  fields.element.value as? String == fixture.email,
+                  submit.count == 1, submit.element.isHittable,
+                  Date() < deadline else { continue }
             submit.element.tap()
             usernameSubmitted = true
             print("NATIVE_IOS_BROWSER_STAGE phase=username-submitted")
