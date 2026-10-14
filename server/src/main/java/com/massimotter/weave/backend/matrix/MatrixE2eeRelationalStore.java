@@ -318,11 +318,12 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
     @Override
     @Transactional
     public boolean bindOidcSession(String tenantId, String userId, String sessionHash, String deviceId) {
-        List<String> existing = jdbc.query("select device_id from weave_matrix_oidc_device_bindings where tenant_id=? and user_id=? and oidc_session_hash=? for update",
+        // A missing row cannot be locked. Let the existing primary key choose an immutable winner.
+        jdbc.update("insert into weave_matrix_oidc_device_bindings(tenant_id,user_id,oidc_session_hash,device_id) values (?,?,?,?) on conflict (tenant_id,user_id,oidc_session_hash) do nothing",
+                tenantId, userId, sessionHash, deviceId);
+        List<String> existing = jdbc.query("select device_id from weave_matrix_oidc_device_bindings where tenant_id=? and user_id=? and oidc_session_hash=?",
                 (rs, ignored) -> rs.getString(1), tenantId, userId, sessionHash);
-        if (!existing.isEmpty()) return existing.getFirst().equals(deviceId);
-        jdbc.update("insert into weave_matrix_oidc_device_bindings(tenant_id,user_id,oidc_session_hash,device_id) values (?,?,?,?)", tenantId, userId, sessionHash, deviceId);
-        return true;
+        return existing.size() == 1 && existing.getFirst().equals(deviceId);
     }
 
     @Override
