@@ -97,6 +97,15 @@ Future<void> writeNativeDualPrivateJson(File destination, Object value) async {
       await FileSystemEntity.isLink(staging.path)) {
     throw TestFailure('Unsafe private actor proof path.');
   }
+  final stagingType = await FileSystemEntity.type(
+    staging.path,
+    followLinks: false,
+  );
+  if (stagingType == FileSystemEntityType.file) {
+    await staging.delete();
+  } else if (stagingType != FileSystemEntityType.notFound) {
+    throw TestFailure('Unsafe private actor proof path.');
+  }
   if (await destination.exists()) {
     await destination.copy(staging.path);
   }
