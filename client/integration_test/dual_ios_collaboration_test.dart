@@ -586,7 +586,15 @@ void main() {
               () => peer.evaluate().length == 1,
               const Duration(seconds: 60),
             );
+            expect(tester.widget<CheckboxListTile>(peer).onChanged, isNotNull);
+            expect(peer.hitTestable(), findsOneWidget);
+            expect(DateTime.now().isBefore(actionDeadline), isTrue);
             await _tap(tester, peer);
+            await requireNativeDualPeerSelected(
+              tester,
+              peer,
+              deadline: actionDeadline,
+            );
             await _tap(
               tester,
               find.byKey(const Key('chat-create-conversation-submit-button')),
@@ -601,6 +609,21 @@ void main() {
               messageA,
               deadline: actionDeadline,
             );
+            expect(
+              tester
+                  .widget<ChatRoomScreen>(find.byType(ChatRoomScreen))
+                  .conversation
+                  .title,
+              conversation,
+            );
+            resources.addAll({
+              'roomId': tester
+                  .widget<ChatRoomScreen>(find.byType(ChatRoomScreen))
+                  .conversation
+                  .id,
+              'roomTitle': conversation,
+            });
+            await _writePrivateJson(resultFile, result);
           case 'chat-open-reply':
             expect(role, 'B');
             await navigateNativeDualDestination(tester, Icons.home_outlined);
@@ -1447,6 +1470,38 @@ Future<void> _openDualRoom(WidgetTester tester, String title) async {
     () => find.byType(TextField).evaluate().isNotEmpty,
     const Duration(seconds: 90),
   );
+}
+
+Future<void> requireNativeDualPeerSelected(
+  WidgetTester tester,
+  Finder peer, {
+  required DateTime deadline,
+}) async {
+  try {
+    expect(peer, findsOneWidget);
+    final checkbox = tester.widget<CheckboxListTile>(peer);
+    expect(checkbox.onChanged, isNotNull);
+    expect(peer.hitTestable(), findsOneWidget);
+    expect(checkbox.value, isTrue);
+    expect(DateTime.now().isBefore(deadline), isTrue);
+  } catch (_) {
+    await safelyReportDualOnboardingFailure(
+      report: () async {
+        final count = peer.evaluate().length;
+        final checkbox = count == 1
+            ? tester.widget<CheckboxListTile>(peer)
+            : null;
+        _stage(
+          'chat-peer-selection-failed peerCount=${count.clamp(0, 999)} '
+          'enabled=${checkbox?.onChanged != null} '
+          'hittable=${peer.hitTestable().evaluate().length == 1} '
+          'checked=${checkbox?.value == true}',
+        );
+      },
+      unavailable: () {},
+    );
+    rethrow;
+  }
 }
 
 Future<void> sendNativeDualChatMessage(
