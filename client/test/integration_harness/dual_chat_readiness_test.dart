@@ -8,6 +8,8 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
+import 'package:weave/features/chat/domain/entities/chat_participant.dart';
+import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
@@ -30,7 +32,9 @@ import '../../integration_test/dual_ios_collaboration_test.dart'
         nativeDualChatListDiagnostic,
         waitNativeDualChatConversation,
         openNativeDualChatCreationDialog,
-        sendNativeDualChatMessage;
+        sendNativeDualChatMessage,
+        requireNativeDualPeerSelected,
+        tapNativeDualPeer;
 
 const _readyChatSnapshot = WorkspaceCapabilitySnapshot(
   shellAccess: WorkspaceCapabilityState(
@@ -55,7 +59,168 @@ const _readyChatSnapshot = WorkspaceCapabilitySnapshot(
   ),
 );
 
+class _PeerRepository extends FakeChatRepository
+    implements ChatParticipantRepository {
+  List<ChatParticipant>? submitted;
+  @override
+  Future<ChatConversation> createConversation({required String title}) async {
+    submitted = [];
+    throw const ChatFailure.protocol('Controlled creation refusal');
+  }
+
+  @override
+  Future<List<ChatParticipant>> searchMembers(String query) async => const [
+    ChatParticipant(userId: '@peer:weave.test', displayName: 'Private peer'),
+  ];
+  @override
+  Future<ChatConversation> createConversationWithParticipants({
+    required String title,
+    required List<ChatParticipant> participants,
+  }) async {
+    submitted = participants;
+    throw const ChatFailure.protocol('Controlled creation refusal');
+  }
+}
+
 void main() {
+  testWidgets(
+    'phone keyboard peer uses actual visibility preparation before one selection',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 336);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+      final repository = _PeerRepository();
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            workspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) => const AsyncData(_readyChatSnapshot),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('chat-create-conversation-button')),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('chat-create-conversation-name-field')),
+        'Private room',
+      );
+      await tester.enterText(
+        find.byKey(const Key('chat-create-conversation-participant-field')),
+        'Private peer',
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      final peer = find.widgetWithText(CheckboxListTile, 'Private peer');
+      expect(peer, findsOneWidget);
+      expect(peer.hitTestable(), findsNothing);
+      var pointerDowns = 0;
+      void observePointer(PointerEvent event) {
+        if (event is PointerDownEvent) pointerDowns++;
+      }
+
+      tester.binding.pointerRouter.addGlobalRoute(observePointer);
+      try {
+        await tapNativeDualPeer(
+          tester,
+          peer,
+          deadline: DateTime.now().add(const Duration(seconds: 2)),
+        );
+      } finally {
+        tester.binding.pointerRouter.removeGlobalRoute(observePointer);
+      }
+      expect(pointerDowns, 1);
+      expect(tester.widget<CheckboxListTile>(peer).value, isTrue);
+      expect(peer.hitTestable(), findsOneWidget);
+      final create = find.byKey(
+        const Key('chat-create-conversation-submit-button'),
+      );
+      await tester.ensureVisible(create);
+      await tester.tap(create);
+      await tester.pumpAndSettle();
+      expect(repository.submitted?.single.userId, '@peer:weave.test');
+    },
+  );
+
+  for (final activate in [true, false]) {
+    testWidgets('actual dialog requires checked peer; activation=$activate', (
+      tester,
+    ) async {
+      final repository = _PeerRepository();
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            workspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) => const AsyncData(_readyChatSnapshot),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('chat-create-conversation-button')),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('chat-create-conversation-name-field')),
+        'Private room',
+      );
+      await tester.enterText(
+        find.byKey(const Key('chat-create-conversation-participant-field')),
+        'Private peer',
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      final peer = find.widgetWithText(CheckboxListTile, 'Private peer');
+      expect(peer, findsOneWidget);
+      if (activate) {
+        await tester.tap(peer);
+        await tester.pumpAndSettle();
+        await requireNativeDualPeerSelected(
+          tester,
+          peer,
+          deadline: DateTime.now().add(const Duration(seconds: 1)),
+        );
+      } else {
+        // A cancelled real pointer gesture never reaches the selection callback.
+        // The former continuation still reaches Create; checked admission cannot.
+        final gesture = await tester.startGesture(tester.getCenter(peer));
+        await gesture.cancel();
+        await tester.pumpAndSettle();
+        await expectLater(
+          requireNativeDualPeerSelected(
+            tester,
+            peer,
+            deadline: DateTime.now().add(const Duration(seconds: 1)),
+          ),
+          throwsA(isA<TestFailure>()),
+        );
+        expect(repository.submitted, isNull);
+      }
+      // Former unchecked continuation admits Create with zero selected members.
+      final create = find.byKey(
+        const Key('chat-create-conversation-submit-button'),
+      );
+      await tester.ensureVisible(create);
+      await tester.tap(create);
+      await tester.pumpAndSettle();
+      expect(repository.submitted?.length, activate ? 1 : 0);
+      if (activate) {
+        expect(repository.submitted?.single.userId, '@peer:weave.test');
+      }
+    });
+  }
+
   testWidgets(
     'cold list timeout diagnostics never initialize product providers',
     (tester) async {

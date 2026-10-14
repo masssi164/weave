@@ -155,6 +155,50 @@ class DualIosCollaborationTest(unittest.TestCase):
         finally:
             relay.close()
 
+    def test_failure_room_transfer_is_private_owned_and_survives_until_host_collection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            root.chmod(0o700)
+            support = root / 'support'; support.mkdir(mode=0o700)
+            input_path = root / 'input.json'
+            input_data = {'runId': 'owned-test', 'actors': [
+                {'role': 'A', 'identityRef': 'actor-A'}, {'role': 'B', 'identityRef': 'actor-B'}]}
+            result = support / 'weave-dual-ios-result.json'
+            payload = {'role': 'A', 'identityDigest': hashlib.sha256(b'actor-A').hexdigest(),
+                       'resources': {'roomId': '!owned:weave.test', 'roomTitle': 'private-displayed-name'},
+                       'privateError': 'private-message-must-not-transfer'}
+            result.write_text(json.dumps(payload)); result.chmod(0o600)
+            scopes = {'A': (support, 'owned-device', '123', support)}
+            dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40)
+            snapshot = root / 'dual-ios-chat-failure-owned-test.json'
+            self.assertEqual(snapshot.stat().st_mode & 0o777, 0o600)
+            result.unlink()  # Owned app storage can now be deleted independently.
+            actual = json.loads(snapshot.read_text())
+            self.assertEqual(actual['roomId'], '!owned:weave.test')
+            self.assertEqual(actual['candidateCommit'], 'a' * 40)
+            self.assertNotIn('password', snapshot.read_text())
+            self.assertNotIn('private-displayed-name', snapshot.read_text())
+            self.assertNotIn('private-message-must-not-transfer', snapshot.read_text())
+            with self.assertRaises(FileExistsError):
+                result.write_text(json.dumps(payload)); result.chmod(0o600)
+                dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40)
+            self.assertEqual(json.loads(snapshot.read_text()), actual)
+            snapshot.unlink()  # Existing host collector consumes then deletes it.
+            result.write_text(json.dumps(payload)); result.chmod(0o600)
+            for mutation in [dict(payload, role='B'), dict(payload, identityDigest='b' * 64),
+                             dict(payload, resources={'roomId': '../private'})]:
+                result.write_text(json.dumps(mutation))
+                with self.assertRaises(ValueError):
+                    dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40)
+                self.assertFalse(snapshot.exists())
+            result.write_text(json.dumps(payload)); result.chmod(0o644)
+            with self.assertRaises(ValueError):
+                dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40)
+            result.unlink(); result.symlink_to(input_path)
+            with self.assertRaises(ValueError):
+                dual.retain_failure_room_reference(scopes, input_path, input_data, 'a' * 40)
+            self.assertFalse(snapshot.exists())
+
     def test_failed_actor_retains_private_relay_counters_before_cleanup(self):
         with tempfile.TemporaryDirectory() as directory:
             client = Path(directory) / 'client'
@@ -162,6 +206,9 @@ class DualIosCollaborationTest(unittest.TestCase):
             output = Path(directory) / 'failed-result.json'
             failure = ios.NativeFailure('integration', 'initial-product', 'owned-test-failure')
             actors = [{'role': 'A'}, {'role': 'B'}]
+            def fail_diagnostic_output(*args, **kwargs):
+                if args and str(args[0]).startswith('NATIVE_IOS_CHAT_FAILURE_SNAPSHOT'):
+                    raise BrokenPipeError('private-output-error-must-not-replace-failure')
             with mock.patch.object(ios, 'CLIENT', client), \
                  mock.patch.object(dual, 'private_input', return_value={'runId': 'owned-test', 'actors': actors}), \
                  mock.patch.object(ios, 'select_runtime', return_value=('runtime', 'device')), \
@@ -171,6 +218,8 @@ class DualIosCollaborationTest(unittest.TestCase):
                  mock.patch.object(dual, 'actor_runtime_copy'), \
                  mock.patch.object(dual.shutil, 'copytree'), \
                  mock.patch.object(dual, 'run_actor', side_effect=failure), \
+                 mock.patch.object(dual, 'retain_failure_room_reference', side_effect=RuntimeError('private-token-must-not-print')), \
+                 mock.patch('builtins.print', side_effect=fail_diagnostic_output), \
                  mock.patch.object(dual, 'stop_owned_processes'), \
                  mock.patch.object(dual, 'cleanup_owned_devices', return_value=True):
                 with self.assertRaises(ios.NativeFailure) as caught:
