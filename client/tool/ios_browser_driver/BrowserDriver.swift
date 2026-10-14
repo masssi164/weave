@@ -152,11 +152,13 @@ final class BrowserDriver: XCTestCase {
     while now() < deadline {
       latest = state()
       if latest != .absent { promptSeen = true }
-      if latest == .absent || latest == .ready { return latest }
-      // Both inaccessible and temporarily ambiguous AX snapshots must settle.
-      // Never select or tap a decline until one fresh exact control is hittable.
+      if latest == .absent { return latest }
+      // Even a ready optional sheet may disappear during genuine auth completion.
+      // Keep observing within the existing window; never select a transient control early.
       pause()
     }
+    latest = state()
+    if latest != .absent { promptSeen = true }
     return latest
   }
 
@@ -165,7 +167,7 @@ final class BrowserDriver: XCTestCase {
     var states: [PasswordPromptReadiness] = [.waiting, .waiting, .ready]
     var promptSeen = false
     XCTAssertEqual(Self.waitForPasswordPrompt(
-      state: { states.removeFirst() }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      state: { states.isEmpty ? .ready : states.removeFirst() }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
       now: { clock }, pause: { clock.addTimeInterval(1) }
     ), .ready)
     XCTAssertTrue(states.isEmpty)
@@ -175,7 +177,7 @@ final class BrowserDriver: XCTestCase {
       state: { reads += 1; return .waiting }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
       now: { clock }, pause: { clock.addTimeInterval(1) }
     ), .waiting)
-    XCTAssertEqual(reads, 5)
+    XCTAssertEqual(reads, 6)
   }
 
   func testAmbiguousPasswordPromptSettlesWithoutSelectingEarly() {
@@ -183,19 +185,63 @@ final class BrowserDriver: XCTestCase {
     var states: [PasswordPromptReadiness] = [.waiting, .ambiguous, .ready]
     var promptSeen = false
     XCTAssertEqual(Self.waitForPasswordPrompt(
-      state: { states.removeFirst() }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      state: { states.isEmpty ? .ready : states.removeFirst() }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
       now: { clock }, pause: { clock.addTimeInterval(1) }
     ), .ready)
     XCTAssertTrue(states.isEmpty)
     XCTAssertTrue(promptSeen)
-    XCTAssertEqual(clock.timeIntervalSince1970, 2)
+    XCTAssertEqual(clock.timeIntervalSince1970, 5)
     var reads = 0
     XCTAssertEqual(Self.waitForPasswordPrompt(
       state: { reads += 1; return .ambiguous }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
       now: { clock }, pause: { clock.addTimeInterval(1) }
     ), .ambiguous)
-    XCTAssertEqual(reads, 5)
+    XCTAssertEqual(reads, 6)
     XCTAssertTrue(promptSeen)
+  }
+
+  func testReadyPromptIsNotSelectedBeforeCompletionSettles() {
+    var clock = Date(timeIntervalSince1970: 0)
+    var reads = 0
+    var promptSeen = false
+    let result = Self.waitForPasswordPrompt(
+      state: { reads += 1; return clock.timeIntervalSince1970 < 2 ? .ready : .absent },
+      deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      now: { clock }, pause: { clock.addTimeInterval(1) }
+    )
+    XCTAssertEqual(result, .absent)
+    XCTAssertEqual(reads, 3)
+    XCTAssertEqual(clock.timeIntervalSince1970, 2)
+    XCTAssertTrue(promptSeen)
+
+    clock = Date(timeIntervalSince1970: 0)
+    reads = 0
+    let stable = Self.waitForPasswordPrompt(
+      state: { reads += 1; return .ready },
+      deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      now: { clock }, pause: { clock.addTimeInterval(1) }
+    )
+    XCTAssertEqual(stable, .ready)
+    XCTAssertEqual(reads, 6)
+    XCTAssertEqual(clock.timeIntervalSince1970, 5)
+  }
+
+  func testReadyPromptYieldsToGenuineCompletionDuringSettling() {
+    var clock = Date(timeIntervalSince1970: 0)
+    var promptSeen = false
+    var completionObserved = false
+    let result = Self.waitForPasswordPrompt(
+      state: { completionObserved ? .absent : .ready },
+      deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      now: { clock }, pause: {
+        clock.addTimeInterval(1)
+        if clock.timeIntervalSince1970 == 2 { completionObserved = true }
+      }
+    )
+    XCTAssertEqual(result, .absent)
+    XCTAssertEqual(clock.timeIntervalSince1970, 2)
+    XCTAssertTrue(promptSeen)
+    XCTAssertTrue(completionObserved)
   }
 
   func testDisappearingObservedPromptSuppressesReturnRecovery() {
@@ -251,7 +297,7 @@ final class BrowserDriver: XCTestCase {
     }, deadline: min(deadline, Date().addingTimeInterval(5)), promptSeen: &promptSeen)
     guard readiness != .absent else { return false }
     if Self.nativeWorkspaceObserved(path: completionPath) { return false }
-    guard readiness == .ready, let decline = selectedDecline, let prompt = selectedPrompt else {
+    guard Date() < deadline, readiness == .ready, let decline = selectedDecline, let prompt = selectedPrompt else {
       XCTFail("Password-save alert must settle to one accessible exact decline control")
       return nil
     }
