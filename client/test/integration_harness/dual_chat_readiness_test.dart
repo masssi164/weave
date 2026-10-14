@@ -1,8 +1,14 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:weave/core/router/app_routes.dart';
+import 'package:weave/core/theme/app_theme.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/failures/app_failure.dart';
@@ -19,6 +25,7 @@ import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
+import 'package:weave/features/shell/presentation/app_shell.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 import '../helpers/fake_chat_repository.dart';
@@ -34,7 +41,8 @@ import '../../integration_test/dual_ios_collaboration_test.dart'
         openNativeDualChatCreationDialog,
         sendNativeDualChatMessage,
         requireNativeDualPeerSelected,
-        tapNativeDualPeer;
+        tapNativeDualPeer,
+        tapNativeDualChatConversation;
 
 const _readyChatSnapshot = WorkspaceCapabilitySnapshot(
   shellAccess: WorkspaceCapabilityState(
@@ -83,6 +91,161 @@ class _PeerRepository extends FakeChatRepository
 }
 
 void main() {
+  for (final locale in ['en', 'de']) {
+    testWidgets(
+      'phone invitation row lookup and real tap opens room; $locale',
+      (tester) async {
+        tester.view.physicalSize = const Size(1206, 2622);
+        tester.view.devicePixelRatio = 3;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.runAsync(() async {
+          final packages = File('.dart_tool/package_config.json');
+          final config =
+              jsonDecode(await packages.readAsString()) as Map<String, dynamic>;
+          final flutter = (config['packages'] as List)
+              .cast<Map<String, dynamic>>()
+              .singleWhere((p) => p['name'] == 'flutter');
+          final font = File.fromUri(
+            Directory.fromUri(
+              packages.absolute.uri.resolve(flutter['rootUri'] as String),
+            ).uri.resolve(
+              '../../bin/cache/artifacts/material_fonts/Roboto-Regular.ttf',
+            ),
+          );
+          final loader = FontLoader('HarnessPhoneRoboto')
+            ..addFont(
+              Future.value(ByteData.sublistView(await font.readAsBytes())),
+            );
+          await loader.load();
+        });
+        const target = ChatConversation(
+          id: '!owned-invite:example.invalid',
+          title: 'Weave UI focus-dual-ios-controlled-phone',
+          previewType: ChatConversationPreviewType.none,
+          unreadCount: 0,
+          isInvite: true,
+          isDirectMessage: false,
+        );
+        final repository = FakeChatRepository(
+          loadConversationsHandler: () async => [target],
+          loadRoomTimelineHandler: (_) async => ChatRoomTimeline(
+            roomId: target.id,
+            roomTitle: target.title,
+            isInvite: true,
+            canSendMessages: false,
+            messages: [],
+          ),
+        );
+        final router = GoRouter(
+          initialLocation: '/chat',
+          routes: [
+            StatefulShellRoute.indexedStack(
+              builder: (context, state, shell) =>
+                  AppShell(navigationShell: shell),
+              branches: [
+                StatefulShellBranch(
+                  routes: [
+                    GoRoute(path: '/', builder: (_, _) => const SizedBox()),
+                  ],
+                ),
+                StatefulShellBranch(
+                  routes: [
+                    GoRoute(
+                      path: '/chat',
+                      builder: (_, _) => const ChatScreen(),
+                      routes: [
+                        GoRoute(
+                          path: AppRoutes.chatRoomRelative,
+                          builder: (_, state) => ChatRoomScreen(
+                            conversation: state.extra! as ChatConversation,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              chatRepositoryProvider.overrideWithValue(repository),
+              workspaceCapabilitySnapshotProvider.overrideWith(
+                (ref) => const AsyncData(_readyChatSnapshot),
+              ),
+            ],
+            child: MaterialApp.router(
+              theme: AppTheme.light.copyWith(
+                platform: TargetPlatform.iOS,
+                textTheme: AppTheme.light.textTheme.apply(
+                  fontFamily: 'HarnessPhoneRoboto',
+                ),
+              ),
+              locale: Locale(locale),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              routerConfig: router,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(ChatScreen)),
+        );
+        await waitNativeDualChatConversation(
+          tester,
+          container,
+          target.title,
+          deadline: DateTime.now().add(const Duration(seconds: 2)),
+        );
+        final title = find.text(target.title);
+        expect(title.hitTestable(), findsNothing);
+        final scroll = Scrollable.of(tester.element(title)).position;
+        final initialOffset = scroll.pixels;
+        final initialCenter = tester.getCenter(title);
+        await tester.ensureVisible(title);
+        expect(scroll.pixels, greaterThan(initialOffset));
+        expect(tester.getCenter(title), initialCenter);
+        expect(title.hitTestable(), findsNothing);
+        await tester.pump();
+        expect(tester.getCenter(title), isNot(initialCenter));
+        expect(title.hitTestable(), findsOneWidget);
+        scroll.jumpTo(initialOffset);
+        await tester.pump();
+        expect(title.hitTestable(), findsNothing);
+        var pointerDowns = 0;
+        void observePointer(PointerEvent event) {
+          if (event is PointerDownEvent) pointerDowns++;
+        }
+
+        tester.binding.pointerRouter.addGlobalRoute(observePointer);
+        try {
+          await tapNativeDualChatConversation(tester, target.title);
+        } finally {
+          tester.binding.pointerRouter.removeGlobalRoute(observePointer);
+        }
+        expect(pointerDowns, 1);
+        await tester.pumpAndSettle();
+        expect(find.byType(ChatRoomScreen), findsOneWidget);
+        expect(
+          find.byKey(const Key('chat-accept-invitation-button')),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<ChatRoomScreen>(find.byType(ChatRoomScreen))
+              .conversation
+              .id,
+          target.id,
+        );
+      },
+    );
+  }
+
   testWidgets(
     'phone keyboard peer uses actual visibility preparation before one selection',
     (tester) async {

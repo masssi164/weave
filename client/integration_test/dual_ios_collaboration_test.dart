@@ -219,10 +219,14 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   // Aligning an already hittable target can move ancestor workspace tabs.
   if (finder.hitTestable().evaluate().length != 1) {
     await tester.ensureVisible(finder);
+    await tester.pump();
   }
   await tester.tap(finder);
   await tester.pump(const Duration(milliseconds: 250));
 }
+
+Future<void> tapNativeDualChatConversation(WidgetTester tester, String title) =>
+    _tap(tester, find.text(title));
 
 Future<Finder> openNativeDualChatCreationDialog(
   WidgetTester tester, {
@@ -629,7 +633,7 @@ void main() {
               conversation,
               deadline: actionDeadline,
             );
-            await _tap(tester, find.text(conversation));
+            await tapNativeDualChatConversation(tester, conversation);
             await _wait(
               tester,
               () =>
