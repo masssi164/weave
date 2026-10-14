@@ -138,6 +138,8 @@ struct CanonicalConversationInput {
     conversation_id: String,
     title: String,
     #[serde(default)]
+    inviter_ref: Option<String>,
+    #[serde(default)]
     updated_at_epoch_millis: i64,
     #[serde(default)]
     unread_count: u64,
@@ -481,8 +483,54 @@ fn sync_value(
         decode_sync_token(since)?;
     }
     let mut joined = BTreeMap::<String, MatrixJoinedRoom>::new();
+    let mut invited = BTreeMap::<String, Value>::new();
     for conversation in &input.conversations {
         let room_id = matrix_room_id(&conversation.conversation_id, server_name)?.to_string();
+        if joined.contains_key(&room_id) || invited.contains_key(&room_id) {
+            return Err(MatrixCoreError::InvalidRequest);
+        }
+        let own_invitation = conversation.memberships.iter().find(|membership| {
+            membership.member_ref == input.subject
+                && matches!(membership.state.as_str(), "invited" | "invite")
+        });
+        if let Some(membership) = own_invitation {
+            if conversation.memberships.len() != 1
+                || !conversation.messages.is_empty()
+                || conversation.unread_count != 0
+                || conversation.timeline_limited
+                || conversation.timeline_before_cursor.is_some()
+            {
+                return Err(MatrixCoreError::InvalidRequest);
+            }
+            let inviter = conversation
+                .inviter_ref
+                .as_deref()
+                .filter(|inviter| !inviter.is_empty() && *inviter != membership.member_ref)
+                .ok_or(MatrixCoreError::InvalidRequest)?;
+            let sender =
+                matrix_actor_user_id(&input.identity_issuer, inviter, server_name)?.to_string();
+            let user =
+                matrix_actor_user_id(&input.identity_issuer, &membership.member_ref, server_name)?
+                    .to_string();
+            let mut events = vec![
+                json!({"type":"m.room.name", "state_key":"", "sender":sender, "content":{"name":conversation.title}}),
+                json!({"type":"m.room.member", "state_key":user, "sender":sender, "content":{"membership":"invite"}}),
+            ];
+            if let Some(algorithm) = &conversation.encryption_algorithm {
+                events.push(json!({"type":"m.room.encryption", "state_key":"", "sender":sender, "content":{"algorithm":algorithm}}));
+            }
+            invited.insert(room_id, json!({"invite_state":{"events":events}}));
+            continue;
+        }
+        if conversation.inviter_ref.is_some()
+            || (!conversation.memberships.is_empty()
+                && conversation
+                    .memberships
+                    .iter()
+                    .all(|membership| matches!(membership.state.as_str(), "invited" | "invite")))
+        {
+            return Err(MatrixCoreError::InvalidRequest);
+        }
         joined.insert(
             room_id,
             MatrixJoinedRoom {
@@ -517,13 +565,13 @@ fn sync_value(
     let mut left = BTreeMap::<String, Value>::new();
     for conversation_id in &input.left_rooms {
         let room_id = matrix_room_id(conversation_id, server_name)?.to_string();
-        if !joined.contains_key(&room_id) {
+        if !joined.contains_key(&room_id) && !invited.contains_key(&room_id) {
             left.insert(room_id, json!({}));
         }
     }
     Ok(json!({
         "next_batch": encode_sync_token(&input.cursor),
-        "rooms": { "join": joined, "leave": left },
+        "rooms": { "join": joined, "invite": invited, "leave": left },
         "account_data": { "events": input.account_data.iter().map(|(t,c)| json!({"type":t,"content":c})).collect::<Vec<_>>() },
         "to_device": { "events": input.to_device_events },
         "device_lists": { "changed": input.device_lists_changed, "left": input.device_lists_left },
@@ -1368,6 +1416,114 @@ mod jni_bridge {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn sync_projects_only_the_current_actor_invitation_and_requires_acceptance() {
+        let issuer = "https://auth.example";
+        let server = "api.weave.test";
+        let joined = json!({"subject":"author", "identityIssuer":issuer, "cursor":"chat-revision-1",
+            "conversations":[{"conversationId":"owned-room", "title":"Room", "memberships":[
+                {"memberRef":"author","state":"joined"}, {"memberRef":"peer","state":"invited"}]}]});
+        let project = |input: Value| -> Value {
+            serde_json::from_str(
+                &project_json("sync".into(), input.to_string(), server.into()).unwrap(),
+            )
+            .unwrap()
+        };
+        let a = project(joined.clone());
+        assert_eq!(a["rooms"]["join"].as_object().unwrap().len(), 1);
+        assert!(a["rooms"]["invite"].as_object().unwrap().is_empty());
+        let pending = json!({"subject":"peer", "identityIssuer":issuer, "cursor":"chat-revision-1",
+            "conversations":[{"conversationId":"owned-room", "title":"Room", "inviterRef":"author", "memberships":[
+                {"memberRef":"peer","state":"invited"}]}]});
+        let b = project(pending.clone());
+        assert!(b["rooms"]["join"].as_object().unwrap().is_empty());
+        let invite = b["rooms"]["invite"]
+            .as_object()
+            .unwrap()
+            .values()
+            .next()
+            .unwrap();
+        assert_eq!(invite.as_object().unwrap().len(), 1);
+        let events = invite["invite_state"]["events"].as_array().unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[1]["content"]["membership"], "invite");
+        assert_ne!(events[1]["sender"], events[1]["state_key"]);
+        assert_eq!(
+            events[1]["sender"],
+            matrix_actor_user_id(issuer, "author", &validate_server_name(server).unwrap())
+                .unwrap()
+                .to_string()
+        );
+        assert!(events.iter().all(
+            |event| event.get("event_id").is_none() && event.get("origin_server_ts").is_none()
+        ));
+        let mut accepted = joined;
+        accepted["subject"] = json!("peer");
+        accepted["conversations"][0]["memberships"][1]["state"] = json!("joined");
+        let b_joined = project(accepted);
+        assert_eq!(b_joined["rooms"]["join"].as_object().unwrap().len(), 1);
+        assert!(b_joined["rooms"]["invite"].as_object().unwrap().is_empty());
+    }
+
+    #[test]
+    fn invitation_projection_rejects_history_other_members_and_wrong_actor() {
+        let base = json!({"subject":"peer", "identityIssuer":"https://auth.example", "cursor":"chat-revision-1",
+            "conversations":[{"conversationId":"owned-room", "title":"Room", "inviterRef":"author", "memberships":[
+                {"memberRef":"peer","state":"invited"}]}]});
+        for field in ["unreadCount", "timelineLimited", "timelineBeforeCursor"] {
+            let mut invalid = base.clone();
+            invalid["conversations"][0][field] = match field {
+                "unreadCount" => json!(1),
+                "timelineLimited" => json!(true),
+                _ => json!("private-cursor"),
+            };
+            assert!(
+                project_json("sync".into(), invalid.to_string(), "api.weave.test".into()).is_err()
+            );
+        }
+        for inviter in [Value::Null, json!(""), json!("peer")] {
+            let mut invalid = base.clone();
+            invalid["conversations"][0]["inviterRef"] = inviter;
+            assert!(
+                project_json("sync".into(), invalid.to_string(), "api.weave.test".into()).is_err()
+            );
+        }
+        let mut other_member = base.clone();
+        other_member["conversations"][0]["memberships"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"memberRef":"author", "state":"joined"}));
+        assert!(project_json(
+            "sync".into(),
+            other_member.to_string(),
+            "api.weave.test".into()
+        )
+        .is_err());
+        let mut wrong_actor = base.clone();
+        wrong_actor["subject"] = json!("outsider");
+        assert!(project_json(
+            "sync".into(),
+            wrong_actor.to_string(),
+            "api.weave.test".into()
+        )
+        .is_err());
+        let mut history = base.clone();
+        history["conversations"][0]["messages"] = json!([{"messageId":"private-event", "senderRef":"author", "sentAtEpochMillis":1, "body":"private-history"}]);
+        assert!(project_json("sync".into(), history.to_string(), "api.weave.test".into()).is_err());
+        let mut duplicate = base.clone();
+        let room = duplicate["conversations"][0].clone();
+        duplicate["conversations"]
+            .as_array_mut()
+            .unwrap()
+            .push(room);
+        assert!(project_json(
+            "sync".into(),
+            duplicate.to_string(),
+            "api.weave.test".into()
+        )
+        .is_err());
+    }
+
     #[test]
     fn ids_round_trip() {
         let ids = project_weave_matrix_ids(

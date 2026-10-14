@@ -347,6 +347,29 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void pendingInvitationUsesStrippedNativeInviteAndNeverLoadsJoinedHistory() throws Exception {
+        var invitation = new com.massimotter.weave.backend.chat.domain.ChatInvitation(
+                "channel-invite", "Pending collaboration", Instant.parse("2026-07-08T10:00:00Z"),
+                ChatEncryptionState.unencrypted(), new com.massimotter.weave.backend.chat.domain.ChatActorRef("user:author"),
+                new ChatMembership("own-invite", "channel-invite", "user:user@example.com", "member", "invited", null, List.of()));
+        when(chatDomainFacadeService.conversations(any())).thenReturn(new ChatConversations(readiness(), List.of()));
+        when(chatDomainFacadeService.invitations(any())).thenReturn(List.of(invitation));
+        when(chatDomainFacadeService.syncCursor(any())).thenReturn("chat-revision-7");
+        mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt("invitation-native-session")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.join").isEmpty())
+                .andExpect(jsonPath("$.rooms.invite['!channel-invite:api.weave.test'].invite_state.events[0].content.name").value("Pending collaboration"))
+                .andExpect(jsonPath("$.rooms.invite['!channel-invite:api.weave.test'].invite_state.events[1].content.membership").value("invite"))
+                .andExpect(jsonPath("$.rooms.invite['!channel-invite:api.weave.test'].timeline").doesNotExist())
+                .andExpect(jsonPath("$.rooms.invite['!channel-invite:api.weave.test'].invite_state.events[1].sender").value(matrixProtocolCoreService.userId("user:author")))
+                .andExpect(jsonPath("$.rooms.invite['!channel-invite:api.weave.test'].invite_state.events[1].state_key").value(matrixProtocolCoreService.userId("user:user@example.com")));
+        mockMvc.perform(get("/_matrix/client/v3/joined_rooms").with(workspaceJwt("invitation-native-session")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.joined_rooms").isEmpty());
+        verify(chatDomainFacadeService, never()).timelineWindow(any(), any(), anyInt());
+        verify(chatDomainFacadeService, never()).conversation(any(), any());
+    }
+
+    @Test
     void syncProjectsCanonicalChatThroughRustWithStableWeaveCursor() throws Exception {
         stubConversation();
 
