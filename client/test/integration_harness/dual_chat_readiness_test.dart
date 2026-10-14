@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
+import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
@@ -11,6 +12,10 @@ import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
+import 'package:weave/features/chat/presentation/chat_screen.dart';
+import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -22,10 +27,85 @@ import '../../integration_test/dual_ios_collaboration_test.dart'
     show
         navigateNativeDualDestination,
         nativeDualChatSurfaceDiagnostic,
+        nativeDualChatListDiagnostic,
+        waitNativeDualChatConversation,
         openNativeDualChatCreationDialog,
         sendNativeDualChatMessage;
 
+const _readyChatSnapshot = WorkspaceCapabilitySnapshot(
+  shellAccess: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.shellAccess,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  chat: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.chat,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  files: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.files,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  calendar: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.calendar,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  boards: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.boards,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+);
+
 void main() {
+  testWidgets(
+    'cold list timeout diagnostics never initialize product providers',
+    (tester) async {
+      final repository = FakeChatRepository();
+      await tester.pumpWidget(
+        createTestApp(
+          const SizedBox(),
+          overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+        ),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(Scaffold)),
+      );
+      expect(container.exists(chatProvider), isFalse);
+      expect(container.exists(appBootstrapProvider), isFalse);
+      expect(container.exists(workspaceCapabilitySnapshotProvider), isFalse);
+      Object? failure;
+      try {
+        await waitNativeDualChatConversation(
+          tester,
+          container,
+          'Private missing room',
+          deadline: DateTime.now().add(const Duration(milliseconds: 30)),
+        );
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure, isA<TestFailure>());
+      await tester.pump();
+      final diagnostic = nativeDualChatListDiagnostic(
+        tester,
+        null,
+        null,
+        null,
+        'Private missing room',
+      );
+      expect(diagnostic, contains('listPhase=unavailable'));
+      expect(diagnostic, contains('listInitialized=false'));
+      expect(
+        diagnostic,
+        contains('bootstrapInitialized=false capabilitiesInitialized=false'),
+      );
+      expect(diagnostic, isNot(contains('Private missing room')));
+      expect(container.exists(chatProvider), isFalse);
+      expect(container.exists(appBootstrapProvider), isFalse);
+      expect(container.exists(workspaceCapabilitySnapshotProvider), isFalse);
+      expect(repository.loadConversationsCalls, 0);
+    },
+  );
+
   for (final locale in ['en', 'de']) {
     testWidgets('actual localized Home/Chat navigation; locale=$locale', (
       tester,
@@ -76,6 +156,204 @@ void main() {
       expect(find.text('selected=0'), findsOneWidget);
     });
   }
+
+  for (final locale in ['en', 'de']) {
+    testWidgets(
+      'actual localized Chat refresh discovers invitation once; $locale',
+      (tester) async {
+        const target = ChatConversation(
+          id: '!owned-invite:example.invalid',
+          title: 'Owned new invitation',
+          previewType: ChatConversationPreviewType.none,
+          unreadCount: 0,
+          isInvite: true,
+          isDirectMessage: false,
+        );
+        var calls = 0;
+        final repository = FakeChatRepository(
+          loadConversationsHandler: () async => ++calls == 1 ? [] : [target],
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              chatRepositoryProvider.overrideWithValue(repository),
+              workspaceCapabilitySnapshotProvider.overrideWith(
+                (ref) => const AsyncData(_readyChatSnapshot),
+              ),
+            ],
+            child: MaterialApp(
+              locale: Locale(locale),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const Scaffold(body: ChatScreen()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text(target.title), findsNothing);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(ChatScreen)),
+        );
+        await waitNativeDualChatConversation(
+          tester,
+          container,
+          target.title,
+          deadline: DateTime.now().add(const Duration(seconds: 2)),
+        );
+        expect(find.text(target.title), findsOneWidget);
+        expect(repository.loadConversationsCalls, 2);
+        await waitNativeDualChatConversation(
+          tester,
+          container,
+          target.title,
+          deadline: DateTime.now().add(const Duration(seconds: 2)),
+        );
+        expect(repository.loadConversationsCalls, 2);
+        expect(
+          container.read(chatProvider).conversations.single.isInvite,
+          isTrue,
+        );
+      },
+    );
+  }
+
+  for (final blocked in ['non-hittable', 'ambiguous', 'no-result']) {
+    testWidgets('room lookup never bypasses actual UI recovery: $blocked', (
+      tester,
+    ) async {
+      final repository = FakeChatRepository();
+      final child = blocked == 'ambiguous'
+          ? const Column(
+              children: [
+                Expanded(child: ChatScreen()),
+                Expanded(child: ChatScreen()),
+              ],
+            )
+          : IgnorePointer(
+              ignoring: blocked == 'non-hittable',
+              child: const ChatScreen(),
+            );
+      await tester.pumpWidget(
+        createTestApp(
+          child,
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            workspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) => const AsyncData(_readyChatSnapshot),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen).first),
+      );
+      final before = repository.loadConversationsCalls;
+      Object? failure;
+      try {
+        await waitNativeDualChatConversation(
+          tester,
+          container,
+          'Private missing room',
+          deadline: DateTime.now().add(const Duration(milliseconds: 50)),
+        );
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure, isA<TestFailure>());
+      expect(
+        repository.loadConversationsCalls,
+        before + (blocked == 'no-result' ? 1 : 0),
+      );
+      expect(find.text('Private missing room'), findsNothing);
+    });
+  }
+
+  testWidgets(
+    'private actual Chat list snapshots loading, invite and hidden error',
+    (tester) async {
+      const privateTitle =
+          'private-user@example.invalid token=https://secret.invalid';
+      const invitation = ChatConversation(
+        id: '!private-id:secret.invalid',
+        title: privateTitle,
+        previewType: ChatConversationPreviewType.none,
+        unreadCount: 0,
+        isInvite: true,
+        isDirectMessage: false,
+      );
+      final pending = Completer<List<ChatConversation>>();
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () => pending.future,
+      );
+      Future<void> render(bool hidden) async {
+        await tester.pumpWidget(
+          createTestApp(
+            Offstage(offstage: hidden, child: const ChatScreen()),
+            overrides: [
+              chatRepositoryProvider.overrideWithValue(repository),
+              workspaceCapabilitySnapshotProvider.overrideWith(
+                (ref) => const AsyncData(_readyChatSnapshot),
+              ),
+            ],
+          ),
+        );
+        await tester.pump();
+      }
+
+      await render(false);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      String snapshot() => nativeDualChatListDiagnostic(
+        tester,
+        container.read(chatProvider),
+        const AsyncData(BootstrapState.ready()),
+        const AsyncData(_readyChatSnapshot),
+        privateTitle,
+      );
+      final loading = snapshot();
+      expect(loading, contains('listPhase=loading'));
+      expect(
+        loading,
+        contains('conversationCount=0 invitedCount=0 matchingCount=0'),
+      );
+      pending.complete(const [invitation]);
+      await tester.pumpAndSettle();
+      final content = snapshot();
+      expect(
+        content,
+        contains('listVisible=1 listMounted=1 listPhase=content'),
+      );
+      expect(
+        content,
+        contains(
+          'conversationCount=1 invitedCount=1 matchingCount=1 visibleMatchingCount=1',
+        ),
+      );
+      await render(true);
+      final hidden = snapshot();
+      expect(hidden, contains('listVisible=0 listMounted=1'));
+      expect(hidden, contains('visibleMatchingCount=0 mountedMatchingCount=1'));
+      repository.loadConversationsHandler = () async =>
+          throw const ChatFailure.sessionRequired(privateTitle);
+      await container.read(chatProvider.notifier).retry();
+      await tester.pump();
+      final failed = snapshot();
+      expect(failed, contains('listPhase=error listFailure=sessionRequired'));
+      expect(
+        failed,
+        contains('conversationCount=0 invitedCount=0 matchingCount=0'),
+      );
+      for (final diagnostic in [loading, content, hidden, failed]) {
+        expect(diagnostic, isNot(contains('private-user')));
+        expect(diagnostic, isNot(contains('secret.invalid')));
+        expect(diagnostic, isNot(contains('private-id')));
+        expect(diagnostic, isNot(contains('token=')));
+        expect(diagnostic, isNot(contains('https:')));
+      }
+    },
+  );
 
   const conversation = ChatConversation(
     id: '!owned-room:example.invalid',

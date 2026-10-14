@@ -27,6 +27,7 @@ import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
 import 'package:weave/features/chat/data/repositories/matrix_device_identity_repository.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
+import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
@@ -607,10 +608,11 @@ void main() {
               tester,
               Icons.chat_bubble_outline,
             );
-            await _wait(
+            await waitNativeDualChatConversation(
               tester,
-              () => find.text(conversation).evaluate().length == 1,
-              const Duration(seconds: 90),
+              container,
+              conversation,
+              deadline: actionDeadline,
             );
             await _tap(tester, find.text(conversation));
             await _wait(
@@ -1531,8 +1533,8 @@ Future<void> sendNativeDualChatMessage(
 
 String nativeDualChatSurfaceDiagnostic(
   WidgetTester tester,
-  AsyncValue<BootstrapState> bootstrap,
-  AsyncValue<WorkspaceCapabilitySnapshot> capabilities,
+  AsyncValue<BootstrapState>? bootstrap,
+  AsyncValue<WorkspaceCapabilitySnapshot>? capabilities,
 ) {
   int count(Finder finder) => finder.evaluate().length.clamp(0, 999);
   final room = find.byType(ChatRoomScreen);
@@ -1545,7 +1547,7 @@ String nativeDualChatSurfaceDiagnostic(
   final tabIndex = tabs.evaluate().length == 1
       ? DefaultTabController.maybeOf(tester.element(tabs))?.index
       : null;
-  final error = bootstrap.error;
+  final error = bootstrap?.error;
   final errorClass = switch (error) {
     AppFailure() => 'AppFailure',
     StateError() => 'StateError',
@@ -1568,15 +1570,128 @@ String nativeDualChatSurfaceDiagnostic(
       'chatAdmissionVisible=${count(find.byType(ChatAdmissionGate))} '
       'chatAdmissionMounted=${count(find.byType(ChatAdmissionGate, skipOffstage: false))} '
       'homeVisible=${count(find.byKey(const ValueKey('weave.workspace.home')))} '
-      'bootstrapLoading=${bootstrap.isLoading} '
-      'bootstrapError=${bootstrap.hasError} '
-      'bootstrapPhase=${bootstrap.value?.phase.name ?? 'unavailable'} '
-      'bootstrapFailure=${bootstrap.value?.failure?.type.name ?? 'none'} '
+      'bootstrapLoading=${bootstrap?.isLoading ?? false} '
+      'bootstrapError=${bootstrap?.hasError ?? false} '
+      'bootstrapPhase=${bootstrap?.value?.phase.name ?? 'unavailable'} '
+      'bootstrapFailure=${bootstrap?.value?.failure?.type.name ?? 'none'} '
       'bootstrapErrorClass=$errorClass '
-      'capabilitiesLoading=${capabilities.isLoading} '
-      'capabilitiesError=${capabilities.hasError} '
-      'chatReadiness=${capabilities.asData?.value.chat.readiness.name ?? 'unavailable'} '
-      'chatReady=${capabilities.asData?.value.chat.isReady == true}';
+      'capabilitiesLoading=${capabilities?.isLoading ?? false} '
+      'capabilitiesError=${capabilities?.hasError ?? false} '
+      'chatReadiness=${capabilities?.asData?.value.chat.readiness.name ?? 'unavailable'} '
+      'chatReady=${capabilities?.asData?.value.chat.isReady == true} '
+      'bootstrapInitialized=${bootstrap != null} capabilitiesInitialized=${capabilities != null}';
+}
+
+Future<void> waitNativeDualChatConversation(
+  WidgetTester tester,
+  ProviderContainer container,
+  String expectedTitle, {
+  required DateTime deadline,
+}) async {
+  final lookupLimit = DateTime.now().add(const Duration(seconds: 90));
+  final lookupDeadline = deadline.isBefore(lookupLimit)
+      ? deadline
+      : lookupLimit;
+  var refreshTapped = false;
+  try {
+    while (find.text(expectedTitle).evaluate().length != 1) {
+      if (!DateTime.now().isBefore(lookupDeadline)) {
+        throw TestFailure(
+          'A required dual-client UI condition did not complete.',
+        );
+      }
+      final screen = find.byType(ChatScreen);
+      if (!refreshTapped &&
+          find.text(expectedTitle).evaluate().isEmpty &&
+          screen.evaluate().length == 1) {
+        final copy = AppLocalizations.of(tester.element(screen));
+        final refresh = find.ancestor(
+          of: find.descendant(
+            of: screen,
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Text &&
+                  (widget.data == copy.chatStaleRoomsRetryButton ||
+                      widget.data == copy.retryButton),
+            ),
+          ),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is ButtonStyleButton,
+          ),
+        );
+        if (refresh.evaluate().length == 1 &&
+            tester.widget<ButtonStyleButton>(refresh).onPressed != null &&
+            refresh.hitTestable().evaluate().length == 1 &&
+            DateTime.now().isBefore(lookupDeadline)) {
+          refreshTapped = true;
+          await _tap(tester, refresh);
+        }
+      }
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    if (!DateTime.now().isBefore(lookupDeadline)) {
+      throw TestFailure(
+        'The real Chat room lookup missed its action deadline.',
+      );
+    }
+  } catch (_) {
+    await safelyReportDualOnboardingFailure(
+      report: () async {
+        emitNativeProductDiagnostic(
+          nativeDualChatListDiagnostic(
+            tester,
+            container.exists(chatProvider)
+                ? container.read(chatProvider)
+                : null,
+            container.exists(appBootstrapProvider)
+                ? container.read(appBootstrapProvider)
+                : null,
+            container.exists(workspaceCapabilitySnapshotProvider)
+                ? container.read(workspaceCapabilitySnapshotProvider)
+                : null,
+            expectedTitle,
+            refreshTapped: refreshTapped,
+          ),
+          simulatorDriver: true,
+        );
+      },
+      unavailable: () {},
+    );
+    rethrow;
+  }
+}
+
+String nativeDualChatListDiagnostic(
+  WidgetTester tester,
+  ChatUiState? state,
+  AsyncValue<BootstrapState>? bootstrap,
+  AsyncValue<WorkspaceCapabilitySnapshot>? capabilities,
+  String expectedTitle, {
+  bool refreshTapped = false,
+}) {
+  int count(Finder finder) => finder.evaluate().length.clamp(0, 999);
+  final navigation = find.byType(NavigationBar);
+  final selected = navigation.evaluate().length == 1
+      ? tester.widget<NavigationBar>(navigation).selectedIndex.clamp(0, 999)
+      : null;
+  final surface = nativeDualChatSurfaceDiagnostic(
+    tester,
+    bootstrap,
+    capabilities,
+  ).replaceFirst('phase=chat-send-surface', 'phase=chat-list-failed');
+  return '$surface '
+      'listVisible=${count(find.byType(ChatScreen))} '
+      'listMounted=${count(find.byType(ChatScreen, skipOffstage: false))} '
+      'listPhase=${state?.phase.name ?? 'unavailable'} '
+      'listFailure=${state?.failure?.type.name ?? 'none'} '
+      'staleFailure=${state?.staleFailure?.type.name ?? 'none'} '
+      'listRefreshing=${state?.isRefreshing ?? false} refreshTapped=$refreshTapped '
+      'conversationCount=${state?.conversations.length.clamp(0, 999) ?? 0} '
+      'invitedCount=${state?.conversations.where((room) => room.isInvite).length.clamp(0, 999) ?? 0} '
+      'matchingCount=${state?.conversations.where((room) => room.title == expectedTitle).length.clamp(0, 999) ?? 0} '
+      'visibleMatchingCount=${count(find.text(expectedTitle))} '
+      'mountedMatchingCount=${count(find.text(expectedTitle, skipOffstage: false))} '
+      'navigationSelected=${selected ?? 'unavailable'} listInitialized=${state != null}';
 }
 
 Future<void> _editTitle(WidgetTester tester, String title) async {
