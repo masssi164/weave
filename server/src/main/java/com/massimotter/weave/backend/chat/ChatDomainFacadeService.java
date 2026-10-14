@@ -6,6 +6,7 @@ import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
+import com.massimotter.weave.backend.chat.domain.ChatInvitation;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
@@ -233,6 +234,43 @@ public class ChatDomainFacadeService {
         }
         ChatConversations conversations = chatProviderPort.joinedConversations(requestContext(jwt));
         return new ChatConversations(readiness, conversations.conversations());
+    }
+
+    /** Own pending invitations only; acceptance remains required for joined resources. */
+    public List<ChatInvitation> invitations(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.read", "chat", "list-invitations");
+        if (durableSpaceAccess == null) requireContextPermission(jwt, ContextPermission.VIEW);
+        if (memberReadiness(jwt).memberState() != ChatMemberState.READY) return List.of();
+        ChatRequestContext member = requestContext(jwt);
+        List<ChatInvitation> visible = new ArrayList<>();
+        int scanned = 0;
+        List<String> spaces = durableSpaceAccess == null ? List.of(member.contextId()) : visibleSpaceRefs(member);
+        for (String spaceRef : spaces) {
+            ChatRequestContext space = inSpace(member, spaceRef);
+            if (!currentSpacePermission(space, ContextPermission.VIEW)) continue;
+            String after = "";
+            while (true) {
+                List<ChatInvitation> page = chatProviderPort.invitedConversations(space, after, 100);
+                if (page == null || page.size() > 100) throw new ChatProviderUnavailableException("chat-invitation-list-unavailable");
+                for (ChatInvitation invitation : page) {
+                    if (++scanned > 1000) throw new ChatProviderUnavailableException("chat-invitation-list-limit");
+                    if (invitation == null || invitation.conversationId().compareTo(after) <= 0
+                            || !invitation.membership().memberRef().equals(member.actorRef().value())) {
+                        throw new ChatProviderUnavailableException("chat-invitation-list-invalid");
+                    }
+                    String before = after;
+                    after = invitation.conversationId();
+                    List<ChatInvitation> current = chatProviderPort.invitedConversations(space, before, 1);
+                    if (current == null || current.size() > 1) throw new ChatProviderUnavailableException("chat-invitation-readback-invalid");
+                    if (!currentSpacePermission(space, ContextPermission.VIEW)) break;
+                    if (current.size() == 1 && after.equals(current.getFirst().conversationId())
+                            && current.getFirst().membership().memberRef().equals(member.actorRef().value())) visible.add(current.getFirst());
+                    if (visible.size() > 1000) throw new ChatProviderUnavailableException("chat-invitation-list-limit");
+                }
+                if (page.size() < 100 || !currentSpacePermission(space, ContextPermission.VIEW)) break;
+            }
+        }
+        return List.copyOf(visible);
     }
 
     /** Current member's canonical room references for a durable Space relationship page. */

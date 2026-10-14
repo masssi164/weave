@@ -382,6 +382,46 @@ class ChatDomainFacadeServiceTest {
     }
 
     @Test
+    void pendingInvitationsRequireCurrentSpaceViewAndCurrentOwnMembershipWithoutHistoryReads() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
+        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+                capability(), capability(), capability(), capability(), capability(), capability());
+        when(capabilities.snapshot()).thenReturn(snapshot);
+        when(capabilities.snapshot(any())).thenReturn(snapshot);
+        ChatProviderPort provider = Mockito.mock(ChatProviderPort.class);
+        when(provider.configured()).thenReturn(true);
+        when(provider.providerSelectionKeys()).thenReturn(Set.of("synapse-homeserver"));
+        when(provider.readiness()).thenReturn(ProviderReadiness.ready("chat-provider-ready"));
+        var membership = new com.massimotter.weave.backend.chat.domain.ChatMembership(
+                "own-invite", "pending-room", "user:member-123", "member", "invited", null, List.of());
+        var invitation = new com.massimotter.weave.backend.chat.domain.ChatInvitation(
+                "pending-room", "Pending", FIXED.instant(),
+                com.massimotter.weave.backend.chat.domain.ChatEncryptionState.unencrypted(), new com.massimotter.weave.backend.chat.domain.ChatActorRef("user:author"), membership);
+        when(provider.invitedConversations(any(), eq(""), eq(100))).thenReturn(List.of(invitation));
+        when(provider.invitedConversations(any(), eq(""), eq(1))).thenReturn(List.of(invitation));
+        SpaceAccessPort spaces = Mockito.mock(SpaceAccessPort.class);
+        String account = IdentityReferences.accountId("https://auth.example/realms/weave", "member-123");
+        when(spaces.visibleSpaceRefs("weave-dogfood", account, "", 100)).thenReturn(List.of("chosen-space"));
+        when(spaces.allows("weave-dogfood", "chosen-space", account, SpaceAccessPort.Permission.VIEW)).thenReturn(true);
+        ChatDomainFacadeService service = new ChatDomainFacadeService(
+                new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections), selections, capabilities,
+                new InMemoryAuditEventPublisher(), provider, allowAllContexts(), contextProperties(),
+                OrganizationIdentityContextResolver.configured(contextProperties()), FIXED, new DurableChatSpaceAccess(spaces));
+        assertThat(service.invitations(memberJwt())).containsExactly(invitation);
+        verify(provider, never()).conversation(any(ChatRequestContext.class), any());
+        verify(provider, never()).timelineEvents(any(ChatRequestContext.class), any(), any(), org.mockito.ArgumentMatchers.anyInt());
+        when(spaces.allows("weave-dogfood", "chosen-space", account, SpaceAccessPort.Permission.VIEW)).thenReturn(false);
+        assertThat(service.invitations(memberJwt())).isEmpty();
+        verify(provider, times(1)).invitedConversations(any(), eq(""), eq(100));
+        when(spaces.allows("weave-dogfood", "chosen-space", account, SpaceAccessPort.Permission.VIEW)).thenReturn(true);
+        // Initial metadata may race a real acceptance; an exact pending recheck must omit it.
+        when(provider.invitedConversations(any(), eq(""), eq(1))).thenReturn(List.of());
+        assertThat(service.invitations(memberJwt())).isEmpty();
+    }
+
+    @Test
     void matrixSyncProjectsOnlyRoomsInCurrentlyVisibleDurableSpaces() {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
