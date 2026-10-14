@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.chat.port;
 
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
+import com.massimotter.weave.backend.chat.domain.ChatInvitation;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatChangeSet;
@@ -38,6 +39,9 @@ public interface ChatProviderPort {
     ProviderConformanceProfile conformanceProfile();
 
     ChatConversations joinedConversations(ChatRequestContext context);
+
+    /** Bounded own pending-invitation metadata; never joined history or other memberships. */
+    java.util.List<ChatInvitation> invitedConversations(ChatRequestContext context, String afterConversationId, int limit);
 
     /** Stable, bounded canonical identifiers for rooms joined by the current actor in one Space. */
     java.util.List<String> joinedConversationRefs(ChatRequestContext context, String afterConversationId, int limit);

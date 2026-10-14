@@ -1,6 +1,8 @@
 package com.massimotter.weave.backend.chat.store;
 
 import tools.jackson.databind.ObjectMapper;
+import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
+import com.massimotter.weave.backend.chat.domain.ChatInvitation;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatCallbackRetryRequiredException;
@@ -378,6 +380,122 @@ class JpaCanonicalChatStoreTest {
                 Map.of("reason", "line\nbreak"))).isFalse();
         assertThat(JpaCanonicalChatStore.supportedRedactionPresentationContent(
                 Map.of("unsupported", "private-value"))).isFalse();
+    }
+
+    @Test
+    void invitationMetadataFailsClosedWhenCommittedCreatorAuthorityIsMissing() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("invite-authority-author");
+        ChatRequestContext peer = context("invite-authority-peer");
+        var created = adapter.createConversation(author, new ChatTransactionId("invite-authority-room"),
+                "Pending", "channel", List.of(ChatResolvedIdentity.from(peer)), ChatEncryptionState.unencrypted());
+        var authority = CanonicalChatJpaTestFactory.authority(dataSource);
+        var operations = authority.operations().findByIdPart1AndConversationIdAndOperationTypeInAndStateIn(
+                author.tenantId(), created.conversationId(), List.of("create-room"), List.of("committed"));
+        assertThat(operations).hasSize(1);
+        authority.operations().deleteById(new ChatPairId(author.tenantId(), operations.getFirst().operationId()));
+        assertThatThrownBy(() -> store.invitedConversations(peer, "", 100))
+                .isInstanceOf(com.massimotter.weave.backend.chat.domain.ChatProviderUnavailableException.class);
+        assertThat(adapter.joinedConversations(peer).conversations()).isEmpty();
+    }
+
+    @Test
+    void invitationPageContinuesAfterConcurrentAcceptanceRemovesItsFirstCandidate() throws Exception {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("invite-page-author");
+        ChatRequestContext peer = context("invite-page-peer");
+        for (int index = 0; index < 2; index++) adapter.createConversation(author,
+                new ChatTransactionId("invite-page-room-" + index), "Pending " + index, "channel",
+                List.of(ChatResolvedIdentity.from(peer)), ChatEncryptionState.unencrypted());
+        var real = CanonicalChatJpaTestFactory.authority(dataSource);
+        var conversations = org.mockito.Mockito.mock(ChatConversationJpaRepository.class,
+                org.mockito.AdditionalAnswers.delegatesTo(real.conversations()));
+        var changed = new java.util.concurrent.atomic.AtomicBoolean();
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            org.mockito.Mockito.doAnswer(call -> {
+                List<ChatConversationJpaEntity> rows = real.conversations().findInvited(
+                        call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3), call.getArgument(4), call.getArgument(5));
+                if (!rows.isEmpty() && changed.compareAndSet(false, true)) {
+                    executor.submit(() -> adapter.joinConversation(peer, new ConversationId(rows.getFirst().conversationId())))
+                            .get(10, TimeUnit.SECONDS);
+                }
+                return rows;
+            }).when(conversations).findInvited(anyString(), anyString(), anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.any());
+            var observing = new CanonicalChatJpaAuthority(conversations, real.memberships(), real.events(), real.operations(),
+                    real.outbox(), real.mappings(), real.ledger(), real.callbacks(), real.quarantines(), real.receipts(),
+                    real.changes(), real.changeCommitFence(), real.transactionManager());
+            var paging = new JpaCanonicalChatStore(observing,
+                    tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(), FIXED);
+            List<ChatInvitation> page = paging.invitedConversations(peer, "", 1);
+            assertThat(changed).isTrue();
+            assertThat(page).hasSize(1);
+            assertThat(page.getFirst().membership().state()).isEqualTo("invited");
+            assertThat(adapter.joinedConversations(peer).conversations()).hasSize(1);
+            assertThat(adapter.joinedConversations(peer).conversations().getFirst().conversationId()).isNotEqualTo(page.getFirst().conversationId());
+        }
+    }
+
+    @Test
+    void persistedInvitationProjectsToNativeInviteWithoutJoinedHistoryBeforeAcceptance() {
+        JpaCanonicalChatStore store = store(dataSource());
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("native-invite-author");
+        ChatRequestContext collaborator = context("native-invite-peer");
+        ChatConversation created = adapter.createConversation(author,
+                new ChatTransactionId("native-invite-room"), "Invited collaboration", "channel",
+                List.of(ChatResolvedIdentity.from(collaborator)), ChatEncryptionState.unencrypted());
+        ConversationId room = new ConversationId(created.conversationId());
+        ChatConversation committed = store.conversation(author, room);
+        List<ChatInvitation> pending = adapter.invitedConversations(collaborator, "", 100);
+        assertThat(pending).hasSize(1);
+        ChatInvitation metadata = pending.getFirst();
+        assertThat(metadata.conversationId()).isEqualTo(created.conversationId());
+        assertThat(metadata.inviterRef()).isEqualTo(author.actorRef());
+        var ownInvitation = List.of(metadata.membership());
+        assertThat(adapter.invitedConversations(author, "", 100)).isEmpty();
+        assertThat(adapter.invitedConversations(context("native-invite-outsider"), "", 100)).isEmpty();
+        assertThat(adapter.invitedConversations(new ChatRequestContext("tenant-other", collaborator.contextId(),
+                collaborator.identityIssuer(), collaborator.actorRef()), "", 100)).isEmpty();
+        assertThat(adapter.invitedConversations(new ChatRequestContext(collaborator.tenantId(), "space-other",
+                collaborator.identityIssuer(), collaborator.actorRef()), "", 100)).isEmpty();
+        assertThat(adapter.invitedConversations(new ChatRequestContext(collaborator.tenantId(), collaborator.contextId(),
+                "https://other-issuer.example", collaborator.actorRef()), "", 100)).isEmpty();
+        assertThat(adapter.invitedConversations(collaborator, created.conversationId(), 100)).isEmpty();
+        assertThatThrownBy(() -> adapter.invitedConversations(collaborator, "", 101)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(ownInvitation).singleElement().satisfies(member -> assertThat(member.state()).isEqualTo("invited"));
+        assertThat(adapter.joinedConversations(collaborator).conversations()).isEmpty();
+        assertThatThrownBy(() -> store.conversation(collaborator, room)).isInstanceOf(ChatAccessDeniedException.class);
+        assertThatThrownBy(() -> store.timelinePage(collaborator, room, null, 100)).isInstanceOf(ChatAccessDeniedException.class);
+        MatrixProtocolCoreService core = new MatrixProtocolCoreService(
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
+                "api.weave.test", collaborator.identityIssuer());
+        var projected = new MatrixProtocolCoreService.CanonicalConversation(
+                committed.conversationId(), committed.title(), committed.updatedAt().toEpochMilli(), 0, null,
+                ownInvitation.stream().map(member -> new MatrixProtocolCoreService.CanonicalMembership(member.memberRef(), member.state())).toList(),
+                List.of(), false, null, metadata.inviterRef().value());
+        Map<String, Object> sync = core.sync(collaborator.actorRef().value(), "chat-revision-1", null, List.of(projected));
+        Map<?, ?> rooms = (Map<?, ?>) sync.get("rooms");
+        assertThat(rooms.get("invite")).isInstanceOf(Map.class);
+        assertThat(((Map<?, ?>) rooms.get("invite")).containsKey(core.roomId(created.conversationId()))).isTrue();
+        assertThat((Map<?, ?>) rooms.get("join")).isEmpty();
+        Map<?, ?> wire = (Map<?, ?>) ((Map<?, ?>) rooms.get("invite")).get(core.roomId(created.conversationId()));
+        assertThat(wire.keySet().toString()).isEqualTo("[invite_state]");
+        Map<?, ?> inviteState = (Map<?, ?>) wire.get("invite_state");
+        List<?> events = (List<?>) inviteState.get("events");
+        Map<?, ?> inviteEvent = (Map<?, ?>) events.get(1);
+        assertThat(inviteEvent.get("sender")).isEqualTo(core.userId(author.actorRef().value()));
+        assertThat(inviteEvent.get("state_key")).isEqualTo(core.userId(collaborator.actorRef().value()));
+        assertThat(inviteEvent.get("sender")).isNotEqualTo(inviteEvent.get("state_key"));
+        String inviteJson = tools.jackson.databind.json.JsonMapper.builder().build().writeValueAsString(wire);
+        assertThat(inviteJson).doesNotContain("timeline", "messages", author.actorRef().value());
+        adapter.joinConversation(collaborator, room);
+        assertThat(adapter.invitedConversations(collaborator, "", 100)).isEmpty();
+        assertThat(adapter.joinedConversations(collaborator).conversations()).hasSize(1);
+        assertThat(store.timelinePage(collaborator, room, null, 100).timeline().events()).isEmpty();
     }
 
     @Test

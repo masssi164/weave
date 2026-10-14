@@ -261,7 +261,15 @@ public class MatrixClientServerProjectionController {
         List<String> joinedIds = projection.stream().map(MatrixProtocolCoreService.CanonicalConversation::conversationId).toList();
         List<String> leftRooms = delta == null ? List.of() : delta.leftRooms().stream()
                 .filter(room -> !joinedIds.contains(room)).toList();
-        return matrixProtocolCoreService.sync(jwt.getSubject(), matrixE2eeStateService.combinedCursor(nextChatCursor, crypto), since, projection, matrixE2eeStateService.accountData(identity), crypto, leftRooms);
+        List<MatrixProtocolCoreService.CanonicalConversation> withInvitations = new ArrayList<>(projection);
+        chatDomainFacadeService.invitations(jwt).stream()
+                .map(invitation -> new MatrixProtocolCoreService.CanonicalConversation(
+                        invitation.conversationId(), invitation.title(),
+                        invitation.updatedAt() == null ? 0 : invitation.updatedAt().toEpochMilli(), 0,
+                        invitation.encryptionState().encrypted() ? invitation.encryptionState().mode() : null,
+                        List.of(new MatrixProtocolCoreService.CanonicalMembership(invitation.membership().memberRef(), "invited")),
+                        List.of(), false, null, invitation.inviterRef().value())).forEach(withInvitations::add);
+        return matrixProtocolCoreService.sync(identity.actorRef().value(), matrixE2eeStateService.combinedCursor(nextChatCursor, crypto), since, withInvitations, matrixE2eeStateService.accountData(identity), crypto, leftRooms);
     }
 
     private Set<String> sharedEncryptedRoomUsers(MatrixFacadeClientStateService.MatrixIdentity identity, List<MatrixProtocolCoreService.CanonicalConversation> conversations) {

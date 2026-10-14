@@ -5,6 +5,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatChangeSet;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
+import com.massimotter.weave.backend.chat.domain.ChatInvitation;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
@@ -130,6 +131,11 @@ public final class SynapseBackedCanonicalChatAdapter implements ChatProviderPort
     @Override
     public ChatConversations joinedConversations(ChatRequestContext context) {
         return store.joinedConversations(context);
+    }
+
+    @Override
+    public java.util.List<ChatInvitation> invitedConversations(ChatRequestContext context, String afterConversationId, int limit) {
+        return store.invitedConversations(context, afterConversationId, limit);
     }
 
     @Override
