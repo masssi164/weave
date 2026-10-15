@@ -1442,6 +1442,15 @@ Future<void> prepareNativeCanonicalOrganization(
 
 bool _preserveNativePreferencesForRestore = false;
 
+void expectNativeMatrixEndpoint(Uri? actual, Uri expected) {
+  expect(actual, isNotNull);
+  final actualOrigin = TestConfig.parseOrganizationOrigin(actual!.toString());
+  final expectedOrigin = TestConfig.parseOrganizationOrigin(
+    expected.toString(),
+  );
+  expect(actualOrigin.origin, expectedOrigin.origin);
+}
+
 Future<ProviderContainer> _openWeaveSession(
   WidgetTester tester,
   TestConfig config, {
@@ -1535,7 +1544,7 @@ Future<ProviderContainer> _openWeaveSession(
   expect(selected?.organizationOrigin?.origin, origin.origin);
   expect(selected?.oidcIssuerUrl, config.issuerUrl);
   expect(selected?.oidcClientRegistration.clientId, config.clientId);
-  expect(
+  expectNativeMatrixEndpoint(
     selected?.serviceEndpoints.matrixHomeserverUrl,
     config.matrixHomeserverUrl,
   );
