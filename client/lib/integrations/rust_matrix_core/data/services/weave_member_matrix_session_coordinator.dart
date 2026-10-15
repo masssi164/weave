@@ -306,6 +306,17 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
         profileKey: profileKey,
         userId: userId,
         deviceId: deviceId,
+        memberStorageScope: sha256
+            .convert(
+              utf8.encode(
+                jsonEncode([
+                  authConfiguration.issuer.toString(),
+                  access.organizationId,
+                  access.subject,
+                ]),
+              ),
+            )
+            .toString(),
       );
       _active = opened;
       _activeFingerprint = fingerprint;

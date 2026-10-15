@@ -42,12 +42,54 @@ class _InvitationChatRepository extends FakeChatRepository
   Future<void> acceptInvitation(String roomId) => join(roomId);
 }
 
+const _ownerA =
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const _ownerB =
+    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+class _DraftProbeStore extends InMemoryPreferencesStore {
+  _DraftProbeStore([super.initialValues]);
+  final reads = <String>[];
+  final writes = <String>[];
+  final removals = <String>[];
+  Future<String?> Function(String)? readDraft;
+  Future<String?> Function(String)? readOther;
+  Future<void> Function(String, String)? writeDraft;
+
+  @override
+  Future<String?> getString(String key) async {
+    if (key.startsWith('chat.roomDraft.')) {
+      reads.add(key);
+      if (readDraft != null) return readDraft!(key);
+    }
+    if (!key.startsWith('chat.roomDraft.') && readOther != null) {
+      return readOther!(key);
+    }
+    return super.getString(key);
+  }
+
+  @override
+  Future<void> setString(String key, String value) async {
+    if (key.startsWith('chat.roomDraft.')) {
+      writes.add(key);
+      await writeDraft?.call(key, value);
+    }
+    await super.setString(key, value);
+  }
+
+  @override
+  Future<void> remove(String key) async {
+    if (key.startsWith('chat.roomDraft.')) removals.add(key);
+    await super.remove(key);
+  }
+}
+
 class _HeldDraftRemovalStore extends InMemoryPreferencesStore {
   final removal = Completer<void>();
 
   @override
   Future<void> remove(String key) async {
-    if (key.startsWith('chat.roomDraft.v1.')) await removal.future;
+    if (key.startsWith('chat.roomDraft.v2.')) await removal.future;
     await super.remove(key);
   }
 }
@@ -112,10 +154,12 @@ void main() {
   ChatRoomTimeline buildTimeline({
     bool canSendMessages = true,
     List<ChatMessage>? messages,
+    String? memberStorageScope,
   }) {
     return ChatRoomTimeline(
       roomId: conversation.id,
       roomTitle: conversation.title,
+      memberStorageScope: memberStorageScope,
       isInvite: !canSendMessages,
       canSendMessages: canSendMessages,
       messages:
@@ -700,7 +744,8 @@ void main() {
     (tester) async {
       final store = _HeldDraftRemovalStore();
       final repository = FakeChatRepository(
-        loadRoomTimelineHandler: (_) async => buildTimeline(),
+        loadRoomTimelineHandler: (_) async =>
+            buildTimeline(memberStorageScope: _ownerA),
       );
       await tester.pumpWidget(
         createTestApp(
@@ -735,10 +780,12 @@ void main() {
     'authority replacement clears old-owner composer and cancels its draft debounce',
     (tester) async {
       final old = FakeChatRepository(
-        loadRoomTimelineHandler: (_) async => buildTimeline(),
+        loadRoomTimelineHandler: (_) async =>
+            buildTimeline(memberStorageScope: _ownerA),
       );
       final current = FakeChatRepository(
-        loadRoomTimelineHandler: (_) async => buildTimeline(messages: []),
+        loadRoomTimelineHandler: (_) async =>
+            buildTimeline(messages: [], memberStorageScope: _ownerB),
       );
       final store = InMemoryPreferencesStore();
       final preferences = preferencesStoreProvider.overrideWithValue(store);
@@ -767,7 +814,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       expect(
         store.rawString(
-          'chat.roomDraft.v1.${Uri.encodeComponent(conversation.id)}',
+          'chat.roomDraft.v2.$_ownerA.${Uri.encodeComponent(conversation.id)}',
         ),
         isNull,
       );
@@ -1223,13 +1270,252 @@ void main() {
     expect(find.text('Reply sent'), findsOneWidget);
   });
 
+  testWidgets(
+    'a persisted draft from member A is not restored for member B in the same room',
+    (tester) async {
+      final store = InMemoryPreferencesStore();
+      final memberA = FakeChatRepository(
+        loadRoomTimelineHandler: (_) async =>
+            buildTimeline(memberStorageScope: _ownerA),
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatRoomScreen(conversation: conversation),
+          overrides: overridesFor(memberA, store: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Private member A draft');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpWidget(const SizedBox.shrink());
+      final memberB = FakeChatRepository(
+        loadRoomTimelineHandler: (_) async =>
+            buildTimeline(memberStorageScope: _ownerB),
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatRoomScreen(conversation: conversation),
+          overrides: overridesFor(memberB, store: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        isEmpty,
+      );
+      expect(find.text('Private member A draft'), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatRoomScreen(conversation: conversation),
+          overrides: overridesFor(memberA, store: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Private member A draft',
+      );
+    },
+  );
+
+  for (final owner in [null, 'malformed', _ownerA]) {
+    testWidgets(
+      'legacy drafts are never adopted and unknown owners cannot persist; owner=$owner',
+      (tester) async {
+        final legacy =
+            'chat.roomDraft.v1.${Uri.encodeComponent(conversation.id)}';
+        final store = _DraftProbeStore({legacy: 'Legacy ownerless text'});
+        final repository = FakeChatRepository(
+          loadRoomTimelineHandler: (_) async =>
+              buildTimeline(memberStorageScope: owner),
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            const ChatRoomScreen(conversation: conversation),
+            overrides: overridesFor(repository, store: store),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          isEmpty,
+        );
+        expect(store.reads, isNot(contains(legacy)));
+        await tester.enterText(find.byType(TextField), 'Current draft');
+        await tester.pump(const Duration(milliseconds: 400));
+        if (owner == _ownerA) {
+          expect(
+            store.writes.single,
+            'chat.roomDraft.v2.$_ownerA.${Uri.encodeComponent(conversation.id)}',
+          );
+        } else {
+          expect(store.reads, isEmpty);
+          expect(store.writes, isEmpty);
+          await tester.tap(find.widgetWithText(FilledButton, 'Send'));
+          await tester.pumpAndSettle();
+          expect(store.removals, isEmpty);
+        }
+        expect(store.rawString(legacy), 'Legacy ownerless text');
+      },
+    );
+  }
+
+  testWidgets(
+    'deferred draft restoration never replaces typing followed by deletion',
+    (tester) async {
+      final held = Completer<String?>();
+      final store = _DraftProbeStore()..readDraft = (_) => held.future;
+      final repository = FakeChatRepository(
+        loadRoomTimelineHandler: (_) async =>
+            buildTimeline(memberStorageScope: _ownerA),
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatRoomScreen(conversation: conversation),
+          overrides: overridesFor(repository, store: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(store.reads, hasLength(1));
+      await tester.enterText(find.byType(TextField), 'New typing');
+      await tester.enterText(find.byType(TextField), '');
+      held.complete('Older persisted text');
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        isEmpty,
+      );
+      expect(find.text('Draft restored from this device.'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'verified owner change rejects a held old draft without workspace invalidation',
+    (tester) async {
+      final keyA =
+          'chat.roomDraft.v2.$_ownerA.${Uri.encodeComponent(conversation.id)}';
+      final keyB =
+          'chat.roomDraft.v2.$_ownerB.${Uri.encodeComponent(conversation.id)}';
+      final held = Completer<String?>();
+      var owner = _ownerA;
+      final store = _DraftProbeStore({keyB: 'Member B persisted text'});
+      store.readDraft = (key) =>
+          key == keyA ? held.future : Future.value(store.rawString(key));
+      final repository = FakeChatRepository(
+        loadRoomTimelineHandler: (_) async =>
+            buildTimeline(memberStorageScope: owner),
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatRoomScreen(conversation: conversation),
+          overrides: overridesFor(repository, store: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+      owner = _ownerB;
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Member B persisted text',
+      );
+      held.complete('Member A private text');
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Member B persisted text',
+      );
+      expect(store.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'an already started old-owner draft write never retargets the new owner',
+    (tester) async {
+      final keyA =
+          'chat.roomDraft.v2.$_ownerA.${Uri.encodeComponent(conversation.id)}';
+      final keyB =
+          'chat.roomDraft.v2.$_ownerB.${Uri.encodeComponent(conversation.id)}';
+      final held = Completer<void>();
+      var owner = _ownerA;
+      final store = _DraftProbeStore()..writeDraft = (_, _) => held.future;
+      final repository = FakeChatRepository(
+        loadRoomTimelineHandler: (_) async =>
+            buildTimeline(memberStorageScope: owner),
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatRoomScreen(conversation: conversation),
+          overrides: overridesFor(repository, store: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Member A unsent');
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(store.writes, [keyA]);
+      owner = _ownerB;
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        isEmpty,
+      );
+      held.complete();
+      await tester.pumpAndSettle();
+      expect(store.rawString(keyA), 'Member A unsent');
+      expect(store.rawString(keyB), isNull);
+      expect(store.writes, [keyA]);
+    },
+  );
+
+  testWidgets(
+    'verified owner change clears old content before delayed local restoration',
+    (tester) async {
+      final held = Completer<String?>();
+      var owner = _ownerA;
+      final store = _DraftProbeStore();
+      final repository = FakeChatRepository(
+        loadRoomTimelineHandler: (_) async => buildTimeline(
+          memberStorageScope: owner,
+          messages: owner == _ownerA ? null : [],
+        ),
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatRoomScreen(conversation: conversation),
+          overrides: overridesFor(repository, store: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Hey there'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'Member A local text');
+      store.readOther = (key) =>
+          key.startsWith(ArchivedMessageStore.storageKeyPrefix)
+          ? held.future
+          : Future.value(store.rawString(key));
+      owner = _ownerB;
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump();
+      expect(find.text('Hey there'), findsNothing);
+      expect(find.text('Member A local text'), findsNothing);
+      held.complete(null);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        isEmpty,
+      );
+    },
+  );
+
   testWidgets('restores a local unsent draft for the room', (tester) async {
     final semantics = tester.ensureSemantics();
     final repository = FakeChatRepository(
-      loadRoomTimelineHandler: (_) async => buildTimeline(),
+      loadRoomTimelineHandler: (_) async =>
+          buildTimeline(memberStorageScope: _ownerA),
     );
     final store = InMemoryPreferencesStore({
-      'chat.roomDraft.v1.${Uri.encodeComponent(conversation.id)}':
+      'chat.roomDraft.v2.$_ownerA.${Uri.encodeComponent(conversation.id)}':
           'Remember the release notes',
     });
 

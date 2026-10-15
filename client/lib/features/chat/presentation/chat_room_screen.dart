@@ -53,6 +53,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
   // Visibility changes discard reads, while valid sends may finish in the background.
   int _receiveGeneration = 0;
   int _authorityGeneration = 0;
+  int _composerRevision = 0;
+  String? _memberStorageScope;
+  String? _draftRestorationKey;
 
   bool get _canReceive =>
       mounted &&
@@ -85,6 +88,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     _isRestoringDraft = false;
     setState(() {
       _draftRestored = false;
+      _memberStorageScope = null;
+      _draftRestorationKey = null;
+      _composerRevision = 0;
       _accessDenied = true;
       _timeline = null;
       _archivedMessageIds = {};
@@ -138,14 +144,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     _pendingMessage = null;
     _archivedMessageIds = {};
     _draftRestored = false;
+    _memberStorageScope = null;
+    _draftRestorationKey = null;
+    _composerRevision = 0;
     _invitationAccepted = false;
     _accessDenied = false;
     _sending = false;
     _loading = !widget.conversation.isInvite;
     final generation = _authorityGeneration;
     Future<void>.microtask(() async {
-      if (!mounted || generation != _authorityGeneration) return;
-      await _restoreDraft();
       if (!mounted || generation != _authorityGeneration) return;
       _started = true;
       await _loadTimeline();
@@ -183,8 +190,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     final generation = _authorityGeneration;
     Future<void>.microtask(() async {
       if (!mounted || generation != _authorityGeneration) return;
-      await _restoreDraft();
-      if (!mounted || generation != _authorityGeneration) return;
       _started = true;
       await _loadTimeline();
     });
@@ -203,50 +208,82 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     super.dispose();
   }
 
-  Future<void> _restoreDraft() async {
+  bool _bindDraftOwner(String? scope) {
+    final owner = scope != null && RegExp(r'^[0-9a-f]{64}$').hasMatch(scope)
+        ? scope
+        : null;
+    if (_memberStorageScope == owner) return false;
+    _authorityGeneration++;
+    _draftSaveDebounce?.cancel();
     _isRestoringDraft = true;
+    _composerController.clear();
+    _isRestoringDraft = false;
+    _composerRevision = 0;
+    _memberStorageScope = owner;
+    _draftRestorationKey = null;
+    _draftRestored = false;
+    _pendingMessage = null;
+    _sending = false;
+    return true;
+  }
+
+  Future<void> _restoreDraft() async {
+    final key = _draftKey;
+    if (key == null ||
+        _draftRestorationKey == key ||
+        _composerController.text.isNotEmpty) {
+      return;
+    }
+    _draftRestorationKey = key;
     final generation = _authorityGeneration;
-    final roomId = widget.conversation.id;
+    final revision = _composerRevision;
+    final store = ref.read(preferencesStoreProvider);
     try {
-      final draft = await ref
-          .read(preferencesStoreProvider)
-          .getString(_draftKey);
+      final draft = await store.getString(key);
       if (!mounted ||
           generation != _authorityGeneration ||
-          roomId != widget.conversation.id ||
+          revision != _composerRevision ||
+          key != _draftKey ||
+          _composerController.text.isNotEmpty ||
           draft == null ||
           draft.trim().isEmpty) {
         return;
       }
+      _isRestoringDraft = true;
       _composerController.text = draft;
+      _isRestoringDraft = false;
       setState(() {
         _draftRestored = true;
       });
-    } finally {
-      if (mounted && generation == _authorityGeneration) {
-        _isRestoringDraft = false;
-      }
+    } catch (_) {
+      // Optional local drafts cannot bypass or interrupt an authorized room receive.
     }
   }
 
   void _onComposerChanged() {
-    if (_isRestoringDraft) {
-      return;
-    }
+    if (_isRestoringDraft) return;
+    _composerRevision++;
     _draftSaveDebounce?.cancel();
+    final key = _draftKey;
+    if (key == null) return;
+    final generation = _authorityGeneration;
+    final text = _composerController.text;
+    final store = ref.read(preferencesStoreProvider);
     _draftSaveDebounce = Timer(const Duration(milliseconds: 300), () async {
-      final text = _composerController.text;
-      final store = ref.read(preferencesStoreProvider);
+      if (!mounted || generation != _authorityGeneration || key != _draftKey) {
+        return;
+      }
       if (text.trim().isEmpty) {
-        await store.remove(_draftKey);
+        await store.remove(key);
       } else {
-        await store.setString(_draftKey, text);
+        await store.setString(key, text);
       }
     });
   }
 
-  String get _draftKey =>
-      'chat.roomDraft.v1.${Uri.encodeComponent(widget.conversation.id)}';
+  String? get _draftKey => _memberStorageScope == null
+      ? null
+      : 'chat.roomDraft.v2.$_memberStorageScope.${Uri.encodeComponent(widget.conversation.id)}';
 
   Future<void> _acceptInvitation() async {
     if (_loading) return;
@@ -279,8 +316,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
         _started = true;
         _loading = false;
       });
-      await _restoreDraft();
-      if (!current()) return;
       await _loadTimeline();
     } on ChatFailure catch (failure) {
       if (!current()) return;
@@ -351,6 +386,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     try {
       final timeline = await repository.loadRoomTimeline(roomId);
       if (!current()) return;
+      if (_bindDraftOwner(timeline.memberStorageScope)) {
+        setState(() {
+          _timeline = null;
+          _archivedMessageIds = {};
+          _loading = true;
+        });
+      }
       final archivedMessageIds = await archives.loadArchivedMessageIds(roomId);
       if (!current()) return;
       setState(() {
@@ -359,6 +401,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
         _failure = null;
         _loading = false;
       });
+      unawaited(_restoreDraft());
       unawaited(
         repository.markRoomRead(roomId).catchError((Object _) {
           // A read marker cannot invalidate a successfully received timeline.
@@ -401,6 +444,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     final generation = _authorityGeneration;
     final roomId = widget.conversation.id;
     final repository = ref.read(chatRepositoryProvider);
+    final draftKey = _draftKey;
+    final draftStore = draftKey == null
+        ? null
+        : ref.read(preferencesStoreProvider);
     bool current() =>
         mounted &&
         generation == _authorityGeneration &&
@@ -422,7 +469,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
       await repository.sendMessage(roomId: roomId, message: message);
       if (!current()) return;
       _composerController.clear();
-      await ref.read(preferencesStoreProvider).remove(_draftKey);
+      if (draftKey != null) await draftStore!.remove(draftKey);
       if (!current()) return;
       await _loadTimeline();
       if (!current()) return;
