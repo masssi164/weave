@@ -20,8 +20,12 @@ persistent Dogfood profile or data is used. The flag is internal runner tooling,
 not product configuration. Unset it for the unchanged qualification behavior.
 
 The operator must refuse a running or queued conflicting Mac job and monitor the
-owned startup process from its beginning. The native owner also watches for a new
-`Runner.Worker` throughout preparation, browser work and the warm hold. It yields
+owned startup process from its beginning. After the native monitor emits the
+fresh, source-bound `NATIVE_LOCAL_INSPECTION phase=priority-watch-ready` record,
+the operator records its byte offset/hash and hands observation to that monitor.
+It stops the startup observer rather than running two interruption owners. The
+native monitor watches for a new `Runner.Worker` throughout native preparation,
+browser work and the warm hold. It reports fixed `worker` or `unknown` reasons and yields
 by interrupting itself, stopping only its registered groups and invoking existing
 owned cleanup. This is observation-based priority, not an atomic CI mutex: a tiny
 observation/cleanup race remains. Do not claim GitHub concurrency protects local

@@ -79,6 +79,50 @@ class DualIosCollaborationTest(unittest.TestCase):
             self.assertEqual(dual.inspect_with_ci_priority(lambda: 70 if yielded.wait(3) else self.fail('CI not observed')), 70)
         stop.assert_called_once_with(os.getpid(), dual.signal.SIGINT)
 
+    def test_inspection_priority_handoff_is_armed_and_unknown_still_yields(self):
+        threads = []
+        real_thread = threading.Thread
+        observed = threading.Event()
+        output = io.StringIO()
+        def thread(*args, **kwargs):
+            created = real_thread(*args, **kwargs); threads.append(created); return created
+        def operation():
+            self.assertIn('phase=priority-watch-ready', output.getvalue())
+            self.assertTrue(threads[0].is_alive())
+            self.assertTrue(observed.wait(3), 'unknown ownership must interrupt')
+            return 70
+        with contextlib.redirect_stdout(output), \
+             mock.patch.object(dual.threading, 'Thread', side_effect=thread), \
+             mock.patch.object(dual, 'inspection_ci_workers', side_effect=[0, OSError('private detector failure')]), \
+             mock.patch.object(dual.os, 'kill', side_effect=lambda _pid, _signal: observed.set()) as stop:
+            self.assertEqual(dual.inspect_with_ci_priority(operation), 70)
+        stop.assert_called_once_with(os.getpid(), dual.signal.SIGINT)
+        self.assertFalse(threads[0].is_alive())
+        self.assertIn('phase=yield-ci reason=unknown workerCount=unavailable exceptionClass=OSError returnCode=unavailable', output.getvalue())
+        self.assertNotIn('private detector failure', output.getvalue())
+
+    def test_inspection_priority_failed_ps_exit_is_fixed_and_interrupts(self):
+        observed = threading.Event()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), \
+             mock.patch.object(dual, 'inspection_ci_workers', side_effect=[0, subprocess.CalledProcessError(7, ['private-command'], stderr='private-stderr')]), \
+             mock.patch.object(dual.os, 'kill', side_effect=lambda _pid, _signal: observed.set()):
+            self.assertEqual(dual.inspect_with_ci_priority(lambda: 70 if observed.wait(3) else self.fail('PS error was ignored')), 70)
+        self.assertIn('reason=unknown workerCount=unavailable exceptionClass=CalledProcessError returnCode=7', output.getvalue())
+        self.assertNotIn('private-', output.getvalue())
+
+    def test_inspection_priority_monitor_stops_when_operation_fails(self):
+        threads = []
+        real_thread = threading.Thread
+        def thread(*args, **kwargs):
+            created = real_thread(*args, **kwargs); threads.append(created); return created
+        original = RuntimeError('original operation failure')
+        with contextlib.redirect_stdout(io.StringIO()), mock.patch.object(dual.threading, 'Thread', side_effect=thread), mock.patch.object(dual, 'inspection_ci_workers', return_value=0):
+            with self.assertRaises(RuntimeError) as caught:
+                dual.inspect_with_ci_priority(lambda: (_ for _ in ()).throw(original))
+        self.assertIs(caught.exception, original)
+        self.assertFalse(threads[0].is_alive())
+
     def test_inspection_attach_uses_pinned_real_cli_parser(self):
         with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {'WEAVE_E2E_RUN_ID': 'owned-test'}):
             command = dual.inspection_attach_command('http://127.0.0.1:12345/owned/', 'owned-disposable-simulator', Path(temporary))

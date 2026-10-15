@@ -796,16 +796,32 @@ def inspect_with_ci_priority(operation) -> int:
     def observe():
         while not stopped.wait(0.5):
             try:
-                conflict = inspection_ci_workers() != 0
-            except (OSError, subprocess.SubprocessError):
+                count = inspection_ci_workers()
+                conflict = count != 0
+                reason = 'worker'
+                count_record = str(min(count, 999))
+                exception_class = 'unavailable'
+                return_code = '0'
+            except (OSError, subprocess.SubprocessError) as error:
                 conflict = True
+                reason = 'unknown'
+                count_record = 'unavailable'
+                exception_class = type(error).__name__ if type(error).__name__ in {
+                    'OSError', 'FileNotFoundError', 'PermissionError', 'TimeoutExpired', 'CalledProcessError'} else 'unavailable'
+                code = error.returncode if isinstance(error, subprocess.CalledProcessError) else None
+                return_code = str(code) if type(code) is int and -999 <= code <= 999 else 'unavailable'
             if conflict:
-                print('NATIVE_LOCAL_INSPECTION phase=yield-ci qualificationPassed=false supportSafe=true', flush=True)
-                os.kill(os.getpid(), signal.SIGINT)
+                try:
+                    print('NATIVE_LOCAL_INSPECTION phase=yield-ci reason=' + reason + ' workerCount=' + count_record
+                          + ' exceptionClass=' + exception_class + ' returnCode=' + return_code
+                          + ' qualificationPassed=false supportSafe=true', flush=True)
+                finally:
+                    os.kill(os.getpid(), signal.SIGINT)
                 return
     monitor = threading.Thread(target=observe, daemon=True)
     monitor.start()
     try:
+        print('NATIVE_LOCAL_INSPECTION phase=priority-watch-ready qualificationPassed=false supportSafe=true', flush=True)
         return operation()
     finally:
         stopped.set()
