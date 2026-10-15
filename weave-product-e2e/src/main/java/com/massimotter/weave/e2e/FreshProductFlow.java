@@ -591,7 +591,7 @@ public final class FreshProductFlow {
     process.environment().put("WEAVE_NATIVE_MEMBER_EMAIL", memberEmail);
     process.environment().put("WEAVE_NATIVE_MEMBER_PASSWORD", memberPassword);
     process.environment().put("WEAVE_NATIVE_ISSUER", environment.issuer().toString());
-    process.environment().put("WEAVE_NATIVE_API_BASE_URL", environment.apiOrigin() + "/api");
+    process.environment().put("WEAVE_NATIVE_API_BASE_URL", environment.api("/api").toString());
     process.environment().put("WEAVE_NATIVE_MATRIX_URL", environment.apiOrigin().toString());
     process.environment().put("WEAVE_NATIVE_CA", environment.caCertificate().toString());
     process.inheritIO();
