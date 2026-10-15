@@ -1,5 +1,8 @@
 """Regression cases for complete consumer inputs and the protected CI aggregate."""
+import contextlib
+import io
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -11,6 +14,109 @@ from tools import dev_ci_results as results
 
 
 class ImpactTest(unittest.TestCase):
+    def test_native_driver_profile_requires_complete_existing_single_input(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(impact, 'ROOT', Path(tmp)):
+            driver = Path(tmp) / impact.NATIVE_DRIVER
+            driver.parent.mkdir(parents=True)
+            driver.write_text('owned driver')
+            self.assertTrue(impact.native_driver_only([impact.NATIVE_DRIVER]))
+            for other in (
+                'client/lib/main.dart', 'client/pubspec.yaml',
+                'client/tool/run_dual_ios_collaboration.py',
+                'client/ios/Runner.xcodeproj/project.pbxproj', 'client/Makefile',
+                'gradle/tasks/verification.gradle', '.github/workflows/ci.yml',
+                'unknown/input',
+            ):
+                for paths in ([other], [impact.NATIVE_DRIVER, other], [other, impact.NATIVE_DRIVER]):
+                    with self.subTest(paths=paths):
+                        self.assertFalse(impact.native_driver_only(paths))
+            for paths in (None, []):
+                self.assertFalse(impact.native_driver_only(paths))
+            driver.unlink()
+            self.assertFalse(impact.native_driver_only([impact.NATIVE_DRIVER]))
+            target = Path(tmp) / 'other.swift'
+            target.write_text('not the owned regular driver')
+            driver.symlink_to(target)
+            self.assertFalse(impact.native_driver_only([impact.NATIVE_DRIVER]))
+
+    def test_actual_driver_git_rename_delete_and_failed_base_cannot_narrow(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(impact, 'ROOT', Path(tmp)):
+            def git(*args):
+                return subprocess.check_output(['git', '-C', tmp, *args],
+                                               stderr=subprocess.DEVNULL).decode().strip()
+            git('init'); git('config', 'user.email', 'ci@example.invalid'); git('config', 'user.name', 'CI')
+            driver = Path(tmp) / impact.NATIVE_DRIVER
+            driver.parent.mkdir(parents=True)
+            driver.write_text('before')
+            git('add', '.'); git('commit', '-m', 'base')
+            base = git('rev-parse', 'HEAD')
+            driver.write_text('after')
+            git('add', '.'); git('commit', '-m', 'driver edit')
+            real_run = subprocess.run
+            with patch('tools.dev_ci_impact.subprocess.run',
+                       side_effect=lambda *args, **kwargs: real_run(*args, cwd=tmp, **kwargs)):
+                self.assertTrue(impact.native_driver_only(impact.changed_paths(base)))
+                self.assertFalse(impact.native_driver_only(impact.changed_paths('e' * 40)))
+                driver.rename(driver.with_name('Renamed.swift'))
+                git('add', '.'); git('commit', '-m', 'rename')
+                paths = impact.changed_paths(base)
+                self.assertEqual(set(paths), {impact.NATIVE_DRIVER,
+                    'client/tool/ios_browser_driver/Renamed.swift'})
+                self.assertFalse(impact.native_driver_only(paths))
+                driver.with_name('Renamed.swift').unlink()
+                git('add', '.'); git('commit', '-m', 'delete')
+                self.assertEqual(impact.changed_paths(base), [impact.NATIVE_DRIVER])
+                self.assertFalse(impact.native_driver_only(impact.changed_paths(base)))
+
+    def test_profile_output_preserves_gate_and_aggregate_contract(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(impact, 'ROOT', Path(tmp)):
+            driver = Path(tmp) / impact.NATIVE_DRIVER
+            driver.parent.mkdir(parents=True)
+            driver.write_text('driver')
+            for paths in ([impact.NATIVE_DRIVER], None, []):
+                output_file = Path(tmp) / 'output'
+                output_file.write_text('')
+                with patch.object(impact, 'changed_paths', return_value=paths), \
+                        patch('sys.argv', ['dev_ci_impact.py']), \
+                        patch.dict(os.environ, {'GITHUB_OUTPUT': str(output_file)}), \
+                        contextlib.redirect_stdout(io.StringIO()) as stdout:
+                    impact.main()
+                self.assertEqual(output_file.read_text(), stdout.getvalue())
+                outputs = dict(line.split('=', 1) for line in stdout.getvalue().splitlines())
+                gates = impact.select(paths)
+                self.assertEqual({k: outputs[k] for k in impact.GATES},
+                                 {k: str(v).lower() for k, v in gates.items()})
+                self.assertEqual(outputs['client_native_driver_only'],
+                                 'true' if paths else 'false')
+                impact.validate_results(outputs, {k: 'success' if v else 'skipped'
+                                                  for k, v in gates.items()})
+
+    def test_workflow_executes_only_static_commands_and_defaults_to_full(self):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/ci.yml').read_text()
+        job = workflow.split('  client_deterministic:\n', 1)[1].split('  admin_deterministic:', 1)[0]
+        branch = re.search(r'(?ms)^          if \[\[.*?^          fi$', job).group()
+        script = '\n'.join(line[10:] for line in branch.splitlines())
+        with tempfile.TemporaryDirectory() as tmp:
+            gradle = Path(tmp) / 'gradlew'
+            gradle.write_text('#!/bin/sh\nprintf "%s\n" "$@"\n')
+            gradle.chmod(0o700)
+            for value, expected in (
+                ('true', 'nativeQualificationContractTest'),
+                ('false', 'clientDeterministicCi'), ('', 'clientDeterministicCi'),
+                ('TRUE', 'clientDeterministicCi'), ('true extra', 'clientDeterministicCi'),
+                ('$(touch injected)', 'clientDeterministicCi'),
+            ):
+                with self.subTest(value=value):
+                    result = subprocess.run(['bash', '-eu', '-c', script], cwd=tmp,
+                        env={**os.environ, 'CLIENT_NATIVE_DRIVER_ONLY': value},
+                        capture_output=True, text=True, check=True)
+                    self.assertEqual(result.stdout.splitlines(), ['--no-daemon', '--stacktrace', expected])
+                    self.assertFalse((Path(tmp) / 'injected').exists())
+            result = subprocess.run(['bash', '-e', '-c', script], cwd=tmp,
+                env={k: v for k, v in os.environ.items() if k != 'CLIENT_NATIVE_DRIVER_ONLY'},
+                capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout.splitlines()[-1], 'clientDeterministicCi')
+
     def test_audiences_are_independent(self):
         user = impact.select(['contracts/openapi/weave-user-openapi.json'])
         admin = impact.select(['contracts/openapi/weave-admin-openapi.json'])
