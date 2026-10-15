@@ -444,7 +444,7 @@ public final class FreshProductFlow {
             browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
             memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
-            browser, outsiderSession, organizationId, adminSession, memberSession, personRef, nativeNames);
+            browser, outsiderSession, outsiderEmail, outsiderPassword, organizationId, adminSession, memberSession, personRef, nativeNames);
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
             release.bindingRef(), mcpProof, restartProof, revocationDenied,
             calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
@@ -541,7 +541,7 @@ public final class FreshProductFlow {
             browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
             memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
-            browser, outsiderSession, organizationId, adminSession, memberSession, personRef, nativeNames);
+            browser, outsiderSession, outsiderEmail, outsiderPassword, organizationId, adminSession, memberSession, personRef, nativeNames);
 
         writeEvidence(
             startedAt,
@@ -580,7 +580,8 @@ public final class FreshProductFlow {
   private void runNativeAuthorizedJourney(
       String memberEmail, String memberPassword, String ownerSubject,
       String peerEmail, String peerPassword, String peerSubject, String invitationHandle,
-      OidcBrowserJourney browser, OidcBrowserJourney.TokenSet outsiderSession, String organizationId,
+      OidcBrowserJourney browser, OidcBrowserJourney.TokenSet outsiderSession,
+      String outsiderEmail, String outsiderPassword, String organizationId,
       OidcBrowserJourney.TokenSet nativeAdminSession, OidcBrowserJourney.TokenSet nativePeerSession, String nativePeerAccountRef,
       NativeActorNames nativeNames) {
     String runner = System.getProperty("weave.e2e.native-runner", "");
@@ -644,7 +645,14 @@ public final class FreshProductFlow {
             throw new ProductFlowException("native authorization request was repeated");
           }
           JsonNode request = requireOwnedNativeAuthorizationRequest(authorizationRequest, environment.runId(), ownerSubject, peerSubject);
-          outsiderSession = browser.refresh(outsiderSession);
+          // Native build/inspection can outlast an idle refresh grant. Acquire a real
+          // fixture browser session only when its owned resource probes are requested.
+          var currentOutsider = browser.authorize("weave-app", URI.create("com.massimotter.weave:/oauthredirect"),
+              List.of("openid", "profile", "email"), outsiderEmail, outsiderPassword, "native-denied-fixture");
+          JsonNode outsiderClaims = browser.jwtPayload(currentOutsider.accessToken());
+          validateHumanWorkspaceToken(outsiderClaims, "weave-app");
+          requireNativeFixtureIdentity(outsiderSession, currentOutsider, outsiderClaims, "guest");
+          outsiderSession = currentOutsider;
           var deniedActor = new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
               .authenticatedUser(outsiderSession.accessToken());
           if (!outsiderSession.subject().equals(deniedActor.getSubject())
@@ -659,7 +667,13 @@ public final class FreshProductFlow {
               + "/content", "code", "files-forbidden", bearer);
           requireNativeDenial("calendar", "/api/calendar/calendars/" + nativePath(resources.path("calendarId").asString())
               + "/events/" + nativePath(resources.path("eventId").asString()), "code", "calendar-forbidden", bearer);
-          nativeAdminSession = browser.refresh(nativeAdminSession);
+          var currentAdmin = browser.authorize("weave-admin-console", environment.productOrigin().resolve("/admin-console/"),
+              List.of("openid", "profile", "email", "agent-runtime.admin"), memberEmail, memberPassword,
+              "native-mutation-admin-fixture");
+          JsonNode adminClaims = browser.jwtPayload(currentAdmin.accessToken());
+          validateAdminToken(adminClaims);
+          requireNativeFixtureIdentity(nativeAdminSession, currentAdmin, adminClaims, "owner");
+          nativeAdminSession = currentAdmin;
           requireNativeMutationDenials(http, environment.apiOrigin(), resources, environment.runId(),
               bearer, Map.of("Authorization", "Bearer " + nativeAdminSession.accessToken()));
           System.out.println("NATIVE_IOS_AUTHORIZATION readDenials=3 mutationDenials=3 supportSafe=true");
@@ -683,8 +697,19 @@ public final class FreshProductFlow {
             throw new ProductFlowException("native current grant exchange ordering was invalid");
           }
           JsonNode request = requireOwnedNativeAuthorizationRequest(revocationRequest, environment.runId(), ownerSubject, peerSubject);
-          nativeAdminSession = browser.refresh(nativeAdminSession);
-          nativePeerSession = browser.refresh(nativePeerSession);
+          var currentAdmin = browser.authorize("weave-admin-console", environment.productOrigin().resolve("/admin-console/"),
+              List.of("openid", "profile", "email", "agent-runtime.admin"), memberEmail, memberPassword,
+              "native-revocation-admin-fixture");
+          JsonNode adminClaims = browser.jwtPayload(currentAdmin.accessToken());
+          validateAdminToken(adminClaims);
+          requireNativeFixtureIdentity(nativeAdminSession, currentAdmin, adminClaims, "owner");
+          nativeAdminSession = currentAdmin;
+          var currentPeer = browser.authorize("weave-app", URI.create("com.massimotter.weave:/oauthredirect"),
+              List.of("openid", "profile", "email"), peerEmail, peerPassword, "native-revocation-peer-fixture");
+          JsonNode peerClaims = browser.jwtPayload(currentPeer.accessToken());
+          validateHumanWorkspaceToken(peerClaims, "weave-app");
+          requireNativeFixtureIdentity(nativePeerSession, currentPeer, peerClaims, "member");
+          nativePeerSession = currentPeer;
           String fileId = request.path("resources").path("fileId").asString();
           new GeneratedSpacesJourney(environment).verifyRevocationAndVersionedRegrant(
               nativeAdminSession.accessToken(), nativePeerSession.accessToken(), nativePeerAccountRef, fileId);
@@ -761,6 +786,19 @@ public final class FreshProductFlow {
     JsonNode denial = http.json("native current third-identity " + category + " denial", "GET",
         environment.apiOrigin().resolve(path), bearer, null, Set.of(403));
     requireNativeDenialCode(denial, category, field, code);
+  }
+
+  static void requireNativeFixtureIdentity(OidcBrowserJourney.TokenSet expected,
+      OidcBrowserJourney.TokenSet current, JsonNode claims, String expectedRole) {
+    Set<String> productRoles = Set.of("owner", "admin", "member", "guest");
+    Set<String> actualRoles = organizationRoles(claims, "weave-app").stream()
+        .filter(productRoles::contains).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    if (!expected.subject().equals(current.subject()) || !current.subject().equals(claims.path("sub").asString())
+        || !expected.clientId().equals(current.clientId()) || !current.clientId().equals(claims.path("azp").asString())
+        || !Set.copyOf(expected.requestedScopes()).equals(Set.copyOf(current.requestedScopes()))
+        || NativeOrganizationClaims.violation(claims) != null || !actualRoles.equals(Set.of(expectedRole))) {
+      throw new ProductFlowException("native fixture identity authority changed");
+    }
   }
 
   static void requireNativeMutationDenials(JsonHttpClient http, URI origin, JsonNode resources,
