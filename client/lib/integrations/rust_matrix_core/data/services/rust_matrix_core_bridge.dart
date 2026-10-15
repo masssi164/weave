@@ -372,6 +372,7 @@ class RustMatrixEncryptedRoom {
     required this.unreadCount,
     required this.encrypted,
     this.isInvite = false,
+    this.isDirect = false,
   });
 
   factory RustMatrixEncryptedRoom.fromJson(Map<String, dynamic> json) {
@@ -381,6 +382,7 @@ class RustMatrixEncryptedRoom {
       unreadCount: _integer(json['unreadCount']),
       encrypted: json['encrypted'] == true,
       isInvite: json['membership'] == 'invited',
+      isDirect: json['isDirect'] == true,
     );
   }
 
@@ -389,6 +391,7 @@ class RustMatrixEncryptedRoom {
   final int unreadCount;
   final bool encrypted;
   final bool isInvite;
+  final bool isDirect;
 }
 
 class RustMatrixVerificationProjection {
@@ -663,12 +666,14 @@ class RustMatrixCoreBridge {
     required String profileKey,
     required String title,
     required List<String> memberIds,
+    bool isDirect = false,
   }) async => RustMatrixEncryptedRoom.fromJson(
     await _native(
       () => matrixCreateBusinessRoomWithMembers(
         profileKey: profileKey,
         title: title,
         memberIds: memberIds,
+        isDirect: isDirect,
       ),
     ),
   );

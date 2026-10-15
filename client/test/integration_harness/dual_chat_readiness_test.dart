@@ -87,6 +87,7 @@ class _PeerRepository extends FakeChatRepository
   Future<ChatConversation> createConversationWithParticipants({
     required String title,
     required List<ChatParticipant> participants,
+    bool isDirect = false,
   }) async {
     submitted = participants;
     throw const ChatFailure.protocol('Controlled creation refusal');
@@ -492,6 +493,12 @@ void main() {
     testWidgets('actual dialog requires checked peer; activation=$activate', (
       tester,
     ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 336);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
       final repository = _PeerRepository();
       await tester.pumpWidget(
         createTestApp(
@@ -522,8 +529,11 @@ void main() {
       final peer = find.widgetWithText(CheckboxListTile, 'Private peer');
       expect(peer, findsOneWidget);
       if (activate) {
-        await tester.tap(peer);
-        await tester.pumpAndSettle();
+        await tapNativeDualPeer(
+          tester,
+          peer,
+          deadline: DateTime.now().add(const Duration(seconds: 2)),
+        );
         await requireNativeDualPeerSelected(
           tester,
           peer,
@@ -545,14 +555,15 @@ void main() {
         );
         expect(repository.submitted, isNull);
       }
-      // Former unchecked continuation admits Create with zero selected members.
+      // Direct creation independently rejects an unselected recipient.
       final create = find.byKey(
         const Key('chat-create-conversation-submit-button'),
       );
       await tester.ensureVisible(create);
+      await tester.pump();
       await tester.tap(create);
       await tester.pumpAndSettle();
-      expect(repository.submitted?.length, activate ? 1 : 0);
+      expect(repository.submitted?.length, activate ? 1 : null);
       if (activate) {
         expect(repository.submitted?.single.userId, '@peer:weave.test');
       }
@@ -906,6 +917,7 @@ void main() {
       AsyncError(privateError, StackTrace.current),
     );
     expect(visible, contains('roomVisible=1 roomMounted=1'));
+    expect(visible, contains('invitedRoomVisible=0 nonInvitedRoomVisible=1'));
     expect(visible, contains('bootstrapError=true'));
     expect(
       visible,

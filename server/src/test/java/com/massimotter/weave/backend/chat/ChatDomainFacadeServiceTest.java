@@ -697,6 +697,55 @@ class ChatDomainFacadeServiceTest {
         assertThat(service.canDiscoverParticipant(memberJwt(), outsider)).isFalse();
     }
 
+    @Test
+    void directCreationRechecksCurrentActorRecipientAndSpaceOnEveryRetryBeforeProviderPreparation() {
+        var selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        var capabilities = Mockito.mock(WorkspaceCapabilityService.class);
+        var snapshot = new WorkspaceCapabilitiesResponse(capability(), capability(), capability(), capability(), capability(), capability());
+        when(capabilities.snapshot()).thenReturn(snapshot);
+        when(capabilities.snapshot(any())).thenReturn(snapshot);
+        var provider = Mockito.mock(ChatProviderPort.class);
+        when(provider.configured()).thenReturn(true);
+        when(provider.providerSelectionKeys()).thenReturn(Set.of("synapse-homeserver"));
+        when(provider.readiness()).thenReturn(ProviderReadiness.ready("chat-provider-ready"));
+        var members = Mockito.mock(com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.class);
+        var spaces = Mockito.mock(SpaceAccessPort.class);
+        when(spaces.allows(any(), any(), any(), any())).thenReturn(true);
+        var service = new ChatDomainFacadeService(
+                new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections), selections, capabilities,
+                new InMemoryAuditEventPublisher(), provider, allowAllContexts(), contextProperties(),
+                OrganizationIdentityContextResolver.configured(contextProperties()), FIXED, null,
+                new DurableChatSpaceAccess(spaces), members);
+        String issuer = memberJwt().getIssuer().toString();
+        var peer = new com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity(
+                new com.massimotter.weave.backend.chat.domain.ChatIdentityRef("weave-dogfood", issuer,
+                        new com.massimotter.weave.backend.chat.domain.ChatActorRef("user:peer")), "user:peer");
+        var self = new com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity(
+                new com.massimotter.weave.backend.chat.domain.ChatIdentityRef("weave-dogfood", issuer,
+                        new com.massimotter.weave.backend.chat.domain.ChatActorRef("user:member-123")), "user:member-123");
+        service.createConversation("direct-transaction", "Direct", "direct", List.of(peer), memberJwt());
+        verify(members).requireCurrentMember(any(), eq(issuer), eq("member-123"));
+        verify(members).requireCurrentMember(any(), eq(issuer), eq("peer"));
+        for (var invalid : List.of(List.<com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity>of(),
+                List.of(self), List.of(peer, peer), List.of(peer, self))) {
+            assertThatThrownBy(() -> service.createConversation("invalid-pair", "Direct", "direct", invalid, memberJwt()))
+                    .isInstanceOf(ChatAccessDeniedException.class);
+        }
+        Mockito.doThrow(new com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Denied())
+                .when(members).requireCurrentMember(any(), eq(issuer), eq("peer"));
+        assertThatThrownBy(() -> service.createConversation("direct-transaction", "Direct", "direct", List.of(peer), memberJwt()))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        Mockito.doThrow(new com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Unavailable())
+                .when(members).requireCurrentMember(any(), eq(issuer), eq("peer"));
+        assertThatThrownBy(() -> service.createConversation("direct-transaction", "Direct", "direct", List.of(peer), memberJwt()))
+                .isInstanceOf(com.massimotter.weave.backend.chat.domain.ChatProviderUnavailableException.class);
+        when(spaces.allows(eq("weave-dogfood"), any(), eq(IdentityReferences.accountId(issuer, "peer")), any())).thenReturn(false);
+        assertThatThrownBy(() -> service.createConversation("direct-transaction", "Direct", "direct", List.of(peer), memberJwt()))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        verify(provider, times(1)).createConversation(any(ChatRequestContext.class), any(), any(), any(), any(), any());
+    }
+
     private ChatDomainFacadeService service(
             ProviderSelectionRepository selections,
             boolean configuredProvider,

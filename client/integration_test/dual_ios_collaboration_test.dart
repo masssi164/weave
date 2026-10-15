@@ -637,6 +637,14 @@ void main() {
               rethrow;
             }
             await tester.enterText(name, conversation);
+            expect(
+              tester
+                  .widget<SwitchListTile>(
+                    find.byKey(const Key('chat-create-direct-switch')),
+                  )
+                  .value,
+              isTrue,
+            );
             final participant = find.byKey(
               const Key('chat-create-conversation-participant-field'),
             );
@@ -700,17 +708,17 @@ void main() {
             await tapNativeDualChatConversation(tester, conversation);
             await _wait(
               tester,
-              () =>
-                  find
-                      .byKey(const Key('chat-accept-invitation-button'))
-                      .evaluate()
-                      .length ==
-                  1,
+              () => find.byType(ChatRoomScreen).evaluate().length == 1,
               const Duration(seconds: 60),
             );
-            await _tap(
-              tester,
+            final direct = tester
+                .widget<ChatRoomScreen>(find.byType(ChatRoomScreen))
+                .conversation;
+            expect(direct.isDirectMessage, isTrue);
+            expect(direct.isInvite, isFalse);
+            expect(
               find.byKey(const Key('chat-accept-invitation-button')),
+              findsNothing,
             );
             await _wait(
               tester,
@@ -1685,6 +1693,8 @@ String nativeDualChatSurfaceDiagnostic(
   return 'NATIVE_PRODUCT_STAGE phase=chat-send-surface '
       'roomVisible=${count(find.byType(ChatRoomScreen))} '
       'roomMounted=${count(find.byType(ChatRoomScreen, skipOffstage: false))} '
+      'invitedRoomVisible=${count(find.byWidgetPredicate((widget) => widget is ChatRoomScreen && widget.conversation.isInvite))} '
+      'nonInvitedRoomVisible=${count(find.byWidgetPredicate((widget) => widget is ChatRoomScreen && !widget.conversation.isInvite))} '
       'sessionRequiredCount=${copy == null ? 0 : withinRoom(find.text(copy.chatErrorSessionRequiredGuidance))} '
       'invitationCount=${withinRoom(find.byKey(const Key('chat-accept-invitation-button')))} '
       'archiveReturnCount=${copy == null ? 0 : withinRoom(find.widgetWithText(OutlinedButton, copy.chatRoomActiveTimelineAction))} '

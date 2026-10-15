@@ -55,6 +55,47 @@ class MemberDisplayNameQueryTest {
         verifyNoInteractions(identities, profiles);
     }
 
+    @Test
+    void currentAdmissionRequiresLiveEnabledUnambiguousMemberWithoutUsingNamesOrProfiles() {
+        when(identities.configuredOrganizationId()).thenReturn("provider-org");
+        when(identities.requireMember("provider-org", "peer")).thenReturn(member("peer", "", true));
+        query().requireCurrentMember(jwt(ISSUER, "tenant-default"), ISSUER, "peer");
+        verifyNoInteractions(profiles);
+        for (ProviderMember invalid : List.of(member("peer", "Name", false),
+                member("other", "Name", true),
+                new ProviderMember("peer", "", "Name", List.of("member", "admin"), List.of(), true))) {
+            when(identities.requireMember("provider-org", "peer")).thenReturn(invalid);
+            assertThatThrownBy(() -> query().requireCurrentMember(jwt(ISSUER, "tenant-default"), ISSUER, "peer"))
+                    .isInstanceOf(com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Denied.class);
+        }
+    }
+
+    @Test
+    void offboardedAndUnavailableMembershipFailClosedWithTypedNonProviderErrors() {
+        when(identities.configuredOrganizationId()).thenReturn("provider-org");
+        for (int status : List.of(404, 503)) {
+            doThrow(new KeycloakIdentityAdminClient.KeycloakAdminException(status, "private provider detail"))
+                    .when(identities).requireMember("provider-org", "peer");
+            assertThatThrownBy(() -> query().requireCurrentMember(jwt(ISSUER, "tenant-default"), ISSUER, "peer"))
+                    .isInstanceOf(status == 404
+                            ? com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Denied.class
+                            : com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Unavailable.class)
+                    .hasMessageNotContaining("private");
+        }
+        verifyNoInteractions(profiles);
+    }
+
+    @Test
+    void currentAdmissionRejectsForeignCallerOrRecipientBeforeProviderAccess() {
+        for (Jwt caller : List.of(jwt(ISSUER, "other-org"), jwt("https://foreign.invalid", "tenant-default"))) {
+            assertThatThrownBy(() -> query().requireCurrentMember(caller, ISSUER, "peer"))
+                    .isInstanceOf(com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Denied.class);
+        }
+        assertThatThrownBy(() -> query().requireCurrentMember(jwt(ISSUER, "tenant-default"), "https://foreign.invalid", "peer"))
+                .isInstanceOf(com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Denied.class);
+        verifyNoInteractions(identities, profiles);
+    }
+
     private static ProviderMember member(String subject, String name, boolean enabled) {
         return new ProviderMember(subject, "not-projected@example.invalid", name, List.of("member"), List.of(), enabled);
     }
