@@ -84,9 +84,11 @@ class _FailingTimelineBridge extends FakeRustMatrixCoreBridge {
 }
 
 class _RevokedTimelineBridge extends FakeRustMatrixCoreBridge {
-  _RevokedTimelineBridge(this.code);
+  _RevokedTimelineBridge(this.code)
+    : failure = RustMatrixCoreBridgeException(code);
 
   final String code;
+  final RustMatrixCoreBridgeException failure;
 
   @override
   Future<List<RustMatrixMessageProjection>> loadRoomMessages({
@@ -94,7 +96,7 @@ class _RevokedTimelineBridge extends FakeRustMatrixCoreBridge {
     required String roomId,
     int limit = 100,
   }) {
-    throw RustMatrixCoreBridgeException(code);
+    throw failure;
   }
 }
 
@@ -769,6 +771,63 @@ void main() {
               ),
         ),
       );
+    },
+  );
+
+  test(
+    'left SDK room requires current room access without clearing the member session',
+    () async {
+      final denied = _RevokedTimelineBridge('M_WEAVE_CHAT_JOIN_REQUIRED');
+      final session = cryptoSession.session;
+      await expectLater(
+        repository(rustBridge: denied).loadRoomTimeline('!left:api.weave.test'),
+        throwsA(
+          isA<ChatFailure>()
+              .having(
+                (failure) => failure.type,
+                'type',
+                ChatFailureType.sessionRequired,
+              )
+              .having(
+                (failure) => failure.cause,
+                'original cause',
+                same(denied.failure),
+              ),
+        ),
+      );
+      expect(cryptoSession.session, same(session));
+      expect(cryptoSession.endCalls, 0);
+      expect(cryptoSession.removeCalls, 0);
+      expect(cryptoSession.disposeCalls, 0);
+    },
+  );
+
+  test(
+    'unrecognized and sync timeline failures remain protocol failures',
+    () async {
+      for (final code in ['M_WEAVE_E2EE_SYNC', 'M_UNKNOWN_PRIVATE_FAILURE']) {
+        final failed = _RevokedTimelineBridge(code);
+        await expectLater(
+          repository(
+            rustBridge: failed,
+          ).loadRoomTimeline('!owned:api.weave.test'),
+          throwsA(
+            isA<ChatFailure>()
+                .having(
+                  (failure) => failure.type,
+                  'type',
+                  ChatFailureType.protocol,
+                )
+                .having(
+                  (failure) => failure.cause,
+                  'original cause',
+                  same(failed.failure),
+                ),
+          ),
+        );
+        expect(cryptoSession.endCalls, 0);
+        expect(cryptoSession.removeCalls, 0);
+      }
     },
   );
 

@@ -235,7 +235,8 @@ class NativeMatrixChatRepository
       _reportFailure('timeline', stage, 'bridge', error.code);
       if (isMatrixSessionExpiredCode(error.code) ||
           error.code == 'M_FORBIDDEN' ||
-          error.code == 'M_NOT_FOUND') {
+          error.code == 'M_NOT_FOUND' ||
+          error.code == 'M_WEAVE_CHAT_JOIN_REQUIRED') {
         throw ChatFailure.sessionRequired(
           'Chat room access is no longer current. Retry with your Weave sign-in.',
           cause: error,
@@ -354,6 +355,7 @@ class NativeMatrixChatRepository
       'M_WEAVE_MATRIX_SESSION_EXPIRED',
       'M_FORBIDDEN',
       'M_NOT_FOUND',
+      'M_WEAVE_CHAT_JOIN_REQUIRED',
       'M_INVALID_PARAM',
       'M_WEAVE_E2EE_PEER_DEVICE_PENDING',
       'M_WEAVE_E2EE_SEND',
