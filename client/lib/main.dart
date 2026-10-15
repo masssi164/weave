@@ -329,7 +329,12 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
         return Stack(
           fit: StackFit.expand,
           children: [
-            ExcludeFocus(child: Offstage(offstage: true, child: child)),
+            TickerMode(
+              enabled: false,
+              child: ExcludeFocus(
+                child: Offstage(offstage: true, child: child),
+              ),
+            ),
             gate,
           ],
         );

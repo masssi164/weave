@@ -357,6 +357,33 @@ void main() {
   });
 
   test(
+    'timeline carries only the existing verified member storage scope',
+    () async {
+      const owner =
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+      for (final scope in [null, owner]) {
+        final repository = NativeMatrixChatRepository(
+          matrixCryptoSessionCoordinator: FakeMatrixCryptoSessionPort(
+            session: MatrixCryptoSession(
+              profileKey: 'profile',
+              userId: '@member:api.weave.test',
+              deviceId: 'device',
+              memberStorageScope: scope,
+            ),
+          ),
+          rustMatrixCoreBridge: FakeRustMatrixCoreBridge(),
+        );
+        expect(
+          (await repository.loadRoomTimeline(
+            '!room:api.weave.test',
+          )).memberStorageScope,
+          scope,
+        );
+      }
+    },
+  );
+
+  test(
     'successful native send and timeline do not emit failure diagnostics',
     () async {
       final originalPrinter = debugPrint;

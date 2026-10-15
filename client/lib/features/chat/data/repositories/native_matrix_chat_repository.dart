@@ -231,6 +231,7 @@ class NativeMatrixChatRepository
         roomTitle: _titleFromRoomId(roomId),
         isInvite: false,
         canSendMessages: true,
+        memberStorageScope: session.memberStorageScope,
         messages: projection
             .map(
               (message) => _messageFromProjection(
