@@ -1754,7 +1754,27 @@ interface ChatChangeJpaRepository extends JpaRepository<ChatChangeJpaEntity, Lon
               and membership.id.part3 = :identityIssuer
               and membership.id.part4 = :actorRef
               and membership.state = 'joined'
-        ) or (change.kind = 'membership.left' and change.canonicalObjectId = :actorRef
+        ) or (exists (
+            select invitation.id.part1 from ChatMembershipJpaEntity invitation
+            where invitation.id.part1 = change.tenantId
+              and invitation.id.part2 = change.conversationId
+              and invitation.id.part3 = :identityIssuer
+              and invitation.id.part4 = :actorRef
+              and invitation.state = 'invited'
+        ) and (change.kind in ('conversation.created', 'encryption.enabled')
+            or (change.kind = 'membership.invited' and change.canonicalObjectId = :actorRef))
+          and exists (
+            select pending.id.part1 from ChatConversationJpaEntity pending
+            where pending.id.part1 = change.tenantId
+              and pending.id.part2 = change.conversationId
+              and pending.lifecycleState = 'committed'
+          ) and not exists (
+            select degraded.id.part1 from ChatProviderMappingJpaEntity degraded
+            where degraded.id.part1 = change.tenantId
+              and degraded.id.part3 = 'conversation'
+              and degraded.id.part4 = change.conversationId
+              and degraded.state = 'degraded'
+          )) or (change.kind = 'membership.left' and change.canonicalObjectId = :actorRef
             and exists (
               select membership.id.part1 from ChatMembershipJpaEntity membership
               where membership.id.part1 = change.tenantId
@@ -1788,7 +1808,27 @@ interface ChatChangeJpaRepository extends JpaRepository<ChatChangeJpaEntity, Lon
               and membership.id.part3 = :identityIssuer
               and membership.id.part4 = :actorRef
               and membership.state = 'joined'
-        ) or (change.kind = 'membership.left' and change.canonicalObjectId = :actorRef
+        ) or (exists (
+            select invitation.id.part1 from ChatMembershipJpaEntity invitation
+            where invitation.id.part1 = change.tenantId
+              and invitation.id.part2 = change.conversationId
+              and invitation.id.part3 = :identityIssuer
+              and invitation.id.part4 = :actorRef
+              and invitation.state = 'invited'
+        ) and (change.kind in ('conversation.created', 'encryption.enabled')
+            or (change.kind = 'membership.invited' and change.canonicalObjectId = :actorRef))
+          and exists (
+            select pending.id.part1 from ChatConversationJpaEntity pending
+            where pending.id.part1 = change.tenantId
+              and pending.id.part2 = change.conversationId
+              and pending.lifecycleState = 'committed'
+          ) and not exists (
+            select degraded.id.part1 from ChatProviderMappingJpaEntity degraded
+            where degraded.id.part1 = change.tenantId
+              and degraded.id.part3 = 'conversation'
+              and degraded.id.part4 = change.conversationId
+              and degraded.state = 'degraded'
+          )) or (change.kind = 'membership.left' and change.canonicalObjectId = :actorRef
             and exists (
               select membership.id.part1 from ChatMembershipJpaEntity membership
               where membership.id.part1 = change.tenantId

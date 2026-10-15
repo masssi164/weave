@@ -410,10 +410,21 @@ class ChatDomainFacadeServiceTest {
                 new InMemoryAuditEventPublisher(), provider, allowAllContexts(), contextProperties(),
                 OrganizationIdentityContextResolver.configured(contextProperties()), FIXED, new DurableChatSpaceAccess(spaces));
         assertThat(service.invitations(memberJwt())).containsExactly(invitation);
+        when(provider.currentCursor(any(ChatRequestContext.class))).thenReturn(new ChatCursor("chat-revision-1"));
+        when(provider.changes(any(ChatRequestContext.class), any(), eq(100)))
+                .thenReturn(new ChatChangeSet(new ChatCursor("chat-revision-1"), List.of(
+                        new ChatChange(1, "conversation.created", new ConversationId("pending-room"),
+                                "pending-room", FIXED.instant()))));
+        var pendingDelta = service.syncDelta(memberJwt(), "chat-revision-0", 100);
+        assertThat(pendingDelta.cursor()).isEqualTo("chat-revision-1");
+        assertThat(pendingDelta.events()).isEmpty();
+        verify(provider, never()).event(any(ChatRequestContext.class), any(ConversationId.class), any());
         verify(provider, never()).conversation(any(ChatRequestContext.class), any());
         verify(provider, never()).timelineEvents(any(ChatRequestContext.class), any(), any(), org.mockito.ArgumentMatchers.anyInt());
         when(spaces.allows("weave-dogfood", "chosen-space", account, SpaceAccessPort.Permission.VIEW)).thenReturn(false);
         assertThat(service.invitations(memberJwt())).isEmpty();
+        assertThat(service.syncDelta(memberJwt(), "chat-revision-0", 100).cursor()).isEqualTo("chat-revision-0");
+        verify(provider, times(1)).changes(any(ChatRequestContext.class), any(), eq(100));
         verify(provider, times(1)).invitedConversations(any(), eq(""), eq(100));
         when(spaces.allows("weave-dogfood", "chosen-space", account, SpaceAccessPort.Permission.VIEW)).thenReturn(true);
         // Initial metadata may race a real acceptance; an exact pending recheck must omit it.

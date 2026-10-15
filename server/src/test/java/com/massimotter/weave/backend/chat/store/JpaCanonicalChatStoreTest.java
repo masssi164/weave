@@ -440,6 +440,73 @@ class JpaCanonicalChatStoreTest {
     }
 
     @Test
+    void pendingInvitationAdvancesRecipientSyncCursorWithoutExposingHistory() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("cursor-invite-author");
+        ChatRequestContext peer = context("cursor-invite-peer");
+        String before = store.currentCursor(peer).value();
+        ChatConversation room = adapter.createConversation(author,
+                new ChatTransactionId("cursor-invite-room"), "Invitation", "channel",
+                List.of(ChatResolvedIdentity.from(peer)), ChatEncryptionState.unencrypted());
+        assertThat(adapter.invitedConversations(peer, "", 100)).hasSize(1);
+        assertThat(adapter.joinedConversations(peer).conversations()).isEmpty();
+        assertThatThrownBy(() -> store.timelinePage(peer, new ConversationId(room.conversationId()), null, 100))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        String invitedCursor = store.currentCursor(peer).value();
+        assertThat(invitedCursor).isNotEqualTo(before);
+        MatrixProtocolCoreService core = new MatrixProtocolCoreService(
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
+                "api.weave.test", peer.identityIssuer());
+        var initial = core.sync(peer.actorRef().value(), before, null, List.of());
+        ChatInvitation pending = adapter.invitedConversations(peer, "", 100).getFirst();
+        var projection = new MatrixProtocolCoreService.CanonicalConversation(pending.conversationId(),
+                pending.title(), pending.updatedAt().toEpochMilli(), 0, null,
+                List.of(new MatrixProtocolCoreService.CanonicalMembership(pending.membership().memberRef(), "invited")),
+                List.of(), false, null, pending.inviterRef().value());
+        var changed = core.sync(peer.actorRef().value(), invitedCursor, (String) initial.get("next_batch"), List.of(projection));
+        assertThat(changed.get("next_batch")).isNotEqualTo(initial.get("next_batch"));
+        assertThat((Map<?, ?>) ((Map<?, ?>) changed.get("rooms")).get("invite")).hasSize(1);
+        assertThat(store.changes(peer, new ChatCursor(before), 1).changes())
+                .singleElement().satisfies(change -> assertThat(change.kind()).isEqualTo("conversation.created"));
+        JdbcTemplate journal = new JdbcTemplate(dataSource);
+        for (String[] entry : List.of(
+                new String[] {"membership.invited", peer.actorRef().value()},
+                new String[] {"membership.invited", author.actorRef().value()},
+                new String[] {"encryption.enabled", room.conversationId()},
+                new String[] {"reaction.created", "private-reaction"},
+                new String[] {"event.redacted", "private-redaction"})) {
+            journal.update("insert into weave_chat_changes (tenant_id, conversation_id, change_kind, canonical_object_id, occurred_at_utc) values (?, ?, ?, ?, ?)",
+                    author.tenantId(), room.conversationId(), entry[0], entry[1], FIXED.instant().atOffset(ZoneOffset.UTC));
+        }
+        var metadata = store.changes(peer, new ChatCursor(invitedCursor), 1).changes();
+        assertThat(metadata).singleElement().satisfies(change -> {
+            assertThat(change.kind()).isEqualTo("membership.invited");
+            assertThat(change.messageId()).isEqualTo(peer.actorRef().value());
+        });
+        var remaining = store.changes(peer, new ChatCursor("chat-revision-" + metadata.getFirst().sequence()), 100).changes();
+        assertThat(remaining).extracting(change -> change.kind()).containsExactly("encryption.enabled");
+        invitedCursor = store.currentCursor(peer).value();
+        adapter.sendEvent(author, new ConversationId(room.conversationId()),
+                new ChatTransactionId("pending-private-message"), ChatEventContent.text("Private joined history"));
+        assertThat(store.currentCursor(peer).value()).isEqualTo(invitedCursor);
+        assertThat(store.changes(peer, new ChatCursor(invitedCursor), 100).changes()).isEmpty();
+        for (ChatRequestContext other : List.of(context("cursor-invite-outsider"),
+                new ChatRequestContext("tenant-other", peer.contextId(), peer.identityIssuer(), peer.actorRef()),
+                new ChatRequestContext(peer.tenantId(), "space-other", peer.identityIssuer(), peer.actorRef()),
+                new ChatRequestContext(peer.tenantId(), peer.contextId(), "https://other-issuer.example", peer.actorRef()))) {
+            assertThat(store.currentCursor(other).value()).isEqualTo(before);
+            assertThat(store.changes(other, new ChatCursor(before), 100).changes()).isEmpty();
+        }
+        adapter.joinConversation(peer, new ConversationId(room.conversationId()));
+        assertThat(store.currentCursor(peer).value()).isNotEqualTo(invitedCursor);
+        assertThat(adapter.invitedConversations(peer, "", 100)).isEmpty();
+        assertThat(store.changes(peer, new ChatCursor(invitedCursor), 100).changes())
+                .extracting(change -> change.kind()).contains("message.created", "membership.joined");
+    }
+
+    @Test
     void persistedInvitationProjectsToNativeInviteWithoutJoinedHistoryBeforeAcceptance() {
         JpaCanonicalChatStore store = store(dataSource());
         NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
