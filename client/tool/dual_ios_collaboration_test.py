@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Private actor ownership and mandatory real-proof contract regressions."""
+import contextlib
+import io
 import hashlib
 import json
 import os
@@ -48,6 +50,69 @@ class DualIosCollaborationTest(unittest.TestCase):
                                    root, root, root, root / 'app', data, {'WEAVE_NATIVE_ISSUER': 'https://issuer.test'}, 'a' * 64,
                                    None, None, None)
                 self.assertIs(caught.exception, stopped)
+
+    def test_successful_picker_stdout_is_owner_only_and_never_public(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            diagnostics = root / 'diagnostics'
+            diagnostics.mkdir(mode=0o700)
+            scopes = {}
+            for role, pid in [('A', '123'), ('B', '456')]:
+                support = root / role
+                support.mkdir()
+                products = support / 'products'
+                products.mkdir()
+                (products / 'owned.xctestrun').write_text('plan')
+                (products / 'BrowserDriver.xctest').mkdir()
+                scopes[role] = (support, role, pid, products)
+            (scopes['A'][0] / 'weave-dual-ios-native-request.json').write_text(json.dumps({
+                'sequence': 8, 'mode': 'import', 'fileName': 'weave-dual-initial-owned-test.txt'}))
+            picker_ran = False
+            stopped = RuntimeError('controlled stop after diagnostic retention')
+            raw = 'private-owned-file.txt private/path identity-sentinel\nNATIVE_IOS_FILES_STAGE phase=import-selected\n'
+            def picker(args, **kwargs):
+                nonlocal picker_ran
+                self.assertIn('-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker', args)
+                self.assertEqual(kwargs['timeout'], 90)
+                picker_ran = True
+                return raw
+            def acknowledge(_delay):
+                for support, *_ in scopes.values():
+                    command = support / 'weave-dual-ios-command.json'
+                    if command.exists():
+                        value = json.loads(command.read_text())
+                        (support / 'weave-dual-ios-ack.json').write_text(json.dumps({**value, 'status': 'passed'}))
+            task = mock.Mock()
+            task.done.side_effect = lambda: picker_ran
+            task.result.side_effect = stopped
+            with mock.patch.object(ios, 'simulator_app_pid', side_effect=lambda role: {'A': '123', 'B': '456'}[role]), \
+                 mock.patch.object(ios, 'run', side_effect=picker), \
+                 mock.patch.object(ios, 'verified_private_parent', return_value=diagnostics), \
+                 mock.patch.object(dual.time, 'monotonic', return_value=0), \
+                 mock.patch.object(dual.time, 'sleep', side_effect=acknowledge), \
+                 contextlib.redirect_stdout(io.StringIO()) as output:
+                with self.assertRaises(RuntimeError) as caught:
+                    dual.run_ui_commands(scopes, [task], {}, {'runId': 'owned-test'})
+            self.assertIs(caught.exception, stopped)
+            retained = list(diagnostics.glob('command-*.log'))
+            self.assertEqual(len(retained), 1)
+            self.assertEqual(retained[0].read_text(), raw)
+            self.assertEqual(retained[0].stat().st_mode & 0o777, 0o600)
+            self.assertIn('NATIVE_IOS_PICKER_RESULT status=passed privateDiagnostic=' + retained[0].name + ' supportSafe=true', output.getvalue())
+            for private in ['private-owned-file', 'private/path', 'identity-sentinel', str(diagnostics), 'import-selected']:
+                self.assertNotIn(private, output.getvalue())
+            picker_ran = False
+            with mock.patch.object(ios, 'simulator_app_pid', side_effect=lambda role: {'A': '123', 'B': '456'}[role]), \
+                 mock.patch.object(ios, 'run', side_effect=picker), \
+                 mock.patch.object(ios, 'retain_private_diagnostic', side_effect=OSError('private retention failure')), \
+                 mock.patch.object(dual.time, 'monotonic', return_value=0), \
+                 mock.patch.object(dual.time, 'sleep', side_effect=acknowledge), \
+                 contextlib.redirect_stdout(io.StringIO()) as unavailable:
+                with self.assertRaises(RuntimeError) as caught:
+                    dual.run_ui_commands(scopes, [task], {}, {'runId': 'owned-test'})
+            self.assertIs(caught.exception, stopped)
+            self.assertIn('NATIVE_IOS_PICKER_RESULT status=unavailable supportSafe=true', unavailable.getvalue())
+            self.assertNotIn('private retention failure', unavailable.getvalue())
 
     @unittest.skipUnless(shutil.which('flutter'), 'Flutter CLI is required for real argument-parser validation')
     def test_actual_flutter_drive_parser_accepts_both_phase_host_arguments(self):

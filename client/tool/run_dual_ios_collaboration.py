@@ -608,9 +608,14 @@ def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict, phas
                         raise ios.NativeFailure('infrastructure', 'dual-files', 'missing-owned-test-plan')
                     fixture = bundles[0] / 'private-member.json'
                     fixture.write_text(json.dumps({'phase': 'document-picker', 'pickerMode': mode, 'fileName': name})); fixture.chmod(0o600)
-                    ios.run(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
+                    picker_stdout = ios.run(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
                              '-destination', 'platform=iOS Simulator,id=' + udid, '-parallel-testing-enabled', 'NO',
                              '-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker'], env=env, timeout=90)
+                    try:
+                        diagnostic = ios.retain_private_diagnostic(picker_stdout)
+                        print('NATIVE_IOS_PICKER_RESULT status=passed privateDiagnostic=' + diagnostic.name + ' supportSafe=true', flush=True)
+                    except (OSError, ValueError, ios.NativeFailure):
+                        print('NATIVE_IOS_PICKER_RESULT status=unavailable supportSafe=true', flush=True)
                     verify_both_live()
                     picker_executed = True
             ack = support / 'weave-dual-ios-ack.json'
