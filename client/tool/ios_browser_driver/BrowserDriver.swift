@@ -480,6 +480,7 @@ final class BrowserDriver: XCTestCase {
     XCTAssertTrue(["import", "export"].contains(mode))
     XCTAssertTrue(fileName.hasPrefix("weave-dual-"))
     XCTAssertFalse(fileName.contains("/"))
+    let stem = (fileName as NSString).deletingPathExtension
     let app = XCUIApplication(bundleIdentifier: "com.massimotter.weave")
     // Authentication has completed. Attach once to the already running app;
     // never launch a replacement process or activate during an AppAuth session.
@@ -488,7 +489,7 @@ final class BrowserDriver: XCTestCase {
     var enteredDevice = false
     var enteredWeave = false
     while Date() < deadline {
-      let file = app.staticTexts.matching(NSPredicate(format: "label == %@", fileName))
+      let file = app.staticTexts.matching(NSPredicate(format: "label == %@", stem))
       if mode == "import" && file.count == 1 && file.element.isHittable {
         file.element.tap()
         print("NATIVE_IOS_FILES_STAGE phase=import-selected")
@@ -533,7 +534,6 @@ final class BrowserDriver: XCTestCase {
       return
     }
     let observationDeadline = Date().addingTimeInterval(5)
-    let stem = (fileName as NSString).deletingPathExtension
     let types: [(String, XCUIElement.ElementType)] = [
       ("staticText", .staticText), ("cell", .cell), ("button", .button), ("other", .other)
     ]
