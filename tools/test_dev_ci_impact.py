@@ -296,7 +296,7 @@ class ImpactTest(unittest.TestCase):
         self.assertIn('clientDeterministicCi', workflow)
         self.assertIn("tasks.named('clientDeterministicCi') {\n    dependsOn 'clientOpenApiDriftPrevention', 'nativeQualificationContractTest'", gradle)
         self.assertNotIn('needs: core_architecture', workflow)
-        self.assertNotIn('testApp', workflow)
+        self.assertNotRegex(workflow, r'\btestApp\b')
         self.assertIn("    name: Gradle CI\n    if: always()\n", workflow)
 
 

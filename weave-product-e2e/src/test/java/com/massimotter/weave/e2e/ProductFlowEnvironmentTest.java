@@ -41,6 +41,28 @@ class ProductFlowEnvironmentTest {
   }
 
   @Test
+  void nativeApiRootPreservesTheValidatedAuthorityAcrossRootSpellings() throws Exception {
+    for (String origin : new String[] {
+        "https://api.weave.test", "https://api.weave.test/",
+        "https://api.weave.test:443", "https://api.weave.test:443/",
+        "https://api.weave.test:44443", "https://api.weave.test:44443/"
+    }) {
+      ProductFlowEnvironment environment = environment(URI.create(origin),
+          URI.create("https://auth.weave.test/realms/weave"),
+          URI.create("http://127.0.0.1:38025/api/v1"), Duration.ofMinutes(2));
+      URI nativeApi = environment.api("/api");
+      assertThat(nativeApi.getScheme()).isEqualTo("https");
+      assertThat(nativeApi.getRawAuthority()).isEqualTo(environment.apiOrigin().getRawAuthority());
+      assertThat(nativeApi.getRawPath()).isEqualTo("/api");
+      assertThat(nativeApi.getRawQuery()).isNull();
+      assertThat(nativeApi.getRawFragment()).isNull();
+      for (String path : new String[] {"api", "//foreign.example/api", "https://foreign.example/api"}) {
+        assertThatThrownBy(() -> environment.api(path)).isInstanceOf(IllegalArgumentException.class);
+      }
+    }
+  }
+
+  @Test
   void rejectsAnExternalMailReaderAndAnInsecureProductEndpoint() throws Exception {
     assertThatThrownBy(
             () ->
