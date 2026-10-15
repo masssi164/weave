@@ -439,7 +439,7 @@ public final class FreshProductFlow {
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
         // Native Calendar writes use the owner's normal User session. Run its
         // real logout after all JVM journeys that need that owner's SSO state.
-        NativeActorNames nativeNames = nativeActorNames(ownerSession, memberSession);
+        NativeActorNames nativeNames = nativeActorNames(ownerSession, memberSession, browser, organizationId);
         new MemberSessionRevocationJourney(environment, http).prove(
             browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
@@ -536,7 +536,7 @@ public final class FreshProductFlow {
             memberSession.accessToken(), personRef, generatedFilesProof.fileId());
         spaceRevocationRestored = true;
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
-        NativeActorNames nativeNames = nativeActorNames(ownerSession, memberSession);
+        NativeActorNames nativeNames = nativeActorNames(ownerSession, memberSession, browser, organizationId);
         new MemberSessionRevocationJourney(environment, http).prove(
             browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
@@ -619,6 +619,8 @@ public final class FreshProductFlow {
           "schemaVersion", "weave.dual-ios-input/v1",
           "runId", environment.runId(),
           "publicOrigin", rootOrigin(environment.productOrigin()).toString(),
+          "organizationId", organizationId,
+          "nativeOrganizationId", nativeNames.nativeOrganizationId(),
           "sharedSpaceRef", "workspace-default",
           "actors", List.of(
               Map.of("role", "A", "email", memberEmail, "password", memberPassword,
@@ -891,6 +893,7 @@ public final class FreshProductFlow {
     String a = "'" + actorA.replace("'", "''") + "'";
     String b = "'" + actorB.replace("'", "''") + "'";
     String n = "'" + serverName.replace("'", "''") + "'";
+    String account = "'" + accountId(issuer, actorB) + "'";
     String title = "'Weave UI " + runId.replace("'", "''") + "'";
     // Exact existing northbound representation for owned ASCII canonical IDs;
     // unsupported identifiers yield no authority row, never guessed decoding.
@@ -911,8 +914,9 @@ public final class FreshProductFlow {
         + " AND m.identity_issuer=" + i + " AND m.actor_ref='user:'||" + b + " AND m.membership_state='invited'), "
         + "(SELECT count(*) FROM weave_chat_memberships m JOIN owned o USING(conversation_id) WHERE m.tenant_id=" + t
         + " AND m.identity_issuer=" + i + " AND m.actor_ref='user:'||" + b + " AND m.membership_state='joined'), "
-        + "(SELECT count(*) FROM binding), (SELECT count(*) FROM weave_space_memberships g JOIN binding p USING(person_ref) "
-        + "JOIN owned o ON o.context_id=g.space_ref WHERE g.organization_ref=" + t + " AND g.lifecycle_state='ACTIVE'), (SELECT context_id='workspace-default' FROM owned) "
+        + "(SELECT count(*) FROM binding), (SELECT count(*) FROM weave_space_memberships g "
+        + "JOIN owned o ON o.context_id=g.space_ref WHERE g.organization_ref=" + t + " AND g.person_ref=" + account
+        + " AND g.lifecycle_state='ACTIVE'), (SELECT context_id='workspace-default' FROM owned) "
         + "WHERE (SELECT count(*) FROM owned)=1;\n\\else\n\\quit\n\\endif\nROLLBACK;";
   }
 
@@ -950,21 +954,42 @@ public final class FreshProductFlow {
     return value;
   }
 
-  record NativeActorNames(String owner, String peer) {}
+  static String requireNativeOrganizationId(JsonNode claims,
+      com.massimotter.weave.userapi.model.AuthenticatedUserResponse admitted,
+      String issuer, String subject, String canonicalOrganizationId) {
+    if (NativeOrganizationClaims.violation(claims) != null || admitted == null
+        || !issuer.equals(claims.path("iss").asString())
+        || !subject.equals(claims.path("sub").asString())
+        || !issuer.equals(admitted.getIdentityIssuer()) || !subject.equals(admitted.getSubject())
+        || !canonicalOrganizationId.equals(admitted.getOrganizationId())) {
+      throw new ProductFlowException("native actor admitted identity is invalid");
+    }
+    return claims.path("organization").values().iterator().next().path("id").asString();
+  }
+
+  record NativeActorNames(String owner, String peer, String nativeOrganizationId) {}
 
   private NativeActorNames nativeActorNames(OidcBrowserJourney.TokenSet owner,
-      OidcBrowserJourney.TokenSet peer) {
+      OidcBrowserJourney.TokenSet peer, OidcBrowserJourney browser, String organizationId) {
+    GeneratedUserApi users = new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate());
+    String nativeOrganizationId = requireNativeOrganizationId(browser.jwtPayload(owner.accessToken()),
+        users.authenticatedUser(owner.accessToken()), environment.issuer().toString(), owner.subject(), organizationId);
+    String peerNativeOrganizationId = requireNativeOrganizationId(browser.jwtPayload(peer.accessToken()),
+        users.authenticatedUser(peer.accessToken()), environment.issuer().toString(), peer.subject(), organizationId);
+    if (!nativeOrganizationId.equals(peerNativeOrganizationId)) {
+      throw new ProductFlowException("native actor organizations differ");
+    }
     GeneratedProfileHomeApi profiles = new GeneratedProfileHomeApi(environment);
     return requireNativeActorNames(profiles.readProfile(owner.accessToken()),
         profiles.readProfile(peer.accessToken()),
         accountId(environment.issuer().toString(), owner.subject()),
-        accountId(environment.issuer().toString(), peer.subject()));
+        accountId(environment.issuer().toString(), peer.subject()), nativeOrganizationId);
   }
 
   static NativeActorNames requireNativeActorNames(
       com.massimotter.weave.userapi.model.ProductProfileResponse owner,
       com.massimotter.weave.userapi.model.ProductProfileResponse peer,
-      String ownerAccount, String peerAccount) {
+      String ownerAccount, String peerAccount, String nativeOrganizationId) {
     if (owner == null || peer == null || ownerAccount.equals(peerAccount)
         || !ownerAccount.equals(owner.getUserId()) || !peerAccount.equals(peer.getUserId())
         || owner.getDisplayName() == null || owner.getDisplayName().isBlank()
@@ -972,7 +997,7 @@ public final class FreshProductFlow {
         || owner.getDisplayName().equals(peer.getDisplayName())) {
       throw new ProductFlowException("native canonical profile identity or name is invalid");
     }
-    return new NativeActorNames(owner.getDisplayName(), peer.getDisplayName());
+    return new NativeActorNames(owner.getDisplayName(), peer.getDisplayName(), nativeOrganizationId);
   }
 
   private static URI rootOrigin(URI origin) {

@@ -55,6 +55,52 @@ const _simulator = bool.fromEnvironment('WEAVE_NATIVE_EXPECT_SIMULATOR');
 const _disposable = bool.fromEnvironment('WEAVE_DEVICE_DISPOSABLE_STACK');
 const _actorTestBudget = Duration(minutes: 30);
 
+Map<String, String> nativeDualSessionIdentityDigests(
+  Map<String, dynamic> claims, {
+  required String expectedSubjectDigest,
+  required String expectedIssuer,
+  required String expectedNativeOrganizationId,
+}) {
+  final subject = claims['sub'];
+  final issuer = claims['iss'];
+  final organizations = claims['organization'];
+  final selected = organizations is Map && organizations.length == 1
+      ? organizations.values.single
+      : null;
+  final organization = selected is Map ? selected['id'] : null;
+  if (subject is! String ||
+      subject.isEmpty ||
+      issuer is! String ||
+      issuer.isEmpty ||
+      organization is! String ||
+      organization.isEmpty) {
+    throw TestFailure('Actual native session identity is unavailable.');
+  }
+  final digests = {
+    'identityDigest': sha256.convert(utf8.encode(subject)).toString(),
+    'identityIssuerDigest': sha256.convert(utf8.encode(issuer)).toString(),
+    'nativeOrganizationDigest': sha256
+        .convert(utf8.encode(organization))
+        .toString(),
+  };
+  if (digests['identityDigest'] != expectedSubjectDigest) {
+    throw TestFailure(
+      'Actual native session subject does not match its assigned actor.',
+    );
+  }
+  if (issuer != expectedIssuer) {
+    throw TestFailure(
+      'Actual native session issuer does not match its owned fixture.',
+    );
+  }
+  if (organization != expectedNativeOrganizationId) {
+    throw TestFailure(
+      'Actual native session native organization does not match its owned fixture.',
+    );
+  }
+  return digests;
+}
+
 Future<void> writeNativeDualPrivateJson(File destination, Object value) async {
   final staging = File('${destination.path}.tmp');
   if (await FileSystemEntity.isLink(destination.path) ||
@@ -449,6 +495,12 @@ void main() {
               as Map<String, dynamic>;
       final subject = claims['sub'] as String;
       expect(subject, isNotEmpty);
+      final sessionIdentity = nativeDualSessionIdentityDigests(
+        claims,
+        expectedSubjectDigest: fixture['identityDigestExpected'] as String,
+        expectedIssuer: fixture['identityIssuer'] as String,
+        expectedNativeOrganizationId: fixture['nativeOrganizationId'] as String,
+      );
       final scenarios = <String, Map<String, dynamic>>{
         if (prior != null)
           for (final entry
@@ -508,7 +560,7 @@ void main() {
       }
       final result = {
         'role': role,
-        'identityDigest': sha256.convert(utf8.encode(subject)).toString(),
+        ...sessionIdentity,
         'matrixDeviceDigest': sha256.convert(utf8.encode(device!)).toString(),
         'storageDigest': fixture['storageDigest'],
         'scenarios': scenarios,

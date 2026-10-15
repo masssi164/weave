@@ -248,6 +248,10 @@ def private_input(path: Path, run_id: str) -> dict:
     if info.st_uid != os.getuid() or info.st_mode & 0o777 != 0o600 or path.parent.stat().st_mode & 0o777 != 0o700:
         raise ios.NativeFailure('infrastructure', 'dual-fixture', 'unsafe-private-fixture')
     data = json.loads(path.read_text())
+    if not isinstance(data.get('nativeOrganizationId'), str) or not data['nativeOrganizationId'].strip():
+        raise ios.NativeFailure('infrastructure', 'dual-fixture', 'native-organization-binding-required')
+    if not isinstance(data.get('organizationId'), str) or not data['organizationId'].strip():
+        raise ios.NativeFailure('infrastructure', 'dual-fixture', 'organization-binding-required')
     actors = data.get('actors', [])
     if (data.get('schemaVersion') != 'weave.dual-ios-input/v1' or data.get('runId') != run_id
             or len(actors) != 2 or [a.get('role') for a in actors] != ['A', 'B']
@@ -383,7 +387,9 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
     else:
         (documents / '.weave-owned-fixture').write_text('Owned disposable document directory\n')
     runtime_fixture = {'role': role, 'entryUri': actor['entryUri'], 'runId': input_data['runId'],
-                       'organizationOrigin': input_data['publicOrigin'],
+                       'organizationOrigin': input_data['publicOrigin'], 'nativeOrganizationId': input_data['nativeOrganizationId'],
+                       'identityIssuer': env['WEAVE_NATIVE_ISSUER'],
+                       'identityDigestExpected': hashlib.sha256(actor['identityRef'].encode()).hexdigest(),
                        'sharedSpaceRef': input_data['sharedSpaceRef'], 'storageDigest': storage_digest,
                        'peerDisplayName': next(peer['displayName'] for peer in input_data['actors'] if peer['role'] != role),
                        'initialFileName': initial_name, 'replacementFileName': replacement_name,
@@ -704,23 +710,30 @@ def authorize_ui_resources(scopes: dict, input_data: dict, kind: str = 'authoriz
     return denial
 
 
-def retain_failure_room_reference(scopes: dict, input_path: Path, input_data: dict, candidate: str) -> None:
+def retain_failure_room_reference(scopes: dict, input_path: Path, input_data: dict, candidate: str, issuer: str) -> None:
     """Transfer only actual UI resources while owned app storage still exists."""
     if not re.fullmatch(r'[0-9a-f]{40}', candidate) or not re.fullmatch(r'[A-Za-z0-9-]{1,40}', input_data['runId']):
         raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'invalid-candidate')
-    support = scopes.get('A', (None,))[0]
-    if support is None:
-        return
-    if support.is_symlink() or support.resolve() != support.absolute() or support.stat().st_uid != os.getuid():
-        raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'unsafe-actor-storage')
-    result = support / 'weave-dual-ios-result.json'
-    if result.is_symlink() or not result.is_file() or result.stat().st_size > 16384 or result.stat().st_mode & 0o777 != 0o600 or result.stat().st_uid != os.getuid():
-        raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'unsafe-actor-result')
-    data = json.loads(result.read_text())
     actors = {actor['role']: actor['identityRef'] for actor in input_data['actors']}
-    if data.get('role') != 'A' or data.get('identityDigest') != hashlib.sha256(actors['A'].encode()).hexdigest():
-        raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'actor-mismatch')
-    room = data.get('resources', {}).get('roomId')
+    bound = {}
+    for role in ('A', 'B'):
+        support = scopes.get(role, (None,))[0]
+        if support is None:
+            raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'actor-unavailable')
+        if support.is_symlink() or support.resolve() != support.absolute() or support.stat().st_uid != os.getuid():
+            raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'unsafe-actor-storage')
+        result = support / 'weave-dual-ios-result.json'
+        if result.is_symlink() or not result.is_file() or result.stat().st_size > 16384 or result.stat().st_mode & 0o777 != 0o600 or result.stat().st_uid != os.getuid():
+            raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'unsafe-actor-result')
+        data = json.loads(result.read_text())
+        if data.get('role') != role or data.get('identityDigest') != hashlib.sha256(actors[role].encode()).hexdigest():
+            raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'actor-mismatch')
+        if data.get('identityIssuerDigest') != hashlib.sha256(issuer.encode()).hexdigest():
+            raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'issuer-mismatch')
+        if data.get('nativeOrganizationDigest') != hashlib.sha256(input_data['nativeOrganizationId'].encode()).hexdigest():
+            raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'organization-mismatch')
+        bound[role] = data
+    room = bound['A'].get('resources', {}).get('roomId')
     if room is None:
         return
     if not isinstance(room, str) or not re.fullmatch(r'![A-Za-z0-9._=-]{1,160}:[A-Za-z0-9.:-]{1,255}', room):
@@ -808,13 +821,13 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
                     evidence['actors'] = [task.result() for task in tasks]
                 except BaseException:
                     try:
-                        retain_failure_room_reference(scopes, input_path, input_data, env.get('WEAVE_CANDIDATE_COMMIT', ''))
+                        retain_failure_room_reference(scopes, input_path, input_data, env.get('WEAVE_CANDIDATE_COMMIT', ''), env.get('WEAVE_NATIVE_ISSUER', ''))
                     except BaseException as unavailable:
                         try:
                             reason = unavailable.reason if (isinstance(unavailable, ios.NativeFailure)
                                 and unavailable.stage == 'dual-chat-snapshot'
                                 and unavailable.reason in {'invalid-candidate', 'unsafe-actor-storage', 'unsafe-actor-result',
-                                                           'actor-mismatch', 'invalid-room-reference', 'unsafe-private-parent'}) else 'unavailable'
+                                                           'actor-mismatch', 'issuer-mismatch', 'organization-mismatch', 'actor-unavailable', 'invalid-room-reference', 'unsafe-private-parent'}) else 'unavailable'
                             print(f'NATIVE_IOS_CHAT_FAILURE_SNAPSHOT status=unavailable stage={reason} supportSafe=true', flush=True)
                         except BaseException:
                             pass  # Diagnostic output cannot replace the original UI failure.

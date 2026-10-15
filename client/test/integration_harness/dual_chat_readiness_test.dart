@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -43,7 +44,8 @@ import '../../integration_test/dual_ios_collaboration_test.dart'
         requireNativeDualPeerSelected,
         tapNativeDualPeer,
         tapNativeDualChatConversation,
-        writeNativeDualPrivateJson;
+        writeNativeDualPrivateJson,
+        nativeDualSessionIdentityDigests;
 
 const _readyChatSnapshot = WorkspaceCapabilitySnapshot(
   shellAccess: WorkspaceCapabilityState(
@@ -92,6 +94,122 @@ class _PeerRepository extends FakeChatRepository
 }
 
 void main() {
+  test(
+    'actual native claim digests require one organization and redact claims',
+    () {
+      final claims = <String, dynamic>{
+        'sub': 'owned-subject',
+        'iss': 'https://issuer.test',
+        'organization': {
+          'owned-alias': {'id': 'owned-org'},
+        },
+        'private': 'private-token-must-not-print',
+      };
+      final digests = nativeDualSessionIdentityDigests(
+        claims,
+        expectedSubjectDigest: sha256
+            .convert(utf8.encode('owned-subject'))
+            .toString(),
+        expectedIssuer: 'https://issuer.test',
+        expectedNativeOrganizationId: 'owned-org',
+      );
+      expect(
+        digests['identityDigest'],
+        sha256.convert(utf8.encode('owned-subject')).toString(),
+      );
+      expect(
+        digests['identityIssuerDigest'],
+        sha256.convert(utf8.encode('https://issuer.test')).toString(),
+      );
+      expect(
+        digests['nativeOrganizationDigest'],
+        sha256.convert(utf8.encode('owned-org')).toString(),
+      );
+      expect(digests.toString(), isNot(contains('private-token')));
+      // The canonical tenant is not the native provider organization coordinate.
+      expect(
+        () => nativeDualSessionIdentityDigests(
+          claims,
+          expectedSubjectDigest: digests['identityDigest']!,
+          expectedIssuer: 'https://issuer.test',
+          expectedNativeOrganizationId: 'canonical-tenant',
+        ),
+        throwsA(
+          isA<TestFailure>().having(
+            (e) => e.message,
+            'fixed native coordinate mismatch',
+            'Actual native session native organization does not match its owned fixture.',
+          ),
+        ),
+      );
+
+      for (final expected in ['subject', 'issuer', 'organization']) {
+        expect(
+          () => nativeDualSessionIdentityDigests(
+            claims,
+            expectedSubjectDigest: expected == 'subject'
+                ? 'a' * 64
+                : digests['identityDigest']!,
+            expectedIssuer: expected == 'issuer'
+                ? 'https://other.invalid'
+                : 'https://issuer.test',
+            expectedNativeOrganizationId: expected == 'organization'
+                ? 'other-org'
+                : 'owned-org',
+          ),
+          throwsA(
+            isA<TestFailure>().having(
+              (e) => e.toString(),
+              'safe mismatch',
+              isNot(contains('private-token')),
+            ),
+          ),
+        );
+      }
+      for (final key in ['sub', 'iss']) {
+        for (final missing in [null, '']) {
+          expect(
+            () => nativeDualSessionIdentityDigests(
+              {...claims, key: missing},
+              expectedSubjectDigest: sha256
+                  .convert(utf8.encode('owned-subject'))
+                  .toString(),
+              expectedIssuer: 'https://issuer.test',
+              expectedNativeOrganizationId: 'owned-org',
+            ),
+            throwsA(isA<TestFailure>()),
+          );
+        }
+      }
+      for (final organization in [
+        null,
+        {},
+        {'one': {}},
+        {
+          'one': {'id': 'owned-org'},
+          'two': {'id': 'other-org'},
+        },
+      ]) {
+        expect(
+          () => nativeDualSessionIdentityDigests(
+            {...claims, 'organization': organization},
+            expectedSubjectDigest: sha256
+                .convert(utf8.encode('owned-subject'))
+                .toString(),
+            expectedIssuer: 'https://issuer.test',
+            expectedNativeOrganizationId: 'owned-org',
+          ),
+          throwsA(
+            isA<TestFailure>().having(
+              (e) => e.toString(),
+              'safe failure',
+              isNot(contains('private-token')),
+            ),
+          ),
+        );
+      }
+    },
+  );
   test(
     'actual actor writer preserves owner-only result across atomic rewrites',
     () async {
