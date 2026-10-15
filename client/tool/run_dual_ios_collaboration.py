@@ -818,7 +818,7 @@ def inspection_attach_command(uri: str, udid: str, runtime: Path) -> list[str]:
     return ['flutter', '--packages=' + str(runtime / '.dart_tool/package_config.json'),
             'attach', '--debug-url=' + uri, '-d', udid,
             '--target=' + str(ios.CLIENT / 'integration_test/dual_ios_collaboration_test.dart'),
-            '--project-root=' + str(runtime),
+            '--project-root=' + str(ios.CLIENT.resolve()),
             '--output-dill=' + str(runtime / '.dart_tool/inspection/app.dill'),
             '--pid-file=' + str(runtime / '.dart_tool/inspection/attach.pid'),
             '--dart-define=WEAVE_NATIVE_LOCAL_INSPECTION=true',

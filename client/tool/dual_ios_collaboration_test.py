@@ -37,6 +37,11 @@ class DualIosCollaborationTest(unittest.TestCase):
                 metadata = json.loads((runtime / '.dart_tool/package_config.json').read_text())
                 self.assertEqual(metadata['packages'][0]['rootUri'], client.resolve().as_uri() + '/')
                 self.assertNotEqual(runtime / '.dart_tool', client / '.dart_tool')
+                with mock.patch.object(ios, 'CLIENT', client), mock.patch.dict(os.environ, {'WEAVE_E2E_RUN_ID': 'owned-test'}):
+                    command = dual.inspection_attach_command('http://127.0.0.1:12345/owned/', 'owned-device', runtime)
+                project_root = Path(next(arg.split('=', 1)[1] for arg in command if arg.startswith('--project-root='))).resolve().as_uri() + '/'
+                self.assertIn(project_root, [package['rootUri'] for package in metadata['packages']],
+                              'Pinned Flutter native asset build requires project root to be a package root')
             source.write_text('after live edit')
             self.assertEqual(Path(metadata['packages'][0]['rootUri'].removeprefix('file://')).joinpath('lib/main.dart').read_text(), 'after live edit')
             self.assertEqual(json.loads((client / '.dart_tool/package_config.json').read_text()), config)
