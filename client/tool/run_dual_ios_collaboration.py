@@ -248,6 +248,8 @@ def private_input(path: Path, run_id: str) -> dict:
     if info.st_uid != os.getuid() or info.st_mode & 0o777 != 0o600 or path.parent.stat().st_mode & 0o777 != 0o700:
         raise ios.NativeFailure('infrastructure', 'dual-fixture', 'unsafe-private-fixture')
     data = json.loads(path.read_text())
+    if not isinstance(data.get('nativeOrganizationId'), str) or not data['nativeOrganizationId'].strip():
+        raise ios.NativeFailure('infrastructure', 'dual-fixture', 'native-organization-binding-required')
     if not isinstance(data.get('organizationId'), str) or not data['organizationId'].strip():
         raise ios.NativeFailure('infrastructure', 'dual-fixture', 'organization-binding-required')
     actors = data.get('actors', [])
@@ -385,7 +387,7 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
     else:
         (documents / '.weave-owned-fixture').write_text('Owned disposable document directory\n')
     runtime_fixture = {'role': role, 'entryUri': actor['entryUri'], 'runId': input_data['runId'],
-                       'organizationOrigin': input_data['publicOrigin'], 'organizationId': input_data['organizationId'],
+                       'organizationOrigin': input_data['publicOrigin'], 'nativeOrganizationId': input_data['nativeOrganizationId'],
                        'identityIssuer': env['WEAVE_NATIVE_ISSUER'],
                        'identityDigestExpected': hashlib.sha256(actor['identityRef'].encode()).hexdigest(),
                        'sharedSpaceRef': input_data['sharedSpaceRef'], 'storageDigest': storage_digest,
@@ -728,7 +730,7 @@ def retain_failure_room_reference(scopes: dict, input_path: Path, input_data: di
             raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'actor-mismatch')
         if data.get('identityIssuerDigest') != hashlib.sha256(issuer.encode()).hexdigest():
             raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'issuer-mismatch')
-        if data.get('organizationDigest') != hashlib.sha256(input_data['organizationId'].encode()).hexdigest():
+        if data.get('nativeOrganizationDigest') != hashlib.sha256(input_data['nativeOrganizationId'].encode()).hexdigest():
             raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'organization-mismatch')
         bound[role] = data
     room = bound['A'].get('resources', {}).get('roomId')

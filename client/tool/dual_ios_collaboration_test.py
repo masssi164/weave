@@ -37,7 +37,7 @@ class DualIosCollaborationTest(unittest.TestCase):
                         dual.actor_result(result, 'A', 'owned-actor', 'a' * 64)
                     raise stopped
                 self.fail('Unexpected native command')
-            data = {'runId': 'owned-test', 'publicOrigin': 'https://owned.invalid', 'organizationId': 'owned-org',
+            data = {'runId': 'owned-test', 'publicOrigin': 'https://owned.invalid', 'organizationId': 'canonical-tenant', 'nativeOrganizationId': 'owned-org',
                     'sharedSpaceRef': 'workspace-default', 'actors': [
                         {'role': 'A', 'displayName': 'Owned author'},
                         {'role': 'B', 'displayName': 'Owned peer'}]}
@@ -191,12 +191,12 @@ class DualIosCollaborationTest(unittest.TestCase):
             root.chmod(0o700)
             support = root / 'support'; support.mkdir(mode=0o700)
             input_path = root / 'input.json'
-            input_data = {'runId': 'owned-test', 'organizationId': 'owned-org', 'actors': [
+            input_data = {'runId': 'owned-test', 'organizationId': 'canonical-tenant', 'nativeOrganizationId': 'owned-org', 'actors': [
                 {'role': 'A', 'identityRef': 'actor-A'}, {'role': 'B', 'identityRef': 'actor-B'}]}
             result = support / 'weave-dual-ios-result.json'
             payload = {'role': 'A', 'identityDigest': hashlib.sha256(b'actor-A').hexdigest(),
                        'identityIssuerDigest': hashlib.sha256(b'https://issuer.test').hexdigest(),
-                       'organizationDigest': hashlib.sha256(b'owned-org').hexdigest(),
+                       'nativeOrganizationDigest': hashlib.sha256(b'owned-org').hexdigest(),
                        'resources': {'roomId': '!owned:weave.test', 'roomTitle': 'private-displayed-name'},
                        'privateError': 'private-message-must-not-transfer'}
             result.write_text(json.dumps(payload)); result.chmod(0o600)
@@ -229,7 +229,7 @@ class DualIosCollaborationTest(unittest.TestCase):
                 self.assertFalse(snapshot.exists())
             result.write_text(json.dumps(payload))
             for key, reason in [('identityDigest', 'actor-mismatch'), ('identityIssuerDigest', 'issuer-mismatch'),
-                                ('organizationDigest', 'organization-mismatch')]:
+                                ('nativeOrganizationDigest', 'organization-mismatch')]:
                 invalid_peer = dict(peer_payload, **{key: 'b' * 64})
                 peer_result.write_text(json.dumps(invalid_peer))
                 with self.assertRaises(ios.NativeFailure) as caught:
@@ -237,7 +237,7 @@ class DualIosCollaborationTest(unittest.TestCase):
                 self.assertEqual(caught.exception.reason, reason)
                 self.assertFalse(snapshot.exists())
             peer_result.write_text(json.dumps(peer_payload))
-            for key in ['identityDigest', 'identityIssuerDigest', 'organizationDigest']:
+            for key in ['identityDigest', 'identityIssuerDigest', 'nativeOrganizationDigest']:
                 missing = dict(peer_payload); missing.pop(key)
                 peer_result.write_text(json.dumps(missing))
                 with self.assertRaises(ios.NativeFailure):
@@ -387,7 +387,7 @@ class DualIosCollaborationTest(unittest.TestCase):
             parent = Path(directory); parent.chmod(0o700)
             path = parent / 'fixture.json'
             value = {'schemaVersion': 'weave.dual-ios-input/v1', 'runId': 'owned-run',
-                     'organizationId': 'owned-org',
+                     'organizationId': 'canonical-tenant', 'nativeOrganizationId': 'owned-org',
                      'publicOrigin': 'https://weave.localhost', 'actors': [
                          {'role': 'A', 'email': 'a@example.invalid', 'password': 'private-a', 'identityRef': 'a', 'displayName': 'Current owner', 'entryUri': 'weave.localhost'},
                          {'role': 'B', 'email': 'b@example.invalid', 'password': 'private-b', 'identityRef': 'b', 'displayName': 'Current peer', 'entryUri': 'weave://join?organization_origin=https%3A%2F%2Fweave.localhost'}]}
@@ -395,6 +395,12 @@ class DualIosCollaborationTest(unittest.TestCase):
                 path.write_text(json.dumps(value));path.chmod(0o600)
             write()
             self.assertEqual(dual.private_input(path, 'owned-run'), value)
+            for invalid in [None, '', ' ']:
+                value['nativeOrganizationId'] = invalid; write()
+                with self.assertRaises(ios.NativeFailure): dual.private_input(path, 'owned-run')
+            del value['nativeOrganizationId']; write()
+            with self.assertRaises(ios.NativeFailure): dual.private_input(path, 'owned-run')
+            value['nativeOrganizationId'] = 'owned-org'
             for invalid in [None, '', ' ']:
                 value['organizationId'] = invalid; write()
                 with self.assertRaises(ios.NativeFailure): dual.private_input(path, 'owned-run')

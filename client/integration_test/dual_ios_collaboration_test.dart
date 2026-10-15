@@ -59,7 +59,7 @@ Map<String, String> nativeDualSessionIdentityDigests(
   Map<String, dynamic> claims, {
   required String expectedSubjectDigest,
   required String expectedIssuer,
-  required String expectedOrganizationId,
+  required String expectedNativeOrganizationId,
 }) {
   final subject = claims['sub'];
   final issuer = claims['iss'];
@@ -79,13 +79,23 @@ Map<String, String> nativeDualSessionIdentityDigests(
   final digests = {
     'identityDigest': sha256.convert(utf8.encode(subject)).toString(),
     'identityIssuerDigest': sha256.convert(utf8.encode(issuer)).toString(),
-    'organizationDigest': sha256.convert(utf8.encode(organization)).toString(),
+    'nativeOrganizationDigest': sha256
+        .convert(utf8.encode(organization))
+        .toString(),
   };
-  if (digests['identityDigest'] != expectedSubjectDigest ||
-      issuer != expectedIssuer ||
-      organization != expectedOrganizationId) {
+  if (digests['identityDigest'] != expectedSubjectDigest) {
     throw TestFailure(
-      'Actual native session differs from its owned fixture identity.',
+      'Actual native session subject does not match its assigned actor.',
+    );
+  }
+  if (issuer != expectedIssuer) {
+    throw TestFailure(
+      'Actual native session issuer does not match its owned fixture.',
+    );
+  }
+  if (organization != expectedNativeOrganizationId) {
+    throw TestFailure(
+      'Actual native session native organization does not match its owned fixture.',
     );
   }
   return digests;
@@ -489,7 +499,7 @@ void main() {
         claims,
         expectedSubjectDigest: fixture['identityDigestExpected'] as String,
         expectedIssuer: fixture['identityIssuer'] as String,
-        expectedOrganizationId: fixture['organizationId'] as String,
+        expectedNativeOrganizationId: fixture['nativeOrganizationId'] as String,
       );
       final scenarios = <String, Map<String, dynamic>>{
         if (prior != null)

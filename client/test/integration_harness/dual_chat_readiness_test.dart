@@ -111,7 +111,7 @@ void main() {
             .convert(utf8.encode('owned-subject'))
             .toString(),
         expectedIssuer: 'https://issuer.test',
-        expectedOrganizationId: 'owned-org',
+        expectedNativeOrganizationId: 'owned-org',
       );
       expect(
         digests['identityDigest'],
@@ -122,10 +122,27 @@ void main() {
         sha256.convert(utf8.encode('https://issuer.test')).toString(),
       );
       expect(
-        digests['organizationDigest'],
+        digests['nativeOrganizationDigest'],
         sha256.convert(utf8.encode('owned-org')).toString(),
       );
       expect(digests.toString(), isNot(contains('private-token')));
+      // The canonical tenant is not the native provider organization coordinate.
+      expect(
+        () => nativeDualSessionIdentityDigests(
+          claims,
+          expectedSubjectDigest: digests['identityDigest']!,
+          expectedIssuer: 'https://issuer.test',
+          expectedNativeOrganizationId: 'canonical-tenant',
+        ),
+        throwsA(
+          isA<TestFailure>().having(
+            (e) => e.message,
+            'fixed native coordinate mismatch',
+            'Actual native session native organization does not match its owned fixture.',
+          ),
+        ),
+      );
+
       for (final expected in ['subject', 'issuer', 'organization']) {
         expect(
           () => nativeDualSessionIdentityDigests(
@@ -136,7 +153,7 @@ void main() {
             expectedIssuer: expected == 'issuer'
                 ? 'https://other.invalid'
                 : 'https://issuer.test',
-            expectedOrganizationId: expected == 'organization'
+            expectedNativeOrganizationId: expected == 'organization'
                 ? 'other-org'
                 : 'owned-org',
           ),
@@ -158,7 +175,7 @@ void main() {
                   .convert(utf8.encode('owned-subject'))
                   .toString(),
               expectedIssuer: 'https://issuer.test',
-              expectedOrganizationId: 'owned-org',
+              expectedNativeOrganizationId: 'owned-org',
             ),
             throwsA(isA<TestFailure>()),
           );
@@ -180,7 +197,7 @@ void main() {
                 .convert(utf8.encode('owned-subject'))
                 .toString(),
             expectedIssuer: 'https://issuer.test',
-            expectedOrganizationId: 'owned-org',
+            expectedNativeOrganizationId: 'owned-org',
           ),
           throwsA(
             isA<TestFailure>().having(
