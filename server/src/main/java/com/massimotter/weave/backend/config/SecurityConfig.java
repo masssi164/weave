@@ -72,7 +72,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/health/**", "/api/platform/config", "/api/platform/status").permitAll()
                         .requestMatchers(HttpMethod.GET, "/", "/join").permitAll()
                         .requestMatchers("/api/v1/agent-runtime/trust/jwks.json").permitAll()
-                        .requestMatchers("/.well-known/matrix/client", "/.well-known/weave").permitAll()
+                        .requestMatchers("/.well-known/matrix/client").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/_matrix/client/versions", "/_matrix/client/v3/versions",
                                 "/_matrix/client/v3/login", "/_matrix/client/r0/login").permitAll()
