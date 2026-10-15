@@ -24,6 +24,7 @@ dependencies:
   code_assets: ^1.2.1
   ffi: ^2.2.0
   http: ^1.2.2
+  mime: 2.0.0
   collection: 1.19.1
   meta: 1.17.0
   path_provider: ^2.1.5
