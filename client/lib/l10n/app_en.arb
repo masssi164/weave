@@ -367,15 +367,15 @@
   },
   "chatCreateConversationAction": "Start conversation",
   "@chatCreateConversationAction": {
-    "description": "Accessible action for opening the encrypted conversation creation dialog"
+    "description": "Accessible action for opening the conversation creation dialog"
   },
-  "chatCreateConversationTitle": "Start an encrypted conversation",
+  "chatCreateConversationTitle": "Start a conversation",
   "@chatCreateConversationTitle": {
-    "description": "Title for the encrypted conversation creation dialog"
+    "description": "Title for the conversation creation dialog"
   },
-  "chatCreateConversationDescription": "Give this workspace conversation a clear name. Weave creates it through the organization Chat facade and enables encryption from the first event.",
+  "chatCreateConversationDescription": "Choose a name and members for a direct conversation or restricted group.",
   "@chatCreateConversationDescription": {
-    "description": "Provider-neutral guidance in the encrypted conversation creation dialog"
+    "description": "Provider-neutral guidance in the conversation creation dialog"
   },
   "chatCreateConversationNameLabel": "Conversation name",
   "@chatCreateConversationNameLabel": {
@@ -4502,5 +4502,9 @@
   "chatInvitationDescription": "You have been invited to this conversation. Join to read and send messages.",
   "chatInvitationAccept": "Accept invitation",
   "chatInvitationJoining": "Joining…",
-  "chatInvitationFailed": "The invitation could not be accepted. Check your access and try again."
+  "chatInvitationFailed": "The invitation could not be accepted. Check your access and try again.",
+  "chatDirectConversationLabel": "Direct conversation",
+  "chatDirectConversationHelp": "Choose one organization member. They can read and reply without accepting an invitation.",
+  "chatRestrictedConversationHelp": "Restricted group. Invited members must accept before reading or replying.",
+  "chatDirectParticipantRequired": "Choose exactly one other member for a direct conversation."
 }

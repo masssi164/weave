@@ -566,6 +566,62 @@ class JpaCanonicalChatStoreTest {
     }
 
     @Test
+    void internalDirectConversationAdmitsOnlyThePairAfterCommitWithoutAcceptance() {
+        JpaCanonicalChatStore store = store(dataSource());
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("direct-author");
+        ChatRequestContext peer = context("direct-peer");
+        ChatRequestContext outsider = context("direct-outsider");
+        var prepared = store.prepareConversation(author, new ChatTransactionId("direct-pair"),
+                "Internal direct", "direct", List.of(ChatResolvedIdentity.from(peer)),
+                NativeChatProviderAdapter.PROVIDER_KEY, null, ChatEncryptionState.unencrypted());
+        assertThat(store.joinedConversations(peer).conversations()).isEmpty();
+        assertThatThrownBy(() -> store.timelinePage(peer, prepared.conversationId(), null, 100))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        assertThatThrownBy(() -> adapter.sendEvent(peer, prepared.conversationId(),
+                new ChatTransactionId("pending-direct-send"), ChatEventContent.text("Not admitted")))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        var created = store.commitConversation(author, prepared);
+        assertThat(store.joinedConversations(peer).conversations()).hasSize(1);
+        assertThat(store.invitedConversations(peer, "", 100)).isEmpty();
+        assertThat(created.memberships()).hasSize(2).allSatisfy(member ->
+                assertThat(member.state()).isEqualTo("joined"));
+        var room = new ConversationId(created.conversationId());
+        adapter.sendEvent(author, room, new ChatTransactionId("direct-message"), ChatEventContent.text("Message"));
+        assertThat(store.timelinePage(peer, room, null, 100).timeline().events()).hasSize(1);
+        assertThatThrownBy(() -> store.timelinePage(outsider, room, null, 100))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        assertThatThrownBy(() -> store.prepareMembership(outsider, room, "joined"))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        assertThatThrownBy(() -> adapter.sendEvent(outsider, room,
+                new ChatTransactionId("outsider-direct-send"), ChatEventContent.text("Not admitted")))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        assertThat(store.joinedConversations(outsider).conversations()).isEmpty();
+        assertThat(store.currentCursor(outsider).value()).isEqualTo("chat-revision-0");
+        assertThat(store.changes(outsider, null, 100).changes()).isEmpty();
+        var replay = store.prepareConversation(author, new ChatTransactionId("direct-pair"),
+                "Internal direct", "direct", List.of(ChatResolvedIdentity.from(peer)),
+                NativeChatProviderAdapter.PROVIDER_KEY, null, ChatEncryptionState.unencrypted());
+        assertThat(replay.committed()).isTrue();
+        assertThat(replay.conversationId()).isEqualTo(room);
+        assertThatThrownBy(() -> store.prepareConversation(author, new ChatTransactionId("direct-pair"),
+                "Internal direct", "channel", List.of(ChatResolvedIdentity.from(peer)),
+                NativeChatProviderAdapter.PROVIDER_KEY, null, ChatEncryptionState.unencrypted()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> store.prepareConversation(author, new ChatTransactionId("direct-pair"),
+                "Internal direct", "direct", List.of(ChatResolvedIdentity.from(outsider)),
+                NativeChatProviderAdapter.PROVIDER_KEY, null, ChatEncryptionState.unencrypted()))
+                .isInstanceOf(IllegalArgumentException.class);
+        adapter.leaveConversation(peer, room);
+        assertThat(store.joinedConversations(peer).conversations()).isEmpty();
+        assertThatThrownBy(() -> store.timelinePage(peer, room, null, 100)).isInstanceOf(ChatAccessDeniedException.class);
+        adapter.createConversation(author, new ChatTransactionId("direct-pair"), "Internal direct", "direct",
+                List.of(ChatResolvedIdentity.from(peer)), ChatEncryptionState.unencrypted());
+        assertThat(store.joinedConversations(peer).conversations()).isEmpty();
+        assertThat(store.joinedConversations(author).conversations()).hasSize(1);
+    }
+
+    @Test
     void invitedMembershipIsDistinctAndOutsiderCannotJoinOrRead() {
         JpaCanonicalChatStore store = store(dataSource());
         ChatRequestContext author = context("author");

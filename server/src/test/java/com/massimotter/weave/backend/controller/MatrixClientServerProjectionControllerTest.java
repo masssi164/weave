@@ -347,6 +347,62 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void directClassificationComesFromAuthorizedCanonicalJoinedPairNotUserAccountData() throws Exception {
+        stubConversation();
+        var base = conversations().conversations().getFirst();
+        var direct = new ChatConversation("direct-pair", "Direct", "direct", base.state(), base.memberImpact(),
+                base.updatedAt(), base.encryptionState(), base.historyPolicy(), List.of(
+                    new ChatMembership("a", "direct-pair", "user:user@example.com", "member", "joined", Instant.now(), List.of()),
+                    new ChatMembership("b", "direct-pair", "user:peer", "member", "joined", Instant.now(), List.of())), List.of());
+        when(chatDomainFacadeService.conversations(any())).thenReturn(new ChatConversations(readiness(), List.of(base, direct)));
+        when(chatDomainFacadeService.syncCursor(any())).thenReturn("chat-revision-9");
+        when(chatDomainFacadeService.timelineWindow(eq("direct-pair"), any(), anyInt()))
+                .thenReturn(new ChatDomainFacadeService.ChatTimelineWindow(new ChatTimeline("direct-pair", List.of()), false));
+        String currentUser = matrixProtocolCoreService.userId("user:user@example.com");
+        mockMvc.perform(put("/_matrix/client/v3/user/" + currentUser + "/account_data/m.direct")
+                        .with(workspaceJwt("direct-native-session")).contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of("@forged:api.weave.test", List.of("!forbidden:api.weave.test")))))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt("direct-native-session")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.join['!direct-pair:api.weave.test']").exists())
+                .andExpect(jsonPath("$.rooms.join['!forbidden:api.weave.test']").doesNotExist())
+                .andExpect(jsonPath("$.account_data.events[?(@.type == 'm.direct')].content['@forged:api.weave.test'][0]").value("!forbidden:api.weave.test"))
+                .andExpect(jsonPath("$.account_data.events[?(@.type == 'm.direct')].content['" + matrixProtocolCoreService.userId("user:peer") + "'][0]")
+                        .value("!direct-pair:api.weave.test"));
+        verify(chatDomainFacadeService, never()).joinConversation(any(), any());
+    }
+
+    @Test
+    void departedPeerDoesNotBreakRemainingMembersDirectOrUnrelatedSync() throws Exception {
+        stubConversation();
+        var base = conversations().conversations().getFirst();
+        var direct = new ChatConversation("direct-departure", "Direct", "direct", base.state(), base.memberImpact(),
+                base.updatedAt(), base.encryptionState(), base.historyPolicy(), List.of(
+                    new ChatMembership("a", "direct-departure", "user:user@example.com", "member", "joined", Instant.now(), List.of()),
+                    new ChatMembership("b", "direct-departure", "user:peer", "member", "left", Instant.now(), List.of())), List.of());
+        when(chatDomainFacadeService.conversations(any())).thenReturn(new ChatConversations(readiness(), List.of(base, direct)));
+        when(chatDomainFacadeService.syncCursor(any())).thenReturn("chat-revision-10");
+        when(chatDomainFacadeService.timelineWindow(eq("direct-departure"), any(), anyInt()))
+                .thenReturn(new ChatDomainFacadeService.ChatTimelineWindow(new ChatTimeline("direct-departure", List.of()), false));
+        mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt("departure-native-session")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.join['!direct-departure:api.weave.test']").exists())
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test']").exists())
+                .andExpect(jsonPath("$.account_data.events[?(@.type == 'm.direct')].content['" + matrixProtocolCoreService.userId("user:peer") + "'][0]")
+                        .value("!direct-departure:api.weave.test"));
+        verify(chatDomainFacadeService, never()).joinConversation(any(), any());
+    }
+
+    @Test
+    void malformedDirectHintIsRejectedBeforeCreation() throws Exception {
+        mockMvc.perform(post("/_matrix/client/v3/createRoom").with(workspaceJwt())
+                        .contentType("application/json").content(objectMapper.writeValueAsString(Map.of("name", "Direct", "is_direct", "true"))))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errcode").value("M_BAD_JSON"));
+        verify(chatDomainFacadeService, never()).createConversation(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void pendingInvitationUsesStrippedNativeInviteAndNeverLoadsJoinedHistory() throws Exception {
         var invitation = new com.massimotter.weave.backend.chat.domain.ChatInvitation(
                 "channel-invite", "Pending collaboration", Instant.parse("2026-07-08T10:00:00Z"),

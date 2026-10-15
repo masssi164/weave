@@ -25,6 +25,7 @@ abstract interface class ChatParticipantRepository {
   Future<ChatConversation> createConversationWithParticipants({
     required String title,
     required List<ChatParticipant> participants,
+    bool isDirect = false,
   });
 }
 

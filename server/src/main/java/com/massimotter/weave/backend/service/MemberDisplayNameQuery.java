@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 
 /** Minimal member names from the existing identity and product-profile authorities. */
 @Service
-public final class MemberDisplayNameQuery {
+public final class MemberDisplayNameQuery implements com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery {
     private final KeycloakIdentityAdminClient identities;
     private final ProductProfileOverrideRepository profiles;
     private final OrganizationIdentityContextResolver contexts;
@@ -25,6 +25,31 @@ public final class MemberDisplayNameQuery {
         this.profiles = profiles;
         this.contexts = contexts;
         this.trustedIssuer = properties.getJwt().getIssuerUri();
+    }
+
+    @Override
+    public void requireCurrentMember(Jwt jwt, String identityIssuer, String subject) {
+        var caller = contexts.resolve(jwt);
+        if (!contexts.matchesConfiguredTenant(jwt) || trustedIssuer == null
+                || !trustedIssuer.equals(caller.issuer()) || !caller.issuer().equals(identityIssuer)
+                || subject == null || subject.isBlank()) {
+            throw new Denied();
+        }
+        try {
+            var member = identities.requireMember(identities.configuredOrganizationId(), subject);
+            if (member == null) throw new Unavailable();
+            if (!subject.equals(member.subject()) || !member.enabled() || member.roles().size() != 1
+                    || !Set.of("owner", "admin", "member", "guest").contains(member.roles().getFirst())) {
+                throw new Denied();
+            }
+        } catch (KeycloakIdentityAdminClient.KeycloakAdminException error) {
+            if (error.status() == 404) throw new Denied();
+            throw new Unavailable();
+        } catch (Denied | Unavailable error) {
+            throw error;
+        } catch (RuntimeException error) {
+            throw new Unavailable();
+        }
     }
 
     /** Call only after current domain admission; never returns email, roles or provider metadata. */

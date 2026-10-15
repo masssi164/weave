@@ -38,6 +38,8 @@ import 'package:weave/features/calendar/domain/repositories/calendar_repository.
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
+import 'package:weave/features/chat/presentation/chat_room_screen.dart';
+import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
@@ -56,6 +58,9 @@ import 'package:weave/features/server_config/presentation/providers/server_confi
 import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/main.dart';
+
+import '../../../integration_test/dual_ios_collaboration_test.dart'
+    show tapNativeDualChatConversation, nativeDualChatSurfaceDiagnostic;
 
 import '../../../integration_test/system_browser_auth_e2e_test.dart'
     show expectNativeMatrixEndpoint, prepareNativeCanonicalOrganization;
@@ -349,6 +354,8 @@ void main() {
       InMemorySecureStore? secureStore,
       InMemoryPreferencesStore? preferencesStore,
       UserProfile? userProfile,
+      FakeChatRepository? chatRepository,
+      AsyncValue<WorkspaceCapabilitySnapshot> Function()? capabilities,
       bool usePersistedConfiguration = false,
       ResolveAppBootstrap? resolver,
       SignInWithOidc? interactiveSignIn,
@@ -405,7 +412,9 @@ void main() {
           identitySessionPortProvider.overrideWithValue(
             FakeIdentitySessionPort(),
           ),
-          chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
+          chatRepositoryProvider.overrideWithValue(
+            chatRepository ?? FakeChatRepository(),
+          ),
           filesRepositoryProvider.overrideWithValue(
             FakeFilesRepository(
               connectionState: const FilesConnectionState.disconnected(),
@@ -418,8 +427,8 @@ void main() {
           workspaceConnectionStateProvider.overrideWithValue(
             _workspaceConnectionState(),
           ),
-          workspaceCapabilitySnapshotProvider.overrideWithValue(
-            _workspaceCapabilitySnapshot(),
+          workspaceCapabilitySnapshotProvider.overrideWith(
+            (ref) => capabilities?.call() ?? _workspaceCapabilitySnapshot(),
           ),
           // The ready shell renders backend-backed workspace status cards.
           // Keep router tests focused on navigation so widget-test HTTP
@@ -438,6 +447,88 @@ void main() {
       );
       return container;
     }
+
+    testWidgets(
+      'real router preserves pending invitation without timeline and diagnoses admission gate',
+      (tester) async {
+        const invitation = ChatConversation(
+          id: '!private-room:example.invalid',
+          title: 'Private invitation title',
+          previewType: ChatConversationPreviewType.none,
+          unreadCount: 0,
+          isInvite: true,
+          isDirectMessage: false,
+        );
+        final repository = FakeChatRepository(
+          loadConversationsHandler: () async => [invitation],
+        );
+        var capabilities = _workspaceCapabilitySnapshot();
+        final container = createContainer(
+          configuration: buildTestConfiguration(),
+          resolver: _ControlledBootstrapResolver(
+            initial: const BootstrapState.ready(),
+          ),
+          chatRepository: repository,
+          capabilities: () => capabilities,
+        );
+        addTearDown(container.dispose);
+        await container.read(appBootstrapProvider.future);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        container.read(appRouterProvider).go(AppRoutes.chat);
+        await tester.pumpAndSettle();
+        expect(find.byType(ChatScreen), findsOneWidget);
+        await tapNativeDualChatConversation(tester, invitation.title);
+        await tester.pumpAndSettle();
+        expect(find.byType(ChatRoomScreen), findsOneWidget);
+        expect(
+          find.byKey(const Key('chat-accept-invitation-button')),
+          findsOneWidget,
+        );
+        expect(repository.loadRoomTimelineCalls, 0);
+        final ready = nativeDualChatSurfaceDiagnostic(
+          tester,
+          container.read(appBootstrapProvider),
+          container.read(workspaceCapabilitySnapshotProvider),
+        );
+        expect(ready, contains('invitedRoomVisible=1 nonInvitedRoomVisible=0'));
+        expect(ready, contains('invitationCount=1'));
+        expect(ready, isNot(contains(invitation.id)));
+        expect(ready, isNot(contains(invitation.title)));
+        capabilities = const AsyncLoading();
+        container.invalidate(workspaceCapabilitySnapshotProvider);
+        expect(
+          container.read(workspaceCapabilitySnapshotProvider).isLoading,
+          isTrue,
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(find.byType(ChatRoomScreen), findsNothing);
+        final gated = nativeDualChatSurfaceDiagnostic(
+          tester,
+          container.read(appBootstrapProvider),
+          container.read(workspaceCapabilitySnapshotProvider),
+        );
+        expect(gated, contains('roomVisible=0 roomMounted=0'));
+        expect(gated, contains('invitedRoomVisible=0 nonInvitedRoomVisible=0'));
+        expect(gated, contains('invitationCount=0'));
+        expect(gated, contains('capabilitiesLoading=true'));
+        expect(repository.loadRoomTimelineCalls, 0);
+        capabilities = _workspaceCapabilitySnapshot();
+        container.invalidate(workspaceCapabilitySnapshotProvider);
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('chat-accept-invitation-button')),
+          findsOneWidget,
+        );
+        expect(repository.loadRoomTimelineCalls, 0);
+      },
+    );
 
     testWidgets(
       'native canonical entry reaches sign-in through production discovery',

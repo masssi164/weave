@@ -324,11 +324,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatCreateConversationAction => 'Start conversation';
 
   @override
-  String get chatCreateConversationTitle => 'Start an encrypted conversation';
+  String get chatCreateConversationTitle => 'Start a conversation';
 
   @override
   String get chatCreateConversationDescription =>
-      'Give this workspace conversation a clear name. Weave creates it through the organization Chat facade and enables encryption from the first event.';
+      'Choose a name and members for a direct conversation or restricted group.';
 
   @override
   String get chatCreateConversationNameLabel => 'Conversation name';
@@ -3685,4 +3685,19 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chatInvitationFailed =>
       'The invitation could not be accepted. Check your access and try again.';
+
+  @override
+  String get chatDirectConversationLabel => 'Direct conversation';
+
+  @override
+  String get chatDirectConversationHelp =>
+      'Choose one organization member. They can read and reply without accepting an invitation.';
+
+  @override
+  String get chatRestrictedConversationHelp =>
+      'Restricted group. Invited members must accept before reading or replying.';
+
+  @override
+  String get chatDirectParticipantRequired =>
+      'Choose exactly one other member for a direct conversation.';
 }

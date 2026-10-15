@@ -139,10 +139,12 @@ Future<String> matrixCreateBusinessRoomWithMembers({
   required String profileKey,
   required String title,
   required List<String> memberIds,
+  required bool isDirect,
 }) => RustLib.instance.api.crateFrbApiMatrixCreateBusinessRoomWithMembers(
   profileKey: profileKey,
   title: title,
   memberIds: memberIds,
+  isDirect: isDirect,
 );
 
 Future<String> matrixAcceptRoomInvitation({

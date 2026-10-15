@@ -6,6 +6,7 @@ import 'package:weave/features/chat/data/repositories/native_matrix_chat_reposit
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
+import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
@@ -112,6 +113,7 @@ class _FailingCreateBridge extends FakeRustMatrixCoreBridge {
 
 class _ParticipantBridge extends FakeRustMatrixCoreBridge {
   List<String>? invited;
+  bool? direct;
   String? search;
   @override
   Future<List<RustMatrixMember>> searchMembers({
@@ -129,13 +131,16 @@ class _ParticipantBridge extends FakeRustMatrixCoreBridge {
     required String profileKey,
     required String title,
     required List<String> memberIds,
+    bool isDirect = false,
   }) async {
     invited = memberIds;
+    direct = isDirect;
     return RustMatrixEncryptedRoom(
       roomId: '!shared:api.weave.test',
       title: title,
       unreadCount: 0,
       encrypted: false,
+      isDirect: isDirect,
     );
   }
 }
@@ -479,6 +484,50 @@ void main() {
       );
       expect(conversation.id, '!shared:api.weave.test');
       expect(participantBridge.invited, ['@member:api.weave.test']);
+    },
+  );
+
+  test(
+    'explicit direct intent uses one peer and retains SDK direct classification',
+    () async {
+      final participantBridge = _ParticipantBridge();
+      final chat = repository(rustBridge: participantBridge);
+      final members = await chat.searchMembers('Member');
+      final room = await chat.createConversationWithParticipants(
+        title: 'Direct',
+        participants: members,
+        isDirect: true,
+      );
+      expect(participantBridge.direct, isTrue);
+      expect(room.isDirectMessage, isTrue);
+      expect(room.isInvite, isFalse);
+      for (final invalid in [
+        <ChatParticipant>[],
+        [members.single, members.single],
+      ]) {
+        await expectLater(
+          chat.createConversationWithParticipants(
+            title: 'Invalid',
+            participants: invalid,
+            isDirect: true,
+          ),
+          throwsA(
+            isA<ChatFailure>().having(
+              (f) => f.type,
+              'type',
+              ChatFailureType.configuration,
+            ),
+          ),
+        );
+      }
+      expect(
+        RustMatrixEncryptedRoom.fromJson({
+          'roomId': 'owned',
+          'isDirect': true,
+          'membership': 'joined',
+        }).isDirect,
+        isTrue,
+      );
     },
   );
 

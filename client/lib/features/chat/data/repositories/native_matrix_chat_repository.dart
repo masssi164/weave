@@ -65,7 +65,7 @@ class NativeMatrixChatRepository
                   : ChatConversationPreviewType.none,
               unreadCount: room.unreadCount,
               isInvite: room.isInvite,
-              isDirectMessage: false,
+              isDirectMessage: room.isDirect,
             ),
           )
           .toList(growable: false);
@@ -133,7 +133,12 @@ class NativeMatrixChatRepository
   Future<ChatConversation> createConversationWithParticipants({
     required String title,
     required List<ChatParticipant> participants,
-  }) => _createConversation(title: title, participants: participants);
+    bool isDirect = false,
+  }) => _createConversation(
+    title: title,
+    participants: participants,
+    isDirect: isDirect,
+  );
 
   @override
   Future<ChatConversation> createConversation({required String title}) =>
@@ -142,7 +147,13 @@ class NativeMatrixChatRepository
   Future<ChatConversation> _createConversation({
     required String title,
     required List<ChatParticipant> participants,
+    bool isDirect = false,
   }) async {
+    if (isDirect && participants.length != 1) {
+      throw const ChatFailure.configuration(
+        'Choose exactly one member for a direct conversation.',
+      );
+    }
     final normalizedTitle = title.trim();
     if (normalizedTitle.isEmpty || normalizedTitle.runes.length > 200) {
       throw const ChatFailure.configuration(
@@ -161,11 +172,12 @@ class NativeMatrixChatRepository
           : await _rustMatrixCoreBridge.createBusinessRoomWithMembers(
               profileKey: session.profileKey,
               title: normalizedTitle,
+              isDirect: isDirect,
               memberIds: participants
                   .map((member) => member.userId)
                   .toList(growable: false),
             );
-      if (room.roomId.isEmpty || room.encrypted) {
+      if (room.roomId.isEmpty || room.encrypted || room.isDirect != isDirect) {
         throw const RustMatrixCoreBridgeException(
           'M_WEAVE_CHAT_CREATE_ROOM_INVALID',
         );
@@ -176,7 +188,7 @@ class NativeMatrixChatRepository
         previewType: ChatConversationPreviewType.none,
         unreadCount: room.unreadCount,
         isInvite: false,
-        isDirectMessage: false,
+        isDirectMessage: room.isDirect,
       );
     } on RustMatrixCoreBridgeException catch (error) {
       if (isMatrixSessionExpiredCode(error.code)) {

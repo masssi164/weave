@@ -318,6 +318,11 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
                 .sorted(Comparator.comparing(ChatResolvedIdentity::identityIssuer)
                         .thenComparing(identity -> identity.actorRef().value()))
                 .toList();
+        boolean direct = "direct".equals(safeKind);
+        if (direct && (invitedIdentities == null || invitedIdentities.size() != 1 || invites.size() != 1
+                || !context.identityIssuer().equals(invites.getFirst().identityIssuer()))) {
+            throw new ChatAccessDeniedException();
+        }
         String operationId = operationId(context, "create-room", "new", transactionId.value());
         String conversationId = "room-" + UUID.nameUUIDFromBytes(operationId.getBytes(StandardCharsets.UTF_8));
         String digest = digestJson(Map.of(
@@ -356,7 +361,7 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
                     "joined", now, now);
             for (ChatResolvedIdentity invited : invites) {
                 insertMembership(context.tenantId(), conversationId, invited.identityIssuer(), invited.actorRef(),
-                        "invited", now, null);
+                        direct ? "joined" : "invited", now, direct ? now : null);
             }
             String providerTxn = providerTransaction(operationId);
             insertOperation(context, operationId, "create-room", conversationId, conversationId,
