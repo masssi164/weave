@@ -58,7 +58,7 @@ import 'package:weave/integrations/weave_api/presentation/providers/weave_api_pr
 import 'package:weave/main.dart';
 
 import '../../../integration_test/system_browser_auth_e2e_test.dart'
-    show prepareNativeCanonicalOrganization;
+    show expectNativeMatrixEndpoint, prepareNativeCanonicalOrganization;
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/data/services/service_endpoint_deriver.dart';
 
@@ -498,6 +498,12 @@ void main() {
         );
         expect(find.byType(MemberHandoffScreen), findsOneWidget);
         expect(requests, 1);
+        expectNativeMatrixEndpoint(
+          (await repository.loadConfiguration())!
+              .serviceEndpoints
+              .matrixHomeserverUrl,
+          Uri.parse('https://api.weave.local/'),
+        );
         expect(
           (await repository.loadConfiguration())!.organizationOrigin?.origin,
           'https://weave.example',
