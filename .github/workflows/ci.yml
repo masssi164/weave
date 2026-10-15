@@ -34,7 +34,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - run: ./gradlew --no-daemon --stacktrace coreArchitectureCi canonicalDataCi mcpFoundationCi
+      - run: ./gradlew --no-daemon --stacktrace coreArchitectureCi canonicalDataCi mcpFoundationCi testAppContract
 
   postgres_persistence:
     name: PostgreSQL persistence
