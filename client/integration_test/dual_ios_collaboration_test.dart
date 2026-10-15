@@ -764,11 +764,12 @@ void main() {
               tester,
               Icons.calendar_month_outlined,
             );
-            await _tap(
+            await editNativeDualCalendarEvent(
               tester,
-              find.byTooltip(_copy(tester).calendarCreateButton),
+              tooltip: _copy(tester).calendarCreateButton,
+              title: eventTitle,
+              deadline: actionDeadline,
             );
-            await _editTitle(tester, eventTitle);
             await _calendarReadback(tester, eventTitle, true);
             eventId = container
                 .read(calendarProvider)
@@ -794,13 +795,12 @@ void main() {
                 .id;
           case 'calendar-update':
             expect(role, 'A');
-            await _tap(
+            await editNativeDualCalendarEvent(
               tester,
-              find.byTooltip(
-                _copy(tester).calendarEditEventTooltip(eventTitle),
-              ),
+              tooltip: _copy(tester).calendarEditEventTooltip(eventTitle),
+              title: updatedTitle,
+              deadline: actionDeadline,
             );
-            await _editTitle(tester, updatedTitle);
             await _calendarReadback(tester, updatedTitle, true);
             expect(
               container
@@ -1831,8 +1831,29 @@ String nativeDualChatListDiagnostic(
       'navigationSelected=${selected ?? 'unavailable'} listInitialized=${state != null}';
 }
 
-Future<void> _editTitle(WidgetTester tester, String title) async {
-  final copy = _copy(tester);
+Future<void> editNativeDualCalendarEvent(
+  WidgetTester tester, {
+  required String tooltip,
+  required String title,
+  required DateTime deadline,
+}) async {
+  final control = find.byWidgetPredicate(
+    (widget) => widget is IconButton && widget.tooltip == tooltip,
+  );
+  Duration remaining() => deadline.difference(DateTime.now());
+  await _wait(
+    tester,
+    () =>
+        control.evaluate().length == 1 &&
+        tester.widget<IconButton>(control).onPressed != null &&
+        control.hitTestable().evaluate().length == 1,
+    remaining(),
+  );
+  if (!DateTime.now().isBefore(deadline)) {
+    throw TestFailure('The real Calendar editor action deadline expired.');
+  }
+  final copy = AppLocalizations.of(tester.element(control));
+  await _tap(tester, control);
   final field = find.descendant(
     of: find.byType(AlertDialog),
     matching: find.byWidgetPredicate(
@@ -1841,8 +1862,21 @@ Future<void> _editTitle(WidgetTester tester, String title) async {
           widget.decoration?.labelText == copy.calendarTitleFieldLabel,
     ),
   );
+  await _wait(
+    tester,
+    () =>
+        field.evaluate().length == 1 &&
+        tester.widget<TextField>(field).enabled != false,
+    remaining(),
+  );
+  if (!DateTime.now().isBefore(deadline)) {
+    throw TestFailure('The real Calendar editor action deadline expired.');
+  }
   expect(field, findsOneWidget);
   await tester.enterText(field, title);
+  if (!DateTime.now().isBefore(deadline)) {
+    throw TestFailure('The real Calendar editor action deadline expired.');
+  }
   await _tap(
     tester,
     find.widgetWithText(FilledButton, copy.calendarSaveButton),
