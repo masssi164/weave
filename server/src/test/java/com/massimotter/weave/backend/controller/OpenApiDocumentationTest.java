@@ -64,6 +64,22 @@ class OpenApiDocumentationTest {
     }
 
     @Test
+    void organizationBootstrapHasOnlyTheCanonicalManifestHandlerAndSchema() throws Exception {
+        var activePaths = handlerMapping.getHandlerMethods().keySet().stream()
+                .flatMap(mapping -> mapping.getPatternValues().stream())
+                .toList();
+        assertFalse(activePaths.contains("/.well-known/weave"));
+        assertTrue(activePaths.contains("/api/platform/config"));
+        assertTrue(activePaths.contains("/.well-known/matrix/client"));
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/.well-known/weave']").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.OrganizationAccessDiscovery").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/platform/config'].get.operationId").value("config"))
+                .andExpect(jsonPath("$.components.schemas.OrgManifestResponse").exists());
+    }
+
+    @Test
     void publicDavAndCredentialSetupRoutesAreDisabledByDefault() {
         var activePaths = handlerMapping.getHandlerMethods().keySet().stream()
                 .flatMap(mapping -> mapping.getPatternValues().stream())
