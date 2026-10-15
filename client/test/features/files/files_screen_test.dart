@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
@@ -236,6 +238,12 @@ class _FakeFilesImportPicker implements FilesImportPicker {
 }
 
 class _ExportedFilesController extends FilesController {
+  _ExportedFilesController({
+    this.destination =
+        '/private/owned-container/Documents/Selected/brief 2.txt',
+  });
+
+  final String destination;
   @override
   Future<FilesViewState> build() async => FilesViewState(
     connectionState: FilesConnectionState.connected(
@@ -243,15 +251,70 @@ class _ExportedFilesController extends FilesController {
       accountLabel: 'member',
     ),
     directoryListing: const DirectoryListing(path: '/', entries: []),
-    entryActionStatus: const FilesEntryActionStatus(
+    entryActionStatus: FilesEntryActionStatus(
       phase: FilesEntryActionPhase.exportedEntry,
       entryName: 'brief.txt',
-      destination: '/private/owned-container/Documents/Selected/brief 2.txt',
+      destination: destination,
     ),
   );
 }
 
 void main() {
+  for (final destination in [
+    'content://provider/private-secret-token',
+    'data:text/plain,private-secret-token',
+    'blob:https://provider/private-secret-token',
+  ]) {
+    testWidgets('opaque export destination stays private $destination', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _filesTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesProvider.overrideWith(
+              () => _ExportedFilesController(destination: destination),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      final context = tester.element(find.byType(FilesScreen));
+      final fallback = AppLocalizations.of(
+        context,
+      ).filesExportUserVisibleFallback;
+      expect(find.textContaining(fallback), findsOneWidget);
+      expect(find.textContaining('private-secret-token'), findsNothing);
+      final semantics = tester.ensureSemantics();
+      expect(
+        find.bySemanticsLabel(RegExp('private-secret-token')),
+        findsNothing,
+      );
+      semantics.dispose();
+    });
+  }
+  for (final destination in [
+    'file:///private/Selected/brief%202.txt',
+    r'C:\Selected\brief 2.txt',
+  ]) {
+    testWidgets('export retains actual file basename $destination', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _filesTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesProvider.overrideWith(
+              () => _ExportedFilesController(destination: destination),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('brief 2.txt'), findsOneWidget);
+      expect(find.textContaining('Selected'), findsNothing);
+    });
+  }
   for (final locale in ['en', 'de']) {
     testWidgets(
       'export reports actual selected basename without sandbox path $locale',
@@ -281,6 +344,60 @@ void main() {
         expect(find.textContaining('brief 2.txt'), findsOneWidget);
         expect(find.textContaining('/private/owned-container'), findsNothing);
         expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final locale in ['en', 'de']) {
+    testWidgets(
+      'file modification date follows the visible app locale $locale',
+      (tester) async {
+        tester.platformDispatcher.localesTestValue = [Locale(locale)];
+        addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+        final modified = DateTime.utc(2026, 10, 15, 21, 43);
+        final repository = _FakeFilesRepository(
+          connectionState: FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://api.example/api'),
+            accountLabel: 'member',
+          ),
+          listings: {
+            '/': DirectoryListing(
+              path: '/',
+              entries: [
+                FileEntry(
+                  id: 'dated',
+                  name: 'brief.txt',
+                  path: '/brief.txt',
+                  isDirectory: false,
+                  modifiedAt: modified,
+                ),
+              ],
+            ),
+          },
+        );
+        await tester.pumpWidget(
+          _filesTestApp(
+            const FilesScreen(),
+            overrides: [
+              filesRepositoryProvider.overrideWithValue(repository),
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+              ),
+              serverConfigurationRepositoryProvider.overrideWith(
+                (ref) => _FakeServerConfigurationRepository(
+                  buildTestConfiguration(),
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        final expected = DateFormat.yMMMd(
+          locale,
+        ).add_Hm().format(modified.toLocal());
+        expect(find.text(expected), findsOneWidget);
       },
     );
   }

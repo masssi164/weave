@@ -18,6 +18,17 @@ import 'package:weave/features/files/presentation/providers/files_provider.dart'
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
+String _exportDestinationLabel(String? destination, String fallback) {
+  if (destination == null || destination.isEmpty) return fallback;
+  final windowsPath = RegExp(r'^[A-Za-z]:[\\/]').hasMatch(destination);
+  final uri = windowsPath
+      ? Uri.file(destination, windows: true)
+      : Uri.tryParse(destination);
+  if (uri == null || (uri.hasScheme && uri.scheme != 'file')) return fallback;
+  final segments = uri.pathSegments.where((segment) => segment.isNotEmpty);
+  return segments.isEmpty ? fallback : segments.last;
+}
+
 class FilesScreen extends ConsumerStatefulWidget {
   const FilesScreen({super.key, this.initialPath = '/'});
 
@@ -637,9 +648,10 @@ class _EntryActionStatusCard extends StatelessWidget {
             ? l10n.filesExportCompletedUnknownMessage
             : l10n.filesExportCompletedMessage(
                 entryName,
-                actionStatus.destination == null
-                    ? l10n.filesExportUserVisibleFallback
-                    : Uri.file(actionStatus.destination!).pathSegments.last,
+                _exportDestinationLabel(
+                  actionStatus.destination,
+                  l10n.filesExportUserVisibleFallback,
+                ),
               ),
       FilesEntryActionPhase.failed =>
         _localizedFilesFailure(actionStatus.failure, l10n) ??
@@ -1139,8 +1151,6 @@ class _FilePreview extends ConsumerWidget {
 class _FileEntryTile extends ConsumerWidget {
   const _FileEntryTile({required this.entry, required this.isBusy});
 
-  static final DateFormat _modifiedDateTimeFormat = DateFormat.yMMMd().add_Hm();
-
   final FileEntry entry;
   final bool isBusy;
 
@@ -1246,7 +1256,11 @@ class _FileEntryTile extends ConsumerWidget {
 
     final parts = <String>[];
     if (entry.modifiedAt != null) {
-      parts.add(_modifiedDateTimeFormat.format(entry.modifiedAt!.toLocal()));
+      parts.add(
+        DateFormat.yMMMd(
+          Localizations.localeOf(context).toLanguageTag(),
+        ).add_Hm().format(entry.modifiedAt!.toLocal()),
+      );
     }
     if (entry.sizeInBytes != null) {
       parts.add(_formatSize(entry.sizeInBytes!));

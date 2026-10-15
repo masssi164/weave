@@ -40,6 +40,62 @@ Map<String, Object> _storedOrganizationProfile() => {
 
 void main() {
   group('SignInScreen', () {
+    for (final locale in ['en', 'de']) {
+      testWidgets(
+        'saved bare-host organization sign-in contains no fabricated invitation metadata $locale',
+        (tester) async {
+          final container = ProviderContainer.test(
+            overrides: [
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+              ),
+              preferencesStoreProvider.overrideWith(
+                (ref) => InMemoryPreferencesStore({
+                  ..._storedOrganizationProfile(),
+                  lastHandoffConsumedStorageKey: jsonEncode({
+                    'supportSafe': true,
+                    'organizationOriginHost': 'weave.home.internal',
+                  }),
+                }),
+              ),
+            ],
+          );
+          addTearDown(container.dispose);
+          await tester.pumpWidget(
+            UncontrolledProviderScope(
+              container: container,
+              child: MaterialApp(
+                locale: Locale(locale),
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: const SignInScreen(),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('https://weave.home.internal'), findsOneWidget);
+          expect(
+            find.byKey(const ValueKey('weave.auth.sign-in')),
+            findsOneWidget,
+          );
+          for (final wrong in [
+            'unknown',
+            'Dogfood',
+            'dogfood',
+            'WEAVE-SSO-NOT-COMPLETE',
+            'invite ready',
+            'Einladung bereit',
+            'Issuer',
+            'Client-ID',
+          ]) {
+            expect(find.textContaining(wrong), findsNothing);
+          }
+        },
+      );
+    }
+
     testWidgets('shows the Weave logo with saved sign-in configuration', (
       tester,
     ) async {

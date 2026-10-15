@@ -700,6 +700,33 @@ void main() {
     );
   });
 
+  test(
+    'current optional sender name never changes native sender identity or ownership',
+    () async {
+      const room = '!metadata:api.weave.test';
+      for (final name in ['Current Peer', null, '', '   ', 'You']) {
+        bridge.messages[room] = [
+          RustMatrixMessageProjection(
+            eventId: 'named-event',
+            sender: '@peer:api.weave.test',
+            senderDisplayName: name,
+            originServerTimestamp: 1,
+            body: 'peer body',
+            contentType: 'text',
+          ),
+        ];
+        final timeline = await repository().loadRoomTimeline(room);
+        final message = timeline.messages.single;
+        expect(message.senderId, '@peer:api.weave.test');
+        expect(message.isMine, isFalse);
+        expect(
+          message.senderDisplayName,
+          name?.trim().isNotEmpty == true ? name!.trim() : 'peer',
+        );
+      }
+    },
+  );
+
   test('send, decrypt, and receipt stay inside the Rust Matrix core', () async {
     // MATRIX_MESSAGE_CONTRACT
     // MATRIX_READ_RECEIPT_CONTRACT

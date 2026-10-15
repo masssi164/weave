@@ -5,6 +5,24 @@ import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_co
 
 // RUST_MATRIX_CORE_BRIDGE_CONTRACT
 void main() {
+  test(
+    'optional SDK sender metadata preserves identity and ignores non-string data',
+    () {
+      for (final name in ['Peer Current', null, 17]) {
+        final projection = RustMatrixMessageProjection.fromJson({
+          'eventId': 'event',
+          'sender': '@opaque:api.weave.test',
+          'originServerTs': 1,
+          'body': 'actual body',
+          'contentType': 'text',
+          'senderDisplayName': name,
+        });
+        expect(projection.sender, '@opaque:api.weave.test');
+        expect(projection.senderDisplayName, name is String ? name : isNull);
+      }
+    },
+  );
+
   group('live-test Matrix root certificate', () {
     const pem = '''-----BEGIN CERTIFICATE-----
 test-certificate

@@ -2543,23 +2543,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'Melde dich mit deinem Weave-Arbeitsbereich an, um fortzufahren. Deine Einladung oder dein Organisationskonto öffnet die App sicher im Systembrowser.';
 
   @override
-  String get signInConfigurationTitle => 'Aktuelle Anmeldekonfiguration';
+  String get signInConfigurationTitle => 'Deine Organisation';
 
   @override
   String get signInHandoffConfigurationDescription =>
-      'Deine Weave-Einladung hat den Arbeitsbereich-Anmeldeendpunkt ausgewählt. Fahre mit SSO fort; falls das nicht klappt, bitte eine Admin-/Operator-Person um eine neue Einladung und nenne WEAVE-SSO-NOT-COMPLETE.';
-
-  @override
-  String get signInHandoffReadyTitle => 'Arbeitsbereich-Einladung bereit';
-
-  @override
-  String signInHandoffReadyDescription(
-    String organization,
-    String workspace,
-    String runId,
-  ) {
-    return 'Weave hat den Dogfood-Handoff für $organization/$workspace verarbeitet. Fahre mit SSO für Lauf $runId fort.';
-  }
+      'Fahre im Systembrowser fort, um dich bei deiner gespeicherten Organisation anzumelden.';
 
   @override
   String signInConfigurationIssuer(String value) {
@@ -2586,14 +2574,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get signInMissingConfigurationDescription =>
-      'Weave benötigt noch eine gültige Issuer-URL und Client-ID, bevor der Browser-Anmeldefluss gestartet werden kann.';
+      'Gib vor der Anmeldung die Weave-Adresse deiner Organisation oder deine Einladung ein.';
 
   @override
   String get signInCancelled => 'Die Anmeldung wurde abgebrochen.';
 
   @override
   String get signInConfigurationFailure =>
-      'Die Anmeldekonfiguration ist unvollständig. Bitte eine Admin-/Operator-Person um eine neue Einladung.';
+      'Die Anmeldeinformationen deiner Organisation sind unvollständig. Prüfe die Organisationsadresse und versuche es erneut.';
 
   @override
   String get signInProtocolFailure =>

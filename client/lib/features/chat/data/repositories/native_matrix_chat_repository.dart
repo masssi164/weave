@@ -411,7 +411,9 @@ class NativeMatrixChatRepository
     return ChatMessage(
       id: projection.eventId,
       senderId: projection.sender,
-      senderDisplayName: _displayName(projection.sender),
+      senderDisplayName: projection.senderDisplayName?.trim().isNotEmpty == true
+          ? projection.senderDisplayName!.trim()
+          : _displayName(projection.sender),
       sentAt: DateTime.fromMillisecondsSinceEpoch(
         projection.originServerTimestamp,
         isUtc: true,

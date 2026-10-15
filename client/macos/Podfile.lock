@@ -7,7 +7,8 @@ PODS:
   - AppAuth/Core (2.0.0)
   - AppAuth/ExternalUserAgent (2.0.0):
     - AppAuth/Core
-  - file_picker (0.0.1):
+  - file_picker_darwin (1.0.0):
+    - Flutter
     - FlutterMacOS
   - flutter_appauth (0.0.1):
     - AppAuth (= 2.0.0)
@@ -29,7 +30,7 @@ PODS:
 
 DEPENDENCIES:
   - app_links (from `Flutter/ephemeral/.symlinks/plugins/app_links/macos`)
-  - file_picker (from `Flutter/ephemeral/.symlinks/plugins/file_picker/macos`)
+  - file_picker_darwin (from `Flutter/ephemeral/.symlinks/plugins/file_picker_darwin/darwin`)
   - flutter_appauth (from `Flutter/ephemeral/.symlinks/plugins/flutter_appauth/macos`)
   - flutter_secure_storage_darwin (from `Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
   - FlutterMacOS (from `Flutter/ephemeral`)
@@ -45,8 +46,8 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   app_links:
     :path: Flutter/ephemeral/.symlinks/plugins/app_links/macos
-  file_picker:
-    :path: Flutter/ephemeral/.symlinks/plugins/file_picker/macos
+  file_picker_darwin:
+    :path: Flutter/ephemeral/.symlinks/plugins/file_picker_darwin/darwin
   flutter_appauth:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_appauth/macos
   flutter_secure_storage_darwin:
@@ -65,7 +66,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   app_links: 05a6ec2341985eb05e9f97dc63f5837c39895c3f
   AppAuth: 1c1a8afa7e12f2ec3a294d9882dfa5ab7d3cb063
-  file_picker: 7584aae6fa07a041af2b36a2655122d42f578c1a
+  file_picker_darwin: 4c2b9a50ea44cb3b071381ea0cf48591bdd80251
   flutter_appauth: a7af6f450a5cbe7938c2222eddf34d13521038e6
   flutter_secure_storage_darwin: acdb3f316ed05a3e68f856e0353b133eec373a23
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1

@@ -117,11 +117,6 @@ class SignInScreen extends ConsumerWidget {
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 32),
-                        if (lastHandoff.hasValue &&
-                            lastHandoff.value != null) ...[
-                          _HandoffReadyCard(evidence: lastHandoff.value!),
-                          const SizedBox(height: 16),
-                        ],
                         Card(
                           child: Padding(
                             padding: const EdgeInsets.all(20),
@@ -135,6 +130,13 @@ class SignInScreen extends ConsumerWidget {
                                   ).textTheme.titleMedium,
                                 ),
                                 const SizedBox(height: 12),
+                                if (configuration.organizationOrigin !=
+                                    null) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    configuration.organizationOrigin.toString(),
+                                  ),
+                                ],
                                 Text(
                                   l10n.signInHandoffConfigurationDescription,
                                 ),
@@ -301,42 +303,6 @@ bool _hasSupportSafeSavedHandoff(Map<String, Object?>? handoffEvidence) {
       handoffRef.isNotEmpty &&
       runId is String &&
       runId.isNotEmpty;
-}
-
-class _HandoffReadyCard extends StatelessWidget {
-  const _HandoffReadyCard({required this.evidence});
-
-  final Map<String, Object?> evidence;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final organization = evidence['organizationSlug']?.toString() ?? 'unknown';
-    final workspace = evidence['workspaceSlug']?.toString() ?? 'unknown';
-    final runId = evidence['runId']?.toString() ?? 'unknown';
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.signInHandoffReadyTitle,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              l10n.signInHandoffReadyDescription(
-                organization,
-                workspace,
-                runId,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _MissingConfigurationCard extends StatelessWidget {

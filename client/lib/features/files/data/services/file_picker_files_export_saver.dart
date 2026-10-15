@@ -8,35 +8,18 @@ import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/services/files_export_saver.dart';
 
 typedef FilePickerSaveFile =
-    Future<String?> Function({
+    Future<Uri?> Function({
+      required String fileName,
+      required Uint8List bytes,
+      String mimeType,
       String? dialogTitle,
-      String? fileName,
-      FileType type,
-      List<String>? allowedExtensions,
-      Uint8List? bytes,
     });
 
 class FilePickerFilesExportSaver implements FilesExportSaver {
   FilePickerFilesExportSaver({FilePickerSaveFile? saveFile})
-    : _saveFile = saveFile ?? _defaultSaveFile;
+    : _saveFile = saveFile ?? FilePicker.saveFile;
 
   final FilePickerSaveFile _saveFile;
-
-  static Future<String?> _defaultSaveFile({
-    String? dialogTitle,
-    String? fileName,
-    FileType type = FileType.any,
-    List<String>? allowedExtensions,
-    Uint8List? bytes,
-  }) {
-    return FilePicker.saveFile(
-      dialogTitle: dialogTitle,
-      fileName: fileName,
-      type: type,
-      allowedExtensions: allowedExtensions,
-      bytes: bytes,
-    );
-  }
 
   @override
   Future<FilesExportResult?> save(FileDownload download) async {
@@ -45,13 +28,16 @@ class FilePickerFilesExportSaver implements FilesExportSaver {
         dialogTitle: 'Save exported Weave file',
         fileName: download.fileName,
         bytes: download.bytes,
+        mimeType: download.mediaType ?? 'application/octet-stream',
       );
       if (destination == null) {
         return null;
       }
       return FilesExportResult(
         fileName: download.fileName,
-        destination: destination,
+        destination: destination.scheme == 'file'
+            ? destination.toFilePath()
+            : destination.toString(),
       );
     } on PlatformException catch (error) {
       throw _mapPlatformException(error);

@@ -4208,30 +4208,14 @@ abstract class AppLocalizations {
   /// Title for the sign-in configuration summary card
   ///
   /// In en, this message translates to:
-  /// **'Current sign-in configuration'**
+  /// **'Your organization'**
   String get signInConfigurationTitle;
 
   /// Support-safe guidance shown when a dogfood handoff has prepared the sign-in route
   ///
   /// In en, this message translates to:
-  /// **'Your Weave invite selected the workspace sign-in endpoint. Continue with SSO; if this does not work, ask an admin/operator to refresh the invite and mention WEAVE-SSO-NOT-COMPLETE.'**
+  /// **'Continue in the system browser to sign in to your saved organization.'**
   String get signInHandoffConfigurationDescription;
-
-  /// Title shown after the app consumed a member handoff
-  ///
-  /// In en, this message translates to:
-  /// **'Workspace invite ready'**
-  String get signInHandoffReadyTitle;
-
-  /// Evidence message shown after the app consumed a member handoff
-  ///
-  /// In en, this message translates to:
-  /// **'Weave consumed the dogfood handoff for {organization}/{workspace}. Continue with SSO for run {runId}.'**
-  String signInHandoffReadyDescription(
-    String organization,
-    String workspace,
-    String runId,
-  );
 
   /// Summary line showing the issuer URL on the sign-in screen
   ///
@@ -4272,7 +4256,7 @@ abstract class AppLocalizations {
   /// Description shown when auth configuration is incomplete
   ///
   /// In en, this message translates to:
-  /// **'Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.'**
+  /// **'Enter your organization’s Weave address or invitation before signing in.'**
   String get signInMissingConfigurationDescription;
 
   /// Localized auth failure shown when the user cancels sign-in
@@ -4284,7 +4268,7 @@ abstract class AppLocalizations {
   /// Localized auth failure shown when local sign-in configuration is invalid
   ///
   /// In en, this message translates to:
-  /// **'The sign-in configuration is incomplete. Ask an admin/operator to refresh the invite.'**
+  /// **'Your organization’s sign-in information is incomplete. Check the organization address and try again.'**
   String get signInConfigurationFailure;
 
   /// Localized generic protocol auth failure

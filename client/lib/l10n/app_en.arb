@@ -3051,32 +3051,13 @@
   "@signInDescription": {
     "description": "Description text on the sign-in screen"
   },
-  "signInConfigurationTitle": "Current sign-in configuration",
+  "signInConfigurationTitle": "Your organization",
   "@signInConfigurationTitle": {
     "description": "Title for the sign-in configuration summary card"
   },
-  "signInHandoffConfigurationDescription": "Your Weave invite selected the workspace sign-in endpoint. Continue with SSO; if this does not work, ask an admin/operator to refresh the invite and mention WEAVE-SSO-NOT-COMPLETE.",
+  "signInHandoffConfigurationDescription": "Continue in the system browser to sign in to your saved organization.",
   "@signInHandoffConfigurationDescription": {
     "description": "Support-safe guidance shown when a dogfood handoff has prepared the sign-in route"
-  },
-  "signInHandoffReadyTitle": "Workspace invite ready",
-  "@signInHandoffReadyTitle": {
-    "description": "Title shown after the app consumed a member handoff"
-  },
-  "signInHandoffReadyDescription": "Weave consumed the dogfood handoff for {organization}/{workspace}. Continue with SSO for run {runId}.",
-  "@signInHandoffReadyDescription": {
-    "description": "Evidence message shown after the app consumed a member handoff",
-    "placeholders": {
-      "organization": {
-        "type": "String"
-      },
-      "workspace": {
-        "type": "String"
-      },
-      "runId": {
-        "type": "String"
-      }
-    }
   },
   "signInConfigurationIssuer": "Issuer: {value}",
   "@signInConfigurationIssuer": {
@@ -3112,7 +3093,7 @@
   "@signInMissingConfigurationTitle": {
     "description": "Heading shown when auth configuration is incomplete"
   },
-  "signInMissingConfigurationDescription": "Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.",
+  "signInMissingConfigurationDescription": "Enter your organization’s Weave address or invitation before signing in.",
   "@signInMissingConfigurationDescription": {
     "description": "Description shown when auth configuration is incomplete"
   },
@@ -3120,7 +3101,7 @@
   "@signInCancelled": {
     "description": "Localized auth failure shown when the user cancels sign-in"
   },
-  "signInConfigurationFailure": "The sign-in configuration is incomplete. Ask an admin/operator to refresh the invite.",
+  "signInConfigurationFailure": "Your organization’s sign-in information is incomplete. Check the organization address and try again.",
   "@signInConfigurationFailure": {
     "description": "Localized auth failure shown when local sign-in configuration is invalid"
   },

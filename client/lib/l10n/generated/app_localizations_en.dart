@@ -2508,23 +2508,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Use your Weave workspace sign-in to continue. Your invite or organization account opens the app securely in the system browser.';
 
   @override
-  String get signInConfigurationTitle => 'Current sign-in configuration';
+  String get signInConfigurationTitle => 'Your organization';
 
   @override
   String get signInHandoffConfigurationDescription =>
-      'Your Weave invite selected the workspace sign-in endpoint. Continue with SSO; if this does not work, ask an admin/operator to refresh the invite and mention WEAVE-SSO-NOT-COMPLETE.';
-
-  @override
-  String get signInHandoffReadyTitle => 'Workspace invite ready';
-
-  @override
-  String signInHandoffReadyDescription(
-    String organization,
-    String workspace,
-    String runId,
-  ) {
-    return 'Weave consumed the dogfood handoff for $organization/$workspace. Continue with SSO for run $runId.';
-  }
+      'Continue in the system browser to sign in to your saved organization.';
 
   @override
   String signInConfigurationIssuer(String value) {
@@ -2550,14 +2538,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get signInMissingConfigurationDescription =>
-      'Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.';
+      'Enter your organization’s Weave address or invitation before signing in.';
 
   @override
   String get signInCancelled => 'Sign-in was cancelled.';
 
   @override
   String get signInConfigurationFailure =>
-      'The sign-in configuration is incomplete. Ask an admin/operator to refresh the invite.';
+      'Your organization’s sign-in information is incomplete. Check the organization address and try again.';
 
   @override
   String get signInProtocolFailure =>
