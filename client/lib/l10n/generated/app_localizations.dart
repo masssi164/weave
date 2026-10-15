@@ -636,22 +636,22 @@ abstract class AppLocalizations {
   /// **'Chat'**
   String get chatScreenTitle;
 
-  /// Accessible action for opening the encrypted conversation creation dialog
+  /// Accessible action for opening the conversation creation dialog
   ///
   /// In en, this message translates to:
   /// **'Start conversation'**
   String get chatCreateConversationAction;
 
-  /// Title for the encrypted conversation creation dialog
+  /// Title for the conversation creation dialog
   ///
   /// In en, this message translates to:
-  /// **'Start an encrypted conversation'**
+  /// **'Start a conversation'**
   String get chatCreateConversationTitle;
 
-  /// Provider-neutral guidance in the encrypted conversation creation dialog
+  /// Provider-neutral guidance in the conversation creation dialog
   ///
   /// In en, this message translates to:
-  /// **'Give this workspace conversation a clear name. Weave creates it through the organization Chat facade and enables encryption from the first event.'**
+  /// **'Choose a name and members for a direct conversation or restricted group.'**
   String get chatCreateConversationDescription;
 
   /// Label for the new conversation name field
@@ -5978,6 +5978,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The invitation could not be accepted. Check your access and try again.'**
   String get chatInvitationFailed;
+
+  /// No description provided for @chatDirectConversationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct conversation'**
+  String get chatDirectConversationLabel;
+
+  /// No description provided for @chatDirectConversationHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose one organization member. They can read and reply without accepting an invitation.'**
+  String get chatDirectConversationHelp;
+
+  /// No description provided for @chatRestrictedConversationHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Restricted group. Invited members must accept before reading or replying.'**
+  String get chatRestrictedConversationHelp;
+
+  /// No description provided for @chatDirectParticipantRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose exactly one other member for a direct conversation.'**
+  String get chatDirectParticipantRequired;
 }
 
 class _AppLocalizationsDelegate

@@ -637,6 +637,14 @@ void main() {
               rethrow;
             }
             await tester.enterText(name, conversation);
+            expect(
+              tester
+                  .widget<SwitchListTile>(
+                    find.byKey(const Key('chat-create-direct-switch')),
+                  )
+                  .value,
+              isTrue,
+            );
             final participant = find.byKey(
               const Key('chat-create-conversation-participant-field'),
             );
@@ -698,23 +706,19 @@ void main() {
               deadline: actionDeadline,
             );
             await tapNativeDualChatConversation(tester, conversation);
-            await nativeDualInvitationWaitProbe(
-              _wait(
-                tester,
-                () =>
-                    find
-                        .byKey(const Key('chat-accept-invitation-button'))
-                        .evaluate()
-                        .length ==
-                    1,
-                const Duration(seconds: 60),
-              ),
+            await _wait(
               tester,
-              container,
+              () => find.byType(ChatRoomScreen).evaluate().length == 1,
+              const Duration(seconds: 60),
             );
-            await _tap(
-              tester,
+            final direct = tester
+                .widget<ChatRoomScreen>(find.byType(ChatRoomScreen))
+                .conversation;
+            expect(direct.isDirectMessage, isTrue);
+            expect(direct.isInvite, isFalse);
+            expect(
               find.byKey(const Key('chat-accept-invitation-button')),
+              findsNothing,
             );
             await _wait(
               tester,
@@ -1655,36 +1659,6 @@ Future<void> sendNativeDualChatMessage(
             simulatorDriver: true,
           );
         }
-      },
-      unavailable: () {},
-    );
-    rethrow;
-  }
-}
-
-Future<void> nativeDualInvitationWaitProbe(
-  Future<void> wait,
-  WidgetTester tester,
-  ProviderContainer container,
-) async {
-  try {
-    await wait;
-  } catch (_) {
-    await safelyReportDualOnboardingFailure(
-      report: () async {
-        _stage('chat-invitation-wait-failed');
-        emitNativeProductDiagnostic(
-          nativeDualChatSurfaceDiagnostic(
-            tester,
-            container.exists(appBootstrapProvider)
-                ? container.read(appBootstrapProvider)
-                : null,
-            container.exists(workspaceCapabilitySnapshotProvider)
-                ? container.read(workspaceCapabilitySnapshotProvider)
-                : null,
-          ),
-          simulatorDriver: true,
-        );
       },
       unavailable: () {},
     );

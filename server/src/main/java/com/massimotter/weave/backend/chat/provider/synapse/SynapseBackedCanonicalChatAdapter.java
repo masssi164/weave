@@ -258,6 +258,12 @@ public final class SynapseBackedCanonicalChatAdapter implements ChatProviderPort
             String kind,
             List<ChatResolvedIdentity> invitedIdentities,
             ChatEncryptionState initialEncryption) {
+        // This adapter has not qualified policy-authorized recipient admission.
+        // Ordinary Matrix invites remain explicit; never publish fabricated joins.
+        if ("direct".equals(kind)) {
+            throw new com.massimotter.weave.backend.chat.domain.ChatProviderUnavailableException(
+                    "chat-direct-admission-unavailable");
+        }
         String alias = "#" + properties.virtualUserPrefix() + UUID.randomUUID().toString().replace("-", "")
                 + ":" + properties.requiredServerName();
         CanonicalChatStore.PreparedConversation prepared = store.prepareConversation(

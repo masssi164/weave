@@ -102,7 +102,13 @@ class ChatController extends Notifier<ChatUiState> {
   Future<ChatConversation> createConversation({
     required String title,
     List<ChatParticipant> participants = const [],
+    bool isDirect = false,
   }) async {
+    if (isDirect && participants.length != 1) {
+      throw const ChatFailure.configuration(
+        'Choose exactly one member for a direct conversation.',
+      );
+    }
     final requestSequence = _requestSequence;
     final repository = ref.read(chatRepositoryProvider);
     final ChatConversation conversation;
@@ -116,6 +122,7 @@ class ChatController extends Notifier<ChatUiState> {
           .createConversationWithParticipants(
             title: title,
             participants: participants,
+            isDirect: isDirect,
           );
     } else {
       conversation = await repository.createConversation(title: title);

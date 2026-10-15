@@ -58,6 +58,23 @@ class SynapseBackedCanonicalChatAdapterTest {
                 .isEqualTo(ProviderReadiness.degraded("chat-provider-ledger-semantic-mismatch"));
     }
 
+    @Test
+    void unqualifiedDirectAdmissionFailsBeforeAnyProviderOrCanonicalPreparation() {
+        var store = mock(CanonicalChatStore.class);
+        var provider = mock(MatrixSynapseChatSouthboundAdapter.class);
+        when(store.persistencePosture()).thenReturn("durable-relational-jpa-code-first");
+        var adapter = adapter(store, provider);
+        org.mockito.Mockito.clearInvocations(store, provider);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> adapter.createConversation(
+                com.massimotter.weave.backend.chat.domain.ChatRequestContext.isolatedTest(
+                        new com.massimotter.weave.backend.chat.domain.ChatActorRef("user:author")),
+                new com.massimotter.weave.backend.chat.domain.ChatTransactionId("direct-unqualified"),
+                "Direct", "direct", java.util.List.of(),
+                com.massimotter.weave.backend.chat.domain.ChatEncryptionState.unencrypted()))
+                .isInstanceOf(com.massimotter.weave.backend.chat.domain.ChatProviderUnavailableException.class);
+        org.mockito.Mockito.verifyNoInteractions(store, provider);
+    }
+
     private SynapseBackedCanonicalChatAdapter adapter(
             CanonicalChatStore store,
             MatrixSynapseChatSouthboundAdapter provider) {

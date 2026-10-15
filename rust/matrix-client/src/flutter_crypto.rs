@@ -1584,11 +1584,11 @@ pub async fn rooms(profile_key: String) -> String {
 }
 
 pub async fn create_encrypted_room(profile_key: String, title: String) -> String {
-    json_result(create_room_inner(&profile_key, &title, true, &[]).await)
+    json_result(create_room_inner(&profile_key, &title, true, &[], false).await)
 }
 
 pub async fn create_business_room(profile_key: String, title: String) -> String {
-    json_result(create_room_inner(&profile_key, &title, false, &[]).await)
+    json_result(create_room_inner(&profile_key, &title, false, &[], false).await)
 }
 
 pub async fn search_members(profile_key: String, query: String) -> String {
@@ -1619,8 +1619,9 @@ pub async fn create_business_room_with_members(
     profile_key: String,
     title: String,
     member_ids: Vec<String>,
+    is_direct: bool,
 ) -> String {
-    json_result(create_room_inner(&profile_key, &title, false, &member_ids).await)
+    json_result(create_room_inner(&profile_key, &title, false, &member_ids, is_direct).await)
 }
 
 fn validated_invitees(member_ids: &[String]) -> Result<Vec<OwnedUserId>, String> {
@@ -1646,7 +1647,11 @@ async fn create_room_inner(
     title: &str,
     encrypted: bool,
     member_ids: &[String],
+    is_direct: bool,
 ) -> Result<Value, String> {
+    if is_direct && member_ids.len() != 1 {
+        return Err("M_INVALID_PARAM".to_string());
+    }
     let title = title.trim();
     if title.is_empty() || title.chars().count() > 200 {
         return Err("M_INVALID_PARAM".to_string());
@@ -1658,6 +1663,7 @@ async fn create_room_inner(
         let mut request = CreateRoomRequest::new();
         request.name = Some(title.to_owned());
         request.preset = Some(RoomPreset::PrivateChat);
+        request.is_direct = is_direct;
         if !member_ids.is_empty() {
             request.invite = validated_invitees(member_ids)?;
         }
@@ -1681,10 +1687,18 @@ async fn create_room_inner(
     // navigable and its encryption state is available before the first send.
     sync_inner(profile_key).await?;
 
+    let room = client_for(profile_key)?
+        .get_room(&room_id)
+        .ok_or_else(|| "M_NOT_FOUND".to_string())?;
+    let direct = room
+        .is_direct()
+        .await
+        .map_err(|_| "M_WEAVE_E2EE_ROOM_STATE".to_string())?;
     Ok(json!({
         "roomId": room_id.to_string(),
         "title": title,
         "encrypted": encrypted,
+        "isDirect": direct,
     }))
 }
 
@@ -1714,12 +1728,17 @@ async fn rooms_inner(profile_key: &str) -> Result<Value, String> {
                 .map(|name| name.to_string())
                 .unwrap_or_else(|_| room.room_id().to_string())
         };
+        let direct = room
+            .is_direct()
+            .await
+            .map_err(|_| "M_WEAVE_E2EE_ROOM_STATE".to_string())?;
         rooms.push(json!({
             "roomId": room.room_id().to_string(),
             "title": display_name,
             "unreadCount": room.num_unread_messages(),
             "encrypted": encrypted,
             "membership": if invited { "invited" } else { "joined" },
+            "isDirect": direct,
         }));
     }
     Ok(json!({ "rooms": rooms }))

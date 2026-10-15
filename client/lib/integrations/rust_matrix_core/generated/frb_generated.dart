@@ -110,6 +110,7 @@ abstract class RustLibApi extends BaseApi {
     required String profileKey,
     required String title,
     required List<String> memberIds,
+    required bool isDirect,
   });
 
   Future<String> crateFrbApiMatrixCreateEncryptedRoom({
@@ -469,6 +470,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String profileKey,
     required String title,
     required List<String> memberIds,
+    required bool isDirect,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -477,6 +479,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(profileKey, serializer);
           sse_encode_String(title, serializer);
           sse_encode_list_String(memberIds, serializer);
+          sse_encode_bool(isDirect, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -489,7 +492,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateFrbApiMatrixCreateBusinessRoomWithMembersConstMeta,
-        argValues: [profileKey, title, memberIds],
+        argValues: [profileKey, title, memberIds, isDirect],
         apiImpl: this,
       ),
     );
@@ -498,7 +501,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateFrbApiMatrixCreateBusinessRoomWithMembersConstMeta =>
       const TaskConstMeta(
         debugName: "matrix_create_business_room_with_members",
-        argNames: ["profileKey", "title", "memberIds"],
+        argNames: ["profileKey", "title", "memberIds", "isDirect"],
       );
 
   @override

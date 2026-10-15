@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +7,7 @@ import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
+import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/presentation/chat_admission_gate.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
@@ -57,9 +57,13 @@ class _AdmittedChatScreen extends ConsumerWidget {
       final conversation = await showDialog<ChatConversation>(
         context: context,
         builder: (dialogContext) => _CreateConversationDialog(
-          onCreate: (title, participants) => ref
+          onCreate: (title, participants, isDirect) => ref
               .read(chatProvider.notifier)
-              .createConversation(title: title, participants: participants),
+              .createConversation(
+                title: title,
+                participants: participants,
+                isDirect: isDirect,
+              ),
           onSearchMembers: (query) =>
               ref.read(chatProvider.notifier).searchMembers(query),
         ),
@@ -152,6 +156,7 @@ class _CreateConversationDialog extends StatefulWidget {
   final Future<ChatConversation> Function(
     String title,
     List<ChatParticipant> participants,
+    bool isDirect,
   )
   onCreate;
   final Future<List<ChatParticipant>> Function(String query) onSearchMembers;
@@ -171,6 +176,8 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
   bool _searching = false;
   bool _searchFailed = false;
 
+  bool _isDirect = true;
+  bool _participantInvalid = false;
   bool _submitting = false;
   bool _nameInvalid = false;
   bool _creationFailed = false;
@@ -224,8 +231,13 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
       return;
     }
 
+    if (_isDirect && _selected.length != 1) {
+      setState(() => _participantInvalid = true);
+      return;
+    }
     setState(() {
       _submitting = true;
+      _participantInvalid = false;
       _nameInvalid = false;
       _creationFailed = false;
     });
@@ -233,6 +245,7 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
       final conversation = await widget.onCreate(
         title,
         _selected.values.toList(growable: false),
+        _isDirect,
       );
       if (mounted) {
         Navigator.of(context).pop(conversation);
@@ -284,6 +297,27 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
               onSubmitted: (_) => _submit(),
             ),
             const SizedBox(height: 16),
+            SwitchListTile(
+              key: const Key('chat-create-direct-switch'),
+              title: Text(l10n.chatDirectConversationLabel),
+              subtitle: Text(
+                _isDirect
+                    ? l10n.chatDirectConversationHelp
+                    : l10n.chatRestrictedConversationHelp,
+              ),
+              value: _isDirect,
+              onChanged: _submitting
+                  ? null
+                  : (value) => setState(() {
+                      _isDirect = value;
+                      _participantInvalid = false;
+                    }),
+            ),
+            if (_participantInvalid)
+              Semantics(
+                liveRegion: true,
+                child: Text(l10n.chatDirectParticipantRequired),
+              ),
             TextField(
               key: const Key('chat-create-conversation-participant-field'),
               controller: _participantController,

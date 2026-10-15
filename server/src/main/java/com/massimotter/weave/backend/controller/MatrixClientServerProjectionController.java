@@ -269,7 +269,36 @@ public class MatrixClientServerProjectionController {
                         invitation.encryptionState().encrypted() ? invitation.encryptionState().mode() : null,
                         List.of(new MatrixProtocolCoreService.CanonicalMembership(invitation.membership().memberRef(), "invited")),
                         List.of(), false, null, invitation.inviterRef().value())).forEach(withInvitations::add);
-        return matrixProtocolCoreService.sync(identity.actorRef().value(), matrixE2eeStateService.combinedCursor(nextChatCursor, crypto), since, withInvitations, matrixE2eeStateService.accountData(identity), crypto, leftRooms);
+        return matrixProtocolCoreService.sync(identity.actorRef().value(), matrixE2eeStateService.combinedCursor(nextChatCursor, crypto), since, withInvitations, directAccountData(identity, conversations), crypto, leftRooms);
+    }
+
+    private Map<String, Map<String, Object>> directAccountData(
+            MatrixFacadeClientStateService.MatrixIdentity identity, ChatConversations conversations) {
+        Map<String, Map<String, Object>> accountData = new java.util.LinkedHashMap<>(
+                matrixE2eeStateService.accountData(identity));
+        Map<String, Object> direct = new java.util.LinkedHashMap<>(accountData.getOrDefault("m.direct", Map.of()));
+        for (ChatConversation conversation : conversations.conversations()) {
+            if (!"direct".equals(conversation.kind())) continue;
+            var members = conversation.memberships();
+            if (members.size() != 2 || members.stream().filter(member ->
+                    identity.actorRef().value().equals(member.memberRef()) && "joined".equals(member.state())).count() != 1
+                    || members.stream().map(member -> member.memberRef()).distinct().count() != 2) {
+                continue;
+            }
+            String peer = members.stream().map(member -> member.memberRef())
+                    .filter(member -> !identity.actorRef().value().equals(member)).findFirst().orElseThrow();
+            String peerId = matrixProtocolCoreService.userId(peer);
+            var rooms = new java.util.LinkedHashSet<String>();
+            if (direct.get(peerId) instanceof List<?> storedRooms) {
+                storedRooms.stream().filter(String.class::isInstance).map(String.class::cast).forEach(rooms::add);
+            }
+            rooms.add(matrixProtocolCoreService.roomId(conversation.conversationId()));
+            direct.put(peerId, List.copyOf(rooms));
+        }
+        // Standard Matrix account data retains personal hints and adds admitted product DMs.
+        // Neither personal nor derived classification grants membership.
+        accountData.put("m.direct", Map.copyOf(direct));
+        return Map.copyOf(accountData);
     }
 
     private Set<String> sharedEncryptedRoomUsers(MatrixFacadeClientStateService.MatrixIdentity identity, List<MatrixProtocolCoreService.CanonicalConversation> conversations) {
@@ -357,7 +386,7 @@ public class MatrixClientServerProjectionController {
         return Map.of("results", results, "limited", scanLimited);
     }
 
-    private Map<String, Object> createRoom(Jwt jwt, MatrixFacadeClientStateService.MatrixIdentity identity, Map<String, Object> body, String idempotencyKey) { String title = firstText(body.get("name"), body.get("room_alias_name"), "Conversation"); String kind = Boolean.TRUE.equals(body.get("is_direct")) ? "direct" : "channel"; List<ChatResolvedIdentity> invitedIdentities = new ArrayList<>(); Object rawInvite = body.get("invite"); if (rawInvite instanceof List<?> invite) for (Object value : invite) { if (!(value instanceof String matrixUserId)) throw new MatrixProtocolException("M_BAD_JSON", "Matrix invite identities are invalid."); invitedIdentities.add(matrixClientStateService.identityForMatrixUserId(matrixUserId, identity.tenantId(), identity.identityIssuer()).orElseThrow(() -> new MatrixProtocolException("M_NOT_FOUND", "The invited Matrix identity is not registered with Weave."))); } String transactionId = createRoomTransactionId(identity, idempotencyKey, contextId(jwt)); ChatEncryptionState initialEncryption = initialEncryption(body); ChatConversation conversation = chatDomainFacadeService.createConversation(transactionId, title, kind, invitedIdentities, initialEncryption, jwt); return Map.of("room_id", matrixProtocolCoreService.roomId(conversation.conversationId())); }
+    private Map<String, Object> createRoom(Jwt jwt, MatrixFacadeClientStateService.MatrixIdentity identity, Map<String, Object> body, String idempotencyKey) { if (body.containsKey("is_direct") && !(body.get("is_direct") instanceof Boolean)) throw new MatrixProtocolException("M_BAD_JSON", "Direct conversation intent is invalid."); String title = firstText(body.get("name"), body.get("room_alias_name"), "Conversation"); String kind = Boolean.TRUE.equals(body.get("is_direct")) ? "direct" : "channel"; List<ChatResolvedIdentity> invitedIdentities = new ArrayList<>(); Object rawInvite = body.get("invite"); if (rawInvite instanceof List<?> invite) for (Object value : invite) { if (!(value instanceof String matrixUserId)) throw new MatrixProtocolException("M_BAD_JSON", "Matrix invite identities are invalid."); invitedIdentities.add(matrixClientStateService.identityForMatrixUserId(matrixUserId, identity.tenantId(), identity.identityIssuer()).orElseThrow(() -> new MatrixProtocolException("M_NOT_FOUND", "The invited Matrix identity is not registered with Weave."))); } String transactionId = createRoomTransactionId(identity, idempotencyKey, contextId(jwt)); ChatEncryptionState initialEncryption = initialEncryption(body); ChatConversation conversation = chatDomainFacadeService.createConversation(transactionId, title, kind, invitedIdentities, initialEncryption, jwt); return Map.of("room_id", matrixProtocolCoreService.roomId(conversation.conversationId())); }
     private List<Map<String, Object>> roomState(Jwt jwt, String conversationId) { ChatConversation conversation = chatDomainFacadeService.conversation(conversationId, jwt); List<Map<String, Object>> events = new ArrayList<>(); events.add(Map.of("type", "m.room.name", "state_key", "", "content", Map.of("name", conversation.title()))); if (conversation.encryptionState().encrypted()) events.add(Map.of("type", "m.room.encryption", "state_key", "", "content", Map.of("algorithm", conversation.encryptionState().mode()))); for (ChatMembership membership : conversation.memberships()) events.add(Map.of("type", "m.room.member", "state_key", matrixProtocolCoreService.userId(membership.memberRef()), "content", Map.of("membership", matrixMembershipState(membership.state())))); return List.copyOf(events); }
     private Map<String, Object> roomStateEvent(Jwt jwt, String conversationId, String eventType, String stateKey) { ChatConversation conversation = chatDomainFacadeService.conversation(conversationId, jwt); if ("m.room.name".equals(eventType) && (stateKey == null || stateKey.isBlank())) return Map.of("name", conversation.title()); if ("m.room.encryption".equals(eventType) && (stateKey == null || stateKey.isBlank()) && conversation.encryptionState().encrypted()) return Map.of("algorithm", conversation.encryptionState().mode()); if ("m.room.member".equals(eventType)) return conversation.memberships().stream().filter(membership -> matrixProtocolCoreService.userId(membership.memberRef()).equals(stateKey)).findFirst().map(membership -> Map.<String, Object>of("membership", matrixMembershipState(membership.state()))).orElseThrow(() -> new MatrixProtocolException("M_NOT_FOUND", "Matrix room state was not found.")); throw new MatrixProtocolException("M_NOT_FOUND", "Matrix room state was not found."); }
     private Map<String, Object> joinedMembers(Jwt jwt, String conversationId) { ChatConversation conversation = chatDomainFacadeService.conversation(conversationId, jwt); Map<String, Object> joined = new java.util.LinkedHashMap<>(); for (ChatMembership membership : conversation.memberships()) if ("join".equals(matrixMembershipState(membership.state()))) { String userId = matrixProtocolCoreService.userId(membership.memberRef()); joined.put(userId, Map.of("display_name", matrixDisplayName(membership.memberRef()))); } return Map.of("joined", Map.copyOf(joined)); }

@@ -37,7 +37,6 @@ import '../../integration_test/dual_ios_collaboration_test.dart'
     show
         navigateNativeDualDestination,
         nativeDualChatSurfaceDiagnostic,
-        nativeDualInvitationWaitProbe,
         nativeDualChatListDiagnostic,
         waitNativeDualChatConversation,
         openNativeDualChatCreationDialog,
@@ -88,6 +87,7 @@ class _PeerRepository extends FakeChatRepository
   Future<ChatConversation> createConversationWithParticipants({
     required String title,
     required List<ChatParticipant> participants,
+    bool isDirect = false,
   }) async {
     submitted = participants;
     throw const ChatFailure.protocol('Controlled creation refusal');
@@ -493,6 +493,12 @@ void main() {
     testWidgets('actual dialog requires checked peer; activation=$activate', (
       tester,
     ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 336);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
       final repository = _PeerRepository();
       await tester.pumpWidget(
         createTestApp(
@@ -523,8 +529,11 @@ void main() {
       final peer = find.widgetWithText(CheckboxListTile, 'Private peer');
       expect(peer, findsOneWidget);
       if (activate) {
-        await tester.tap(peer);
-        await tester.pumpAndSettle();
+        await tapNativeDualPeer(
+          tester,
+          peer,
+          deadline: DateTime.now().add(const Duration(seconds: 2)),
+        );
         await requireNativeDualPeerSelected(
           tester,
           peer,
@@ -546,14 +555,15 @@ void main() {
         );
         expect(repository.submitted, isNull);
       }
-      // Former unchecked continuation admits Create with zero selected members.
+      // Direct creation independently rejects an unselected recipient.
       final create = find.byKey(
         const Key('chat-create-conversation-submit-button'),
       );
       await tester.ensureVisible(create);
+      await tester.pump();
       await tester.tap(create);
       await tester.pumpAndSettle();
-      expect(repository.submitted?.length, activate ? 1 : 0);
+      expect(repository.submitted?.length, activate ? 1 : null);
       if (activate) {
         expect(repository.submitted?.single.userId, '@peer:weave.test');
       }
@@ -867,59 +877,6 @@ void main() {
     isInvite: false,
     isDirectMessage: false,
   );
-  testWidgets('invitation wait observation leaves cold providers absent', (
-    tester,
-  ) async {
-    final container = ProviderContainer.test();
-    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
-    for (final succeeds in [true, false]) {
-      final failure = TestFailure(
-        'private room and actor must not be exported',
-      );
-      final stack = StackTrace.fromString('original invitation wait stack');
-      if (succeeds) {
-        await nativeDualInvitationWaitProbe(Future.value(), tester, container);
-      } else {
-        try {
-          await nativeDualInvitationWaitProbe(
-            Future<void>.error(failure, stack),
-            tester,
-            container,
-          );
-          fail('Original wait failure was swallowed.');
-        } catch (error, observedStack) {
-          expect(error, same(failure));
-          expect(observedStack.toString(), stack.toString());
-        }
-      }
-      await tester.pump();
-      expect(container.exists(appBootstrapProvider), isFalse);
-      expect(container.exists(workspaceCapabilitySnapshotProvider), isFalse);
-      expect(container.exists(chatProvider), isFalse);
-    }
-  });
-
-  testWidgets('secondary invitation snapshot failure preserves original wait', (
-    tester,
-  ) async {
-    final container = ProviderContainer();
-    container.dispose();
-    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
-    final failure = TestFailure('private original wait failure');
-    final stack = StackTrace.fromString('original invitation wait stack');
-    try {
-      await nativeDualInvitationWaitProbe(
-        Future<void>.error(failure, stack),
-        tester,
-        container,
-      );
-      fail('Original wait failure was swallowed.');
-    } catch (error, observedStack) {
-      expect(error, same(failure));
-      expect(observedStack.toString(), stack.toString());
-    }
-  });
-
   testWidgets('private Chat snapshot distinguishes offstage and redacts errors', (
     tester,
   ) async {
