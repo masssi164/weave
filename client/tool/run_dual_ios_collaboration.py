@@ -349,7 +349,7 @@ def flutter_drive_command(uri: str, udid: str) -> list[str]:
             '--use-existing-app=' + uri, '-d', udid]
 
 
-def actor_runtime_copy(client: Path, destination: Path, *, live_source: bool = False) -> None:
+def actor_runtime_copy(client: Path, destination: Path) -> None:
     """Separate mutable attach metadata; never run concurrent pub/build commands."""
     shutil.copytree(client, destination, ignore=shutil.ignore_patterns('build', '.git', '.dart_tool', 'private-*'))
     (destination / '.dart_tool').mkdir()
@@ -360,14 +360,6 @@ def actor_runtime_copy(client: Path, destination: Path, *, live_source: bool = F
     # runtime metadata, while the expensive native bundle is built only once.
     if not (destination / '.dart_tool/package_config.json').is_file():
         raise ios.NativeFailure('infrastructure', 'dual-runtime', 'package-metadata-missing')
-    if live_source:
-        config = destination / '.dart_tool/package_config.json'
-        data = json.loads(config.read_text())
-        own = [package for package in data['packages'] if package['name'] == 'weave']
-        if len(own) != 1:
-            raise ios.NativeFailure('infrastructure', 'local-inspection', 'package-source-unavailable')
-        own[0]['rootUri'] = client.resolve().as_uri() + '/'
-        config.write_text(json.dumps(data))
 
 
 def prepare_actor_storage(actor: dict, udid: str, app: Path, input_data: dict, env: dict) -> tuple[Path, dict]:
@@ -828,15 +820,32 @@ def inspect_with_ci_priority(operation) -> int:
         monitor.join(timeout=6)
 
 
-def inspection_attach_command(uri: str, udid: str, runtime: Path) -> list[str]:
-    # Package imports read live source; compiler output and project metadata stay actor-owned.
-    ios.owned_vm_service_uri(ios.simulator_vm.VM_EVENT_PREFIX + uri)
-    return ['flutter', '--packages=' + str(runtime / '.dart_tool/package_config.json'),
-            'attach', '--debug-url=' + uri, '-d', udid,
+def initial_build_native_assets(client: Path) -> Path:
+    # Xcode's completed build receipt identifies the map produced by that build.
+    receipt = client / 'build/ios/Debug-iphonesimulator/.last_build_id'
+    if receipt.is_symlink() or not receipt.is_file():
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'build-map-unavailable')
+    build_id = receipt.read_text().strip()
+    if not re.fullmatch(r'[0-9a-f]{32}', build_id):
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'build-map-unavailable')
+    mapping = client / '.dart_tool/flutter_build' / build_id / 'native_assets.json'
+    if mapping.is_symlink() or not mapping.is_file():
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'build-map-unavailable')
+    data = json.loads(mapping.read_text())
+    if data.get('format-version') != [1, 0, 0] or not data.get('native-assets', {}).get('ios_arm64'):
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'build-map-unavailable')
+    return mapping
+
+
+def inspection_run_command(udid: str, compiler: Path, app: Path, native_assets: Path) -> list[str]:
+    # Canonical project metadata and generated registrant; actor-owned compiler outputs.
+    return ['flutter', '--packages=' + str(ios.CLIENT / '.dart_tool/package_config.json'),
+            'run', '--debug', '--no-pub', '--no-build', '--use-application-binary=' + str(app), '-d', udid,
+            '--native-assets-yaml-file=' + str(native_assets),
             '--target=' + str(ios.CLIENT / 'integration_test/dual_ios_collaboration_test.dart'),
             '--project-root=' + str(ios.CLIENT.resolve()),
-            '--output-dill=' + str(runtime / '.dart_tool/inspection/app.dill'),
-            '--pid-file=' + str(runtime / '.dart_tool/inspection/attach.pid'),
+            '--output-dill=' + str(compiler / 'app.dill'),
+            '--pid-file=' + str(compiler / 'run.pid'),
             '--dart-define=WEAVE_NATIVE_LOCAL_INSPECTION=true',
             '--dart-define=WEAVE_NATIVE_EXPECT_SIMULATOR=true',
             '--dart-define=WEAVE_DEVICE_DISPOSABLE_STACK=true',
@@ -857,38 +866,30 @@ def read_inspection_command(path: Path, sequence: int) -> dict | None:
     return None if value['sequence'] == sequence else value
 
 
-def attach_local_actor(udid, runtime, actor_env, scope, streams, *, require_entry, generation):
-    started_at = ios.simulator_vm.log_start_timestamp()
-    launched = ios.run(['xcrun', 'simctl', 'launch', udid, ios.BUNDLE, '--enable-dart-profiling',
-                        '--disable-vm-service-publication', '--start-paused'], env=actor_env).strip()
-    match = re.fullmatch(re.escape(ios.BUNDLE) + r': ([1-9][0-9]{0,9})', launched)
-    if match is None:
-        raise ios.NativeFailure('infrastructure', 'local-inspection', 'owned-process-missing')
-    pid = match.group(1)
-    uri = ios.discover_owned_vm_service(udid, pid, started_at)
-    log = scope / ('attach-' + str(generation) + '.log')
+def start_local_actor(udid, compiler, app, native_assets, actor_env, scope, streams, *, require_entry, generation):
+    log = scope / ('run-' + str(generation) + '.log')
     stream = log.open('w'); os.chmod(log, 0o600)
     streams.append(stream)
-    process = track_process(subprocess.Popen(inspection_attach_command(uri, udid, runtime), cwd=runtime,
+    process = track_process(subprocess.Popen(inspection_run_command(udid, compiler, app, native_assets), cwd=ios.CLIENT,
                             env=actor_env, stdin=subprocess.PIPE, stdout=stream, stderr=subprocess.STDOUT,
                             text=True, start_new_session=True))
-
     deadline = time.monotonic() + 900
-    pid_file = runtime / '.dart_tool/inspection/attach.pid'
-    while (not pid_file.is_file()
-           or ('NATIVE_LOCAL_INSPECTION phase=entry-ready qualificationPassed=false supportSafe=true' if require_entry else 'NATIVE_PRODUCT_STAGE phase=workspace-ready') not in log.read_text(errors='replace')):
+    pid_file = compiler / 'run.pid'
+    marker = ('NATIVE_PRODUCT_STAGE phase=local-inspection-entry-ready' if require_entry else 'NATIVE_PRODUCT_STAGE phase=workspace-ready')
+    while not pid_file.is_file() or marker not in log.read_text(errors='replace'):
         if process.poll() is not None or time.monotonic() >= deadline:
-            raise ios.NativeFailure('infrastructure', 'local-inspection', 'attach-not-ready')
+            raise ios.NativeFailure('infrastructure', 'local-inspection', 'run-not-ready')
         time.sleep(0.25)
-    if ios.simulator_app_pid(udid) != pid:
-        raise ios.NativeFailure('infrastructure', 'local-inspection', 'owned-process-replaced')
+    pid = ios.simulator_app_pid(udid)
+    if not pid:
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'owned-process-missing')
     if pid_file.read_text().strip() != str(process.pid):
-        raise ios.NativeFailure('infrastructure', 'local-inspection', 'attach-owner-mismatch')
-    return {'udid': udid, 'pid': pid, 'runtime': runtime, 'scope': scope, 'env': actor_env,
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'run-owner-mismatch')
+    return {'udid': udid, 'pid': pid, 'compiler': compiler, 'scope': scope, 'env': actor_env,
             'process': process, 'stream': stream, 'log': log, 'generation': generation}
 
 
-def inspect_local_apps(input_data, env, temporary, devices, app, derived, relays, evidence) -> int:
+def inspect_local_apps(input_data, env, temporary, devices, app, native_assets, derived, relays, evidence) -> int:
     actors = {}
     streams = []
     try:
@@ -899,21 +900,20 @@ def inspect_local_apps(input_data, env, temporary, devices, app, derived, relays
             scope.mkdir(mode=0o700)
             products = scope / 'Build/Products'
             shutil.copytree(derived / 'Build/Products', products)
-            runtime = scope / 'client'
-            actor_runtime_copy(ios.CLIENT, runtime, live_source=True)
-            (runtime / '.dart_tool/inspection').mkdir(mode=0o700)
+            compiler = scope / 'compiler'
+            compiler.mkdir(mode=0o700)
             actor_env = actor_proxy_environment(env, relays[role])
             support, _fixture = prepare_actor_storage(actor, udid, app, input_data, actor_env)
-            actors[role] = attach_local_actor(udid, runtime, actor_env, scope, streams, require_entry=True, generation=1)
+            actors[role] = start_local_actor(udid, compiler, app, native_assets, actor_env, scope, streams, require_entry=True, generation=1)
             actors[role].update({'support': support, 'products': products})
-            evidence['operations'].append({'action': 'initial-attach', 'role': role, 'source': inspection_source(), 'at': now()})
+            evidence['operations'].append({'action': 'initial-run', 'role': role, 'source': inspection_source(), 'at': now()})
         sequence = 0
         def publish_session():
             publish_private_json(temporary / ('inspection-session-' + str(sequence) + '.json'), {'mode': 'local-inspection', 'qualificationPassed': False,
                 'runId': input_data['runId'], 'builtSource': evidence['builtSource'],
                 'commandPath': str(temporary / 'inspection-command.json'),
                 'actors': {role: {'simulatorId': item['udid'], 'processId': item['pid'],
-                                 'attachPid': item['process'].pid, 'appSupport': str(item['support']),
+                                 'residentPid': item['process'].pid, 'appSupport': str(item['support']),
                                  'logPath': str(item['log'])} for role, item in actors.items()}})
         publish_session()
         evidence['status'] = 'held'
@@ -962,11 +962,11 @@ def inspect_local_apps(input_data, env, temporary, devices, app, derived, relays
                         stop_flutter_process_group(item['process'])
                         item['stream'].close()
                         ios.terminate_initial_app(item['udid'], old_pid)
-                        pid_file = item['runtime'] / '.dart_tool/inspection/attach.pid'
+                        pid_file = item['compiler'] / 'run.pid'
                         if pid_file.is_symlink():
-                            raise ios.NativeFailure('infrastructure', 'local-inspection', 'unsafe-attach-pid')
+                            raise ios.NativeFailure('infrastructure', 'local-inspection', 'unsafe-run-pid')
                         pid_file.unlink(missing_ok=True)
-                        replacement = attach_local_actor(item['udid'], item['runtime'], item['env'], item['scope'], streams,
+                        replacement = start_local_actor(item['udid'], item['compiler'], app, native_assets, item['env'], item['scope'], streams,
                                                          require_entry=False, generation=item['generation'] + 1)
                         if replacement['pid'] == old_pid:
                             raise ios.NativeFailure('infrastructure', 'local-inspection', 'distinct-owned-process-missing')
@@ -1023,7 +1023,7 @@ def inspect_local_apps(input_data, env, temporary, devices, app, derived, relays
                     stream.flush()
                 path = Path(stream.name)
                 if (path.parent not in {temporary / 'A', temporary / 'B'}
-                        or not re.fullmatch(r'(attach|browser)-[0-9]+\.log', path.name)
+                        or not re.fullmatch(r'(run|browser)-[0-9]+\.log', path.name)
                         or path.is_symlink() or not path.is_file()):
                     continue
                 retained = ios.retain_private_diagnostic(path.read_text(errors='replace'))
@@ -1072,6 +1072,9 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
             ios.run(['flutter', 'build', 'ios', '--simulator', '--debug', '--target=integration_test/dual_ios_collaboration_test.dart',
                      '--dart-define-from-file=' + str(defines)], env=env, timeout=1800)
             app = ios.CLIENT / 'build/ios/iphonesimulator/Runner.app'; evidence['appBuildSha256'] = app_build_digest(app)
+            if inspection:
+                native_assets = initial_build_native_assets(ios.CLIENT)
+                evidence['nativeAssetsSha256'] = hashlib.sha256(native_assets.read_bytes()).hexdigest()
             derived = temporary / 'derived'
             ios.run(['xcodebuild', 'build-for-testing', '-project', str(ios.CLIENT / 'tool/ios_browser_driver/BrowserDriver.xcodeproj'),
                      '-scheme', 'BrowserDriver', '-destination', 'platform=iOS Simulator,id=' + devices[0],
@@ -1080,7 +1083,7 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
             for role in ('A', 'B'):
                 relays[role] = OwnedFaultRelay(authorities)
             if inspection:
-                return inspect_local_apps(input_data, env, temporary, devices, app, derived, relays, evidence)
+                return inspect_local_apps(input_data, env, temporary, devices, app, native_assets, derived, relays, evidence)
             ready = queue.Queue()
             restart_barrier = threading.Barrier(2)
             restart_gate = threading.Event()

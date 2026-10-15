@@ -3,13 +3,47 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 
 import '../../integration_test/dual_ios_collaboration_test.dart'
-    show nativeLocalInspectionSessionSnapshot;
+    show
+        nativeLocalInspectionSessionSnapshot,
+        nativeLocalInspectionEntryDiagnostic,
+        nativeLocalInspectionUnavailableDiagnostic;
+import '../../integration_test/system_browser_auth_e2e_test.dart'
+    show emitNativeProductDiagnostic;
 
 void main() {
+  test('local observer records pass the actual bounded product emitter', () {
+    final output = <String>[];
+    final original = debugPrint;
+    debugPrint = (message, {wrapWidth}) {
+      if (message != null) output.add(message);
+    };
+    try {
+      for (final record in [
+        nativeLocalInspectionEntryDiagnostic,
+        nativeLocalInspectionUnavailableDiagnostic,
+      ]) {
+        emitNativeProductDiagnostic(record, simulatorDriver: false);
+      }
+      expect(output, hasLength(2));
+      expect(output.first, contains('phase=local-inspection-entry-ready'));
+      expect(output.last, contains('phase=local-inspection-unavailable'));
+      expect(
+        () => emitNativeProductDiagnostic(
+          'NATIVE_LOCAL_INSPECTION phase=entry-ready',
+          simulatorDriver: false,
+        ),
+        throwsArgumentError,
+      );
+      expect(output, hasLength(2));
+    } finally {
+      debugPrint = original;
+    }
+  });
   final configuration = AuthConfiguration(
     issuer: Uri.parse('https://auth.example.invalid/realms/weave'),
     clientId: 'native-client',

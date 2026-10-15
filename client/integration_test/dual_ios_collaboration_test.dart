@@ -407,6 +407,11 @@ Future<Map<String, String>?> nativeLocalInspectionSessionSnapshot({
   };
 }
 
+const nativeLocalInspectionEntryDiagnostic =
+    'NATIVE_PRODUCT_STAGE phase=local-inspection-entry-ready qualificationPassed=false supportSafe=true';
+const nativeLocalInspectionUnavailableDiagnostic =
+    'NATIVE_PRODUCT_STAGE phase=local-inspection-unavailable qualificationPassed=false supportSafe=true';
+
 Future<void> nativeLocalInspectionMain() async {
   WidgetsFlutterBinding.ensureInitialized();
   ui.PlatformDispatcher.instance.setSemanticsTreeEnabled(true);
@@ -445,7 +450,7 @@ Future<void> nativeLocalInspectionMain() async {
       );
       if (!entryObserved && surface.entry) {
         emitNativeProductDiagnostic(
-          'NATIVE_LOCAL_INSPECTION phase=entry-ready qualificationPassed=false supportSafe=true',
+          nativeLocalInspectionEntryDiagnostic,
           simulatorDriver: true,
         );
         entryObserved = true;
@@ -524,7 +529,7 @@ Future<void> nativeLocalInspectionMain() async {
     } catch (_) {
       if (!unavailableReported) {
         emitNativeProductDiagnostic(
-          'NATIVE_LOCAL_INSPECTION phase=workspace-observation-unavailable qualificationPassed=false supportSafe=true',
+          nativeLocalInspectionUnavailableDiagnostic,
           simulatorDriver: true,
         );
         unavailableReported = true;

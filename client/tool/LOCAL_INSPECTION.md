@@ -32,11 +32,14 @@ observation/cleanup race remains. Do not claim GitHub concurrency protects local
 processes, stop the runner service, cancel CI or kill unrelated processes.
 
 Wait for `NATIVE_LOCAL_INSPECTION phase=held`. Its private scope contains
-`inspection-session-0.json` (with subsequent immutable per-command snapshots) with exact owned actor/process paths. Initial attach
-performs a restart before either organization-entry screen is presented. Each
-actor has separate project/compiler metadata, while its package configuration
-points `weave` imports at the live client source. Native-hook cache reuse must be
-observed on the first actual attach; it is not assumed from file presence.
+`inspection-session-0.json` (with subsequent immutable per-command snapshots) with exact owned actor/process paths. Each actor uses supported resident `flutter run` with the real prebuilt simulator
+app and native-assets map identified by the completed initial iOS build receipt.
+The canonical client is the working directory and supplies the package config and
+generated plugin registrant. Only compiler output and resident PID files are
+actor-private; no copied project is used. The CLI performs normal launch and
+resume. Install/update storage preservation must be observed on the owned run;
+source inspection alone is not runtime proof. Native-hook cache reuse is observed,
+not assumed from file presence.
 
 Use Computer Use to enter the canonical organization URL for actor A. Stop at the
 visible Sign in screen. Publish an owner-only `inspection-command.json` in that
@@ -45,7 +48,7 @@ native BrowserDriver clicks that actual Sign in control and completes real SSO.
 Repeat for B. Do not click Sign in before issuing the browser command. A passive
 rendered-workspace and stored-session observer supplies the existing completion
 signal; it does not restore/refresh authentication, change providers or create
-product outcomes. Root Computer Use then operates the product and native picker.
+product outcomes. Use Computer Use to operate the product and native picker.
 
 Commands have exactly `sequence` (strictly increasing integer), `action`
 (`browser`, `reload`, `restart`, `background`, `foreground`, `network-off`,
@@ -54,7 +57,7 @@ requires one actor). Files are private, current-user-owned, nonsymlink and 0600.
 Reload/restart records include requested source and resident acknowledgement;
 loaded-script digest verification remains explicitly false until independently
 checked. `restart` is a Dart hot restart; `relaunch` terminates the exact owned
-app process and attaches a new process while preserving its storage. Background
+app process and starts a new resident process while preserving its storage. Background
 and network controls reuse the owned lifecycle and relay operations. Record actual UI outcomes, operation time and any remaining blocker in
 existing work notes. Dirty iterations are identified; native/Rust/backend changes
 require an affected rebuild/relaunch, not Dart reload.

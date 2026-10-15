@@ -21,30 +21,65 @@ import run_ios_simulator_product_acceptance as ios
 
 
 class DualIosCollaborationTest(unittest.TestCase):
-    def test_inspection_actor_metadata_reads_live_source_without_sharing_outputs(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_inspection_run_uses_canonical_inputs_and_independent_outputs(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {'WEAVE_E2E_RUN_ID': 'owned-test'}):
             root = Path(temporary)
             client = root / 'client'
-            (client / '.dart_tool').mkdir(parents=True)
-            (client / 'lib').mkdir()
-            source = client / 'lib/main.dart'
-            source.write_text('before')
-            config = {'packages': [{'name': 'weave', 'rootUri': '../', 'packageUri': 'lib/'}]}
-            (client / '.dart_tool/package_config.json').write_text(json.dumps(config))
-            for role in ['A', 'B']:
-                runtime = root / role
-                dual.actor_runtime_copy(client, runtime, live_source=True)
-                metadata = json.loads((runtime / '.dart_tool/package_config.json').read_text())
-                self.assertEqual(metadata['packages'][0]['rootUri'], client.resolve().as_uri() + '/')
-                self.assertNotEqual(runtime / '.dart_tool', client / '.dart_tool')
-                with mock.patch.object(ios, 'CLIENT', client), mock.patch.dict(os.environ, {'WEAVE_E2E_RUN_ID': 'owned-test'}):
-                    command = dual.inspection_attach_command('http://127.0.0.1:12345/owned/', 'owned-device', runtime)
-                project_root = Path(next(arg.split('=', 1)[1] for arg in command if arg.startswith('--project-root='))).resolve().as_uri() + '/'
-                self.assertIn(project_root, [package['rootUri'] for package in metadata['packages']],
-                              'Pinned Flutter native asset build requires project root to be a package root')
-            source.write_text('after live edit')
-            self.assertEqual(Path(metadata['packages'][0]['rootUri'].removeprefix('file://')).joinpath('lib/main.dart').read_text(), 'after live edit')
-            self.assertEqual(json.loads((client / '.dart_tool/package_config.json').read_text()), config)
+            mapping = client / '.dart_tool/flutter_build/owned/native_assets.json'
+            app = client / 'build/ios/iphonesimulator/Runner.app'
+            commands = []
+            with mock.patch.object(ios, 'CLIENT', client):
+                for role in ['A', 'B']:
+                    compiler = root / role / 'compiler'
+                    commands.append(dual.inspection_run_command('owned-' + role, compiler, app, mapping))
+            for command in commands:
+                self.assertIn('--packages=' + str(client / '.dart_tool/package_config.json'), command)
+                self.assertIn('--native-assets-yaml-file=' + str(mapping), command)
+                self.assertIn('--use-application-binary=' + str(app), command)
+                self.assertTrue({'run', '--debug', '--no-build', '--no-pub'}.issubset(command))
+                self.assertFalse(any('start-paused' in arg or 'debug-url' in arg for arg in command))
+            for flag in ['--output-dill=', '--pid-file=']:
+                self.assertNotEqual(next(x for x in commands[0] if x.startswith(flag)), next(x for x in commands[1] if x.startswith(flag)))
+
+    def test_initial_build_map_comes_only_from_completed_ios_build_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            client = Path(temporary)
+            receipt = client / 'build/ios/Debug-iphonesimulator/.last_build_id'
+            receipt.parent.mkdir(parents=True)
+            build_id = 'a' * 32
+            mapping = client / '.dart_tool/flutter_build' / build_id / 'native_assets.json'
+            mapping.parent.mkdir(parents=True)
+            receipt.write_text(build_id)
+            mapping.write_text(json.dumps({'format-version': [1, 0, 0], 'native-assets': {'ios_arm64': {'owned': ['absolute', '/owned']}}}))
+            self.assertEqual(dual.initial_build_native_assets(client), mapping)
+            for invalid in ['../outside', 'b' * 32, '']:
+                receipt.write_text(invalid)
+                with self.assertRaises(ios.NativeFailure): dual.initial_build_native_assets(client)
+            receipt.write_text(build_id)
+            mapping.write_text('{}')
+            with self.assertRaises(ios.NativeFailure): dual.initial_build_native_assets(client)
+            mapping.unlink(); mapping.symlink_to(receipt)
+            with self.assertRaises(ios.NativeFailure): dual.initial_build_native_assets(client)
+
+    def test_inspection_run_starts_in_canonical_project_with_owned_pid_and_actual_marker(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {'WEAVE_E2E_RUN_ID': 'owned-test'}):
+            root = Path(temporary); compiler = root / 'compiler'; compiler.mkdir()
+            streams = []
+            process = mock.Mock(pid=123)
+            def start(command, **kwargs):
+                self.assertEqual(kwargs['cwd'], ios.CLIENT)
+                (compiler / 'run.pid').write_text('123')
+                kwargs['stdout'].write('NATIVE_PRODUCT_STAGE phase=local-inspection-entry-ready qualificationPassed=false supportSafe=true\n')
+                kwargs['stdout'].flush()
+                return process
+            try:
+                with mock.patch.object(dual.subprocess, 'Popen', side_effect=start), mock.patch.object(dual, 'track_process', side_effect=lambda p: p), mock.patch.object(ios, 'simulator_app_pid', return_value='456'):
+                    actor = dual.start_local_actor('owned', compiler, root / 'Runner.app', root / 'native_assets.json', {}, root, streams, require_entry=True, generation=1)
+                self.assertEqual(actor['pid'], '456')
+                self.assertEqual(actor['process'], process)
+                self.assertFalse((root / 'client').exists(), 'local inspection must not copy a project')
+            finally:
+                for stream in streams: stream.close()
 
     def test_inspection_command_is_private_bounded_and_consumed_once(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -123,41 +158,38 @@ class DualIosCollaborationTest(unittest.TestCase):
         self.assertIs(caught.exception, original)
         self.assertFalse(threads[0].is_alive())
 
-    def test_inspection_attach_uses_pinned_real_cli_parser(self):
+    def test_inspection_run_uses_pinned_real_cli_parser(self):
         with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {'WEAVE_E2E_RUN_ID': 'owned-test'}):
-            command = dual.inspection_attach_command('http://127.0.0.1:12345/owned/', 'owned-disposable-simulator', Path(temporary))
+            command = dual.inspection_run_command('owned-disposable-simulator', Path(temporary), Path(temporary) / 'Runner.app', Path(temporary) / 'native_assets.json')
             if not shutil.which('flutter'):
-                self.skipTest('Flutter CLI required for actual attach parser validation')
+                self.skipTest('Flutter CLI required for actual run parser validation')
             accepted = subprocess.run([*command, '--help'], capture_output=True, text=True, timeout=30)
             self.assertEqual(accepted.returncode, 0, accepted.stderr)
-            self.assertIn('--debug-url', accepted.stdout)
+            self.assertIn('--use-application-binary', accepted.stdout)
             self.assertNotIn('--use-existing-app', command)
 
-    def test_partial_inspection_attach_retains_private_failure_before_cleanup(self):
+    def test_partial_inspection_run_retains_private_failure_before_cleanup(self):
         for retention_fails, stop_fails in ((False, False), (True, False), (False, True)):
             with self.subTest(retention_fails=retention_fails, stop_fails=stop_fails), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory); scope = root / 'owned'; scope.mkdir()
                 derived = root / 'derived'; (derived / 'Build/Products').mkdir(parents=True)
                 private = root / 'retained'; private.mkdir(mode=0o700)
-                failure = RuntimeError('original attach failure')
-                raw = 'private-token private-device private-path\nattach failed\n'
-                def copy(_client, runtime, **_kwargs):
-                    (runtime / '.dart_tool').mkdir(parents=True)
-                def attach(_udid, _runtime, _env, actor_scope, streams, **_kwargs):
-                    stream = (actor_scope / 'attach-1.log').open('w')
+                failure = RuntimeError('original resident startup failure')
+                raw = 'private-token private-device private-path\nresident startup failed\n'
+                def attach(_udid, _compiler, _app, _native_assets, _env, actor_scope, streams, **_kwargs):
+                    stream = (actor_scope / 'run-1.log').open('w')
                     stream.write(raw); streams.append(stream)
                     raise failure
                 output = io.StringIO()
-                with mock.patch.object(dual, 'actor_runtime_copy', side_effect=copy), \
-                     mock.patch.object(dual, 'actor_proxy_environment', return_value={}), \
+                with mock.patch.object(dual, 'actor_proxy_environment', return_value={}), \
                      mock.patch.object(dual, 'prepare_actor_storage', return_value=(root, {})), \
-                     mock.patch.object(dual, 'attach_local_actor', side_effect=attach), \
+                     mock.patch.object(dual, 'start_local_actor', side_effect=attach), \
                      mock.patch.object(dual, 'stop_owned_processes', side_effect=[OSError('stop failed'), None] if stop_fails else None), \
                      mock.patch.object(ios, 'verified_private_parent', return_value=private), \
                      contextlib.redirect_stdout(output):
                     retain = mock.patch.object(ios, 'retain_private_diagnostic', side_effect=OSError('private retention failure')) if retention_fails else contextlib.nullcontext()
                     with retain, self.assertRaises(RuntimeError) as caught:
-                        dual.inspect_local_apps({'actors': [{'role': 'A'}]}, {}, scope, ['owned-device'], root / 'app', derived, {'A': object()}, {'builtSource': {}})
+                        dual.inspect_local_apps({'actors': [{'role': 'A'}]}, {}, scope, ['owned-device'], root / 'app', root / 'native_assets.json', derived, {'A': object()}, {'builtSource': {}})
                 self.assertIs(caught.exception, failure)
                 logs = list(private.glob('command-*.log'))
                 self.assertEqual(len(logs), 0 if retention_fails else 1)
