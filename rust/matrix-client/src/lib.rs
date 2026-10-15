@@ -127,9 +127,15 @@ pub mod frb_api {
         profile_key: String,
         title: String,
         member_ids: Vec<String>,
+        is_direct: bool,
     ) -> String {
-        crate::flutter_crypto::create_business_room_with_members(profile_key, title, member_ids)
-            .await
+        crate::flutter_crypto::create_business_room_with_members(
+            profile_key,
+            title,
+            member_ids,
+            is_direct,
+        )
+        .await
     }
     #[cfg(feature = "flutter")]
     pub async fn matrix_accept_room_invitation(profile_key: String, room_id: String) -> String {

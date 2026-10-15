@@ -1,4 +1,3 @@
-import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'dart:async';
 
@@ -8,15 +7,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/theme/app_theme.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
+import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
+import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
@@ -24,6 +26,7 @@ import 'package:weave/features/chat/presentation/providers/chat_security_reposit
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 import '../../helpers/fake_chat_repository.dart';
+import '../../helpers/in_memory_stores.dart';
 import '../../helpers/fake_chat_security_repository.dart';
 import '../../helpers/test_app.dart';
 
@@ -102,9 +105,20 @@ Widget _chatTestRouterApp(
 
 class _ParticipantChatRepository extends FakeChatRepository
     implements ChatParticipantRepository {
-  _ParticipantChatRepository()
-    : super(loadConversationsHandler: () async => []);
+  _ParticipantChatRepository({this.refuse = true})
+    : super(
+        loadConversationsHandler: () async => [],
+        loadRoomTimelineHandler: (room) async => ChatRoomTimeline(
+          roomId: room,
+          roomTitle: 'Controlled conversation',
+          isInvite: false,
+          canSendMessages: true,
+          messages: [],
+        ),
+      );
+  final bool refuse;
   List<ChatParticipant>? invited;
+  bool? direct;
   @override
   Future<List<ChatParticipant>> searchMembers(String query) async => const [
     ChatParticipant(
@@ -116,9 +130,19 @@ class _ParticipantChatRepository extends FakeChatRepository
   Future<ChatConversation> createConversationWithParticipants({
     required String title,
     required List<ChatParticipant> participants,
+    bool isDirect = false,
   }) async {
     invited = participants;
-    throw const ChatFailure.protocol('Creation refused');
+    direct = isDirect;
+    if (refuse) throw const ChatFailure.protocol('Creation refused');
+    return ChatConversation(
+      id: '!created:api.weave.test',
+      title: title,
+      previewType: ChatConversationPreviewType.none,
+      unreadCount: 0,
+      isInvite: false,
+      isDirectMessage: isDirect,
+    );
   }
 }
 
@@ -492,6 +516,93 @@ void main() {
       semantics.dispose();
     });
 
+    for (final locale in ['en', 'de']) {
+      for (final direct in [true, false]) {
+        testWidgets(
+          'localized explicit conversation intent reaches real room: $locale direct=$direct',
+          (tester) async {
+            tester.platformDispatcher.localesTestValue = [Locale(locale)];
+            addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+            final repository = _ParticipantChatRepository(refuse: false);
+            await tester.pumpWidget(
+              _chatTestApp(
+                const ChatScreen(),
+                overrides: [
+                  chatRepositoryProvider.overrideWithValue(repository),
+                  preferencesStoreProvider.overrideWith(
+                    (ref) => InMemoryPreferencesStore(),
+                  ),
+                ],
+              ),
+            );
+            await tester.pumpAndSettle();
+            await tester.tap(
+              find.byKey(const Key('chat-create-conversation-button')),
+            );
+            await tester.pumpAndSettle();
+            final mode = find.byKey(const Key('chat-create-direct-switch'));
+            expect(tester.widget<SwitchListTile>(mode).value, isTrue);
+            await tester.enterText(
+              find.byKey(const Key('chat-create-conversation-name-field')),
+              'Controlled conversation',
+            );
+            if (!direct) {
+              await tester.tap(mode);
+              await tester.pumpAndSettle();
+            } else {
+              final create = find.byKey(
+                const Key('chat-create-conversation-submit-button'),
+              );
+              await tester.ensureVisible(create);
+              await tester.pump();
+              await tester.tap(create);
+              await tester.pumpAndSettle();
+              expect(repository.invited, isNull);
+              final copy = AppLocalizations.of(tester.element(mode));
+              expect(
+                find.text(copy.chatDirectParticipantRequired),
+                findsOneWidget,
+              );
+            }
+            await tester.enterText(
+              find.byKey(
+                const Key('chat-create-conversation-participant-field'),
+              ),
+              'Team',
+            );
+            await tester.pump(const Duration(milliseconds: 300));
+            await tester.pumpAndSettle();
+            final peer = find.byKey(
+              const ValueKey('chat-participant-result-@member:api.weave.test'),
+            );
+            await tester.ensureVisible(peer);
+            await tester.pump();
+            await tester.tap(peer);
+            await tester.pumpAndSettle();
+            final create = find.byKey(
+              const Key('chat-create-conversation-submit-button'),
+            );
+            await tester.ensureVisible(create);
+            await tester.pump();
+            await tester.tap(create);
+            await tester.pumpAndSettle();
+            expect(repository.direct, direct);
+            expect(repository.invited, hasLength(1));
+            expect(find.byType(ChatRoomScreen), findsOneWidget);
+            final actual = tester
+                .widget<ChatRoomScreen>(find.byType(ChatRoomScreen))
+                .conversation;
+            expect(actual.isDirectMessage, direct);
+            expect(actual.isInvite, isFalse);
+            expect(
+              find.byKey(const Key('chat-accept-invitation-button')),
+              findsNothing,
+            );
+          },
+        );
+      }
+    }
+
     testWidgets(
       'selects authorized directory member and submits their native ID without claiming success after refusal',
       (tester) async {
@@ -522,20 +633,23 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pumpAndSettle();
-        await tester.tap(
-          find.byKey(
-            const ValueKey('chat-participant-result-@member:api.weave.test'),
-          ),
+        final peer = find.byKey(
+          const ValueKey('chat-participant-result-@member:api.weave.test'),
         );
+        await tester.ensureVisible(peer);
+        await tester.pump();
+        await tester.tap(peer);
         await tester.pumpAndSettle();
         await tester.ensureVisible(
           find.byKey(const Key('chat-create-conversation-submit-button')),
         );
+        await tester.pump();
         await tester.tap(
           find.byKey(const Key('chat-create-conversation-submit-button')),
         );
         await tester.pumpAndSettle();
         expect(repository.invited!.single.userId, '@member:api.weave.test');
+        expect(repository.direct, isTrue);
         expect(find.textContaining('could not be created'), findsOneWidget);
         expect(
           find.byKey(const Key('chat-create-conversation-participant-field')),
@@ -603,7 +717,7 @@ void main() {
         await tester.tap(find.byTooltip('Start conversation'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Start an encrypted conversation'), findsOneWidget);
+        expect(find.text('Start a conversation'), findsOneWidget);
         expect(find.text('Conversation name'), findsOneWidget);
 
         await tester.tap(find.text('Create conversation'));
@@ -613,6 +727,8 @@ void main() {
           findsOneWidget,
         );
 
+        await tester.tap(find.byKey(const Key('chat-create-direct-switch')));
+        await tester.pumpAndSettle();
         await tester.enterText(
           find.byKey(const Key('chat-create-conversation-name-field')),
           'Release planning',
@@ -621,7 +737,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(repository.createConversationCalls, 1);
-        expect(find.text('Start an encrypted conversation'), findsNothing);
+        expect(find.text('Start a conversation'), findsNothing);
         expect(find.text('Created encrypted room'), findsOneWidget);
         semantics.dispose();
       },
@@ -652,6 +768,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Start conversation'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('chat-create-direct-switch')));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('chat-create-conversation-name-field')),

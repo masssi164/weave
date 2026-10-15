@@ -329,12 +329,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatCreateConversationAction => 'Unterhaltung starten';
 
   @override
-  String get chatCreateConversationTitle =>
-      'Verschlüsselte Unterhaltung starten';
+  String get chatCreateConversationTitle => 'Unterhaltung starten';
 
   @override
   String get chatCreateConversationDescription =>
-      'Gib dieser Workspace-Unterhaltung einen eindeutigen Namen. Weave erstellt sie über die Chat-Fassade der Organisation und aktiviert die Verschlüsselung ab dem ersten Ereignis.';
+      'Wähle einen Namen und Mitglieder für eine direkte Unterhaltung oder eine eingeschränkte Gruppe.';
 
   @override
   String get chatCreateConversationNameLabel => 'Name der Unterhaltung';
@@ -3737,4 +3736,19 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get chatInvitationFailed =>
       'Die Einladung konnte nicht angenommen werden. Prüfe deinen Zugriff und versuche es erneut.';
+
+  @override
+  String get chatDirectConversationLabel => 'Direkte Unterhaltung';
+
+  @override
+  String get chatDirectConversationHelp =>
+      'Wähle ein Organisationsmitglied. Es kann ohne Einladungsannahme lesen und antworten.';
+
+  @override
+  String get chatRestrictedConversationHelp =>
+      'Geschützte Gruppe. Eingeladene Mitglieder müssen vor dem Lesen oder Antworten zustimmen.';
+
+  @override
+  String get chatDirectParticipantRequired =>
+      'Wähle genau ein anderes Mitglied für eine direkte Unterhaltung.';
 }

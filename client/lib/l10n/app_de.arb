@@ -159,8 +159,8 @@
   "chatErrorRetryGuidance": "Chat konnte gerade nicht geladen werden. Versuche es erneut, sobald die Verbindung zurück ist.",
   "chatScreenTitle": "Chat",
   "chatCreateConversationAction": "Unterhaltung starten",
-  "chatCreateConversationTitle": "Verschlüsselte Unterhaltung starten",
-  "chatCreateConversationDescription": "Gib dieser Workspace-Unterhaltung einen eindeutigen Namen. Weave erstellt sie über die Chat-Fassade der Organisation und aktiviert die Verschlüsselung ab dem ersten Ereignis.",
+  "chatCreateConversationTitle": "Unterhaltung starten",
+  "chatCreateConversationDescription": "Wähle einen Namen und Mitglieder für eine direkte Unterhaltung oder eine eingeschränkte Gruppe.",
   "chatCreateConversationNameLabel": "Name der Unterhaltung",
   "chatCreateConversationNameHint": "Zum Beispiel Release-Planung",
   "chatCreateConversationNameRequired": "Gib einen Namen mit 1 bis 200 Zeichen ein.",
@@ -1238,5 +1238,9 @@
   "chatInvitationDescription": "Du wurdest zu dieser Unterhaltung eingeladen. Tritt bei, um Nachrichten zu lesen und zu senden.",
   "chatInvitationAccept": "Einladung annehmen",
   "chatInvitationJoining": "Beitritt läuft…",
-  "chatInvitationFailed": "Die Einladung konnte nicht angenommen werden. Prüfe deinen Zugriff und versuche es erneut."
+  "chatInvitationFailed": "Die Einladung konnte nicht angenommen werden. Prüfe deinen Zugriff und versuche es erneut.",
+  "chatDirectConversationLabel": "Direkte Unterhaltung",
+  "chatDirectConversationHelp": "Wähle ein Organisationsmitglied. Es kann ohne Einladungsannahme lesen und antworten.",
+  "chatRestrictedConversationHelp": "Geschützte Gruppe. Eingeladene Mitglieder müssen vor dem Lesen oder Antworten zustimmen.",
+  "chatDirectParticipantRequired": "Wähle genau ein anderes Mitglied für eine direkte Unterhaltung."
 }

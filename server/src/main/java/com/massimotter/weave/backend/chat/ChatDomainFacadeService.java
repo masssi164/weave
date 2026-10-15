@@ -89,6 +89,7 @@ public class ChatDomainFacadeService {
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final OrganizationIdentityContextResolver identityContextResolver;
     private final Clock clock;
+    private final com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery currentMembers;
 
     @Autowired
     public ChatDomainFacadeService(
@@ -101,7 +102,8 @@ public class ChatDomainFacadeService {
             ContextAuthorizationProperties contextAuthorizationProperties,
             OrganizationIdentityContextResolver identityContextResolver,
             ObjectProvider<ChatProviderBindingGate> chatProviderBindingGate,
-            DurableChatSpaceAccess durableSpaceAccess) {
+            DurableChatSpaceAccess durableSpaceAccess,
+            com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery currentMembers) {
         this(
                 providerRegistry,
                 providerSelectionRepository,
@@ -113,7 +115,7 @@ public class ChatDomainFacadeService {
                 identityContextResolver,
                 Clock.systemUTC(),
                 chatProviderBindingGate.getObject(),
-                durableSpaceAccess);
+                durableSpaceAccess, currentMembers);
     }
 
     ChatDomainFacadeService(
@@ -198,6 +200,27 @@ public class ChatDomainFacadeService {
             Clock clock,
             ChatProviderBindingGate chatProviderBindingGate,
             DurableChatSpaceAccess durableSpaceAccess) {
+        this(providerRegistry, providerSelectionRepository, workspaceCapabilityService, auditEventPublisher,
+                chatProviderPort, contextAuthorizationPort, contextAuthorizationProperties, identityContextResolver,
+                clock, chatProviderBindingGate, durableSpaceAccess, (caller, issuer, subject) -> {
+                    throw new com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Unavailable();
+                });
+    }
+
+    ChatDomainFacadeService(
+            ProviderRegistry providerRegistry,
+            ProviderSelectionRepository providerSelectionRepository,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            AuditEventPublisher auditEventPublisher,
+            ChatProviderPort chatProviderPort,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContextResolver,
+            Clock clock,
+            ChatProviderBindingGate chatProviderBindingGate,
+            DurableChatSpaceAccess durableSpaceAccess,
+            com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery currentMembers) {
+        this.currentMembers = java.util.Objects.requireNonNull(currentMembers);
         this.providerRegistry = providerRegistry;
         this.providerSelectionRepository = providerSelectionRepository;
         this.workspaceCapabilityService = workspaceCapabilityService;
@@ -557,6 +580,22 @@ public class ChatDomainFacadeService {
         requireReady(jwt);
         ChatRequestContext context = requestContext(jwt);
         requireInviteEligibility(context, invitedIdentities);
+        if ("direct".equals(kind)) {
+            if (invitedIdentities == null || invitedIdentities.size() != 1) throw new ChatAccessDeniedException();
+            ChatResolvedIdentity peer = invitedIdentities.getFirst();
+            if (!context.identityIssuer().equals(peer.identityIssuer())
+                    || context.actorRef().equals(peer.actorRef()) || !peer.actorRef().value().startsWith("user:")) {
+                throw new ChatAccessDeniedException();
+            }
+            try {
+                currentMembers.requireCurrentMember(jwt, context.identityIssuer(), jwt.getSubject());
+                currentMembers.requireCurrentMember(jwt, peer.identityIssuer(), peer.actorRef().value().substring(5));
+            } catch (com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Denied error) {
+                throw new ChatAccessDeniedException();
+            } catch (com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Unavailable error) {
+                throw new com.massimotter.weave.backend.chat.domain.ChatProviderUnavailableException("chat-member-authority-unavailable");
+            }
+        }
         return chatProviderPort.createConversation(
                 context,
                 new ChatTransactionId(opaqueTransactionId(transactionId)),

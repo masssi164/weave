@@ -129,3 +129,39 @@ fn joined_room_becomes_left_without_remaining_in_the_joined_projection() {
         assert!(client.rooms().iter().all(|room| room.state() != RoomState::Joined));
     });
 }
+
+#[test]
+fn admitted_direct_pair_uses_standard_account_data_without_invitation_acceptance() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let issuer = "https://issuer.test";
+        let server = "api.weave.test";
+        let who = |subject: &str| -> String {
+            let result: Value = serde_json::from_str(&weave_matrix_protocol::project_json_or_error(
+                "whoami".into(), json!({"subject":subject,"identityIssuer":issuer,"deviceId":"DEVICE0001"}).to_string(), server.into())).unwrap();
+            result["user_id"].as_str().unwrap().to_owned()
+        };
+        let author = who("author");
+        let client = BaseClient::new(StoreConfig::new(CrossProcessLockConfig::SingleProcess),
+            ThreadingSupport::Disabled, DmRoomDefinition::default());
+        client.activate(SessionMeta { user_id: who("peer").try_into().unwrap(), device_id:"DEVICE0001".into() },
+            RoomLoadSettings::default(),None).await.unwrap();
+        let projected: Value = serde_json::from_str(&weave_matrix_protocol::project_json_or_error(
+            "sync".into(),json!({"subject":"user:peer","identityIssuer":issuer,"cursor":"chat-revision-1",
+                "conversations":[{"conversationId":"direct-pair","title":"Direct",
+                    "memberships":[{"memberRef":"user:author","state":"joined"},{"memberRef":"user:peer","state":"joined"}]}],
+                "accountData":{"m.direct":{(author):["!direct-pair:api.weave.test"],"@unrelated:api.weave.test":["!forbidden:api.weave.test"]}}
+            }).to_string(),server.into())).unwrap();
+        assert!(projected["rooms"]["invite"].as_object().unwrap().is_empty());
+        client.receive_sync_response(response(projected)).await.unwrap();
+        assert_eq!(client.rooms().len(),1);
+        let room = &client.rooms()[0];
+        assert_eq!(room.state(),RoomState::Joined);
+        assert!(room.is_direct().await.unwrap());
+        assert_eq!(room.direct_targets().len(),1);
+        assert!(client.get_room(ruma::room_id!("!forbidden:api.weave.test")).is_none());
+    });
+}

@@ -351,6 +351,7 @@ fn wire__crate__frb_api__matrix_create_business_room_with_members_impl(
             let api_profile_key = <String>::sse_decode(&mut deserializer);
             let api_title = <String>::sse_decode(&mut deserializer);
             let api_member_ids = <Vec<String>>::sse_decode(&mut deserializer);
+            let api_is_direct = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, ()>(
@@ -360,6 +361,7 @@ fn wire__crate__frb_api__matrix_create_business_room_with_members_impl(
                                 api_profile_key,
                                 api_title,
                                 api_member_ids,
+                                api_is_direct,
                             )
                             .await,
                         )?;
