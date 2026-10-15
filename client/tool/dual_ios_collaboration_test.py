@@ -36,7 +36,7 @@ class DualIosCollaborationTest(unittest.TestCase):
                 self.assertIn('--packages=' + str(client / '.dart_tool/package_config.json'), command)
                 self.assertIn('--native-assets-yaml-file=' + str(mapping), command)
                 self.assertIn('--use-application-binary=' + str(app), command)
-                self.assertTrue({'run', '--debug', '--no-build', '--no-pub'}.issubset(command))
+                self.assertTrue({'run', '--debug', '--no-build', '--no-pub', '--no-track-widget-creation'}.issubset(command))
                 self.assertFalse(any('start-paused' in arg or 'debug-url' in arg for arg in command))
             for flag in ['--output-dill=', '--pid-file=']:
                 self.assertNotEqual(next(x for x in commands[0] if x.startswith(flag)), next(x for x in commands[1] if x.startswith(flag)))
@@ -73,13 +73,112 @@ class DualIosCollaborationTest(unittest.TestCase):
                 kwargs['stdout'].flush()
                 return process
             try:
-                with mock.patch.object(dual.subprocess, 'Popen', side_effect=start), mock.patch.object(dual, 'track_process', side_effect=lambda p: p), mock.patch.object(ios, 'simulator_app_pid', return_value='456'):
-                    actor = dual.start_local_actor('owned', compiler, root / 'Runner.app', root / 'native_assets.json', {}, root, streams, require_entry=True, generation=1)
+                with mock.patch.object(dual.subprocess, 'Popen', side_effect=start), mock.patch.object(dual, 'track_process', side_effect=lambda p: p), mock.patch.object(ios, 'simulator_app_pid', return_value='456'), mock.patch.object(dual, 'current_actor_support', return_value=root / 'current-support'):
+                    actor = dual.start_local_actor('owned', compiler, root / 'Runner.app', root / 'native_assets.json', {}, root, streams, require_entry=True, generation=1, expected_fixture={'runId': 'owned-test', 'role': 'A', 'storageDigest': 'preinstall'})
                 self.assertEqual(actor['pid'], '456')
                 self.assertEqual(actor['process'], process)
                 self.assertFalse((root / 'client').exists(), 'local inspection must not copy a project')
             finally:
                 for stream in streams: stream.close()
+
+    def test_current_support_follows_owned_reinstall_and_rejects_bad_fixture(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {'WEAVE_E2E_RUN_ID': 'owned-test'}):
+            root = Path(temporary).resolve()
+            udid = '11111111-1111-1111-1111-111111111111'
+            current = root / 'CoreSimulator/Devices' / udid / 'data/Containers/Data/Application/current'
+            support = current / 'Library/Application Support'; support.mkdir(parents=True)
+            fixture = support / 'weave-dual-ios-input.json'
+            expected = {'runId': 'owned-test', 'role': 'A', 'storageDigest': 'preinstall-digest'}
+            fixture.write_text(json.dumps(expected)); fixture.chmod(0o600)
+            with mock.patch.object(ios, 'simulator_app_pid', return_value='123'), mock.patch.object(ios, 'run', return_value=str(current)):
+                self.assertEqual(dual.current_actor_support(udid, '123', expected, {}), support)
+                self.assertFalse((current.parent / 'old').exists())
+                for changed in [{'role': 'B'}, {'runId': 'other'}, {'storageDigest': 'tampered'}]:
+                    fixture.write_text(json.dumps({**expected, **changed}))
+                    with self.assertRaises(ios.NativeFailure): dual.current_actor_support(udid, '123', expected, {})
+                fixture.write_text(json.dumps(expected)); fixture.chmod(0o644)
+                with self.assertRaises(ios.NativeFailure): dual.current_actor_support(udid, '123', expected, {})
+                fixture.chmod(0o600); original = support / 'original'; fixture.rename(original); fixture.symlink_to(original)
+                with self.assertRaises(ios.NativeFailure): dual.current_actor_support(udid, '123', expected, {})
+            with mock.patch.object(ios, 'simulator_app_pid', return_value='different'), mock.patch.object(ios, 'run') as query:
+                with self.assertRaises(ios.NativeFailure): dual.current_actor_support(udid, '123', expected, {})
+                query.assert_not_called()
+
+    def test_picker_reuses_main_thread_child_finally_on_owner_interruption(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            products = Path(temporary); (products / 'owned.xctestrun').touch()
+            (products / 'BrowserDriver.xctest').mkdir()
+            child = mock.Mock(); interruption = SystemExit(130)
+            child.communicate.side_effect = interruption
+            with mock.patch.object(ios, 'simulator_app_pid', return_value='123'), \
+                 mock.patch.object(ios.subprocess, 'Popen', return_value=child) as launch, \
+                 mock.patch.object(ios, 'stop_flutter_process_group') as stop:
+                with self.assertRaises(SystemExit) as caught:
+                    dual.perform_owned_picker('owned', '123', products, {}, 'import', 'weave-dual-initial-owned.txt')
+            self.assertIs(caught.exception, interruption)
+            stop.assert_called_once_with(child)
+            child.communicate.assert_called_once_with(timeout=90)
+            self.assertTrue(launch.call_args.kwargs['start_new_session'])
+            self.assertIn('-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker', launch.call_args.args[0])
+
+    def test_local_browser_waits_for_cu_and_picker_uses_same_owned_operation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); scope = root / 'scope'; scope.mkdir()
+            derived = root / 'derived'; products = derived / 'Build/Products'; products.mkdir(parents=True)
+            (products / 'owned.xctestrun').touch(); (products / 'BrowserDriver.xctest').mkdir()
+            prepared = {}
+            def prepare(actor, _udid, _app, _data, _env):
+                expected = {'role': actor['role'], 'runId': 'owned-test', 'storageDigest': 'preinstall'}
+                prepared[actor['role']] = expected
+                return root / 'obsolete', expected
+            def start(udid, compiler, _app, _map, env, actor_scope, streams, **kwargs):
+                log = actor_scope / 'run-1.log'; stream = log.open('w'); streams.append(stream)
+                process = mock.Mock(pid=123 if udid == 'A' else 456); process.poll.return_value = None
+                return {'udid': udid, 'pid': udid + '-pid', 'compiler': compiler, 'scope': actor_scope,
+                        'support': root / ('current-' + udid), 'fixture': kwargs['expected_fixture'],
+                        'env': env, 'process': process, 'stream': stream, 'log': log, 'generation': 1}
+            def relay(*_args, **_kwargs):
+                fixture = json.loads((scope / 'A/Build/Products/BrowserDriver.xctest/private-member.json').read_text())
+                self.assertIs(fixture['flutterInitiatesSignIn'], True)
+                self.assertEqual(fixture['phase'], 'initial')
+                return True
+            commands = [{'sequence': 1, 'action': 'browser', 'role': 'A'},
+                        {'sequence': 2, 'action': 'picker-replacement', 'role': 'A'},
+                        {'sequence': 3, 'action': 'close', 'role': 'both'}]
+            driver = mock.Mock(); driver.wait.return_value = 0
+            data = {'runId': 'owned-test', 'actors': [{'role': r, 'email': 'private-email', 'password': 'private-password'} for r in ['A', 'B']]}
+            with mock.patch.object(dual, 'prepare_actor_storage', side_effect=prepare), \
+                 mock.patch.object(dual, 'start_local_actor', side_effect=start), \
+                 mock.patch.object(dual, 'actor_proxy_environment', return_value={}), \
+                 mock.patch.object(dual, 'inspection_source', return_value={}), \
+                 mock.patch.object(ios, 'simulator_app_pid', side_effect=lambda udid: udid + '-pid'), \
+                 mock.patch.object(dual, 'read_inspection_command', side_effect=commands), \
+                 mock.patch.object(dual.subprocess, 'Popen', return_value=driver), \
+                 mock.patch.object(dual, 'track_process', side_effect=lambda p: p), \
+                 mock.patch.object(ios, 'relay_workspace_completion', side_effect=relay), \
+                 mock.patch.object(dual, 'perform_owned_picker') as picker, \
+                 mock.patch.object(dual, 'stop_owned_processes'), \
+                 mock.patch.object(dual.time, 'sleep'), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(dual.inspect_local_apps(data, {}, scope, ['A', 'B'], root / 'app', root / 'map', derived, {'A': None, 'B': None}, {'builtSource': {}}), 70)
+            self.assertEqual(picker.call_args.args[4:], ('import', 'weave-dual-replacement-owned-test.txt'))
+            self.assertEqual(picker.call_args.kwargs['result_path'], scope / 'A/picker-2.xcresult')
+            session = json.loads((scope / 'inspection-session-2.json').read_text())
+            self.assertEqual(session['actors']['A']['appSupport'], str(root / 'current-A'))
+            self.assertNotEqual(session['actors']['A']['storageDigest'], 'preinstall')
+            self.assertEqual(session['actors']['A']['fixturePreinstallStorageDigest'], 'preinstall')
+
+    def test_picker_inspection_commands_are_single_actor_and_bounded(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            p = Path(temporary) / 'command.json'
+            for action in ['picker-initial', 'picker-replacement', 'picker-export']:
+                for role in ['A', 'B']:
+                    if p.exists(): p.unlink()
+                    dual.publish_private_json(p, {'sequence': 1, 'action': action, 'role': role})
+                    self.assertEqual(dual.read_inspection_command(p, 0)['action'], action)
+                p.unlink(); dual.publish_private_json(p, {'sequence': 1, 'action': action, 'role': 'both'})
+                with self.assertRaises(ios.NativeFailure): dual.read_inspection_command(p, 0)
+            p.unlink(); dual.publish_private_json(p, {'sequence': 1, 'action': 'picker-arbitrary', 'role': 'A'})
+            with self.assertRaises(ios.NativeFailure): dual.read_inspection_command(p, 0)
 
     def test_inspection_command_is_private_bounded_and_consumed_once(self):
         with tempfile.TemporaryDirectory() as temporary:

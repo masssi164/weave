@@ -524,6 +524,33 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
                             ios.emit_phase_stages('restore', (temporary / 'flutter-restore.log').read_text(), '')
 
 
+def perform_owned_picker(udid, pid, products, env, mode, name, *, result_path=None):
+    if ios.simulator_app_pid(udid) != pid:
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'owned-process-mismatch')
+    plans = list(products.glob('*.xctestrun')); bundles = list(products.glob('**/BrowserDriver.xctest'))
+    if len(plans) != 1 or len(bundles) != 1:
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'missing-owned-test-plan')
+    fixture = bundles[0] / 'private-member.json'
+    if fixture.is_symlink():
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-picker-fixture')
+    fixture.write_text(json.dumps({'phase': 'document-picker', 'pickerMode': mode, 'fileName': name})); fixture.chmod(0o600)
+    command = ['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
+               '-destination', 'platform=iOS Simulator,id=' + udid, '-parallel-testing-enabled', 'NO',
+               '-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker']
+    if result_path is not None:
+        command.extend(['-resultBundlePath', str(result_path)])
+    # This synchronous main-thread call owns and stops its child in ios.run's
+    # finally, including when the existing CI monitor interrupts this owner.
+    picker_stdout = ios.run(command, env=env, timeout=90)
+    try:
+        diagnostic = ios.retain_private_diagnostic(picker_stdout)
+        print('NATIVE_IOS_PICKER_RESULT status=passed privateDiagnostic=' + diagnostic.name + ' supportSafe=true', flush=True)
+    except (OSError, ValueError, ios.NativeFailure):
+        print('NATIVE_IOS_PICKER_RESULT status=unavailable supportSafe=true', flush=True)
+    if ios.simulator_app_pid(udid) != pid:
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'owned-process-replaced')
+
+
 def perform_owned_lifecycle(scope: tuple, action: str, env: dict, *, inspection_sequence: int | None = None) -> None:
     support, udid, pid, products = scope
     if action not in {'background', 'foreground'} or ios.simulator_app_pid(udid) != pid:
@@ -614,19 +641,7 @@ def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict, phas
                 request = json.loads(native_request.read_text())
                 if request.get('sequence') == sequence:
                     mode, name = require_picker_request(request, sequence, action, input_data['runId'])
-                    plans = list(products.glob('*.xctestrun')); bundles = list(products.glob('**/BrowserDriver.xctest'))
-                    if len(plans) != 1 or len(bundles) != 1:
-                        raise ios.NativeFailure('infrastructure', 'dual-files', 'missing-owned-test-plan')
-                    fixture = bundles[0] / 'private-member.json'
-                    fixture.write_text(json.dumps({'phase': 'document-picker', 'pickerMode': mode, 'fileName': name})); fixture.chmod(0o600)
-                    picker_stdout = ios.run(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
-                             '-destination', 'platform=iOS Simulator,id=' + udid, '-parallel-testing-enabled', 'NO',
-                             '-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker'], env=env, timeout=90)
-                    try:
-                        diagnostic = ios.retain_private_diagnostic(picker_stdout)
-                        print('NATIVE_IOS_PICKER_RESULT status=passed privateDiagnostic=' + diagnostic.name + ' supportSafe=true', flush=True)
-                    except (OSError, ValueError, ios.NativeFailure):
-                        print('NATIVE_IOS_PICKER_RESULT status=unavailable supportSafe=true', flush=True)
+                    perform_owned_picker(udid, pid, products, env, mode, name)
                     verify_both_live()
                     picker_executed = True
             ack = support / 'weave-dual-ios-ack.json'
@@ -840,7 +855,7 @@ def initial_build_native_assets(client: Path) -> Path:
 def inspection_run_command(udid: str, compiler: Path, app: Path, native_assets: Path) -> list[str]:
     # Canonical project metadata and generated registrant; actor-owned compiler outputs.
     return ['flutter', '--packages=' + str(ios.CLIENT / '.dart_tool/package_config.json'),
-            'run', '--debug', '--no-pub', '--no-build', '--use-application-binary=' + str(app), '-d', udid,
+            'run', '--debug', '--no-pub', '--no-build', '--no-track-widget-creation', '--use-application-binary=' + str(app), '-d', udid,
             '--native-assets-yaml-file=' + str(native_assets),
             '--target=' + str(ios.CLIENT / 'integration_test/dual_ios_collaboration_test.dart'),
             '--project-root=' + str(ios.CLIENT.resolve()),
@@ -860,13 +875,32 @@ def read_inspection_command(path: Path, sequence: int) -> dict | None:
         raise ios.NativeFailure('infrastructure', 'local-inspection', 'unsafe-owned-command')
     value = json.loads(path.read_text())
     if (set(value) != {'sequence', 'action', 'role'} or type(value['sequence']) is not int
-            or value['sequence'] < sequence or value['action'] not in {'browser', 'reload', 'restart', 'close', 'background', 'foreground', 'network-off', 'network-on', 'relaunch'}
-            or value['role'] not in {'A', 'B', 'both'} or (value['action'] == 'browser' and value['role'] == 'both')):
+            or value['sequence'] < sequence or value['action'] not in {'browser', 'reload', 'restart', 'close', 'background', 'foreground', 'network-off', 'network-on', 'relaunch', 'picker-initial', 'picker-replacement', 'picker-export'}
+            or value['role'] not in {'A', 'B', 'both'} or ((value['action'] == 'browser' or value['action'].startswith('picker-')) and value['role'] == 'both')):
         raise ios.NativeFailure('infrastructure', 'local-inspection', 'invalid-owned-command')
     return None if value['sequence'] == sequence else value
 
 
-def start_local_actor(udid, compiler, app, native_assets, actor_env, scope, streams, *, require_entry, generation):
+def current_actor_support(udid, pid, expected_fixture, env):
+    if ios.simulator_app_pid(udid) != pid:
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'owned-process-mismatch')
+    container = Path(ios.run(['xcrun', 'simctl', 'get_app_container', udid, ios.BUNDLE, 'data'], env=env).strip())
+    support = container / 'Library/Application Support'
+    fixture = support / 'weave-dual-ios-input.json'
+    if (not container.is_absolute() or f'/CoreSimulator/Devices/{udid}/' not in str(container)
+            or any(path.is_symlink() for path in (container, *container.parents, container / 'Library', support, fixture))
+            or not container.is_dir() or container.stat().st_uid != os.getuid()
+            or not support.is_dir() or support.stat().st_uid != os.getuid()
+            or not fixture.is_file() or fixture.stat().st_uid != os.getuid()
+            or fixture.stat().st_mode & 0o777 != 0o600 or fixture.stat().st_size > 8192
+            or expected_fixture.get('role') not in {'A', 'B'}
+            or expected_fixture.get('runId') != os.environ['WEAVE_E2E_RUN_ID']
+            or json.loads(fixture.read_text()) != expected_fixture):
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'current-storage-binding-invalid')
+    return support
+
+
+def start_local_actor(udid, compiler, app, native_assets, actor_env, scope, streams, *, require_entry, generation, expected_fixture):
     log = scope / ('run-' + str(generation) + '.log')
     stream = log.open('w'); os.chmod(log, 0o600)
     streams.append(stream)
@@ -885,7 +919,8 @@ def start_local_actor(udid, compiler, app, native_assets, actor_env, scope, stre
         raise ios.NativeFailure('infrastructure', 'local-inspection', 'owned-process-missing')
     if pid_file.read_text().strip() != str(process.pid):
         raise ios.NativeFailure('infrastructure', 'local-inspection', 'run-owner-mismatch')
-    return {'udid': udid, 'pid': pid, 'compiler': compiler, 'scope': scope, 'env': actor_env,
+    support = current_actor_support(udid, pid, expected_fixture, actor_env)
+    return {'udid': udid, 'pid': pid, 'compiler': compiler, 'support': support, 'fixture': expected_fixture, 'scope': scope, 'env': actor_env,
             'process': process, 'stream': stream, 'log': log, 'generation': generation}
 
 
@@ -904,8 +939,8 @@ def inspect_local_apps(input_data, env, temporary, devices, app, native_assets, 
             compiler.mkdir(mode=0o700)
             actor_env = actor_proxy_environment(env, relays[role])
             support, _fixture = prepare_actor_storage(actor, udid, app, input_data, actor_env)
-            actors[role] = start_local_actor(udid, compiler, app, native_assets, actor_env, scope, streams, require_entry=True, generation=1)
-            actors[role].update({'support': support, 'products': products})
+            actors[role] = start_local_actor(udid, compiler, app, native_assets, actor_env, scope, streams, require_entry=True, generation=1, expected_fixture=_fixture)
+            actors[role].update({'products': products})
             evidence['operations'].append({'action': 'initial-run', 'role': role, 'source': inspection_source(), 'at': now()})
         sequence = 0
         def publish_session():
@@ -914,7 +949,8 @@ def inspect_local_apps(input_data, env, temporary, devices, app, native_assets, 
                 'commandPath': str(temporary / 'inspection-command.json'),
                 'actors': {role: {'simulatorId': item['udid'], 'processId': item['pid'],
                                  'residentPid': item['process'].pid, 'appSupport': str(item['support']),
-                                 'logPath': str(item['log'])} for role, item in actors.items()}})
+                                 'logPath': str(item['log']), 'storageDigest': hashlib.sha256(str(item['support'].parent.parent).encode()).hexdigest(),
+                                 'fixturePreinstallStorageDigest': item['fixture']['storageDigest']} for role, item in actors.items()}})
         publish_session()
         evidence['status'] = 'held'
         print('NATIVE_LOCAL_INSPECTION phase=held actors=2 qualificationPassed=false privateScope=' + temporary.name + ' supportSafe=true', flush=True)
@@ -967,13 +1003,19 @@ def inspect_local_apps(input_data, env, temporary, devices, app, native_assets, 
                             raise ios.NativeFailure('infrastructure', 'local-inspection', 'unsafe-run-pid')
                         pid_file.unlink(missing_ok=True)
                         replacement = start_local_actor(item['udid'], item['compiler'], app, native_assets, item['env'], item['scope'], streams,
-                                                         require_entry=False, generation=item['generation'] + 1)
+                                                         require_entry=False, generation=item['generation'] + 1, expected_fixture=item['fixture'])
                         if replacement['pid'] == old_pid:
                             raise ios.NativeFailure('infrastructure', 'local-inspection', 'distinct-owned-process-missing')
-                        replacement.update({'support': item['support'], 'products': item['products']})
+                        replacement.update({'products': item['products']})
                         actors[role] = replacement
                         record['status'] = 'observed'
                         record['distinctProcessObserved'] = True
+                    elif action.startswith('picker-'):
+                        mode = 'export' if action == 'picker-export' else 'import'
+                        name = ('weave-dual-replacement-' if action == 'picker-replacement' else 'weave-dual-initial-') + input_data['runId'] + '.txt'
+                        perform_owned_picker(item['udid'], item['pid'], item['products'], item['env'], mode, name,
+                                             result_path=item['scope'] / ('picker-' + str(sequence) + '.xcresult'))
+                        record['status'] = 'native-picker-command-passed'
                     elif action == 'browser':
                         plans = list(item['products'].glob('*.xctestrun'))
                         bundles = list(item['products'].glob('**/BrowserDriver.xctest'))
@@ -985,7 +1027,8 @@ def inspect_local_apps(input_data, env, temporary, devices, app, native_assets, 
                         actor = next(a for a in input_data['actors'] if a['role'] == role)
                         browser_fixture = {
                             'email': actor['email'], 'password': actor['password'], 'issuerHost': 'auth.weave.localhost',
-                            'appBundleIdentifier': ios.BUNDLE, 'phase': 'initial', 'nativeAuthCompletionPath': str(completion)}
+                            'appBundleIdentifier': ios.BUNDLE, 'phase': 'initial', 'nativeAuthCompletionPath': str(completion),
+                            'flutterInitiatesSignIn': True}
                         private = bundles[0] / 'private-member.json'
                         if private.is_symlink():
                             raise ios.NativeFailure('infrastructure', 'local-inspection', 'unsafe-browser-fixture')
