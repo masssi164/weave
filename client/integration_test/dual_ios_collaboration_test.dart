@@ -256,6 +256,46 @@ Future<void> _reportOnboardingFailure(
   );
 }
 
+String nativeDualFilesUploadDiagnostic(AsyncValue<FilesViewState>? state) {
+  final value = state?.asData?.value;
+  return 'NATIVE_PRODUCT_STAGE phase=files-upload-wait-failed '
+      'initialized=${state != null} '
+      'loading=${state?.isLoading ?? false} '
+      'error=${state?.hasError ?? false} '
+      'data=${value != null} '
+      'uploadPhase=${value?.uploadStatus.phase.name ?? 'unavailable'} '
+      'uploadFailure=${value?.uploadStatus.failure?.type.name ?? 'unavailable'} '
+      'directoryFailure=${value?.directoryFailure?.type.name ?? 'unavailable'} '
+      'busy=${value?.isBusy ?? false}';
+}
+
+Future<void> nativeDualFilesUploadProbe(
+  ProviderContainer container,
+  Future<void> Function() operation, {
+  void Function(String)? diagnostic,
+}) async {
+  void emit(String message) => diagnostic != null
+      ? diagnostic(message)
+      : emitNativeProductDiagnostic(message, simulatorDriver: true);
+  try {
+    await operation();
+  } catch (_) {
+    await safelyReportDualOnboardingFailure(
+      report: () async => emit(
+        nativeDualFilesUploadDiagnostic(
+          container.exists(filesProvider)
+              ? container.read(filesProvider)
+              : null,
+        ),
+      ),
+      unavailable: () => emit(
+        'NATIVE_PRODUCT_STAGE phase=files-upload-wait-failed state=unavailable',
+      ),
+    );
+    rethrow;
+  }
+}
+
 Future<void> _wait(
   WidgetTester tester,
   bool Function() condition,
@@ -879,17 +919,20 @@ void main() {
                 _copy(tester).filesUploadButton,
               ),
             );
-            await _wait(
-              tester,
-              () =>
-                  container
-                      .read(filesProvider)
-                      .asData
-                      ?.value
-                      .uploadStatus
-                      .phase ==
-                  FilesUploadPhase.completed,
-              const Duration(seconds: 90),
+            await nativeDualFilesUploadProbe(
+              container,
+              () => _wait(
+                tester,
+                () =>
+                    container
+                        .read(filesProvider)
+                        .asData
+                        ?.value
+                        .uploadStatus
+                        .phase ==
+                    FilesUploadPhase.completed,
+                const Duration(seconds: 90),
+              ),
             );
             final uploaded = container
                 .read(filesProvider)
