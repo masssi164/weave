@@ -698,15 +698,19 @@ void main() {
               deadline: actionDeadline,
             );
             await tapNativeDualChatConversation(tester, conversation);
-            await _wait(
+            await nativeDualInvitationWaitProbe(
+              _wait(
+                tester,
+                () =>
+                    find
+                        .byKey(const Key('chat-accept-invitation-button'))
+                        .evaluate()
+                        .length ==
+                    1,
+                const Duration(seconds: 60),
+              ),
               tester,
-              () =>
-                  find
-                      .byKey(const Key('chat-accept-invitation-button'))
-                      .evaluate()
-                      .length ==
-                  1,
-              const Duration(seconds: 60),
+              container,
             );
             await _tap(
               tester,
@@ -1658,6 +1662,36 @@ Future<void> sendNativeDualChatMessage(
   }
 }
 
+Future<void> nativeDualInvitationWaitProbe(
+  Future<void> wait,
+  WidgetTester tester,
+  ProviderContainer container,
+) async {
+  try {
+    await wait;
+  } catch (_) {
+    await safelyReportDualOnboardingFailure(
+      report: () async {
+        _stage('chat-invitation-wait-failed');
+        emitNativeProductDiagnostic(
+          nativeDualChatSurfaceDiagnostic(
+            tester,
+            container.exists(appBootstrapProvider)
+                ? container.read(appBootstrapProvider)
+                : null,
+            container.exists(workspaceCapabilitySnapshotProvider)
+                ? container.read(workspaceCapabilitySnapshotProvider)
+                : null,
+          ),
+          simulatorDriver: true,
+        );
+      },
+      unavailable: () {},
+    );
+    rethrow;
+  }
+}
+
 String nativeDualChatSurfaceDiagnostic(
   WidgetTester tester,
   AsyncValue<BootstrapState>? bootstrap,
@@ -1685,6 +1719,8 @@ String nativeDualChatSurfaceDiagnostic(
   return 'NATIVE_PRODUCT_STAGE phase=chat-send-surface '
       'roomVisible=${count(find.byType(ChatRoomScreen))} '
       'roomMounted=${count(find.byType(ChatRoomScreen, skipOffstage: false))} '
+      'invitedRoomVisible=${count(find.byWidgetPredicate((widget) => widget is ChatRoomScreen && widget.conversation.isInvite))} '
+      'nonInvitedRoomVisible=${count(find.byWidgetPredicate((widget) => widget is ChatRoomScreen && !widget.conversation.isInvite))} '
       'sessionRequiredCount=${copy == null ? 0 : withinRoom(find.text(copy.chatErrorSessionRequiredGuidance))} '
       'invitationCount=${withinRoom(find.byKey(const Key('chat-accept-invitation-button')))} '
       'archiveReturnCount=${copy == null ? 0 : withinRoom(find.widgetWithText(OutlinedButton, copy.chatRoomActiveTimelineAction))} '

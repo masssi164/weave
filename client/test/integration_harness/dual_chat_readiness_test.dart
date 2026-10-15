@@ -37,6 +37,7 @@ import '../../integration_test/dual_ios_collaboration_test.dart'
     show
         navigateNativeDualDestination,
         nativeDualChatSurfaceDiagnostic,
+        nativeDualInvitationWaitProbe,
         nativeDualChatListDiagnostic,
         waitNativeDualChatConversation,
         openNativeDualChatCreationDialog,
@@ -866,6 +867,59 @@ void main() {
     isInvite: false,
     isDirectMessage: false,
   );
+  testWidgets('invitation wait observation leaves cold providers absent', (
+    tester,
+  ) async {
+    final container = ProviderContainer.test();
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    for (final succeeds in [true, false]) {
+      final failure = TestFailure(
+        'private room and actor must not be exported',
+      );
+      final stack = StackTrace.fromString('original invitation wait stack');
+      if (succeeds) {
+        await nativeDualInvitationWaitProbe(Future.value(), tester, container);
+      } else {
+        try {
+          await nativeDualInvitationWaitProbe(
+            Future<void>.error(failure, stack),
+            tester,
+            container,
+          );
+          fail('Original wait failure was swallowed.');
+        } catch (error, observedStack) {
+          expect(error, same(failure));
+          expect(observedStack.toString(), stack.toString());
+        }
+      }
+      await tester.pump();
+      expect(container.exists(appBootstrapProvider), isFalse);
+      expect(container.exists(workspaceCapabilitySnapshotProvider), isFalse);
+      expect(container.exists(chatProvider), isFalse);
+    }
+  });
+
+  testWidgets('secondary invitation snapshot failure preserves original wait', (
+    tester,
+  ) async {
+    final container = ProviderContainer();
+    container.dispose();
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    final failure = TestFailure('private original wait failure');
+    final stack = StackTrace.fromString('original invitation wait stack');
+    try {
+      await nativeDualInvitationWaitProbe(
+        Future<void>.error(failure, stack),
+        tester,
+        container,
+      );
+      fail('Original wait failure was swallowed.');
+    } catch (error, observedStack) {
+      expect(error, same(failure));
+      expect(observedStack.toString(), stack.toString());
+    }
+  });
+
   testWidgets('private Chat snapshot distinguishes offstage and redacts errors', (
     tester,
   ) async {
@@ -906,6 +960,7 @@ void main() {
       AsyncError(privateError, StackTrace.current),
     );
     expect(visible, contains('roomVisible=1 roomMounted=1'));
+    expect(visible, contains('invitedRoomVisible=0 nonInvitedRoomVisible=1'));
     expect(visible, contains('bootstrapError=true'));
     expect(
       visible,
