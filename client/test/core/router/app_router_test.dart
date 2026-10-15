@@ -668,6 +668,7 @@ void main() {
         await tester.pumpAndSettle();
         final router = container.read(appRouterProvider);
         final initialElement = tester.element(find.byType(SignInScreen));
+        expect(TickerMode.valuesOf(initialElement).enabled, isTrue);
         final focus = Focus.of(
           tester.element(
             find
@@ -693,6 +694,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 10));
         expect(container.read(appBootstrapProvider).isLoading, isTrue);
         expect(initialElement.mounted, isTrue);
+        expect(TickerMode.valuesOf(initialElement).enabled, isFalse);
         expect(container.read(appRouterProvider), same(router));
         expect(focus.hasFocus, isFalse);
         expect(
@@ -710,6 +712,10 @@ void main() {
         resolver.next.complete(const BootstrapState.ready());
         await tester.pumpAndSettle();
         expect(find.byType(HomeScreen), findsOneWidget);
+        expect(
+          TickerMode.valuesOf(tester.element(find.byType(HomeScreen))).enabled,
+          isTrue,
+        );
         expect(tester.takeException(), isNull);
       },
     );

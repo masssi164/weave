@@ -92,10 +92,13 @@ class _FailingBindingStore extends InMemorySecureStore {
   }
 }
 
-String _idToken() {
+String _idToken({
+  String issuer = 'https://auth.home.internal',
+  String subject = 'person-1',
+}) {
   String encode(Map<String, Object> value) =>
       base64UrlEncode(utf8.encode(jsonEncode(value))).replaceAll('=', '');
-  return '${encode({'alg': 'RS256'})}.${encode({'iss': 'https://auth.home.internal', 'aud': 'weave-app', 'sub': 'person-1'})}.signature';
+  return '${encode({'alg': 'RS256'})}.${encode({'iss': issuer, 'aud': 'weave-app', 'sub': subject})}.signature';
 }
 
 void main() {
@@ -174,6 +177,64 @@ void main() {
         ).exists(),
         isFalse,
       );
+    },
+  );
+
+  test(
+    'member storage scope survives token refresh, coordinator restart and device replacement',
+    () async {
+      final first = await coordinator().open(synchronize: false);
+      expect(first.memberStorageScope, matches(RegExp(r'^[0-9a-f]{64}$')));
+      auth.state = AuthState.authenticated(
+        buildTestAuthSession(accessToken: 'rotated-token', idToken: _idToken()),
+      );
+      final refreshed = await coordinator().open(synchronize: false);
+      expect(refreshed.memberStorageScope, first.memberStorageScope);
+      await store.write(
+        matrixDeviceIdentityStorageKey,
+        'WEAVE111111111111111111111111111111111111',
+      );
+      final newDevice = await coordinator().open(synchronize: false);
+      expect(newDevice.deviceId, isNot(first.deviceId));
+      expect(newDevice.memberStorageScope, first.memberStorageScope);
+    },
+  );
+
+  test(
+    'member storage scope distinguishes verified issuer, canonical organization and subject tuples',
+    () async {
+      Future<String?> scope(
+        String issuer,
+        String organization,
+        String subject,
+      ) async {
+        store = InMemorySecureStore();
+        configuration.configuration = buildTestConfiguration(
+          issuerUrl: issuer,
+          matrixHomeserverUrl: 'https://api.weave.test',
+        );
+        auth.state = AuthState.authenticated(
+          buildTestAuthSession(
+            issuer: issuer,
+            idToken: _idToken(issuer: issuer, subject: subject),
+          ),
+        );
+        access.organizationId = organization;
+        return (await coordinator().open(
+          synchronize: false,
+        )).memberStorageScope;
+      }
+
+      final scopes = [
+        await scope('https://auth.home.internal', 'org-one', 'person-1'),
+        await scope('https://other.home.internal', 'org-one', 'person-1'),
+        await scope('https://auth.home.internal', 'org-two', 'person-1'),
+        await scope('https://auth.home.internal', 'org-one', 'person-2'),
+        await scope('https://auth.home.internal', 'a|b', 'c'),
+        await scope('https://auth.home.internal', 'a', 'b|c'),
+      ];
+      expect(scopes.toSet(), hasLength(scopes.length));
+      expect(scopes, everyElement(matches(RegExp(r'^[0-9a-f]{64}$'))));
     },
   );
 

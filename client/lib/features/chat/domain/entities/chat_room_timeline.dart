@@ -7,6 +7,7 @@ class ChatRoomTimeline {
     required this.isInvite,
     required this.canSendMessages,
     required this.messages,
+    this.memberStorageScope,
   });
 
   final String roomId;
@@ -14,4 +15,7 @@ class ChatRoomTimeline {
   final bool isInvite;
   final bool canSendMessages;
   final List<ChatMessage> messages;
+
+  /// Verified opaque member scope for optional local draft persistence.
+  final String? memberStorageScope;
 }
