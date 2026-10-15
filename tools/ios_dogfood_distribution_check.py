@@ -7,6 +7,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 import json
+import re
 import tempfile
 import subprocess
 
@@ -103,9 +104,70 @@ def check_discovery_evidence() -> None:
                     "offline origin-only override is unavailable")
 
 
+
+PUBLIC_PREPARATION_FILES = (
+    "weave/build/evidence/prepare-human-test/preparation-result.json",
+    "weave/build/evidence/prepare-human-test/tls-persistence.json",
+)
+
+
+def check_public_preparation_upload(workflow: str) -> None:
+    steps = re.split(r"(?m)^      - ", workflow)
+    uploads = [step for step in steps if "uses: actions/upload-artifact@" in step]
+    require(len(uploads) == 1, "physical preparation must have exactly one bounded public upload")
+    expected = "          path: |\n" + "".join(f"            {path}\n" for path in PUBLIC_PREPARATION_FILES)
+    require(expected in uploads[0], "physical public upload must contain only the two safe literal files")
+    require(len(re.findall(r"(?m)^          path:", uploads[0])) == 1,
+            "physical public upload must have exactly one path selection")
+    paths = re.search(r"(?m)^          path:[^\n]*(?:\n            [^\n]*)*", uploads[0])
+    require(paths is not None and paths.group(0) + "\n" == expected,
+            "physical public upload contains an unexpected path")
+    require(workflow.index("name: Initialize private physical diagnostics") < workflow.index("name: Start dogfood twice"),
+            "private physical directory must be initialized before evidence producers")
+    initialization = next(step for step in steps if step.startswith("name: Initialize private physical diagnostics"))
+    for guard in ("umask 077", "path.is_symlink()", "directory.stat().st_uid != os.getuid()", "directory.chmod(0o700)"):
+        require(guard in initialization, "private physical directory ownership/mode guard missing")
+    for name in ("Create first owner invitation in private Mailpit", "Build, sign, install in place, and launch on physical iPhone"):
+        step = next(step for step in steps if step.startswith("name: " + name))
+        require("        run: |\n          umask 077\n" in step,
+                "raw physical diagnostic producer must use a private creation mask")
+
+
+def check_public_preparation_upload_regressions(workflow: str) -> None:
+    check_public_preparation_upload(workflow)
+    literal = "          path: |\n" + "".join(f"            {path}\n" for path in PUBLIC_PREPARATION_FILES)
+    variants = [
+        workflow.replace(literal, "          path: weave/build/evidence/prepare-human-test\n"),
+        workflow.replace(PUBLIC_PREPARATION_FILES[1], "weave/build/evidence/prepare-human-test/*"),
+        workflow.replace(PUBLIC_PREPARATION_FILES[1], "weave/build/evidence/prepare-human-test/ios-app-preferences.txt"),
+        workflow.replace(literal, literal + "            weave/build/evidence/prepare-human-test/ios-device-details.json\n"),
+        workflow.replace(literal, literal + "          path: weave/build/evidence/prepare-human-test\n"),
+        workflow + "\n      - uses: actions/upload-artifact@unsafe\n        with:\n          path: weave/build/evidence/prepare-human-test\n",
+    ]
+    for variant in variants:
+        try:
+            check_public_preparation_upload(variant)
+        except SystemExit:
+            pass
+        else:
+            raise SystemExit("unsafe physical evidence upload was accepted")
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        directory = root / "weave/build/evidence/prepare-human-test"
+        directory.mkdir(parents=True)
+        for path in PUBLIC_PREPARATION_FILES:
+            (root / path).write_text("{}", encoding="utf-8")
+        sentinel = directory / "ios-app-preferences.txt"
+        sentinel.write_text("private-sentinel", encoding="utf-8")
+        selected = [root / path for path in PUBLIC_PREPARATION_FILES]
+        require(all(path.is_file() for path in selected) and sentinel not in selected,
+                "public physical selection included a private diagnostic sentinel")
+
+
 def main() -> int:
     check_discovery_evidence()
     workflow = read(".github/workflows/ios-dogfood.yml")
+    check_public_preparation_upload_regressions(workflow)
     smoke = read("tools/dogfood_ios_deeplink_smoke.sh")
     entry = read("tools/dogfood_iphone_entry.sh")
     project = read("client/ios/Runner.xcodeproj/project.pbxproj")

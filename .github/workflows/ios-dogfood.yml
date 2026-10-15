@@ -59,6 +59,23 @@ jobs:
           path: weave
           fetch-depth: 0
 
+      - name: Initialize private physical diagnostics
+        working-directory: weave
+        run: |
+          umask 077
+          python3 - <<'PYPRIVATE'
+          import os
+          from pathlib import Path
+          directory = Path("build/evidence/prepare-human-test")
+          for path in (directory, *directory.parents):
+              if path.is_symlink():
+                  raise SystemExit("Physical diagnostic directory must not be a symlink")
+          directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+          if directory.stat().st_uid != os.getuid():
+              raise SystemExit("Physical diagnostic directory owner mismatch")
+          directory.chmod(0o700)
+          PYPRIVATE
+
       - name: Verify current protected dogfood candidate
         working-directory: weave
         run: |
@@ -173,6 +190,7 @@ jobs:
           REQUEST_FILE: ${{ runner.temp }}/dogfood-owner-bootstrap-request.json
           EVIDENCE_FILE: ${{ github.workspace }}/weave/build/evidence/prepare-human-test/owner-bootstrap.json
         run: |
+          umask 077
           set -euo pipefail
           : "${WEAVE_DOGFOOD_OWNER_EMAIL:?Configure the dogfood owner email}"
           : "${WEAVE_DOGFOOD_OWNER_DISPLAY_NAME:?Configure the dogfood owner display name}"
@@ -203,6 +221,7 @@ jobs:
       - name: Build, sign, install in place, and launch on physical iPhone
         working-directory: weave
         run: |
+          umask 077
           set -euo pipefail
           git fetch --no-tags origin '+refs/heads/dogfood:refs/remotes/origin/dogfood'
           [[ "$(git rev-parse origin/dogfood)" == "$DOGFOOD_COMMIT" ]]
@@ -273,6 +292,8 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: prepare-human-test-${{ env.DOGFOOD_COMMIT }}-attempt-${{ github.run_attempt }}
-          path: weave/build/evidence/prepare-human-test
+          path: |
+            weave/build/evidence/prepare-human-test/preparation-result.json
+            weave/build/evidence/prepare-human-test/tls-persistence.json
           if-no-files-found: error
           retention-days: 14
