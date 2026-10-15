@@ -24,7 +24,7 @@ import tomllib
 from pathlib import Path
 from urllib.parse import urlparse
 
-from run_native_product_acceptance import restart_disposable_services, stop_flutter_process_group
+from run_native_product_acceptance import native_organization_origin, restart_disposable_services, stop_flutter_process_group
 
 CLIENT = Path(__file__).resolve().parents[1]
 ROOT = CLIENT.parent
@@ -854,7 +854,7 @@ def main() -> int:
             if urlparse(issuer).hostname != 'auth.weave.localhost' or urlparse(os.environ['WEAVE_NATIVE_API_BASE_URL']).hostname != 'api.weave.localhost':
                 raise NativeFailure('infrastructure', 'endpoint-profile', 'disposable-localhost-profile-required')
             run(['xcrun', 'simctl', 'keychain', udid, 'add-root-cert', os.environ['WEAVE_NATIVE_CA']])
-            env.update({'WEAVE_IOS_SIMULATOR_ID': udid, 'WEAVE_DEVICE_DISPOSABLE_STACK': 'true', 'WEAVE_DEVICE_API_BASE_URL': os.environ['WEAVE_NATIVE_API_BASE_URL'], 'WEAVE_DEVICE_OIDC_ISSUER_URL': issuer, 'WEAVE_DEVICE_MATRIX_HOMESERVER_URL': os.environ['WEAVE_NATIVE_MATRIX_URL'], 'WEAVE_NATIVE_TEST_RUN_ID': os.environ['WEAVE_E2E_RUN_ID']})
+            env.update({'WEAVE_IOS_SIMULATOR_ID': udid, 'WEAVE_DEVICE_DISPOSABLE_STACK': 'true', 'WEAVE_DEVICE_API_BASE_URL': os.environ['WEAVE_NATIVE_API_BASE_URL'], 'WEAVE_DEVICE_OIDC_ISSUER_URL': issuer, 'WEAVE_DEVICE_MATRIX_HOMESERVER_URL': os.environ['WEAVE_NATIVE_MATRIX_URL'], 'WEAVE_NATIVE_TEST_RUN_ID': os.environ['WEAVE_E2E_RUN_ID'], 'WEAVE_DEVICE_ORGANIZATION_ORIGIN': native_organization_origin(os.environ['WEAVE_E2E_RUN_ID'])})
             derived = temporary / 'derived'
             run(['xcodebuild', 'build-for-testing', '-project', str(CLIENT / 'tool/ios_browser_driver/BrowserDriver.xcodeproj'), '-scheme', 'BrowserDriver', '-destination', f'platform=iOS Simulator,id={udid}', '-derivedDataPath', str(derived), 'CODE_SIGNING_ALLOWED=NO'], env=env)
             fixture = {'email': os.environ['WEAVE_NATIVE_MEMBER_EMAIL'], 'password': os.environ['WEAVE_NATIVE_MEMBER_PASSWORD'], 'issuerHost': 'auth.weave.localhost', 'appBundleIdentifier': BUNDLE}

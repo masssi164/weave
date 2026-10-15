@@ -45,11 +45,6 @@ import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
-import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
-import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
-import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
-import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_session_access.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart';
@@ -62,6 +57,12 @@ import 'package:weave/integrations/weave_api/data/services/weave_user_api_client
 import 'package:weave/generated/user_api/api.dart' as user_api;
 import 'package:weave/main.dart';
 
+import 'package:weave/core/persistence/shared_preferences_store.dart';
+import 'package:weave/core/widgets/success_state.dart';
+import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
+
+import 'helpers/native_acceptance_preferences_store.dart';
 import 'helpers/test_config.dart';
 
 // test_api routes test-zone prints into result messages. flutter drive consumes
@@ -626,6 +627,7 @@ void main() {
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pumpAndSettle();
 
+        _preserveNativePreferencesForRestore = true;
         _nativeProductDiagnostic(
           'NATIVE_PRODUCT_INITIAL_RESULT status=passed login=single '
           'files=generated-upload-read calendar=generated-crud matrix=native '
@@ -1371,24 +1373,95 @@ class _FreshBrowserOidcClient implements OidcClient {
   }) => _normalClient.endSession(configuration, idTokenHint: idTokenHint);
 }
 
+Finder _nativeSignIn(WidgetTester tester) {
+  final handoff = find.byType(MemberHandoffScreen);
+  if (handoff.evaluate().isEmpty) {
+    return find.byKey(const ValueKey('weave.auth.sign-in'));
+  }
+  final copy = AppLocalizations.of(tester.element(handoff));
+  return find.descendant(
+    of: find.descendant(of: handoff, matching: find.byType(SuccessState)),
+    matching: find.byWidgetPredicate(
+      (widget) =>
+          widget is AccessibleButton &&
+          widget.onPressed != null &&
+          widget.semanticLabel == copy.signInButton,
+    ),
+  );
+}
+
+Future<void> prepareNativeCanonicalOrganization(
+  WidgetTester tester,
+  Uri organizationOrigin, {
+  required DateTime deadline,
+  required bool restoring,
+}) async {
+  var entered = false;
+  while (DateTime.now().isBefore(deadline)) {
+    final home = find.byKey(const ValueKey('weave.workspace.home'));
+    if (home.evaluate().length == 1) return;
+    final entry = find.byType(OrganizationAccessScreen);
+    if (restoring) {
+      expect(
+        entry,
+        findsNothing,
+        reason: 'Restore must reuse the persisted canonical organization.',
+      );
+      expect(
+        _nativeSignIn(tester),
+        findsNothing,
+        reason: 'Restore must not start another browser sign-in.',
+      );
+    } else {
+      if (_nativeSignIn(tester).evaluate().length == 1) return;
+      if (!entered && entry.evaluate().length == 1) {
+        final copy = AppLocalizations.of(tester.element(entry));
+        final field = find.descendant(
+          of: entry,
+          matching: find.byType(TextField),
+        );
+        expect(field, findsOneWidget);
+        await tester.enterText(field, organizationOrigin.toString());
+        final next = find.widgetWithText(
+          AccessibleButton,
+          copy.setupOrganizationContinueButton,
+        );
+        expect(next, findsOneWidget);
+        expect(tester.widget<AccessibleButton>(next).onPressed, isNotNull);
+        await tester.ensureVisible(next);
+        await tester.pump();
+        expect(DateTime.now().isBefore(deadline), isTrue);
+        await tester.tap(next);
+        entered = true;
+      }
+    }
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  fail('Canonical organization onboarding did not reach the required state.');
+}
+
+bool _preserveNativePreferencesForRestore = false;
+
 Future<ProviderContainer> _openWeaveSession(
   WidgetTester tester,
   TestConfig config, {
   bool requireFreshSignIn = false,
   bool requireRestoredSession = false,
 }) async {
-  final serverConfiguration = ServerConfiguration(
-    providerType: OidcProviderType.oidc,
-    oidcIssuerUrl: config.issuerUrl,
-    oidcClientRegistration: OidcClientRegistration.manual(
-      clientId: config.clientId,
-    ),
-    serviceEndpoints: ServiceEndpoints(
-      matrixHomeserverUrl: config.matrixHomeserverUrl,
-      backendApiBaseUrl: config.backendApiBaseUrl,
-    ),
-  );
   const nativeTestRunId = String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID');
+  final origin = config.organizationOrigin;
+  if (origin == null || nativeTestRunId.isEmpty) {
+    fail('Native acceptance requires its owned canonical organization input.');
+  }
+  final preferences = NativeAcceptancePreferencesStore.production(
+    nativeTestRunId,
+  );
+  addTearDown(() async {
+    if (!_preserveNativePreferencesForRestore) {
+      await preferences.clearOwnedKeys();
+    }
+  });
+  final readinessDeadline = DateTime.now().add(const Duration(minutes: 1));
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -1403,18 +1476,29 @@ Future<ProviderContainer> _openWeaveSession(
               ),
             ),
           ),
-        serverConfigurationRepositoryProvider.overrideWithValue(
-          _MemoryServerConfigurationRepository(serverConfiguration),
-        ),
+        preferencesStoreProvider.overrideWithValue(preferences),
       ],
       child: const WeaveApp(),
     ),
   );
+  if (requireFreshSignIn) {
+    final repository = ProviderScope.containerOf(
+      tester.element(find.byType(WeaveApp)),
+    ).read(serverConfigurationRepositoryProvider);
+    expect(
+      await repository.loadConfiguration(),
+      isNull,
+      reason:
+          'Fresh native acceptance must begin without an owned canonical profile.',
+    );
+  }
   try {
-    await _waitForAny(tester, const [
-      ValueKey('weave.auth.sign-in'),
-      ValueKey('weave.workspace.home'),
-    ], timeout: const Duration(minutes: 1));
+    await prepareNativeCanonicalOrganization(
+      tester,
+      origin,
+      deadline: readinessDeadline,
+      restoring: requireRestoredSession,
+    );
   } catch (_) {
     safelyReportNativeBootstrapFailure(
       report: () => _reportNativeBootstrapFailure(tester, config),
@@ -1426,7 +1510,7 @@ Future<ProviderContainer> _openWeaveSession(
   }
   if (requireFreshSignIn) {
     expect(
-      find.byKey(const ValueKey('weave.auth.sign-in')),
+      _nativeSignIn(tester),
       findsOneWidget,
       reason:
           'Install the test app with fresh local state before this journey.',
@@ -1440,10 +1524,24 @@ Future<ProviderContainer> _openWeaveSession(
           'The member session must restore without another browser sign-in.',
     );
   }
-  final signIn = find.byKey(const ValueKey('weave.auth.sign-in'));
+  final signIn = _nativeSignIn(tester);
   final needsSignIn = signIn.evaluate().isNotEmpty;
   final authContainer = ProviderScope.containerOf(
     tester.element(find.byType(WeaveApp)),
+  );
+  final selected = await ProviderScope.containerOf(
+    tester.element(find.byType(WeaveApp)),
+  ).read(serverConfigurationRepositoryProvider).loadConfiguration();
+  expect(selected?.organizationOrigin?.origin, origin.origin);
+  expect(selected?.oidcIssuerUrl, config.issuerUrl);
+  expect(selected?.oidcClientRegistration.clientId, config.clientId);
+  expect(
+    selected?.serviceEndpoints.matrixHomeserverUrl,
+    config.matrixHomeserverUrl,
+  );
+  expect(
+    selected?.serviceEndpoints.backendApiBaseUrl,
+    config.backendApiBaseUrl,
   );
   if (needsSignIn) {
     await tester.ensureVisible(signIn);
@@ -1574,37 +1672,4 @@ Future<void> _waitFor(
     }
   }
   fail('Timed out waiting for widget key $key.');
-}
-
-Future<void> _waitForAny(
-  WidgetTester tester,
-  List<Key> keys, {
-  required Duration timeout,
-}) async {
-  final deadline = DateTime.now().add(timeout);
-  while (DateTime.now().isBefore(deadline)) {
-    await tester.pump(const Duration(seconds: 1));
-    if (keys.any((key) => find.byKey(key).evaluate().isNotEmpty)) {
-      return;
-    }
-  }
-  fail('Timed out waiting for one of ${keys.join(', ')}.');
-}
-
-class _MemoryServerConfigurationRepository
-    implements ServerConfigurationRepository {
-  _MemoryServerConfigurationRepository(this._configuration);
-
-  ServerConfiguration? _configuration;
-
-  @override
-  Future<void> clearConfiguration() async => _configuration = null;
-
-  @override
-  Future<ServerConfiguration?> loadConfiguration() async => _configuration;
-
-  @override
-  Future<void> saveConfiguration(ServerConfiguration configuration) async {
-    _configuration = configuration;
-  }
 }

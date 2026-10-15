@@ -38,6 +38,8 @@ physical-device-auth-e2e:
 # the existing process without reopening Flutter's simulator log reader.
 native-browser-e2e:
 	@set -e; \
+	test -n "$${WEAVE_DEVICE_ORGANIZATION_ORIGIN:-}" && test -n "$${WEAVE_NATIVE_TEST_RUN_ID:-}" || \
+	  { echo "An owned native run ID and canonical organization origin are required." >&2; exit 2; }; \
 	device_id="$${WEAVE_PHYSICAL_DEVICE_ID:-}"; \
 	if [ -z "$$device_id" ]; then \
 	  echo "WEAVE_PHYSICAL_DEVICE_ID is required." >&2; exit 2; \
@@ -66,6 +68,7 @@ native-browser-e2e:
 	  --arg WEAVE_NATIVE_EXPECT_SIMULATOR "$${WEAVE_NATIVE_EXPECT_SIMULATOR:-false}" \
 	  --arg WEAVE_DEVICE_PRODUCT_PHASE "$${WEAVE_DEVICE_PRODUCT_PHASE:-initial}" \
 	  --arg WEAVE_NATIVE_TEST_RUN_ID "$${WEAVE_NATIVE_TEST_RUN_ID:-}" \
+	  --arg WEAVE_NATIVE_ORGANIZATION_ORIGIN "$${WEAVE_DEVICE_ORGANIZATION_ORIGIN:-}" \
 	  '$$ARGS.named' > "$$dart_defines_file"; \
 	if [ "$${WEAVE_NATIVE_EXPECT_SIMULATOR:-false}" = "true" ] && [ "$${WEAVE_DEVICE_PRODUCT_E2E:-false}" = "true" ]; then \
 	  case "$${WEAVE_DEVICE_PRODUCT_PHASE:-initial}" in initial|restore) ;; *) echo 'Unsupported simulator product phase.' >&2; exit 2 ;; esac; \
