@@ -57,6 +57,11 @@ import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/main.dart';
 
+import '../../../integration_test/system_browser_auth_e2e_test.dart'
+    show prepareNativeCanonicalOrganization;
+import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
+import 'package:weave/features/server_config/data/services/service_endpoint_deriver.dart';
+
 import '../../helpers/auth_test_data.dart';
 import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/fake_files_repository.dart';
@@ -348,6 +353,7 @@ void main() {
       ResolveAppBootstrap? resolver,
       SignInWithOidc? interactiveSignIn,
       bool useHandoffDiscoveryFixture = false,
+      AppStartDiscoveryClient? discoveryClient,
       ServerConfigurationRepository? configurationRepository,
     }) {
       final container = ProviderContainer.test(
@@ -362,11 +368,21 @@ void main() {
                 evidenceStore: ref.watch(preferencesStoreProvider),
               ),
             ),
+          if (discoveryClient != null)
+            discoverOrganizationAccessProvider.overrideWith(
+              (ref) => DiscoverOrganizationAccess(
+                repository: ref.watch(serverConfigurationRepositoryProvider),
+                discoveryClient: discoveryClient,
+                evidenceStore: ref.watch(preferencesStoreProvider),
+              ),
+            ),
           if (resolver != null)
             resolveAppBootstrapProvider.overrideWithValue(resolver),
           if (interactiveSignIn != null)
             signInWithOidcProvider.overrideWithValue(interactiveSignIn),
-          if (!usePersistedConfiguration)
+          if (discoveryClient != null)
+            appStartDiscoveryClientProvider.overrideWithValue(discoveryClient),
+          if (!usePersistedConfiguration && discoveryClient == null)
             appStartDiscoveryClientProvider.overrideWith(
               (ref) => buildTestDiscoveryClient(
                 ref.watch(serverConfigurationRepositoryProvider),
@@ -422,6 +438,117 @@ void main() {
       );
       return container;
     }
+
+    testWidgets(
+      'native canonical entry reaches sign-in through production discovery',
+      (tester) async {
+        final store = InMemoryPreferencesStore();
+        var requests = 0;
+        final client = AppStartDiscoveryClient(
+          httpClient: MockClient((request) async {
+            requests++;
+            expect(
+              request.url,
+              Uri.parse('https://weave.example/api/platform/config'),
+            );
+            final manifest =
+                jsonDecode(
+                      File(
+                        'test/fixtures/org_manifest_v2_valid.json',
+                      ).readAsStringSync(),
+                    )
+                    as Map<String, dynamic>;
+            manifest['organizationOrigin'] = 'https://weave.example';
+            return http.Response(
+              jsonEncode(manifest),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        );
+        final repository = SharedPreferencesServerConfigurationRepository(
+          store: store,
+          deriver: ServiceEndpointDeriver(),
+        );
+        final container = createContainer(
+          configuration: null,
+          preferencesStore: store,
+          usePersistedConfiguration: true,
+          configurationRepository: repository,
+          discoveryClient: client,
+        );
+        addTearDown(container.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          (await container.read(appBootstrapProvider.future)).phase,
+          BootstrapPhase.needsSetup,
+        );
+        expect(find.byKey(const ValueKey('weave.auth.sign-in')), findsNothing);
+        await prepareNativeCanonicalOrganization(
+          tester,
+          Uri.parse('https://weave.example'),
+          deadline: DateTime.now().add(const Duration(seconds: 3)),
+          restoring: false,
+        );
+        expect(find.byType(MemberHandoffScreen), findsOneWidget);
+        expect(requests, 1);
+        expect(
+          (await repository.loadConfiguration())!.organizationOrigin?.origin,
+          'https://weave.example',
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+        final secureStore = InMemorySecureStore();
+        await secureStore.write(
+          authSessionStorageKey,
+          AuthSessionDto.fromSession(
+            buildTestAuthSession(
+              issuer: 'https://auth.weave.local/realms/weave',
+            ),
+          ).encode(),
+        );
+        final restored = createContainer(
+          configuration: null,
+          secureStore: secureStore,
+          preferencesStore: store,
+          usePersistedConfiguration: true,
+          configurationRepository: repository,
+          discoveryClient: client,
+        );
+        addTearDown(restored.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: restored,
+            child: const WeaveApp(),
+          ),
+        );
+        await prepareNativeCanonicalOrganization(
+          tester,
+          Uri.parse('https://weave.example'),
+          deadline: DateTime.now().add(const Duration(seconds: 3)),
+          restoring: true,
+        );
+        expect(
+          find.byKey(const ValueKey('weave.workspace.home')),
+          findsOneWidget,
+        );
+        expect(find.byType(OrganizationAccessScreen), findsNothing);
+        expect(find.byType(MemberHandoffScreen), findsNothing);
+        expect(
+          requests,
+          greaterThan(1),
+          reason: 'Restore retains production manifest refresh.',
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      },
+    );
 
     testWidgets(
       'interactive bootstrap retry retains actual routed state and blocks stale content',
