@@ -522,7 +522,41 @@ final class BrowserDriver: XCTestCase {
       if !enteredDevice && browse.count == 1 && browse.element.isHittable { browse.element.tap() }
       Thread.sleep(forTimeInterval: 0.25)
     }
+    // Failure-only observations never change the selector or grant more selection time.
+    let priorContinuation = continueAfterFailure
+    continueAfterFailure = true
+    defer { continueAfterFailure = priorContinuation }
     XCTFail("Owned native document picker action did not complete")
+    print("NATIVE_IOS_FILES_DIAGNOSTIC phase=timeout enteredDevice=\(enteredDevice) enteredWeave=\(enteredWeave) supportSafe=true")
+    guard app.state == .runningForeground || app.state == .runningBackground else {
+      print("NATIVE_IOS_FILES_DIAGNOSTIC phase=unavailable reason=app-not-running supportSafe=true")
+      return
+    }
+    let observationDeadline = Date().addingTimeInterval(5)
+    let stem = (fileName as NSString).deletingPathExtension
+    let types: [(String, XCUIElement.ElementType)] = [
+      ("staticText", .staticText), ("cell", .cell), ("button", .button), ("other", .other)
+    ]
+    let probes = [
+      ("fullLabel", "label == %@", fileName), ("stemLabel", "label == %@", stem),
+      ("fullIdentifier", "identifier == %@", fileName), ("stemIdentifier", "identifier == %@", stem)
+    ]
+    var observed = 0
+    for (typeName, type) in types {
+      for (matchName, predicate, value) in probes {
+        guard Date() < observationDeadline else {
+          print("NATIVE_IOS_FILES_DIAGNOSTIC phase=bounded records=\(observed) complete=false supportSafe=true")
+          return
+        }
+        let matches = app.descendants(matching: type).matching(NSPredicate(format: predicate, value))
+        let count = matches.count
+        // Inspect at most one element per exact query; ambiguous matches stay unselected.
+        let uniqueHittable = count == 1 && matches.element.isHittable
+        print("NATIVE_IOS_FILES_DIAGNOSTIC phase=match elementType=\(typeName) match=\(matchName) count=\(min(count, 999)) uniqueHittable=\(uniqueHittable) supportSafe=true")
+        observed += 1
+      }
+    }
+    print("NATIVE_IOS_FILES_DIAGNOSTIC phase=bounded records=\(observed) complete=true supportSafe=true")
   }
 
   func testNativeLifecycle() throws {
