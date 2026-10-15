@@ -293,7 +293,14 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             List<CanonicalMembership> memberships,
             List<CanonicalMessage> messages,
             boolean timelineLimited,
-            String timelineBeforeCursor) {
+            String timelineBeforeCursor,
+            String inviterRef) {
+        public CanonicalConversation(String conversationId, String title, long updatedAtEpochMillis,
+                int unreadCount, String encryptionAlgorithm, List<CanonicalMembership> memberships,
+                List<CanonicalMessage> messages, boolean timelineLimited, String timelineBeforeCursor) {
+            this(conversationId, title, updatedAtEpochMillis, unreadCount, encryptionAlgorithm,
+                    memberships, messages, timelineLimited, timelineBeforeCursor, null);
+        }
         public CanonicalConversation(String conversationId, String title, long updatedAtEpochMillis,
                 int unreadCount, String encryptionAlgorithm, List<CanonicalMembership> memberships,
                 List<CanonicalMessage> messages) {

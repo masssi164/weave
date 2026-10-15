@@ -38,7 +38,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @WebMvcTest(
-        controllers = {PlatformController.class, HealthController.class},
+        controllers = {PlatformController.class, HealthController.class, MemberEntryController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
         OrganizationIdentityContextResolver.class,
@@ -65,8 +65,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 class PlatformControllerTest {
 
+    @Test
+    void browserCompletionUsesOnlyCanonicalOriginWithoutForwardingActivationSecrets() throws Exception {
+        String html = mockMvc.perform(get("/join").param("code", "do-not-forward")
+                        .param("organization_origin", "https://attacker.invalid"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(html).contains("weave://join?organization_origin=https%3A%2F%2Fweave.test",
+                "id=\"organization-origin\"", "role=\"img\"", "Open Weave")
+                .doesNotContain("do-not-forward", "attacker.invalid", "auth.weave.test", "clientId", "password");
+        mockMvc.perform(get("/").header("Accept-Language", "de"))
+                .andExpect(status().isOk());
+        assertThat(mockMvc.perform(get("/").header("Accept-Language", "de"))
+                .andReturn().getResponse().getContentAsString()).contains("Weave öffnen", "lang=\"de\"");
+    }
+
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private OAuth2ResourceServerProperties resourceServerProperties;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -80,6 +100,41 @@ class PlatformControllerTest {
     @BeforeEach
     void persistenceIsReady() {
         org.mockito.Mockito.when(persistenceHealth.isReady()).thenReturn(true);
+    }
+
+    @Test
+    void rejectsCredentialBearingOrNonHttpsDiscoveryIssuer() throws Exception {
+        String original = resourceServerProperties.getJwt().getIssuerUri();
+        try {
+            for (String issuer : java.util.List.of(
+                    "https://user:password@auth.weave.test/realms/weave",
+                    "https://auth.weave.test/realms/weave?token=private",
+                    "https://auth.weave.test/realms/weave#private",
+                    "http://auth.weave.test/realms/weave")) {
+                resourceServerProperties.getJwt().setIssuerUri(issuer);
+                var result = mockMvc.perform(get("/api/platform/config"))
+                        .andExpect(status().isServiceUnavailable())
+                        .andExpect(jsonPath("$.code").value("organization-manifest-invalid-public-url"))
+                        .andReturn();
+                assertThat(result.getResponse().getContentAsString())
+                        .doesNotContain("password", "token=private", "#private");
+            }
+        } finally {
+            resourceServerProperties.getJwt().setIssuerUri(original);
+        }
+    }
+
+    @Test
+    void fallsBackToConfiguredOrganizationAuthOriginWhenIssuerIsMissing() throws Exception {
+        String original = resourceServerProperties.getJwt().getIssuerUri();
+        try {
+            resourceServerProperties.getJwt().setIssuerUri(" ");
+            mockMvc.perform(get("/api/platform/config"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.oidc.issuer").value("https://auth.weave.test/realms/weave"));
+        } finally {
+            resourceServerProperties.getJwt().setIssuerUri(original);
+        }
     }
 
     @Test

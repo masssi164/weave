@@ -6,7 +6,7 @@ Weave is building a modular collaboration platform for files, calendars, and con
 
 [Start developing](#develop-and-test) · [Roadmap](#ordered-roadmap) · [Architecture](#core-architecture) · [Meet Weaver](https://github.com/masssi164/weaver)
 
-> **Bounded standalone profile:** Files, Calendar, and authorized non-E2EE Matrix business rooms have integrated release evidence. Weave is not a finished production collaboration platform. Provider migration and general Matrix interoperability remain outside this release profile. Protected branch status is tracked in [#1481](https://github.com/masssi164/weave/issues/1481).
+> **Bounded standalone profile:** Files, Calendar, and authorized non-E2EE Matrix business rooms have [earlier exact-source Compose/macOS/single-iOS job evidence](https://github.com/masssi164/weave/actions/runs/38229339638). That baseline does not establish current release readiness. Weave is not a finished production collaboration platform. Provider migration and general Matrix interoperability remain outside this release profile. Current protected delivery remains open under [#1592](https://github.com/masssi164/weave/issues/1592) and [#1481](https://github.com/masssi164/weave/issues/1481).
 
 ## What Weave is
 
@@ -28,9 +28,9 @@ Weave does not require an agent to be useful. Weaver adds another way to work wi
 
 ## Current status
 
-The bounded standalone profile has real integrated Files, Calendar, Chat, Admin, and OpenClaw evidence. A passing component test or build alone is not evidence that a wider capability is ready for daily use.
+Earlier-source Admin and OpenClaw integration evidence applies only to its recorded revisions and capabilities. The current protected release remains unqualified: it requires Full Compose/macOS/concurrent dual-iOS qualification, successful exact-candidate Dogfood deployment, a prepared physical iPhone build from that candidate, and explicit human acceptance (HIL), as tracked in [#1592](https://github.com/masssi164/weave/issues/1592) and [#1481](https://github.com/masssi164/weave/issues/1481). A passing component test or build alone is not evidence that a wider capability is ready for daily use.
 
-The approved [product consolidation epic #1470](https://github.com/masssi164/weave/issues/1470) and [pinned specification policy](docs/specification-source-of-truth.md) define the current standalone-product delivery contract. Its stories are #1471–#1476 and #1479–#1481; #1477–#1478 belong to [provider portability epic #1498](https://github.com/masssi164/weave/issues/1498). #1470 acceptance requires integrated user, admin, MCP, Matrix, Files, and Calendar journeys, not compilation alone. Provider adoption, migration, cutover, and rollback are #1498 acceptance. Older Core and gateway work remains historical or reusable only as classified in the epics.
+The approved [product consolidation epic #1470](https://github.com/masssi164/weave/issues/1470) and [pinned specification policy](docs/specification-source-of-truth.md) define the current standalone-product delivery contract. Its stories are #1471–#1476 and #1479–#1481. Mandatory URL-only entry and concurrent real dual-iOS UI collaboration supplement that scope through [#1592](https://github.com/masssi164/weave/issues/1592). #1477–#1478 belong to [provider portability epic #1498](https://github.com/masssi164/weave/issues/1498). #1470 acceptance requires integrated user, admin, MCP, Matrix, Files, and Calendar journeys, not compilation alone. Provider adoption, migration, cutover, and rollback are #1498 acceptance. Older Core and gateway work remains historical or reusable only as classified in the epics.
 
 Weave does not claim public production readiness, unrestricted autonomous agents or universal provider interchangeability. The [product trust claim matrix](docs/product-trust-provider-choice-claim-matrix.md) records the scope and limitations of earlier evidence.
 
@@ -93,7 +93,7 @@ The current release boundary is a server-owned code-first User/Admin API with ge
 
 ## Ordered roadmap
 
-[Epic #1470](https://github.com/masssi164/weave/issues/1470) owns the standalone product: scope alignment (#1471), the code-first API and generated consumers (#1472–#1473), identity and authorization (#1474), bounded Matrix Chat (#1475), durable resources and one active binding (#1476), product flows (#1479), integrated E2E (#1480), and mainline closure (#1481). [Epic #1498](https://github.com/masssi164/weave/issues/1498) owns provider adoption and migration, including Files profiles (#1477), cutover, recovery, and rollback (#1478). Delivery status is tracked by those issues and protected branch checks; a roadmap entry is not a shipped capability.
+[Epic #1470](https://github.com/masssi164/weave/issues/1470) owns the standalone product: scope alignment (#1471), the code-first API and generated consumers (#1472–#1473), identity and authorization (#1474), bounded Matrix Chat (#1475), durable resources and one active binding (#1476), product flows (#1479), integrated E2E (#1480), mandatory URL-only entry and concurrent dual-iOS acceptance ([#1592](https://github.com/masssi164/weave/issues/1592)), and mainline closure (#1481). [Epic #1498](https://github.com/masssi164/weave/issues/1498) owns provider adoption and migration, including Files profiles (#1477), cutover, recovery, and rollback (#1478). Delivery status is tracked by those issues and protected branch checks; a roadmap entry is not a shipped capability.
 
 ## Documentation
 

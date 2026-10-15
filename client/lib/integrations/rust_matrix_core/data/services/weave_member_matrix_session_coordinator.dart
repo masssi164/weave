@@ -124,13 +124,6 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
       subject,
       authConfiguration.issuer,
     );
-    if (!_matchesAdvertisedMatrixOrigin(
-      homeserver,
-      access.matrixClientServerBaseUrl,
-    )) {
-      await _dropActive();
-      throw const ChatFailure.configuration('M_WEAVE_MATRIX_ENDPOINT_MISMATCH');
-    }
     final deviceId = await _matrixDeviceIdentityRepository.loadOrCreate();
     final userId = matrixUserIdForMember(
       authConfiguration.issuer,
@@ -145,7 +138,10 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
     final fingerprint =
         '$bindingKey|${access.organizationId}|${_digest(session.accessToken)}';
 
-    Future<void> revalidate() async {
+    Future<void> requireCurrentLocalBinding() async {
+      final current = await _authSessionRepository.restoreSession(
+        authConfiguration,
+      );
       final currentConfig = await _serverConfigurationRepository
           .loadConfiguration();
       if (currentConfig == null ||
@@ -159,9 +155,6 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
           'M_WEAVE_MATRIX_SESSION_CHANGED',
         );
       }
-      final current = await _authSessionRepository.restoreSession(
-        authConfiguration,
-      );
       if (!current.isAuthenticated ||
           current.session?.accessToken != session.accessToken ||
           _verifiedSubject(current.session!, authConfiguration) != subject) {
@@ -169,6 +162,10 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
           'M_WEAVE_MATRIX_SESSION_CHANGED',
         );
       }
+    }
+
+    Future<void> revalidate() async {
+      await requireCurrentLocalBinding();
       final currentAccess = await _authorize(
         configuration.serviceEndpoints.backendApiBaseUrl,
         session.accessToken,
@@ -180,14 +177,8 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
           'M_WEAVE_MATRIX_SESSION_CHANGED',
         );
       }
-      if (!_matchesAdvertisedMatrixOrigin(
-        homeserver,
-        currentAccess.matrixClientServerBaseUrl,
-      )) {
-        throw const ChatFailure.configuration(
-          'M_WEAVE_MATRIX_ENDPOINT_MISMATCH',
-        );
-      }
+      // Admission is asynchronous; do not return a client for a superseded profile/session.
+      await requireCurrentLocalBinding();
     }
 
     try {
@@ -538,11 +529,6 @@ bool _isSecureMatrixOrigin(Uri endpoint) =>
     (endpoint.path.isEmpty || endpoint.path == '/') &&
     !endpoint.hasQuery &&
     !endpoint.hasFragment;
-
-bool _matchesAdvertisedMatrixOrigin(Uri configured, Uri advertised) =>
-    _isSecureMatrixOrigin(configured) &&
-    _isSecureMatrixOrigin(advertised) &&
-    configured.origin == advertised.origin;
 
 String _verifiedSubject(AuthSession session, AuthConfiguration configuration) {
   final idToken = session.idToken;

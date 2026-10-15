@@ -27,6 +27,7 @@ url = "2.5"
 weave-matrix-protocol = { path = "../matrix-protocol" }
 
 [dev-dependencies]
+matrix-sdk-base = { version = "=0.18.0", default-features = false }
 ed25519-dalek = "2.2"
 
 [lints.rust]

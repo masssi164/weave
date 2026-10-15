@@ -15,6 +15,21 @@ void main() {
       expect(router, isNot(contains('SetupFlow')));
       expect(
         File(
+          'lib/features/server_config/presentation/providers/server_configuration_form_controller.dart',
+        ).existsSync(),
+        isFalse,
+      );
+      final savedProfile = File(
+        'lib/features/server_config/presentation/providers/saved_server_configuration_provider.dart',
+      ).readAsStringSync();
+      expect(
+        savedProfile,
+        contains('FutureProvider.autoDispose<ServerConfiguration?>'),
+      );
+      expect(savedProfile, contains('serverConfigurationRepositoryProvider'));
+      expect(savedProfile, isNot(contains('saveConfiguration')));
+      expect(
+        File(
           'lib/features/onboarding/presentation/setup_flow.dart',
         ).existsSync(),
         isFalse,

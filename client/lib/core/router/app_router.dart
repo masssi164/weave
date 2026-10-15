@@ -42,9 +42,10 @@ void setStartupInitialLocation(String? location) {
 /// the router can read the resolved bootstrap state for redirects.
 @riverpod
 GoRouter appRouter(Ref ref) {
-  final bootstrapState = ref.watch(appBootstrapProvider).requireValue;
-
-  return GoRouter(
+  final refresh = ValueNotifier(0);
+  ref.listen(appBootstrapProvider, (_, next) => refresh.value++);
+  final router = GoRouter(
+    refreshListenable: refresh,
     navigatorKey: rootNavigatorKey,
     initialLocation:
         _startupInitialLocation ??
@@ -60,6 +61,12 @@ GoRouter appRouter(Ref ref) {
       }
     },
     redirect: (context, state) async {
+      final bootstrap = ref.read(appBootstrapProvider);
+      // Route ownership survives refresh; authorization uses only resolved state.
+      if (bootstrap.isLoading || bootstrap.hasError || !bootstrap.hasValue) {
+        return null;
+      }
+      final bootstrapState = bootstrap.requireValue;
       final onOrganizationAccess =
           state.matchedLocation == AppRoutes.organizationAccess;
       final onSignIn = state.matchedLocation == AppRoutes.signIn;
@@ -89,7 +96,12 @@ GoRouter appRouter(Ref ref) {
       ),
       GoRoute(
         path: AppRoutes.join,
-        builder: (context, state) => MemberHandoffScreen(uri: state.uri),
+        // This transient handoff may immediately return to the existing shell.
+        // Avoid overlapping its outgoing and re-entered navigator keys.
+        pageBuilder: (context, state) => NoTransitionPage(
+          key: state.pageKey,
+          child: MemberHandoffScreen(uri: state.uri),
+        ),
       ),
       GoRoute(
         path: AppRoutes.help,
@@ -168,6 +180,11 @@ GoRouter appRouter(Ref ref) {
       ),
     ],
   );
+  ref.onDispose(() {
+    router.dispose();
+    refresh.dispose();
+  });
+  return router;
 }
 
 String initialLocationForDefaultRoute(String defaultRouteName) {
@@ -187,19 +204,3 @@ String initialLocationForDefaultRoute(String defaultRouteName) {
 
   return AppRoutes.organizationAccess;
 }
-
-String? normalizedJoinRouteLocation(Uri uri) {
-  final isCustomSchemeJoin =
-      uri.scheme == 'weave' && uri.host == 'join' && _isEmptyOrRootPath(uri);
-  final isCustomSchemePathJoin =
-      uri.scheme == 'weave' && uri.host.isEmpty && uri.path == AppRoutes.join;
-  final isInAppJoin = uri.scheme.isEmpty && uri.path == AppRoutes.join;
-  if (!isCustomSchemeJoin && !isCustomSchemePathJoin && !isInAppJoin) {
-    return null;
-  }
-
-  final query = uri.hasQuery ? '?${uri.query}' : '';
-  return '${AppRoutes.join}$query';
-}
-
-bool _isEmptyOrRootPath(Uri uri) => uri.path.isEmpty || uri.path == '/';

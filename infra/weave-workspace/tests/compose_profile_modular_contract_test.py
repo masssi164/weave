@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import json
 import re
 import subprocess
 import sys
@@ -291,6 +292,33 @@ def assert_retired_cleanup_is_bounded() -> None:
     assert "tls" not in serialized and "/Users/" not in serialized
 
 
+def assert_serving_candidate_rendered(context) -> None:
+    # Render only: no image build, container creation, or persistent state access.
+    command = [*context.compose_base_command, "config", "--no-env-resolution", "--format", "json"]
+    environment = {**os.environ, **context.env}
+    with tempfile.TemporaryDirectory() as temporary:
+        # Compose 2.x checks env-file existence with --no-env-resolution.
+        # Keep the empty render fixture outside every real generated-state root.
+        environment["WEAVE_GENERATED_ROOT"] = temporary
+        receipt_environment = Path(temporary) / "keycloak/migrations/receipt-check.env"
+        receipt_environment.parent.mkdir(parents=True)
+        receipt_environment.write_text("", encoding="utf-8")
+        os.chmod(receipt_environment, 0o600)
+        result = subprocess.run(command, env=environment, text=True, capture_output=True, check=True)
+        services = json.loads(result.stdout)["services"]
+        candidate = context.env["WEAVE_CANDIDATE_COMMIT"]
+        for name in ("backend", "schema-init", "schema-receipt-check"):
+            assert services[name]["environment"]["WEAVE_CANDIDATE_COMMIT"] == candidate, (
+                f"{context.environment} {name} lost exact initializer/serving candidate identity")
+        # MCP is a separate HTTP consumer without a datasource/schema guard. Its
+        # existing resource identity must still match the same deployment candidate.
+        assert services["mcp"]["labels"]["com.massimotter.weave.candidate-commit"] == candidate
+        environment["WEAVE_CANDIDATE_COMMIT"] = ""
+        missing = subprocess.run(command, env=environment, text=True, capture_output=True)
+        assert missing.returncode != 0, "missing serving candidate must fail closed during Compose rendering"
+        assert "WEAVE_CANDIDATE_COMMIT" in missing.stderr
+
+
 def main() -> int:
     assert compose_runtime_module.COLLABORATION_CONTROL_BUDGET_SECONDS == 240
     assert compose_runtime_module.COLLABORATION_SUBPROCESS_TIMEOUT_SECONDS == 30
@@ -439,6 +467,8 @@ def main() -> int:
         prod = load_context(
             "prod", ROOT, str(materialize_example("prod", root / "prod.env"))
         )
+        assert_serving_candidate_rendered(dogfood)
+        assert_serving_candidate_rendered(prod)
         assert dogfood.env["WEAVE_API_HOST"] == "api.weave.test"
         assert dogfood.env["WEAVE_API_HOST"] != dogfood.env["WEAVE_MATRIX_HOST"]
         assert prod.env["WEAVE_API_HOST"] == "api.weave.example"
@@ -453,8 +483,19 @@ def main() -> int:
         assert _overlay(dogfood, "sha256:" + "b" * 64)["smtpEndpoints"]["host"] == "mailpit"
         dogfood_caddy = render_caddy(dogfood)
         assert "@internal path /api/internal/* /actuator/*" in dogfood_caddy
+        # Server routes own the /api prefix on both product and dedicated API origins.
+        # A handle_path directive would silently rewrite /api/platform/config to
+        # /platform/config and break host-only organization discovery.
+        for context in (dogfood, prod, load_context("dev", ROOT)):
+            gateway = render_caddy(context)
+            assert "handle /api/* {" in gateway
+            assert f"redir {context.env['WEAVE_PUBLIC_URL']}{{uri}} 308" in gateway
+            assert f"redir {context.env['WEAVE_AUTH_URL']}{{uri}} 308" in gateway
+            assert "http://weave." in gateway
+            assert "handle_path /api" not in gateway
+            assert gateway.index("handle @internal {") < gateway.index("handle /api/* {")
         assert "reverse_proxy mailpit:8025" in dogfood_caddy
-        mailpit_site = dogfood_caddy.split("https://mail.weave.test", 1)[1].split("}\n", 1)[0]
+        mailpit_site = dogfood_caddy.split("https://mail.weave.test {", 1)[1].split("}\n", 1)[0]
         assert "tls /certs/cert.pem /certs/key.pem" in mailpit_site
         assert "mailpit-cert.pem" not in mailpit_site
         assert "reverse_proxy mailpit:8025" not in render_caddy(prod)
@@ -473,6 +514,7 @@ def main() -> int:
             isolated = load_context(
                 "e2e", ROOT, str(materialize_example("e2e", root / "e2e.env"))
             )
+            assert_serving_candidate_rendered(isolated)
             assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
             assert _image_digest(isolated) == "sha256:" + "b" * 64
             assert isolated.env["WEAVE_RUNTIME_STATE_IMAGE"] == "sha256:" + "c" * 64

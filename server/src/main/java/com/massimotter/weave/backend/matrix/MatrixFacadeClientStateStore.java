@@ -11,6 +11,12 @@ public interface MatrixFacadeClientStateStore {
             String identityIssuer,
             String matrixUserId);
 
+    /** Registered same-organization identities in stable order, bounded for member discovery. */
+    default java.util.List<IdentityProjection> identityProjections(
+            String tenantId, String identityIssuer, String afterUserId, int limit) {
+        throw new IllegalStateException("Matrix identity discovery is unavailable");
+    }
+
     void saveIdentityProjection(IdentityProjection projection);
 
     void revokeSession(String sessionHash, Instant revokedAt, Instant expiresAt);

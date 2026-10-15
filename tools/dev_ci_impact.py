@@ -31,6 +31,10 @@ CLIENT_NON_CONSUMER_INPUTS = frozenset({
     'client/tool/ios_browser_driver/BrowserDriver.swift',
     'client/tool/run_ios_simulator_product_acceptance.py',
     'client/tool/native_qualification_test.py',
+    'client/tool/dual_ios_collaboration_test.py',
+    'client/tool/run_dual_ios_collaboration.py',
+    'client/tool/run_native_qualification.py',
+    'client/integration_test/dual_ios_collaboration_test.dart',
 })
 USER_TEMPORAL_VERIFICATION = 'client/test/integrations/weave_api/data/services/generated_calendar_time_value_test.dart'
 

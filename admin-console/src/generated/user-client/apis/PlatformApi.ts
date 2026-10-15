@@ -15,12 +15,12 @@
 
 import * as runtime from '../runtime';
 import type {
-  PlatformConfigResponse,
+  OrgManifestResponse,
   PlatformStatusResponse,
 } from '../models/index';
 import {
-    PlatformConfigResponseFromJSON,
-    PlatformConfigResponseToJSON,
+    OrgManifestResponseFromJSON,
+    OrgManifestResponseToJSON,
     PlatformStatusResponseFromJSON,
     PlatformStatusResponseToJSON,
 } from '../models/index';
@@ -39,12 +39,12 @@ export interface PlatformApiInterface {
      * @throws {RequiredError}
      * @memberof PlatformApiInterface
      */
-    configRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<PlatformConfigResponse>>;
+    configRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<OrgManifestResponse>>;
 
     /**
      * Get public platform configuration
      */
-    config(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<PlatformConfigResponse>;
+    config(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<OrgManifestResponse>;
 
     /**
      *
@@ -70,7 +70,7 @@ export class PlatformApi extends runtime.BaseAPI implements PlatformApiInterface
     /**
      * Get public platform configuration
      */
-    async configRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<PlatformConfigResponse>> {
+    async configRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<OrgManifestResponse>> {
         const queryParameters: any = {};
 
         const headerParameters: runtime.HTTPHeaders = {};
@@ -85,13 +85,13 @@ export class PlatformApi extends runtime.BaseAPI implements PlatformApiInterface
             query: queryParameters,
         }, initOverrides);
 
-        return new runtime.JSONApiResponse(response, (jsonValue) => PlatformConfigResponseFromJSON(jsonValue));
+        return new runtime.JSONApiResponse(response, (jsonValue) => OrgManifestResponseFromJSON(jsonValue));
     }
 
     /**
      * Get public platform configuration
      */
-    async config(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<PlatformConfigResponse> {
+    async config(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<OrgManifestResponse> {
         const response = await this.configRaw(initOverrides);
         return await response.value();
     }

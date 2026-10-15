@@ -19,6 +19,62 @@ import run_native_qualification as qualification
 
 
 class NativeQualificationTest(unittest.TestCase):
+    def test_onboarding_diagnostics_are_exact_bounded_and_classify_executed_ui_failure(self):
+        record = ('NATIVE_PRODUCT_STAGE phase=onboarding-failed actor=A authState=ready_for_sso '
+                  'visibleState=handoff_ready errorCode=none organizationCount=0 handoffCount=1 '
+                  'readyCount=1 signInCount=0 workspaceCount=0')
+        self.assertEqual(ios.onboarding_diagnostics(record), [record])
+        self.assertEqual(ios.onboarding_diagnostics('flutter: ' + record), [record])
+        self.assertEqual(ios.onboarding_diagnostics(record + '\n' + record), [record])
+        for bad in [record + ' private=credential', 'private ' + record, 'flutter: flutter: ' + record,
+                    record + '\r', record.replace('Count=1', 'Count=1000'), record.replace('actor=A', 'actor=secret'),
+                    record.replace('errorCode=none', 'errorCode=https://private.invalid/token')]:
+            self.assertEqual(ios.onboarding_diagnostics(bad), [])
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / 'flutter.log'
+            process = unittest.mock.Mock();process.poll.return_value = 1
+            for marker, category, phase in [(record, 'integration', 'initial-onboarding'),
+                (record.replace('errorCode=none', 'errorCode=WEAVE-APP-START-TLS-FAILED'), 'infrastructure', 'initial-onboarding'),
+                ('host failed without UI evidence', 'infrastructure', 'initial-app-start')]:
+                log.write_text(marker + '\n')
+                with self.assertRaises(ios.NativeFailure) as caught: ios.wait_for_flutter_shell(process, log, 'initial')
+                self.assertEqual((caught.exception.category, caught.exception.stage), (category, phase))
+
+    def test_onboarding_auth_classifications_preserve_only_existing_public_codes(self):
+        template = ('NATIVE_PRODUCT_STAGE phase=onboarding-failed actor=A authState=recoverable_error '
+                    'visibleState=handoff_ready errorCode={} organizationCount=0 handoffCount=1 '
+                    'readyCount=0 signInCount=0 workspaceCount=0')
+        codes = ['WEAVE-SSO-CANCELLED', 'WEAVE-SSO-CONFIGURATION-MISSING', 'WEAVE-SSO-NOT-COMPLETE',
+                 'WEAVE-SESSION-STORAGE-FAILED', 'WEAVE-SSO-UNSUPPORTED-DEVICE', 'WEAVE-SSO-UNKNOWN',
+                 'WEAVE-MOBILE-OFFLINE-SESSION-DENIED', 'WEAVE-WORKSPACE-BOOTSTRAP-NOT-READY']
+        for code in codes:
+            with self.subTest(code=code):
+                record = template.format(code)
+                self.assertEqual(ios.onboarding_diagnostics(record), [record])
+                for private in [code + '-private', code + ' account=value', 'https://private.invalid',
+                                code + '\r', 'private@example.invalid', code + 'x' * 81]:
+                    self.assertEqual(ios.onboarding_diagnostics(template.format(private)), [])
+
+    def test_chat_readiness_diagnostics_are_fixed_bounded_and_private_safe(self):
+        marker = ('NATIVE_PRODUCT_STAGE phase=chat-readiness-failed chatPhase=loading '
+                  'failureType=none createCount=1 enabled=false hittable=true dialogCount=0')
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', marker + '\nflutter: ' + marker, '')
+        self.assertEqual(output.getvalue().count('IOS_FLUTTER_DIAGNOSTIC'), 1)
+        self.assertIn('enabled=false hittable=true dialogCount=0', output.getvalue())
+        for bad in [marker + ' private=value', 'private ' + marker, 'flutter: flutter: ' + marker,
+                    marker + '\r', marker.replace('loading', 'private@example.invalid'),
+                    marker.replace('failureType=none', 'failureType=https://private.invalid'),
+                    marker.replace('createCount=1', 'createCount=1000'),
+                    marker.replace('enabled=false', 'enabled=1'), marker.replace('dialogCount=0', 'dialogCount=-1')]:
+            output = io.StringIO()
+            with redirect_stdout(output): ios.emit_phase_stages('initial', bad, '')
+            self.assertNotIn('IOS_FLUTTER_DIAGNOSTIC', output.getvalue())
+        output = io.StringIO()
+        with redirect_stdout(output): ios.emit_phase_stages('foreign', marker, '')
+        self.assertNotIn('IOS_FLUTTER_DIAGNOSTIC', output.getvalue())
+
     def setUp(self):
         # Failure transcript retention must remain inside this test's owned
         # disposable client directory, never the real workspace build outputs.
@@ -202,6 +258,25 @@ class NativeQualificationTest(unittest.TestCase):
         output = io.StringIO()
         with redirect_stdout(output):
             ios.emit_phase_stages('private-journey', '', '\n'.join(safe))
+        self.assertEqual(output.getvalue(), '')
+
+    def test_password_prompt_diagnostics_are_count_only_bounded_and_deduplicated(self):
+        safe = 'NATIVE_IOS_PASSWORD_PROMPT_STATE appPrompts=1 systemPrompts=0 appDeclines=0 systemDeclines=0 readiness=ambiguous'
+        unsafe = [safe + ' private-password', 'prefix ' + safe,
+                  safe.replace('appPrompts=1', 'appPrompts=1000'),
+                  safe.replace('ambiguous', 'private-alert'), safe + '\rprivate-data']
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('initial', '', '\n'.join([safe, safe, *unsafe]))
+        self.assertEqual(output.getvalue(), 'IOS_PROVIDER_DIAGNOSTIC journey=initial ' + safe + ' supportSafe=true\n')
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('restore', '', '\n'.join(
+                safe.replace('appDeclines=0', f'appDeclines={i}') for i in range(30)))
+        self.assertEqual(output.getvalue().count('IOS_PROVIDER_DIAGNOSTIC'), 16)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ios.emit_phase_stages('private-journey', '', safe)
         self.assertEqual(output.getvalue(), '')
 
     def test_return_stage_is_fixed_and_never_exports_private_context(self):
@@ -520,7 +595,7 @@ class NativeQualificationTest(unittest.TestCase):
         self.assertNotIn('.firstMatch', handler)
         self.assertNotIn('app.activate()', handler)
         self.assertIn('static let passwordDeclineLabels = ["Später", "Not Now"]', driver)
-        wait = driver.split('func waitForNativeWorkspace', 1)[1].split('func testProductionBrowser', 1)[0]
+        wait = driver.split('func waitForNativeWorkspace', 1)[1].split('func testNativeDocumentPicker', 1)[0]
         self.assertLess(wait.index('Self.nativeWorkspaceObserved'), wait.index('declinePasswordSavePrompt'))
         output = io.StringIO()
         with redirect_stdout(output):
@@ -533,7 +608,7 @@ class NativeQualificationTest(unittest.TestCase):
         self.assertLess(submitted.index('guard waitForNativeWorkspace'), submitted.index('status=passed phase=form-submitted'))
         self.assertIn('if Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath)', driver)
         self.assertIn('phase=auth-completion-observed', driver)
-        self.assertNotIn('app.activate()', driver.split('func waitForNativeWorkspace', 1)[1].split('func testProductionBrowser', 1)[0])
+        self.assertNotIn('app.activate()', driver.split('func waitForNativeWorkspace', 1)[1].split('func testNativeDocumentPicker', 1)[0])
 
     def test_shell_observer_does_not_move_subprocess_writer_offset(self):
         with tempfile.TemporaryDirectory() as name:
@@ -1042,6 +1117,40 @@ void main() {
             self.assertEqual(barrier.read_bytes(), b'')
             self.assertEqual(barrier.stat().st_mode & 0o777, 0o600)
 
+    def test_dual_attachment_waits_for_native_control_not_merely_live_app(self):
+        for marker in ['app-observed', 'sign-in-control-observed']:
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                log = root / 'browser.log'
+                log.write_text('NATIVE_IOS_BROWSER_STAGE phase=' + marker + '\n')
+                barrier = root / 'ready'
+                flutter, driver = unittest.mock.Mock(), unittest.mock.Mock()
+                flutter.poll.return_value = driver.poll.return_value = None
+                with patch.object(ios, 'simulator_app_pid', return_value='123'), redirect_stdout(io.StringIO()):
+                    if marker == 'sign-in-control-observed':
+                        ios.release_driver_barrier(flutter, driver, log, 'owned', '123', barrier, 'initial',
+                                                   timeout=0.1, require_sign_in_observation=True)
+                        self.assertEqual(barrier.stat().st_mode & 0o777, 0o600)
+                    else:
+                        with self.assertRaises(ios.NativeFailure) as failure:
+                            ios.release_driver_barrier(flutter, driver, log, 'owned', '123', barrier, 'initial',
+                                                       timeout=0.1, require_sign_in_observation=True)
+                        self.assertEqual(failure.exception.reason, 'driver-attachment-timeout')
+                        self.assertFalse(barrier.exists())
+
+    def test_dual_attachment_rejects_partial_or_private_embedded_observation(self):
+        for marker in ['NATIVE_IOS_BROWSER_STAGE phase=sign-in-control-observed',
+                       'private NATIVE_IOS_BROWSER_STAGE phase=sign-in-control-observed\n',
+                       'NATIVE_IOS_BROWSER_STAGE phase=sign-in-control-observed private\n']:
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as name:
+                root = Path(name); log = root / 'browser.log'; log.write_text(marker)
+                flutter, driver = unittest.mock.Mock(), unittest.mock.Mock()
+                flutter.poll.return_value = driver.poll.return_value = None
+                with self.assertRaises(ios.NativeFailure):
+                    ios.release_driver_barrier(flutter, driver, log, 'owned', '123', root / 'ready', 'initial',
+                                               timeout=0.1, require_sign_in_observation=True)
+                self.assertFalse((root / 'ready').exists())
+
     def test_attachment_timeout_does_not_release_readiness(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
@@ -1105,11 +1214,11 @@ void main() {
         browser_loop = driver.split('func testProductionBrowser', 1)[1].split('for surface in [app, browser] {', 1)[1]
         self.assertLess(browser_loop.index('guard surfaceState == .runningForeground || surfaceState == .runningBackground'),
                         browser_loop.index('surface.descendants'))
-        self.assertEqual(driver.count('.activate()'), 1)
+        self.assertEqual(driver.split('func testProductionBrowser', 1)[1].count('.activate()'), 1)
         production = driver.split('func testProductionBrowser', 1)[1]
         self.assertLess(production.index('.activate()'), production.index('while Date() < deadline'))
         self.assertNotIn('.activate()', browser_loop)
-        pending_loop = driver.split('func waitForNativeWorkspace', 1)[1].split('func testProductionBrowser', 1)[0]
+        pending_loop = driver.split('func waitForNativeWorkspace', 1)[1].split('func testNativeDocumentPicker', 1)[0]
         self.assertLess(pending_loop.index('guard state == .runningForeground || state == .runningBackground'), pending_loop.index('surface.descendants'))
 
     def test_ios_failure_cannot_be_presented_as_macos_or_combined_success(self):
@@ -1122,7 +1231,7 @@ void main() {
                 result = unittest.mock.Mock()
                 result.wait.return_value = code
                 results.append(result)
-            with patch.object(qualification, 'ROOT', root), patch.dict(os.environ, {'WEAVE_TEST_APP_RUN_ROOT': name, 'WEAVE_CANDIDATE_COMMIT': 'a' * 40}), patch.object(qualification.subprocess, 'check_output', side_effect=['a' * 40, '', 'c' * 40]), patch.object(qualification.subprocess, 'Popen', side_effect=results), patch.object(qualification, 'inspect_toolchain', return_value={'frameworkVersion': '3.41.6', 'rustToolchain': '1.95.0'}), patch.object(qualification.shutil, 'which', return_value='/private/rustup/bin/rustup'):
+            with patch.object(qualification, 'ROOT', root), patch.dict(os.environ, {'WEAVE_TEST_APP_RUN_ROOT': name, 'WEAVE_CANDIDATE_COMMIT': 'a' * 40, 'WEAVE_E2E_RUN_ID': 'owned-run'}), patch.object(qualification.subprocess, 'check_output', side_effect=['a' * 40, '', 'c' * 40]), patch.object(qualification.subprocess, 'Popen', side_effect=results), patch.object(qualification, 'inspect_toolchain', return_value={'frameworkVersion': '3.41.6', 'rustToolchain': '1.95.0'}), patch.object(qualification.shutil, 'which', return_value='/private/rustup/bin/rustup'):
                 self.assertEqual(qualification.main(), 7)
             evidence = json.loads((root / 'native-qualification.json').read_text())
             self.assertEqual(evidence['macos']['status'], 'passed')

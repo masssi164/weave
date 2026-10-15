@@ -127,6 +127,19 @@ final class BrowserDriver: XCTestCase {
     let appBundleIdentifier: String
     let phase: String
     let nativeAuthCompletionPath: String
+    // Private simulator harness initiator; absent preserves native tap consumers.
+    let flutterInitiatesSignIn: Bool?
+  }
+
+  func testPrivateSignInInitiatorDefaultsToNativeAndRejectsInvalidType() throws {
+    let base = "\"email\":\"fixture@example.invalid\",\"password\":\"nonsecret\",\"issuerHost\":\"auth.weave.localhost\",\"appBundleIdentifier\":\"com.massimotter.weave\",\"phase\":\"initial\",\"nativeAuthCompletionPath\":\"/private/owned/workspace.ready\""
+    func decode(_ additional: String) throws -> Fixture {
+      try JSONDecoder().decode(Fixture.self, from: Data(("{" + base + additional + "}").utf8))
+    }
+    XCTAssertNotEqual(try decode("").flutterInitiatesSignIn, true)
+    XCTAssertNotEqual(try decode(",\"flutterInitiatesSignIn\":false").flutterInitiatesSignIn, true)
+    XCTAssertEqual(try decode(",\"flutterInitiatesSignIn\":true").flutterInitiatesSignIn, true)
+    XCTAssertThrowsError(try decode(",\"flutterInitiatesSignIn\":\"true\""))
   }
 
   enum PasswordPromptReadiness { case absent, ambiguous, waiting, ready }
@@ -135,13 +148,18 @@ final class BrowserDriver: XCTestCase {
     state: () -> PasswordPromptReadiness, deadline: Date, promptSeen: inout Bool,
     now: () -> Date = Date.init, pause: () -> Void = { Thread.sleep(forTimeInterval: 0.25) }
   ) -> PasswordPromptReadiness {
+    var latest = PasswordPromptReadiness.waiting
     while now() < deadline {
-      let observed = state()
-      if observed != .absent { promptSeen = true }
-      if observed != .waiting { return observed }
+      latest = state()
+      if latest != .absent { promptSeen = true }
+      if latest == .absent { return latest }
+      // Even a ready optional sheet may disappear during genuine auth completion.
+      // Keep observing within the existing window; never select a transient control early.
       pause()
     }
-    return .waiting
+    latest = state()
+    if latest != .absent { promptSeen = true }
+    return latest
   }
 
   func testPasswordPromptWaitUsesFreshStateAndBoundedDeadline() {
@@ -149,19 +167,81 @@ final class BrowserDriver: XCTestCase {
     var states: [PasswordPromptReadiness] = [.waiting, .waiting, .ready]
     var promptSeen = false
     XCTAssertEqual(Self.waitForPasswordPrompt(
-      state: { states.removeFirst() }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      state: { states.isEmpty ? .ready : states.removeFirst() }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
       now: { clock }, pause: { clock.addTimeInterval(1) }
     ), .ready)
     XCTAssertTrue(states.isEmpty)
-    for terminal in [PasswordPromptReadiness.absent, .ambiguous] {
-      XCTAssertEqual(Self.waitForPasswordPrompt(state: { terminal }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen, now: { clock }), terminal)
-    }
+    XCTAssertEqual(Self.waitForPasswordPrompt(state: { .absent }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen, now: { clock }), .absent)
     var reads = 0
     XCTAssertEqual(Self.waitForPasswordPrompt(
       state: { reads += 1; return .waiting }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
       now: { clock }, pause: { clock.addTimeInterval(1) }
     ), .waiting)
-    XCTAssertEqual(reads, 5)
+    XCTAssertEqual(reads, 6)
+  }
+
+  func testAmbiguousPasswordPromptSettlesWithoutSelectingEarly() {
+    var clock = Date(timeIntervalSince1970: 0)
+    var states: [PasswordPromptReadiness] = [.waiting, .ambiguous, .ready]
+    var promptSeen = false
+    XCTAssertEqual(Self.waitForPasswordPrompt(
+      state: { states.isEmpty ? .ready : states.removeFirst() }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      now: { clock }, pause: { clock.addTimeInterval(1) }
+    ), .ready)
+    XCTAssertTrue(states.isEmpty)
+    XCTAssertTrue(promptSeen)
+    XCTAssertEqual(clock.timeIntervalSince1970, 5)
+    var reads = 0
+    XCTAssertEqual(Self.waitForPasswordPrompt(
+      state: { reads += 1; return .ambiguous }, deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      now: { clock }, pause: { clock.addTimeInterval(1) }
+    ), .ambiguous)
+    XCTAssertEqual(reads, 6)
+    XCTAssertTrue(promptSeen)
+  }
+
+  func testReadyPromptIsNotSelectedBeforeCompletionSettles() {
+    var clock = Date(timeIntervalSince1970: 0)
+    var reads = 0
+    var promptSeen = false
+    let result = Self.waitForPasswordPrompt(
+      state: { reads += 1; return clock.timeIntervalSince1970 < 2 ? .ready : .absent },
+      deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      now: { clock }, pause: { clock.addTimeInterval(1) }
+    )
+    XCTAssertEqual(result, .absent)
+    XCTAssertEqual(reads, 3)
+    XCTAssertEqual(clock.timeIntervalSince1970, 2)
+    XCTAssertTrue(promptSeen)
+
+    clock = Date(timeIntervalSince1970: 0)
+    reads = 0
+    let stable = Self.waitForPasswordPrompt(
+      state: { reads += 1; return .ready },
+      deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      now: { clock }, pause: { clock.addTimeInterval(1) }
+    )
+    XCTAssertEqual(stable, .ready)
+    XCTAssertEqual(reads, 6)
+    XCTAssertEqual(clock.timeIntervalSince1970, 5)
+  }
+
+  func testReadyPromptYieldsToGenuineCompletionDuringSettling() {
+    var clock = Date(timeIntervalSince1970: 0)
+    var promptSeen = false
+    var completionObserved = false
+    let result = Self.waitForPasswordPrompt(
+      state: { completionObserved ? .absent : .ready },
+      deadline: clock.addingTimeInterval(5), promptSeen: &promptSeen,
+      now: { clock }, pause: {
+        clock.addTimeInterval(1)
+        if clock.timeIntervalSince1970 == 2 { completionObserved = true }
+      }
+    )
+    XCTAssertEqual(result, .absent)
+    XCTAssertEqual(clock.timeIntervalSince1970, 2)
+    XCTAssertTrue(promptSeen)
+    XCTAssertTrue(completionObserved)
   }
 
   func testDisappearingObservedPromptSuppressesReturnRecovery() {
@@ -199,19 +279,25 @@ final class BrowserDriver: XCTestCase {
       guard appCount + systemCount > 0 else { return .absent }
       let appDeclines = appPrompts.buttons.matching(NSPredicate(format: "label IN %@", Self.passwordDeclineLabels))
       let systemDeclines = systemPrompts.buttons.matching(NSPredicate(format: "label IN %@", Self.passwordDeclineLabels))
+      let appDeclineCount = appRunning ? appDeclines.count : 0
+      let systemDeclineCount = systemRunning ? systemDeclines.count : 0
+      func diagnose(_ readiness: String) {
+        print("NATIVE_IOS_PASSWORD_PROMPT_STATE appPrompts=\(min(appCount, 999)) systemPrompts=\(min(systemCount, 999)) appDeclines=\(min(appDeclineCount, 999)) systemDeclines=\(min(systemDeclineCount, 999)) readiness=\(readiness)")
+      }
       guard let surface = Self.uniquePasswordDeclineSurface(
         appPromptCount: appCount, systemPromptCount: systemCount,
-        appDeclineCount: appRunning ? appDeclines.count : 0, systemDeclineCount: systemRunning ? systemDeclines.count : 0
-      ) else { return .ambiguous }
+        appDeclineCount: appDeclineCount, systemDeclineCount: systemDeclineCount
+      ) else { diagnose("ambiguous"); return .ambiguous }
       let decline = surface == 0 ? appDeclines.element : systemDeclines.element
-      guard decline.isHittable else { return .waiting }
+      guard decline.isHittable else { diagnose("waiting"); return .waiting }
+      diagnose("ready")
       selectedDecline = decline
       selectedPrompt = surface == 0 ? appPrompts.element : systemPrompts.element
       return .ready
     }, deadline: min(deadline, Date().addingTimeInterval(5)), promptSeen: &promptSeen)
     guard readiness != .absent else { return false }
     if Self.nativeWorkspaceObserved(path: completionPath) { return false }
-    guard readiness == .ready, let decline = selectedDecline, let prompt = selectedPrompt else {
+    guard Date() < deadline, readiness == .ready, let decline = selectedDecline, let prompt = selectedPrompt else {
       XCTFail("Password-save alert must settle to one accessible exact decline control")
       return nil
     }
@@ -382,6 +468,90 @@ final class BrowserDriver: XCTestCase {
     return false
   }
 
+  func testNativeDocumentPicker() throws {
+    continueAfterFailure = false
+    let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "private-member", withExtension: "json"))
+    let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+    guard fixture["phase"] as? String == "document-picker" else {
+      throw XCTSkip("Document picker is a separate owned UI action")
+    }
+    let mode = try XCTUnwrap(fixture["pickerMode"] as? String)
+    let fileName = try XCTUnwrap(fixture["fileName"] as? String)
+    XCTAssertTrue(["import", "export"].contains(mode))
+    XCTAssertTrue(fileName.hasPrefix("weave-dual-"))
+    XCTAssertFalse(fileName.contains("/"))
+    let app = XCUIApplication(bundleIdentifier: "com.massimotter.weave")
+    // Authentication has completed. Attach once to the already running app;
+    // never launch a replacement process or activate during an AppAuth session.
+    app.activate()
+    let deadline = Date().addingTimeInterval(60)
+    var enteredDevice = false
+    var enteredWeave = false
+    while Date() < deadline {
+      let file = app.staticTexts.matching(NSPredicate(format: "label == %@", fileName))
+      if mode == "import" && file.count == 1 && file.element.isHittable {
+        file.element.tap()
+        print("NATIVE_IOS_FILES_STAGE phase=import-selected")
+        return
+      }
+      XCTAssertLessThanOrEqual(file.count, 1, "Owned document must be unique")
+      if mode == "export" && enteredWeave {
+        let save = app.buttons.matching(NSPredicate(format: "label IN %@", ["Save", "Sichern"]))
+        XCTAssertLessThanOrEqual(save.count, 1, "Native save action must be unique")
+        if save.count == 1 && save.element.isHittable {
+          save.element.tap()
+          print("NATIVE_IOS_FILES_STAGE phase=export-saved")
+          return
+        }
+      }
+      let weave = app.staticTexts.matching(NSPredicate(format: "label == %@", "Weave"))
+      if !enteredWeave && weave.count == 1 && weave.element.isHittable {
+        weave.element.tap()
+        enteredWeave = true
+        Thread.sleep(forTimeInterval: 0.25)
+        continue
+      }
+      let device = app.staticTexts.matching(NSPredicate(format: "label IN %@", ["On My iPhone", "Auf meinem iPhone"]))
+      if !enteredDevice && device.count == 1 && device.element.isHittable {
+        device.element.tap()
+        enteredDevice = true
+        Thread.sleep(forTimeInterval: 0.25)
+        continue
+      }
+      let browse = app.buttons.matching(NSPredicate(format: "label IN %@", ["Browse", "Durchsuchen"]))
+      if !enteredDevice && browse.count == 1 && browse.element.isHittable { browse.element.tap() }
+      Thread.sleep(forTimeInterval: 0.25)
+    }
+    XCTFail("Owned native document picker action did not complete")
+  }
+
+  func testNativeLifecycle() throws {
+    continueAfterFailure = false
+    let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "private-member", withExtension: "json"))
+    let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+    guard fixture["phase"] as? String == "lifecycle" else {
+      throw XCTSkip("Lifecycle is a separate owned native UI action")
+    }
+    let action = try XCTUnwrap(fixture["action"] as? String)
+    let app = XCUIApplication(bundleIdentifier: "com.massimotter.weave")
+    if action == "background" {
+      XCTAssertEqual(app.state, .runningForeground)
+      XCUIDevice.shared.press(.home)
+      let deadline = Date().addingTimeInterval(10)
+      while Date() < deadline && app.state == .runningForeground { Thread.sleep(forTimeInterval: 0.25) }
+      XCTAssertTrue(app.state == .runningBackground || app.state == .runningBackgroundSuspended)
+      print("NATIVE_IOS_LIFECYCLE_STAGE phase=background-observed")
+    } else {
+      XCTAssertEqual(action, "foreground")
+      XCTAssertTrue(app.state == .runningBackground || app.state == .runningBackgroundSuspended)
+      app.activate()  // Post-auth lifecycle only; attach the same existing process.
+      let deadline = Date().addingTimeInterval(10)
+      while Date() < deadline && app.state != .runningForeground { Thread.sleep(forTimeInterval: 0.25) }
+      XCTAssertEqual(app.state, .runningForeground)
+      print("NATIVE_IOS_LIFECYCLE_STAGE phase=foreground-observed")
+    }
+  }
+
   func testProductionBrowser() throws {
     continueAfterFailure = false
     print("NATIVE_IOS_BROWSER_STAGE phase=driver-started")
@@ -410,9 +580,13 @@ final class BrowserDriver: XCTestCase {
       XCTAssertTrue(signIn.waitForExistence(timeout: 30), "Expected native Sign in control")
       XCTAssertEqual(signInControls.count, 1)
       XCTAssertTrue(signIn.isHittable, "Native Sign in control must be accessible")
-      signIn.tap()
-      print("NATIVE_IOS_BROWSER_STAGE phase=sign-in-tapped")
+      print("NATIVE_IOS_BROWSER_STAGE phase=sign-in-control-observed")
+      if fixture.flutterInitiatesSignIn != true {
+        signIn.tap()
+        print("NATIVE_IOS_BROWSER_STAGE phase=sign-in-tapped")
+      }
     }
+    var usernameEntered = false
     var usernameSubmitted = false
     while Date() < deadline {
       // Do not steal foreground focus from the production authentication
@@ -475,14 +649,32 @@ final class BrowserDriver: XCTestCase {
             print("NATIVE_IOS_PROVIDER_CONTROLS phase=username-before usernameFields=\(min(fields.count, 999)) passwordFields=\(min(provider.secureTextFields.count, 999)) selectedFieldHittable=\(hittable)")
           }
           if !usernameSubmitted && fields.count == 1 && fields.element.isHittable {
-            fields.element.tap()
-            fields.element.typeText(fixture.email)
+            if !usernameEntered {
+              fields.element.tap()
+              fields.element.typeKey("a", modifierFlags: .command)
+              fields.element.typeText(XCUIKeyboardKey.delete.rawValue)
+              let editableEmpty = fields.element.value as? String == ""
+              print("NATIVE_IOS_PROVIDER_CONTROLS phase=username-cleared editableEmpty=\(editableEmpty)")
+              guard editableEmpty else {
+                XCTFail("Expected an empty editable username before assigned-identity entry")
+                return
+              }
+              fields.element.typeText(fixture.email)
+              usernameEntered = true
+              // Re-observe the issuer and its unique leaf before admitting a submit.
+              continue
+            }
             let readbackEqual = fields.element.value as? String == fixture.email
             print("NATIVE_IOS_PROVIDER_CONTROLS phase=username-after readbackEqual=\(readbackEqual)")
+            guard readbackEqual, Date() < deadline else { continue }
             let submit = provider.buttons.matching(NSPredicate(format: "label IN %@", Self.providerSubmitLabels))
             print("NATIVE_IOS_PROVIDER_CONTROLS phase=username leafWebViews=\(leaves.count) usernameFields=\(fields.count) passwordFields=\(provider.secureTextFields.count) submitButtons=\(submit.count)")
             XCTAssertEqual(submit.count, 1, "Expected one identity-provider submit control")
             XCTAssertTrue(submit.element.isHittable, "Identity-provider submit control must be accessible")
+            guard fields.count == 1, fields.element.isHittable,
+                  fields.element.value as? String == fixture.email,
+                  submit.count == 1, submit.element.isHittable,
+                  Date() < deadline else { continue }
             submit.element.tap()
             usernameSubmitted = true
             print("NATIVE_IOS_BROWSER_STAGE phase=username-submitted")

@@ -48,6 +48,7 @@ export interface GetFilesItemRequest {
 
 export interface ListFilesItemsRequest {
     parentId?: string;
+    spaceRef?: string;
 }
 
 export interface UpdateFilesItemContentRequest {
@@ -64,6 +65,7 @@ export interface UploadFilesItemContentRequest {
     ifNoneMatch: string;
     idempotencyKey: string;
     body: Blob;
+    spaceRef?: string;
     mediaType?: string;
 }
 
@@ -128,6 +130,7 @@ export interface FilesUserApiInterface {
      *
      * @summary List Weave-authorized Files children
      * @param {string} [parentId]
+     * @param {string} [spaceRef] Explicit shared Space for a root listing; omitted preserves private scope. Children inherit parent scope.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof FilesUserApiInterface
@@ -167,6 +170,7 @@ export interface FilesUserApiInterface {
      * @param {string} ifNoneMatch Must be * for atomic absent-name creation.
      * @param {string} idempotencyKey 16 to 128 character durable operation key.
      * @param {Blob} body
+     * @param {string} [spaceRef] Explicit shared Space at the root; omitted preserves private scope.
      * @param {string} [mediaType]
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -364,6 +368,10 @@ export class FilesUserApi extends runtime.BaseAPI implements FilesUserApiInterfa
             queryParameters['parentId'] = requestParameters['parentId'];
         }
 
+        if (requestParameters['spaceRef'] != null) {
+            queryParameters['spaceRef'] = requestParameters['spaceRef'];
+        }
+
         const headerParameters: runtime.HTTPHeaders = {};
 
         if (this.configuration && this.configuration.accessToken) {
@@ -522,6 +530,10 @@ export class FilesUserApi extends runtime.BaseAPI implements FilesUserApiInterfa
 
         if (requestParameters['parentId'] != null) {
             queryParameters['parentId'] = requestParameters['parentId'];
+        }
+
+        if (requestParameters['spaceRef'] != null) {
+            queryParameters['spaceRef'] = requestParameters['spaceRef'];
         }
 
         if (requestParameters['name'] != null) {

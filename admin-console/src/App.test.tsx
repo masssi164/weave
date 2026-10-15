@@ -253,6 +253,8 @@ describe("Admin Console MVP", () => {
     expect(
       screen.getByRole("heading", { name: /organization overview/i }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /organization manifest/i }))
+      .toHaveAttribute("href", "/api/platform/config");
     expect(
       screen.getByRole("heading", { name: /provider categories/i }),
     ).toBeInTheDocument();

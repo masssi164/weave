@@ -1,4 +1,5 @@
 [versions]
+zxing = "3.5.3"
 spring-boot = "4.1.0"
 spring-dependency-management = "1.1.7"
 spring-ai = "2.0.0"
@@ -18,6 +19,7 @@ opendal = "0.50.0"
 aws-sdk = "2.36.2"
 
 [libraries]
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
 spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
 springdoc-webmvc-api = { module = "org.springdoc:springdoc-openapi-starter-webmvc-api", version.ref = "springdoc" }

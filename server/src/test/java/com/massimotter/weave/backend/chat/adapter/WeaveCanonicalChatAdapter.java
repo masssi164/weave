@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.chat.adapter;
 
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
+import com.massimotter.weave.backend.chat.domain.ChatInvitation;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
@@ -67,6 +68,7 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
                 "General",
                 "channel",
                 true,
+                "user:alice",
                 new ConcurrentHashMap<>(),
                 new CopyOnWriteArrayList<>());
         general.events().add(new ChatTimelineEvent(
@@ -147,6 +149,23 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
                 .sorted(Comparator.comparing(ChatConversation::conversationId))
                 .toList();
         return new ChatConversations(null, result);
+    }
+
+    @Override
+    public List<ChatInvitation> invitedConversations(ChatRequestContext context, String afterConversationId, int limit) {
+        if (limit < 1 || limit > 100) throw new IllegalArgumentException("conversation page size is invalid");
+        String after = afterConversationId == null ? "" : afterConversationId;
+        return conversations.values().stream()
+                .filter(room -> room.contextId().equals(context.contextId()))
+                .filter(room -> "invited".equals(room.membershipStates().get(context.actorRef().value())))
+                .filter(room -> room.conversationId().compareTo(after) > 0)
+                .sorted(Comparator.comparing(ConversationState::conversationId)).limit(limit)
+                .map(room -> {
+                    ChatConversation full = conversation(room, context.actorRef());
+                    return new ChatInvitation(full.conversationId(), full.title(), full.updatedAt(), full.encryptionState(),
+                            new ChatActorRef(room.creatorRef()), full.memberships().stream()
+                                    .filter(member -> member.memberRef().equals(context.actorRef().value())).findFirst().orElseThrow());
+                }).toList();
     }
 
     @Override
@@ -355,6 +374,7 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
                     requireText(title, "conversation title"),
                     requireText(kind, "conversation kind"),
                     false,
+                    context.actorRef().value(),
                     memberships,
                     new CopyOnWriteArrayList<>());
             conversations.put(conversationId, state);
@@ -581,6 +601,7 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
             String title,
             String kind,
             boolean openToWorkspace,
+            String creatorRef,
             Map<String, String> membershipStates,
             CopyOnWriteArrayList<ChatTimelineEvent> events) {
     }

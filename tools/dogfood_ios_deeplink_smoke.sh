@@ -14,9 +14,9 @@ RESET_MODE="${WEAVE_IOS_RESET_MODE:-update_in_place}"
 EXPECTED_TEAM_ID="${WEAVE_IOS_EXPECTED_TEAM_ID:-KNDHGC2KV6}"
 EXPECTED_DEVELOPER_CERT_TEAM_ID="${WEAVE_IOS_EXPECTED_DEVELOPER_CERT_TEAM_ID:-6RUS2Z848X}"
 LOCAL_CA_TRUST_STATUS="${WEAVE_IOS_LOCAL_CA_TRUST_STATUS:-not_verified}"
-PLATFORM_CONFIG_URL="${WEAVE_DOGFOOD_PLATFORM_CONFIG_URL:-}"
-EXPECTED_VISIBLE_STATE="${WEAVE_IOS_EXPECTED_VISIBLE_STATE:-handoff_ready}"
-EXPECTED_AUTH_STATE="${WEAVE_IOS_EXPECTED_AUTH_STATE:-ready_for_sso}"
+ORGANIZATION_ORIGIN="${WEAVE_DOGFOOD_ORGANIZATION_ORIGIN:-}"
+EXPECTED_VISIBLE_STATE="handoff_ready"
+EXPECTED_AUTH_STATE="ready_for_sso"
 CANDIDATE_COMMIT="${WEAVE_CANDIDATE_COMMIT:-$(git -C "${ROOT_DIR}" rev-parse HEAD)}"
 BUILD_NUMBER="${WEAVE_IOS_BUILD_NUMBER:-$(git -C "${ROOT_DIR}" rev-list --count HEAD)}"
 CANDIDATE_EVIDENCE_REF="${WEAVE_CANDIDATE_EVIDENCE_REF:-local:${CANDIDATE_COMMIT}}"
@@ -55,40 +55,20 @@ PY
 )"
 fi
 
-if [[ -z "${PLATFORM_CONFIG_URL}" ]]; then
-  PLATFORM_CONFIG_URL="$(DEEPLINK="${DEEPLINK}" python3 - <<'PY'
+[[ "$(git -C "${ROOT_DIR}" rev-parse HEAD)" == "${CANDIDATE_COMMIT}" ]] || fail "candidate does not match checked-out source"
+[[ -z "$(git -C "${ROOT_DIR}" status --porcelain --untracked-files=no)" ]] || fail "physical preparation requires unchanged tracked candidate source"
+PLATFORM_CONFIG_URL="$(PYTHONPATH="${ROOT_DIR}/tools" ORGANIZATION_ORIGIN="${ORGANIZATION_ORIGIN}" DEEPLINK="${DEEPLINK}" python3 - <<'PYTHON'
 import os
-from urllib.parse import parse_qs, unquote, urlparse, urlunparse
-
-query = parse_qs(urlparse(os.environ["DEEPLINK"]).query)
-value = query.get("platform_config_url", [""])[0]
-if value:
-    print(unquote(value))
-else:
-    product_base_url = unquote(query.get("product_base_url", [""])[0])
-    parsed = urlparse(product_base_url)
-    print(urlunparse((parsed.scheme, parsed.netloc, "/api/platform/config", "", "", "")) if parsed.scheme and parsed.netloc else "")
-PY
+from urllib.parse import urlencode
+from dogfood_handoff_bundle import canonical_origin
+origin = canonical_origin(os.environ["ORGANIZATION_ORIGIN"])
+if os.environ["DEEPLINK"] != "weave://join?" + urlencode({"organization_origin": origin}):
+    raise SystemExit("physical preparation requires one canonical organization-origin link")
+print(origin + "api/platform/config")
+PYTHON
 )"
-fi
-LOCAL_DOGFOOD_TLS_REQUIRED="$(PLATFORM_CONFIG_URL="${PLATFORM_CONFIG_URL}" python3 - <<'PY'
-import os
-from urllib.parse import urlparse
-
-url = os.environ.get("PLATFORM_CONFIG_URL", "")
-parsed = urlparse(url)
-host = parsed.hostname or ""
-requires_local_ca = (
-    parsed.scheme == "https"
-    and (
-        host.endswith("weave.test")
-        or host.endswith(".weave.test")
-        or parsed.port == 44443
-    )
-)
-print("1" if requires_local_ca else "0")
-PY
-)"
+LOCAL_DOGFOOD_TLS_REQUIRED="${WEAVE_DOGFOOD_LOCAL_CA_REQUIRED:-1}"
+[[ "${LOCAL_DOGFOOD_TLS_REQUIRED}" == "0" || "${LOCAL_DOGFOOD_TLS_REQUIRED}" == "1" ]] || fail "invalid local CA requirement"
 cat > "${EVIDENCE_DIR}/ios-local-tls-preflight.json" <<JSON
 {
   "schemaVersion": "weave.dogfood.ios-local-tls-preflight.v1",
@@ -200,6 +180,7 @@ cat > "${EVIDENCE_DIR}/ios-deeplink-smoke.json" <<JSON
   "schemaVersion": "weave.dogfood.ios-deeplink-smoke.v1",
   "buildMode": "${BUILD_MODE}",
   "candidateCommit": "${CANDIDATE_COMMIT}",
+  "specRevision": "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["specCorpus"]["gitCommit"])' "${ROOT_DIR}/specs/weave-specs.lock.json")",
   "buildNumber": "${BUILD_NUMBER}",
   "candidateEvidenceRef": "${CANDIDATE_EVIDENCE_REF}",
   "bundleId": "${BUNDLE_ID}",
@@ -218,63 +199,38 @@ cat > "${EVIDENCE_DIR}/ios-deeplink-smoke.json" <<JSON
 }
 JSON
 
-DEEPLINK="${DEEPLINK}" EXPECTED_VISIBLE_STATE="${EXPECTED_VISIBLE_STATE}" EXPECTED_AUTH_STATE="${EXPECTED_AUTH_STATE}" PREFS_PLIST="${EVIDENCE_DIR}/appdata/com.massimotter.weave.plist" python3 - <<'PY'
-import json
-import os
-import plistlib
-import sys
-from urllib.parse import parse_qs, urlparse
-
-prefs_path = os.environ["PREFS_PLIST"]
-deeplink = os.environ["DEEPLINK"]
-query = parse_qs(urlparse(deeplink).query)
-expected_handoff_ref = query.get("handoff_ref", [""])[0]
-expected_run_id = query.get("run_id", [""])[0]
-expected_visible_state = os.environ["EXPECTED_VISIBLE_STATE"]
-expected_auth_state = os.environ["EXPECTED_AUTH_STATE"]
-
-with open(prefs_path, "rb") as handle:
-    prefs = plistlib.load(handle)
-
-def load_json_key(key: str) -> dict:
-    raw = prefs.get(key)
-    if not isinstance(raw, str) or not raw:
-        raise SystemExit(f"{key} missing from app preferences")
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise SystemExit(f"{key} is not JSON: {exc}") from exc
-
-handoff = load_json_key("last_handoff_consumed_v1")
-visible = load_json_key("dogfood_visible_state_v1")
-auth_state = load_json_key("dogfood_auth_state_v1")
-
-checks = [
-    (handoff.get("result") == "saved_configuration", "handoff result is not saved_configuration"),
-    (handoff.get("handoffRef") == expected_handoff_ref, "handoffRef does not match deeplink"),
-    (handoff.get("runId") == expected_run_id, "runId does not match deeplink"),
-    (handoff.get("supportSafe") is True, "handoff evidence is not supportSafe=true"),
-    (visible.get("state") == expected_visible_state, f"visible state is not {expected_visible_state}"),
-    (visible.get("handoffRef") == expected_handoff_ref, "visible handoffRef does not match deeplink"),
-    (visible.get("runId") == expected_run_id, "visible runId does not match deeplink"),
-    (visible.get("supportSafe") is True, "visible evidence is not supportSafe=true"),
-    (auth_state.get("state") == expected_auth_state, f"auth onboarding state is not {expected_auth_state}"),
-    (auth_state.get("handoffRef") == expected_handoff_ref, "auth onboarding handoffRef does not match deeplink"),
-    (auth_state.get("runId") == expected_run_id, "auth onboarding runId does not match deeplink"),
-    (auth_state.get("supportSafe") is True, "auth onboarding evidence is not supportSafe=true"),
-]
-for ok, message in checks:
-    if not ok:
-        raise SystemExit(message)
-
-print(f"ios_visible_state={expected_visible_state}")
-print(f"ios_auth_state={expected_auth_state}")
-PY
+PYTHONPATH="${ROOT_DIR}/tools" EVIDENCE_DIR="${EVIDENCE_DIR}" SCRIPT_ROOT="${ROOT_DIR}" CANDIDATE_COMMIT="${CANDIDATE_COMMIT}" RUN_ID="${WEAVE_DOGFOOD_RUN_ID:-}" HANDOFF_REF="${WEAVE_DOGFOOD_HANDOFF_REF:-}" python3 - <<'PYTHON'
+import json, os, plistlib
+from datetime import datetime
+from pathlib import Path
+from dogfood_handoff_bundle import validate_device_preferences
+root = Path(os.environ["SCRIPT_ROOT"])
+evidence = Path(os.environ["EVIDENCE_DIR"])
+spec = json.loads((root / "specs/weave-specs.lock.json").read_text())["specCorpus"]["gitCommit"]
+started = datetime.fromisoformat((evidence / "ios-launch-started-at.txt").read_text().strip().replace("Z", "+00:00"))
+bundle = json.loads((evidence / "handoff.json").read_text())
+if bundle.get("runId") != os.environ["RUN_ID"] or bundle["testerVisible"].get("activationInviteRef") != os.environ["HANDOFF_REF"]:
+    raise SystemExit("preparation run/handoff does not match current bundle")
+validate_device_preferences(plistlib.loads((evidence / "appdata/com.massimotter.weave.plist").read_bytes()),
+                            bundle, started,
+                            os.environ["CANDIDATE_COMMIT"], spec)
+print("ios_visible_state=handoff_ready")
+print("ios_auth_state=ready_for_sso")
+PYTHON
 
 cat > "${EVIDENCE_DIR}/ios-deeplink-smoke.json" <<JSON
 {
   "schemaVersion": "weave.dogfood.ios-deeplink-smoke.v1",
   "buildMode": "${BUILD_MODE}",
+  "candidateCommit": "${CANDIDATE_COMMIT}",
+  "specRevision": "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["specCorpus"]["gitCommit"])' "${ROOT_DIR}/specs/weave-specs.lock.json")",
+  "buildNumber": "${BUILD_NUMBER}",
+  "candidateEvidenceRef": "${CANDIDATE_EVIDENCE_REF}",
+  "runId": "${WEAVE_DOGFOOD_RUN_ID:-}",
+  "handoffRef": "${WEAVE_DOGFOOD_HANDOFF_REF:-}",
+  "organizationOrigin": "${ORGANIZATION_ORIGIN}",
+  "freshDeviceDiscoveryVerified": true,
+  "physicalDeviceHttpsVerified": true,
   "bundleId": "${BUNDLE_ID}",
   "deviceId": "${DEVICE_ID}",
   "installTransport": "${INSTALL_TRANSPORT}",

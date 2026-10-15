@@ -1,20 +1,9 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:weave/core/failures/app_failure.dart';
-import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 
 part 'service_endpoint_deriver.g.dart';
 
 class ServiceEndpointDeriver {
-  static const Set<String> _authHostLabels = {
-    'auth',
-    'id',
-    'iam',
-    'keycloak',
-    'login',
-    'oauth',
-    'sso',
-  };
-
   Uri parseIssuerUrl(String rawValue) {
     final trimmed = rawValue.trim();
     final uri = Uri.tryParse(trimmed);
@@ -80,29 +69,6 @@ class ServiceEndpointDeriver {
       );
     }
     return uri.replace(path: '');
-  }
-
-  ServiceEndpoints derive(Uri issuerUrl) {
-    final baseHost = _deriveWorkspaceBaseHost(issuerUrl.host);
-    final scheme = issuerUrl.scheme;
-
-    return ServiceEndpoints(
-      matrixHomeserverUrl: Uri.parse('$scheme://api.$baseHost'),
-      backendApiBaseUrl: Uri.parse('$scheme://api.$baseHost/api'),
-    );
-  }
-
-  String _deriveWorkspaceBaseHost(String issuerHost) {
-    final labels = issuerHost.split('.');
-    if (labels.length <= 2) {
-      return issuerHost;
-    }
-
-    if (_authHostLabels.contains(labels.first.toLowerCase())) {
-      return labels.skip(1).join('.');
-    }
-
-    return issuerHost;
   }
 }
 

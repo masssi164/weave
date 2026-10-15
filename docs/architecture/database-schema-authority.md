@@ -20,15 +20,14 @@ External provider databases such as Nextcloud or Matrix homeservers are outside 
 
 ## Production lifecycle
 
-1. PostgreSQL database and application role are provisioned.
-2. The `schema-init` one-shot process acquires a PostgreSQL advisory lock scoped to the current database and schema.
-3. While holding that lock, Flyway acquires its migration-history lock and applies committed migrations.
-4. Flyway validates migration history and checksums.
-5. The initializer starts a non-web Spring context with `spring.jpa.hibernate.ddl-auto=validate`.
-6. The relational catalog fingerprint and the single authority marker are verified and updated.
-7. A support-safe receipt is written atomically.
-8. Closing the lock connection releases the schema-scoped advisory lock.
-9. Only then may the normal Weave Server start.
+1. PostgreSQL and separate migration/serving roles are provisioned. The migration role derives from the existing backend username; its private password is mounted only into `schema-init`. Existing serving credentials remain unchanged.
+2. The exact candidate `schema-init` acquires a bounded PostgreSQL session advisory lock scoped to the current database and schema.
+3. Flyway validates immutable history. For an existing schema, its current physical catalog is compared with an independent clean replay of that prior migration version before any forward migration.
+4. The reviewed chain executes in an exact UUID-owned scratch schema on the same pinned PostgreSQL instance to derive the expected catalog. Only that owned schema is removed, and cleanup failure blocks initialization.
+5. Flyway applies forward migrations, validates history, and the initializer starts a non-web Spring context with Hibernate `validate`.
+6. The resulting catalog must match the clean reviewed chain. The authority marker and runtime SELECT-only access to migration history/authority are established before receipt publication.
+7. A support-safe receipt is written atomically. Closing the lock connection releases the advisory lock.
+8. Normal Server startup independently verifies exact candidate, receipt, marker, live catalog and lack of runtime DDL capability before serving.
 
 The advisory lock covers migration, Hibernate validation, marker mutation, fingerprint verification, and receipt creation. Flyway's own lock remains the DDL/history authority; the outer lock prevents two one-shot processes from racing after Flyway has released its migration lock.
 
@@ -36,13 +35,13 @@ The normal Server process does not own schema evolution. Deployment fails closed
 
 ## Catalog fingerprint
 
-The support-safe catalog projection is explicitly versioned as `weave.schema-catalog/v2`; the matching receipt is `weave.schema-init-receipt/v4`.
+The support-safe catalog projection is explicitly versioned as `weave.schema-catalog/v3`; the matching receipt is `weave.schema-init-receipt/v5`.
 
-The fingerprint contains tables, ordered columns, nullability, defaults, primary and foreign keys, check and unique constraints, and explicit indexes. It excludes row data, secrets, Flyway history rows, object ownership, privileges, and provider databases.
+The fingerprint contains tables, ordered columns and type dimensions, nullability, defaults, primary and foreign keys with target schema/actions/deferrability, check and unique constraints, explicit indexes, owned views/materialized views, function signatures, sequences, enum/domain types and other relation kinds. Unexpected objects absent from the clean reviewed chain fail initialization. It excludes row data, secrets, Flyway history rows, object ownership, privileges, and provider databases.
 
 PostgreSQL reparses check expressions during dump/restore and can move redundant casts between a literal text array and its string elements. The projection normalizes only those redundant casts on string literals and literal text arrays. Casts on columns and computed expressions remain fingerprinted, as do constraint names and literal values. Therefore semantically identical restored checks remain stable while real constraint drift still fails closed.
 
-There is no backward-compatibility promise for receipts or authority markers produced by the historical unreleased fingerprint format. A clean initialization or same-version backup/restore is required for this core-development line.
+Serving accepts only the current receipt format. The initializer alone can requalify an existing v2 marker after validating its fingerprint, immutable Flyway history and independently replayed prior physical catalog. It emits only v3/v5 afterward. This bounded format transition preserves stale-marker rejection and legitimate forward upgrades without a second serving authority, migration edits or automatic baseline/repair.
 
 ## Migration policy
 

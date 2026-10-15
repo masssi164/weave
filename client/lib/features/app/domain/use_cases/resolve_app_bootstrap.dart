@@ -17,11 +17,16 @@ class ResolveAppBootstrap {
     required ChatSessionPort chatSessionPort,
     required ReconcileIdentitySession reconcileIdentitySession,
     required ServerConfigurationPort serverConfigurationPort,
+    Future<ServerConfiguration> Function(ServerConfiguration)?
+    refreshOrganizationManifest,
   }) : _authPort = authPort,
        _chatSessionPort = chatSessionPort,
        _reconcileIdentitySession = reconcileIdentitySession,
-       _serverConfigurationPort = serverConfigurationPort;
+       _serverConfigurationPort = serverConfigurationPort,
+       _refreshOrganizationManifest = refreshOrganizationManifest;
 
+  final Future<ServerConfiguration> Function(ServerConfiguration)?
+  _refreshOrganizationManifest;
   final AppAuthPort _authPort;
   final ChatSessionPort _chatSessionPort;
   final ReconcileIdentitySession _reconcileIdentitySession;
@@ -29,15 +34,29 @@ class ResolveAppBootstrap {
 
   Future<BootstrapState> call() async {
     try {
-      final configuration = await _serverConfigurationPort.loadConfiguration();
+      var configuration = await _serverConfigurationPort.loadConfiguration();
       if (configuration == null ||
           !configuration.hasCompleteAuthConfiguration) {
         return const BootstrapState.needsSetup();
       }
 
+      if (_refreshOrganizationManifest != null &&
+          configuration.organizationOrigin == null) {
+        await _authPort.clearLocalSession();
+        return const BootstrapState.needsSetup();
+      }
+      // A migrated profile has no trusted endpoint override: resolve its
+      // organization manifest before opening the existing AppAuth flow.
+      if (_refreshOrganizationManifest != null &&
+          configuration.validatedManifest == null) {
+        configuration = await _refresh(configuration);
+      }
       final authConfiguration = _toAuthConfiguration(configuration);
       final authState = await _authPort.restoreSession(authConfiguration);
       if (authState.isAuthenticated) {
+        if (_refreshOrganizationManifest != null) {
+          configuration = await _refresh(configuration);
+        }
         final reconciliation = await _reconcileIdentitySession(
           backendApiBaseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
           authenticated: authState,
@@ -70,6 +89,19 @@ class ResolveAppBootstrap {
           cause: error,
         ),
       );
+    }
+  }
+
+  Future<ServerConfiguration> _refresh(
+    ServerConfiguration configuration,
+  ) async {
+    try {
+      return await _refreshOrganizationManifest!(configuration);
+    } on AppFailure catch (failure) {
+      if (failure.type == AppFailureType.validation) {
+        await _authPort.clearLocalSession();
+      }
+      rethrow;
     }
   }
 

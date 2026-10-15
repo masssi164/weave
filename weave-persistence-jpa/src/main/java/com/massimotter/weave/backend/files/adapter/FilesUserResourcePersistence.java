@@ -34,6 +34,10 @@ class FilesUserResourceJpaEntity {
     @Column(name = "space_ref", nullable = false, length = 255)
     private String spaceRef;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility_scope", nullable = false, length = 32)
+    private FilesUserResource.Scope scope;
+
     @Column(name = "parent_file_id", nullable = false, length = 255)
     private String parentFileId;
 
@@ -76,8 +80,13 @@ class FilesUserResourceJpaEntity {
         if (createdAt != null && !createdAt.toInstant().equals(resource.createdAt())) {
             throw new IllegalArgumentException("Files resource creation time cannot change");
         }
+        if (createdAt != null && (!spaceRef.equals(resource.spaceRef()) || scope != resource.scope()
+                || !ownerPrincipalRef.equals(resource.ownerPrincipalRef()))) {
+            throw new IllegalArgumentException("Files visibility, Space and creator cannot change implicitly");
+        }
         bindingRevision = resource.bindingRevision();
         spaceRef = resource.spaceRef();
+        scope = resource.scope();
         parentFileId = resource.parentFileId();
         path = resource.path();
         activePathKey = resource.state() == FilesUserResource.State.ACTIVE ? path : null;
@@ -91,7 +100,7 @@ class FilesUserResourceJpaEntity {
     FilesUserResource toDomain() {
         return new FilesUserResource(id.organizationRef(), id.fileId(), bindingRevision,
                 spaceRef, parentFileId, path, kind, ownerPrincipalRef, state,
-                createdAt.toInstant(), modifiedAt.toInstant());
+                createdAt.toInstant(), modifiedAt.toInstant(), scope);
     }
 }
 

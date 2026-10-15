@@ -44,7 +44,7 @@ class PlatformApi {
   }
 
   /// Get public platform configuration
-  Future<PlatformConfigResponse?> config() async {
+  Future<OrgManifestResponse?> config() async {
     final response = await configWithHttpInfo();
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
@@ -56,8 +56,8 @@ class PlatformApi {
         response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(
         await _decodeBodyBytes(response),
-        'PlatformConfigResponse',
-      ) as PlatformConfigResponse;
+        'OrgManifestResponse',
+      ) as OrgManifestResponse;
     }
     return null;
   }

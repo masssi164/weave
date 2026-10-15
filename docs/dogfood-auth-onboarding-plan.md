@@ -13,7 +13,7 @@ The Weave mobile app may request `offline_access`. If the identity provider deni
 Use Mailpit for dogfood-only mail capture. It belongs in `infra/weave-workspace` as a local/dogfood service with:
 
 - SMTP endpoint for stack services: `weave-mailpit:1025`.
-- Human dogfood inbox: `https://mail.weave.test:44443` for the current LAN dogfood port profile, through Caddy only for explicitly configured private-LAN CIDRs. Runner-local checks may use the loopback API as an internal implementation detail.
+- Human dogfood inbox: `WEAVE_MAILPIT_URL` from the reviewed deployment profile (`https://mail.weave.test` for the standard-port Dogfood example), through Caddy only for explicitly configured private-LAN CIDRs. Runner-local checks may use the loopback API as an internal implementation detail.
 - SMTP remains private on the Docker network and is never routed through Caddy or exposed to the LAN.
 - No production mail path, no public Internet exposure, and no real external delivery.
 - Support-bundle redaction for message bodies unless a future evidence task explicitly stores sanitized fixtures.
@@ -35,7 +35,7 @@ the same correlated pending invitation; it cannot create a second human and is u
 human exists. Routine deployment never receives a human writer or realm-admin credential.
 
 The supported initial path is the manual GitHub **Dogfood Owner Invitation** workflow, Safari at
-`https://mail.weave.test:44443`, and normal OIDC sign-in in Weave. After activation, the owner uses
+the reviewed private Mailpit URL, and normal OIDC sign-in in Weave. After activation, the owner uses
 the Admin Console or authenticated Server invitation API for later members. Active-account password
 or passkey recovery stays in Keycloak.
 
@@ -46,6 +46,12 @@ Dogfood member activation must not depend on publishing a password or long-lived
 After browser activation, the email completion link, QR code, app/universal link, and manually entered server URI all resolve the same secret-free organization access contract. They must not contain passwords, bearer tokens, refresh tokens, Keycloak action-token URLs, raw provider payloads, SecretRefs, or credential URLs. Treat the action URL inside Mailpit as a secret identity-provider artifact: open it only in the system browser activation path and never paste it into docs, logs, app preferences, QR payloads, GitHub comments, or support bundles.
 
 Support-safe activation evidence may record hashed username/email, the invite reference, role/group, required action names, TTL, and whether Mailpit captured the message. It must not record the action URL or token value.
+
+## Canonical bootstrap
+
+Both invitation completion and existing-account login consume the same OrgManifest v2. Valid host input is normalized to HTTPS. The public `/join` completion page exposes only the organization origin through its app link, QR code and copyable text. Authentication uses the native system browser and Authorization Code with PKCE, preserving passkey and MFA support. Flutter never collects passwords or asks members for issuers, realms, client IDs or provider endpoints. Files and Calendar use the generated User API; the native Matrix facade is the accepted protocol exception.
+
+Persisted profiles keep only the organization origin, validated manifest and validation timestamp. Transport configuration is derived from that manifest. Origin-bearing older profiles are migration inputs and require fresh discovery before authentication.
 
 ## Onboarding state machine
 
@@ -65,7 +71,7 @@ The Organisation access screen must always expose a functional **Sign in** actio
 
 ## Acceptance test matrix
 
-- Delivery gate: implement against `dev`, run the onboarding E2E gate in the iOS Simulator from the current `dev` state, and only then promote/install the dogfood candidate for physical iPhone testing.
+- Delivery gate: deterministic checks run on `dev`; the protected `dogfood` commit runs mandatory Compose, macOS and concurrent dual-iOS Flutter UI qualification. Physical preparation starts only after automated qualification and deployment pass for that unchanged candidate.
 - Trust-preserving app-state reset or first install, handoff link, successful SSO, app lands in workspace/home and persists a refresh/offline token.
 - Admin-created Keycloak Organization invitation uses a short TTL, Mailpit capture, support-safe evidence, and no initial password output.
 - Email completion link, QR code, and manual server URI converge on the same Organisation access screen and explicit Sign in action.
@@ -84,7 +90,7 @@ The Organisation access screen must always expose a functional **Sign in** actio
 - Post-login usability gate: the same dogfood member run must also provide support-safe Chat and Files status evidence through `DOGFOOD_POST_LOGIN_CHAT_FILES_RESULT`. `workspace_ready` alone proves authentication and bootstrap, not that the member can use the first workspace.
 - Physical iPhone candidate check: install over Wi-Fi when device reachability works; if Wi-Fi install is unavailable, install over USB before asking Massimo to test.
 - OpenClaw-facing iPhone entry command: use `tools/dogfood_iphone_entry.sh --check --device-id <paired-iphone-id> --local-ca-trust trusted` to verify toolchain, handoff generation, and device reachability without installing. Use `--dry-run` to print the delegated physical smoke command, and `--run` to generate `build/dogfood/iphone-entry/handoff.json`, build a profile/release app, install/update it, and launch the current deeplink. The command fails with `DEVICE_ID_REQUIRED`, `DEVICE_UNAVAILABLE_OR_LOCKED`, or `PHYSICAL_DEVICE_TLS_PENDING` when the phone is missing, locked, untrusted, or the local CA has not been confirmed.
-- The canonical local defaults separate the app origin (`https://weave.test:44443`) from the API platform-config origin (`https://api.weave.test:44443/api/platform/config`). The active development channel is the development-signed in-place profile update; TestFlight is not part of the dogfood prerequisite.
+- Members enter only the installation origin (`https://weave.test` for the standard-port Dogfood example). The product gateway delivers the canonical OrgManifest v2 at `/api/platform/config`; its generated User API base is `https://api.weave.test/api` in that example. Other installations retain their configured public origins and ports. The active development channel is the development-signed in-place profile update; TestFlight is not part of the dogfood prerequisite.
 - After first successful workspace entry, run `tools/dogfood_ios_session_restore_smoke.sh`. It terminates and relaunches the installed process and emits `DOGFOOD_SESSION_CONTINUITY_RESULT` only after the device-bound session is restored and an authenticated profile-facade request returns the app to `workspace_ready`.
 - Trust stability check: the local TLS CA and leaf certificate fingerprints remain stable across normal stack restart/recreate unless explicit rotation is requested.
 - iOS signing trust check: the dogfood app keeps the same bundle ID `com.massimotter.weave`, provisioning Team ID `KNDHGC2KV6`, developer certificate label `Apple Development: massimo164@me.com (6RUS2Z848X)`, signing identity/profile class, and installed-app trust assumptions across normal update or app-state reset. A normal update/app-state reset must not ask Massimo to trust the developer again.

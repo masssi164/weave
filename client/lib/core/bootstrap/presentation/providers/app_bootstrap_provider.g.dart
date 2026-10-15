@@ -33,7 +33,7 @@ final class AppBootstrapProvider
   AppBootstrap create() => AppBootstrap();
 }
 
-String _$appBootstrapHash() => r'4ebf086a42cd04c2d2997ff2b5ad778f13126c51';
+String _$appBootstrapHash() => r'c756abb0c42dd67f187b92da294bb0500011bdb7';
 
 abstract class _$AppBootstrap extends $AsyncNotifier<BootstrapState> {
   FutureOr<BootstrapState> build();
@@ -93,4 +93,4 @@ final class ResolvedBootstrapStateProvider
 }
 
 String _$resolvedBootstrapStateHash() =>
-    r'052b2a7a51c1c84bdf3157b8be183bfff7dab88c';
+    r'73d4d7b0ee61071cc643e970ed6bb818788b1708';

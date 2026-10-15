@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 
 void main() {
   group('OpenAPI facade drift prevention', () {
@@ -218,22 +218,6 @@ const _memberProviderGraphAllowlist = <LegacyFence>[
         'member Settings or primary Chat routes.',
   ),
   LegacyFence(
-    path:
-        'lib/features/server_config/presentation/providers/server_configuration_form_controller.dart',
-    issue: '#908',
-    reason:
-        'Member setup still carries Matrix/Nextcloud legacy fields until the '
-        'handoff and setup copy are provider-neutralized.',
-  ),
-  LegacyFence(
-    path:
-        'lib/features/server_config/presentation/widgets/server_configuration_form.dart',
-    issue: '#908',
-    reason:
-        'Member setup UI still carries Matrix/Nextcloud legacy fields until the '
-        'handoff and setup copy are provider-neutralized.',
-  ),
-  LegacyFence(
     path: 'lib/features/shell/presentation/shell_workspace_status.dart',
     issue: '#906',
     reason:
@@ -347,14 +331,6 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
         'E2EE recovery copy is localized from typed failure codes.',
   ),
   LegacyFence(
-    path:
-        'lib/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart',
-    issue: '#908',
-    reason:
-        'Matrix crypto bootstrap and identity failures remain fenced until typed '
-        'Chat failure codes feed localized member recovery copy.',
-  ),
-  LegacyFence(
     path: 'lib/features/chat/data/services/archived_message_store.dart',
     issue: '#908',
     reason:
@@ -416,14 +392,6 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
     reason:
         'Server configuration persistence/derivation still emits provider and '
         'validation text until member setup is provider-neutral and localized.',
-  ),
-  LegacyFence(
-    path:
-        'lib/integrations/weave_api/data/dtos/organization_manifest_response_dto.dart',
-    issue: '#908',
-    reason:
-        'Manifest validation messages are support diagnostics until typed '
-        'localized recovery states replace displayable strings.',
   ),
   LegacyFence(
     path:

@@ -1,3 +1,5 @@
+import 'package:weave/features/chat/domain/entities/chat_participant.dart';
+import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'dart:async';
 
 import 'package:flutter/semantics.dart';
@@ -96,6 +98,28 @@ Widget _chatTestRouterApp(
       ...overrides,
     ],
   );
+}
+
+class _ParticipantChatRepository extends FakeChatRepository
+    implements ChatParticipantRepository {
+  _ParticipantChatRepository()
+    : super(loadConversationsHandler: () async => []);
+  List<ChatParticipant>? invited;
+  @override
+  Future<List<ChatParticipant>> searchMembers(String query) async => const [
+    ChatParticipant(
+      userId: '@member:api.weave.test',
+      displayName: 'Team member',
+    ),
+  ];
+  @override
+  Future<ChatConversation> createConversationWithParticipants({
+    required String title,
+    required List<ChatParticipant> participants,
+  }) async {
+    invited = participants;
+    throw const ChatFailure.protocol('Creation refused');
+  }
 }
 
 void main() {
@@ -467,6 +491,58 @@ void main() {
       expect(find.text('No conversations yet'), findsNothing);
       semantics.dispose();
     });
+
+    testWidgets(
+      'selects authorized directory member and submits their native ID without claiming success after refusal',
+      (tester) async {
+        final repository = _ParticipantChatRepository();
+        await tester.pumpWidget(
+          _chatTestApp(
+            const Scaffold(body: ChatScreen()),
+            overrides: [
+              chatRepositoryProvider.overrideWith((ref) => repository),
+              chatSecurityRepositoryProvider.overrideWith(
+                (ref) => buildSecurityRepository(),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('chat-create-conversation-button')),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('chat-create-conversation-name-field')),
+          'Shared work',
+        );
+        await tester.enterText(
+          find.byKey(const Key('chat-create-conversation-participant-field')),
+          'Team',
+        );
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(
+            const ValueKey('chat-participant-result-@member:api.weave.test'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(
+          find.byKey(const Key('chat-create-conversation-submit-button')),
+        );
+        await tester.tap(
+          find.byKey(const Key('chat-create-conversation-submit-button')),
+        );
+        await tester.pumpAndSettle();
+        expect(repository.invited!.single.userId, '@member:api.weave.test');
+        expect(find.textContaining('could not be created'), findsOneWidget);
+        expect(
+          find.byKey(const Key('chat-create-conversation-participant-field')),
+          findsOneWidget,
+        );
+      },
+    );
 
     testWidgets(
       'creates an encrypted conversation from the empty state accessibly',

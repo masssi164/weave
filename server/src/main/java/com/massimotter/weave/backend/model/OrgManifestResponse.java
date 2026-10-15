@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
 @Schema(description = "Provider-neutral organization manifest consumed by Weave clients.")
-public record PlatformConfigResponse(
+public record OrgManifestResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int schemaVersion,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, format = "uri") String organizationOrigin,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, format = "uri") String userApiBaseUrl,

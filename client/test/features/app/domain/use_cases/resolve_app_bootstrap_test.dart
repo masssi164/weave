@@ -121,6 +121,8 @@ ResolveAppBootstrap _buildUseCase({
   required _FakeServerConfigurationPort serverConfigurationPort,
   _FakeIdentitySessionPort? identitySessionPort,
   _FakeChatSessionPort? chatSessionPort,
+  Future<ServerConfiguration> Function(ServerConfiguration)?
+  refreshOrganizationManifest,
 }) {
   final sessionPort = identitySessionPort ?? _FakeIdentitySessionPort();
   return ResolveAppBootstrap(
@@ -130,11 +132,114 @@ ResolveAppBootstrap _buildUseCase({
       identitySessionPort: sessionPort,
     ),
     serverConfigurationPort: serverConfigurationPort,
+    refreshOrganizationManifest: refreshOrganizationManifest,
   );
 }
 
 void main() {
   group('ResolveAppBootstrap', () {
+    test(
+      'refreshes manifest after restoration before identity reconciliation',
+      () async {
+        final auth = _FakeAppAuthPort()
+          ..restoreSessionHandler = (_) async =>
+              AuthState.authenticated(buildTestAuthSession());
+        final identity = _FakeIdentitySessionPort();
+        var calls = 0;
+        final profile = buildTestConfiguration().copyWith(
+          organizationOrigin: Uri.parse('https://weave.example'),
+          validatedManifest: const {'schemaVersion': 2},
+        );
+        final useCase = _buildUseCase(
+          authPort: auth,
+          identitySessionPort: identity,
+          serverConfigurationPort: _FakeServerConfigurationPort(
+            configuration: profile,
+          ),
+          refreshOrganizationManifest: (saved) async {
+            expect(auth.lastRestoreConfiguration, isNotNull);
+            expect(identity.calls, 0);
+            calls++;
+            return saved;
+          },
+        );
+        expect((await useCase()).phase, BootstrapPhase.ready);
+        expect(calls, 1);
+        expect(identity.calls, 1);
+      },
+    );
+    test(
+      'incompatible current manifest clears session and never reconciles or starts Chat',
+      () async {
+        final auth = _FakeAppAuthPort()
+          ..restoreSessionHandler = (_) async =>
+              AuthState.authenticated(buildTestAuthSession());
+        final identity = _FakeIdentitySessionPort();
+        final chat = _FakeChatSessionPort();
+        final useCase = _buildUseCase(
+          authPort: auth,
+          identitySessionPort: identity,
+          chatSessionPort: chat,
+          serverConfigurationPort: _FakeServerConfigurationPort(
+            configuration: buildTestConfiguration().copyWith(
+              organizationOrigin: Uri.parse('https://weave.example'),
+              validatedManifest: const {'schemaVersion': 2},
+            ),
+          ),
+          refreshOrganizationManifest: (_) async =>
+              throw const AppFailure.validation('identity mismatch'),
+        );
+        expect((await useCase()).phase, BootstrapPhase.error);
+        expect(auth.clearCalls, 1);
+        expect(identity.calls, 0);
+        expect(chat.ensureCalls, 0);
+      },
+    );
+    test(
+      'legacy profile without recoverable origin returns member setup before auth',
+      () async {
+        final auth = _FakeAppAuthPort();
+        final useCase = _buildUseCase(
+          authPort: auth,
+          serverConfigurationPort: _FakeServerConfigurationPort(
+            configuration: buildTestConfiguration(withManifest: false),
+          ),
+          refreshOrganizationManifest: (_) async =>
+              throw StateError('must not fetch inferred origin'),
+        );
+        expect((await useCase()).phase, BootstrapPhase.needsSetup);
+        expect(auth.lastRestoreConfiguration, isNull);
+        expect(auth.clearCalls, 1);
+      },
+    );
+    test(
+      'origin-only migration refreshes before AppAuth and again after restoration',
+      () async {
+        var calls = 0;
+        final auth = _FakeAppAuthPort()
+          ..restoreSessionHandler = (_) async {
+            expect(calls, 1);
+            return AuthState.authenticated(buildTestAuthSession());
+          };
+        final useCase = _buildUseCase(
+          authPort: auth,
+          serverConfigurationPort: _FakeServerConfigurationPort(
+            configuration: buildTestConfiguration(
+              withManifest: false,
+            ).copyWith(organizationOrigin: Uri.parse('https://weave.example')),
+          ),
+          refreshOrganizationManifest: (saved) async {
+            calls++;
+            return saved.copyWith(
+              validatedManifest: const {'schemaVersion': 2},
+            );
+          },
+        );
+        expect((await useCase()).phase, BootstrapPhase.ready);
+        expect(calls, 2);
+      },
+    );
+
     test('returns needsSetup when no configuration exists', () async {
       final authPort = _FakeAppAuthPort();
       final useCase = _buildUseCase(

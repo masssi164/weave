@@ -1,3 +1,5 @@
+import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
+import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
@@ -91,11 +93,33 @@ class ChatController extends Notifier<ChatUiState> {
     await _loadConversations();
   }
 
-  Future<ChatConversation> createConversation({required String title}) async {
+  Future<List<ChatParticipant>> searchMembers(String query) async {
+    final repository = ref.read(chatRepositoryProvider);
+    if (repository is! ChatParticipantRepository) return [];
+    return (repository as ChatParticipantRepository).searchMembers(query);
+  }
+
+  Future<ChatConversation> createConversation({
+    required String title,
+    List<ChatParticipant> participants = const [],
+  }) async {
     final requestSequence = _requestSequence;
-    final conversation = await ref
-        .read(chatRepositoryProvider)
-        .createConversation(title: title);
+    final repository = ref.read(chatRepositoryProvider);
+    final ChatConversation conversation;
+    if (participants.isNotEmpty) {
+      if (repository is! ChatParticipantRepository) {
+        throw const ChatFailure.configuration(
+          'Member selection is unavailable.',
+        );
+      }
+      conversation = await (repository as ChatParticipantRepository)
+          .createConversationWithParticipants(
+            title: title,
+            participants: participants,
+          );
+    } else {
+      conversation = await repository.createConversation(title: title);
+    }
     if (requestSequence != _requestSequence) {
       throw const ChatFailure.sessionRequired(
         'Space access changed while creating this conversation.',

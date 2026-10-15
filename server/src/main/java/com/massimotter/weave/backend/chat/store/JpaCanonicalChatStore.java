@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatChange;
 import com.massimotter.weave.backend.chat.domain.ChatChangeSet;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
+import com.massimotter.weave.backend.chat.domain.ChatInvitation;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
@@ -126,6 +127,42 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
                         memberships.getOrDefault(row.conversationId(), List.of())))
                 .toList();
         return new ChatConversations(null, conversations);
+    }
+
+    @Override
+    public List<ChatInvitation> invitedConversations(ChatRequestContext context, String afterConversationId, int limit) {
+        if (limit < 1 || limit > 100) throw new IllegalArgumentException("conversation page size is invalid");
+        String after = afterConversationId == null ? "" : afterConversationId;
+        if (!after.isEmpty()) new ConversationId(after);
+        return transactions.execute(status -> {
+            List<ChatInvitation> invitations = new ArrayList<>();
+            String cursor = after;
+            int scanned = 0;
+            while (invitations.size() < limit) {
+                int remaining = limit - invitations.size();
+                List<ChatConversationJpaEntity> rows = jpa.conversations().findInvited(
+                        context.tenantId(), context.contextId(), context.identityIssuer(),
+                        context.actorRef().value(), cursor, PageRequest.of(0, remaining));
+                for (ChatConversationJpaEntity row : rows) {
+                    cursor = row.conversationId();
+                    if (++scanned > 1000) throw new ChatProviderUnavailableException("chat-invitation-list-limit");
+                    ChatMembershipJpaEntity own = jpa.memberships()
+                            .findById(membershipId(context, new ConversationId(cursor))).orElse(null);
+                    if (own == null || !"invited".equals(own.state())) continue;
+                    List<ChatOperationJpaEntity> creation = jpa.operations()
+                            .findByIdPart1AndConversationIdAndOperationTypeInAndStateIn(
+                                    context.tenantId(), cursor, List.of("create-room"), List.of(COMMITTED))
+                            .stream().filter(operation -> context.contextId().equals(operation.contextId())
+                                    && context.identityIssuer().equals(operation.identityIssuer())).toList();
+                    if (creation.size() != 1) throw new ChatProviderUnavailableException("chat-invitation-authority-unavailable");
+                    ChatConversation metadata = mapConversation(row, List.of(own));
+                    invitations.add(new ChatInvitation(cursor, metadata.title(), metadata.updatedAt(),
+                            metadata.encryptionState(), new ChatActorRef(creation.getFirst().actorRef()), metadata.memberships().getFirst()));
+                }
+                if (rows.size() < remaining) break;
+            }
+            return List.copyOf(invitations);
+        });
     }
 
     @Override

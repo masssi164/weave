@@ -29,7 +29,9 @@ class BackendFilesRepository
         FilesRepository,
         FilesEntryMutationRepository,
         FilesRelocationRepository,
-        FilesExportRepository {
+        FilesExportRepository,
+        FilesSpaceRepository,
+        FilesContentReplacementRepository {
   const BackendFilesRepository({
     required http.Client httpClient,
     required ServerConfigurationRepository serverConfigurationRepository,
@@ -84,10 +86,17 @@ class BackendFilesRepository
   }
 
   @override
-  Future<DirectoryListing> listDirectory(String path) async {
+  Future<DirectoryListing> listDirectory(
+    String path, {
+    String? spaceRef,
+  }) async {
     final context = await _requireContext();
     final normalizedPath = _normalizePath(path);
-    final listing = await _listAtPath(context, normalizedPath);
+    final listing = await _listAtPath(
+      context,
+      normalizedPath,
+      spaceRef: spaceRef,
+    );
     return DirectoryListing(
       path: normalizedPath,
       parentFileId: listing.parentFileId,
@@ -108,6 +117,7 @@ class BackendFilesRepository
   Future<void> uploadFile(
     String directoryPath,
     FileUploadRequest request, {
+    String? spaceRef,
     FileUploadProgressCallback? onProgress,
   }) async {
     _validateChildName(request.fileName);
@@ -115,38 +125,17 @@ class BackendFilesRepository
       throw const FilesFailure.storage('Files uploads are limited to 25 MiB.');
     }
     final context = await _requireContext();
-    final listing = await _listAtPath(context, _normalizePath(directoryPath));
+    final listing = await _listAtPath(
+      context,
+      _normalizePath(directoryPath),
+      spaceRef: spaceRef,
+    );
     _requireAction(listing.allowedActions, 'upload');
 
     // Buffer this bounded transfer before sending. A file-picker stream cannot
     // be replayed after a 401 refresh, and a partial stream must never become
     // an apparently successful upload.
-    final bytes = BytesBuilder(copy: false);
-    var count = 0;
-    try {
-      await for (final chunk in request.byteStream) {
-        count += chunk.length;
-        if (count > maxTransferBytes || count > request.sizeInBytes) {
-          throw const FilesFailure.protocol(
-            'The selected file size changed during upload.',
-          );
-        }
-        bytes.add(chunk);
-      }
-    } on FilesFailure {
-      rethrow;
-    } catch (error) {
-      throw FilesFailure.unknown(
-        'Unable to read the selected file.',
-        cause: error,
-      );
-    }
-    if (count != request.sizeInBytes) {
-      throw const FilesFailure.protocol(
-        'The selected file size changed during upload.',
-      );
-    }
-    final content = bytes.takeBytes();
+    final content = await _readUploadBytes(request);
     final key = _idempotencyKey();
     final result = await _invoke(
       context,
@@ -156,6 +145,7 @@ class BackendFilesRepository
         '*',
         key,
         _uploadBody(content, onProgress: onProgress),
+        spaceRef: listing.parentFileId == rootFileId ? spaceRef : null,
       ),
       fallbackMessage: 'Unable to upload the file through Weave Files.',
       confirmIdentity: true,
@@ -176,10 +166,15 @@ class BackendFilesRepository
   Future<FileEntry> createFolder({
     required String parentPath,
     required String name,
+    String? spaceRef,
   }) async {
     _validateChildName(name);
     final context = await _requireContext();
-    final listing = await _listAtPath(context, _normalizePath(parentPath));
+    final listing = await _listAtPath(
+      context,
+      _normalizePath(parentPath),
+      spaceRef: spaceRef,
+    );
     _requireAction(listing.allowedActions, 'createFolder');
     final key = _idempotencyKey();
     final result = await _invoke(
@@ -190,6 +185,7 @@ class BackendFilesRepository
         user_api.FilesUserCreateFolderRequest(
           parentFileId: listing.parentFileId,
           name: name,
+          spaceRef: listing.parentFileId == rootFileId ? spaceRef : null,
         ),
       ),
       fallbackMessage: 'Unable to create the folder through Weave Files.',
@@ -245,7 +241,94 @@ class BackendFilesRepository
     _verifyDownload(response);
     return FileDownload(
       fileName: entry.name,
+      strongValidator: response.headers['etag'],
+      mediaType: response.headers['content-type']?.split(';').first.trim(),
       bytes: Uint8List.fromList(response.bodyBytes),
+    );
+  }
+
+  Future<Uint8List> _readUploadBytes(FileUploadRequest request) async {
+    if (request.sizeInBytes < 0 || request.sizeInBytes > maxTransferBytes) {
+      throw const FilesFailure.storage('Files uploads are limited to 25 MiB.');
+    }
+    final bytes = BytesBuilder(copy: false);
+    var count = 0;
+    try {
+      await for (final chunk in request.byteStream) {
+        count += chunk.length;
+        if (count > maxTransferBytes || count > request.sizeInBytes) {
+          throw const FilesFailure.protocol(
+            'The selected file size changed during upload.',
+          );
+        }
+        bytes.add(chunk);
+      }
+    } on FilesFailure {
+      rethrow;
+    } catch (error) {
+      throw FilesFailure.unknown(
+        'Unable to read the selected file.',
+        cause: error,
+      );
+    }
+    if (count != request.sizeInBytes) {
+      throw const FilesFailure.protocol(
+        'The selected file size changed during upload.',
+      );
+    }
+    return bytes.takeBytes();
+  }
+
+  @override
+  Future<FileEntry> replaceContent(
+    FileEntry entry,
+    FileUploadRequest request, {
+    FileUploadProgressCallback? onProgress,
+  }) async {
+    if (entry.isDirectory ||
+        !_opaqueFileId.hasMatch(entry.id) ||
+        !entry.allows('updateContent')) {
+      throw const FilesFailure.unsupportedPlatform(
+        'This file cannot be updated through Weave Files.',
+      );
+    }
+    // Item revisions are metadata, not content validators. Obtain and verify
+    // the current bytes/strong ETag before the atomic conditional replacement.
+    final context = await _requireContext();
+    final previous = await downloadFile(entry);
+    final validator = previous.strongValidator;
+    if (validator == null ||
+        !validator.startsWith('"') ||
+        !validator.endsWith('"') ||
+        validator.startsWith('W/')) {
+      throw const FilesFailure.protocol(
+        'The current file has no strong content validator.',
+      );
+    }
+    final content = await _readUploadBytes(request);
+    final result = await _invoke(
+      context,
+      (api) => api.updateFilesItemContent(
+        entry.id,
+        validator,
+        _idempotencyKey(),
+        _uploadBody(content, onProgress: onProgress),
+      ),
+      fallbackMessage: 'Unable to update the file through Weave Files.',
+      confirmIdentity: true,
+    );
+    if (result == null ||
+        result.fileId != entry.id ||
+        result.name != entry.name) {
+      throw const FilesFailure.protocol(
+        'Weave Files returned an invalid updated item.',
+      );
+    }
+    final separator = entry.path.lastIndexOf('/');
+    return _entry(
+      result,
+      parentId: result.parentFileId,
+      parentPath: separator <= 0 ? '/' : entry.path.substring(0, separator),
     );
   }
 
@@ -280,9 +363,10 @@ class BackendFilesRepository
 
   Future<user_api.FilesUserListResponse> _listAtPath(
     _BackendFilesContext context,
-    String path,
-  ) async {
-    var listing = await _list(context, rootFileId);
+    String path, {
+    String? spaceRef,
+  }) async {
+    var listing = await _list(context, rootFileId, spaceRef: spaceRef);
     if (path == '/') return listing;
     var walkedPath = '';
     for (final segment in path.split('/').where((part) => part.isNotEmpty)) {
@@ -308,8 +392,9 @@ class BackendFilesRepository
 
   Future<user_api.FilesUserListResponse> _list(
     _BackendFilesContext context,
-    String parentId,
-  ) async {
+    String parentId, {
+    String? spaceRef,
+  }) async {
     if (parentId != rootFileId && !_opaqueFileId.hasMatch(parentId)) {
       throw const FilesFailure.protocol(
         'The Files folder reference is invalid.',
@@ -317,7 +402,10 @@ class BackendFilesRepository
     }
     final response = await _invoke(
       context,
-      (api) => api.listFilesItems(parentId: parentId),
+      (api) => api.listFilesItems(
+        parentId: parentId,
+        spaceRef: parentId == rootFileId ? spaceRef : null,
+      ),
       fallbackMessage: 'Unable to load files from Weave Files.',
     );
     if (response == null || response.parentFileId != parentId) {

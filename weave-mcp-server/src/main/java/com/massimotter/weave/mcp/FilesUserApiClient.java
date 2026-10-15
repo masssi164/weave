@@ -159,7 +159,7 @@ final class FilesUserApiClient {
 
   private FilesUserListResponse list(String parentId, Map<String, String> headers) {
     try {
-      return files.listFilesItems(parentId, headers);
+      return files.listFilesItems(parentId, null, headers);
     } catch (ApiException failure) {
       throw supportSafeFailure(failure);
     }

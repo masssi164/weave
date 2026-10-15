@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:weave/features/files/domain/entities/file_download.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -89,7 +92,10 @@ class _CapabilitySnapshotController
 }
 
 class _FakeFilesRepository
-    implements FilesRepository, FilesEntryMutationRepository {
+    implements
+        FilesRepository,
+        FilesEntryMutationRepository,
+        FilesExportRepository {
   _FakeFilesRepository({
     required this.connectionState,
     this.listings = const <String, DirectoryListing>{},
@@ -97,8 +103,12 @@ class _FakeFilesRepository
     this.uploadFileHandler,
     this.createFolderHandler,
     this.grantActions = true,
+    this.download,
   });
 
+  final FileDownload? download;
+  @override
+  Future<FileDownload> downloadFile(FileEntry entry) async => download!;
   final FilesConnectionState connectionState;
   final Map<String, DirectoryListing> listings;
   final Future<DirectoryListing> Function(String path)? listDirectoryHandler;
@@ -225,6 +235,75 @@ class _FakeFilesImportPicker implements FilesImportPicker {
 }
 
 void main() {
+  for (final valid in [true, false]) {
+    testWidgets('Open uses actual download bytes; valid UTF8=$valid', (
+      tester,
+    ) async {
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://api.home.internal/api'),
+          accountLabel: 'alice',
+        ),
+        listings: const {
+          '/': DirectoryListing(
+            path: '/',
+            entries: [
+              FileEntry(
+                id: 'preview',
+                name: 'shared.txt',
+                path: '/shared.txt',
+                isDirectory: false,
+              ),
+            ],
+          ),
+        },
+        download: FileDownload(
+          fileName: 'shared.txt',
+          mediaType: 'text/plain',
+          bytes: Uint8List.fromList(
+            valid ? utf8.encode('Actual shared document content') : [255, 254],
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        _filesTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('files-open-preview')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('files-open-preview')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('files-preview-content')),
+        valid ? findsOneWidget : findsNothing,
+      );
+      expect(
+        find.text('Actual shared document content'),
+        valid ? findsOneWidget : findsNothing,
+      );
+      if (!valid) {
+        expect(
+          find.textContaining('This file cannot be viewed here'),
+          findsOneWidget,
+        );
+      }
+    });
+  }
+
   group('FilesScreen', () {
     testWidgets(
       'waits for member access, opens Files automatically, and hides revoked content',
@@ -261,6 +340,11 @@ void main() {
                 (ref) => ref.watch(capabilityState),
               ),
               filesRepositoryProvider.overrideWithValue(repository),
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+              ),
               serverConfigurationRepositoryProvider.overrideWith(
                 (ref) => _FakeServerConfigurationRepository(
                   buildTestConfiguration(),
@@ -334,6 +418,11 @@ void main() {
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -382,6 +471,11 @@ void main() {
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -415,6 +509,11 @@ void main() {
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -468,6 +567,11 @@ void main() {
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -543,6 +647,11 @@ void main() {
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -555,6 +664,8 @@ void main() {
       expect(find.text('Documents'), findsAtLeastNWidgets(1));
 
       await tester.tap(find.widgetWithText(ListTile, 'Documents'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.widgetWithText(ListTile, 'Reports'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ListTile, 'Reports'));
       await tester.pumpAndSettle();
@@ -617,6 +728,11 @@ void main() {
             const FilesScreen(),
             overrides: [
               filesRepositoryProvider.overrideWithValue(repository),
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+              ),
               serverConfigurationRepositoryProvider.overrideWith(
                 (ref) => _FakeServerConfigurationRepository(
                   buildTestConfiguration(),
@@ -701,6 +817,11 @@ void main() {
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -711,6 +832,8 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(find.widgetWithText(ListTile, 'Documents'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.widgetWithText(ListTile, 'Reports'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ListTile, 'Reports'));
       await tester.pumpAndSettle();
@@ -756,6 +879,11 @@ void main() {
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -820,6 +948,11 @@ void main() {
                     [1, 2, 3, 4],
                   ]),
                 ),
+              ),
+            ),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
               ),
             ),
             serverConfigurationRepositoryProvider.overrideWith(
@@ -891,6 +1024,11 @@ void main() {
                 ),
               ),
             ),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -942,6 +1080,11 @@ void main() {
                     sizeInBytes: 0,
                     byteStream: Stream<List<int>>.empty(),
                   ),
+                ),
+              ),
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
                 ),
               ),
               serverConfigurationRepositoryProvider.overrideWith(
@@ -1004,6 +1147,11 @@ void main() {
             filesImportPickerProvider.overrideWithValue(
               _FakeFilesImportPicker(null),
             ),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -1063,6 +1211,11 @@ void main() {
                     [1, 2, 3, 4],
                   ]),
                 ),
+              ),
+            ),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
               ),
             ),
             serverConfigurationRepositoryProvider.overrideWith(
@@ -1128,6 +1281,11 @@ void main() {
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -1168,6 +1326,11 @@ void main() {
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -1231,6 +1394,11 @@ void main() {
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -1257,6 +1425,11 @@ void main() {
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
@@ -1281,6 +1454,11 @@ void main() {
           const FilesScreen(),
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) =>
                   _FakeServerConfigurationRepository(buildTestConfiguration()),
