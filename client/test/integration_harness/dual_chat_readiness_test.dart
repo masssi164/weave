@@ -36,6 +36,7 @@ import '../helpers/test_app.dart';
 import '../../integration_test/dual_ios_collaboration_test.dart'
     show
         navigateNativeDualDestination,
+        tapNativeDualBack,
         nativeDualChatSurfaceDiagnostic,
         nativeDualChatListDiagnostic,
         waitNativeDualChatConversation,
@@ -269,7 +270,7 @@ void main() {
 
   for (final locale in ['en', 'de']) {
     testWidgets(
-      'phone invitation row lookup and real tap opens room; $locale',
+      'phone invitation row opens and localized back exits room; $locale',
       (tester) async {
         tester.view.physicalSize = const Size(1206, 2622);
         tester.view.devicePixelRatio = 3;
@@ -418,6 +419,37 @@ void main() {
               .id,
           target.id,
         );
+        pointerDowns = 0;
+        tester.binding.pointerRouter.addGlobalRoute(observePointer);
+        try {
+          await tapNativeDualBack(
+            tester,
+            deadline: DateTime.now().add(const Duration(seconds: 2)),
+          );
+        } finally {
+          tester.binding.pointerRouter.removeGlobalRoute(observePointer);
+        }
+        await tester.pumpAndSettle();
+        expect(pointerDowns, 1);
+        expect(find.byType(ChatRoomScreen), findsNothing);
+        expect(find.byType(ChatScreen), findsOneWidget);
+        expect(router.routeInformationProvider.value.uri.path, '/chat');
+        Object? missingBack;
+        pointerDowns = 0;
+        tester.binding.pointerRouter.addGlobalRoute(observePointer);
+        try {
+          await tapNativeDualBack(
+            tester,
+            deadline: DateTime.now().add(const Duration(seconds: 2)),
+          );
+        } catch (error) {
+          missingBack = error;
+        } finally {
+          tester.binding.pointerRouter.removeGlobalRoute(observePointer);
+        }
+        expect(missingBack, isA<TestFailure>());
+        expect(pointerDowns, 0);
+        expect(router.routeInformationProvider.value.uri.path, '/chat');
       },
     );
   }
