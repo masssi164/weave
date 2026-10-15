@@ -14,17 +14,23 @@ import 'package:weave/features/calendar/presentation/providers/calendar_provider
 import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
 
 import '../../helpers/test_app.dart';
+import '../../../integration_test/dual_ios_collaboration_test.dart' as dual;
 
 class _FakeCalendarRepository implements CalendarRepository {
   _FakeCalendarRepository({
     required List<CalendarEvent> events,
     this.eventLoadGate,
+    this.scopeLoadGate,
+    this.readEventGate,
     this.failCreates = false,
     this.failUpdates = false,
   }) : events = List<CalendarEvent>.of(events);
 
   final List<CalendarEvent> events;
   final Future<void>? eventLoadGate;
+  final Future<void>? scopeLoadGate;
+  final Future<void>? readEventGate;
+  int readCalls = 0;
   final bool failCreates;
   final bool failUpdates;
   final List<CalendarEventDraft> createdDrafts = <CalendarEventDraft>[];
@@ -37,6 +43,7 @@ class _FakeCalendarRepository implements CalendarRepository {
   @override
   Future<CalendarScopeList> loadScopes() async {
     scopeLoads++;
+    if (scopeLoadGate != null) await scopeLoadGate;
     return const CalendarScopeList(
       scopes: [
         CalendarScope(
@@ -70,6 +77,8 @@ class _FakeCalendarRepository implements CalendarRepository {
 
   @override
   Future<CalendarEvent> readEvent(String id) async {
+    readCalls++;
+    if (readEventGate != null) await readEventGate;
     return events.firstWhere((event) => event.id == id);
   }
 
@@ -422,6 +431,139 @@ void main() {
         expect(repository.createdDrafts, isEmpty);
       },
     );
+
+    for (final delayed in ['scopes', 'timezone', 'read']) {
+      testWidgets('dual Calendar waits for delayed $delayed before saving', (
+        tester,
+      ) async {
+        final gate = Completer<void>();
+        var pointerDowns = 0;
+        final repository = _FakeCalendarRepository(
+          events: delayed == 'read'
+              ? [
+                  CalendarEvent(
+                    id: 'delayed-event',
+                    title: 'Existing event',
+                    allowedActions: const ['update', 'delete'],
+                    startTime: DateTime(2026, 6, 27, 10),
+                    endTime: DateTime(2026, 6, 27, 11),
+                    etag: '"v1"',
+                  ),
+                ]
+              : [],
+          readEventGate: delayed == 'read' ? gate.future : null,
+          scopeLoadGate: delayed == 'scopes' ? gate.future : null,
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            Listener(
+              onPointerDown: (_) => pointerDowns++,
+              child: Scaffold(
+                body: const CalendarScreen(),
+                bottomNavigationBar: NavigationBar(
+                  destinations: const [
+                    NavigationDestination(
+                      icon: Icon(Icons.home),
+                      label: 'Home',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.calendar_month),
+                      label: 'Calendar',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWithValue(
+                const AsyncData(_readySnapshot),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+              calendarEvaluationTimeZoneProvider.overrideWith((ref) async {
+                if (delayed == 'timezone') await gate.future;
+                return 'Europe/Berlin';
+              }),
+            ],
+          ),
+        );
+        await tester.pump();
+        if (delayed == 'read') await tester.pumpAndSettle();
+        // The production callback remains asynchronous while its prerequisites resolve.
+        expect(find.byType(AlertDialog), findsNothing);
+        final release = Timer(const Duration(milliseconds: 750), gate.complete);
+        try {
+          await dual.editNativeDualCalendarEvent(
+            tester,
+            tooltip: delayed == 'read' ? 'Edit Existing event' : 'Create event',
+            title: 'Delayed event',
+            deadline: DateTime.now().add(const Duration(seconds: 5)),
+          );
+          await tester.pumpAndSettle();
+          expect(pointerDowns, 1); // The editor-opening control is tapped once.
+          expect(
+            (delayed == 'read'
+                    ? repository.updatedDrafts
+                    : repository.createdDrafts)
+                .single
+                .title,
+            'Delayed event',
+          );
+          if (delayed == 'read') expect(repository.readCalls, 1);
+          expect(find.text('Delayed event'), findsOneWidget);
+        } finally {
+          release.cancel();
+        }
+      });
+    }
+
+    for (final failure in ['disabled', 'editor-error', 'missing-control']) {
+      testWidgets('dual Calendar rejects $failure without extra activation', (
+        tester,
+      ) async {
+        final repository = _FakeCalendarRepository(events: []);
+        var pointerDowns = 0;
+        await tester.pumpWidget(
+          createTestApp(
+            Listener(
+              onPointerDown: (_) => pointerDowns++,
+              child: const CalendarScreen(),
+            ),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWithValue(
+                AsyncData(
+                  failure == 'disabled'
+                      ? _calendarUnavailableSnapshot()
+                      : _readySnapshot,
+                ),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+              calendarEvaluationTimeZoneProvider.overrideWith((ref) async {
+                throw StateError('private-editor-preparation-failure');
+              }),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        Object? caught;
+        try {
+          await dual.editNativeDualCalendarEvent(
+            tester,
+            tooltip: failure == 'missing-control'
+                ? 'Absent control'
+                : 'Create event',
+            title: 'Must not create',
+            deadline: DateTime.now().add(const Duration(milliseconds: 50)),
+          );
+        } catch (error) {
+          caught = error;
+        }
+        expect(caught, isA<TestFailure>());
+        expect(pointerDowns, failure == 'editor-error' ? 1 : 0);
+        expect(repository.createdDrafts, isEmpty);
+        expect(repository.updatedDrafts, isEmpty);
+        expect(find.byType(AlertDialog), findsNothing);
+      });
+    }
 
     testWidgets('creates and deletes events through the calendar facade', (
       tester,
