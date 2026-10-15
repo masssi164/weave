@@ -637,7 +637,9 @@ class _EntryActionStatusCard extends StatelessWidget {
             ? l10n.filesExportCompletedUnknownMessage
             : l10n.filesExportCompletedMessage(
                 entryName,
-                actionStatus.destination ?? l10n.filesExportUserVisibleFallback,
+                actionStatus.destination == null
+                    ? l10n.filesExportUserVisibleFallback
+                    : Uri.file(actionStatus.destination!).pathSegments.last,
               ),
       FilesEntryActionPhase.failed =>
         _localizedFilesFailure(actionStatus.failure, l10n) ??

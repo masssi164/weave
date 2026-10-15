@@ -1335,7 +1335,7 @@ abstract class AppLocalizations {
   /// Status message after a file is exported to a native file surface
   ///
   /// In en, this message translates to:
-  /// **'Exported {name} to {destination}.'**
+  /// **'Saved {name} as {destination}.'**
   String filesExportCompletedMessage(String name, String destination);
 
   /// Status message after an unnamed file is exported
@@ -4482,7 +4482,7 @@ abstract class AppLocalizations {
   /// Description explaining that the current calendar surface is workspace-scoped rather than private-personal scoped
   ///
   /// In en, this message translates to:
-  /// **'This first Calendar slice is the workspace scope of Weave shared scheduling. Team and channel calendars are the next product scopes; private personal calendars are out of scope.'**
+  /// **'View and manage events shared with your organization in this workspace.'**
   String get calendarWorkspaceScopeDescription;
 
   /// Description for non-workspace calendar scope metadata returned by the backend
@@ -4798,7 +4798,7 @@ abstract class AppLocalizations {
   /// Calendar details text when the backend exposes safe context metadata but not a Matrix thread id
   ///
   /// In en, this message translates to:
-  /// **'Safe context metadata is available; chat thread linkage is not configured yet.'**
+  /// **'No conversation linked.'**
   String get calendarDetailsMeetingThreadPending;
 
   /// Label for safe attendee metadata in the calendar event details dialog
@@ -5712,19 +5712,19 @@ abstract class AppLocalizations {
   /// Description for the normal member handoff-first setup screen
   ///
   /// In en, this message translates to:
-  /// **'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you for technical service settings.'**
+  /// **'Use your organization’s Weave address or invitation to sign in to your workspace.'**
   String get setupMemberHandoffDescription;
 
   /// Organization access input label
   ///
   /// In en, this message translates to:
-  /// **'Server URI, invitation link, or QR payload'**
+  /// **'Organization address or invitation'**
   String get setupOrganizationUriLabel;
 
   /// Organization access input help
   ///
   /// In en, this message translates to:
-  /// **'Paste the link from your email or QR code, or enter your organization\'s Weave address.'**
+  /// **'Enter your organization’s Weave address, or paste the invitation link from your email or QR code.'**
   String get setupOrganizationUriHelper;
 
   /// Invalid organization access input
@@ -5802,7 +5802,7 @@ abstract class AppLocalizations {
   /// Success guidance shown after a member handoff is consumed and before sign-in
   ///
   /// In en, this message translates to:
-  /// **'Weave prepared {organization}/{workspace} from the invite. Continue with workspace sign-in next.'**
+  /// **'Your workspace {organization}/{workspace} is ready. Continue to sign in.'**
   String memberHandoffReadyGuidance(String organization, String workspace);
 
   /// Error title when member handoff consumption fails

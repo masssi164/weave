@@ -228,7 +228,8 @@ class NativeMatrixChatRepository
       }
       return ChatRoomTimeline(
         roomId: roomId,
-        roomTitle: _titleFromRoomId(roomId),
+        // Message reads do not carry room metadata. Preserve the room-list title.
+        roomTitle: '',
         isInvite: false,
         canSendMessages: true,
         memberStorageScope: session.memberStorageScope,

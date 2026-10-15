@@ -159,124 +159,162 @@ void main() {
   );
 
   group('MemberHandoffScreen', () {
-    for (final successful in [true, false]) {
-      testWidgets(
-        successful
-            ? 'publishes discovery-saved canonical profile to existing null subscribers before ready UI'
-            : 'failed discovery preserves the existing canonical profile subscription',
-        (tester) async {
-          final store = InMemoryPreferencesStore();
-          final container = ProviderContainer(
-            overrides: [
-              resolveAppBootstrapProvider.overrideWithValue(
-                _SignInThenReadyResolveAppBootstrap(),
-              ),
-              preferencesStoreProvider.overrideWith((ref) => store),
-              discoverOrganizationAccessProvider.overrideWith(
-                (ref) => DiscoverOrganizationAccess(
-                  repository: ref.watch(serverConfigurationRepositoryProvider),
-                  evidenceStore: store,
-                  discoveryClient: AppStartDiscoveryClient(
-                    httpClient: MockClient((request) async {
-                      expect(
-                        request.url,
-                        Uri.parse('https://weave.example/api/platform/config'),
-                      );
-                      return http.Response(
-                        successful
-                            ? jsonEncode(
-                                (jsonDecode(
-                                        File(
-                                          'test/fixtures/org_manifest_v2_valid.json',
-                                        ).readAsStringSync(),
-                                      )
-                                      as Map<String, dynamic>)
-                                  ..['organizationOrigin'] =
-                                      'https://weave.example',
-                              )
-                            : '{}',
-                        successful ? 200 : 503,
-                        headers: {'content-type': 'application/json'},
-                      );
-                    }),
+    for (final locale in ['en', 'de']) {
+      for (final invitation in [false, true]) {
+        for (final successful in [true, false]) {
+          testWidgets(
+            successful
+                ? 'publishes discovery-saved canonical profile before neutral ready UI $locale invitation=$invitation'
+                : 'failed discovery preserves canonical profile $locale invitation=$invitation',
+            (tester) async {
+              final store = InMemoryPreferencesStore();
+              final container = ProviderContainer(
+                overrides: [
+                  resolveAppBootstrapProvider.overrideWithValue(
+                    _SignInThenReadyResolveAppBootstrap(),
+                  ),
+                  preferencesStoreProvider.overrideWith((ref) => store),
+                  discoverOrganizationAccessProvider.overrideWith(
+                    (ref) => DiscoverOrganizationAccess(
+                      repository: ref.watch(
+                        serverConfigurationRepositoryProvider,
+                      ),
+                      evidenceStore: store,
+                      discoveryClient: AppStartDiscoveryClient(
+                        httpClient: MockClient((request) async {
+                          expect(
+                            request.url,
+                            Uri.parse(
+                              'https://weave.example/api/platform/config',
+                            ),
+                          );
+                          return http.Response(
+                            successful
+                                ? jsonEncode(
+                                    (jsonDecode(
+                                            File(
+                                              'test/fixtures/org_manifest_v2_valid.json',
+                                            ).readAsStringSync(),
+                                          )
+                                          as Map<String, dynamic>)
+                                      ..['organizationOrigin'] =
+                                          'https://weave.example',
+                                  )
+                                : '{}',
+                            successful ? 200 : 503,
+                            headers: {'content-type': 'application/json'},
+                          );
+                        }),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+              addTearDown(container.dispose);
+              if (!successful) {
+                await container
+                    .read(serverConfigurationRepositoryProvider)
+                    .saveConfiguration(buildTestConfiguration());
+              }
+              final subscription = container.listen(
+                savedServerConfigurationProvider,
+                (_, _) {},
+              );
+              addTearDown(subscription.close);
+              final previous = await container.read(
+                savedServerConfigurationProvider.future,
+              );
+              if (successful) {
+                expect(previous, isNull);
+              } else {
+                expect(previous, isNotNull);
+              }
+              await tester.pumpWidget(
+                UncontrolledProviderScope(
+                  container: container,
+                  child: MaterialApp(
+                    locale: Locale(locale),
+                    localizationsDelegates:
+                        AppLocalizations.localizationsDelegates,
+                    supportedLocales: AppLocalizations.supportedLocales,
+                    home: MemberHandoffScreen(
+                      uri: invitation
+                          ? Uri(
+                              scheme: 'weave',
+                              host: 'join',
+                              queryParameters: {
+                                'organization_origin': 'https://weave.example',
+                              },
+                            )
+                          : Uri.parse('https://weave.example'),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          );
-          addTearDown(container.dispose);
-          if (!successful) {
-            await container
-                .read(serverConfigurationRepositoryProvider)
-                .saveConfiguration(buildTestConfiguration());
-          }
-          final subscription = container.listen(
-            savedServerConfigurationProvider,
-            (_, _) {},
-          );
-          addTearDown(subscription.close);
-          final previous = await container.read(
-            savedServerConfigurationProvider.future,
-          );
-          if (successful) {
-            expect(previous, isNull);
-          } else {
-            expect(previous, isNotNull);
-          }
-          await tester.pumpWidget(
-            UncontrolledProviderScope(
-              container: container,
-              child: MaterialApp(
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                supportedLocales: AppLocalizations.supportedLocales,
-                home: MemberHandoffScreen(
-                  uri: Uri.parse('https://weave.example'),
-                ),
-              ),
-            ),
-          );
-          // The generated HTTP client consumes an asynchronous response stream;
-          // wait for its real event-loop work before inspecting the ready frame.
-          for (var attempt = 0; attempt < 50; attempt++) {
-            await tester.runAsync(
-              () => Future<void>.delayed(const Duration(milliseconds: 10)),
-            );
-            await tester.pumpAndSettle();
-            final raw = store.rawString(dogfoodAuthStateStorageKey);
-            if (raw != null &&
-                {
+              );
+              // The generated HTTP client consumes an asynchronous response stream;
+              // wait for its real event-loop work before inspecting the ready frame.
+              for (var attempt = 0; attempt < 50; attempt++) {
+                await tester.runAsync(
+                  () => Future<void>.delayed(const Duration(milliseconds: 10)),
+                );
+                await tester.pumpAndSettle();
+                final raw = store.rawString(dogfoodAuthStateStorageKey);
+                if (raw != null &&
+                    {
+                      'ready_for_sso',
+                      'recoverable_error',
+                    }.contains(jsonDecode(raw)['state'])) {
+                  break;
+                }
+              }
+              final current = await container.read(
+                savedServerConfigurationProvider.future,
+              );
+              if (successful) {
+                expect(
+                  nativeDualHandoffSignIn(
+                    locale == 'de' ? 'Anmelden' : 'Sign In',
+                  ),
+                  findsOneWidget,
+                );
+                expect(current, isNotNull);
+                expect(
+                  find.textContaining(
+                    locale == 'de' ? 'aus der Einladung' : 'from the invite',
+                  ),
+                  findsNothing,
+                );
+                expect(
+                  current!.organizationOrigin,
+                  Uri.parse('https://weave.example/'),
+                );
+                expect(current.validatedManifest, isNotNull);
+                expect(current.manifestValidatedAt, isNotNull);
+                expect(
+                  jsonDecode(
+                    store.rawString(dogfoodAuthStateStorageKey)!,
+                  )['state'],
                   'ready_for_sso',
+                );
+              } else {
+                expect(
+                  nativeDualHandoffSignIn(
+                    locale == 'de' ? 'Anmelden' : 'Sign In',
+                  ),
+                  findsNothing,
+                );
+                expect(current, same(previous));
+                expect(
+                  jsonDecode(
+                    store.rawString(dogfoodAuthStateStorageKey)!,
+                  )['state'],
                   'recoverable_error',
-                }.contains(jsonDecode(raw)['state'])) {
-              break;
-            }
-          }
-          final current = await container.read(
-            savedServerConfigurationProvider.future,
+                );
+              }
+            },
           );
-          if (successful) {
-            expect(nativeDualHandoffSignIn('Sign In'), findsOneWidget);
-            expect(current, isNotNull);
-            expect(
-              current!.organizationOrigin,
-              Uri.parse('https://weave.example/'),
-            );
-            expect(current.validatedManifest, isNotNull);
-            expect(current.manifestValidatedAt, isNotNull);
-            expect(
-              jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
-              'ready_for_sso',
-            );
-          } else {
-            expect(nativeDualHandoffSignIn('Sign In'), findsNothing);
-            expect(current, same(previous));
-            expect(
-              jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
-              'recoverable_error',
-            );
-          }
-        },
-      );
+        }
+      }
     }
 
     testWidgets(

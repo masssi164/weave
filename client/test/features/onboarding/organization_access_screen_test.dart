@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/router/app_routes.dart';
@@ -6,7 +7,7 @@ import 'package:weave/features/onboarding/presentation/organization_access_scree
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 void main() {
-  Widget buildApp() {
+  Widget buildApp({Locale? locale, double scale = 1}) {
     final router = GoRouter(
       initialLocation: AppRoutes.organizationAccess,
       routes: [
@@ -21,9 +22,43 @@ void main() {
       ],
     );
     return MaterialApp.router(
+      locale: locale,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(scale)),
+        child: child!,
+      ),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: router,
+    );
+  }
+
+  for (final locale in ['en', 'de']) {
+    testWidgets(
+      'organization entry wraps instructions on narrow large-text phone $locale',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(buildApp(locale: Locale(locale), scale: 1.6));
+        await tester.pumpAndSettle();
+        final field = tester.widget<TextField>(find.byType(TextField));
+        expect(field.decoration!.helper, isA<Text>());
+        final helper = tester.renderObject<RenderParagraph>(
+          find.text((field.decoration!.helper! as Text).data!),
+        );
+        expect(
+          helper.didExceedMaxLines,
+          isFalse,
+          reason: 'Essential organization guidance must remain fully visible.',
+        );
+        expect(field.decoration!.errorMaxLines, greaterThan(1));
+        expect(field.decoration!.labelText, isNot(contains('URI')));
+        expect(tester.takeException(), isNull);
+      },
     );
   }
 
@@ -34,10 +69,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Organization access'), findsOneWidget);
-      expect(
-        find.text('Server URI, invitation link, or QR payload'),
-        findsOneWidget,
-      );
+      expect(find.text('Organization address or invitation'), findsOneWidget);
       expect(find.text('Continue to organization'), findsOneWidget);
       expect(find.bySemanticsLabel('Weave logo'), findsOneWidget);
       expect(find.textContaining('same Weave address'), findsOneWidget);

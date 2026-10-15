@@ -727,6 +727,11 @@ void main() {
     expect(bridge.receipts.single['eventId'], r'$sent:api.weave.test');
     expect(timeline.messages.single.contentType, ChatMessageContentType.text);
     expect(timeline.messages.single.text, 'decrypted only in Rust');
+    expect(
+      timeline.roomTitle,
+      isEmpty,
+      reason: 'Message-only reads must not fabricate room metadata.',
+    );
     expect(timeline.messages.single.isMine, isTrue);
     expect(cryptoSession.synchronizeValues, <bool>[false, false, false]);
   });

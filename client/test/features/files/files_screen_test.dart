@@ -19,6 +19,7 @@ import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/services/files_import_picker.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/features/files/presentation/providers/files_provider.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
@@ -234,7 +235,56 @@ class _FakeFilesImportPicker implements FilesImportPicker {
   Future<FileUploadRequest?> pickFile() async => request;
 }
 
+class _ExportedFilesController extends FilesController {
+  @override
+  Future<FilesViewState> build() async => FilesViewState(
+    connectionState: FilesConnectionState.connected(
+      baseUrl: Uri.parse('https://api.example/api'),
+      accountLabel: 'member',
+    ),
+    directoryListing: const DirectoryListing(path: '/', entries: []),
+    entryActionStatus: const FilesEntryActionStatus(
+      phase: FilesEntryActionPhase.exportedEntry,
+      entryName: 'brief.txt',
+      destination: '/private/owned-container/Documents/Selected/brief 2.txt',
+    ),
+  );
+}
+
 void main() {
+  for (final locale in ['en', 'de']) {
+    testWidgets(
+      'export reports actual selected basename without sandbox path $locale',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        tester.platformDispatcher.localesTestValue = [Locale(locale)];
+        addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+        await tester.pumpWidget(
+          _filesTestApp(
+            Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: const TextScaler.linear(1.4)),
+                child: const FilesScreen(),
+              ),
+            ),
+            overrides: [
+              filesProvider.overrideWith(_ExportedFilesController.new),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.textContaining('brief 2.txt'), findsOneWidget);
+        expect(find.textContaining('/private/owned-container'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   for (final valid in [true, false]) {
     testWidgets('Open uses actual download bytes; valid UTF8=$valid', (
       tester,

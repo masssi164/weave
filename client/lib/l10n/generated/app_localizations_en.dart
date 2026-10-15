@@ -785,7 +785,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String filesExportCompletedMessage(String name, String destination) {
-    return 'Exported $name to $destination.';
+    return 'Saved $name as $destination.';
   }
 
   @override
@@ -2668,7 +2668,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get calendarWorkspaceScopeDescription =>
-      'This first Calendar slice is the workspace scope of Weave shared scheduling. Team and channel calendars are the next product scopes; private personal calendars are out of scope.';
+      'View and manage events shared with your organization in this workspace.';
 
   @override
   String calendarGenericScopeDescription(String scopeLabel) {
@@ -2860,8 +2860,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get calendarDetailsMeetingThreadLabel => 'Meeting thread';
 
   @override
-  String get calendarDetailsMeetingThreadPending =>
-      'Safe context metadata is available; chat thread linkage is not configured yet.';
+  String get calendarDetailsMeetingThreadPending => 'No conversation linked.';
 
   @override
   String get calendarDetailsAttendeesLabel => 'Attendees';
@@ -3517,15 +3516,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get setupMemberHandoffDescription =>
-      'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you for technical service settings.';
+      'Use your organization’s Weave address or invitation to sign in to your workspace.';
 
   @override
-  String get setupOrganizationUriLabel =>
-      'Server URI, invitation link, or QR payload';
+  String get setupOrganizationUriLabel => 'Organization address or invitation';
 
   @override
   String get setupOrganizationUriHelper =>
-      'Paste the link from your email or QR code, or enter your organization\'s Weave address.';
+      'Enter your organization’s Weave address, or paste the invitation link from your email or QR code.';
 
   @override
   String get setupOrganizationUriError =>
@@ -3571,7 +3569,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String memberHandoffReadyGuidance(String organization, String workspace) {
-    return 'Weave prepared $organization/$workspace from the invite. Continue with workspace sign-in next.';
+    return 'Your workspace $organization/$workspace is ready. Continue to sign in.';
   }
 
   @override

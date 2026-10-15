@@ -59,6 +59,57 @@ const _simulator = bool.fromEnvironment('WEAVE_NATIVE_EXPECT_SIMULATOR');
 const _disposable = bool.fromEnvironment('WEAVE_DEVICE_DISPOSABLE_STACK');
 const _actorTestBudget = Duration(minutes: 30);
 
+/// Snapshot only the owned export directory, without following links.
+Future<Set<String>> nativeDualExportSnapshot(Directory documents) async {
+  final root = await documents.resolveSymbolicLinks();
+  final files = <String>{};
+  var examined = 0;
+  await for (final entry in Directory(
+    root,
+  ).list(recursive: true, followLinks: false)) {
+    if (++examined > 4096) {
+      throw TestFailure(
+        'Owned export directory exceeds the observation bound.',
+      );
+    }
+    if (entry is File) {
+      files.add(entry.absolute.uri.normalizePath().toFilePath());
+    }
+  }
+  return files;
+}
+
+/// Verify the actual selected destination, rather than the picker staging file.
+Future<File> requireNativeDualExportDestination(
+  Directory documents,
+  Set<String> before,
+  String? selected,
+) async {
+  if (selected == null || !File(selected).isAbsolute) {
+    throw TestFailure('Native export did not return an absolute destination.');
+  }
+  final root = await documents.resolveSymbolicLinks();
+  final destination = File(selected).absolute.uri.normalizePath().toFilePath();
+  if (!destination.startsWith('$root${Platform.pathSeparator}') ||
+      before.contains(destination)) {
+    throw TestFailure('Native export destination is not a new owned file.');
+  }
+  var current = destination;
+  while (current != root) {
+    final type = await FileSystemEntity.type(current, followLinks: false);
+    if (type == FileSystemEntityType.link ||
+        type == FileSystemEntityType.notFound) {
+      throw TestFailure('Native export destination ownership is unavailable.');
+    }
+    current = File(current).parent.path;
+  }
+  if (await FileSystemEntity.type(destination, followLinks: false) !=
+      FileSystemEntityType.file) {
+    throw TestFailure('Native export destination is not a regular file.');
+  }
+  return File(destination);
+}
+
 Map<String, String> nativeDualSessionIdentityDigests(
   Map<String, dynamic> claims, {
   required String expectedSubjectDigest,
@@ -740,9 +791,14 @@ void main() {
       };
       await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
-      scenarios['accessibility'] = {
-        'status': 'passed',
-        'evidence': 'flutter-ui',
+      final accessibilityScreens = <String>{
+        'home',
+        if (prior != null &&
+            scenarios['accessibility']?['status'] == 'passed') ...[
+          'chat',
+          'calendar',
+          'files',
+        ],
       };
       await _tap(
         tester,
@@ -893,6 +949,11 @@ void main() {
               const Duration(seconds: 60),
             );
             await tapNativeDualPeer(tester, peer, deadline: actionDeadline);
+            await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+            await expectLater(
+              tester,
+              meetsGuideline(labeledTapTargetGuideline),
+            );
             await _tap(
               tester,
               find.byKey(const Key('chat-create-conversation-submit-button')),
@@ -1234,14 +1295,8 @@ void main() {
           case 'files-export':
           case 'files-export-updated':
             expect(fileId, isNotNull);
-            final output = File(
-              '${(await getApplicationDocumentsDirectory()).path}/$fileName',
-            );
-            expect(
-              await output.exists(),
-              isFalse,
-              reason: 'An existing fixture cannot prove native export.',
-            );
+            final documents = await getApplicationDocumentsDirectory();
+            final beforeExport = await nativeDualExportSnapshot(documents);
             await writeNativeDualPrivateJson(
               File('${support.path}/weave-dual-ios-native-request.json'),
               {'sequence': next, 'mode': 'export', 'fileName': fileName},
@@ -1258,6 +1313,15 @@ void main() {
                       .phase ==
                   FilesEntryActionPhase.exportedEntry,
               const Duration(seconds: 90),
+            );
+            final output = await requireNativeDualExportDestination(
+              documents,
+              beforeExport,
+              container
+                  .read(filesProvider)
+                  .requireValue
+                  .entryActionStatus
+                  .destination,
             );
             expect(
               await output.readAsString(),
@@ -1638,6 +1702,14 @@ void main() {
             };
           case 'finish':
             expect(
+              accessibilityScreens,
+              containsAll(['home', 'chat', 'calendar', 'files']),
+            );
+            scenarios['accessibility'] = {
+              'status': 'passed',
+              'evidence': 'flutter-ui',
+            };
+            expect(
               scenarios.keys.toSet(),
               containsAll([
                 'authentication',
@@ -1651,6 +1723,27 @@ void main() {
             );
           default:
             throw TestFailure('Unsupported private collaboration command.');
+        }
+        for (final screen in ['chat', 'calendar', 'files']) {
+          if (action.startsWith('$screen-')) {
+            await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+            await expectLater(
+              tester,
+              meetsGuideline(labeledTapTargetGuideline),
+            );
+            accessibilityScreens.add(screen);
+          }
+        }
+        if (accessibilityScreens.containsAll([
+          'home',
+          'chat',
+          'calendar',
+          'files',
+        ])) {
+          scenarios['accessibility'] = {
+            'status': 'passed',
+            'evidence': 'flutter-ui',
+          };
         }
         sequence = next;
         if (fileId != null) {
@@ -1725,6 +1818,8 @@ Future<void> _filePreview(
     const Duration(seconds: 90),
   );
   expect(tester.widget<SelectableText>(content).data, expected);
+  await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+  await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
   await _tap(
     tester,
     find.widgetWithText(
@@ -2131,6 +2226,8 @@ Future<void> editNativeDualCalendarEvent(
   if (!DateTime.now().isBefore(deadline)) {
     throw TestFailure('The real Calendar editor action deadline expired.');
   }
+  await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+  await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
   await _tap(
     tester,
     find.widgetWithText(FilledButton, copy.calendarSaveButton),

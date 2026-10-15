@@ -579,6 +579,14 @@ void main() {
             await tester.pump();
             await tester.tap(peer);
             await tester.pumpAndSettle();
+            expect(
+              find.text(
+                AppLocalizations.of(
+                  tester.element(peer),
+                ).chatDirectParticipantRequired,
+              ),
+              findsNothing,
+            );
             final create = find.byKey(
               const Key('chat-create-conversation-submit-button'),
             );
