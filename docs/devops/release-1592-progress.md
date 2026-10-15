@@ -2,6 +2,38 @@
 
 This is an implementation and evidence record. The pinned specification corpus remains normative. No automation or human result is implied by a plan or a merged specification.
 
+## Current checkpoint — October 15, 2026 UTC
+
+The accepted corpus is `2c35d0304efe04f6cae1a7bba9f244004e017d29`, accepted through [specification PR #157](https://github.com/masssi164/weave-specs/pull/157) and pinned by the local release branch. It adds the reviewed local-feedback lifecycle and seven ISO 9241-110:2020 operational UX criteria. The corpus remains normative; this document records implementation and evidence. Protected Dogfood still points to `18a18bd573b9c190448e81c49ec899f72011c4a3` with its earlier pin. The release is **not ready for HIL**.
+
+[PR1634](https://github.com/masssi164/weave/pull/1634) remains draft HOLD while local feedback is completed. Local implementation commit `6869a4c584da08d9fa65c87889855977ab96b332` includes reviewed Server/protocol member-name projection, just-in-time browser authentication for negative-probe fixtures, and the current native client batch. No qualification or deployment is implied by these commits.
+
+### Architecture and demonstrated corrections
+
+- OrgManifest v2 at generated User `GET /api/platform/config` remains the only bootstrap contract. Files and Calendar use the generated User API; native Matrix uses the accepted Weave facade. Retired discovery routes, provider configuration and proprietary Chat REST are not additional client authorities.
+- Actual native export inspection demonstrated that the old picker removed and rewrote a colliding Documents file before Save confirmation. Maintained `file_picker` 13.1.0 with `file_picker_darwin` 2.3.2 stages in app temporary storage before presenting the export picker. Its required compatible closure includes `package_info_plus` 10.2.2 and Android Gradle Plugin 8.12.1. Both maintained picker 12 and 13 actually failed resolution against the prior win32 dependency. Existing platform minimums already satisfy the update; no product OS minimum changed. Central import/export uses the supported single-file/lazy-stream/URI API, removes obsolete manual path adapters, preserves bounded reads and cancellation, and keeps opaque platform URIs out of feedback. Actual new-native collision/cancellation behavior remains to be executed. Android compilation was not run because the local SDK is absent.
+- Server uses the existing canonical member-profile authority for authorized Matrix membership names. A deterministic membership-state revision advances the opaque sync token when names change or clear, even when the message cursor is unchanged. The client reads each distinct sender once from the existing SDK member store within its receive transaction and passes optional presentation metadata through the existing JSON boundary. Identity, admission and encryption checks are unchanged. This adds no REST profile lookup, name cache, database, bridge ABI or duplicate Chat ledger.
+- Long builds or inspection can outlast fixture refresh-grant idle limits. Existing C/admin/peer backend probes now obtain fresh fixture sessions through the existing real browser PKCE journey at request time, then verify immutable subject/client/role/organization. Strict read/mutation denials, current versions, protected-content readback and revoke/regrant remain. Native A/B sessions are not replaced by fixture tokens.
+- Actual logout exposed an obsolete invitation/Dogfood card with missing metadata on the saved-organization sign-in gate. The gate now presents the validated organization and system-browser guidance; internal support-stage recording is preserved. Files dates use the current app locale. Existing Chat title, own-message/local-time, Calendar guidance, selected-export verification and screen-specific accessibility corrections remain in the batch.
+
+### Executed local evidence and limits
+
+The [local Computer Use checkpoint](https://github.com/masssi164/weave/issues/1592#issuecomment-6203774607) records two concurrent real Flutter iOS apps with independent URL/invitation entry and browser sessions. The host/backend/native build was `548421a12aeaa286cae7273c5fd1c5fe7413f1b9`; resident Dart subsequently loaded reviewed `7c81f28b974e1c3fa07a179329573dd8ed04ceaa`, verified from current library sources. Actual UI outcomes included bidirectional Chat, two network-loss/recovery cycles without duplicates, shared Calendar create/read/update/read/delete/peer removal, real Files upload/replacement/fresh upload/peer content and selected export bytes, and A logout with B still refreshing/opening shared Files. These mixed-source observations are exploratory checkpoints, not exact-candidate release qualification.
+
+| Focused validation | Verified outcome |
+| --- | --- |
+| Native client adapters, repositories, bridge and screens | 100 Flutter tests passed; a restored-source 55-test closure cohort passed and overlaps the first cohort |
+| Native SDK | 27 unit and 3 integration tests passed; a subsequently strengthened unchanged-message-cursor profile test passed separately |
+| Old UI controls |Compiled old German dates and old EN/DE sign-in UI failed the expected behavioral assertions; corrected source bytes were restored and verified |
+| Analysis and source consistency |Full client analysis, changed Dart/Rust format checks, enforced dependency lock and both Apple pod installations passed |
+| Server/protocol and JVM fixtures | 71 focused Server tests, 8 protocol tests and 74 product-E2E module tests passed at their reviewed source boundaries |
+
+The local run closed deliberately through the existing nonqualification operation. Native and outer teardown completed; independent inventories found zero remaining owned simulators, processes, containers, networks, volumes or private run directories. Private evidence and original failures were retained. No persistent Dogfood reset was repeated. No new comparable whole-CI runtime improvement is claimed.
+
+The next local run must execute the rebuilt picker and SDK consumer, actual peer-name updates, current authorization/revocation and lifecycle/expiry/refresh/accessibility requirements. Protected Compose, macOS and dual-iOS qualification, exact deployment, physical development-signing preparation and explicit human outcomes remain required. The last protected [Full #38781249459](https://github.com/masssi164/weave/actions/runs/38781249459) failed and deployment was skipped; its macOS pass does not qualify changed source. #1470 and #1481 remain open, and Project delivery remains E2E Testing.
+
+Earlier dated sections below preserve historical decisions and evidence; their revision-specific statements do not override this checkpoint or the pinned corpus.
+
 ## Scope and authority
 
 Primary task type: `cross-repo-contract`. The accepted corpus governs bootstrap, delivery and persistence; this monorepo implements and records evidence. Scoped client, Server, infrastructure and native-test work uses separate worktrees; the integration branch preserves the existing release issue graph and unrelated checkout changes.
@@ -16,10 +48,10 @@ Primary task type: `cross-repo-contract`. The accepted corpus governs bootstrap,
 | Historical enterprise/Candidate Cut bootstrap controlling release | Superseded documents and optional fixture tasks still appeared in an old aggregate gate | Align the deterministic release aggregate with accepted direct Compose delivery; keep historical provenance without reinstating its architecture |
 | Issue, branch and candidate statuses conflated | Historical Project fields have different meanings; accepted delivery requires verified candidate evidence | Keep existing Status and Delivery stage fields; actual promotion validator gates HIL/Main and rejects superseded candidates |
 
-## Accepted decisions and contradiction resolution
+## Earlier accepted decisions and contradiction resolution
 
 - Corpus PR155 merged at `b8b5f11f18b5cee9ddca8b095f498a721351a61e`: OrgManifest v2 is the single bootstrap contract delivered through generated User `GET /api/platform/config`. The obsolete v1 `/api/organization/manifest` route/model and generated-client postprocessor were redundant authorities and have been removed. Domain capability queries remain authenticated per-member product authorization, not a second bootstrap contract.
-- Existing corpus PR115 was narrowed to the persistence authority discrepancy and merged at `2f73c9d0962d86cd797c95b7ed0894c9337ccc11`. ADR0023 supersedes the older Hibernate-update epoch while preserving Java/Spring/JPA boundaries and the immutable Flyway migration history already on Main. The lock now pins this accepted revision.
+- Existing corpus PR115 was narrowed to the persistence authority discrepancy and merged at `2f73c9d0962d86cd797c95b7ed0894c9337ccc11`. ADR0023 supersedes the older Hibernate-update epoch while preserving Java/Spring/JPA boundaries and the immutable Flyway migration history already on Main. The implementation initially pinned that accepted revision; the current checkpoint identifies the later accepted pin.
 - Files and Calendar remain generated User API consumers; Matrix uses the accepted native Client-Server facade. No provider discovery, northbound DAV, independent Matrix OAuth registration, deferred Runner or Calls scope is added.
 - Existing private Files rows already carried workspace references. A forward V13 PRIVATE/SPACE discriminator preserves existing privacy instead of inferring shared access. Shared access uses current Space grants; creator provenance is not global permission.
 - Persisted client profiles now contain only organization origin, validated manifest and validation time. Transport values are derived, and origin-bearing legacy profiles are one-way migration input requiring fresh bootstrap before authentication.
