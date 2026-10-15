@@ -28,6 +28,15 @@ APP = CLIENT / "build/macos/Build/Products/Debug/weave.app"
 COMPOSE = CLIENT.parent / "infra/weave-workspace/compose.sh"
 
 
+def native_organization_origin(run_id: str) -> str:
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,39}", run_id) is None:
+        raise RuntimeError("An owned native run ID is required")
+    # Reuse the existing owner-only, run-bound Full handoff validation.
+    from run_dual_ios_collaboration import private_input
+    value = private_input(CLIENT / 'build/private-ios-qualification' / ('dual-ios-input-' + run_id + '.json'), run_id)
+    return value['publicOrigin']
+
+
 def require(name: str) -> str:
     value = os.environ.get(name, "")
     if not value:
@@ -319,6 +328,21 @@ def restart_disposable_services(env: dict[str, str]) -> None:
           "keycloak=healthy postgres=healthy supportSafe=true", flush=True)
 
 
+def clear_owned_preferences(bundle: str, run_id: str) -> None:
+    if bundle != "com.masssi164.weave.nativeacceptance" or re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._-]{0,39}", run_id
+    ) is None:
+        raise RuntimeError("native owned preference cleanup input is invalid")
+    result = subprocess.run(
+        ["swift", str(DRIVER), "--clear-owned-preferences", bundle, run_id],
+        cwd=CLIENT, capture_output=True, text=True, timeout=30,
+    )
+    marker = "NATIVE_PREFERENCES_CLEANUP_RESULT status=passed scope=owned-run"
+    if result.returncode or result.stdout.strip() != marker:
+        raise RuntimeError("native owned preference cleanup failed")
+    print(marker, flush=True)
+
+
 def main() -> int:
     email = require("WEAVE_NATIVE_MEMBER_EMAIL")
     password = require("WEAVE_NATIVE_MEMBER_PASSWORD")
@@ -327,11 +351,12 @@ def main() -> int:
     matrix = require("WEAVE_NATIVE_MATRIX_URL")
     ca = Path(require("WEAVE_NATIVE_CA"))
     run_id = require("WEAVE_E2E_RUN_ID")
+    organization_origin = native_organization_origin(run_id)
     signing_team = require("WEAVE_NATIVE_SIGNING_TEAM")
     signing_bundle = require("WEAVE_NATIVE_SIGNING_BUNDLE_ID")
     if not re.fullmatch(r"[A-Z0-9]{10}", signing_team):
         raise RuntimeError("invalid native signing team")
-    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*){2,}", signing_bundle):
+    if signing_bundle != "com.masssi164.weave.nativeacceptance":
         raise RuntimeError("invalid native signing bundle ID")
     if not ca.is_file() or urlparse(issuer).hostname != "auth.weave.localhost":
         raise RuntimeError("native acceptance requires the disposable localhost IdP")
@@ -401,6 +426,7 @@ def main() -> int:
             "WEAVE_PHYSICAL_DEVICE_ID": "macos",
             "WEAVE_DEVICE_DISPOSABLE_STACK": "true",
             "WEAVE_DEVICE_API_BASE_URL": api,
+            "WEAVE_DEVICE_ORGANIZATION_ORIGIN": organization_origin,
             "WEAVE_DEVICE_OIDC_ISSUER_URL": issuer,
             "WEAVE_DEVICE_MATRIX_HOMESERVER_URL": matrix,
             "WEAVE_NATIVE_TEST_RUN_ID": run_id,
@@ -584,6 +610,12 @@ def main() -> int:
             if diagnostics and not accepted:
                 print("NATIVE_FLUTTER_DIAGNOSTIC status=retainedPrivate", flush=True)
             stop_checkout_app()
+            try:
+                clear_owned_preferences(signing_bundle, run_id)
+            except Exception:
+                print("NATIVE_PREFERENCES_CLEANUP_RESULT status=failed scope=owned-run", flush=True)
+                if accepted:
+                    raise RuntimeError("native owned preference cleanup failed") from None
     return 0
 
 

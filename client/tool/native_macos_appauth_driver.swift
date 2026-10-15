@@ -50,6 +50,66 @@ func fail(_ stage: String) -> Never {
   exit(1)
 }
 
+// Runs before Accessibility checks and never reads preference values.
+if CommandLine.arguments.count > 1 && CommandLine.arguments[1] == "--clear-owned-preferences" {
+  guard CommandLine.arguments.count == 4,
+        CommandLine.arguments[2] == "com.masssi164.weave.nativeacceptance",
+        CommandLine.arguments[3].range(of: #"\A[A-Za-z0-9][A-Za-z0-9._-]{0,39}\z"#,
+          options: .regularExpression) != nil else { fail("owned-preferences-input") }
+  func ownedAttributes(_ path: String) -> [FileAttributeKey: Any]? {
+    do { return try FileManager.default.attributesOfItem(atPath: path) }
+    catch let error as NSError {
+      guard error.domain == NSCocoaErrorDomain &&
+        [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains(error.code) else {
+        fail("owned-preferences-container")
+      }
+      return nil
+    }
+  }
+  let bundle = CommandLine.arguments[2]
+  let runID = CommandLine.arguments[3]
+  let prefix = "weave.native-acceptance.\(runID.utf8.count):\(runID)."
+  var domains = [bundle]
+  let home = FileManager.default.homeDirectoryForCurrentUser
+  let container = home.appendingPathComponent("Library/Containers/" + bundle)
+  if ownedAttributes(container.path) != nil {
+    var path = home
+    for component in ["Library", "Containers", bundle, "Data", "Library", "Preferences"] {
+      path.appendPathComponent(component)
+      guard let attributes = ownedAttributes(path.path),
+            attributes[.type] as? FileAttributeType == .typeDirectory,
+            (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == getuid(),
+            FileManager.default.isReadableFile(atPath: path.path),
+            FileManager.default.isWritableFile(atPath: path.path) else {
+        fail("owned-preferences-container")
+      }
+    }
+    let domainPath = path.appendingPathComponent(bundle).path
+    let file = domainPath + ".plist"
+    if let attributes = ownedAttributes(file) {
+      guard
+            attributes[.type] as? FileAttributeType == .typeRegular,
+            (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == getuid() else {
+        fail("owned-preferences-container")
+      }
+    }
+    domains.append(domainPath)
+  }
+  for value in domains {
+    let domain = value as CFString
+    let keys = CFPreferencesCopyKeyList(domain, kCFPreferencesCurrentUser,
+      kCFPreferencesAnyHost) as? [String] ?? []
+    for key in keys where key.hasPrefix(prefix) {
+      CFPreferencesSetValue(key as CFString, nil, domain,
+        kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+    }
+    guard CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser,
+      kCFPreferencesAnyHost) else { fail("owned-preferences-synchronize") }
+  }
+  print("NATIVE_PREFERENCES_CLEANUP_RESULT status=passed scope=owned-run")
+  exit(0)
+}
+
 if CommandLine.arguments.count == 2 && CommandLine.arguments[1] == "--check-accessibility" {
   let trusted = AXIsProcessTrusted()
   print("NATIVE_ACCESSIBILITY_RESULT status=\(trusted ? "passed" : "denied")")
