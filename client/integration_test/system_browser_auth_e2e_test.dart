@@ -34,6 +34,7 @@ import 'package:weave/features/chat/data/repositories/matrix_device_identity_rep
 import 'package:weave/features/chat/data/repositories/native_matrix_chat_repository.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
@@ -769,7 +770,7 @@ void main() {
           isEmpty,
         );
         await expectLater(
-          chat.loadRoomTimeline(roomId),
+          nativeRoomDenialProbe(chat.loadRoomTimeline(roomId)),
           throwsA(
             isA<ChatFailure>().having(
               (failure) => failure.type,
@@ -1441,6 +1442,39 @@ Future<void> prepareNativeCanonicalOrganization(
 }
 
 bool _preserveNativePreferencesForRestore = false;
+
+Future<ChatRoomTimeline> nativeRoomDenialProbe(
+  Future<ChatRoomTimeline> read,
+) async {
+  try {
+    return await read;
+  } on ChatFailure catch (failure) {
+    const allowed = {
+      'M_FORBIDDEN',
+      'M_NOT_FOUND',
+      'M_WEAVE_CHAT_JOIN_REQUIRED',
+      'M_UNKNOWN_TOKEN',
+      'M_MISSING_TOKEN',
+      'M_WEAVE_MATRIX_SESSION_EXPIRED',
+      'M_WEAVE_E2EE_SYNC',
+      'M_WEAVE_E2EE_TIMELINE',
+    };
+    final cause = failure.cause;
+    final code =
+        cause is RustMatrixCoreBridgeException && allowed.contains(cause.code)
+        ? cause.code
+        : 'unavailable';
+    safelyReportNativeBootstrapFailure(
+      report: () => _nativeProductDiagnostic(
+        'NATIVE_PRODUCT_STAGE phase=room-denial-observed type=${failure.type.name} causeCode=$code supportSafe=true',
+      ),
+      unavailable: () => _nativeProductDiagnostic(
+        'NATIVE_PRODUCT_STAGE phase=room-denial-diagnostic-unavailable',
+      ),
+    );
+    rethrow;
+  }
+}
 
 void expectNativeMatrixEndpoint(Uri? actual, Uri expected) {
   expect(actual, isNotNull);

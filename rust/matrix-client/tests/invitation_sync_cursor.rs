@@ -88,3 +88,44 @@ fn invitation_requires_a_new_canonical_sync_cursor() {
         assert_eq!(client.rooms()[0].name().as_deref(), Some("Room"));
     });
 }
+
+#[test]
+fn joined_room_becomes_left_without_remaining_in_the_joined_projection() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let client = BaseClient::new(
+            StoreConfig::new(CrossProcessLockConfig::SingleProcess),
+            ThreadingSupport::Disabled,
+            DmRoomDefinition::default(),
+        );
+        let who: Value = serde_json::from_str(&weave_matrix_protocol::project_json_or_error(
+            "whoami".into(),
+            json!({"subject":"member", "identityIssuer":"https://issuer.test", "deviceId":"DEVICE0001"}).to_string(),
+            "api.weave.test".into(),
+        )).unwrap();
+        client.activate(SessionMeta {
+            user_id: who["user_id"].as_str().unwrap().try_into().unwrap(),
+            device_id: "DEVICE0001".into(),
+        }, RoomLoadSettings::default(), None).await.unwrap();
+        let project = |cursor: &str, joined: bool| -> Value {
+            serde_json::from_str(&weave_matrix_protocol::project_json_or_error(
+                "sync".into(),
+                json!({"subject":"user:member", "identityIssuer":"https://issuer.test", "cursor":cursor,
+                    "conversations":if joined { json!([{"conversationId":"owned-room", "title":"Room",
+                        "memberships":[{"memberRef":"user:member", "state":"joined"}]}]) } else { json!([]) },
+                    "leftRooms":if joined { vec![] } else { vec!["owned-room"] } }).to_string(),
+                "api.weave.test".into(),
+            )).unwrap()
+        };
+        client.receive_sync_response(response(project("chat-revision-1", true))).await.unwrap();
+        assert_eq!(client.rooms().len(), 1);
+        let room = client.rooms()[0].clone();
+        assert_eq!(room.state(), RoomState::Joined);
+        client.receive_sync_response(response(project("chat-revision-2", false))).await.unwrap();
+        assert_eq!(room.state(), RoomState::Left);
+        assert!(client.rooms().iter().all(|room| room.state() != RoomState::Joined));
+    });
+}
