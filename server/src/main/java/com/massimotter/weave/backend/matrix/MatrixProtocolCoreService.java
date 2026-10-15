@@ -315,7 +315,7 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
         }
     }
 
-    public record CanonicalMembership(String memberRef, String state) {}
+    public record CanonicalMembership(String memberRef, String state, String displayName) {}
 
     public record CanonicalMessage(
             String messageId,

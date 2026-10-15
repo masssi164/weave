@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
+import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
@@ -431,8 +432,9 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.next_batch")
-                        .value("weave.s1.636861742d7265766973696f6e2d377c653265653a76323a303a30"))
+                .andExpect(result -> assertThat(matrixProtocolCoreService.decodeSyncCursor(
+                        objectMapper.readTree(result.getResponse().getContentAsString()).path("next_batch").asString()))
+                        .isEqualTo("chat-revision-7|e2ee:v2:0:0"))
                 .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].state.events[0].content.name")
                         .value("General"))
                 .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.events[0].content.body")
@@ -441,6 +443,108 @@ class MatrixClientServerProjectionControllerTest {
                         .value(false))
                 .andExpect(content().string(not(containsString("providerAccessToken"))))
                 .andExpect(content().string(not(containsString("homeserver"))));
+    }
+
+    @Test
+    void canonicalNamesAreHydratedOnceAcrossRoomsAndRenamesChangeOnlyMembershipEventIdentity() throws Exception {
+        stubConversation();
+        var room = conversations().conversations().getFirst();
+        var second = new ChatConversation("second-room", "Second", room.kind(), room.state(), room.memberImpact(),
+                room.updatedAt(), room.encryptionState(), room.historyPolicy(), room.memberships(), List.of());
+        when(chatDomainFacadeService.conversations(any())).thenReturn(new ChatConversations(readiness(), List.of(room, second)));
+        when(chatDomainFacadeService.timelineWindow(eq("second-room"), any(), eq(100)))
+                .thenReturn(new ChatDomainFacadeService.ChatTimelineWindow(new ChatTimeline("second-room", List.of()), false));
+        when(memberDisplayNames.displayNames(any(), eq(List.of("alice"))))
+                .thenReturn(Map.of("alice", "Alice Original"), Map.of("alice", "Alice Updated"));
+        var first = mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].state.events[1].content.displayname").value("Alice Original"))
+                .andExpect(jsonPath("$.rooms.join['!second-room:api.weave.test'].state.events[1].content.displayname").value("Alice Original"))
+                .andReturn();
+        verify(memberDisplayNames, times(1)).displayNames(any(), eq(List.of("alice")));
+        String since = objectMapper.readTree(first.getResponse().getContentAsString()).path("next_batch").asString();
+        when(chatDomainFacadeService.syncDelta(any(), eq("chat-revision-7"), eq(100)))
+                .thenReturn(new ChatDomainFacadeService.ChatSyncDelta("chat-revision-7", Map.of("channel-general", timeline().events())));
+        var renamed = mockMvc.perform(get("/_matrix/client/v3/sync").param("since", since).with(workspaceJwt())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].state.events[1].content.displayname").value("Alice Updated"))
+                .andReturn();
+        String renamedToken = objectMapper.readTree(renamed.getResponse().getContentAsString()).path("next_batch").asString();
+        assertThat(renamedToken).isNotEqualTo(since);
+        assertThat(matrixProtocolCoreService.decodeSyncCursor(renamedToken)).isEqualTo(matrixProtocolCoreService.decodeSyncCursor(since));
+        String path = "/rooms/join/!channel-general:api.weave.test";
+        var oldRoom = objectMapper.readTree(first.getResponse().getContentAsString()).at(path);
+        var newRoom = objectMapper.readTree(renamed.getResponse().getContentAsString()).at(path);
+        assertThat(newRoom.at("/state/events/1/event_id").asString()).isNotEqualTo(oldRoom.at("/state/events/1/event_id").asString());
+        assertThat(newRoom.at("/state/events/1/state_key").asString()).isEqualTo(oldRoom.at("/state/events/1/state_key").asString())
+                .startsWith("@acct_");
+        assertThat(newRoom.at("/timeline/events/0/event_id").asString()).isEqualTo(oldRoom.at("/timeline/events/0/event_id").asString());
+        verify(memberDisplayNames, times(2)).displayNames(any(), eq(List.of("alice")));
+        // A removed name must also reach the SDK with unchanged Chat/crypto positions.
+        when(memberDisplayNames.displayNames(any(), eq(List.of("alice")))).thenReturn(Map.of());
+        var cleared = mockMvc.perform(get("/_matrix/client/v3/sync").param("since", renamedToken).with(workspaceJwt()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].state.events[1].content.displayname").doesNotExist())
+                .andReturn();
+        String clearedToken = objectMapper.readTree(cleared.getResponse().getContentAsString()).path("next_batch").asString();
+        assertThat(clearedToken).isNotEqualTo(renamedToken);
+        assertThat(matrixProtocolCoreService.decodeSyncCursor(clearedToken)).isEqualTo("chat-revision-7|e2ee:v2:0:0");
+        var unchanged = mockMvc.perform(get("/_matrix/client/v3/sync").param("since", clearedToken).with(workspaceJwt()))
+                .andExpect(status().isOk()).andReturn();
+        assertThat(objectMapper.readTree(unchanged.getResponse().getContentAsString()).path("next_batch").asString()).isEqualTo(clearedToken);
+    }
+
+    @Test
+    void memberStateAndMembersUseCanonicalNamesAndMissingNameNeverFallsBackToSubject() throws Exception {
+        stubConversation();
+        when(memberDisplayNames.displayNames(any(), eq(List.of("alice")))).thenReturn(Map.of("alice", "Alice Example"));
+        mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/members").with(workspaceJwt()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.chunk[0].content.displayname").value("Alice Example"));
+        mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/state").with(workspaceJwt()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[1].content.displayname").value("Alice Example"));
+        mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/state/m.room.member/@acct_3b46d7c8589dfad60e9e8f2156df0700:api.weave.test").with(workspaceJwt()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.displayname").value("Alice Example"));
+        when(memberDisplayNames.displayNames(any(), eq(List.of("alice")))).thenReturn(Map.of());
+        mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/joined_members").with(workspaceJwt()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.joined['@acct_3b46d7c8589dfad60e9e8f2156df0700:api.weave.test'].display_name").doesNotExist());
+        mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].state.events[1].content.displayname").doesNotExist());
+    }
+
+    @Test
+    void profileNamesRequireCurrentAdmissionAndNeverFallBackToRawIdentity() throws Exception {
+        String peerId = matrixProtocolCoreService.userId("user:peer-subject");
+        var peer = new MatrixFacadeClientStateStore.IdentityProjection("tenant-default",
+                "https://auth.example.invalid/realms/acme", peerId, "user:peer-subject", "user:peer-principal", Instant.now());
+        when(stateStore.identityProjection(eq(peer.tenantId()), eq(peer.identityIssuer()), eq(peerId)))
+                .thenReturn(java.util.Optional.of(peer));
+        mockMvc.perform(get("/_matrix/client/v3/profile/" + peerId).with(workspaceJwt()))
+                .andExpect(status().isNotFound());
+        verifyNoInteractions(memberDisplayNames);
+        when(chatDomainFacadeService.canDiscoverParticipant(any(), any())).thenReturn(true);
+        when(memberDisplayNames.displayNames(any(), eq(List.of("peer-subject"))))
+                .thenReturn(Map.of("peer-subject", "Peer Example"));
+        mockMvc.perform(get("/_matrix/client/v3/profile/" + peerId).with(workspaceJwt()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.displayname").value("Peer Example"));
+        when(memberDisplayNames.displayNames(any(), eq(List.of("peer-subject")))).thenReturn(Map.of());
+        mockMvc.perform(get("/_matrix/client/v3/profile/" + peerId).with(workspaceJwt()))
+                .andExpect(status().isNotFound()).andExpect(content().string(not(containsString("peer-subject"))));
+    }
+
+    @Test
+    void forbiddenRoomAndProfileNeverReachNameAuthorityAndOutageIsSupportSafe() throws Exception {
+        when(chatDomainFacadeService.conversation(any(), any())).thenThrow(new ChatAccessDeniedException());
+        for (String suffix : List.of("/members", "/joined_members", "/state", "/state/m.room.member/@acct_hidden:api.weave.test")) {
+            mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test" + suffix).with(workspaceJwt()))
+                    .andExpect(status().isForbidden());
+        }
+        doAnswer(call -> { throw new ChatAccessDeniedException(); }).when(chatDomainFacadeService).requireParticipantDiscovery(any());
+        mockMvc.perform(get("/_matrix/client/v3/profile/@acct_hidden:api.weave.test").with(workspaceJwt()))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(memberDisplayNames);
+        org.mockito.Mockito.reset(chatDomainFacadeService);
+        stubConversation();
+        when(memberDisplayNames.displayNames(any(), any())).thenThrow(new IllegalStateException("private provider detail"));
+        mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt())).andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.errcode").value("M_UNAVAILABLE"))
+                .andExpect(content().string(not(containsString("private provider detail"))));
     }
 
     @Test
@@ -861,6 +965,20 @@ class MatrixClientServerProjectionControllerTest {
                 .getResponse()
                 .getContentAsString();
         String nextBatch = objectMapper.readTree(firstSync).path("next_batch").asString();
+        String decoded = matrixProtocolCoreService.decodeSyncCursor(nextBatch);
+        assertThat(decoded).contains("|e2ee:v2:");
+        String legacyToken = "weave.s1." + java.util.HexFormat.of().formatHex(decoded.getBytes(StandardCharsets.UTF_8));
+        String currentKeyChanges = mockMvc.perform(get("/_matrix/client/v3/keys/changes").queryParam("from", nextBatch)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(secondDevice))
+                        .with(workspaceJwt("second-session")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String legacyKeyChanges = mockMvc.perform(get("/_matrix/client/v3/keys/changes").queryParam("from", legacyToken)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
+                        .header(MatrixDeviceProofService.DEVICE_PROOF_HEADER, deviceProof(secondDevice))
+                        .with(workspaceJwt("second-session")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(objectMapper.readTree(currentKeyChanges)).isEqualTo(objectMapper.readTree(legacyKeyChanges));
 
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .queryParam("since", nextBatch)
@@ -1233,11 +1351,12 @@ class MatrixClientServerProjectionControllerTest {
     @Test
     void stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat() throws Exception {
         stubConversation();
+        when(memberDisplayNames.displayNames(any(), eq(List.of("alice")))).thenReturn(Map.of("alice", "Alice Example"));
 
         mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/joined_members")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.joined['@acct_3b46d7c8589dfad60e9e8f2156df0700:api.weave.test'].display_name").value("alice"));
+                .andExpect(jsonPath("$.joined['@acct_3b46d7c8589dfad60e9e8f2156df0700:api.weave.test'].display_name").value("Alice Example"));
 
         mockMvc.perform(post("/_matrix/client/v3/rooms/!channel-general:api.weave.test/receipt/m.read/$msg-1:api.weave.test")
                         .with(workspaceJwt())
@@ -1325,6 +1444,8 @@ class MatrixClientServerProjectionControllerTest {
     @Test
     void roomLifecycleStateAndProfileProjectCanonicalChat() throws Exception {
         stubConversation();
+        when(memberDisplayNames.displayNames(any(), eq(List.of("user@example.com"))))
+                .thenReturn(Map.of("user@example.com", "Current Member"));
         when(chatDomainFacadeService.createConversation(
                 any(),
                 eq("General"),
@@ -1358,7 +1479,7 @@ class MatrixClientServerProjectionControllerTest {
         mockMvc.perform(get("/_matrix/client/v3/profile/@acct_c0d500fee3a1efb1aa74f6432cc73bbb:api.weave.test")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.displayname").value("user@example.com"));
+                .andExpect(jsonPath("$.displayname").value("Current Member"));
 
         mockMvc.perform(post("/_matrix/client/v3/rooms/!channel-general:api.weave.test/leave")
                         .with(workspaceJwt())

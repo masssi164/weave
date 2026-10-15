@@ -463,7 +463,7 @@ class JpaCanonicalChatStoreTest {
         ChatInvitation pending = adapter.invitedConversations(peer, "", 100).getFirst();
         var projection = new MatrixProtocolCoreService.CanonicalConversation(pending.conversationId(),
                 pending.title(), pending.updatedAt().toEpochMilli(), 0, null,
-                List.of(new MatrixProtocolCoreService.CanonicalMembership(pending.membership().memberRef(), "invited")),
+                List.of(new MatrixProtocolCoreService.CanonicalMembership(pending.membership().memberRef(), "invited", null)),
                 List.of(), false, null, pending.inviterRef().value());
         var changed = core.sync(peer.actorRef().value(), invitedCursor, (String) initial.get("next_batch"), List.of(projection));
         assertThat(changed.get("next_batch")).isNotEqualTo(initial.get("next_batch"));
@@ -542,7 +542,7 @@ class JpaCanonicalChatStoreTest {
                 "api.weave.test", collaborator.identityIssuer());
         var projected = new MatrixProtocolCoreService.CanonicalConversation(
                 committed.conversationId(), committed.title(), committed.updatedAt().toEpochMilli(), 0, null,
-                ownInvitation.stream().map(member -> new MatrixProtocolCoreService.CanonicalMembership(member.memberRef(), member.state())).toList(),
+                ownInvitation.stream().map(member -> new MatrixProtocolCoreService.CanonicalMembership(member.memberRef(), member.state(), null)).toList(),
                 List.of(), false, null, metadata.inviterRef().value());
         Map<String, Object> sync = core.sync(collaborator.actorRef().value(), "chat-revision-1", null, List.of(projected));
         Map<?, ?> rooms = (Map<?, ?>) sync.get("rooms");

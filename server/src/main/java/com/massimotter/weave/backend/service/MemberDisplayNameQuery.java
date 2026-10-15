@@ -62,13 +62,30 @@ public final class MemberDisplayNameQuery implements com.massimotter.weave.backe
         Set<String> subjects = Set.copyOf(admittedSubjects);
         if (subjects.isEmpty()) return Map.of();
         Map<String, String> result = new LinkedHashMap<>();
-        for (var member : identities.members(identities.configuredOrganizationId())) {
-            if (!subjects.contains(member.subject()) || !member.enabled() || member.roles().size() != 1) continue;
-            var profile = profiles.findByPrimaryIdentityKey(
-                    IdentityReferences.primaryIdentityKey(caller.issuer(), member.subject()));
-            String name = profile != null && profile.displayName() != null && !profile.displayName().isBlank()
-                    ? profile.displayName() : member.displayName();
-            if (name != null && !name.isBlank()) result.put(member.subject(), name);
+        String organization = identities.configuredOrganizationId();
+        for (String subject : subjects) {
+            if (subject == null || subject.isBlank()) {
+                throw new IllegalStateException("Member display name authority is unavailable");
+            }
+            try {
+                // Admission has already bounded these subjects. Do not scan the organization
+                // or repeat identity reads for each message in a room timeline.
+                var member = identities.requireMember(organization, subject);
+                if (member == null) throw new IllegalStateException("Member display name authority is unavailable");
+                if (!subject.equals(member.subject()) || !member.enabled() || member.roles().size() != 1
+                        || !Set.of("owner", "admin", "member", "guest").contains(member.roles().getFirst())) continue;
+                var profile = profiles.findByPrimaryIdentityKey(
+                        IdentityReferences.primaryIdentityKey(caller.issuer(), subject));
+                String name = profile != null && profile.displayName() != null && !profile.displayName().isBlank()
+                        ? profile.displayName() : member.displayName();
+                if (name != null && !name.isBlank()) result.put(subject, name);
+            } catch (KeycloakIdentityAdminClient.KeycloakAdminException error) {
+                if (error.status() != 404) {
+                    throw new IllegalStateException("Member display name authority is unavailable");
+                }
+            } catch (RuntimeException error) {
+                throw new IllegalStateException("Member display name authority is unavailable");
+            }
         }
         return Map.copyOf(result);
     }
