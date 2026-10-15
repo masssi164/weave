@@ -4718,43 +4718,6 @@
         ],
         "type": "object"
       },
-      "Organization": {
-        "properties": {
-          "displayName": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "OrganizationAccessDiscovery": {
-        "properties": {
-          "apiBaseUrl": {
-            "type": "string"
-          },
-          "capabilities": {
-            "additionalProperties": {
-              "type": "boolean"
-            },
-            "type": "object"
-          },
-          "contractVersion": {
-            "type": "string"
-          },
-          "oidcClientId": {
-            "type": "string"
-          },
-          "oidcIssuer": {
-            "type": "string"
-          },
-          "organization": {
-            "$ref": "#/components/schemas/Organization"
-          }
-        },
-        "type": "object"
-      },
       "OrganizationBootstrapRequest": {
         "description": "Admin-owned first-use organization bootstrap contract for existing or newly provisioned organizations.",
         "properties": {
@@ -7376,26 +7339,6 @@
   },
   "openapi": "3.1.0",
   "paths": {
-    "/.well-known/weave": {
-      "get": {
-        "operationId": "discover",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrganizationAccessDiscovery"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "organization-access-discovery-controller"
-        ]
-      }
-    },
     "/api/admin/audit/events": {
       "get": {
         "operationId": "listAdminAuditEvents",
