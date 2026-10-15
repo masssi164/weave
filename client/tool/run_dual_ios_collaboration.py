@@ -390,6 +390,7 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
                        'initialContent': initial_content, 'replacementContent': replacement_content}
     fixture_path = support / 'weave-dual-ios-input.json'
     fixture_path.write_text(json.dumps(runtime_fixture)); fixture_path.chmod(0o600)
+    publish_private_json(support / 'weave-dual-ios-result.json', {})
     started_at = ios.simulator_vm.log_start_timestamp()
     launch = ios.run(['xcrun', 'simctl', 'launch', udid, ios.BUNDLE, '--enable-dart-profiling',
                       '--disable-vm-service-publication', '--start-paused'], env=env).strip()
@@ -706,27 +707,27 @@ def authorize_ui_resources(scopes: dict, input_data: dict, kind: str = 'authoriz
 def retain_failure_room_reference(scopes: dict, input_path: Path, input_data: dict, candidate: str) -> None:
     """Transfer only actual UI resources while owned app storage still exists."""
     if not re.fullmatch(r'[0-9a-f]{40}', candidate) or not re.fullmatch(r'[A-Za-z0-9-]{1,40}', input_data['runId']):
-        raise ValueError('invalid candidate')
+        raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'invalid-candidate')
     support = scopes.get('A', (None,))[0]
     if support is None:
         return
     if support.is_symlink() or support.resolve() != support.absolute() or support.stat().st_uid != os.getuid():
-        raise ValueError('unsafe actor storage')
+        raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'unsafe-actor-storage')
     result = support / 'weave-dual-ios-result.json'
     if result.is_symlink() or not result.is_file() or result.stat().st_size > 16384 or result.stat().st_mode & 0o777 != 0o600 or result.stat().st_uid != os.getuid():
-        raise ValueError('unsafe actor result')
+        raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'unsafe-actor-result')
     data = json.loads(result.read_text())
     actors = {actor['role']: actor['identityRef'] for actor in input_data['actors']}
     if data.get('role') != 'A' or data.get('identityDigest') != hashlib.sha256(actors['A'].encode()).hexdigest():
-        raise ValueError('actor mismatch')
+        raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'actor-mismatch')
     room = data.get('resources', {}).get('roomId')
     if room is None:
         return
     if not isinstance(room, str) or not re.fullmatch(r'![A-Za-z0-9._=-]{1,160}:[A-Za-z0-9.:-]{1,255}', room):
-        raise ValueError('invalid room reference')
+        raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'invalid-room-reference')
     parent = input_path.parent
     if parent.is_symlink() or parent.resolve() != parent.absolute() or parent.stat().st_mode & 0o777 != 0o700 or parent.stat().st_uid != os.getuid():
-        raise ValueError('unsafe private parent')
+        raise ios.NativeFailure('infrastructure', 'dual-chat-snapshot', 'unsafe-private-parent')
     target = parent / ('dual-ios-chat-failure-' + input_data['runId'] + '.json')
     publish_private_json(target, {'runId': input_data['runId'], 'candidateCommit': candidate,
                                  'actorA': hashlib.sha256(actors['A'].encode()).hexdigest(),
@@ -808,9 +809,13 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
                 except BaseException:
                     try:
                         retain_failure_room_reference(scopes, input_path, input_data, env.get('WEAVE_CANDIDATE_COMMIT', ''))
-                    except BaseException:
+                    except BaseException as unavailable:
                         try:
-                            print('NATIVE_IOS_CHAT_FAILURE_SNAPSHOT status=unavailable supportSafe=true', flush=True)
+                            reason = unavailable.reason if (isinstance(unavailable, ios.NativeFailure)
+                                and unavailable.stage == 'dual-chat-snapshot'
+                                and unavailable.reason in {'invalid-candidate', 'unsafe-actor-storage', 'unsafe-actor-result',
+                                                           'actor-mismatch', 'invalid-room-reference', 'unsafe-private-parent'}) else 'unavailable'
+                            print(f'NATIVE_IOS_CHAT_FAILURE_SNAPSHOT status=unavailable stage={reason} supportSafe=true', flush=True)
                         except BaseException:
                             pass  # Diagnostic output cannot replace the original UI failure.
                     stop_owned_processes()

@@ -42,7 +42,8 @@ import '../../integration_test/dual_ios_collaboration_test.dart'
         sendNativeDualChatMessage,
         requireNativeDualPeerSelected,
         tapNativeDualPeer,
-        tapNativeDualChatConversation;
+        tapNativeDualChatConversation,
+        writeNativeDualPrivateJson;
 
 const _readyChatSnapshot = WorkspaceCapabilitySnapshot(
   shellAccess: WorkspaceCapabilityState(
@@ -91,6 +92,62 @@ class _PeerRepository extends FakeChatRepository
 }
 
 void main() {
+  test(
+    'actual actor writer preserves owner-only result across atomic rewrites',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'weave-owned-writer-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final result = File('${directory.path}/result.json');
+      await result.writeAsString('{}');
+      final permissions = await Process.run('chmod', ['600', result.path]);
+      expect(permissions.exitCode, 0);
+      expect((await result.stat()).mode & 0x1ff, 0x180);
+      await writeNativeDualPrivateJson(result, {'role': 'A', 'resources': {}});
+      expect((await result.stat()).mode & 0x1ff, 0x180);
+      await File('${result.path}.tmp').writeAsString('owned-stale-staging');
+      await writeNativeDualPrivateJson(result, {
+        'role': 'A',
+        'resources': {'roomId': '!owned:example.invalid'},
+      });
+      expect((await result.stat()).mode & 0x1ff, 0x180);
+      expect(jsonDecode(await result.readAsString()), {
+        'role': 'A',
+        'resources': {'roomId': '!owned:example.invalid'},
+      });
+      expect(File('${result.path}.tmp').existsSync(), isFalse);
+    },
+  );
+
+  test(
+    'actual actor writer rejects destination and staging symlinks',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'weave-owned-writer-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final protected = File('${directory.path}/protected.json');
+      await protected.writeAsString('owned-original');
+      final result = File('${directory.path}/result.json');
+      await Link(result.path).create(protected.path);
+      await expectLater(
+        writeNativeDualPrivateJson(result, {}),
+        throwsA(isA<TestFailure>()),
+      );
+      expect(await protected.readAsString(), 'owned-original');
+      await Link(result.path).delete();
+      await result.writeAsString('owned-result');
+      await Link('${result.path}.tmp').create(protected.path);
+      await expectLater(
+        writeNativeDualPrivateJson(result, {}),
+        throwsA(isA<TestFailure>()),
+      );
+      expect(await protected.readAsString(), 'owned-original');
+      expect(await result.readAsString(), 'owned-result');
+    },
+  );
+
   for (final locale in ['en', 'de']) {
     testWidgets(
       'phone invitation row lookup and real tap opens room; $locale',
