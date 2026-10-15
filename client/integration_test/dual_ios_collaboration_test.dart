@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -24,6 +25,9 @@ import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
+import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
+import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart'
+    show authSessionStorageKey;
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
 import 'package:weave/features/chat/data/repositories/matrix_device_identity_repository.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
@@ -354,7 +358,188 @@ Future<Finder> openNativeDualChatCreationDialog(
   return name;
 }
 
+({bool home, bool entry}) nativeLocalInspectionSurface(Element? root) {
+  var home = false;
+  var entry = false;
+  void visit(Element element) {
+    final widget = element.widget;
+    if ((widget is Offstage && widget.offstage) ||
+        (widget is TickerMode && !widget.enabled)) {
+      return;
+    }
+    if (widget is OrganizationAccessScreen) entry = true;
+    if (widget.key == const ValueKey('weave.workspace.home')) home = true;
+    element.visitChildElements(visit);
+  }
+
+  if (root != null) visit(root);
+  return (home: home, entry: entry);
+}
+
+Future<Map<String, String>?> nativeLocalInspectionSessionSnapshot({
+  required Future<String?> Function() readSession,
+  required Future<String?> Function() readDevice,
+  required bool Function() workspaceCurrent,
+  required AuthConfiguration configuration,
+  required Map<String, dynamic> fixture,
+}) async {
+  final raw = await readSession();
+  if (raw == null || !workspaceCurrent()) return null;
+  final session = AuthSessionDto.decode(raw).toSession();
+  if (!session.matches(configuration)) return null;
+  final parts = session.accessToken.split('.');
+  if (parts.length != 3) return null;
+  final claims =
+      jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))))
+          as Map<String, dynamic>;
+  final identity = nativeDualSessionIdentityDigests(
+    claims,
+    expectedSubjectDigest: fixture['identityDigestExpected'] as String,
+    expectedIssuer: fixture['identityIssuer'] as String,
+    expectedNativeOrganizationId: fixture['nativeOrganizationId'] as String,
+  );
+  final device = await readDevice();
+  if (await readSession() != raw || !workspaceCurrent()) return null;
+  return {
+    ...identity,
+    if (device != null && device.isNotEmpty)
+      'matrixDeviceDigest': sha256.convert(utf8.encode(device)).toString(),
+  };
+}
+
+Future<void> nativeLocalInspectionMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  ui.PlatformDispatcher.instance.setSemanticsTreeEnabled(true);
+  if (!(Platform.isIOS && _simulator && _disposable && _runId.isNotEmpty)) {
+    throw StateError(
+      'Local inspection requires its owned iOS simulator session.',
+    );
+  }
+  final support = await getApplicationSupportDirectory();
+  final fixture =
+      jsonDecode(
+            await File(
+              '${support.path}/weave-dual-ios-input.json',
+            ).readAsString(),
+          )
+          as Map<String, dynamic>;
+  if (fixture['runId'] != _runId || !['A', 'B'].contains(fixture['role'])) {
+    throw StateError('Local inspection actor binding is unavailable.');
+  }
+  final container = ProviderContainer();
+  runApp(
+    UncontrolledProviderScope(container: container, child: const WeaveApp()),
+  );
+  var checking = false;
+  var ready = false;
+  var entryObserved = false;
+  var unavailableReported = false;
+  final stateFile = File('${support.path}/weave-local-inspection-state.json');
+  // Passive local instrumentation never restores, refreshes or clears auth.
+  Timer.periodic(const Duration(seconds: 1), (_) async {
+    if (checking || !container.exists(appBootstrapProvider)) return;
+    checking = true;
+    try {
+      final surface = nativeLocalInspectionSurface(
+        WidgetsBinding.instance.rootElement,
+      );
+      if (!entryObserved && surface.entry) {
+        emitNativeProductDiagnostic(
+          'NATIVE_LOCAL_INSPECTION phase=entry-ready qualificationPassed=false supportSafe=true',
+          simulatorDriver: true,
+        );
+        entryObserved = true;
+      }
+      if (container.read(appBootstrapProvider).asData?.value.phase !=
+          BootstrapPhase.ready) {
+        if (ready) {
+          ready = false;
+          await writeNativeDualPrivateJson(stateFile, {
+            'mode': 'local-inspection',
+            'qualificationPassed': false,
+            'role': fixture['role'],
+            'runId': _runId,
+            'workspaceObserved': false,
+          });
+        }
+        return;
+      }
+      if (!container.exists(savedServerConfigurationProvider) ||
+          !container.exists(secureStoreProvider)) {
+        return;
+      }
+      final configuration = container
+          .read(savedServerConfigurationProvider)
+          .asData
+          ?.value;
+      if (configuration == null) return;
+      final store = container.read(secureStoreProvider);
+      bool current() =>
+          container.exists(appBootstrapProvider) &&
+          container.read(appBootstrapProvider).asData?.value.phase ==
+              BootstrapPhase.ready &&
+          identical(
+            container.read(savedServerConfigurationProvider).asData?.value,
+            configuration,
+          ) &&
+          nativeLocalInspectionSurface(
+            WidgetsBinding.instance.rootElement,
+          ).home;
+      if (ready) return;
+      if (!surface.home) return;
+      final identity = await nativeLocalInspectionSessionSnapshot(
+        readSession: () => store.read(authSessionStorageKey),
+        readDevice: () => store.read(matrixDeviceIdentityStorageKey),
+        workspaceCurrent: current,
+        configuration: AuthConfiguration(
+          issuer: configuration.oidcIssuerUrl,
+          clientId: configuration.oidcClientRegistration.clientId,
+        ),
+        fixture: fixture,
+      );
+      if (identity == null || !current()) return;
+      final observedProof = {
+        'mode': 'local-inspection',
+        'qualificationPassed': false,
+        'role': fixture['role'],
+        'runId': _runId,
+        'workspaceObserved': true,
+        'observedAt': DateTime.now().toUtc().toIso8601String(),
+        ...identity,
+      };
+      await writeNativeDualPrivateJson(stateFile, observedProof);
+      if (!current()) {
+        await writeNativeDualPrivateJson(stateFile, {
+          'mode': 'local-inspection',
+          'qualificationPassed': false,
+          'role': fixture['role'],
+          'runId': _runId,
+          'workspaceObserved': false,
+        });
+        return;
+      }
+      _stage('workspace-ready');
+      ready = true;
+      unavailableReported = false;
+    } catch (_) {
+      if (!unavailableReported) {
+        emitNativeProductDiagnostic(
+          'NATIVE_LOCAL_INSPECTION phase=workspace-observation-unavailable qualificationPassed=false supportSafe=true',
+          simulatorDriver: true,
+        );
+        unavailableReported = true;
+      }
+    } finally {
+      checking = false;
+    }
+  });
+}
+
 void main() {
+  if (const bool.fromEnvironment('WEAVE_NATIVE_LOCAL_INSPECTION')) {
+    unawaited(nativeLocalInspectionMain());
+    return;
+  }
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.platformDispatcher.semanticsEnabledTestValue = true;
   ui.PlatformDispatcher.instance.setSemanticsTreeEnabled(true);

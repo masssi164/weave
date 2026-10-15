@@ -659,6 +659,10 @@ public final class FreshProductFlow {
               + "/content", "code", "files-forbidden", bearer);
           requireNativeDenial("calendar", "/api/calendar/calendars/" + nativePath(resources.path("calendarId").asString())
               + "/events/" + nativePath(resources.path("eventId").asString()), "code", "calendar-forbidden", bearer);
+          nativeAdminSession = browser.refresh(nativeAdminSession);
+          requireNativeMutationDenials(http, environment.apiOrigin(), resources, environment.runId(),
+              bearer, Map.of("Authorization", "Bearer " + nativeAdminSession.accessToken()));
+          System.out.println("NATIVE_IOS_AUTHORIZATION readDenials=3 mutationDenials=3 supportSafe=true");
           Map<String, Object> proof = Map.of("status", "passed", "evidence", "server-denial",
               "deniedIdentityDigest", Hashing.sha256(outsiderSession.subject()),
               "resourceDigest", Hashing.sha256(resources.path("fileId").asString()),
@@ -756,7 +760,75 @@ public final class FreshProductFlow {
       Map<String, String> bearer) {
     JsonNode denial = http.json("native current third-identity " + category + " denial", "GET",
         environment.apiOrigin().resolve(path), bearer, null, Set.of(403));
-    if (!code.equals(denial.path(field).asString())) {
+    requireNativeDenialCode(denial, category, field, code);
+  }
+
+  static void requireNativeMutationDenials(JsonHttpClient http, URI origin, JsonNode resources,
+      String runId, Map<String, String> deniedBearer, Map<String, String> authorizedBearer) {
+    String filePath = "/api/files/items/" + nativePath(resources.path("fileId").asString()) + "/content";
+    String eventPath = "/api/calendar/calendars/" + nativePath(resources.path("calendarId").asString())
+        + "/events/" + nativePath(resources.path("eventId").asString());
+    // Read only the current conditional-write versions; these API reads are not Flutter UI proof.
+    var fileBefore = http.send("read native authorization file version", "GET", origin.resolve(filePath),
+        authorizedBearer, null, null, Set.of(200));
+    var eventBefore = http.send("read native authorization event version", "GET", origin.resolve(eventPath),
+        authorizedBearer, null, null, Set.of(200));
+    String fileVersion = requireNativeStrongVersion(fileBefore, "files");
+    String eventVersion = requireNativeStrongVersion(eventBefore, "calendar");
+    var encrypted = http.mapper().createObjectNode();
+    encrypted.put("algorithm", "m.megolm.v1.aes-sha2");
+    encrypted.put("ciphertext", java.util.Base64.getEncoder().encodeToString(
+        ("native denied " + runId).getBytes(StandardCharsets.UTF_8)));
+    encrypted.put("sender_key", "curve25519:outsider");
+    encrypted.put("session_id", "native-denied");
+    encrypted.put("device_id", "NATIVE_DENIED");
+    // Exercise the accepted encrypted wire shape; this denied attempt is not E2EE proof.
+    JsonNode chatDenial = http.json("native third-identity chat mutation denial", "PUT", origin.resolve(
+        "/_matrix/client/v3/rooms/" + nativePath(resources.path("roomId").asString())
+            + "/send/m.room.encrypted/native-denied-" + nativePath(runId)),
+        deniedBearer, encrypted, Set.of(403));
+    requireNativeDenialCode(chatDenial, "chat mutation", "errcode", "M_FORBIDDEN");
+    Map<String, String> fileHeaders = new java.util.LinkedHashMap<>(deniedBearer);
+    fileHeaders.put("If-Match", fileVersion);
+    fileHeaders.put("Idempotency-Key", "native-denied-" + runId);
+    var fileDenial = http.send("native third-identity files mutation denial", "PUT", origin.resolve(filePath),
+        fileHeaders, "application/octet-stream", ("must not write " + runId).getBytes(StandardCharsets.UTF_8), Set.of(403));
+    try {
+      requireNativeDenialCode(http.mapper().readTree(fileDenial.body()), "files mutation", "code", "files-forbidden");
+    } catch (JacksonException invalid) {
+      throw new ProductFlowException("native files mutation denial encoding was invalid");
+    }
+    Map<String, String> eventHeaders = new java.util.LinkedHashMap<>(deniedBearer);
+    eventHeaders.put("If-Match", eventVersion);
+    JsonNode eventDenial = http.json("native third-identity calendar mutation denial", "DELETE",
+        origin.resolve(eventPath), eventHeaders, null, Set.of(403));
+    requireNativeDenialCode(eventDenial, "calendar mutation", "code", "calendar-forbidden");
+    var fileAfter = http.send("verify native denied file mutation preserved content", "GET", origin.resolve(filePath),
+        authorizedBearer, null, null, Set.of(200));
+    var eventAfter = http.send("verify native denied event mutation preserved content", "GET", origin.resolve(eventPath),
+        authorizedBearer, null, null, Set.of(200));
+    try {
+      if (!fileVersion.equals(fileAfter.firstHeader("ETag"))
+          || !java.util.Arrays.equals(fileBefore.body(), fileAfter.body())
+          || !eventVersion.equals(eventAfter.firstHeader("ETag"))
+          || !http.mapper().readTree(eventBefore.body()).equals(http.mapper().readTree(eventAfter.body()))) {
+        throw new ProductFlowException("native denied mutation changed protected content or version");
+      }
+    } catch (JacksonException invalid) {
+      throw new ProductFlowException("native protected event readback encoding was invalid");
+    }
+  }
+
+  private static String requireNativeStrongVersion(JsonHttpClient.Response response, String category) {
+    String version = response.firstHeader("ETag");
+    if (version.length() > 256 || !version.matches("\"[^\"\\r\\n]+\"")) {
+      throw new ProductFlowException("native " + category + " mutation requires a current strong version");
+    }
+    return version;
+  }
+
+  private static void requireNativeDenialCode(JsonNode denial, String category, String field, String code) {
+    if (denial == null || !code.equals(denial.path(field).asString())) {
       throw new ProductFlowException("native " + category + " denial category was invalid");
     }
   }

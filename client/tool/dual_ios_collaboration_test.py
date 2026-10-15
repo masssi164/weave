@@ -21,6 +21,104 @@ import run_ios_simulator_product_acceptance as ios
 
 
 class DualIosCollaborationTest(unittest.TestCase):
+    def test_inspection_actor_metadata_reads_live_source_without_sharing_outputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            client = root / 'client'
+            (client / '.dart_tool').mkdir(parents=True)
+            (client / 'lib').mkdir()
+            source = client / 'lib/main.dart'
+            source.write_text('before')
+            config = {'packages': [{'name': 'weave', 'rootUri': '../', 'packageUri': 'lib/'}]}
+            (client / '.dart_tool/package_config.json').write_text(json.dumps(config))
+            for role in ['A', 'B']:
+                runtime = root / role
+                dual.actor_runtime_copy(client, runtime, live_source=True)
+                metadata = json.loads((runtime / '.dart_tool/package_config.json').read_text())
+                self.assertEqual(metadata['packages'][0]['rootUri'], client.resolve().as_uri() + '/')
+                self.assertNotEqual(runtime / '.dart_tool', client / '.dart_tool')
+            source.write_text('after live edit')
+            self.assertEqual(Path(metadata['packages'][0]['rootUri'].removeprefix('file://')).joinpath('lib/main.dart').read_text(), 'after live edit')
+            self.assertEqual(json.loads((client / '.dart_tool/package_config.json').read_text()), config)
+
+    def test_inspection_command_is_private_bounded_and_consumed_once(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'inspection-command.json'
+            value = {'sequence': 1, 'action': 'reload', 'role': 'both'}
+            dual.publish_private_json(path, value)
+            self.assertEqual(dual.read_inspection_command(path, 0), value)
+            self.assertIsNone(dual.read_inspection_command(path, 1))
+            for replacement in [{'sequence': 0}, {'sequence': True}, {'action': 'arbitrary'}, {'role': 'C'}]:
+                path.unlink()
+                dual.publish_private_json(path, {**value, **replacement})
+                with self.assertRaises(ios.NativeFailure):
+                    dual.read_inspection_command(path, 1)
+            path.unlink()
+            dual.publish_private_json(path, value)
+            path.chmod(0o644)
+            with self.assertRaises(ios.NativeFailure): dual.read_inspection_command(path, 0)
+            path.unlink()
+            target = Path(temporary) / 'foreign'
+            target.write_text(json.dumps(value))
+            path.symlink_to(target)
+            with self.assertRaises(ios.NativeFailure): dual.read_inspection_command(path, 0)
+
+    def test_inspection_refuses_or_yields_to_actual_worker_detection(self):
+        operation = mock.Mock()
+        with mock.patch.object(dual, 'inspection_ci_workers', return_value=1):
+            with self.assertRaises(ios.NativeFailure): dual.inspect_with_ci_priority(operation)
+        operation.assert_not_called()
+        yielded = threading.Event()
+        with mock.patch.object(dual, 'inspection_ci_workers', side_effect=[0, 1]), \
+             mock.patch.object(dual.os, 'kill', side_effect=lambda pid, sig: yielded.set()) as stop:
+            self.assertEqual(dual.inspect_with_ci_priority(lambda: 70 if yielded.wait(3) else self.fail('CI not observed')), 70)
+        stop.assert_called_once_with(os.getpid(), dual.signal.SIGINT)
+
+    def test_inspection_attach_uses_pinned_real_cli_parser(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {'WEAVE_E2E_RUN_ID': 'owned-test'}):
+            command = dual.inspection_attach_command('http://127.0.0.1:12345/owned/', 'owned-disposable-simulator', Path(temporary))
+            if not shutil.which('flutter'):
+                self.skipTest('Flutter CLI required for actual attach parser validation')
+            accepted = subprocess.run([*command, '--help'], capture_output=True, text=True, timeout=30)
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+            self.assertIn('--debug-url', accepted.stdout)
+            self.assertNotIn('--use-existing-app', command)
+
+    def test_partial_inspection_attach_retains_private_failure_before_cleanup(self):
+        for retention_fails, stop_fails in ((False, False), (True, False), (False, True)):
+            with self.subTest(retention_fails=retention_fails, stop_fails=stop_fails), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); scope = root / 'owned'; scope.mkdir()
+                derived = root / 'derived'; (derived / 'Build/Products').mkdir(parents=True)
+                private = root / 'retained'; private.mkdir(mode=0o700)
+                failure = RuntimeError('original attach failure')
+                raw = 'private-token private-device private-path\nattach failed\n'
+                def copy(_client, runtime, **_kwargs):
+                    (runtime / '.dart_tool').mkdir(parents=True)
+                def attach(_udid, _runtime, _env, actor_scope, streams, **_kwargs):
+                    stream = (actor_scope / 'attach-1.log').open('w')
+                    stream.write(raw); streams.append(stream)
+                    raise failure
+                output = io.StringIO()
+                with mock.patch.object(dual, 'actor_runtime_copy', side_effect=copy), \
+                     mock.patch.object(dual, 'actor_proxy_environment', return_value={}), \
+                     mock.patch.object(dual, 'prepare_actor_storage', return_value=(root, {})), \
+                     mock.patch.object(dual, 'attach_local_actor', side_effect=attach), \
+                     mock.patch.object(dual, 'stop_owned_processes', side_effect=[OSError('stop failed'), None] if stop_fails else None), \
+                     mock.patch.object(ios, 'verified_private_parent', return_value=private), \
+                     contextlib.redirect_stdout(output):
+                    retain = mock.patch.object(ios, 'retain_private_diagnostic', side_effect=OSError('private retention failure')) if retention_fails else contextlib.nullcontext()
+                    with retain, self.assertRaises(RuntimeError) as caught:
+                        dual.inspect_local_apps({'actors': [{'role': 'A'}]}, {}, scope, ['owned-device'], root / 'app', derived, {'A': object()}, {'builtSource': {}})
+                self.assertIs(caught.exception, failure)
+                logs = list(private.glob('command-*.log'))
+                self.assertEqual(len(logs), 0 if retention_fails else 1)
+                if logs:
+                    self.assertEqual(logs[0].read_text(), raw)
+                    self.assertEqual(logs[0].stat().st_mode & 0o777, 0o600)
+                for secret in ('private-token', 'private-device', 'private-path', 'private retention failure', str(root)):
+                    self.assertNotIn(secret, output.getvalue())
+                self.assertIn('failure-log-unavailable' if retention_fails else 'failure-log-retained', output.getvalue())
+
     def test_actor_prepares_owner_only_result_before_actual_launch(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
@@ -50,6 +148,23 @@ class DualIosCollaborationTest(unittest.TestCase):
                                    root, root, root, root / 'app', data, {'WEAVE_NATIVE_ISSUER': 'https://issuer.test'}, 'a' * 64,
                                    None, None, None)
                 self.assertIs(caught.exception, stopped)
+
+    def test_inspection_storage_seeds_private_observer_without_workspace_proof(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            udid = '11111111-1111-1111-1111-111111111111'
+            container = root / 'CoreSimulator/Devices' / udid / 'data'
+            container.mkdir(parents=True)
+            actor = {'role': 'A', 'entryUri': 'https://owned.invalid', 'identityRef': 'owned-actor'}
+            data = {'runId': 'owned-test', 'publicOrigin': 'https://owned.invalid', 'nativeOrganizationId': 'owned-org',
+                    'sharedSpaceRef': 'workspace-default', 'actors': [{'role': 'A', 'displayName': 'Author'}, {'role': 'B', 'displayName': 'Peer'}]}
+            with mock.patch.object(ios, 'run', side_effect=['', str(container)]):
+                support, _ = dual.prepare_actor_storage(actor, udid, root / 'app', data,
+                    {'WEAVE_NATIVE_ISSUER': 'https://issuer.test', 'WEAVE_NATIVE_LOCAL_INSPECTION': 'true'})
+            proof = support / 'weave-local-inspection-state.json'
+            self.assertEqual(json.loads(proof.read_text()), {})
+            self.assertEqual(proof.stat().st_mode & 0o777, 0o600)
+            self.assertFalse(json.loads(proof.read_text()).get('workspaceObserved', False))
 
     def test_successful_picker_stdout_is_owner_only_and_never_public(self):
         with tempfile.TemporaryDirectory() as temporary:

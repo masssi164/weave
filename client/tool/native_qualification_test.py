@@ -560,6 +560,40 @@ class NativeQualificationTest(unittest.TestCase):
             self.assertEqual(reads, [65536, 65536, 65536])
             self.assertEqual(completion.read_text(), 'workspace-ready\n')
 
+    def test_workspace_relay_requires_fresh_suffix_for_held_actor(self):
+        marker = 'NATIVE_PRODUCT_STAGE phase=workspace-ready\n'
+        for fresh in (False, True):
+            with self.subTest(fresh=fresh), tempfile.TemporaryDirectory() as name:
+                path = Path(name) / 'flutter.log'
+                path.write_text(marker + (marker if fresh else ''))
+                completion = ios.prepare_workspace_completion(Path(name), 'initial')
+                flutter = unittest.mock.Mock(); driver = unittest.mock.Mock()
+                flutter.poll.return_value = driver.poll.return_value = None
+                with redirect_stdout(io.StringIO()), patch.object(ios.time, 'monotonic', side_effect=[0, 1, 3]), patch.object(ios.time, 'sleep'):
+                    if fresh:
+                        self.assertTrue(ios.relay_workspace_completion(flutter, driver, path, completion, 'initial', timeout=2, start_offset=len(marker)))
+                    else:
+                        with self.assertRaisesRegex(ios.NativeFailure, 'native-workspace-completion-timeout'):
+                            ios.relay_workspace_completion(flutter, driver, path, completion, 'initial', timeout=2, start_offset=len(marker))
+                self.assertEqual(completion.exists(), fresh)
+
+    def test_workspace_relay_rejects_invalid_owned_offsets(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / 'flutter.log'; path.write_text('old\n')
+            for offset in (-1, 5):
+                with self.subTest(offset=offset):
+                    completion = ios.prepare_workspace_completion(Path(name), 'initial')
+                    with self.assertRaisesRegex(ios.NativeFailure, 'invalid-owned-log-offset'):
+                        ios.relay_workspace_completion(unittest.mock.Mock(), unittest.mock.Mock(), path, completion, 'initial', start_offset=offset)
+                    self.assertFalse(completion.exists())
+
+    def test_inspection_dispatch_precedes_qualification_artifacts(self):
+        import run_dual_ios_collaboration as dual
+        with tempfile.TemporaryDirectory() as name, patch.dict(os.environ, {'WEAVE_NATIVE_LOCAL_INSPECTION': 'true', 'WEAVE_E2E_RUN_ID': 'owned-run'}), patch.object(dual.ios, 'verified_private_parent', return_value=Path(name)), patch.object(dual, 'main', return_value=0) as inspect:
+            self.assertEqual(qualification.main(), 70)
+            inspect.assert_called_once_with(['--output', str(Path(name) / 'dual-ios-result-owned-run.json')])
+            self.assertEqual(list(Path(name).iterdir()), [])
+
     def test_workspace_relay_never_overwrites_completion_path(self):
         with tempfile.TemporaryDirectory() as name:
             path = Path(name) / 'flutter.log'

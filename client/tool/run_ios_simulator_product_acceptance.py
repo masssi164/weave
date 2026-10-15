@@ -624,7 +624,7 @@ def prepare_workspace_completion(temporary: Path, phase: str) -> Path:
     return completion
 
 
-def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path, phase: str, timeout: float = 360) -> bool:
+def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path, phase: str, timeout: float = 360, *, start_offset: int = 0) -> bool:
     # Independent read handle preserves the subprocess writer's offset. The
     # private IPC file carries no token/callback; its only producer is the exact
     # real Flutter workspace assertion. A submitted form is insufficient.
@@ -632,6 +632,10 @@ def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path
     pending = ''
     discard_line = False
     with log_path.open(errors='replace', newline='') as observer:
+        if start_offset < 0 or (start_offset > 0 and start_offset > log_path.stat().st_size):
+            raise NativeFailure('infrastructure', phase + '-auth-completion', 'invalid-owned-log-offset')
+        if start_offset:
+            observer.seek(start_offset)
         while time.monotonic() < deadline:
             if driver.poll() is not None:
                 return False
