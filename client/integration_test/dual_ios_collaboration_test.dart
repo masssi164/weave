@@ -759,7 +759,7 @@ void main() {
             scenarios['chat'] = {'status': 'passed', 'evidence': 'flutter-ui'};
           case 'calendar-create':
             expect(role, 'A');
-            await tester.pageBack();
+            await tapNativeDualBack(tester, deadline: actionDeadline);
             await navigateNativeDualDestination(
               tester,
               Icons.calendar_month_outlined,
@@ -780,7 +780,7 @@ void main() {
                 .id;
           case 'calendar-observe':
             expect(role, 'B');
-            await tester.pageBack();
+            await tapNativeDualBack(tester, deadline: actionDeadline);
             await navigateNativeDualDestination(
               tester,
               Icons.calendar_month_outlined,
@@ -1194,7 +1194,7 @@ void main() {
               );
             }
             _orderedMessages(tester, messageA, messageB);
-            await tester.pageBack();
+            await tapNativeDualBack(tester, deadline: actionDeadline);
             await _selectSharedFiles(
               tester,
               container,
@@ -1503,6 +1503,27 @@ Future<void> _filePreview(
 
 AppLocalizations _copy(WidgetTester tester) =>
     AppLocalizations.of(tester.element(find.byType(NavigationBar)));
+
+Future<void> tapNativeDualBack(
+  WidgetTester tester, {
+  required DateTime deadline,
+}) async {
+  final back = find.byType(BackButton);
+  expect(back, findsOneWidget);
+  expect(back.hitTestable(), findsOneWidget);
+  if (!DateTime.now().isBefore(deadline)) {
+    throw TestFailure('The real back navigation action deadline expired.');
+  }
+  await _tap(tester, back);
+  await _wait(
+    tester,
+    () => find.byType(ChatRoomScreen).evaluate().isEmpty,
+    deadline.difference(DateTime.now()),
+  );
+  if (!DateTime.now().isBefore(deadline)) {
+    throw TestFailure('The real back navigation action deadline expired.');
+  }
+}
 
 Future<void> navigateNativeDualDestination(WidgetTester tester, IconData icon) {
   final copy = _copy(tester);
