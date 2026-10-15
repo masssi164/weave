@@ -12,6 +12,7 @@ class TestConfig {
     required this.matrixHomeserverUrl,
     required this.backendApiBaseUrl,
     required this.offlineContractOnly,
+    this.organizationOrigin,
   });
 
   factory TestConfig.fromEnvironment() {
@@ -25,7 +26,13 @@ class TestConfig {
     );
     final workspaceHost = _workspaceHost(backendApiBaseUrl.host);
 
+    const nativeOrigin = String.fromEnvironment(
+      'WEAVE_NATIVE_ORGANIZATION_ORIGIN',
+    );
     return TestConfig(
+      organizationOrigin: nativeOrigin.isEmpty
+          ? null
+          : parseOrganizationOrigin(nativeOrigin),
       issuerUrl: _configuredOrDefault(
         'WEAVE_OIDC_ISSUER_URL',
         const String.fromEnvironment('WEAVE_OIDC_ISSUER_URL'),
@@ -54,6 +61,23 @@ class TestConfig {
     );
   }
 
+  static Uri parseOrganizationOrigin(String value) {
+    final origin = RegExp(r'\s').hasMatch(value) ? null : Uri.tryParse(value);
+    if (origin == null ||
+        origin.scheme != 'https' ||
+        origin.host.isEmpty ||
+        origin.userInfo.isNotEmpty ||
+        origin.hasQuery ||
+        origin.hasFragment ||
+        !['', '/'].contains(origin.path) ||
+        origin.port < 1 ||
+        origin.port > 65535) {
+      throw ArgumentError('A canonical HTTPS organization origin is required.');
+    }
+    return origin;
+  }
+
+  final Uri? organizationOrigin;
   final Uri issuerUrl;
   final String clientId;
   final Uri matrixHomeserverUrl;
@@ -61,6 +85,7 @@ class TestConfig {
   final bool offlineContractOnly;
 
   TestConfig copyWith({Uri? backendApiBaseUrl}) => TestConfig(
+    organizationOrigin: organizationOrigin,
     issuerUrl: issuerUrl,
     clientId: clientId,
     matrixHomeserverUrl: matrixHomeserverUrl,

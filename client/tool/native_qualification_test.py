@@ -16,9 +16,43 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run_ios_simulator_product_acceptance as ios
 import run_native_qualification as qualification
+import run_native_product_acceptance as macos
 
 
 class NativeQualificationTest(unittest.TestCase):
+    def test_macos_origin_reuses_strict_private_handoff_and_rejects_run_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            client = Path(directory)
+            parent = client / 'build/private-ios-qualification'
+            parent.mkdir(parents=True); parent.chmod(0o700)
+            path = parent / 'dual-ios-input-owned-run.json'
+            value = {'schemaVersion': 'weave.dual-ios-input/v1', 'runId': 'owned-run',
+                     'organizationId': 'canonical-tenant', 'nativeOrganizationId': 'native-org',
+                     'publicOrigin': 'https://weave.localhost', 'actors': [
+                         {'role': 'A', 'email': 'a@example.invalid', 'password': 'private-a', 'identityRef': 'a', 'displayName': 'Current owner', 'entryUri': 'weave.localhost'},
+                         {'role': 'B', 'email': 'b@example.invalid', 'password': 'private-b', 'identityRef': 'b', 'displayName': 'Current peer', 'entryUri': 'weave://join?organization_origin=https%3A%2F%2Fweave.localhost'}]}
+            path.write_text(json.dumps(value)); path.chmod(0o600)
+            with patch.object(macos, 'CLIENT', client):
+                self.assertEqual(macos.native_organization_origin('owned-run'), 'https://weave.localhost')
+                path.chmod(0o644)
+                with self.assertRaises(ios.NativeFailure): macos.native_organization_origin('owned-run')
+                with self.assertRaises(RuntimeError): macos.native_organization_origin('../foreign')
+
+    def test_macos_owned_cleanup_is_fixed_bounded_and_fail_closed(self):
+        marker = 'NATIVE_PREFERENCES_CLEANUP_RESULT status=passed scope=owned-run'
+        with patch.object(macos.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, marker + '\n', '')) as command:
+            with redirect_stdout(io.StringIO()):
+                macos.clear_owned_preferences('com.masssi164.weave.nativeacceptance', 'owned-run')
+            self.assertEqual(command.call_args.kwargs['timeout'], 30)
+            self.assertTrue(command.call_args.kwargs['capture_output'])
+            for bundle, run in [('com.example.operator', 'owned-run'), ('com.masssi164.weave.nativeacceptance', '../foreign')]:
+                with self.assertRaises(RuntimeError): macos.clear_owned_preferences(bundle, run)
+            self.assertEqual(command.call_count, 1)
+        with patch.object(macos.subprocess, 'run', side_effect=subprocess.TimeoutExpired('private-payload', 30)):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                macos.clear_owned_preferences('com.masssi164.weave.nativeacceptance', 'owned-run')
+
+
     def test_onboarding_diagnostics_are_exact_bounded_and_classify_executed_ui_failure(self):
         record = ('NATIVE_PRODUCT_STAGE phase=onboarding-failed actor=A authState=ready_for_sso '
                   'visibleState=handoff_ready errorCode=none organizationCount=0 handoffCount=1 '
@@ -702,6 +736,7 @@ else:
                                 'WEAVE_PHYSICAL_DEVICE_ID': device, 'WEAVE_IOS_SIMULATOR_ID': 'owned-sim',
                                 'WEAVE_NATIVE_EXPECT_SIMULATOR': 'true', 'WEAVE_NATIVE_TEST_RUN_ID': 'existing-run-id',
                                 'WEAVE_DEVICE_PRODUCT_PHASE': phase,
+                                'WEAVE_DEVICE_ORGANIZATION_ORIGIN': 'https://weave.localhost',
                                 'WEAVE_DEVICE_DISPOSABLE_STACK': 'true',
                                 'WEAVE_DEVICE_API_BASE_URL': 'https://api.weave.localhost/api',
                                 'WEAVE_DEVICE_OIDC_ISSUER_URL': 'https://auth.weave.localhost/realms/weave',
@@ -720,6 +755,7 @@ else:
                     defines = json.loads((temporary / 'defines.json').read_text())
                     self.assertEqual(defines['WEAVE_NATIVE_EXPECT_SIMULATOR'], expected)
                     self.assertEqual(defines['WEAVE_NATIVE_TEST_RUN_ID'], 'existing-run-id')
+                    self.assertEqual(defines['WEAVE_NATIVE_ORGANIZATION_ORIGIN'], 'https://weave.localhost')
                     if expected == 'true':
                         self.assertEqual(defines['_probe_command'], 'drive')
                         self.assertTrue(defines['_probe_keep_app'])
@@ -730,6 +766,14 @@ else:
                         self.assertEqual(defines['_probe_command'], 'test')
                         self.assertFalse(defines['_probe_keep_app'])
                         self.assertEqual(defines['_probe_reporter'], 'expanded')
+            missing_origin = env.copy()
+            missing_origin.pop('WEAVE_DEVICE_ORGANIZATION_ORIGIN')
+            (temporary / 'defines.json').unlink(missing_ok=True)
+            rejected = subprocess.run(['make', 'physical-device-auth-e2e'],
+                cwd=Path(__file__).resolve().parents[1], env=missing_origin,
+                capture_output=True, text=True)
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertFalse((temporary / 'defines.json').exists())
             env['WEAVE_DEVICE_PRODUCT_PHASE'] = 'initial'
             for action, uri, succeeds in [('build', '', True), ('attach', '', False),
                                          ('attach', 'http://other.invalid:12345/private/', False),
