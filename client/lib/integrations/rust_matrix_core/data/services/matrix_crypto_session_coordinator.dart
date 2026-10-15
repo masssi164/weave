@@ -18,11 +18,16 @@ class MatrixCryptoSession {
     required this.profileKey,
     required this.userId,
     required this.deviceId,
+    this.memberStorageScope,
   });
 
   final String profileKey;
   final String userId;
   final String deviceId;
+
+  /// Opaque local storage selector from verified issuer, organization and member.
+  /// It grants no room or session access and does not depend on token or device.
+  final String? memberStorageScope;
 }
 
 abstract interface class MatrixCryptoSessionPort {

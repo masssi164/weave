@@ -1,4 +1,3 @@
-import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -7,12 +6,15 @@ import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/entities/channel_workspace.dart';
 import 'package:weave/features/chat/domain/entities/decision_evidence.dart';
+import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/presentation/providers/archived_message_store_provider.dart';
 import 'package:weave/features/chat/presentation/providers/channel_workspace_preview_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
@@ -28,7 +30,8 @@ class ChatRoomScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
 
-class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
+class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
+    with WidgetsBindingObserver {
   final _composerController = TextEditingController();
   ChatRoomTimeline? _timeline;
   ChatFailure? _failure;
@@ -40,25 +43,164 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   bool _showingArchivedMessages = false;
   _PendingOutgoingMessage? _pendingMessage;
   Timer? _draftSaveDebounce;
+  Timer? _receiveTimer;
+  Future<void>? _timelineRequest;
+  bool _reloadRequested = false;
+  bool _started = false;
+  bool _visible = false;
+  bool _foreground = true;
+  bool _accessDenied = false;
+  // Visibility changes discard reads, while valid sends may finish in the background.
+  int _receiveGeneration = 0;
+  int _authorityGeneration = 0;
+  int _composerRevision = 0;
+  String? _memberStorageScope;
+  String? _draftRestorationKey;
+
+  bool get _canReceive =>
+      mounted &&
+      _visible &&
+      _foreground &&
+      !_accessDenied &&
+      (!widget.conversation.isInvite || _invitationAccepted);
+
+  void _scheduleReceive() {
+    _receiveTimer?.cancel();
+    if (!_canReceive || _sending || _timelineRequest != null) return;
+    _receiveTimer = Timer(const Duration(seconds: 2), () {
+      unawaited(_loadTimeline(routine: true));
+    });
+  }
+
+  void _suspendReceive() {
+    _receiveTimer?.cancel();
+    _receiveGeneration++;
+    _reloadRequested = false;
+  }
+
+  void _authorityChanged() {
+    _authorityGeneration++;
+    _suspendReceive();
+    if (!mounted) return;
+    _draftSaveDebounce?.cancel();
+    _isRestoringDraft = true;
+    _composerController.clear();
+    _isRestoringDraft = false;
+    setState(() {
+      _draftRestored = false;
+      _memberStorageScope = null;
+      _draftRestorationKey = null;
+      _composerRevision = 0;
+      _accessDenied = true;
+      _timeline = null;
+      _archivedMessageIds = {};
+      _pendingMessage = null;
+      _sending = false;
+      _loading = false;
+      _failure = const ChatFailure.sessionRequired(
+        'Current Chat access must be checked again.',
+      );
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
+        (ModalRoute.isCurrentOf(context) ?? true);
+    if (_visible == visible) return;
+    _visible = visible;
+    _suspendReceive();
+    if (_started && _canReceive) {
+      Future<void>.microtask(() => _loadTimeline(routine: true));
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final foreground = state == AppLifecycleState.resumed;
+    if (_foreground == foreground) return;
+    _foreground = foreground;
+    _suspendReceive();
+    if (_started && _canReceive) unawaited(_loadTimeline(routine: true));
+  }
+
+  @override
+  void didUpdateWidget(ChatRoomScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.conversation.id == widget.conversation.id &&
+        oldWidget.conversation.isInvite == widget.conversation.isInvite) {
+      return;
+    }
+    _authorityGeneration++;
+    _suspendReceive();
+    _draftSaveDebounce?.cancel();
+    _isRestoringDraft = true;
+    _composerController.clear();
+    _isRestoringDraft = false;
+    _timeline = null;
+    _failure = null;
+    _pendingMessage = null;
+    _archivedMessageIds = {};
+    _draftRestored = false;
+    _memberStorageScope = null;
+    _draftRestorationKey = null;
+    _composerRevision = 0;
+    _invitationAccepted = false;
+    _accessDenied = false;
+    _sending = false;
+    _loading = !widget.conversation.isInvite;
+    final generation = _authorityGeneration;
+    Future<void>.microtask(() async {
+      if (!mounted || generation != _authorityGeneration) return;
+      _started = true;
+      await _loadTimeline();
+    });
+  }
+
   bool _isRestoringDraft = false;
   bool _draftRestored = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _foreground =
+        WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    for (final integration in [
+      WorkspaceIntegration.appAuth,
+      WorkspaceIntegration.chat,
+    ]) {
+      ref.listenManual(
+        integrationInvalidationProvider(integration),
+        (_, _) => _authorityChanged(),
+      );
+    }
+    ref.listenManual(chatRepositoryProvider, (previous, next) {
+      if (identical(previous, next)) return;
+      _authorityChanged();
+    });
     _composerController.addListener(_onComposerChanged);
     if (widget.conversation.isInvite) {
       _loading = false;
       return;
     }
+    final generation = _authorityGeneration;
     Future<void>.microtask(() async {
-      await _restoreDraft();
+      if (!mounted || generation != _authorityGeneration) return;
+      _started = true;
       await _loadTimeline();
     });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _receiveTimer?.cancel();
+    _receiveGeneration++;
+    _authorityGeneration++;
     _draftSaveDebounce?.cancel();
     _composerController
       ..removeListener(_onComposerChanged)
@@ -66,42 +208,82 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     super.dispose();
   }
 
-  Future<void> _restoreDraft() async {
+  bool _bindDraftOwner(String? scope) {
+    final owner = scope != null && RegExp(r'^[0-9a-f]{64}$').hasMatch(scope)
+        ? scope
+        : null;
+    if (_memberStorageScope == owner) return false;
+    _authorityGeneration++;
+    _draftSaveDebounce?.cancel();
     _isRestoringDraft = true;
+    _composerController.clear();
+    _isRestoringDraft = false;
+    _composerRevision = 0;
+    _memberStorageScope = owner;
+    _draftRestorationKey = null;
+    _draftRestored = false;
+    _pendingMessage = null;
+    _sending = false;
+    return true;
+  }
+
+  Future<void> _restoreDraft() async {
+    final key = _draftKey;
+    if (key == null ||
+        _draftRestorationKey == key ||
+        _composerController.text.isNotEmpty) {
+      return;
+    }
+    _draftRestorationKey = key;
+    final generation = _authorityGeneration;
+    final revision = _composerRevision;
+    final store = ref.read(preferencesStoreProvider);
     try {
-      final draft = await ref
-          .read(preferencesStoreProvider)
-          .getString(_draftKey);
-      if (!mounted || draft == null || draft.trim().isEmpty) {
+      final draft = await store.getString(key);
+      if (!mounted ||
+          generation != _authorityGeneration ||
+          revision != _composerRevision ||
+          key != _draftKey ||
+          _composerController.text.isNotEmpty ||
+          draft == null ||
+          draft.trim().isEmpty) {
         return;
       }
+      _isRestoringDraft = true;
       _composerController.text = draft;
+      _isRestoringDraft = false;
       setState(() {
         _draftRestored = true;
       });
-    } finally {
-      _isRestoringDraft = false;
+    } catch (_) {
+      // Optional local drafts cannot bypass or interrupt an authorized room receive.
     }
   }
 
   void _onComposerChanged() {
-    if (_isRestoringDraft) {
-      return;
-    }
+    if (_isRestoringDraft) return;
+    _composerRevision++;
     _draftSaveDebounce?.cancel();
+    final key = _draftKey;
+    if (key == null) return;
+    final generation = _authorityGeneration;
+    final text = _composerController.text;
+    final store = ref.read(preferencesStoreProvider);
     _draftSaveDebounce = Timer(const Duration(milliseconds: 300), () async {
-      final text = _composerController.text;
-      final store = ref.read(preferencesStoreProvider);
+      if (!mounted || generation != _authorityGeneration || key != _draftKey) {
+        return;
+      }
       if (text.trim().isEmpty) {
-        await store.remove(_draftKey);
+        await store.remove(key);
       } else {
-        await store.setString(_draftKey, text);
+        await store.setString(key, text);
       }
     });
   }
 
-  String get _draftKey =>
-      'chat.roomDraft.v1.${Uri.encodeComponent(widget.conversation.id)}';
+  String? get _draftKey => _memberStorageScope == null
+      ? null
+      : 'chat.roomDraft.v2.$_memberStorageScope.${Uri.encodeComponent(widget.conversation.id)}';
 
   Future<void> _acceptInvitation() async {
     if (_loading) return;
@@ -114,29 +296,35 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       );
       return;
     }
+    final generation = _authorityGeneration;
+    final roomId = widget.conversation.id;
+    bool current() =>
+        mounted &&
+        generation == _authorityGeneration &&
+        roomId == widget.conversation.id &&
+        identical(repository, ref.read(chatRepositoryProvider));
     setState(() {
       _loading = true;
       _failure = null;
     });
     try {
-      await (repository as ChatInvitationRepository).acceptInvitation(
-        widget.conversation.id,
-      );
-      if (!mounted) return;
+      await (repository as ChatInvitationRepository).acceptInvitation(roomId);
+      if (!current()) return;
       setState(() {
         _invitationAccepted = true;
+        _accessDenied = false;
+        _started = true;
         _loading = false;
       });
-      await _restoreDraft();
       await _loadTimeline();
     } on ChatFailure catch (failure) {
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
         _failure = failure;
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
         _failure = ChatFailure.unknown(
           'Invitation acceptance failed.',
@@ -147,51 +335,96 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
   }
 
-  Future<void> _loadTimeline() async {
-    if (widget.conversation.isInvite && !_invitationAccepted) return;
-    setState(() {
-      _loading = true;
-      _failure = null;
-    });
+  Future<void> _loadTimeline({bool routine = false}) {
+    if (!mounted ||
+        !_visible ||
+        !_foreground ||
+        (widget.conversation.isInvite && !_invitationAccepted)) {
+      return Future<void>.value();
+    }
+    if (routine && (_accessDenied || _sending)) return Future<void>.value();
+    _started = true;
+    if (!routine) _accessDenied = false;
+    _receiveTimer?.cancel();
+    final inFlight = _timelineRequest;
+    if (inFlight != null) {
+      _reloadRequested = true;
+      return inFlight;
+    }
+    _timelineRequest = _drainTimeline();
+    return _timelineRequest!;
+  }
 
+  Future<void> _drainTimeline() async {
     try {
-      final timeline = await ref
-          .read(chatRepositoryProvider)
-          .loadRoomTimeline(widget.conversation.id);
-      final archivedMessageIds = await ref
-          .read(archivedMessageStoreProvider)
-          .loadArchivedMessageIds(widget.conversation.id);
-      if (!mounted) return;
+      do {
+        _reloadRequested = false;
+        await _readTimeline();
+      } while (_reloadRequested && _canReceive);
+    } finally {
+      _timelineRequest = null;
+      _scheduleReceive();
+    }
+  }
 
+  Future<void> _readTimeline() async {
+    final generation = _receiveGeneration;
+    final roomId = widget.conversation.id;
+    final repository = ref.read(chatRepositoryProvider);
+    final archives = ref.read(archivedMessageStoreProvider);
+    bool current() =>
+        _canReceive &&
+        generation == _receiveGeneration &&
+        roomId == widget.conversation.id &&
+        identical(repository, ref.read(chatRepositoryProvider));
+    if (_timeline == null) {
+      setState(() {
+        _loading = true;
+        _failure = null;
+      });
+    }
+    try {
+      final timeline = await repository.loadRoomTimeline(roomId);
+      if (!current()) return;
+      if (_bindDraftOwner(timeline.memberStorageScope)) {
+        setState(() {
+          _timeline = null;
+          _archivedMessageIds = {};
+          _loading = true;
+        });
+      }
+      final archivedMessageIds = await archives.loadArchivedMessageIds(roomId);
+      if (!current()) return;
       setState(() {
         _timeline = timeline;
         _archivedMessageIds = archivedMessageIds;
+        _failure = null;
         _loading = false;
       });
-
+      unawaited(_restoreDraft());
       unawaited(
-        ref
-            .read(chatRepositoryProvider)
-            .markRoomRead(widget.conversation.id)
-            .catchError((Object _) {
-              // Read-marker failures must not surface raw provider diagnostics
-              // or interrupt the already-loaded room timeline. The next load or
-              // send path will retry through the support-safe repository seam.
-            }),
+        repository.markRoomRead(roomId).catchError((Object _) {
+          // A read marker cannot invalidate a successfully received timeline.
+        }),
       );
     } on ChatFailure catch (failure) {
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
         if (failure.type == ChatFailureType.sessionRequired) {
+          _accessDenied = true;
+          _receiveGeneration++;
+          _authorityGeneration++;
+          _sending = false;
           _timeline = null;
-          _archivedMessageIds = <String>{};
+          _archivedMessageIds = {};
           _pendingMessage = null;
+          _reloadRequested = false;
         }
         _failure = failure;
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
         _failure = ChatFailure.unknown(
           'Unable to load this conversation right now.',
@@ -208,6 +441,18 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       return;
     }
 
+    final generation = _authorityGeneration;
+    final roomId = widget.conversation.id;
+    final repository = ref.read(chatRepositoryProvider);
+    final draftKey = _draftKey;
+    final draftStore = draftKey == null
+        ? null
+        : ref.read(preferencesStoreProvider);
+    bool current() =>
+        mounted &&
+        generation == _authorityGeneration &&
+        roomId == widget.conversation.id &&
+        identical(repository, ref.read(chatRepositoryProvider));
     final pendingMessage =
         retryingMessage ?? _PendingOutgoingMessage.create(text: message);
 
@@ -221,20 +466,23 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     });
 
     try {
-      await ref
-          .read(chatRepositoryProvider)
-          .sendMessage(roomId: widget.conversation.id, message: message);
+      await repository.sendMessage(roomId: roomId, message: message);
+      if (!current()) return;
       _composerController.clear();
-      await ref.read(preferencesStoreProvider).remove(_draftKey);
+      if (draftKey != null) await draftStore!.remove(draftKey);
+      if (!current()) return;
       await _loadTimeline();
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
         _pendingMessage = null;
       });
     } on ChatFailure catch (failure) {
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
         if (failure.type == ChatFailureType.sessionRequired) {
+          _authorityGeneration++;
+          _suspendReceive();
+          _accessDenied = true;
           _timeline = null;
           _archivedMessageIds = <String>{};
           _pendingMessage = null;
@@ -249,7 +497,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         _sending = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
         _pendingMessage = pendingMessage.copyWith(
           deliveryState: ChatMessageDeliveryState.failed,
@@ -262,10 +510,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         _sending = false;
       });
     } finally {
-      if (mounted) {
+      if (current()) {
         setState(() {
           _sending = false;
         });
+        _scheduleReceive();
       }
     }
   }
