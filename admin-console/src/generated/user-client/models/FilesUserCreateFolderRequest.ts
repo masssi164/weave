@@ -31,6 +31,12 @@ export interface FilesUserCreateFolderRequest {
      * @memberof FilesUserCreateFolderRequest
      */
     parentFileId: string;
+    /**
+     *
+     * @type {string}
+     * @memberof FilesUserCreateFolderRequest
+     */
+    spaceRef?: string;
 }
 
 /**
@@ -54,6 +60,7 @@ export function FilesUserCreateFolderRequestFromJSONTyped(json: any, ignoreDiscr
 
         'name': json['name'],
         'parentFileId': json['parentFileId'],
+        'spaceRef': json['spaceRef'] == null ? undefined : json['spaceRef'],
     };
 }
 
@@ -70,5 +77,6 @@ export function FilesUserCreateFolderRequestToJSONTyped(value?: FilesUserCreateF
 
         'name': value['name'],
         'parentFileId': value['parentFileId'],
+        'spaceRef': value['spaceRef'],
     };
 }

@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolationException;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -160,10 +161,12 @@ public class ApiExceptionHandler {
             Exception exception, HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         LOGGER.error(
-                "WEAVE_API_UNEXPECTED_FAILURE requestId={} category={} failureType={}",
+                "WEAVE_API_UNEXPECTED_FAILURE requestId={} category={} failureType={} causeTypes={} sourceFrames={}",
                 RequestIdFilter.requestId(request),
                 failureCategory(exception),
-                exception.getClass().getName());
+                exception.getClass().getName(),
+                failureCauseTypes(exception),
+                failureSourceFrames(exception));
         errorResponseWriter.write(
                 request,
                 response,
@@ -171,6 +174,32 @@ public class ApiExceptionHandler {
                 "internal-server-error",
                 "The request could not be completed.",
                 Map.of("failureCategory", failureCategory(exception)));
+    }
+
+    // Static code locations diagnose failures without exception messages, SQL, or actor data.
+    static String failureCauseTypes(Throwable failure) {
+        var types = new ArrayList<String>();
+        for (int depth = 0; failure != null && depth < 8; depth++, failure = failure.getCause()) {
+            types.add(failure.getClass().getName());
+        }
+        return String.join(",", types);
+    }
+
+    static String failureSourceFrames(Throwable failure) {
+        var sources = new ArrayList<String>();
+        for (int depth = 0; failure != null && depth < 8; depth++, failure = failure.getCause()) {
+            for (StackTraceElement frame : failure.getStackTrace()) {
+                if (frame.getClassName().startsWith("com.massimotter.weave.")
+                        && frame.getClassName().matches("[A-Za-z0-9_.$]{1,200}")
+                        && frame.getMethodName().matches("[A-Za-z0-9_$]{1,100}")) {
+                    String source = frame.getClassName() + "." + frame.getMethodName()
+                            + ":" + Math.max(0, frame.getLineNumber());
+                    if (!sources.contains(source)) sources.add(source);
+                    if (sources.size() == 4) return String.join(",", sources);
+                }
+            }
+        }
+        return sources.isEmpty() ? "unavailable" : String.join(",", sources);
     }
 
     private static String failureCategory(Throwable failure) {

@@ -51,6 +51,19 @@ public class JpaMatrixFacadeClientStateStore implements MatrixFacadeClientStateS
     }
 
     @Override
+    public java.util.List<IdentityProjection> identityProjections(
+            String tenantId, String identityIssuer, String afterUserId, int limit) {
+        if (limit < 1 || limit > 100) throw new IllegalArgumentException("Identity page is bounded to 100");
+        return identityProjections
+                .findByTenantIdAndIdentityIssuerAndMatrixUserIdGreaterThanOrderByMatrixUserId(
+                        tenantId, identityIssuer, afterUserId,
+                        org.springframework.data.domain.PageRequest.of(0, limit))
+                .stream().map(entity -> new IdentityProjection(entity.tenantId(), entity.identityIssuer(),
+                        entity.matrixUserId(), entity.actorRef(), entity.authorizationPrincipalRef(), entity.updatedAt()))
+                .toList();
+    }
+
+    @Override
     public void saveIdentityProjection(IdentityProjection projection) {
         MatrixIdentityProjectionId id = new MatrixIdentityProjectionId(
                 projection.tenantId(), projection.identityIssuer(), projection.matrixUserId());

@@ -19,8 +19,7 @@ class SceneDelegate: FlutterSceneDelegate {
   }
 
   private func persistPendingDeepLink(from urlContexts: Set<UIOpenURLContext>) {
-    guard let url = urlContexts.first?.url,
-          url.scheme != "com.massimotter.weave.matrix" else {
+    guard let url = urlContexts.first?.url else {
       return
     }
     UserDefaults.standard.set(url.absoluteString, forKey: pendingDeepLinkKey)

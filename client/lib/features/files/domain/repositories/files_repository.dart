@@ -46,3 +46,27 @@ abstract interface class FilesRelocationRepository {
     bool overwrite = false,
   });
 }
+
+/// Explicit root scope; descendants retain server-enforced inherited scope.
+abstract interface class FilesSpaceRepository {
+  Future<DirectoryListing> listDirectory(String path, {String? spaceRef});
+  Future<void> uploadFile(
+    String directoryPath,
+    FileUploadRequest request, {
+    String? spaceRef,
+    FileUploadProgressCallback? onProgress,
+  });
+  Future<FileEntry> createFolder({
+    required String parentPath,
+    required String name,
+    String? spaceRef,
+  });
+}
+
+abstract interface class FilesContentReplacementRepository {
+  Future<FileEntry> replaceContent(
+    FileEntry entry,
+    FileUploadRequest request, {
+    FileUploadProgressCallback? onProgress,
+  });
+}

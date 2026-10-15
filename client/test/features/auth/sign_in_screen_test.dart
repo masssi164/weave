@@ -1,3 +1,6 @@
+import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/features/server_config/data/dtos/server_configuration_dto.dart';
+import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -28,6 +31,13 @@ class _FailingSignInWithOidc implements SignInWithOidc {
   }
 }
 
+// Saved sign-in requires the same validated manifest profile as ordinary setup.
+Map<String, Object> _storedOrganizationProfile() => {
+  serverConfigurationStorageKey: ServerConfigurationDto.fromConfiguration(
+    buildTestConfiguration(),
+  ).encode(),
+};
+
 void main() {
   group('SignInScreen', () {
     testWidgets('shows the Weave logo with saved sign-in configuration', (
@@ -35,8 +45,13 @@ void main() {
     ) async {
       final container = ProviderContainer.test(
         overrides: [
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
+            ),
+          ),
           preferencesStoreProvider.overrideWith(
-            (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
+            (ref) => InMemoryPreferencesStore(_storedOrganizationProfile()),
           ),
         ],
       );
@@ -72,8 +87,13 @@ void main() {
 
       final container = ProviderContainer.test(
         overrides: [
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
+            ),
+          ),
           preferencesStoreProvider.overrideWith(
-            (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
+            (ref) => InMemoryPreferencesStore(_storedOrganizationProfile()),
           ),
         ],
       );
@@ -125,7 +145,7 @@ void main() {
       'records support-safe SSO failure evidence when a saved handoff exists',
       (tester) async {
         final preferencesStore = InMemoryPreferencesStore({
-          ...buildStoredConfiguration(),
+          ..._storedOrganizationProfile(),
           lastHandoffConsumedStorageKey: jsonEncode(<String, Object>{
             'schemaVersion': 'weave.client.last_handoff_consumed.v1',
             'result': 'saved_configuration',
@@ -139,6 +159,11 @@ void main() {
         });
         final container = ProviderContainer.test(
           overrides: [
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             preferencesStoreProvider.overrideWith((ref) => preferencesStore),
             signInWithOidcProvider.overrideWithValue(
               const _FailingSignInWithOidc(

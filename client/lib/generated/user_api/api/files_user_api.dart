@@ -244,8 +244,12 @@ class FilesUserApi {
   /// Parameters:
   ///
   /// * [String] parentId:
+  ///
+  /// * [String] spaceRef:
+  ///   Explicit shared Space for a root listing; omitted preserves private scope. Children inherit parent scope.
   Future<Response> listFilesItemsWithHttpInfo({
     String? parentId,
+    String? spaceRef,
   }) async {
     // ignore: prefer_const_declarations
     final path = r'/api/files/items';
@@ -259,6 +263,9 @@ class FilesUserApi {
 
     if (parentId != null) {
       queryParams.addAll(_queryParams('', 'parentId', parentId));
+    }
+    if (spaceRef != null) {
+      queryParams.addAll(_queryParams('', 'spaceRef', spaceRef));
     }
 
     const contentTypes = <String>[];
@@ -279,11 +286,16 @@ class FilesUserApi {
   /// Parameters:
   ///
   /// * [String] parentId:
+  ///
+  /// * [String] spaceRef:
+  ///   Explicit shared Space for a root listing; omitted preserves private scope. Children inherit parent scope.
   Future<FilesUserListResponse?> listFilesItems({
     String? parentId,
+    String? spaceRef,
   }) async {
     final response = await listFilesItemsWithHttpInfo(
       parentId: parentId,
+      spaceRef: spaceRef,
     );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
@@ -425,6 +437,9 @@ class FilesUserApi {
   ///
   /// * [MultipartFile] body (required):
   ///
+  /// * [String] spaceRef:
+  ///   Explicit shared Space at the root; omitted preserves private scope.
+  ///
   /// * [String] mediaType:
   Future<Response> uploadFilesItemContentWithHttpInfo(
     String parentId,
@@ -432,6 +447,7 @@ class FilesUserApi {
     String ifNoneMatch,
     String idempotencyKey,
     MultipartFile body, {
+    String? spaceRef,
     String? mediaType,
   }) async {
     // ignore: prefer_const_declarations
@@ -445,6 +461,9 @@ class FilesUserApi {
     final formParams = <String, String>{};
 
     queryParams.addAll(_queryParams('', 'parentId', parentId));
+    if (spaceRef != null) {
+      queryParams.addAll(_queryParams('', 'spaceRef', spaceRef));
+    }
     queryParams.addAll(_queryParams('', 'name', name));
     if (mediaType != null) {
       queryParams.addAll(_queryParams('', 'mediaType', mediaType));
@@ -484,6 +503,9 @@ class FilesUserApi {
   ///
   /// * [MultipartFile] body (required):
   ///
+  /// * [String] spaceRef:
+  ///   Explicit shared Space at the root; omitted preserves private scope.
+  ///
   /// * [String] mediaType:
   Future<FilesUserItemResponse?> uploadFilesItemContent(
     String parentId,
@@ -491,6 +513,7 @@ class FilesUserApi {
     String ifNoneMatch,
     String idempotencyKey,
     MultipartFile body, {
+    String? spaceRef,
     String? mediaType,
   }) async {
     final response = await uploadFilesItemContentWithHttpInfo(
@@ -499,6 +522,7 @@ class FilesUserApi {
       ifNoneMatch,
       idempotencyKey,
       body,
+      spaceRef: spaceRef,
       mediaType: mediaType,
     );
     if (response.statusCode >= HttpStatus.badRequest) {

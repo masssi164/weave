@@ -12,12 +12,130 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import javax.sql.DataSource;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 @EnabledIfSystemProperty(named = "weave.test.postgres", matches = "true")
 class MatrixDeviceProofPostgresTest {
+    @Test
+    void concurrentFirstOidcBindIsIdempotentForTheSameDevice() throws Exception {
+        assertFirstOidcBindRace(true);
+    }
+
+    @Test
+    void concurrentFirstOidcBindRetainsExactlyOneDifferentDeviceWinner() throws Exception {
+        assertFirstOidcBindRace(false);
+    }
+
+    private void assertFirstOidcBindRace(boolean sameDevice) throws Exception {
+        var dataSource = JpaTestDatabase.dataSource("matrix-oidc-binding-race");
+        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+        var emptyReads = new CountDownLatch(2);
+        var observed = new AtomicInteger();
+        var inserts = new CountDownLatch(2);
+        var first = new MatrixE2eeRelationalStore(new FirstBindingJdbc(dataSource, emptyReads, observed, inserts), new ObjectMapper());
+        var second = new MatrixE2eeRelationalStore(new FirstBindingJdbc(dataSource, emptyReads, observed, inserts), new ObjectMapper());
+        var firstTransaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        var secondTransaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        var jdbc = new JdbcTemplate(dataSource);
+        String firstDevice = "OWNED-A";
+        String secondDevice = sameDevice ? firstDevice : "OWNED-B";
+        var start = new CountDownLatch(1);
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            var one = workers.submit(() -> {
+                start.await();
+                return firstTransaction.execute(ignored -> first.bindOidcSession("org-one", "@owned:api.weave.test", "owned-session", firstDevice));
+            });
+            var two = workers.submit(() -> {
+                start.await();
+                return secondTransaction.execute(ignored -> second.bindOidcSession("org-one", "@owned:api.weave.test", "owned-session", secondDevice));
+            });
+            start.countDown();
+            boolean firstBound = Boolean.TRUE.equals(one.get(20, TimeUnit.SECONDS));
+            boolean secondBound = Boolean.TRUE.equals(two.get(20, TimeUnit.SECONDS));
+            if (sameDevice) {
+                assertThat(firstBound).isTrue();
+                assertThat(secondBound).isTrue();
+            } else {
+                assertThat(firstBound ^ secondBound).isTrue();
+            }
+            List<String> winners = jdbc.query("select device_id from weave_matrix_oidc_device_bindings where tenant_id=? and user_id=? and oidc_session_hash=?",
+                    (rs, ignored) -> rs.getString(1), "org-one", "@owned:api.weave.test", "owned-session");
+            assertThat(winners).containsExactly(firstBound ? firstDevice : secondDevice);
+            var restarted = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
+            assertThat(restarted.bindOidcSession("org-one", "@owned:api.weave.test", "owned-session", winners.getFirst())).isTrue();
+            assertThat(restarted.bindOidcSession("org-one", "@owned:api.weave.test", "owned-session", "OTHER")).isFalse();
+        } finally {
+            System.out.println("OIDC_BINDING_RACE_OBSERVATION actualEmptyReads=" + observed.get());
+        }
+    }
+
+    /** Observe actual PostgreSQL reads; only the old missing-row SELECT enters this barrier. */
+    private static final class FirstBindingJdbc extends JdbcTemplate {
+        private final CountDownLatch emptyReads;
+        private final AtomicInteger observed;
+        private final CountDownLatch inserts;
+
+        private FirstBindingJdbc(DataSource source, CountDownLatch emptyReads, AtomicInteger observed, CountDownLatch inserts) {
+            super(source);
+            this.emptyReads = emptyReads;
+            this.observed = observed;
+            this.inserts = inserts;
+        }
+
+        @Override
+        public int update(String sql, Object... args) {
+            if (sql.startsWith("insert into weave_matrix_oidc_device_bindings")) {
+                inserts.countDown();
+                try {
+                    if (!inserts.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("First insert-entry barrier timed out");
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(interrupted);
+                }
+            }
+            return super.update(sql, args);
+        }
+
+        @Override
+        public <T> List<T> query(String sql, RowMapper<T> mapper, Object... args) {
+            List<T> rows = super.query(sql, mapper, args);
+            if (sql.startsWith("select device_id from weave_matrix_oidc_device_bindings") && rows.isEmpty()) {
+                observed.incrementAndGet();
+                emptyReads.countDown();
+                try {
+                    if (!emptyReads.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Actual empty-read barrier timed out");
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(interrupted);
+                }
+            }
+            return rows;
+        }
+    }
+
+    @Test
+    void oidcBindingWinnerSurvivesRestartAndIsScopedByTenantUserAndSession() {
+        var dataSource = JpaTestDatabase.dataSource("matrix-oidc-binding-scope");
+        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+        var jdbc = new JdbcTemplate(dataSource);
+        var first = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
+        assertThat(first.bindOidcSession("org-one", "@one:api.weave.test", "session-one", "DEVICE-A")).isTrue();
+        var restarted = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
+        assertThat(restarted.bindOidcSession("org-one", "@one:api.weave.test", "session-one", "DEVICE-A")).isTrue();
+        assertThat(restarted.bindOidcSession("org-one", "@one:api.weave.test", "session-one", "DEVICE-B")).isFalse();
+        assertThat(restarted.bindOidcSession("org-two", "@one:api.weave.test", "session-one", "DEVICE-B")).isTrue();
+        assertThat(restarted.bindOidcSession("org-one", "@two:api.weave.test", "session-one", "DEVICE-B")).isTrue();
+        assertThat(restarted.bindOidcSession("org-one", "@one:api.weave.test", "session-two", "DEVICE-B")).isTrue();
+        assertThat(jdbc.queryForObject("select count(*) from weave_matrix_oidc_device_bindings", Integer.class)).isEqualTo(4);
+        assertThat(restarted.bindOidcSession("org-one", "@one:api.weave.test", "session-one", "DEVICE-A")).isTrue();
+    }
+
     @Test
     void verifierPersistsAcrossInstancesAndCannotAdoptKeyedOrRevokedDevice() {
         var dataSource = JpaTestDatabase.dataSource("matrix-device-proof");

@@ -40,7 +40,7 @@ XCODE_BUILD = '17F42'
 IOS_SIMULATOR_SDK_VERSION = '26.5'
 SAFE_PRODUCT_STAGES = {
     'shell-ready', 'shell-bootstrap-failed', 'shell-bootstrap-diagnostic-unavailable',
-    'driver-attached', 'sign-in-tapped', 'appauth-requested', 'auth-failed',
+    'driver-attached', 'flutter-sign-in-tapped', 'sign-in-tapped', 'appauth-requested', 'auth-failed',
     'appauth-pending', 'workspace-ready', 'files-start', 'files-passed',
     'calendar-start', 'calendar-agenda-failed', 'calendar-passed',
     'matrix-start', 'matrix-open-failed', 'matrix-admission',
@@ -50,7 +50,7 @@ SAFE_PRODUCT_STAGES = {
     'own-room-leave-denied', 'logout-denial-passed',
 }
 SAFE_BROWSER_STAGES = {
-    'driver-started', 'sign-in-tapped', 'app-wait-started', 'app-observed', 'issuer-observed',
+    'driver-started', 'sign-in-control-observed', 'sign-in-tapped', 'app-wait-started', 'app-observed', 'issuer-observed',
     'username-submitted', 'password-submitted', 'password-save-declined', 'auth-completion-observed', 'password-return-submitted',
 }
 
@@ -138,7 +138,27 @@ def failure_marker(category: str, stage: str, reason: str) -> None:
     print(f'NATIVE_IOS_FAILURE category={category} phase={stage} reason={reason} supportSafe=true', flush=True)
 
 
+def onboarding_diagnostics(output: str) -> list[str]:
+    pattern = (r'(?:flutter: )?(NATIVE_PRODUCT_STAGE phase=onboarding-failed '
+               r'actor=(?:A|B|unavailable) '
+               r'authState=(?:handoff_received|platform_config_loaded|ready_for_sso|sso_in_progress|authenticated|workspace_bootstrap_loading|session_restored|workspace_ready|recoverable_error|terminal_setup_error|unavailable) '
+               r'visibleState=(?:handoff_ready|handoff_error|authenticated_redirect|unavailable) '
+               r'errorCode=(?:none|WEAVE-APP-START-DISCOVERY-INVALID|WEAVE-APP-START-DISCOVERY-FAILED|WEAVE-APP-START-TIMEOUT|WEAVE-APP-START-TLS-FAILED|WEAVE-APP-START-DNS-FAILED|WEAVE-APP-START-NETWORK-FAILED|WEAVE-LAN-UNREACHABLE|WEAVE-HANDOFF-INVALID|WEAVE-SSO-CANCELLED|WEAVE-SSO-CONFIGURATION-MISSING|WEAVE-SSO-NOT-COMPLETE|WEAVE-SESSION-STORAGE-FAILED|WEAVE-SSO-UNSUPPORTED-DEVICE|WEAVE-SSO-UNKNOWN|WEAVE-MOBILE-OFFLINE-SESSION-DENIED|WEAVE-WORKSPACE-BOOTSTRAP-NOT-READY|PlatformException|StateError|FormatException|unavailable) '
+               + ' '.join(name + r'Count=[0-9]{1,3}' for name in ('organization', 'handoff', 'ready', 'signIn', 'workspace')) + ')')
+    records = []
+    for line in output.split('\n'):
+        match = re.fullmatch(pattern, line)
+        if match is not None and match[1] not in records:
+            records.append(match[1])
+        if len(records) >= 3:
+            break
+    return records
+
+
 def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> None:
+    if phase in {'initial', 'restore'}:
+        for marker in onboarding_diagnostics(flutter_output):
+            print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} {marker} supportSafe=true', flush=True)
     patterns = [
         (flutter_output, r'NATIVE_PRODUCT_STAGE phase=[a-z-]+', SAFE_PRODUCT_STAGES),
         (browser_output, r'NATIVE_IOS_BROWSER_STAGE phase=[a-z-]+', SAFE_BROWSER_STAGES),
@@ -174,6 +194,19 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
                 print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} {match[1]} supportSafe=true', flush=True)
             if len(records) >= 3:
                 break
+    if phase in {'initial', 'restore'}:
+        pattern = (r'(?:flutter: )?(NATIVE_PRODUCT_STAGE phase=chat-readiness-failed '
+                   r'chatPhase=(?:loading|content|empty|error|unsupported) '
+                   r'failureType=(?:none|cancelled|configuration|sessionRequired|unsupportedConfiguration|peerDevicePending|protocol|storage|unsupportedPlatform|unknown) '
+                   r'createCount=[0-9]{1,3} enabled=(?:true|false) hittable=(?:true|false) dialogCount=[0-9]{1,3})')
+        records = set()
+        for line in flutter_output.split('\n'):
+            match = re.fullmatch(pattern, line)
+            if match is not None and match[1] not in records:
+                records.add(match[1])
+                print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} {match[1]} supportSafe=true', flush=True)
+            if len(records) >= 3:
+                break
     # Only complete fixed-format numeric control diagnostics may leave the
     # private transcript. Do not retain labels, values or trailing messages.
     if phase in {'initial', 'restore'}:
@@ -191,6 +224,7 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
     if phase in {'initial', 'restore'}:
         observed = set()
         typed_patterns = [
+            r'NATIVE_IOS_PASSWORD_PROMPT_STATE appPrompts=([0-9]{1,3}) systemPrompts=([0-9]{1,3}) appDeclines=([0-9]{1,3}) systemDeclines=([0-9]{1,3}) readiness=(ambiguous|waiting|ready)',
             r'NATIVE_IOS_PROVIDER_CONTROLS phase=(username-before|password-before) usernameFields=([0-9]{1,3}) passwordFields=([0-9]{1,3}) selectedFieldHittable=(true|false)',
             r'NATIVE_IOS_PROVIDER_CONTROLS phase=username-after readbackEqual=(true|false)',
             r'NATIVE_IOS_PROVIDER_CONTROLS phase=password-after secureValueLengthEqual=(true|false)',
@@ -426,9 +460,16 @@ def wait_for_flutter_shell(process, log_path: Path, phase: str, timeout: float =
     # the subprocess stdout offset. Seeking its shared writer would corrupt it.
     with log_path.open() as observer:
         tail = ''
+        onboarding = []
         while time.monotonic() < deadline:
             observed = tail + observer.read(65536)
+            onboarding = onboarding or onboarding_diagnostics(observed)
             if process.poll() is not None:
+                if onboarding:
+                    network = any('errorCode=' + code + ' ' in onboarding[0] for code in
+                                  ('WEAVE-APP-START-TIMEOUT', 'WEAVE-APP-START-TLS-FAILED', 'WEAVE-APP-START-DNS-FAILED', 'WEAVE-APP-START-NETWORK-FAILED', 'WEAVE-LAN-UNREACHABLE'))
+                    raise NativeFailure('infrastructure' if network else 'integration', phase + '-onboarding',
+                                        'discovery-network-failed' if network else 'ready-sso-not-observed')
                 raise NativeFailure('infrastructure', phase + '-app-start', 'integration-app-exited-before-readiness')
             if 'NATIVE_PRODUCT_STAGE phase=shell-ready' in observed:
                 print(f'NATIVE_IOS_APP_START_RESULT status=ready phase={phase} supportSafe=true', flush=True)
@@ -552,7 +593,8 @@ def terminate_initial_app(udid: str, expected_pid: str, timeout: float = 10) -> 
     raise NativeFailure('infrastructure', 'process-restart', 'initial-process-remained-running')
 
 
-def release_driver_barrier(flutter, driver, log_path: Path, udid: str, pid: str, barrier: Path, phase: str, timeout: float = 90) -> None:
+def release_driver_barrier(flutter, driver, log_path: Path, udid: str, pid: str, barrier: Path, phase: str, timeout: float = 90, *, require_sign_in_observation: bool = False) -> None:
+    required_stage = 'sign-in-control-observed' if require_sign_in_observation else 'app-observed'
     deadline = time.monotonic() + timeout
     with log_path.open() as observer:
         tail = ''
@@ -560,7 +602,7 @@ def release_driver_barrier(flutter, driver, log_path: Path, udid: str, pid: str,
             observed = tail + observer.read(65536)
             if flutter.poll() is not None or driver.poll() is not None:
                 raise NativeFailure('infrastructure', phase + '-driver-attach', 'process-exited-before-attachment')
-            if 'NATIVE_IOS_BROWSER_STAGE phase=app-observed' in observed:
+            if any(line == f'NATIVE_IOS_BROWSER_STAGE phase={required_stage}' for line in observed.split('\n')[:-1]):
                 if simulator_app_pid(udid) != pid:
                     raise NativeFailure('infrastructure', phase + '-driver-attach', 'integration-process-replaced')
                 descriptor = os.open(barrier, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)

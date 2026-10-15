@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:http/http.dart' as http;
@@ -44,16 +45,9 @@ class DiscoverOrganizationAccess {
         access,
       );
       await _repository.saveConfiguration(
-        ServerConfiguration(
-          providerType: OidcProviderType.oidc,
-          oidcIssuerUrl: appStart.oidcIssuerUrl,
-          oidcClientRegistration: OidcClientRegistration.manual(
-            clientId: appStart.oidcClientId,
-          ),
-          serviceEndpoints: ServiceEndpoints(
-            matrixHomeserverUrl: appStart.matrixClientServerBaseUrl,
-            backendApiBaseUrl: appStart.userApiBaseUrl,
-          ),
+        appStart.toServerConfiguration(
+          access.organizationOrigin,
+          validatedAt: DateTime.now().toUtc(),
         ),
       );
       await _recordAccessEvidence(access, result: 'saved_configuration');
@@ -176,16 +170,51 @@ String supportSafeHandoffErrorCode(Object error) {
 
 class AppStartConfiguration {
   const AppStartConfiguration({
+    required this.manifest,
     required this.oidcIssuerUrl,
     required this.oidcClientId,
     required this.userApiBaseUrl,
     required this.matrixClientServerBaseUrl,
   });
 
+  final Map<String, dynamic> manifest;
   final Uri oidcIssuerUrl;
   final String oidcClientId;
   final Uri userApiBaseUrl;
   final Uri matrixClientServerBaseUrl;
+
+  ServerConfiguration toServerConfiguration(
+    Uri origin, {
+    required DateTime? validatedAt,
+  }) => ServerConfiguration(
+    organizationOrigin: origin,
+    validatedManifest: manifest,
+    manifestValidatedAt: validatedAt,
+    providerType: OidcProviderType.oidc,
+    oidcIssuerUrl: oidcIssuerUrl,
+    oidcClientRegistration: OidcClientRegistration.manual(
+      clientId: oidcClientId,
+    ),
+    serviceEndpoints: ServiceEndpoints(
+      matrixHomeserverUrl: matrixClientServerBaseUrl,
+      backendApiBaseUrl: userApiBaseUrl,
+    ),
+  );
+}
+
+/// Keep generated PlatformApi requests on the selected organization authority.
+class _CanonicalBootstrapTransport extends http.BaseClient {
+  _CanonicalBootstrapTransport(this.delegate, this.canonical);
+  final http.Client delegate;
+  final Uri canonical;
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    if (request.url != canonical || request.method != 'GET') {
+      throw http.ClientException('Unexpected bootstrap endpoint.', request.url);
+    }
+    request.followRedirects = false;
+    return delegate.send(request);
+  }
 }
 
 class AppStartDiscoveryClient {
@@ -195,16 +224,17 @@ class AppStartDiscoveryClient {
   final http.Client _httpClient;
 
   Future<AppStartConfiguration> fetch(OrganizationAccess access) async {
-    final primaryUri = access.platformConfigUrl;
-    try {
-      return await _fetchFrom(primaryUri, access);
-    } on AppFailure catch (error) {
-      final fallbackUri = _productOriginPlatformConfigUrl(access);
-      if (!_shouldRetryOnProductOrigin(error, primaryUri, fallbackUri)) {
-        rethrow;
-      }
-      return _fetchFrom(fallbackUri, access);
+    final origin = _uri(
+      access.organizationOrigin,
+      fieldName: 'organizationOrigin',
+    );
+    if ((origin.path.isNotEmpty && origin.path != '/') ||
+        (origin.hasPort && (origin.port < 1 || origin.port > 65535))) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: organizationOrigin must be a secure origin.',
+      );
     }
+    return _fetchFrom(origin.replace(path: '/api/platform/config'), access);
   }
 
   Future<AppStartConfiguration> _fetchFrom(
@@ -215,9 +245,11 @@ class AppStartDiscoveryClient {
     try {
       final client = user_api.ApiClient(
         basePath: uri.replace(path: '', query: null, fragment: null).toString(),
-      )..client = _httpClient;
+      )..client = _CanonicalBootstrapTransport(_httpClient, uri);
       _headers(access).forEach(client.addDefaultHeader);
-      response = await user_api.PlatformApi(client).configWithHttpInfo();
+      response = await user_api.PlatformApi(
+        client,
+      ).configWithHttpInfo().timeout(const Duration(seconds: 15));
     } catch (error) {
       throw AppFailure.bootstrap(
         '${_transportErrorCode(error)}: The workspace start configuration could not be reached.',
@@ -232,7 +264,7 @@ class AppStartDiscoveryClient {
     }
 
     final payload = _decodeJsonObject(response.body);
-    return _configurationFromJson(payload, access);
+    return validateManifest(payload, access);
   }
 
   Map<String, String> _headers(OrganizationAccess access) {
@@ -244,37 +276,6 @@ class AppStartDiscoveryClient {
         'X-Weave-Handoff-Run-Id': handoff.runId,
       },
     };
-  }
-
-  Uri _productOriginPlatformConfigUrl(OrganizationAccess access) => Uri(
-    scheme: access.organizationOrigin.scheme,
-    host: access.organizationOrigin.host,
-    port: access.organizationOrigin.hasPort
-        ? access.organizationOrigin.port
-        : null,
-    path: '/api/platform/config',
-  );
-
-  bool _shouldRetryOnProductOrigin(
-    AppFailure error,
-    Uri primaryUri,
-    Uri fallbackUri,
-  ) {
-    if (primaryUri == fallbackUri) {
-      return false;
-    }
-    final code = _errorCode(error);
-    return code == 'WEAVE-APP-START-DNS-FAILED' ||
-        code == 'WEAVE-APP-START-TLS-FAILED' ||
-        code == 'WEAVE-APP-START-NETWORK-FAILED' ||
-        code == 'WEAVE-APP-START-TIMEOUT';
-  }
-
-  String _errorCode(AppFailure error) {
-    final separator = error.message.indexOf(':');
-    return separator > 0
-        ? error.message.substring(0, separator)
-        : error.message;
   }
 
   String _transportErrorCode(Object error) {
@@ -318,7 +319,13 @@ class AppStartDiscoveryClient {
     );
   }
 
-  AppStartConfiguration _configurationFromJson(
+  AppStartConfiguration validateManifest(
+    Map<String, dynamic> json,
+    OrganizationAccess access,
+  ) => parseManifest(json, access);
+
+  // The persisted cache and network response use the same strict contract.
+  static AppStartConfiguration parseManifest(
     Map<String, dynamic> json,
     OrganizationAccess access,
   ) {
@@ -355,8 +362,10 @@ class AppStartDiscoveryClient {
       json['organizationOrigin'],
       fieldName: 'organizationOrigin',
     );
-    if (_apiOrigin(organizationOrigin) !=
-        _apiOrigin(access.organizationOrigin)) {
+    if ((organizationOrigin.path.isNotEmpty &&
+            organizationOrigin.path != '/') ||
+        _apiOrigin(organizationOrigin) !=
+            _apiOrigin(access.organizationOrigin)) {
       throw const AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: organizationOrigin must match the handoff origin.',
       );
@@ -394,11 +403,12 @@ class AppStartDiscoveryClient {
     // Exact field validation above rejects unknown public protocol surfaces;
     // the generated transport model then supplies the values consumed by the
     // client configuration. Its decoder alone tolerates unknown JSON fields.
-    final transport = user_api.PlatformConfigResponse.fromJson(json)!;
+    final transport = user_api.OrgManifestResponse.fromJson(json)!;
     final transportOidc = transport.oidc;
     final transportProtocols = transport.protocols;
 
     return AppStartConfiguration(
+      manifest: jsonDecode(jsonEncode(json)) as Map<String, dynamic>,
       oidcIssuerUrl: _uri(transportOidc.issuer, fieldName: 'oidc.issuer'),
       oidcClientId: _clientId(transportOidc.clientId),
       userApiBaseUrl: _uri(
@@ -412,7 +422,10 @@ class AppStartDiscoveryClient {
     );
   }
 
-  Map<String, dynamic> _object(Object? value, {required String fieldName}) {
+  static Map<String, dynamic> _object(
+    Object? value, {
+    required String fieldName,
+  }) {
     if (value is Map<String, dynamic>) {
       return value;
     }
@@ -421,7 +434,10 @@ class AppStartDiscoveryClient {
     );
   }
 
-  void _requireExactKeys(Map<String, dynamic> value, Set<String> allowed) {
+  static void _requireExactKeys(
+    Map<String, dynamic> value,
+    Set<String> allowed,
+  ) {
     final unexpected = value.keys.where((key) => !allowed.contains(key));
     if (unexpected.isNotEmpty) {
       throw const AppFailure.validation(
@@ -430,7 +446,7 @@ class AppStartDiscoveryClient {
     }
   }
 
-  void _validateDomains(Object? value) {
+  static void _validateDomains(Object? value) {
     if (value is! List) {
       throw const AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: domains must be an array.',
@@ -501,7 +517,7 @@ class AppStartDiscoveryClient {
     }
   }
 
-  void _validateRecoveryActions(Object? value) {
+  static void _validateRecoveryActions(Object? value) {
     if (value is! List) {
       throw const AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: recoveryActions must be an array.',
@@ -524,13 +540,13 @@ class AppStartDiscoveryClient {
     }
   }
 
-  Uri _apiOrigin(Uri backendApiBaseUrl) => Uri(
+  static Uri _apiOrigin(Uri backendApiBaseUrl) => Uri(
     scheme: backendApiBaseUrl.scheme,
     host: backendApiBaseUrl.host,
     port: backendApiBaseUrl.hasPort ? backendApiBaseUrl.port : null,
   );
 
-  Uri _uri(Object? rawValue, {required String fieldName}) {
+  static Uri _uri(Object? rawValue, {required String fieldName}) {
     final value = rawValue is Uri
         ? rawValue.toString()
         : rawValue is String && rawValue.trim().isNotEmpty
@@ -565,7 +581,10 @@ class AppStartDiscoveryClient {
     return uri;
   }
 
-  String _clientId(Object? rawValue, {String fieldName = 'oidc.clientId'}) {
+  static String _clientId(
+    Object? rawValue, {
+    String fieldName = 'oidc.clientId',
+  }) {
     if (rawValue is! String || rawValue.trim().isEmpty) {
       throw AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: $fieldName is required.',

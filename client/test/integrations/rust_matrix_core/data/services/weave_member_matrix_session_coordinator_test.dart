@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -59,7 +60,7 @@ class _AuthRepository implements AuthSessionRepository {
 class _Access implements MatrixSessionAccessPort {
   String organizationId = 'org-one';
   bool allowed = true;
-  Uri advertisedMatrixUrl = Uri.parse('https://api.weave.test');
+  Future<void> Function(int call)? onAdmission;
   int calls = 0;
 
   @override
@@ -70,13 +71,13 @@ class _Access implements MatrixSessionAccessPort {
     required Uri expectedIssuer,
   }) async {
     calls++;
+    await onAdmission?.call(calls);
     if (!allowed) {
       throw const ChatFailure.sessionRequired('M_WEAVE_MATRIX_ACCESS_DENIED');
     }
     return MatrixSessionAccess(
       organizationId: organizationId,
       subject: expectedSubject,
-      matrixClientServerBaseUrl: advertisedMatrixUrl,
     );
   }
 }
@@ -180,7 +181,6 @@ void main() {
     configuration.configuration = buildTestConfiguration(
       matrixHomeserverUrl: 'https://api.weave.test:44443',
     );
-    access.advertisedMatrixUrl = Uri.parse('https://api.weave.test:44443');
 
     final session = await coordinator().open(
       synchronize: false,
@@ -219,28 +219,6 @@ void main() {
       ),
     );
     expect(access.calls, 0);
-    expect(bridge.memberActivations, isEmpty);
-  });
-
-  test('rejects a Matrix URL that differs from the current manifest', () async {
-    access.advertisedMatrixUrl = Uri.parse('https://other.weave.test');
-
-    await expectLater(
-      coordinator().open(synchronize: false),
-      throwsA(
-        isA<ChatFailure>()
-            .having(
-              (failure) => failure.type,
-              'failure category',
-              ChatFailureType.configuration,
-            )
-            .having(
-              (failure) => failure.message,
-              'support-safe diagnostic code',
-              'M_WEAVE_MATRIX_ENDPOINT_MISMATCH',
-            ),
-      ),
-    );
     expect(bridge.memberActivations, isEmpty);
   });
 
@@ -321,30 +299,55 @@ void main() {
     },
   );
 
-  test('a changed manifest endpoint drops live Matrix access', () async {
-    final current = coordinator();
-    final first = await current.open(synchronize: false);
-    access.advertisedMatrixUrl = Uri.parse('https://other.weave.test');
-
-    await expectLater(
-      current.open(synchronize: false),
-      throwsA(
-        isA<ChatFailure>()
-            .having(
-              (failure) => failure.type,
-              'failure category',
-              ChatFailureType.configuration,
-            )
-            .having(
-              (failure) => failure.message,
-              'support-safe diagnostic code',
-              'M_WEAVE_MATRIX_ENDPOINT_MISMATCH',
+  for (final reuse in [false, true]) {
+    for (final change in ['endpoint', 'clear-profile', 'logout']) {
+      test(
+        change == 'endpoint'
+            ? 'a changed manifest endpoint drops live Matrix access (${reuse ? 'reused' : 'new'} client during admission)'
+            : 'rejects ${reuse ? 'reused' : 'new'} client when $change occurs during admission',
+        () async {
+          final current = coordinator();
+          final first = reuse ? await current.open(synchronize: false) : null;
+          final held = Completer<void>();
+          final release = Completer<void>();
+          final holdAt = access.calls + 2;
+          access.onAdmission = (call) async {
+            if (call == holdAt) {
+              held.complete();
+              await release.future;
+            }
+          };
+          final opening = current.open(synchronize: false);
+          final rejection = expectLater(
+            opening,
+            throwsA(
+              isA<ChatFailure>().having(
+                (failure) => failure.message,
+                'current binding rejection',
+                'M_WEAVE_MATRIX_SESSION_CHANGED',
+              ),
             ),
-      ),
-    );
-    expect(bridge.disposedProfiles, contains(first.profileKey));
-    expect(bridge.memberActivations, hasLength(1));
-  });
+          );
+          await held.future;
+          if (change == 'endpoint') {
+            configuration.configuration = buildTestConfiguration(
+              matrixHomeserverUrl: 'https://other.weave.test',
+            );
+          } else if (change == 'clear-profile') {
+            configuration.configuration = null;
+          } else {
+            auth.state = const AuthState.signedOut();
+          }
+          release.complete();
+          await rejection;
+          if (first != null) {
+            expect(bridge.disposedProfiles, contains(first.profileKey));
+          }
+          expect(bridge.memberActivations, hasLength(reuse ? 1 : 0));
+        },
+      );
+    }
+  }
 
   test('failed member session restore drops the prior native bearer', () async {
     final current = coordinator();

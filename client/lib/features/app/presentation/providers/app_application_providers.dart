@@ -1,3 +1,7 @@
+import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
+import 'package:http/http.dart' as http;
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
+import 'package:weave/features/onboarding/domain/use_cases/refresh_organization_manifest.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
@@ -6,7 +10,6 @@ import 'package:weave/features/app/domain/ports/files_session_port.dart';
 import 'package:weave/features/app/domain/ports/identity_session_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
 import 'package:weave/features/app/domain/ports/workspace_invalidation_port.dart';
-import 'package:weave/features/app/domain/use_cases/apply_server_configuration_changes.dart';
 import 'package:weave/features/app/domain/use_cases/resolve_app_bootstrap.dart';
 import 'package:weave/features/app/domain/use_cases/reconcile_identity_session.dart';
 import 'package:weave/features/app/domain/use_cases/restart_workspace_setup.dart';
@@ -65,12 +68,33 @@ final reconcileIdentitySessionProvider = Provider<ReconcileIdentitySession>((
   );
 });
 
+final appStartDiscoveryClientProvider = Provider<AppStartDiscoveryClient>((
+  ref,
+) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  return AppStartDiscoveryClient(httpClient: client);
+});
+
 final resolveAppBootstrapProvider = Provider<ResolveAppBootstrap>((ref) {
+  final refresh = RefreshOrganizationManifest(
+    discoveryClient: ref.watch(appStartDiscoveryClientProvider),
+    repository: ref.watch(serverConfigurationRepositoryProvider),
+  );
   return ResolveAppBootstrap(
     authPort: ref.watch(appAuthPortProvider),
     chatSessionPort: ref.watch(chatSessionPortProvider),
     reconcileIdentitySession: ref.watch(reconcileIdentitySessionProvider),
     serverConfigurationPort: ref.watch(serverConfigurationPortProvider),
+    refreshOrganizationManifest: (configuration) async {
+      final refreshed = await refresh.call(configuration);
+      // The accepted manifest has been persisted; retained API consumers must
+      // observe its current derived transport values before bootstrap is ready.
+      if (ref.mounted) {
+        ref.invalidate(savedServerConfigurationProvider);
+      }
+      return refreshed;
+    },
   );
 });
 
@@ -101,16 +125,6 @@ final restartWorkspaceSetupProvider = Provider<RestartWorkspaceSetup>((ref) {
     workspaceInvalidationPort: ref.watch(workspaceInvalidationPortProvider),
   );
 });
-
-final applyServerConfigurationChangesProvider =
-    Provider<ApplyServerConfigurationChanges>((ref) {
-      return ApplyServerConfigurationChanges(
-        authPort: ref.watch(appAuthPortProvider),
-        chatSessionPort: ref.watch(chatSessionPortProvider),
-        filesSessionPort: ref.watch(filesSessionPortProvider),
-        workspaceInvalidationPort: ref.watch(workspaceInvalidationPortProvider),
-      );
-    });
 
 class _RepositoryAppAuthPort implements AppAuthPort {
   const _RepositoryAppAuthPort(this._repository);

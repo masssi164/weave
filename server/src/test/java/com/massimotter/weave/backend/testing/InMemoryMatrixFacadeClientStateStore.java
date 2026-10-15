@@ -22,6 +22,17 @@ public final class InMemoryMatrixFacadeClientStateStore implements MatrixFacadeC
   }
 
   @Override
+  public java.util.List<IdentityProjection> identityProjections(
+      String tenantId, String identityIssuer, String afterUserId, int limit) {
+    return identities.values().stream()
+        .filter(identity -> identity.tenantId().equals(tenantId)
+            && identity.identityIssuer().equals(identityIssuer)
+            && identity.matrixUserId().compareTo(afterUserId) > 0)
+        .sorted(java.util.Comparator.comparing(IdentityProjection::matrixUserId))
+        .limit(limit).toList();
+  }
+
+  @Override
   public void saveIdentityProjection(IdentityProjection projection) {
     IdentityKey key =
         new IdentityKey(

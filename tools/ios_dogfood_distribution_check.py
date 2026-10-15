@@ -4,6 +4,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
+import json
+import tempfile
+import subprocess
+
+import dogfood_handoff_bundle as handoff
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +28,83 @@ def require(condition: bool, message: str) -> None:
         raise SystemExit(message)
 
 
+def check_discovery_evidence() -> None:
+    origin = "https://weave.test:9443/"
+    now = datetime.now(timezone.utc)
+    candidate, spec = "a" * 40, "b" * 40
+    bundle = {"stackCommit": candidate, "specRevision": spec, "organizationOrigin": origin,
+              "testerVisible": {"deepLink": "weave://join?organization_origin=https%3A%2F%2Fweave.test%3A9443%2F"}}
+    prefs = {}
+    for key, schema, field, value in (
+        ("last_handoff_consumed_v1", "weave.client.last_handoff_consumed.v1", "result", "saved_configuration"),
+        ("dogfood_visible_state_v1", "weave.client.dogfood_visible_state.v1", "state", "handoff_ready"),
+        ("dogfood_auth_state_v1", "weave.client.dogfood_auth_state.v1", "state", "ready_for_sso"),
+    ):
+        prefs[key] = json.dumps({"schemaVersion": schema, "recordedAt": now.isoformat(), field: value,
+                                "organizationOriginHost": "weave.test", "supportSafe": True,
+                                "accessKind": "server_uri", "platformConfigHost": "weave.test",
+                                "platformConfigPath": "/api/platform/config"})
+    started = now - timedelta(seconds=5)
+    handoff.validate_device_preferences(prefs, bundle, started, candidate, spec)
+    def rejected(changed_prefs=prefs, changed_bundle=bundle):
+        try:
+            handoff.validate_device_preferences(changed_prefs, changed_bundle, started, candidate, spec)
+        except (ValueError, KeyError, TypeError):
+            return
+        raise SystemExit("invalid device discovery evidence accepted")
+    for key in prefs:
+        rejected({**prefs, key: "[]"})
+        for field, value in (("recordedAt", (started - timedelta(seconds=1)).isoformat()),
+                             ("recordedAt", (now + timedelta(days=1)).isoformat()),
+                             ("schemaVersion", "unknown"), ("supportSafe", "true"),
+                             ("organizationOriginHost", "other.test"), ("runId", "old-run")):
+            changed = json.loads(prefs[key]); changed[field] = value
+            rejected({**prefs, key: json.dumps(changed)})
+    changed = json.loads(prefs["last_handoff_consumed_v1"]); changed["result"] = "failed"
+    rejected({**prefs, "last_handoff_consumed_v1": json.dumps(changed)})
+    changed = json.loads(prefs["dogfood_auth_state_v1"]); changed["state"] = "handoff_received"
+    rejected({**prefs, "dogfood_auth_state_v1": json.dumps(changed)})
+    rejected(changed_bundle={**bundle, "stackCommit": "c" * 40})
+    rejected(changed_bundle={**bundle, "specRevision": "c" * 40})
+    for value in ("http://weave.test", "https://user:password@weave.test", "https://weave.test/api",
+                  "https://weave.test?token=secret", "https://weave.test#fragment", "https://weave.test:99999"):
+        try:
+            handoff.canonical_origin(value)
+        except ValueError:
+            continue
+        raise SystemExit("invalid canonical organization origin accepted")
+    with tempfile.TemporaryDirectory() as output:
+        subprocess.run(["python3", str(ROOT / "tools/dogfood_handoff_bundle.py"),
+                        "--product-base-url", "https://offline.example:9443", "--output-dir", output],
+                       check=True, capture_output=True)
+        generated = json.loads((Path(output) / "handoff.json").read_text())
+        require(generated["testerVisible"]["platformConfigUrl"] == "https://offline.example:9443/api/platform/config",
+                "bundle did not derive bootstrap from canonical origin")
+        require("caUrl" not in generated["certificates"] and generated["certificates"]["caFile"] is None,
+                "offline bundle invented CA location")
+        require((Path(output) / "handoff.md").is_file(), "handoff Markdown was not written")
+        rejected_cli = subprocess.run(["python3", str(ROOT / "tools/dogfood_handoff_bundle.py"),
+                                       "--platform-config-url", "https://alternate.example/api/platform/config"],
+                                      capture_output=True)
+        require(rejected_cli.returncode != 0, "retired alternate bootstrap option still accepted")
+    with tempfile.TemporaryDirectory() as temp:
+        tls = Path(temp) / "tls"
+        class Context:
+            env = {"WEAVE_PUBLIC_URL": origin}
+            tls_root = tls
+        with patch.object(handoff, "load_context", return_value=Context()) as loader:
+            resolved = handoff.bootstrap_context()
+            require(resolved["organizationOrigin"] == origin and resolved["caFile"] == str(tls / "ca.pem"),
+                    "reviewed Compose origin and TLS path not preserved")
+            require(resolved["localCaRequired"] is True, "reviewed TLS prerequisite lost")
+            loader.assert_called_once_with("dogfood", ROOT / "infra/weave-workspace")
+        with patch.object(handoff, "load_context", side_effect=AssertionError("offline override must not read deployment")):
+            require(handoff.bootstrap_context("https://offline.example")["organizationOrigin"] == "https://offline.example/",
+                    "offline origin-only override is unavailable")
+
+
 def main() -> int:
+    check_discovery_evidence()
     workflow = read(".github/workflows/ios-dogfood.yml")
     smoke = read("tools/dogfood_ios_deeplink_smoke.sh")
     entry = read("tools/dogfood_iphone_entry.sh")
@@ -88,7 +171,7 @@ def main() -> int:
         "com.massimotter.weave",
         "KNDHGC2KV6",
         "6RUS2Z848X",
-        "mail.weave.test:44443",
+        "WEAVE_MAILPIT_URL",
     ):
         require(phrase in docs, f"iOS dogfood documentation is missing {phrase!r}")
 

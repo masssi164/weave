@@ -70,6 +70,11 @@ def service(name: str) -> str:
 schema = service("schema-init")
 backend = service("backend")
 mcp = service("mcp")
+# Migration credentials and DDL identity never reach serving processes.
+assert 'source: backend-migration-db-password' in schema
+assert 'WEAVE_SCHEMA_RUNTIME_ROLE: ${WEAVE_BACKEND_DB_USERNAME:-weave_backend}' in schema
+assert 'SPRING_DATASOURCE_USERNAME: "${WEAVE_BACKEND_DB_USERNAME:-weave_backend}_migration"' in schema
+assert 'backend-migration-db-password' not in backend + mcp
 assert "weave.identity.invitations.keycloak.private-key-jwt-audience:" in backend
 assert "weave.agent-runtime.workload-identity.issuer:" in backend
 assert "weave.security.required-audience:" in backend

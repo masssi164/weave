@@ -19,11 +19,11 @@ Feature boundaries:
 - Integrations may depend on shared app foundations such as `core/`, `features/auth/`, and `features/server_config/`, but must not depend on feature presentation code or feature-specific entities they are meant to serve.
 
 App-config alignment:
-- treat `../infra` as the infrastructure SSOT for app OIDC and endpoint defaults
-- default the app OIDC client to the infrastructure-managed `weave-app`, while still allowing an override for custom issuers
+- Members supply only the public organization URL or an invitation. The generated User `GET /api/platform/config` operation returns the canonical OrgManifest v2; consume its validated issuer, client ID, User API and Weave Matrix facade endpoints.
+- Infrastructure renders installation configuration behind that accepted contract. Do not infer provider hosts, add manual issuer/client overrides or fetch a second bootstrap contract.
 - app redirect URIs are `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout`
 - user-facing Files and Calendar operations consume the generated Weave User API; selected providers and their endpoints remain behind server adapters
-- local development stacks may legitimately use `http://` issuer and service URLs
+- Member onboarding and release qualification require validated HTTPS origins and preserved CA trust. HTTP protocol fixtures remain test-only and must not relax the product bootstrap contract.
 
 Accessibility is mandatory:
 - interactive controls must provide at least `48x48` logical touch targets
@@ -41,7 +41,7 @@ Validation from `client/`:
 
 Monorepo alignment:
 - Product acceptance features live in `../e2e/features/`; keep `../e2e/scenario_mappings.json` updated with client evidence.
-- Use `../infra/weave-workspace/.generated/bootstrap.env` for live-stack bootstrap defaults.
+- Live integration setup may use reviewed generated infrastructure configuration, but the actual Flutter member flow discovers bootstrap through the public organization URL and canonical OrgManifest v2.
 - Do not reintroduce client-side provider secrets or direct provider calls.
 
 ## Global Weave agent baseline

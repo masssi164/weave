@@ -1,3 +1,4 @@
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
@@ -138,6 +139,11 @@ void main() {
         createTestApp(
           const HomeScreen(),
           overrides: [
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) => _FakeServerConfigurationRepository(
                 configuration: buildTestConfiguration(),

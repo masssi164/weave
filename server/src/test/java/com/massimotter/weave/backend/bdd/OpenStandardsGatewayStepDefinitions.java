@@ -102,7 +102,7 @@ public class OpenStandardsGatewayStepDefinitions {
 
     @When("the member loads the organization manifest")
     public void theMemberLoadsTheOrganizationManifest() throws Exception {
-        perform(get("/api/organization/manifest"));
+        perform(get("/api/platform/config"));
     }
 
     @When("the contract is inspected for Files, Calendar, and Chat")
@@ -120,33 +120,49 @@ public class OpenStandardsGatewayStepDefinitions {
     @Then("Files advertises the guarded generated User API without public WebDAV")
     public void filesAdvertisesTheGuardedGeneratedUserApi() {
         // OPEN_STANDARDS_MANIFEST_CONTRACT
-        assertThat(lastJson.at("/clientAccessDiscovery/files/surfaces").toString())
-                .contains("Weave Files User API", "data_plane_guarded")
-                .doesNotContain("/dav/files");
-        assertThat(lastJson.at("/clientAccessDiscovery/files/credentialLifecycle/status").asString())
-                .isEqualTo("member_oidc_session");
-        assertThat(lastJson.at("/clientAccessDiscovery/files/credentialLifecycle/lifecyclePaths").isEmpty())
-                .isTrue();
+        assertThat(lastJson.path("schemaVersion").asInt()).isEqualTo(2);
+        assertThat(lastJson.path("userApiBaseUrl").asString()).endsWith("/api");
+        assertThat(domainCapabilities("files")).contains("files.read", "files.upload");
+        assertThat(lastJson.toString()).doesNotContain("/dav/files", "credentialLifecycle", "clientAccessDiscovery");
     }
 
     @Then("Calendar advertises the guarded generated User API without public CalDAV")
     public void calendarAdvertisesTheGuardedGeneratedUserApi() {
-        assertThat(lastJson.at("/clientAccessDiscovery/calendar/surfaces").toString())
-                .contains("Weave Calendar User API", "data_plane_guarded")
-                .doesNotContain("/caldav");
+        assertThat(lastJson.path("userApiBaseUrl").asString()).endsWith("/api");
+        // This fixture has no Calendar provider configured. Discovery still
+        // retains its domain-local state without advertising enabled actions.
+        List<JsonNode> calendarDomains = new ArrayList<>();
+        for (JsonNode entry : lastJson.path("domains")) {
+            if ("calendar".equals(entry.path("domain").asString())) {
+                calendarDomains.add(entry);
+            }
+        }
+        assertThat(calendarDomains).hasSize(1);
+        assertThat(calendarDomains.get(0).path("state").asString()).isEqualTo("not_configured");
+        assertThat(domainCapabilities("calendar")).isEmpty();
+        assertThat(lastJson.toString()).doesNotContain("/caldav");
     }
 
     @Then("Chat advertises the guarded Weave Matrix Client-Server endpoint")
     public void chatAdvertisesTheGuardedMatrixClientServerEndpoint() {
-        assertThat(lastJson.at("/clientAccessDiscovery/chat/surfaces").toString())
-                .contains("Weave Matrix Client-Server projection")
-                .contains("compatibility_guarded")
-                .contains("/_matrix/client");
+        assertThat(lastJson.at("/protocols/matrixClientServerBaseUrl").asString())
+                .isEqualTo("https://api.weave.test");
+        assertThat(domainCapabilities("chat")).contains("chat.read", "chat.send");
+    }
+
+    private List<String> domainCapabilities(String domain) {
+        List<String> capabilities = new ArrayList<>();
+        for (JsonNode entry : lastJson.path("domains")) {
+            if (domain.equals(entry.path("domain").asString())) {
+                entry.path("capabilities").forEach(capability -> capabilities.add(capability.asString()));
+            }
+        }
+        return capabilities;
     }
 
     @Then("Calls is absent from member access discovery")
     public void callsIsAbsentFromMemberAccessDiscovery() {
-        assertThat(lastJson.at("/clientAccessDiscovery/meetings-calls").isMissingNode()).isTrue();
+        assertThat(domainCapabilities("calls")).isEmpty();
     }
 
     @Then("no provider URL, provider credential, raw provider payload, SecretRef value, or admin diagnostic is exposed")

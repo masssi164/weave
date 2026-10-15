@@ -6,7 +6,6 @@ class MemberHandoff {
     required this.runId,
     required this.organizationSlug,
     required this.workspaceSlug,
-    required this.platformConfigUrl,
     required this.productBaseUrl,
   });
 
@@ -15,13 +14,8 @@ class MemberHandoff {
   final String organizationSlug;
   final String workspaceSlug;
 
-  /// Public, unauthenticated app-start discovery endpoint.
-  ///
-  /// This is the single mobile startup contract. It returns support-safe
-  /// product configuration such as OIDC issuer/client id and backend facades;
-  /// it must not return tokens, secrets, raw provider diagnostics, or admin
-  /// control-plane state.
-  final Uri platformConfigUrl;
+  Uri get platformConfigUrl =>
+      productBaseUrl.replace(path: '/api/platform/config');
 
   /// Product/user-facing origin used for browser fallback copy.
   /// Do not derive provider internals from this origin.
@@ -34,14 +28,11 @@ class MemberHandoff {
 /// entered server URI carries only the organization origin. Both forms resolve
 /// the same public discovery document and never manufacture invitation data.
 class OrganizationAccess {
-  const OrganizationAccess({
-    required this.organizationOrigin,
-    required this.platformConfigUrl,
-    this.handoff,
-  });
+  const OrganizationAccess({required this.organizationOrigin, this.handoff});
 
   final Uri organizationOrigin;
-  final Uri platformConfigUrl;
+  Uri get platformConfigUrl =>
+      organizationOrigin.replace(path: '/api/platform/config');
   final MemberHandoff? handoff;
 
   String get organizationLabel =>
@@ -58,24 +49,28 @@ class OrganizationAccessParser {
     if (directOrigin != null) {
       const handoffParser = MemberHandoffParser();
       handoffParser._validatePhoneReachable(directOrigin);
-      return OrganizationAccess(
-        organizationOrigin: directOrigin,
-        platformConfigUrl: directOrigin.replace(path: '/api/platform/config'),
-      );
+      return OrganizationAccess(organizationOrigin: directOrigin);
     }
 
     final handoff = const MemberHandoffParser().parse(uri);
     return OrganizationAccess(
       organizationOrigin: handoff.productBaseUrl,
-      platformConfigUrl: handoff.platformConfigUrl,
       handoff: handoff,
     );
   }
 
   Uri? _directOrganizationOrigin(Uri uri) {
     final rawOrigin = switch ((uri.scheme, uri.host, uri.path)) {
-      ('', '', '/join') =>
-        uri.queryParameters.length == 1
+      ('https', _, '/join') ||
+      ('', '', '/join') ||
+      ('weave', 'join', '' || '/') ||
+      ('weave', '', '/join') =>
+        !uri.hasFragment &&
+                uri.userInfo.isEmpty &&
+                uri.queryParameters.length == 1 &&
+                uri.queryParametersAll.values.every(
+                  (values) => values.length == 1,
+                )
             ? uri.queryParameters['organization_origin']
             : null,
       ('https', _, '' || '/') when !uri.hasQuery && !uri.hasFragment =>
@@ -91,6 +86,7 @@ class OrganizationAccessParser {
         !parsed.isAbsolute ||
         parsed.scheme != 'https' ||
         parsed.host.isEmpty ||
+        (parsed.hasPort && (parsed.port < 1 || parsed.port > 65535)) ||
         parsed.userInfo.isNotEmpty ||
         parsed.hasQuery ||
         parsed.hasFragment ||
@@ -113,6 +109,11 @@ class MemberHandoffParser {
 
   MemberHandoff parse(Uri uri) {
     _validateJoinEntrypoint(uri);
+    if (uri.queryParametersAll.values.any((values) => values.length != 1)) {
+      throw const AppFailure.validation(
+        'WEAVE-HANDOFF-INVALID: Invitation fields must not be repeated.',
+      );
+    }
     final query = uri.queryParameters;
     final handoffRef = _requiredSafeRef(query, 'handoff_ref');
     final runId = _requiredSafeSlug(query, 'run_id', fallback: 'unknown-run');
@@ -123,19 +124,21 @@ class MemberHandoffParser {
     final productBaseUrl = _productBaseUrlFrom(uri, query);
     _validatePhoneReachable(productBaseUrl);
 
-    final platformConfigUrl = _platformConfigUrlFrom(
-      uri,
-      query,
-      productBaseUrl,
-    );
-    _validatePhoneReachable(platformConfigUrl);
+    // Legacy link fields are transport hints, never bootstrap authority.
+    // Reject embedded credentials even though no request uses these URLs.
+    for (final key in ['platform_config_url', 'discovery_url']) {
+      final value = query[key];
+      if (value != null && value.trim().isNotEmpty) {
+        _parseAbsoluteHttpUri(value, key);
+      }
+    }
 
     return MemberHandoff(
       handoffRef: handoffRef,
       runId: runId,
       organizationSlug: org,
       workspaceSlug: workspace,
-      platformConfigUrl: platformConfigUrl,
+
       productBaseUrl: productBaseUrl,
     );
   }
@@ -163,15 +166,10 @@ class MemberHandoffParser {
   }
 
   Uri _productBaseUrlFrom(Uri uri, Map<String, String> query) {
-    final explicit = query['product_base_url'];
+    final explicit = query['organization_origin'] ?? query['product_base_url'];
     if (explicit != null && explicit.trim().isNotEmpty) {
       final parsed = _parseAbsoluteHttpUri(explicit, 'product_base_url');
-      return Uri(
-        scheme: parsed.scheme,
-        host: parsed.host,
-        port: parsed.hasPort ? parsed.port : null,
-        path: '/',
-      );
+      return const OrganizationAccessParser().parse(parsed).organizationOrigin;
     }
     if (uri.scheme == 'weave' || uri.scheme.isEmpty) {
       throw const AppFailure.validation(
@@ -183,38 +181,6 @@ class MemberHandoffParser {
       host: uri.host,
       port: uri.hasPort ? uri.port : null,
       path: '/',
-    );
-  }
-
-  Uri _platformConfigUrlFrom(
-    Uri uri,
-    Map<String, String> query,
-    Uri productBaseUrl,
-  ) {
-    final explicit = query['platform_config_url'] ?? query['discovery_url'];
-    if (explicit != null && explicit.trim().isNotEmpty) {
-      final parsed = _parseAbsoluteHttpUri(explicit, 'platform_config_url');
-      if (parsed.path != '/api/platform/config') {
-        throw const AppFailure.validation(
-          'WEAVE-HANDOFF-INVALID: platform_config_url must use the canonical Weave discovery path.',
-        );
-      }
-      return parsed;
-    }
-
-    final base = uri.scheme == 'weave' || uri.scheme.isEmpty
-        ? productBaseUrl
-        : Uri(
-            scheme: uri.scheme,
-            host: uri.host,
-            port: uri.hasPort ? uri.port : null,
-            path: '/',
-          );
-    return Uri(
-      scheme: base.scheme,
-      host: base.host,
-      port: base.hasPort ? base.port : null,
-      path: '/api/platform/config',
     );
   }
 

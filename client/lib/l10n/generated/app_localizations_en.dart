@@ -3621,4 +3621,68 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get calendarAllDayExclusiveEnd =>
       'For all-day events, the end date is the first day after the event.';
+
+  @override
+  String get chatParticipantsLabel => 'Add people';
+
+  @override
+  String get chatParticipantsHelp =>
+      'Find people in your organization by name.';
+
+  @override
+  String get chatParticipantsSearchFailure =>
+      'People could not be loaded. Try searching again.';
+
+  @override
+  String get filesSpaceLabel => 'Files location';
+
+  @override
+  String get filesPrivateSpace => 'My private files';
+
+  @override
+  String get filesSharedOrganizationSpace => 'Shared organization files';
+
+  @override
+  String get filesUnavailableSpace => 'Space no longer available';
+
+  @override
+  String filesReplaceEntrySemantic(String name) {
+    return 'Replace content of $name';
+  }
+
+  @override
+  String filesContentUpdating(String name) {
+    return 'Updating $name…';
+  }
+
+  @override
+  String filesContentUpdated(String name) {
+    return 'Updated $name.';
+  }
+
+  @override
+  String filesOpenEntrySemantic(String name) {
+    return 'Open $name';
+  }
+
+  @override
+  String get filesPreviewFailed => 'The file could not be opened. Try again.';
+
+  @override
+  String get filesPreviewUnsupported =>
+      'This file cannot be viewed here. Use Export to open it in another app.';
+
+  @override
+  String get chatInvitationDescription =>
+      'You have been invited to this conversation. Join to read and send messages.';
+
+  @override
+  String get chatInvitationAccept => 'Accept invitation';
+
+  @override
+  String get chatInvitationJoining => 'Joining…';
+
+  @override
+  String get chatInvitationFailed =>
+      'The invitation could not be accepted. Check your access and try again.';
 }

@@ -4457,5 +4457,50 @@
         "type": "String"
       }
     }
-  }
+  },
+  "chatParticipantsLabel": "Add people",
+  "chatParticipantsHelp": "Find people in your organization by name.",
+  "chatParticipantsSearchFailure": "People could not be loaded. Try searching again.",
+  "filesSpaceLabel": "Files location",
+  "filesPrivateSpace": "My private files",
+  "filesSharedOrganizationSpace": "Shared organization files",
+  "filesUnavailableSpace": "Space no longer available",
+  "filesReplaceEntrySemantic": "Replace content of {name}",
+  "filesContentUpdating": "Updating {name}…",
+  "filesContentUpdated": "Updated {name}.",
+  "@filesReplaceEntrySemantic": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@filesContentUpdating": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@filesContentUpdated": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesOpenEntrySemantic": "Open {name}",
+  "filesPreviewFailed": "The file could not be opened. Try again.",
+  "filesPreviewUnsupported": "This file cannot be viewed here. Use Export to open it in another app.",
+  "@filesOpenEntrySemantic": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatInvitationDescription": "You have been invited to this conversation. Join to read and send messages.",
+  "chatInvitationAccept": "Accept invitation",
+  "chatInvitationJoining": "Joining…",
+  "chatInvitationFailed": "The invitation could not be accepted. Check your access and try again."
 }

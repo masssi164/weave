@@ -4057,6 +4057,7 @@ dependencies = [
  "ed25519-dalek",
  "flutter_rust_bridge",
  "matrix-sdk",
+ "matrix-sdk-base",
  "matrix-sdk-store-encryption",
  "reqwest",
  "serde",

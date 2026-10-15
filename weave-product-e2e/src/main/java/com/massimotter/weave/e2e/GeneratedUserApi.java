@@ -10,7 +10,7 @@ import com.massimotter.weave.userapi.invoker.ApiException;
 import com.massimotter.weave.userapi.model.AuthenticatedUserResponse;
 import com.massimotter.weave.userapi.model.ChatReadiness;
 import com.massimotter.weave.userapi.model.IdentitySessionReconcileResponse;
-import com.massimotter.weave.userapi.model.PlatformConfigResponse;
+import com.massimotter.weave.userapi.model.OrgManifestResponse;
 import com.massimotter.weave.userapi.model.ProfileReadinessResponse;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -99,9 +99,9 @@ final class GeneratedUserApi {
     }
   }
 
-  PlatformConfigResponse platformConfig() {
+  OrgManifestResponse platformConfig() {
     try {
-      PlatformConfigResponse result = platform.config();
+      OrgManifestResponse result = platform.config();
       if (result == null) {
         throw new ProductFlowException("platform configuration returned an empty response");
       }

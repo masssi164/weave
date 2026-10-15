@@ -33,6 +33,7 @@ class FilesUserBinaryClientTest {
                 new ReceivedRequest(
                     exchange.getRequestMethod(),
                     exchange.getRequestURI().getPath(),
+                    exchange.getRequestURI().getRawQuery(),
                     exchange.getRequestHeaders().getFirst("Content-Type"),
                     exchange.getRequestBody().readAllBytes()));
             exchange.sendResponseHeaders(204, -1);
@@ -43,7 +44,7 @@ class FilesUserBinaryClientTest {
       ApiClient client = new ApiClient();
       client.updateBaseUri("http://127.0.0.1:" + server.getAddress().getPort());
       FilesUserApi api = new FilesUserApi(client);
-      api.uploadFilesItemContent("root", "binary-proof", "*", "binary-upload-proof-0001", source.toFile(), "application/octet-stream");
+      api.uploadFilesItemContent("root", "binary-proof", "*", "binary-upload-proof-0001", source.toFile(), "workspace-shared", "application/octet-stream");
       api.updateFilesItemContent("file-1", "\"strong-revision\"", "binary-update-proof-0001", source.toFile(), "application/octet-stream");
     } finally {
       server.stop(0);
@@ -52,6 +53,7 @@ class FilesUserBinaryClientTest {
     assertEquals(2, received.size());
     assertEquals("POST", received.get(0).method());
     assertEquals("/api/files/items/uploads", received.get(0).path());
+    assertEquals("parentId=root&spaceRef=workspace-shared&name=binary-proof&mediaType=application%2Foctet-stream", received.get(0).query());
     assertEquals("PUT", received.get(1).method());
     assertEquals("/api/files/items/file-1/content", received.get(1).path());
     for (ReceivedRequest request : received) {
@@ -60,5 +62,5 @@ class FilesUserBinaryClientTest {
     }
   }
 
-  private record ReceivedRequest(String method, String path, String contentType, byte[] body) {}
+  private record ReceivedRequest(String method, String path, String query, String contentType, byte[] body) {}
 }

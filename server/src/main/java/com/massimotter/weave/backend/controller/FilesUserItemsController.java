@@ -71,8 +71,10 @@ public class FilesUserItemsController {
     @ApiResponse(responseCode = "200", description = "Visible children.",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = FilesUserListResponse.class)))
     public FilesUserListResponse list(@AuthenticationPrincipal Jwt jwt,
-            @RequestParam(required = false) String parentId) {
-        return files.list(jwt, parentId);
+            @RequestParam(required = false) String parentId,
+            @Parameter(description = "Explicit shared Space for a root listing; omitted preserves private scope. Children inherit parent scope.")
+            @RequestParam(required = false) String spaceRef) {
+        return files.list(jwt, parentId, spaceRef);
     }
 
     @GetMapping(value = "/api/files/items/{fileId}", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -114,7 +116,7 @@ public class FilesUserItemsController {
             @Parameter(required = true, description = "16 to 128 character key for durable User HTTP intent.",
                     schema = @Schema(minLength = 16, maxLength = 128))
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey) {
-        return files.createFolder(jwt, request.parentFileId(), request.name(), ifNoneMatch, idempotencyKey);
+        return files.createFolder(jwt, request.parentFileId(), request.name(), ifNoneMatch, idempotencyKey, request.spaceRef());
     }
 
     @PostMapping(value = "/api/files/items/uploads", consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE,
@@ -150,6 +152,8 @@ public class FilesUserItemsController {
     })
     public FilesUserItemResponse upload(@AuthenticationPrincipal Jwt jwt,
             @RequestParam String parentId,
+            @Parameter(description = "Explicit shared Space at the root; omitted preserves private scope.")
+            @RequestParam(required = false) String spaceRef,
             @Parameter(schema = @Schema(minLength = 1, maxLength = 255)) @RequestParam String name,
             @Parameter(schema = @Schema(maxLength = 255))
             @RequestParam(required = false) String mediaType,
@@ -159,7 +163,7 @@ public class FilesUserItemsController {
                     schema = @Schema(minLength = 16, maxLength = 128))
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
             HttpServletRequest request) throws IOException {
-        return files.upload(jwt, parentId, name, mediaType, boundedBody(request), ifNoneMatch, idempotencyKey);
+        return files.upload(jwt, parentId, name, mediaType, boundedBody(request), ifNoneMatch, idempotencyKey, spaceRef);
     }
 
     @PutMapping(value = "/api/files/items/{fileId}/content", consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE,

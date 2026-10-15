@@ -20,18 +20,43 @@ import 'package:weave/core/theme/app_theme_preference.dart';
 import 'package:weave/core/theme/app_theme_preference_provider.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
+import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
-import 'package:weave/integrations/rust_matrix_core/data/services/matrix_oauth_browser.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 const _pendingDeepLinkKey = 'pending_deep_link_url';
 const _dogfoodResetQueryKey = 'dogfood_reset';
 const _dogfoodResetAppStateValue = 'app_state';
-const _dogfoodLocalProfile = 'local-lan-dogfood';
+
+/// Consumes the bounded app-local reset control only on a canonical app link.
+/// The clean link is validated before any preferences or session are removed.
+Uri? canonicalDogfoodAppStateResetLink(Uri uri) {
+  if (uri.scheme != 'weave' ||
+      uri.host != 'join' ||
+      (uri.path.isNotEmpty && uri.path != '/') ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasFragment ||
+      uri.queryParameters.length != 2 ||
+      uri.queryParametersAll.values.any((values) => values.length != 1) ||
+      uri.queryParameters[_dogfoodResetQueryKey] !=
+          _dogfoodResetAppStateValue ||
+      !uri.queryParameters.containsKey('organization_origin')) {
+    return null;
+  }
+  final cleanQuery = Map<String, String>.from(uri.queryParameters)
+    ..remove(_dogfoodResetQueryKey);
+  final cleanUri = uri.replace(queryParameters: cleanQuery);
+  try {
+    final access = const OrganizationAccessParser().parse(cleanUri);
+    return access.handoff == null ? cleanUri : null;
+  } on AppFailure {
+    return null;
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,6 +78,7 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
   final List<Timer> _pendingDeepLinkTimers = [];
   late final Future<bool> _workspaceWasReadyAtLaunch;
   bool _sessionContinuityRecorded = false;
+  bool _hasResolvedBootstrap = false;
 
   @override
   void initState() {
@@ -134,9 +160,6 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
     } catch (_) {}
     final uri = Uri.tryParse(pendingDeepLink);
     if (uri != null) {
-      if (isMatrixOAuthRedirect(uri)) {
-        return;
-      }
       final location = initialLocationForDefaultRoute(uri.toString());
       if (location != AppRoutes.organizationAccess) {
         setStartupInitialLocation(location);
@@ -146,9 +169,6 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
   }
 
   Future<void> _openAppLink(Uri uri) async {
-    if (isMatrixOAuthRedirect(uri)) {
-      return;
-    }
     final location = initialLocationForDefaultRoute(uri.toString());
     if (location == AppRoutes.organizationAccess || !mounted) {
       return;
@@ -164,9 +184,8 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
   }
 
   Future<bool> _resetDogfoodAppStateIfRequested(Uri uri) async {
-    if (uri.queryParameters[_dogfoodResetQueryKey] !=
-            _dogfoodResetAppStateValue ||
-        uri.queryParameters['profile'] != _dogfoodLocalProfile) {
+    final cleanUri = canonicalDogfoodAppStateResetLink(uri);
+    if (cleanUri == null) {
       return false;
     }
     final preferences = SharedPreferencesAsync();
@@ -194,9 +213,6 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
         await secureStorage.delete(key: key);
       } catch (_) {}
     }
-    final cleanQuery = Map<String, String>.from(uri.queryParameters)
-      ..remove(_dogfoodResetQueryKey);
-    final cleanUri = uri.replace(queryParameters: cleanQuery);
     try {
       await preferences.setString(_pendingDeepLinkKey, cleanUri.toString());
     } catch (_) {}
@@ -254,30 +270,27 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
   @override
   Widget build(BuildContext context) {
     final bootstrap = ref.watch(appBootstrapProvider);
+    if (bootstrap.value?.isResolved == true) _hasResolvedBootstrap = true;
 
-    if (bootstrap.isLoading) {
-      return _buildFallbackApp(const BootstrapGate.loading());
-    }
-
-    if (bootstrap.hasError) {
-      return _buildFallbackApp(
-        BootstrapGate.error(
-          failure: const AppFailure.bootstrap(
-            'Unable to bootstrap the application.',
-          ),
-          onRetry: () => ref.read(appBootstrapProvider.notifier).retry(),
+    Widget? gate;
+    if (bootstrap.isLoading ||
+        bootstrap.value?.phase == BootstrapPhase.loading) {
+      gate = const BootstrapGate.loading();
+    } else if (bootstrap.hasError) {
+      gate = BootstrapGate.error(
+        failure: const AppFailure.bootstrap(
+          'Unable to bootstrap the application.',
         ),
+        onRetry: () => ref.read(appBootstrapProvider.notifier).retry(),
+      );
+    } else if (bootstrap.value?.phase == BootstrapPhase.error) {
+      gate = BootstrapGate.error(
+        failure: bootstrap.requireValue.failure!,
+        onRetry: () => ref.read(appBootstrapProvider.notifier).retry(),
       );
     }
-
-    final bootstrapState = bootstrap.requireValue;
-    if (bootstrapState.phase == BootstrapPhase.error) {
-      return _buildFallbackApp(
-        BootstrapGate.error(
-          failure: bootstrapState.failure!,
-          onRetry: () => ref.read(appBootstrapProvider.notifier).retry(),
-        ),
-      );
+    if (!_hasResolvedBootstrap) {
+      return _buildFallbackApp(gate ?? const BootstrapGate.loading());
     }
 
     final router = ref.watch(appRouterProvider);
@@ -309,6 +322,18 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
       themeMode: themeSelection.themeMode,
       locale: appLocale,
       routerConfig: router,
+      builder: (context, child) {
+        if (gate == null) return child!;
+        // Keep async route owners mounted while blocking stale content and
+        // all pointer, keyboard-focus and accessibility interaction.
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            ExcludeFocus(child: Offstage(offstage: true, child: child)),
+            gate,
+          ],
+        );
+      },
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
     );

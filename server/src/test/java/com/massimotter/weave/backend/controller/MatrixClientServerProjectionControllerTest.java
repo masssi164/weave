@@ -16,6 +16,8 @@ import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatMembership;
 import com.massimotter.weave.backend.chat.domain.ChatProviderUnavailableException;
 import com.massimotter.weave.backend.chat.domain.ChatReadiness;
+import com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity;
+import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.chat.domain.ChatRedactionReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRelation;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
@@ -133,6 +135,9 @@ class MatrixClientServerProjectionControllerTest {
 
     @MockitoBean
     private MatrixFacadeClientStateStore stateStore;
+
+    @MockitoBean
+    private com.massimotter.weave.backend.service.MemberDisplayNameQuery memberDisplayNames;
 
     @Test
     void matrixClientServerProjectionRequiresWorkspaceToken() throws Exception {
@@ -339,6 +344,29 @@ class MatrixClientServerProjectionControllerTest {
                         .with(workspaceJwt(token)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
+    }
+
+    @Test
+    void pendingInvitationUsesStrippedNativeInviteAndNeverLoadsJoinedHistory() throws Exception {
+        var invitation = new com.massimotter.weave.backend.chat.domain.ChatInvitation(
+                "channel-invite", "Pending collaboration", Instant.parse("2026-07-08T10:00:00Z"),
+                ChatEncryptionState.unencrypted(), new com.massimotter.weave.backend.chat.domain.ChatActorRef("user:author"),
+                new ChatMembership("own-invite", "channel-invite", "user:user@example.com", "member", "invited", null, List.of()));
+        when(chatDomainFacadeService.conversations(any())).thenReturn(new ChatConversations(readiness(), List.of()));
+        when(chatDomainFacadeService.invitations(any())).thenReturn(List.of(invitation));
+        when(chatDomainFacadeService.syncCursor(any())).thenReturn("chat-revision-7");
+        mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt("invitation-native-session")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.join").isEmpty())
+                .andExpect(jsonPath("$.rooms.invite['!channel-invite:api.weave.test'].invite_state.events[0].content.name").value("Pending collaboration"))
+                .andExpect(jsonPath("$.rooms.invite['!channel-invite:api.weave.test'].invite_state.events[1].content.membership").value("invite"))
+                .andExpect(jsonPath("$.rooms.invite['!channel-invite:api.weave.test'].timeline").doesNotExist())
+                .andExpect(jsonPath("$.rooms.invite['!channel-invite:api.weave.test'].invite_state.events[1].sender").value(matrixProtocolCoreService.userId("user:author")))
+                .andExpect(jsonPath("$.rooms.invite['!channel-invite:api.weave.test'].invite_state.events[1].state_key").value(matrixProtocolCoreService.userId("user:user@example.com")));
+        mockMvc.perform(get("/_matrix/client/v3/joined_rooms").with(workspaceJwt("invitation-native-session")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.joined_rooms").isEmpty());
+        verify(chatDomainFacadeService, never()).timelineWindow(any(), any(), anyInt());
+        verify(chatDomainFacadeService, never()).conversation(any(), any());
     }
 
     @Test
@@ -1171,6 +1199,71 @@ class MatrixClientServerProjectionControllerTest {
 
         verify(chatDomainFacadeService).markRead(eq("channel-general"), eq("msg-1"), any());
         verify(chatDomainFacadeService).setTyping(eq("channel-general"), eq(true), eq(15_000), any());
+    }
+
+    @Test
+    void standardDirectorySearchesAuthorizedHumanNamesBehindOpaqueMatrixIds() throws Exception {
+        String peerId = "@" + IdentityReferences.accountId("https://auth.example.invalid/realms/acme", "peer-subject") + ":api.weave.test";
+        String hiddenId = "@" + IdentityReferences.accountId("https://auth.example.invalid/realms/acme", "hidden-subject") + ":api.weave.test";
+        var identities = List.of(
+                new MatrixFacadeClientStateStore.IdentityProjection("tenant-default",
+                        "https://auth.example.invalid/realms/acme", peerId,
+                        "user:peer-subject", "user:peer-subject", Instant.now()),
+                new MatrixFacadeClientStateStore.IdentityProjection("tenant-default",
+                        "https://auth.example.invalid/realms/acme", hiddenId,
+                        "user:hidden-subject", "user:hidden-subject", Instant.now())).stream()
+                .sorted(java.util.Comparator.comparing(MatrixFacadeClientStateStore.IdentityProjection::matrixUserId)).toList();
+        when(stateStore.identityProjections(eq("tenant-default"),
+                eq("https://auth.example.invalid/realms/acme"), eq(""), eq(100))).thenReturn(identities);
+        when(chatDomainFacadeService.canDiscoverParticipant(any(), any())).thenAnswer(call ->
+                ((ChatResolvedIdentity) call.getArgument(1)).actorRef().value().equals("user:peer-subject"));
+        when(memberDisplayNames.displayNames(any(), eq(List.of("peer-subject"))))
+                .thenReturn(Map.of("peer-subject", "Weave E2E Member"));
+        var response = mockMvc.perform(post("/_matrix/client/v3/user_directory/search")
+                        .with(workspaceJwt()).contentType("application/json")
+                        .content("{\"search_term\":\"weave e2e member\",\"limit\":10}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.results.length()").value(1))
+                .andExpect(jsonPath("$.results[0].user_id").value(peerId))
+                .andExpect(jsonPath("$.results[0].display_name").value("Weave E2E Member"))
+                .andExpect(jsonPath("$.limited").value(false)).andReturn();
+        assertThat(response.getResponse().getContentAsString()).doesNotContain(
+                hiddenId, "peer-subject", "hidden-subject", "authorizationPrincipalRef", "identityIssuer", "email");
+        verify(memberDisplayNames).displayNames(any(), eq(List.of("peer-subject")));
+        org.mockito.Mockito.doReturn(true).when(chatDomainFacadeService).canDiscoverParticipant(any(), any());
+        when(memberDisplayNames.displayNames(any(), any())).thenReturn(Map.of(
+                "peer-subject", "Weave E2E Member", "hidden-subject", "Weave Another Member"));
+        mockMvc.perform(post("/_matrix/client/v3/user_directory/search").with(workspaceJwt())
+                        .contentType("application/json").content("{\"search_term\":\"Weave\",\"limit\":1}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.results.length()").value(1))
+                .andExpect(jsonPath("$.limited").value(true));
+        org.mockito.Mockito.clearInvocations(memberDisplayNames);
+        org.mockito.Mockito.doReturn(false).when(chatDomainFacadeService).canDiscoverParticipant(any(), any());
+        mockMvc.perform(post("/_matrix/client/v3/user_directory/search").with(workspaceJwt())
+                        .contentType("application/json").content("{\"search_term\":\"Weave\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.results").isEmpty());
+        verifyNoInteractions(memberDisplayNames);
+        mockMvc.perform(post("/_matrix/client/v3/user_directory/search").with(workspaceJwt())
+                        .contentType("application/json").content("{\"search_term\":\"Weave\",\"limit\":1000}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void directoryRejectsForeignOrganizationOrIssuerBeforeProfileLookup() throws Exception {
+        for (var projection : List.of(
+                new MatrixFacadeClientStateStore.IdentityProjection("other-organization",
+                        "https://auth.example.invalid/realms/acme", "@acct_foreign:api.weave.test",
+                        "user:foreign", "user:foreign", Instant.now()),
+                new MatrixFacadeClientStateStore.IdentityProjection("tenant-default",
+                        "https://foreign.invalid/realms/acme", "@acct_foreign:api.weave.test",
+                        "user:foreign", "user:foreign", Instant.now()))) {
+            when(stateStore.identityProjections(eq("tenant-default"),
+                    eq("https://auth.example.invalid/realms/acme"), eq(""), eq(100)))
+                    .thenReturn(List.of(projection));
+            mockMvc.perform(post("/_matrix/client/v3/user_directory/search").with(workspaceJwt())
+                            .contentType("application/json").content("{\"search_term\":\"Weave\"}"))
+                    .andExpect(status().isServiceUnavailable());
+        }
+        verifyNoInteractions(memberDisplayNames);
     }
 
     @Test

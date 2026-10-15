@@ -17,7 +17,7 @@ require "${ROOT_DIR}/compose.yaml" 'curl -fsS http://127.0.0.1:8080/api/health/r
 require "${GATEWAY}" '@internal path /api/internal/* /actuator/*'
 require "${GATEWAY}" 'handle @internal {'
 require "${GATEWAY}" 'respond 404'
-require "${GATEWAY}" 'handle_path /api/* {'
+require "${GATEWAY}" 'handle /api/* {'
 require "${ROOT_DIR}/scripts/operator_check.py" 'context.env["WEAVE_API_URL"].rstrip("/") + "/health/ready"'
 require "${REPO_ROOT}/server/src/main/resources/application.yml" 'import: classpath:application-base.yml'
 require "${REPO_ROOT}/server/src/main/resources/application-base.yml" 'open-in-view: false'

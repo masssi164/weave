@@ -1866,7 +1866,7 @@ export default function App({
           <Box component="footer">
             <Typography variant="body2">
               {copy.footerText}{" "}
-              <Link href="/api/organization/manifest">
+              <Link href="/api/platform/config">
                 {copy.organizationManifestLink}
               </Link>
             </Typography>
