@@ -388,6 +388,52 @@ class DualIosCollaborationTest(unittest.TestCase):
                 for private in ['private-credential', 'private/path', transcript.strip(), str(diagnostics)]:
                     self.assertNotIn(private, public.getvalue())
 
+    def test_lifecycle_requires_actual_selected_action_proof_and_owned_process(self):
+        selected = "Test Case '-[BrowserDriver.BrowserDriver testNativeLifecycle]'"
+        passed = selected + ' passed (2.552 seconds).\n'
+        background = 'NATIVE_IOS_LIFECYCLE_STAGE phase=background-observed\n' + passed
+        foreground = 'NATIVE_IOS_LIFECYCLE_STAGE phase=foreground-observed\n' + passed
+        skipped = (selected + ' skipped (0.138 seconds).\n'
+                   'Executed 1 test, with 1 test skipped and 0 failures\n'
+                   '** TEST EXECUTE SUCCEEDED **\n')
+        cases = [('background', background, '123', None), ('foreground', foreground, '123', None),
+                 ('background', skipped, '123', 'native-lifecycle-result-unverified'),
+                 ('background', passed, '123', 'native-lifecycle-result-unverified'),
+                 ('background', foreground, '123', 'native-lifecycle-result-unverified'),
+                 ('background', background + 'NATIVE_IOS_LIFECYCLE_STAGE phase=background-observed\n', '123', 'native-lifecycle-result-unverified'),
+                 ('background', background + 'NATIVE_IOS_LIFECYCLE_STAGE phase=foreground-observed\n', '123', 'native-lifecycle-result-unverified'),
+                 ('background', background + selected + ' skipped (0.138 seconds).\n', '123', 'native-lifecycle-result-unverified'),
+                 ('foreground', foreground + 'Executed 1 test, with 1 test skipped and 0 failures\n', '123', 'native-lifecycle-result-unverified'),
+                 ('foreground', 'NATIVE_IOS_LIFECYCLE_STAGE phase=foreground-observed\n', '123', 'native-lifecycle-result-unverified'),
+                 ('foreground', foreground + passed, '123', 'native-lifecycle-result-unverified'),
+                 ('background', background, '456', 'owned-process-replaced')]
+        for action, transcript, final_pid, reason in cases:
+            with self.subTest(action=action, reason=reason, transcript=transcript), tempfile.TemporaryDirectory() as name:
+                root = Path(name); support = root / 'A'; support.mkdir()
+                products = support / 'products'; products.mkdir()
+                (products / 'owned.xctestrun').write_text('owned plan')
+                bundle = products / 'BrowserDriver.xctest'; bundle.mkdir()
+                diagnostics = root / 'diagnostics'; diagnostics.mkdir(mode=0o700)
+                raw = transcript + 'private-credential private/path\n'
+                with mock.patch.object(ios, 'simulator_app_pid', side_effect=['123', final_pid]), mock.patch.object(ios, 'run', return_value=raw) as command, mock.patch.object(ios, 'verified_private_parent', return_value=diagnostics), contextlib.redirect_stdout(io.StringIO()) as public:
+                    if reason is None:
+                        dual.perform_owned_lifecycle((support, 'owned', '123', products), action, {})
+                    else:
+                        with self.assertRaises(ios.NativeFailure) as caught:
+                            dual.perform_owned_lifecycle((support, 'owned', '123', products), action, {})
+                        self.assertEqual((caught.exception.category, caught.exception.stage, caught.exception.reason),
+                                         ('infrastructure', 'dual-lifecycle', reason))
+                command.assert_called_once()
+                self.assertEqual(command.call_args.kwargs['timeout'], 90)
+                self.assertIn('-only-testing:BrowserDriver/BrowserDriver/testNativeLifecycle', command.call_args.args[0])
+                self.assertEqual(json.loads((bundle / 'private-member.json').read_text()), {'phase': 'lifecycle', 'action': action})
+                logs = list(diagnostics.glob('command-*.log')); self.assertEqual(len(logs), 1)
+                self.assertEqual(logs[0].read_text(), raw)
+                self.assertEqual(logs[0].stat().st_mode & 0o777, 0o600)
+                self.assertEqual('status=passed' in public.getvalue(), reason is None)
+                for private in ['private-credential', 'private/path', str(diagnostics), transcript.strip()]:
+                    self.assertNotIn(private, public.getvalue())
+
     def test_picker_pass_marker_requires_unchanged_owned_process(self):
         transcript = ("NATIVE_IOS_FILES_STAGE phase=export-saved\n"
                       "Test Case '-[BrowserDriver.BrowserDriver testNativeDocumentPicker]' passed (6.766 seconds).\n")

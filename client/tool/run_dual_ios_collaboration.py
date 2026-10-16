@@ -570,12 +570,27 @@ def perform_owned_lifecycle(scope: tuple, action: str, env: dict, *, inspection_
         raise ios.NativeFailure('infrastructure', 'dual-lifecycle', 'owned-test-plan-missing')
     private = bundles[0] / 'private-member.json'
     private.write_text(json.dumps({'phase': 'lifecycle', 'action': action})); private.chmod(0o600)
-    ios.run(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
+    lifecycle_stdout = ios.run(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
              '-destination', 'platform=iOS Simulator,id=' + udid, '-parallel-testing-enabled', 'NO',
              '-only-testing:BrowserDriver/BrowserDriver/testNativeLifecycle',
              '-resultBundlePath', str(products.parent.parent / ('lifecycle-' + action + (('-' + str(inspection_sequence)) if inspection_sequence is not None else '') + '.xcresult'))], env=env, timeout=90)
+    diagnostic = None
+    try:
+        diagnostic = ios.retain_private_diagnostic(lifecycle_stdout)
+    except (OSError, ValueError, ios.NativeFailure):
+        print('NATIVE_IOS_LIFECYCLE_RESULT status=unavailable supportSafe=true', flush=True)
+    lines = lifecycle_stdout.splitlines()
+    expected = 'NATIVE_IOS_LIFECYCLE_STAGE phase=' + action + '-observed'
+    opposite = 'NATIVE_IOS_LIFECYCLE_STAGE phase=' + ('foreground' if action == 'background' else 'background') + '-observed'
+    selected = r"Test Case '-\[BrowserDriver\.BrowserDriver testNativeLifecycle\]'"
+    passed = sum(bool(re.fullmatch(selected + r" passed \([0-9.]+ seconds\)\.", line)) for line in lines)
+    skipped = re.search(selected + r" skipped\b|Executed \d+ tests?, with [1-9]\d* tests? skipped\b", lifecycle_stdout)
+    if lines.count(expected) != 1 or opposite in lines or passed != 1 or skipped:
+        raise ios.NativeFailure('infrastructure', 'dual-lifecycle', 'native-lifecycle-result-unverified')
     if ios.simulator_app_pid(udid) != pid:
         raise ios.NativeFailure('infrastructure', 'dual-lifecycle', 'owned-process-replaced')
+    if diagnostic is not None:
+        print('NATIVE_IOS_LIFECYCLE_RESULT status=passed privateDiagnostic=' + diagnostic.name + ' supportSafe=true', flush=True)
 
 
 def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict, phase: str = 'initial', relays: dict | None = None) -> dict:
