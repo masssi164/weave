@@ -542,13 +542,23 @@ def perform_owned_picker(udid, pid, products, env, mode, name, *, result_path=No
     # This synchronous main-thread call owns and stops its child in ios.run's
     # finally, including when the existing CI monitor interrupts this owner.
     picker_stdout = ios.run(command, env=env, timeout=90)
+    diagnostic = None
     try:
         diagnostic = ios.retain_private_diagnostic(picker_stdout)
-        print('NATIVE_IOS_PICKER_RESULT status=passed privateDiagnostic=' + diagnostic.name + ' supportSafe=true', flush=True)
     except (OSError, ValueError, ios.NativeFailure):
         print('NATIVE_IOS_PICKER_RESULT status=unavailable supportSafe=true', flush=True)
+    lines = picker_stdout.splitlines()
+    expected = 'NATIVE_IOS_FILES_STAGE phase=' + ('import-selected' if mode == 'import' else 'export-saved')
+    opposite = 'NATIVE_IOS_FILES_STAGE phase=' + ('export-saved' if mode == 'import' else 'import-selected')
+    selected = r"Test Case '-\[BrowserDriver\.BrowserDriver testNativeDocumentPicker\]'"
+    passed = sum(bool(re.fullmatch(selected + r" passed \([0-9.]+ seconds\)\.", line)) for line in lines)
+    skipped = re.search(selected + r" skipped\b|Executed \d+ tests?, with [1-9]\d* tests? skipped\b", picker_stdout)
+    if lines.count(expected) != 1 or opposite in lines or passed != 1 or skipped:
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'native-picker-result-unverified')
     if ios.simulator_app_pid(udid) != pid:
         raise ios.NativeFailure('infrastructure', 'dual-files', 'owned-process-replaced')
+    if diagnostic is not None:
+        print('NATIVE_IOS_PICKER_RESULT status=passed privateDiagnostic=' + diagnostic.name + ' supportSafe=true', flush=True)
 
 
 def perform_owned_lifecycle(scope: tuple, action: str, env: dict, *, inspection_sequence: int | None = None) -> None:

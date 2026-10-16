@@ -346,6 +346,64 @@ class DualIosCollaborationTest(unittest.TestCase):
             self.assertEqual(proof.stat().st_mode & 0o777, 0o600)
             self.assertFalse(json.loads(proof.read_text()).get('workspaceObserved', False))
 
+    def test_picker_rejects_actual_skip_and_unverified_completion_before_pass_marker(self):
+        # Fixed excerpts from the actual 0321 skip and successful import transcripts.
+        selected = "Test Case '-[BrowserDriver.BrowserDriver testNativeDocumentPicker]'"
+        passed = selected + " passed (6.766 seconds).\n"
+        actual_skip = (selected + " skipped (0.138 seconds).\n"
+                       "Executed 1 test, with 1 test skipped and 0 failures (0 unexpected) in 0.138 (0.139) seconds\n"
+                       "** TEST EXECUTE SUCCEEDED **\n")
+        imported = 'NATIVE_IOS_FILES_STAGE phase=import-selected\n' + passed
+        exported = 'NATIVE_IOS_FILES_STAGE phase=export-saved\n' + passed
+        cases = [('import', imported, True), ('export', exported, True),
+                 ('export', actual_skip, False), ('export', passed, False),
+                 ('export', imported, False), ('export', exported + imported, False),
+                 ('export', exported + 'NATIVE_IOS_FILES_STAGE phase=export-saved\n', False),
+                 ('export', exported + actual_skip, False),
+                 ('export', exported + selected + ' skipped (0.138 seconds).\n', False),
+                 ('export', exported + 'Executed 1 test, with 1 test skipped and 0 failures\n', False),
+                 ('export', 'NATIVE_IOS_FILES_STAGE phase=export-saved\n', False),
+                 ('export', exported + passed, False)]
+        for mode, transcript, valid in cases:
+            with self.subTest(mode=mode, valid=valid, transcript=transcript), tempfile.TemporaryDirectory() as name:
+                root = Path(name); products = root / 'products'; products.mkdir()
+                (products / 'owned.xctestrun').write_text('owned plan')
+                (products / 'BrowserDriver.xctest').mkdir()
+                diagnostics = root / 'diagnostics'; diagnostics.mkdir(mode=0o700)
+                raw = transcript + 'private-credential private/path\n'
+                with mock.patch.object(ios, 'simulator_app_pid', return_value='123'), mock.patch.object(ios, 'run', return_value=raw) as command, mock.patch.object(ios, 'verified_private_parent', return_value=diagnostics), contextlib.redirect_stdout(io.StringIO()) as public:
+                    if valid:
+                        dual.perform_owned_picker('owned', '123', products, {}, mode, 'weave-dual-initial-owned.txt')
+                    else:
+                        with self.assertRaises(ios.NativeFailure) as caught:
+                            dual.perform_owned_picker('owned', '123', products, {}, mode, 'weave-dual-initial-owned.txt')
+                        self.assertEqual((caught.exception.category, caught.exception.reason),
+                                         ('infrastructure', 'native-picker-result-unverified'))
+                command.assert_called_once()
+                self.assertEqual(command.call_args.kwargs['timeout'], 90)
+                logs = list(diagnostics.glob('command-*.log')); self.assertEqual(len(logs), 1)
+                self.assertEqual(logs[0].read_text(), raw)
+                self.assertEqual(logs[0].stat().st_mode & 0o777, 0o600)
+                self.assertEqual('status=passed' in public.getvalue(), valid)
+                for private in ['private-credential', 'private/path', transcript.strip(), str(diagnostics)]:
+                    self.assertNotIn(private, public.getvalue())
+
+    def test_picker_pass_marker_requires_unchanged_owned_process(self):
+        transcript = ("NATIVE_IOS_FILES_STAGE phase=export-saved\n"
+                      "Test Case '-[BrowserDriver.BrowserDriver testNativeDocumentPicker]' passed (6.766 seconds).\n")
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); products = root / 'products'; products.mkdir()
+            (products / 'owned.xctestrun').write_text('owned plan')
+            (products / 'BrowserDriver.xctest').mkdir()
+            diagnostics = root / 'diagnostics'; diagnostics.mkdir(mode=0o700)
+            with mock.patch.object(ios, 'simulator_app_pid', side_effect=['123', '456']), mock.patch.object(ios, 'run', return_value=transcript), mock.patch.object(ios, 'verified_private_parent', return_value=diagnostics), contextlib.redirect_stdout(io.StringIO()) as public:
+                with self.assertRaises(ios.NativeFailure) as caught:
+                    dual.perform_owned_picker('owned', '123', products, {}, 'export', 'weave-dual-initial-owned.txt')
+            self.assertEqual(caught.exception.reason, 'owned-process-replaced')
+            self.assertNotIn('status=passed', public.getvalue())
+            logs = list(diagnostics.glob('command-*.log')); self.assertEqual(len(logs), 1)
+            self.assertEqual(logs[0].read_text(), transcript)
+
     def test_successful_picker_stdout_is_owner_only_and_never_public(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -364,7 +422,8 @@ class DualIosCollaborationTest(unittest.TestCase):
                 'sequence': 8, 'mode': 'import', 'fileName': 'weave-dual-initial-owned-test.txt'}))
             picker_ran = False
             stopped = RuntimeError('controlled stop after diagnostic retention')
-            raw = 'private-owned-file.txt private/path identity-sentinel\nNATIVE_IOS_FILES_STAGE phase=import-selected\n'
+            raw = ("private-owned-file.txt private/path identity-sentinel\nNATIVE_IOS_FILES_STAGE phase=import-selected\n"
+                   "Test Case '-[BrowserDriver.BrowserDriver testNativeDocumentPicker]' passed (4.643 seconds).\n")
             def picker(args, **kwargs):
                 nonlocal picker_ran
                 self.assertIn('-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker', args)
