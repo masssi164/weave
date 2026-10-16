@@ -491,7 +491,28 @@ final class BrowserDriver: XCTestCase {
     while Date() < deadline {
       let file = app.staticTexts.matching(NSPredicate(format: "label == %@", stem))
       if mode == "import" && file.count == 1 && file.element.isHittable {
-        file.element.tap()
+        let picker = app.collectionViews.matching(identifier: "File View")
+        XCTAssertEqual(picker.count, 1, "Native file view must be unique")
+        let tile = picker.element.cells.containing(.staticText, identifier: stem)
+        XCTAssertEqual(tile.count, 1, "Owned document tile must be unique")
+        XCTAssertTrue(tile.element.isHittable, "Owned document tile must be hittable")
+        let preview = tile.element.images
+        XCTAssertEqual(preview.count, 1, "Owned document preview must be unique")
+        let previewFrame = preview.element.frame
+        let previewCenter = CGPoint(x: previewFrame.midX, y: previewFrame.midY)
+        XCTAssertTrue(
+          previewFrame.width > 0 && previewFrame.height > 0
+            && previewFrame.origin.x.isFinite && previewFrame.origin.y.isFinite
+            && previewFrame.width.isFinite && previewFrame.height.isFinite,
+          "Owned document preview must have a finite nonempty frame")
+        XCTAssertTrue(
+          tile.element.frame.contains(previewCenter) && app.frame.contains(previewCenter),
+          "Owned document preview center must be inside the visible owned tile")
+        guard Date() < deadline else { break }
+        preview.element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(
+          picker.element.waitForNonExistence(timeout: max(0, deadline.timeIntervalSinceNow)),
+          "Native file picker must dismiss after selecting the owned document")
         print("NATIVE_IOS_FILES_STAGE phase=import-selected")
         return
       }
