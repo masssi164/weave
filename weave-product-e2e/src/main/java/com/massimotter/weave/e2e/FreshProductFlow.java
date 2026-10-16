@@ -663,10 +663,12 @@ public final class FreshProductFlow {
           JsonNode resources = request.path("resources");
           requireNativeDenial("chat", "/_matrix/client/v3/rooms/" + nativePath(resources.path("roomId").asString())
               + "/messages?dir=b&limit=1", "errcode", "M_FORBIDDEN", bearer);
+          // C is a guest: capability policy denies Files/Calendar before resource authorization.
+          // The separate B revocation/regrant journey exercises the current Space grant boundary.
           requireNativeDenial("files", "/api/files/items/" + nativePath(resources.path("fileId").asString())
-              + "/content", "code", "files-forbidden", bearer);
+              + "/content", "code", "capability-policy-blocked", bearer);
           requireNativeDenial("calendar", "/api/calendar/calendars/" + nativePath(resources.path("calendarId").asString())
-              + "/events/" + nativePath(resources.path("eventId").asString()), "code", "calendar-forbidden", bearer);
+              + "/events/" + nativePath(resources.path("eventId").asString()), "code", "capability-policy-blocked", bearer);
           var currentAdmin = browser.authorize("weave-admin-console", environment.productOrigin().resolve("/admin-console/"),
               List.of("openid", "profile", "email", "agent-runtime.admin"), memberEmail, memberPassword,
               "native-mutation-admin-fixture");
@@ -832,7 +834,7 @@ public final class FreshProductFlow {
     var fileDenial = http.send("native third-identity files mutation denial", "PUT", origin.resolve(filePath),
         fileHeaders, "application/octet-stream", ("must not write " + runId).getBytes(StandardCharsets.UTF_8), Set.of(403));
     try {
-      requireNativeDenialCode(http.mapper().readTree(fileDenial.body()), "files mutation", "code", "files-forbidden");
+      requireNativeDenialCode(http.mapper().readTree(fileDenial.body()), "files mutation", "code", "capability-policy-blocked");
     } catch (JacksonException invalid) {
       throw new ProductFlowException("native files mutation denial encoding was invalid");
     }
@@ -840,7 +842,7 @@ public final class FreshProductFlow {
     eventHeaders.put("If-Match", eventVersion);
     JsonNode eventDenial = http.json("native third-identity calendar mutation denial", "DELETE",
         origin.resolve(eventPath), eventHeaders, null, Set.of(403));
-    requireNativeDenialCode(eventDenial, "calendar mutation", "code", "calendar-forbidden");
+    requireNativeDenialCode(eventDenial, "calendar mutation", "code", "capability-policy-blocked");
     var fileAfter = http.send("verify native denied file mutation preserved content", "GET", origin.resolve(filePath),
         authorizedBearer, null, null, Set.of(200));
     var eventAfter = http.send("verify native denied event mutation preserved content", "GET", origin.resolve(eventPath),
@@ -867,7 +869,12 @@ public final class FreshProductFlow {
 
   private static void requireNativeDenialCode(JsonNode denial, String category, String field, String code) {
     if (denial == null || !code.equals(denial.path(field).asString())) {
-      throw new ProductFlowException("native " + category + " denial category was invalid");
+      String actual = denial == null ? "" : denial.path(field).asString("");
+      String safeActual = Set.of("M_FORBIDDEN", "files-forbidden", "calendar-forbidden", "capability-policy-blocked")
+          .contains(actual) ? actual : actual.isEmpty() ? "missing" : "unrecognized";
+      // Callers have already required HTTP 403; never include arbitrary response text.
+      throw new ProductFlowException("native " + category + " denial category was invalid"
+          + " (HTTP 403 expected=" + code + " observed=" + safeActual + ")");
     }
   }
 

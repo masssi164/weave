@@ -3218,6 +3218,7 @@
     "description": "Busy button label while saving profile edits"
   },
   "profileEditSavedMessage": "Profile saved.",
+  "profileEditSaveFailureMessage": "Your profile could not be saved. Your changes are kept. Check your connection and sign-in, then try again.",
   "@profileEditSavedMessage": {
     "description": "Live-region success message after saving profile edits"
   },

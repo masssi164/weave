@@ -98,6 +98,20 @@ final class NativeAuthorizationRequestTest {
     }
   }
 
+  @Test void denialCategoryDiagnosticsReportOnlyKnownCodes() throws Exception {
+    for (String actual : java.util.List.of("files-forbidden", "", "private-denial-payload\nnot-a-public-code")) {
+      try (var fixture = new MutationFixture()) {
+        fixture.invalidCategory = "files";
+        fixture.invalidDenialCode = true;
+        fixture.unexpectedDenialCode = actual;
+        ProductFlowException failure = assertThrows(ProductFlowException.class, fixture::verify);
+        String safeActual = actual.equals("files-forbidden") ? actual : actual.isEmpty() ? "missing" : "unrecognized";
+        assertEquals("native files mutation denial category was invalid"
+            + " (HTTP 403 expected=capability-policy-blocked observed=" + safeActual + ")", failure.getMessage());
+      }
+    }
+  }
+
   @Test void missingWeakAndAmbiguousCurrentVersionsCannotSatisfyAuthorization() throws Exception {
     for (String invalid : java.util.List.of("", "W/\"weak\"", "*", "\"one\",\"two\"")) {
       for (String category : java.util.List.of("files", "calendar")) {
@@ -138,6 +152,7 @@ final class NativeAuthorizationRequestTest {
     private volatile String invalidCategory = "";
     private volatile int mutationStatus = 403;
     private volatile boolean invalidDenialCode;
+    private volatile String unexpectedDenialCode = "invalid-payload";
     private volatile String fileVersion = "\"file-current\"";
     private volatile String eventVersion = "\"event-current\"";
     private volatile String changeDespiteDenial = "";
@@ -159,9 +174,10 @@ final class NativeAuthorizationRequestTest {
         if (!method.equals("GET")) {
           writesObserved = true;
           status = category.equals(invalidCategory) ? mutationStatus : 403;
-          String code = category.equals(invalidCategory) && invalidDenialCode ? "invalid-payload"
-              : category.equals("chat") ? "M_FORBIDDEN" : category + "-forbidden";
-          body = "{\"" + (category.equals("chat") ? "errcode" : "code") + "\":\"" + code + "\"}";
+          String code = category.equals(invalidCategory) && invalidDenialCode ? unexpectedDenialCode
+              : category.equals("chat") ? "M_FORBIDDEN" : "capability-policy-blocked";
+          body = JsonMapper.builder().build().writeValueAsString(
+              Map.of(category.equals("chat") ? "errcode" : "code", code));
           exchange.getResponseHeaders().add("Content-Type", "application/json");
         } else {
           status = 200;

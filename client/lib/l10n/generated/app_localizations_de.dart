@@ -2683,6 +2683,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profileEditSavedMessage => 'Profil gespeichert.';
 
   @override
+  String get profileEditSaveFailureMessage =>
+      'Dein Profil konnte nicht gespeichert werden. Deine Änderungen bleiben erhalten. Prüfe deine Verbindung und Anmeldung und versuche es erneut.';
+
+  @override
   String get settingsWorkspaceCalendarLabel => 'Kalender';
 
   @override

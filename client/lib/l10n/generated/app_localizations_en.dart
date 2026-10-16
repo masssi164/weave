@@ -2646,6 +2646,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileEditSavedMessage => 'Profile saved.';
 
   @override
+  String get profileEditSaveFailureMessage =>
+      'Your profile could not be saved. Your changes are kept. Check your connection and sign-in, then try again.';
+
+  @override
   String get settingsWorkspaceCalendarLabel => 'Calendar';
 
   @override

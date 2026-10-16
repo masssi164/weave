@@ -2,7 +2,35 @@
 
 This is an implementation and evidence record. The pinned specification corpus remains normative. No automation or human result is implied by a plan or a merged specification.
 
-## Current checkpoint — October 15, 2026 UTC
+## Current checkpoint — October 16, 2026 UTC
+
+The accepted corpus remains `2c35d0304efe04f6cae1a7bba9f244004e017d29`. [PR #1634](https://github.com/masssi164/weave/pull/1634) remains draft HOLD while the reviewed local corrections complete qualification. Protected Dogfood remains `18a18bd573b9c190448e81c49ec899f72011c4a3`; deployment, physical preparation and HIL have not passed for the changed candidate.
+
+### Latest actual two-app observations
+
+Local Computer Use run `local-cua-20261015-2314` built the real Flutter/Rust apps and isolated backend from `f79b8f1339c1d56c4b5fba1458ad6f55752f03fa`, pinned to the accepted corpus. A entered the organization host; B entered its invitation. Both authenticated in the native system browser and ran concurrently with distinct current identities, storage and Matrix device identities. Later profile and Home Dart corrections were loaded into the resident apps; read-only comparison verified all 21 selected current library sources in both processes. These mixed-source observations are exploratory evidence, not exact-candidate release qualification.
+
+- Files: A uploaded 48 bytes through the actual native picker; B opened the actual contents. A replaced the same shared file with 52 bytes; both current views retained the same ID and a changed matching revision, and B displayed the replacement contents. The rebuilt maintained picker preserved an independently created same-name sentinel before confirmation and after actual Cancel. A subsequent native Save to a new selected destination produced the original 48 bytes and left the sentinel unchanged. The OS-appended extension differed from the planned name; feedback and verification used the actual destination. No existing file was deleted or overwritten for the test.
+- Chat: A sent, B received and replied, and A received the reply in Flutter. Both current timelines contained the same two unique message IDs in order. After B changed its own profile through Flutter, A's existing reply displayed the new canonical member name without a new message. These observations do not establish encrypted-room recovery or an unchanged SDK sync cursor.
+- Calendar: A created an event, B read it, A updated it, and B displayed the changed title in the shared workspace calendar. Both current provider views matched on event ID, scope and version. Delete followed by Cancel retained the event. Confirmed deletion and peer removal were not repeated before this run stopped.
+
+### Demonstrated conformance corrections
+
+| Observed problem | Minimal correction and reason | Verified boundary |
+| --- | --- | --- |
+| A long-running profile editor reused the initial bearer and returned HTTP 401; German UI displayed an English failure | Reuse one current-session resolver in the existing provider and per-operation profile callback. The authentication repository continues to own expiry, restoration and refresh. Localize the safe failure without another cache, token store, provider or blind mutation retry. | Three compiled pre-fix assertions failed; 39 focused tests passed afterward. Reload alone retained the old failure; recreating B's Dart providers allowed actual Save, and another warm Save succeeded without new browser login. Elapsed time alone is not independent expiry proof. |
+| Home displayed 04:00–05:00 while the same Calendar event displayed 02:00–03:00 | Remove Home's three extra local-time conversions. CalendarEvent already carries wall-clock fields in UTC containers with separate temporal intent; actual-instant recent activity formatting remains unchanged. | Two compiled Berlin regressions failed before; EN/DE rendering and semantics passed in UTC, Berlin and Apia through the existing temporal gate. All four Home tests and analysis passed. Actual B Home then matched Calendar at 02:00–03:00. |
+| C's Files denial stopped the harness on an error-category mismatch after HTTP 403 | Bind expected Files/Calendar denial to the known guest's capability-policy boundary, which precedes resource permission. Preserve exact HTTP 403, exact Matrix denial, current conditional versions, protected content/version checks and the separate B Space revocation/regrant journey. Restrict mismatch diagnostics to fixed known codes. | The failed run did not retain the actual response code. Real MVC/security/error-handler regressions with the real services and capability policy independently verified all four guest read/mutation routes; 48 Server tests passed. The complete product-E2E unit module passed 75 tests, including exact-code rejection, content/version preservation and bounded diagnostics. |
+
+These corrections implement the accepted contracts. OrgManifest v2, generated User Files/Calendar consumption, native Matrix, one system-browser PKCE flow and the existing delivery authorities remain unchanged. The Auth agent instruction now follows that canonical bootstrap instead of the retired manual issuer/client configuration.
+
+### Current release limits
+
+The existing guarded C exchange stopped the local run with a Files denial-category assertion; no six-probe authorization proof or revoke/regrant proof was produced. Original failures were retained. Normal cleanup and an independent inventory confirmed zero owned containers, networks, volumes, simulators and recorded processes. The persistent Dogfood reset was not repeated.
+
+Next execute the corrected security checks and complete the unchanged normal local qualification flow, including mandatory macOS and both iOS apps. Then use protected Dev/Dogfood qualification, exact deployment, physical development signing and explicit human acceptance. No human usability, VoiceOver, physical installation, production release or HIL result is implied by local UI observations. #1470 and #1481 remain open; Project delivery remains E2E Testing. The last protected [Full #38781249459](https://github.com/masssi164/weave/actions/runs/38781249459) failed and deployment was skipped. No new comparable whole-CI runtime improvement is claimed.
+
+## Historical checkpoint — October 15, 2026 UTC
 
 The accepted corpus is `2c35d0304efe04f6cae1a7bba9f244004e017d29`, accepted through [specification PR #157](https://github.com/masssi164/weave-specs/pull/157) and pinned by the local release branch. It adds the reviewed local-feedback lifecycle and seven ISO 9241-110:2020 operational UX criteria. The corpus remains normative; this document records implementation and evidence. Protected Dogfood still points to `18a18bd573b9c190448e81c49ec899f72011c4a3` with its earlier pin. The release is **not ready for HIL**.
 

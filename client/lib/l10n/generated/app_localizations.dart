@@ -4445,6 +4445,12 @@ abstract class AppLocalizations {
   /// **'Profile saved.'**
   String get profileEditSavedMessage;
 
+  /// No description provided for @profileEditSaveFailureMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Your profile could not be saved. Your changes are kept. Check your connection and sign-in, then try again.'**
+  String get profileEditSaveFailureMessage;
+
   /// Row label for calendar readiness in the workspace readiness summary
   ///
   /// In en, this message translates to:

@@ -808,6 +808,7 @@
   "profileEditSaveButton": "Profil speichern",
   "profileEditSavingButton": "Profil wird gespeichert…",
   "profileEditSavedMessage": "Profil gespeichert.",
+  "profileEditSaveFailureMessage": "Dein Profil konnte nicht gespeichert werden. Deine Änderungen bleiben erhalten. Prüfe deine Verbindung und Anmeldung und versuche es erneut.",
   "settingsWorkspaceCalendarLabel": "Kalender",
   "settingsWorkspaceBoardsLabel": "Boards",
   "calendarWorkspaceScopeTitle": "Arbeitsbereichskalender",
