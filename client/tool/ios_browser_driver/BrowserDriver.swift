@@ -517,13 +517,35 @@ final class BrowserDriver: XCTestCase {
         return
       }
       XCTAssertLessThanOrEqual(file.count, 1, "Owned document must be unique")
-      if mode == "export" && enteredWeave {
-        let save = app.buttons.matching(NSPredicate(format: "label IN %@", ["Save", "Sichern"]))
-        XCTAssertLessThanOrEqual(save.count, 1, "Native save action must be unique")
-        if save.count == 1 && save.element.isHittable {
-          save.element.tap()
-          print("NATIVE_IOS_FILES_STAGE phase=export-saved")
-          return
+      if mode == "export" {
+        let picker = app.otherElements.matching(identifier: "Browse View (Picker)")
+        XCTAssertLessThanOrEqual(picker.count, 1, "Native export picker must be unique")
+        if picker.count == 0 {
+          Thread.sleep(forTimeInterval: 0.25)
+          continue
+        }
+        let folder = picker.element.otherElements.matching(identifier: "DOC.browsingRoot Source: com.apple.FileProvider.LocalStorage, Title: Weave")
+        XCTAssertLessThanOrEqual(folder.count, 1, "Owned export folder must be unique")
+        if folder.count == 1 {
+          let navigation = folder.element.navigationBars.matching(identifier: "FullDocumentManagerViewControllerNavigationBar")
+          let filename = picker.element.textFields.matching(identifier: "DOCPicker.filenameTextField")
+          XCTAssertLessThanOrEqual(navigation.count, 1, "Native export navigation must be unique")
+          XCTAssertLessThanOrEqual(filename.count, 1, "Native export filename must be unique")
+          if navigation.count == 1 && filename.count == 1 {
+            let save = navigation.element.buttons.matching(NSPredicate(format: "label IN %@", ["Save", "Sichern"]))
+            XCTAssertLessThanOrEqual(save.count, 1, "Native save action must be unique")
+            if save.count == 1 && save.element.isEnabled && save.element.isHittable {
+              guard Date() < deadline else { break }
+              save.element.tap()
+              XCTAssertTrue(
+                picker.element.waitForNonExistence(timeout: max(0, deadline.timeIntervalSinceNow)),
+                "Native export picker must dismiss after saving")
+              print("NATIVE_IOS_FILES_STAGE phase=export-saved")
+              return
+            }
+          }
+          Thread.sleep(forTimeInterval: 0.25)
+          continue
         }
       }
       let weave = app.staticTexts.matching(NSPredicate(format: "label == %@", "Weave"))
