@@ -370,7 +370,25 @@ def run(arguments: list[str], *, env=None, timeout=900) -> str:
         stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as failure:
         stage = command_stage(arguments)
-        failure_marker('infrastructure', stage, 'command-timeout')
+        try:
+            partial = []
+            for stream in (failure.stdout, failure.stderr):
+                if isinstance(stream, bytes):
+                    stream = stream[-32768:].decode('utf-8', errors='replace')
+                if isinstance(stream, str):
+                    partial.append(stream[-32768:].encode('utf-8')[-32768:].decode('utf-8', errors='ignore'))
+            diagnostic = retain_private_diagnostic('\n'.join(partial))
+            print('NATIVE_IOS_COMMAND_RESULT status=timeout privateDiagnostic=' + diagnostic.name + ' supportSafe=true', flush=True)
+        except Exception:
+            # Private retention and its status marker cannot replace the timeout.
+            try:
+                print('NATIVE_IOS_COMMAND_RESULT status=unavailable supportSafe=true', flush=True)
+            except Exception:
+                pass
+        try:
+            failure_marker('infrastructure', stage, 'command-timeout')
+        except Exception:
+            pass
         raise NativeFailure('infrastructure', stage, 'command-timeout') from failure
     finally:
         stop_flutter_process_group(process)

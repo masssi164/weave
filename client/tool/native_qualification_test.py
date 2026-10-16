@@ -125,6 +125,69 @@ class NativeQualificationTest(unittest.TestCase):
         phase_start_patch.start()
         self.addCleanup(phase_start_patch.stop)
 
+    def test_command_timeout_retains_bounded_private_partial_output_and_original_cause(self):
+        secret = 'private-password private@example.invalid /private/document'
+        for stdout, stderr in [
+            (b'old-prefix' + b'x' * 100000 + secret.encode(), b'old-prefix' + b'y' * 100000 + b'private-stderr'),
+            (b'old-prefix' + b'\xff' * 40000 + secret.encode(), b'private-stderr'),
+            ('old-prefix' + '🔒' * 40000 + secret, 'private-stderr'),
+            (None, None),
+        ]:
+            with self.subTest(outputType=type(stdout).__name__):
+                process = unittest.mock.Mock()
+                failure = subprocess.TimeoutExpired('private-command', 90, output=stdout, stderr=stderr)
+                process.communicate.side_effect = failure
+                public = io.StringIO()
+                with patch.object(ios.subprocess, 'Popen', return_value=process), patch.object(ios, 'stop_flutter_process_group') as stop, redirect_stdout(public):
+                    with self.assertRaises(ios.NativeFailure) as caught:
+                        ios.run(['xcodebuild', 'private-argument'], timeout=90)
+                self.assertIs(caught.exception.__cause__, failure)
+                self.assertEqual((caught.exception.category, caught.exception.stage, caught.exception.reason),
+                                 ('infrastructure', 'browser-driver-build', 'command-timeout'))
+                process.communicate.assert_called_once_with(timeout=90)
+                stop.assert_called_once_with(process)
+                logs = list((ios.CLIENT / 'build/private-ios-qualification').glob('command-*.log'))
+                self.assertEqual(len(logs), 1)
+                log = logs[0]
+                self.assertEqual(log.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(log.parent.stat().st_mode & 0o777, 0o700)
+                self.assertLessEqual(log.stat().st_size, 65537)
+                if stdout is not None:
+                    self.assertIn(secret, log.read_text())
+                    self.assertIn('private-stderr', log.read_text())
+                    self.assertNotIn('old-prefix', log.read_text())
+                self.assertIn('privateDiagnostic=' + log.name, public.getvalue())
+                for private in [secret, 'private-stderr', 'private-command', 'private-argument', str(log.parent)]:
+                    self.assertNotIn(private, public.getvalue())
+                log.unlink()
+
+    def test_command_timeout_retention_failure_cannot_replace_primary_or_cleanup(self):
+        for error in [OSError('private-path'), RuntimeError('private-payload')]:
+            with self.subTest(errorType=type(error).__name__):
+                process = unittest.mock.Mock()
+                failure = subprocess.TimeoutExpired('private-command', 90, output=b'private-stdout')
+                process.communicate.side_effect = failure
+                public = io.StringIO()
+                with patch.object(ios.subprocess, 'Popen', return_value=process), patch.object(ios, 'stop_flutter_process_group') as stop, patch.object(ios, 'retain_private_diagnostic', side_effect=error), redirect_stdout(public):
+                    with self.assertRaises(ios.NativeFailure) as caught:
+                        ios.run(['xcodebuild'], timeout=90)
+                self.assertIs(caught.exception.__cause__, failure)
+                self.assertEqual(caught.exception.reason, 'command-timeout')
+                stop.assert_called_once_with(process)
+                self.assertIn('status=unavailable', public.getvalue())
+                self.assertNotIn('private-', public.getvalue())
+
+    def test_command_timeout_diagnostic_print_failure_preserves_primary(self):
+        process = unittest.mock.Mock()
+        failure = subprocess.TimeoutExpired('private-command', 90, output='private-stdout')
+        process.communicate.side_effect = failure
+        with patch.object(ios.subprocess, 'Popen', return_value=process), patch.object(ios, 'stop_flutter_process_group') as stop, patch.object(ios, 'print', side_effect=OSError('private-print'), create=True):
+            with self.assertRaises(ios.NativeFailure) as caught:
+                ios.run(['xcodebuild'], timeout=90)
+        self.assertIs(caught.exception.__cause__, failure)
+        self.assertEqual(caught.exception.reason, 'command-timeout')
+        stop.assert_called_once_with(process)
+
     def test_private_command_diagnostic_permissions_and_symlink_rejection(self):
         private = 'raw-private-email raw-secret-password\n'
         output = io.StringIO()
@@ -1410,10 +1473,11 @@ class PrivateIosCleanupTest(unittest.TestCase):
             (client / 'build').mkdir()
             target = client / 'target'
             target.mkdir(mode=0o755)
+            original_mode = target.stat().st_mode & 0o777
             (client / 'build/private-ios-qualification').symlink_to(target, target_is_directory=True)
             with patch.object(ios, 'CLIENT', client), self.assertRaisesRegex(ios.NativeFailure, 'unsafe-private-parent'):
                 ios.verified_private_parent()
-            self.assertEqual(target.stat().st_mode & 0o777, 0o755)
+            self.assertEqual(target.stat().st_mode & 0o777, original_mode)
 
     def test_successful_body_cannot_hide_cleanup_failure(self):
         with tempfile.TemporaryDirectory() as root:
