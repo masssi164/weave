@@ -78,7 +78,19 @@ final class NativeAuthorizationRequestTest {
       assertEquals("\"event-current\"", writes.get(2).version());
       assertEquals(4, fixture.requests.stream().filter(request -> request.method().equals("GET")).count());
       for (var request : fixture.requests.stream().filter(request -> request.method().equals("GET")).toList()) {
-        assertEquals("Bearer authorized-fixture", request.authorization());
+        assertEquals("Bearer fresh-owner-user-fixture", request.authorization());
+      }
+    }
+  }
+
+  @Test void adminOrWorkloadSessionCannotSupplyAuthorizedUserBaselineReads() throws Exception {
+    for (String client : java.util.List.of("weave-admin-console", "weaver-workload")) {
+      try (var fixture = new MutationFixture()) {
+        fixture.authorizedSession = new OidcBrowserJourney.TokenSet(client, "wrong-boundary-token",
+            "fixture-refresh", "fixture-id", "subject-A", java.util.List.of("openid", "profile", "email"));
+        ProductFlowException failure = assertThrows(ProductFlowException.class, fixture::verify);
+        assertEquals("native authorization baseline requires a User API session", failure.getMessage());
+        assertEquals(0, fixture.requests.size());
       }
     }
   }
@@ -204,12 +216,16 @@ final class NativeAuthorizationRequestTest {
       server.start();
     }
 
+    OidcBrowserJourney.TokenSet authorizedSession = new OidcBrowserJourney.TokenSet(
+        "weave-app", "fresh-owner-user-fixture", "fixture-refresh", "fixture-id", "subject-A",
+        java.util.List.of("openid", "profile", "email"));
+
     void verify() throws Exception {
       var mapper = JsonMapper.builder().build();
       var resources = mapper.valueToTree(ownedRequest().get("resources"));
       FreshProductFlow.requireNativeMutationDenials(new JsonHttpClient(java.net.http.HttpClient.newHttpClient()),
           java.net.URI.create("http://127.0.0.1:" + server.getAddress().getPort()), resources, "owned-run",
-          Map.of("Authorization", "Bearer denied-fixture"), Map.of("Authorization", "Bearer authorized-fixture"));
+          Map.of("Authorization", "Bearer denied-fixture"), authorizedSession);
     }
 
     @Override public void close() { server.stop(0); }
