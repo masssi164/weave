@@ -1,146 +1,111 @@
-# ISO 9241-110 Dogfood UX Gate
+# ISO 9241-110:2020 Dogfood UX checklist
 
-Status: v0.1 product UX contract
-Owner: `client/` product UX, with backend/infra evidence for readiness and operator actions
-Related issues: #258, #259
+Status: implementation checklist projecting the pinned Weave Specification Corpus
+Owner: `client/` interaction evidence, with server/infra evidence for authorization and recovery
+Related release issues: #1470, #1481, #1592
 
-## Purpose
+## Authority and scope
 
-Weave v0.1 must open as a daily work product, not as a scaffold, roadmap gallery, or provider demo. This gate turns ISO 9241-110 dialogue principles into release-scope acceptance criteria and promptable planning rules for future agent work.
+The accepted corpus `WEAVE-STEERING-ASA` owns the seven interaction criteria;
+`WEAVE-STEERING-RELEASE-2026-10-CONSOLIDATION` owns supported release scope;
+`WEAVE-STEERING-DEVOPS-CONFORMANCE` and ADR 0022 own local inspection and qualification.
+Read their exact revision in `specs/weave-specs.lock.json`, as described by the
+[specification source of truth](specification-source-of-truth.md).
+This checklist helps collect implementation evidence and cannot add product scope or redefine
+capability states. Its earlier #258/#259 product-contract wording and individualization principle
+are superseded by the accepted 2020 criteria. This is not an ISO certification claim.
 
-## Dialogue principles as release checks
+## Interaction review
 
-- **Suitability for the task**: users can start real project work from Home, enter a channel, chat, use files, see calendar/board/meeting/decision availability, and recover from degraded state without raw provider fallbacks.
-- **Self-descriptiveness**: each screen explains current state, user impact, next user action, and admin/operator next action where relevant.
-- **Conformity with expectations**: visible labels use Weave product concepts first. Matrix, Nextcloud, OpenProject, LiveKit, and similar provider names appear only where they help admins/operators diagnose readiness.
-- **Suitability for learning**: first use teaches through short empty states and next actions, not walls of setup text.
-- **Controllability**: users can navigate, retry, cancel, confirm destructive work, and use non-drag alternatives for task movement.
-- **Error tolerance**: missing services fail closed with safe fallbacks, support-safe error copy, and no secrets, raw URLs, stack traces, or credential-bearing details.
-- **Suitability for individualization**: density, module visibility, theme, and notifications can evolve without making the core workspace unusable.
+Apply all seven criteria to supported member tasks in EN and DE. Record actual observations,
+not a conclusion inferred from a successful click or a copy assertion.
 
-## Release-scope capability states
+| Principle | Review focus |
+| --- | --- |
+| Task fit | Organization entry/invitation, browser SSO, Chat, workspace Files and Calendar can be completed without provider knowledge or unnecessary steps. |
+| Self-description | State, progress, success, errors and the next useful action are understandable. |
+| Expected behavior | Navigation, labels and shared content behave consistently across the supported surfaces and locales. |
+| Learnability | Members can find entry points and essential actions without a developer runbook. |
+| User control | Back, cancel, retry and confirmation work predictably; recoverable errors retain appropriate input. |
+| Error robustness | Failures preserve safe recovery without silent loss, private details or cross-user leakage. |
+| User engagement | Useful progress and clear outcomes support continued work without distraction. |
 
-Every visible capability must use exactly one of these states. **Preview is not a release-scope state.**
+Include keyboard obstruction, text scaling, focus order, accessible names and states. Keep essential
+controls available. Never hide an essential action merely to simplify a screen.
 
-1. **Ready for users**
-   - Visible to normal members.
-   - Has Weave product UI, backend facade, support-safe errors, health/readiness state, and executable evidence.
-2. **Admin setup required**
-   - Visible to admins/operators with exact next setup action.
-   - Hidden from members unless they need a short impact-level unavailable state.
-3. **Disabled by policy**
-   - Members see a short policy reason.
-   - Admins see where the policy is controlled.
-4. **Broken/degraded**
-   - Members see impact and safe fallback.
-   - Admins/operators see the next diagnostic action and support-bundle/evidence path.
-5. **Not in this release**
-   - Not visible in normal member navigation.
-   - May appear in roadmap/docs/issues, not in product UI.
+## Release-scope display states
 
-## Shared vocabulary
+These descriptions project the accepted readiness policy; they do not introduce another API enum.
+**Preview is not a release-scope state.** Do not show deferred products as member setup obligations.
 
-Use these labels consistently across Home, channel tabs, settings, Workspace Health, and acceptance evidence.
+| Display condition | Member experience | Admin/operator experience |
+| --- | --- | --- |
+| Ready for users | Supported task and product controls are available with required evidence. | Same, with authorized health information. |
+| Admin setup required | Impact and a safe next action when relevant. | Exact authorized setup action. |
+| Disabled by policy | Understandable policy impact. | Authorized policy controls. |
+| Broken/degraded | Clear impact, retained recoverable input and safe retry or recovery. | Support-safe diagnostics and the next useful action. |
+| Not in this release | Absent from normal member navigation. | Historical planning does not make it a release prerequisite. |
+| Provider diagnostics | Hidden from members except impact-level status. | Authorized readiness and support evidence. |
 
-### Status labels
-
-- Ready
-- Admin setup required
-- Disabled by policy
-- Degraded
-- Blocked
-- Unknown
-- Not in this release
-
-### User actions
-
-- Open
-- Create
-- Save
-- Upload
-- Download
-- Retry
-- Cancel
-- Delete
-- Restore
-- Ask an admin
-
-### Admin/operator actions
-
-- Configure
-- Enable by policy
-- Check readiness
-- Run smoke test
-- Generate support bundle
-- Review backup
-- Restore from backup
-- Open diagnostics
-
-### Banned release-scope copy
-
-Do not use these on normal member paths or release-scope screens:
-
-- preview
-- scaffold
-- coming soon
-- roadmap
-- future
-- raw provider setup instructions
-- provider stack traces, secrets, tokens, or credential-bearing URLs
-
-Exceptions must be narrow and explicit, for example message snippet variables named `preview` in code or roadmap documentation outside the product UI.
-
-## Surface classification for v0.1 planning
-
-| Surface | Member state | Admin/operator state | Evidence expectation |
-| --- | --- | --- | --- |
-| Home | Ready for users | Same plus health impact | Widget/contract test for hierarchy, empty state, and degraded state |
-| Channel chat | Ready for users | Same plus E2EE/readiness posture | Chat widget tests and live Matrix evidence |
-| Channel files | Ready for users when files facade is ready; otherwise degraded impact copy | Setup/readiness in Workspace Health | Files facade tests and live upload/download evidence |
-| Channel boards/tasks | Admin setup required until authenticated writes, authorization, audit, and rollback evidence are ready | Workspace Health shows next setup/diagnostic action | Non-drag task tests and backend facade/audit evidence |
-| Channel calendar | Admin setup required until channel event CRUD and readiness evidence are ready | Workspace Health shows calendar readiness | Calendar facade tests and live event/thread evidence |
-| Meetings/LiveKit | Admin setup required/fail-closed until token, media, E2EE boundary, accessibility, and support evidence are ready | Workspace Health shows exact readiness blocker | Backend token/readiness tests before member join/start is enabled |
-| Decision Ledger | Admin setup required until route, write/read flow, and links are implemented | Health/readiness only if persistence is degraded | Product route and acceptance mapping |
-| AI/Weaver | Disabled by policy / not in this release until approval receipts, consent, audit, and sandboxing ADR are accepted | Admin policy surface may explain disabled state | No runtime writes in v0.1 without accepted ADR |
-| Provider diagnostics | Hidden from members except impact-level status | Ready in Workspace Health | Role-based widget tests and support-safe DTO tests |
+Use plain, localized product terms. Do not put preview, scaffold, coming-soon, roadmap or future
+copy in normal member paths. Raw provider setup, stack traces, credentials and token-bearing URLs
+are not member-facing recovery instructions. Protocol capability values remain owned by their
+canonical contract; they are not labels to display directly.
 
 ## First-use acceptance criteria
 
-A newly invited member in an admin-provisioned workspace must be able to:
+A member enters only the public organization URL, or follows the existing invitation path.
+Host input normalizes to HTTPS. The single OrgManifest v2 contract delivered by the generated
+User `GET /api/platform/config` operation supplies validated bootstrap information. Native
+system-browser OIDC Authorization Code with PKCE completes authentication; Flutter never collects
+passwords or asks for issuers, realms, client IDs or provider addresses.
 
-1. Open Weave and understand that Home is the starting point for daily work.
-2. Open a channel workspace without learning provider names.
-3. Use chat as the reliable center of the channel.
-4. Use files through Weave or see a clear degraded impact state.
-5. See calendar, boards, meetings, decisions, and AI only when available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later according to the state table.
-6. Understand degraded state through plain-language impact and a safe next action.
-7. Avoid raw provider setup, raw provider failures, roadmap panels, or preview cards.
+The member can find Chat, Files and Calendar for the authorized workspace, understand current
+state, and finish supported tasks through Weave controls. Files and Calendar use the generated
+User API; the accepted Matrix facade is the explicit native protocol exception. Deferred products
+are not added to the review checklist. Invitation onboarding is distinct from authorized same-org
+direct chat, which does not require a recipient Accept action.
 
-An admin/operator must be able to:
+## Local evidence and defect records
 
-1. See Workspace Health as the place for setup/readiness/degraded provider state.
-2. Understand what members can currently do before inviting them.
-3. Get exact next setup or diagnostic actions without exposing secrets.
-4. Generate or find support-safe evidence for failures.
+Use the existing isolated startup and native runner in its explicit inspection lifecycle. Keep two
+real iOS apps concurrent with independent sessions, Keychains, application storage and Matrix
+devices against one owned real stack. Inspect actual Flutter UI and accessibility state with
+Computer Use; use existing native browser/picker tooling where needed. Keep the session warm,
+identify the running source, and record reload/restart/rebuild operations and iteration timings.
+Default qualification cleanup and evidence rules remain unchanged. Local work must refuse or yield
+to CI and clean only its own resources when the session ends or loses ownership.
+
+For each defect record:
+
+- Principle, task/role, locale and input/display conditions.
+- Reproduction steps, expected behavior, observed behavior and severity.
+- Demonstrated cause, implemented correction and behavioral regression evidence.
+- Relevant existing Gherkin/scenario mapping and any remaining limits.
+
+A mandatory-task, security, recovery or required-accessibility blocker prevents promotion. Exercise
+actual peer message exchange, file bytes/version changes, Calendar CRUD/removal, unauthorized access,
+independent restart/background recovery, expiry/refresh/revocation and logout isolation. Do not seed
+backend outcomes or substitute API calls for required UI interactions.
+
+Computer Use is exploratory interaction evidence. It does not establish human usability,
+satisfaction, physical-device accessibility or VoiceOver acceptance. Record unavailable observations
+explicitly. After local blockers are fixed, freeze a clean candidate and run protected Dev/Dogfood
+Compose, macOS and full dual-iOS qualification. Changed source or pin requires fresh qualification.
+Deployment, physical iPhone preparation and explicit human acceptance remain distinct gates.
 
 ## Prompting checklist for future agent work
 
-When asking an agent to implement or review a UX slice, include:
-
-- The target release-scope state from this document.
-- The affected role: member, admin, operator, or all.
-- The visible labels and banned copy expectations.
-- The backend facade/readiness/audit evidence that makes the surface user-ready.
-- The fallback state if evidence is missing.
-- The exact tests or acceptance mapping that must fail before the fix and pass after it.
-
-Example prompt shape:
-
-> Implement the Channel Boards member slice as `Admin setup required` until authenticated writes, authorization, audit, and rollback evidence are available. Do not show preview/coming-soon copy. Members see impact-level copy; admins see Workspace Health next action. Add widget/contract tests that fail on banned release-scope wording and prove member/provider-diagnostic role separation.
+A scoped implementation brief identifies the accepted corpus criteria, supported task and role,
+actual defect reproduction, allowed files, required behavioral tests and evidence limits. It must
+not use this checklist to add deferred features or treat copy checks as interaction proof.
 
 ## Required validation
 
-- `make acceptance-contract` when Gherkin or mappings change.
-- `make client-ci` for client/copy/widget changes.
-- Targeted widget tests for role separation and copy gates.
-- Manual release sign-off must still include the accessibility evidence listed in `docs/accessibility-release-gate.md`.
+Discover commands in the current repository and use the smallest meaningful checks:
+
+- `./gradlew specCorpusConformance` for the exact accepted corpus pin.
+- `./gradlew acceptanceContract` when Gherkin or mappings change.
+- Relevant Flutter analysis, widget/integration regressions and native runner tests.
+- The protected exact-candidate gates after local validation.
+- Physical/human accessibility evidence from [the accessibility release gate](accessibility-release-gate.md).

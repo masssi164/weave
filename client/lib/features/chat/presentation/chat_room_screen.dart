@@ -730,7 +730,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     final displayPendingMessage = _showingArchivedMessages
         ? null
         : _pendingMessage;
-    final roomTitle = timeline?.roomTitle ?? widget.conversation.title;
+    final timelineTitle = timeline?.roomTitle.trim();
+    final roomTitle = timelineTitle == null || timelineTitle.isEmpty
+        ? widget.conversation.title
+        : timelineTitle;
     final canSend =
         !_showingArchivedMessages && timeline?.canSendMessages == true;
     final decisionEvidenceRecords = ref.watch(decisionEvidenceProvider);
@@ -2223,6 +2226,12 @@ class _MessageBubble extends StatelessWidget {
       ChatMessageContentType.unsupported =>
         l10n.chatRoomUnsupportedMessageLabel,
     };
+    final senderLabel = message.isMine
+        ? l10n.chatRoomYouLabel
+        : message.senderDisplayName;
+    final localTime = MaterialLocalizations.of(
+      context,
+    ).formatTimeOfDay(TimeOfDay.fromDateTime(message.sentAt.toLocal()));
     final status = switch (message.deliveryState) {
       ChatMessageDeliveryState.sending => l10n.chatRoomMessageSendingStatus,
       ChatMessageDeliveryState.sent => null,
@@ -2237,12 +2246,10 @@ class _MessageBubble extends StatelessWidget {
           container: true,
           explicitChildNodes: true,
           label: [
-            message.senderDisplayName,
+            senderLabel,
             if (archived) l10n.chatRoomArchivedMessageLabel,
             body,
-            MaterialLocalizations.of(
-              context,
-            ).formatTimeOfDay(TimeOfDay.fromDateTime(message.sentAt)),
+            localTime,
             if (status != null) status,
           ].join('. '),
           child: DecoratedBox(
@@ -2266,7 +2273,7 @@ class _MessageBubble extends StatelessWidget {
                       Expanded(
                         child: ExcludeSemantics(
                           child: Text(
-                            message.senderDisplayName,
+                            senderLabel,
                             style: theme.textTheme.labelMedium?.copyWith(
                               color: foregroundColor.withValues(alpha: 0.85),
                             ),
@@ -2393,9 +2400,7 @@ class _MessageBubble extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          MaterialLocalizations.of(context).formatTimeOfDay(
-                            TimeOfDay.fromDateTime(message.sentAt),
-                          ),
+                          localTime,
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: foregroundColor.withValues(alpha: 0.75),
                           ),

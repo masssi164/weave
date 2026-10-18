@@ -240,7 +240,7 @@
   "filesExportEntrySemantic": "{name} in native Dateien exportieren",
   "filesExportProgressMessage": "{name} wird exportiert…",
   "filesExportProgressUnknownMessage": "Datei wird exportiert…",
-  "filesExportCompletedMessage": "{name} wurde nach {destination} exportiert.",
+  "filesExportCompletedMessage": "{name} wurde als {destination} gespeichert.",
   "filesExportCompletedUnknownMessage": "Datei wurde in native Dateien exportiert.",
   "filesExportUserVisibleFallback": "einen benutzersichtbaren Dateien-Ort",
   "filesDeleteEntrySemantic": "{name} löschen",
@@ -768,19 +768,17 @@
   "signInScreenTitle": "Anmelden",
   "signInTitle": "Zum Fortfahren anmelden",
   "signInDescription": "Melde dich mit deinem Weave-Arbeitsbereich an, um fortzufahren. Deine Einladung oder dein Organisationskonto öffnet die App sicher im Systembrowser.",
-  "signInConfigurationTitle": "Aktuelle Anmeldekonfiguration",
-  "signInHandoffConfigurationDescription": "Deine Weave-Einladung hat den Arbeitsbereich-Anmeldeendpunkt ausgewählt. Fahre mit SSO fort; falls das nicht klappt, bitte eine Admin-/Operator-Person um eine neue Einladung und nenne WEAVE-SSO-NOT-COMPLETE.",
-  "signInHandoffReadyTitle": "Arbeitsbereich-Einladung bereit",
-  "signInHandoffReadyDescription": "Weave hat den Dogfood-Handoff für {organization}/{workspace} verarbeitet. Fahre mit SSO für Lauf {runId} fort.",
+  "signInConfigurationTitle": "Deine Organisation",
+  "signInHandoffConfigurationDescription": "Fahre im Systembrowser fort, um dich bei deiner gespeicherten Organisation anzumelden.",
   "signInConfigurationIssuer": "Issuer: {value}",
   "signInConfigurationClientId": "Client-ID: {value}",
   "signInButton": "Anmelden",
   "signInInProgress": "Melde an…",
   "signInBackToSetupButton": "Zurück zur Einrichtung",
   "signInMissingConfigurationTitle": "Einrichtung abschließen, um dich anzumelden",
-  "signInMissingConfigurationDescription": "Weave benötigt noch eine gültige Issuer-URL und Client-ID, bevor der Browser-Anmeldefluss gestartet werden kann.",
+  "signInMissingConfigurationDescription": "Gib vor der Anmeldung die Weave-Adresse deiner Organisation oder deine Einladung ein.",
   "signInCancelled": "Die Anmeldung wurde abgebrochen.",
-  "signInConfigurationFailure": "Die Anmeldekonfiguration ist unvollständig. Bitte eine Admin-/Operator-Person um eine neue Einladung.",
+  "signInConfigurationFailure": "Die Anmeldeinformationen deiner Organisation sind unvollständig. Prüfe die Organisationsadresse und versuche es erneut.",
   "signInProtocolFailure": "Die Anmeldung konnte nicht abgeschlossen werden. Bitte eine Admin-/Operator-Person, die Identitätseinrichtung zu prüfen, und nenne WEAVE-SSO-NOT-COMPLETE.",
   "signInStorageFailure": "Weave konnte die Sitzung auf diesem Gerät nicht speichern. Prüfe Speicher- und Sicherheitseinstellungen des Geräts und versuche es erneut.",
   "signInUnsupportedPlatform": "Dieses Gerät kann den sicheren Weave-Anmeldefluss nicht öffnen.",
@@ -810,10 +808,11 @@
   "profileEditSaveButton": "Profil speichern",
   "profileEditSavingButton": "Profil wird gespeichert…",
   "profileEditSavedMessage": "Profil gespeichert.",
+  "profileEditSaveFailureMessage": "Dein Profil konnte nicht gespeichert werden. Deine Änderungen bleiben erhalten. Prüfe deine Verbindung und Anmeldung und versuche es erneut.",
   "settingsWorkspaceCalendarLabel": "Kalender",
   "settingsWorkspaceBoardsLabel": "Boards",
   "calendarWorkspaceScopeTitle": "Arbeitsbereichskalender",
-  "calendarWorkspaceScopeDescription": "Dieser erste Kalender-Schnitt nutzt den gemeinsamen Weave-Arbeitsbereichskalender. Private Nutzerkalender bleiben deaktiviert, bis das Zugriffsmodell umgesetzt ist.",
+  "calendarWorkspaceScopeDescription": "Zeige und verwalte die gemeinsamen Termine deiner Organisation in diesem Arbeitsbereich.",
   "calendarGenericScopeDescription": "Termine werden aus {scopeLabel} angezeigt.",
   "calendarClientSetupTitle": "Kalender in anderen Apps nutzen",
   "calendarClientSetupDescription": "Weave kann nativen Clients geheime-freie Einrichtungsdaten übergeben. Die Weave-Kalenderoberfläche bleibt der Produktweg.",
@@ -905,7 +904,7 @@
   "calendarDetailsScopeLabel": "Kalenderbereich",
   "calendarDetailsContextLabel": "Kontext",
   "calendarDetailsMeetingThreadLabel": "Meeting-Thread",
-  "calendarDetailsMeetingThreadPending": "Sichere Kontextmetadaten sind verfügbar; die Chat-Thread-Verknüpfung ist noch nicht konfiguriert.",
+  "calendarDetailsMeetingThreadPending": "Keine Unterhaltung verknüpft.",
   "calendarDetailsAttendeesLabel": "Teilnehmende",
   "calendarDetailsProviderLabel": "Provider-Referenz",
   "calendarDetailsProviderPathHidden": "roher Provider-Pfad verborgen",
@@ -1083,15 +1082,15 @@
   "@setupMemberHandoffTitle": {
     "description": "Title for the normal member handoff-first setup screen"
   },
-  "setupMemberHandoffDescription": "Öffne den Einladungslink, /join-Link oder die Organisations-Anmelde-URL, die dein Admin gesendet hat. Weave bereitet deinen Workspace aus dem Organisationsmanifest vor, ohne dich nach technischen Service-Einstellungen zu fragen.",
+  "setupMemberHandoffDescription": "Melde dich mit der Weave-Adresse deiner Organisation oder deiner Einladung im Arbeitsbereich an.",
   "@setupMemberHandoffDescription": {
     "description": "Description for the normal member handoff-first setup screen"
   },
-  "setupOrganizationUriLabel": "Server-URI, Einladungslink oder QR-Inhalt",
+  "setupOrganizationUriLabel": "Organisationsadresse oder Einladung",
   "@setupOrganizationUriLabel": {
     "description": "Eingabefeld für den Organisationszugang"
   },
-  "setupOrganizationUriHelper": "Füge den Link aus E-Mail oder QR-Code ein oder gib die Weave-Adresse deiner Organisation ein.",
+  "setupOrganizationUriHelper": "Gib die Weave-Adresse deiner Organisation ein oder füge den Einladungslink aus deiner E-Mail oder dem QR-Code ein.",
   "@setupOrganizationUriHelper": {
     "description": "Hilfe zum Organisationszugang"
   },
@@ -1143,7 +1142,7 @@
   "@memberHandoffReadyTitle": {
     "description": "Success title shown after a member handoff is consumed and before sign-in"
   },
-  "memberHandoffReadyGuidance": "Weave hat {organization}/{workspace} aus der Einladung vorbereitet. Fahre als Nächstes mit der Workspace-Anmeldung fort.",
+  "memberHandoffReadyGuidance": "Dein Arbeitsbereich {organization}/{workspace} ist bereit. Fahre mit der Anmeldung fort.",
   "@memberHandoffReadyGuidance": {
     "description": "Success guidance shown after a member handoff is consumed and before sign-in",
     "placeholders": {

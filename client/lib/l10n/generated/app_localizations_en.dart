@@ -785,7 +785,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String filesExportCompletedMessage(String name, String destination) {
-    return 'Exported $name to $destination.';
+    return 'Saved $name as $destination.';
   }
 
   @override
@@ -2508,23 +2508,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Use your Weave workspace sign-in to continue. Your invite or organization account opens the app securely in the system browser.';
 
   @override
-  String get signInConfigurationTitle => 'Current sign-in configuration';
+  String get signInConfigurationTitle => 'Your organization';
 
   @override
   String get signInHandoffConfigurationDescription =>
-      'Your Weave invite selected the workspace sign-in endpoint. Continue with SSO; if this does not work, ask an admin/operator to refresh the invite and mention WEAVE-SSO-NOT-COMPLETE.';
-
-  @override
-  String get signInHandoffReadyTitle => 'Workspace invite ready';
-
-  @override
-  String signInHandoffReadyDescription(
-    String organization,
-    String workspace,
-    String runId,
-  ) {
-    return 'Weave consumed the dogfood handoff for $organization/$workspace. Continue with SSO for run $runId.';
-  }
+      'Continue in the system browser to sign in to your saved organization.';
 
   @override
   String signInConfigurationIssuer(String value) {
@@ -2550,14 +2538,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get signInMissingConfigurationDescription =>
-      'Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.';
+      'Enter your organization’s Weave address or invitation before signing in.';
 
   @override
   String get signInCancelled => 'Sign-in was cancelled.';
 
   @override
   String get signInConfigurationFailure =>
-      'The sign-in configuration is incomplete. Ask an admin/operator to refresh the invite.';
+      'Your organization’s sign-in information is incomplete. Check the organization address and try again.';
 
   @override
   String get signInProtocolFailure =>
@@ -2658,6 +2646,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileEditSavedMessage => 'Profile saved.';
 
   @override
+  String get profileEditSaveFailureMessage =>
+      'Your profile could not be saved. Your changes are kept. Check your connection and sign-in, then try again.';
+
+  @override
   String get settingsWorkspaceCalendarLabel => 'Calendar';
 
   @override
@@ -2668,7 +2660,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get calendarWorkspaceScopeDescription =>
-      'This first Calendar slice is the workspace scope of Weave shared scheduling. Team and channel calendars are the next product scopes; private personal calendars are out of scope.';
+      'View and manage events shared with your organization in this workspace.';
 
   @override
   String calendarGenericScopeDescription(String scopeLabel) {
@@ -2860,8 +2852,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get calendarDetailsMeetingThreadLabel => 'Meeting thread';
 
   @override
-  String get calendarDetailsMeetingThreadPending =>
-      'Safe context metadata is available; chat thread linkage is not configured yet.';
+  String get calendarDetailsMeetingThreadPending => 'No conversation linked.';
 
   @override
   String get calendarDetailsAttendeesLabel => 'Attendees';
@@ -3517,15 +3508,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get setupMemberHandoffDescription =>
-      'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you for technical service settings.';
+      'Use your organization’s Weave address or invitation to sign in to your workspace.';
 
   @override
-  String get setupOrganizationUriLabel =>
-      'Server URI, invitation link, or QR payload';
+  String get setupOrganizationUriLabel => 'Organization address or invitation';
 
   @override
   String get setupOrganizationUriHelper =>
-      'Paste the link from your email or QR code, or enter your organization\'s Weave address.';
+      'Enter your organization’s Weave address, or paste the invitation link from your email or QR code.';
 
   @override
   String get setupOrganizationUriError =>
@@ -3571,7 +3561,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String memberHandoffReadyGuidance(String organization, String workspace) {
-    return 'Weave prepared $organization/$workspace from the invite. Continue with workspace sign-in next.';
+    return 'Your workspace $organization/$workspace is ready. Continue to sign in.';
   }
 
   @override

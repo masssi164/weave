@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:weave/features/profile/presentation/profile_screen.dart';
@@ -10,6 +12,8 @@ import '../../helpers/test_app.dart';
 
 class _RecordingProfileRepository implements UserProfileRepository {
   UserProfileUpdate? savedUpdate;
+  bool rejectNext = false;
+  int saves = 0;
 
   @override
   Future<UserProfile?> loadProfile() async => _profile;
@@ -17,6 +21,14 @@ class _RecordingProfileRepository implements UserProfileRepository {
   @override
   Future<UserProfile> updateProfile(UserProfileUpdate update) async {
     savedUpdate = update;
+    saves++;
+    if (rejectNext) {
+      rejectNext = false;
+      throw const AppFailure.unknown(
+        'The Weave backend rejected the current profile session.',
+        cause: 401,
+      );
+    }
     return UserProfile(
       userId: _profile.userId,
       username: _profile.username,
@@ -66,6 +78,82 @@ void main() {
   });
 
   group('ProfileSummaryCard', () {
+    for (final locale in ['en', 'de']) {
+      testWidgets(
+        'localized profile save failure keeps edits and permits retry $locale',
+        (tester) async {
+          tester.platformDispatcher.localesTestValue = [Locale(locale)];
+          addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+          final semantics = tester.ensureSemantics();
+          try {
+            final repository = _RecordingProfileRepository()..rejectNext = true;
+            await tester.pumpWidget(
+              createTestApp(
+                const SingleChildScrollView(child: ProfileSummaryCard()),
+                overrides: [
+                  userProfileProvider.overrideWith((ref) async => _profile),
+                  userProfileRepositoryProvider.overrideWithValue(repository),
+                ],
+              ),
+            );
+            await tester.pumpAndSettle();
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(ProfileSummaryCard)),
+            );
+            await tester.enterText(
+              find.byType(TextFormField).first,
+              'Edited member',
+            );
+            await tester.ensureVisible(find.text(l10n.profileEditSaveButton));
+            await tester.tap(find.text(l10n.profileEditSaveButton));
+            await tester.pumpAndSettle();
+            expect(
+              find.text(
+                'The Weave backend rejected the current profile session.',
+              ),
+              findsNothing,
+            );
+            expect(
+              find.bySemanticsLabel(
+                'The Weave backend rejected the current profile session.',
+              ),
+              findsNothing,
+            );
+            expect(
+              find.textContaining(
+                locale == 'de'
+                    ? 'Deine Änderungen bleiben erhalten.'
+                    : 'Your changes are kept.',
+              ),
+              findsOneWidget,
+            );
+            expect(
+              tester
+                  .widget<TextFormField>(find.byType(TextFormField).first)
+                  .controller!
+                  .text,
+              'Edited member',
+            );
+            expect(repository.savedUpdate!.displayName, 'Edited member');
+            await tester.tap(find.text(l10n.profileEditSaveButton));
+            await tester.pumpAndSettle();
+            expect(repository.saves, 2);
+            expect(find.text(l10n.profileEditSavedMessage), findsOneWidget);
+            expect(
+              find.textContaining(
+                locale == 'de'
+                    ? 'Deine Änderungen bleiben erhalten.'
+                    : 'Your changes are kept.',
+              ),
+              findsNothing,
+            );
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+
     testWidgets(
       'shows the authenticated profile from the Weave backend facade',
       (tester) async {

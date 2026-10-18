@@ -123,6 +123,7 @@ jobs:
       user: ${{ steps.impact.outputs.user }}
       admin: ${{ steps.impact.outputs.admin }}
       client: ${{ steps.impact.outputs.client }}
+      client_native_driver_only: ${{ steps.impact.outputs.client_native_driver_only }}
       admin_console: ${{ steps.impact.outputs.admin_console }}
       infra: ${{ steps.impact.outputs.infra }}
       docs: ${{ steps.impact.outputs.docs }}
@@ -205,7 +206,13 @@ jobs:
           cd client
           flutter pub get --enforce-lockfile
           cd ..
-          ./gradlew --no-daemon --stacktrace clientDeterministicCi
+          if [[ "$CLIENT_NATIVE_DRIVER_ONLY" == 'true' ]]; then
+            ./gradlew --no-daemon --stacktrace nativeQualificationContractTest
+          else
+            ./gradlew --no-daemon --stacktrace clientDeterministicCi
+          fi
+        env:
+          CLIENT_NATIVE_DRIVER_ONLY: ${{ needs.api_impact.outputs.client_native_driver_only }}
 
   admin_deterministic:
     name: Admin deterministic verification

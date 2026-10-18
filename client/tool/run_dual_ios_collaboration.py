@@ -15,6 +15,7 @@ import re
 import shutil
 import socket
 import select
+import signal
 import subprocess
 import time
 import queue
@@ -361,8 +362,7 @@ def actor_runtime_copy(client: Path, destination: Path) -> None:
         raise ios.NativeFailure('infrastructure', 'dual-runtime', 'package-metadata-missing')
 
 
-def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: Path, app: Path,
-              input_data: dict, env: dict, build_digest: str, ready: queue.Queue, restart_barrier: threading.Barrier, restart_gate: threading.Event) -> dict:
+def prepare_actor_storage(actor: dict, udid: str, app: Path, input_data: dict, env: dict) -> tuple[Path, dict]:
     role = actor['role']
     ios.run(['xcrun', 'simctl', 'install', udid, str(app)], env=env)
     container = Path(ios.run(['xcrun', 'simctl', 'get_app_container', udid, ios.BUNDLE, 'data'], env=env).strip()).resolve(strict=True)
@@ -397,6 +397,17 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
     fixture_path = support / 'weave-dual-ios-input.json'
     fixture_path.write_text(json.dumps(runtime_fixture)); fixture_path.chmod(0o600)
     publish_private_json(support / 'weave-dual-ios-result.json', {})
+    if env.get('WEAVE_NATIVE_LOCAL_INSPECTION') == 'true':
+        publish_private_json(support / 'weave-local-inspection-state.json', {})
+    return support, runtime_fixture
+
+
+def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: Path, app: Path,
+              input_data: dict, env: dict, build_digest: str, ready: queue.Queue, restart_barrier: threading.Barrier, restart_gate: threading.Event) -> dict:
+    role = actor['role']
+    support, runtime_fixture = prepare_actor_storage(actor, udid, app, input_data, env)
+    fixture_path = support / 'weave-dual-ios-input.json'
+    storage_digest = hashlib.sha256(str(support.parent.parent).encode()).hexdigest()
     started_at = ios.simulator_vm.log_start_timestamp()
     launch = ios.run(['xcrun', 'simctl', 'launch', udid, ios.BUNDLE, '--enable-dart-profiling',
                       '--disable-vm-service-publication', '--start-paused'], env=env).strip()
@@ -513,7 +524,44 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
                             ios.emit_phase_stages('restore', (temporary / 'flutter-restore.log').read_text(), '')
 
 
-def perform_owned_lifecycle(scope: tuple, action: str, env: dict) -> None:
+def perform_owned_picker(udid, pid, products, env, mode, name, *, result_path=None):
+    if ios.simulator_app_pid(udid) != pid:
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'owned-process-mismatch')
+    plans = list(products.glob('*.xctestrun')); bundles = list(products.glob('**/BrowserDriver.xctest'))
+    if len(plans) != 1 or len(bundles) != 1:
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'missing-owned-test-plan')
+    fixture = bundles[0] / 'private-member.json'
+    if fixture.is_symlink():
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-picker-fixture')
+    fixture.write_text(json.dumps({'phase': 'document-picker', 'pickerMode': mode, 'fileName': name})); fixture.chmod(0o600)
+    command = ['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
+               '-destination', 'platform=iOS Simulator,id=' + udid, '-parallel-testing-enabled', 'NO',
+               '-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker']
+    if result_path is not None:
+        command.extend(['-resultBundlePath', str(result_path)])
+    # This synchronous main-thread call owns and stops its child in ios.run's
+    # finally, including when the existing CI monitor interrupts this owner.
+    picker_stdout = ios.run(command, env=env, timeout=90)
+    diagnostic = None
+    try:
+        diagnostic = ios.retain_private_diagnostic(picker_stdout)
+    except (OSError, ValueError, ios.NativeFailure):
+        print('NATIVE_IOS_PICKER_RESULT status=unavailable supportSafe=true', flush=True)
+    lines = picker_stdout.splitlines()
+    expected = 'NATIVE_IOS_FILES_STAGE phase=' + ('import-selected' if mode == 'import' else 'export-saved')
+    opposite = 'NATIVE_IOS_FILES_STAGE phase=' + ('export-saved' if mode == 'import' else 'import-selected')
+    selected = r"Test Case '-\[BrowserDriver\.BrowserDriver testNativeDocumentPicker\]'"
+    passed = sum(bool(re.fullmatch(selected + r" passed \([0-9.]+ seconds\)\.", line)) for line in lines)
+    skipped = re.search(selected + r" skipped\b|Executed \d+ tests?, with [1-9]\d* tests? skipped\b", picker_stdout)
+    if lines.count(expected) != 1 or opposite in lines or passed != 1 or skipped:
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'native-picker-result-unverified')
+    if ios.simulator_app_pid(udid) != pid:
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'owned-process-replaced')
+    if diagnostic is not None:
+        print('NATIVE_IOS_PICKER_RESULT status=passed privateDiagnostic=' + diagnostic.name + ' supportSafe=true', flush=True)
+
+
+def perform_owned_lifecycle(scope: tuple, action: str, env: dict, *, inspection_sequence: int | None = None) -> None:
     support, udid, pid, products = scope
     if action not in {'background', 'foreground'} or ios.simulator_app_pid(udid) != pid:
         raise ios.NativeFailure('infrastructure', 'dual-lifecycle', 'owned-process-mismatch')
@@ -522,12 +570,27 @@ def perform_owned_lifecycle(scope: tuple, action: str, env: dict) -> None:
         raise ios.NativeFailure('infrastructure', 'dual-lifecycle', 'owned-test-plan-missing')
     private = bundles[0] / 'private-member.json'
     private.write_text(json.dumps({'phase': 'lifecycle', 'action': action})); private.chmod(0o600)
-    ios.run(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
+    lifecycle_stdout = ios.run(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
              '-destination', 'platform=iOS Simulator,id=' + udid, '-parallel-testing-enabled', 'NO',
              '-only-testing:BrowserDriver/BrowserDriver/testNativeLifecycle',
-             '-resultBundlePath', str(products.parent.parent / ('lifecycle-' + action + '.xcresult'))], env=env, timeout=90)
+             '-resultBundlePath', str(products.parent.parent / ('lifecycle-' + action + (('-' + str(inspection_sequence)) if inspection_sequence is not None else '') + '.xcresult'))], env=env, timeout=90)
+    diagnostic = None
+    try:
+        diagnostic = ios.retain_private_diagnostic(lifecycle_stdout)
+    except (OSError, ValueError, ios.NativeFailure):
+        print('NATIVE_IOS_LIFECYCLE_RESULT status=unavailable supportSafe=true', flush=True)
+    lines = lifecycle_stdout.splitlines()
+    expected = 'NATIVE_IOS_LIFECYCLE_STAGE phase=' + action + '-observed'
+    opposite = 'NATIVE_IOS_LIFECYCLE_STAGE phase=' + ('foreground' if action == 'background' else 'background') + '-observed'
+    selected = r"Test Case '-\[BrowserDriver\.BrowserDriver testNativeLifecycle\]'"
+    passed = sum(bool(re.fullmatch(selected + r" passed \([0-9.]+ seconds\)\.", line)) for line in lines)
+    skipped = re.search(selected + r" skipped\b|Executed \d+ tests?, with [1-9]\d* tests? skipped\b", lifecycle_stdout)
+    if lines.count(expected) != 1 or opposite in lines or passed != 1 or skipped:
+        raise ios.NativeFailure('infrastructure', 'dual-lifecycle', 'native-lifecycle-result-unverified')
     if ios.simulator_app_pid(udid) != pid:
         raise ios.NativeFailure('infrastructure', 'dual-lifecycle', 'owned-process-replaced')
+    if diagnostic is not None:
+        print('NATIVE_IOS_LIFECYCLE_RESULT status=passed privateDiagnostic=' + diagnostic.name + ' supportSafe=true', flush=True)
 
 
 def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict, phase: str = 'initial', relays: dict | None = None) -> dict:
@@ -603,14 +666,7 @@ def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict, phas
                 request = json.loads(native_request.read_text())
                 if request.get('sequence') == sequence:
                     mode, name = require_picker_request(request, sequence, action, input_data['runId'])
-                    plans = list(products.glob('*.xctestrun')); bundles = list(products.glob('**/BrowserDriver.xctest'))
-                    if len(plans) != 1 or len(bundles) != 1:
-                        raise ios.NativeFailure('infrastructure', 'dual-files', 'missing-owned-test-plan')
-                    fixture = bundles[0] / 'private-member.json'
-                    fixture.write_text(json.dumps({'phase': 'document-picker', 'pickerMode': mode, 'fileName': name})); fixture.chmod(0o600)
-                    ios.run(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
-                             '-destination', 'platform=iOS Simulator,id=' + udid, '-parallel-testing-enabled', 'NO',
-                             '-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker'], env=env, timeout=90)
+                    perform_owned_picker(udid, pid, products, env, mode, name)
                     verify_both_live()
                     picker_executed = True
             ack = support / 'weave-dual-ios-ack.json'
@@ -748,13 +804,322 @@ def retain_failure_room_reference(scopes: dict, input_path: Path, input_data: di
                                  'roomId': room})
 
 
+def inspection_source() -> dict:
+    def git(*args):
+        return subprocess.check_output(['git', *args], cwd=ios.ROOT)
+    lock = json.loads((ios.ROOT / 'specs/weave-specs.lock.json').read_text())
+    return {'commit': git('rev-parse', 'HEAD').decode().strip(),
+            'tree': git('rev-parse', 'HEAD^{tree}').decode().strip(),
+            'specificationCommit': lock['specCorpus']['gitCommit'],
+            'dirty': bool(git('status', '--porcelain=v1', '--untracked-files=all').strip()),
+            'trackedDiffSha256': hashlib.sha256(git('diff', 'HEAD', '--binary')).hexdigest()}
+
+
+def inspection_ci_workers() -> int:
+    result = subprocess.run(['ps', '-axo', 'comm='], capture_output=True, text=True, timeout=5, check=True)
+    return sum(Path(line.strip()).name == 'Runner.Worker' for line in result.stdout.splitlines())
+
+
+def inspect_with_ci_priority(operation) -> int:
+    # This observer yields owned work; it is not an atomic mutex with historical CI.
+    if inspection_ci_workers():
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'ci-owns-host')
+    stopped = threading.Event()
+    def observe():
+        while not stopped.wait(0.5):
+            try:
+                count = inspection_ci_workers()
+                conflict = count != 0
+                reason = 'worker'
+                count_record = str(min(count, 999))
+                exception_class = 'unavailable'
+                return_code = '0'
+            except (OSError, subprocess.SubprocessError) as error:
+                conflict = True
+                reason = 'unknown'
+                count_record = 'unavailable'
+                exception_class = type(error).__name__ if type(error).__name__ in {
+                    'OSError', 'FileNotFoundError', 'PermissionError', 'TimeoutExpired', 'CalledProcessError'} else 'unavailable'
+                code = error.returncode if isinstance(error, subprocess.CalledProcessError) else None
+                return_code = str(code) if type(code) is int and -999 <= code <= 999 else 'unavailable'
+            if conflict:
+                try:
+                    print('NATIVE_LOCAL_INSPECTION phase=yield-ci reason=' + reason + ' workerCount=' + count_record
+                          + ' exceptionClass=' + exception_class + ' returnCode=' + return_code
+                          + ' qualificationPassed=false supportSafe=true', flush=True)
+                finally:
+                    os.kill(os.getpid(), signal.SIGINT)
+                return
+    monitor = threading.Thread(target=observe, daemon=True)
+    monitor.start()
+    try:
+        print('NATIVE_LOCAL_INSPECTION phase=priority-watch-ready qualificationPassed=false supportSafe=true', flush=True)
+        return operation()
+    finally:
+        stopped.set()
+        monitor.join(timeout=6)
+
+
+def initial_build_native_assets(client: Path) -> Path:
+    # Xcode's completed build receipt identifies the map produced by that build.
+    receipt = client / 'build/ios/Debug-iphonesimulator/.last_build_id'
+    if receipt.is_symlink() or not receipt.is_file():
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'build-map-unavailable')
+    build_id = receipt.read_text().strip()
+    if not re.fullmatch(r'[0-9a-f]{32}', build_id):
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'build-map-unavailable')
+    mapping = client / '.dart_tool/flutter_build' / build_id / 'native_assets.json'
+    if mapping.is_symlink() or not mapping.is_file():
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'build-map-unavailable')
+    data = json.loads(mapping.read_text())
+    if data.get('format-version') != [1, 0, 0] or not data.get('native-assets', {}).get('ios_arm64'):
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'build-map-unavailable')
+    return mapping
+
+
+def inspection_run_command(udid: str, compiler: Path, app: Path, native_assets: Path) -> list[str]:
+    # Canonical project metadata and generated registrant; actor-owned compiler outputs.
+    return ['flutter', '--packages=' + str(ios.CLIENT / '.dart_tool/package_config.json'),
+            'run', '--debug', '--no-pub', '--no-build', '--no-track-widget-creation', '--use-application-binary=' + str(app), '-d', udid,
+            '--native-assets-yaml-file=' + str(native_assets),
+            '--target=' + str(ios.CLIENT / 'integration_test/dual_ios_collaboration_test.dart'),
+            '--project-root=' + str(ios.CLIENT.resolve()),
+            '--output-dill=' + str(compiler / 'app.dill'),
+            '--pid-file=' + str(compiler / 'run.pid'),
+            '--dart-define=WEAVE_NATIVE_LOCAL_INSPECTION=true',
+            '--dart-define=WEAVE_NATIVE_EXPECT_SIMULATOR=true',
+            '--dart-define=WEAVE_DEVICE_DISPOSABLE_STACK=true',
+            '--dart-define=WEAVE_NATIVE_TEST_RUN_ID=' + os.environ['WEAVE_E2E_RUN_ID']]
+
+
+def read_inspection_command(path: Path, sequence: int) -> dict | None:
+    if not path.exists() and not path.is_symlink():
+        return None
+    info = path.lstat()
+    if path.is_symlink() or not path.is_file() or info.st_uid != os.getuid() or info.st_mode & 0o777 != 0o600 or info.st_size > 1024:
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'unsafe-owned-command')
+    value = json.loads(path.read_text())
+    if (set(value) != {'sequence', 'action', 'role'} or type(value['sequence']) is not int
+            or value['sequence'] < sequence or value['action'] not in {'browser', 'reload', 'restart', 'close', 'background', 'foreground', 'network-off', 'network-on', 'relaunch', 'picker-initial', 'picker-replacement', 'picker-export'}
+            or value['role'] not in {'A', 'B', 'both'} or ((value['action'] == 'browser' or value['action'].startswith('picker-')) and value['role'] == 'both')):
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'invalid-owned-command')
+    return None if value['sequence'] == sequence else value
+
+
+def current_actor_support(udid, pid, expected_fixture, env):
+    if ios.simulator_app_pid(udid) != pid:
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'owned-process-mismatch')
+    container = Path(ios.run(['xcrun', 'simctl', 'get_app_container', udid, ios.BUNDLE, 'data'], env=env).strip())
+    support = container / 'Library/Application Support'
+    fixture = support / 'weave-dual-ios-input.json'
+    if (not container.is_absolute() or f'/CoreSimulator/Devices/{udid}/' not in str(container)
+            or any(path.is_symlink() for path in (container, *container.parents, container / 'Library', support, fixture))
+            or not container.is_dir() or container.stat().st_uid != os.getuid()
+            or not support.is_dir() or support.stat().st_uid != os.getuid()
+            or not fixture.is_file() or fixture.stat().st_uid != os.getuid()
+            or fixture.stat().st_mode & 0o777 != 0o600 or fixture.stat().st_size > 8192
+            or expected_fixture.get('role') not in {'A', 'B'}
+            or expected_fixture.get('runId') != os.environ['WEAVE_E2E_RUN_ID']
+            or json.loads(fixture.read_text()) != expected_fixture):
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'current-storage-binding-invalid')
+    return support
+
+
+def start_local_actor(udid, compiler, app, native_assets, actor_env, scope, streams, *, require_entry, generation, expected_fixture):
+    log = scope / ('run-' + str(generation) + '.log')
+    stream = log.open('w'); os.chmod(log, 0o600)
+    streams.append(stream)
+    process = track_process(subprocess.Popen(inspection_run_command(udid, compiler, app, native_assets), cwd=ios.CLIENT,
+                            env=actor_env, stdin=subprocess.PIPE, stdout=stream, stderr=subprocess.STDOUT,
+                            text=True, start_new_session=True))
+    deadline = time.monotonic() + 900
+    pid_file = compiler / 'run.pid'
+    marker = ('NATIVE_PRODUCT_STAGE phase=local-inspection-entry-ready' if require_entry else 'NATIVE_PRODUCT_STAGE phase=workspace-ready')
+    while not pid_file.is_file() or marker not in log.read_text(errors='replace'):
+        if process.poll() is not None or time.monotonic() >= deadline:
+            raise ios.NativeFailure('infrastructure', 'local-inspection', 'run-not-ready')
+        time.sleep(0.25)
+    pid = ios.simulator_app_pid(udid)
+    if not pid:
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'owned-process-missing')
+    if pid_file.read_text().strip() != str(process.pid):
+        raise ios.NativeFailure('infrastructure', 'local-inspection', 'run-owner-mismatch')
+    support = current_actor_support(udid, pid, expected_fixture, actor_env)
+    return {'udid': udid, 'pid': pid, 'compiler': compiler, 'support': support, 'fixture': expected_fixture, 'scope': scope, 'env': actor_env,
+            'process': process, 'stream': stream, 'log': log, 'generation': generation}
+
+
+def inspect_local_apps(input_data, env, temporary, devices, app, native_assets, derived, relays, evidence) -> int:
+    actors = {}
+    streams = []
+    try:
+        evidence['operations'] = []
+        for actor, udid in zip(input_data['actors'], devices):
+            role = actor['role']
+            scope = temporary / role
+            scope.mkdir(mode=0o700)
+            products = scope / 'Build/Products'
+            shutil.copytree(derived / 'Build/Products', products)
+            compiler = scope / 'compiler'
+            compiler.mkdir(mode=0o700)
+            actor_env = actor_proxy_environment(env, relays[role])
+            support, _fixture = prepare_actor_storage(actor, udid, app, input_data, actor_env)
+            actors[role] = start_local_actor(udid, compiler, app, native_assets, actor_env, scope, streams, require_entry=True, generation=1, expected_fixture=_fixture)
+            actors[role].update({'products': products})
+            evidence['operations'].append({'action': 'initial-run', 'role': role, 'source': inspection_source(), 'at': now()})
+        sequence = 0
+        def publish_session():
+            publish_private_json(temporary / ('inspection-session-' + str(sequence) + '.json'), {'mode': 'local-inspection', 'qualificationPassed': False,
+                'runId': input_data['runId'], 'builtSource': evidence['builtSource'],
+                'commandPath': str(temporary / 'inspection-command.json'),
+                'actors': {role: {'simulatorId': item['udid'], 'processId': item['pid'],
+                                 'residentPid': item['process'].pid, 'appSupport': str(item['support']),
+                                 'logPath': str(item['log']), 'storageDigest': hashlib.sha256(str(item['support'].parent.parent).encode()).hexdigest(),
+                                 'fixturePreinstallStorageDigest': item['fixture']['storageDigest']} for role, item in actors.items()}})
+        publish_session()
+        evidence['status'] = 'held'
+        print('NATIVE_LOCAL_INSPECTION phase=held actors=2 qualificationPassed=false privateScope=' + temporary.name + ' supportSafe=true', flush=True)
+        while True:
+            for item in actors.values():
+                if item['process'].poll() is not None or ios.simulator_app_pid(item['udid']) != item['pid']:
+                    raise ios.NativeFailure('infrastructure', 'local-inspection', 'owned-process-exited')
+            command = read_inspection_command(temporary / 'inspection-command.json', sequence)
+            if command:
+                sequence = command['sequence']
+                action = command['action']
+                record = {'sequence': sequence, 'action': action, 'role': command['role'], 'requestedSource': inspection_source(), 'at': now(), 'status': 'requested'}
+                if action == 'close':
+                    evidence['status'] = 'closed'
+                    evidence['operations'].append(record)
+                    return 70  # Explicit nonqualification exit invokes the existing outer teardown.
+                selected = actors.values() if command['role'] == 'both' else [actors[command['role']]]
+                for item in list(selected):
+                    role = next(r for r, a in actors.items() if a is item)
+                    if action in {'reload', 'restart'}:
+                        offset = item['log'].stat().st_size
+                        os.kill(item['process'].pid, signal.SIGUSR1 if action == 'reload' else signal.SIGUSR2)
+                        deadline = time.monotonic() + 60
+                        acknowledged = False
+                        while time.monotonic() < deadline and item['process'].poll() is None:
+                            tail = item['log'].read_bytes()[offset:].decode(errors='replace')
+                            pattern = r'Reloaded [0-9]+(?: of [0-9]+)? libraries' if action == 'reload' else r'Restarted application in '
+                            if re.search(pattern, tail):
+                                acknowledged = True
+                                break
+                            if re.search(r'Hot reload was rejected|hot restart failed|Error:', tail):
+                                break
+                            time.sleep(0.25)
+                        record.setdefault('residentAcknowledged', {})[role] = acknowledged
+                        record['sourceAfterRequest'] = inspection_source()
+                        record['status'] = 'resident-acknowledged' if acknowledged else 'unverified'
+                        record['loadedScriptDigestVerified'] = False
+                    elif action in {'background', 'foreground'}:
+                        perform_owned_lifecycle((item['support'], item['udid'], item['pid'], item['products']), action, item['env'], inspection_sequence=sequence)
+                        record['status'] = 'observed'
+                    elif action in {'network-off', 'network-on'}:
+                        relays[role].interrupt() if action == 'network-off' else relays[role].restore()
+                    elif action == 'relaunch':
+                        old_pid = item['pid']
+                        stop_flutter_process_group(item['process'])
+                        item['stream'].close()
+                        ios.terminate_initial_app(item['udid'], old_pid)
+                        pid_file = item['compiler'] / 'run.pid'
+                        if pid_file.is_symlink():
+                            raise ios.NativeFailure('infrastructure', 'local-inspection', 'unsafe-run-pid')
+                        pid_file.unlink(missing_ok=True)
+                        replacement = start_local_actor(item['udid'], item['compiler'], app, native_assets, item['env'], item['scope'], streams,
+                                                         require_entry=False, generation=item['generation'] + 1, expected_fixture=item['fixture'])
+                        if replacement['pid'] == old_pid:
+                            raise ios.NativeFailure('infrastructure', 'local-inspection', 'distinct-owned-process-missing')
+                        replacement.update({'products': item['products']})
+                        actors[role] = replacement
+                        record['status'] = 'observed'
+                        record['distinctProcessObserved'] = True
+                    elif action.startswith('picker-'):
+                        mode = 'export' if action == 'picker-export' else 'import'
+                        name = ('weave-dual-replacement-' if action == 'picker-replacement' else 'weave-dual-initial-') + input_data['runId'] + '.txt'
+                        perform_owned_picker(item['udid'], item['pid'], item['products'], item['env'], mode, name,
+                                             result_path=item['scope'] / ('picker-' + str(sequence) + '.xcresult'))
+                        record['status'] = 'native-picker-command-passed'
+                    elif action == 'browser':
+                        plans = list(item['products'].glob('*.xctestrun'))
+                        bundles = list(item['products'].glob('**/BrowserDriver.xctest'))
+                        if len(plans) != 1 or len(bundles) != 1:
+                            raise ios.NativeFailure('infrastructure', 'local-inspection', 'owned-browser-plan-missing')
+                        completion = item['scope'] / ('workspace-' + str(sequence) + '.ready')
+                        if completion.exists():
+                            raise ios.NativeFailure('infrastructure', 'local-inspection', 'browser-already-completed')
+                        actor = next(a for a in input_data['actors'] if a['role'] == role)
+                        browser_fixture = {
+                            'email': actor['email'], 'password': actor['password'], 'issuerHost': 'auth.weave.localhost',
+                            'appBundleIdentifier': ios.BUNDLE, 'phase': 'initial', 'nativeAuthCompletionPath': str(completion),
+                            'flutterInitiatesSignIn': True}
+                        private = bundles[0] / 'private-member.json'
+                        if private.is_symlink():
+                            raise ios.NativeFailure('infrastructure', 'local-inspection', 'unsafe-browser-fixture')
+                        private.write_text(json.dumps(browser_fixture)); private.chmod(0o600)
+                        browser_log = item['scope'] / ('browser-' + str(sequence) + '.log')
+                        completion_offset = item['log'].stat().st_size
+                        with browser_log.open('w') as stream:
+                            streams.append(stream)
+                            os.chmod(browser_log, 0o600)
+                            driver = track_process(subprocess.Popen(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
+                                '-destination', 'platform=iOS Simulator,id=' + item['udid'], '-parallel-testing-enabled', 'NO',
+                                '-only-testing:BrowserDriver/BrowserDriver/testProductionBrowser',
+                                '-resultBundlePath', str(item['scope'] / ('browser-' + str(sequence) + '.xcresult'))],
+                                env=item['env'], stdout=stream, stderr=subprocess.STDOUT, start_new_session=True))
+                            observed = ios.relay_workspace_completion(item['process'], driver, item['log'], completion, 'initial',
+                                                                     start_offset=completion_offset)
+                            if not observed or driver.wait(timeout=30) != 0:
+                                raise ios.NativeFailure('integration', 'local-inspection', 'actual-browser-failed')
+                        record['status'] = 'observed'
+                publish_session()
+                evidence['operations'].append(record)
+                publish_private_json(temporary / ('inspection-operations-' + str(sequence) + '.json'), evidence['operations'])
+                print('NATIVE_LOCAL_INSPECTION phase=command-recorded action=' + action + ' qualificationPassed=false supportSafe=true', flush=True)
+            time.sleep(0.25)
+    except BaseException:
+        # Streams are registered before launch, including an attach that never
+        # returned an actor. Preserve private failure evidence before teardown.
+        try:
+            stop_owned_processes()
+        except BaseException:
+            pass  # Final cleanup remains mandatory; readable logs still survive.
+        try:
+            for stream in streams:
+                if not stream.closed:
+                    stream.flush()
+                path = Path(stream.name)
+                if (path.parent not in {temporary / 'A', temporary / 'B'}
+                        or not re.fullmatch(r'(run|browser)-[0-9]+\.log', path.name)
+                        or path.is_symlink() or not path.is_file()):
+                    continue
+                retained = ios.retain_private_diagnostic(path.read_text(errors='replace'))
+                print('NATIVE_LOCAL_INSPECTION phase=failure-log-retained privateDiagnostic=' + retained.name + ' supportSafe=true', flush=True)
+        except BaseException:
+            try:
+                print('NATIVE_LOCAL_INSPECTION phase=failure-log-unavailable supportSafe=true', flush=True)
+            except BaseException:
+                pass
+        raise
+    finally:
+        try:
+            stop_owned_processes()
+        finally:
+            for stream in streams:
+                stream.close()
+
+
 def qualify(input_path: Path, output_path: Path, env: dict) -> int:
     _CANCELLED.clear()
     with _ACTIVE_LOCK:
         _ACTIVE.clear()
     input_data = private_input(input_path, env['WEAVE_E2E_RUN_ID'])
+    inspection = env.get('WEAVE_NATIVE_LOCAL_INSPECTION') == 'true'
     evidence = {'status': 'failed', 'actors': [], 'scenarios': {name: {'status': 'not-run'} for name in SCENARIOS},
                 'encryption': {'policyRequired': True, 'status': 'not-run', 'plaintextFallback': False}, 'cleanupComplete': False}
+    if inspection:
+        evidence = {'mode': 'local-inspection', 'status': 'starting', 'qualificationPassed': False, 'cleanupComplete': False, 'builtSource': inspection_source()}
     devices = []
     relays = {}
     try:
@@ -769,11 +1134,15 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
                 ios.run(['xcrun', 'simctl', 'keychain', udid, 'add-root-cert', env['WEAVE_NATIVE_CA']])
             defines = temporary / 'defines.json'
             defines.write_text(json.dumps({'WEAVE_NATIVE_EXPECT_SIMULATOR': True, 'WEAVE_DEVICE_DISPOSABLE_STACK': True,
-                                          'WEAVE_NATIVE_TEST_RUN_ID': input_data['runId']})); defines.chmod(0o600)
+                                          'WEAVE_NATIVE_TEST_RUN_ID': input_data['runId'],
+                                          **({'WEAVE_NATIVE_LOCAL_INSPECTION': True} if inspection else {})})); defines.chmod(0o600)
             ios.run(['flutter', 'pub', 'get', '--enforce-lockfile'], env=env)
             ios.run(['flutter', 'build', 'ios', '--simulator', '--debug', '--target=integration_test/dual_ios_collaboration_test.dart',
                      '--dart-define-from-file=' + str(defines)], env=env, timeout=1800)
             app = ios.CLIENT / 'build/ios/iphonesimulator/Runner.app'; evidence['appBuildSha256'] = app_build_digest(app)
+            if inspection:
+                native_assets = initial_build_native_assets(ios.CLIENT)
+                evidence['nativeAssetsSha256'] = hashlib.sha256(native_assets.read_bytes()).hexdigest()
             derived = temporary / 'derived'
             ios.run(['xcodebuild', 'build-for-testing', '-project', str(ios.CLIENT / 'tool/ios_browser_driver/BrowserDriver.xcodeproj'),
                      '-scheme', 'BrowserDriver', '-destination', 'platform=iOS Simulator,id=' + devices[0],
@@ -781,6 +1150,8 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
             authorities = proxy_authorities(input_data, env)
             for role in ('A', 'B'):
                 relays[role] = OwnedFaultRelay(authorities)
+            if inspection:
+                return inspect_local_apps(input_data, env, temporary, devices, app, native_assets, derived, relays, evidence)
             ready = queue.Queue()
             restart_barrier = threading.Barrier(2)
             restart_gate = threading.Event()
@@ -869,7 +1240,9 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
             evidence['status'] = 'passed'
             return 0
     finally:
-        if evidence['status'] != 'passed' and relays:
+        if inspection and evidence['status'] in {'starting', 'held'}:
+            evidence['status'] = 'interrupted'
+        if not inspection and evidence['status'] != 'passed' and relays:
             try:
                 transcript = '\n'.join(relays[role].diagnostic(role) for role in sorted(relays)) + '\n'
                 diagnostic = ios.retain_private_diagnostic(transcript)
@@ -890,13 +1263,13 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
             raise ios.NativeFailure('infrastructure', 'dual-cleanup', 'owned-resource-cleanup-unverified')
 
 
-def main() -> int:
+def main(argv=None) -> int:
     import argparse
     import platform
     import signal
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path, required=True)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     def interrupted(number, _frame):
         stop_owned_processes()
         raise SystemExit(128 + number)
@@ -918,6 +1291,8 @@ def main() -> int:
     env['PATH'] = os.pathsep.join([str(ios.ROOT / 'tools/ios-simulator-xcrun'), str(Path(rustup).parent), env['PATH']])
     for name in ('WEAVE_NATIVE_MEMBER_EMAIL', 'WEAVE_NATIVE_MEMBER_PASSWORD'):
         env.pop(name, None)
+    if env.get('WEAVE_NATIVE_LOCAL_INSPECTION') == 'true':
+        return inspect_with_ci_priority(lambda: qualify(parent / ('dual-ios-input-' + run_id + '.json'), args.output, env))
     return qualify(parent / ('dual-ios-input-' + run_id + '.json'), args.output, env)
 
 

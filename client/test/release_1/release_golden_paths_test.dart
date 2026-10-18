@@ -172,7 +172,7 @@ void main() {
         expect(find.text('Organization access'), findsOneWidget);
 
         await tester.enterText(
-          _textFieldWithLabel('Server URI, invitation link, or QR payload'),
+          _textFieldWithLabel('Organization address or invitation'),
           'https://weave.test',
         );
         await tester.tap(find.text('Continue to organization'));

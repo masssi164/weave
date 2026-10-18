@@ -1,17 +1,20 @@
-import 'dart:convert';
-import 'package:weave/features/files/domain/entities/file_download.dart';
-import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/files/data/services/file_picker_files_import_picker.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
+import 'package:weave/features/files/domain/entities/file_download.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
@@ -19,10 +22,12 @@ import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/services/files_import_picker.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/features/files/presentation/providers/files_provider.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 
 import '../../helpers/server_config_test_data.dart';
 import '../../helpers/test_app.dart';
@@ -234,7 +239,221 @@ class _FakeFilesImportPicker implements FilesImportPicker {
   Future<FileUploadRequest?> pickFile() async => request;
 }
 
+// Unit-only state fixture for the real FilesScreen action/scroll layout.
+class _PostReplaceFilesController extends FilesController {
+  static const name = 'shared-workspace-project-release-notes.txt';
+  @override
+  Future<FilesViewState> build() async => FilesViewState(
+    rootSpaceRef: 'workspace-default',
+    connectionState: FilesConnectionState.connected(
+      baseUrl: Uri.parse('https://api.example/api'),
+      accountLabel: 'Weave files',
+    ),
+    directoryListing: const DirectoryListing(
+      path: '/',
+      entries: [
+        FileEntry(
+          id: 'shared',
+          name: name,
+          path: '/$name',
+          isDirectory: false,
+          sizeInBytes: 48,
+          revision: 'before',
+          allowedActions: {'inspect', 'download', 'updateContent'},
+        ),
+      ],
+    ),
+    uploadStatus: const FilesUploadStatus(
+      phase: FilesUploadPhase.completed,
+      fileName: name,
+      uploadedBytes: 48,
+      totalBytes: 48,
+    ),
+    entryActionStatus: const FilesEntryActionStatus(
+      phase: FilesEntryActionPhase.exportedEntry,
+      entryName: name,
+      destination: '/owned/Documents/export.txt',
+    ),
+  );
+
+  @override
+  Future<void> pickAndReplace(FileEntry entry) async {
+    state = AsyncData(
+      state.requireValue.copyWith(
+        entryActionStatus: const FilesEntryActionStatus(
+          phase: FilesEntryActionPhase.replacedContent,
+          entryName: name,
+        ),
+      ),
+    );
+  }
+}
+
+class _ExportedFilesController extends FilesController {
+  _ExportedFilesController({
+    this.destination =
+        '/private/owned-container/Documents/Selected/brief 2.txt',
+  });
+
+  final String destination;
+  @override
+  Future<FilesViewState> build() async => FilesViewState(
+    connectionState: FilesConnectionState.connected(
+      baseUrl: Uri.parse('https://api.example/api'),
+      accountLabel: 'member',
+    ),
+    directoryListing: const DirectoryListing(path: '/', entries: []),
+    entryActionStatus: FilesEntryActionStatus(
+      phase: FilesEntryActionPhase.exportedEntry,
+      entryName: 'brief.txt',
+      destination: destination,
+    ),
+  );
+}
+
 void main() {
+  for (final destination in [
+    'content://provider/private-secret-token',
+    'data:text/plain,private-secret-token',
+    'blob:https://provider/private-secret-token',
+  ]) {
+    testWidgets('opaque export destination stays private $destination', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _filesTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesProvider.overrideWith(
+              () => _ExportedFilesController(destination: destination),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      final context = tester.element(find.byType(FilesScreen));
+      final fallback = AppLocalizations.of(
+        context,
+      ).filesExportUserVisibleFallback;
+      expect(find.textContaining(fallback), findsOneWidget);
+      expect(find.textContaining('private-secret-token'), findsNothing);
+      final semantics = tester.ensureSemantics();
+      expect(
+        find.bySemanticsLabel(RegExp('private-secret-token')),
+        findsNothing,
+      );
+      semantics.dispose();
+    });
+  }
+  for (final destination in [
+    'file:///private/Selected/brief%202.txt',
+    r'C:\Selected\brief 2.txt',
+  ]) {
+    testWidgets('export retains actual file basename $destination', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _filesTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesProvider.overrideWith(
+              () => _ExportedFilesController(destination: destination),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('brief 2.txt'), findsOneWidget);
+      expect(find.textContaining('Selected'), findsNothing);
+    });
+  }
+  for (final locale in ['en', 'de']) {
+    testWidgets(
+      'export reports actual selected basename without sandbox path $locale',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        tester.platformDispatcher.localesTestValue = [Locale(locale)];
+        addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+        await tester.pumpWidget(
+          _filesTestApp(
+            Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: const TextScaler.linear(1.4)),
+                child: const FilesScreen(),
+              ),
+            ),
+            overrides: [
+              filesProvider.overrideWith(_ExportedFilesController.new),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.textContaining('brief 2.txt'), findsOneWidget);
+        expect(find.textContaining('/private/owned-container'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final locale in ['en', 'de']) {
+    testWidgets(
+      'file modification date follows the visible app locale $locale',
+      (tester) async {
+        tester.platformDispatcher.localesTestValue = [Locale(locale)];
+        addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+        final modified = DateTime.utc(2026, 10, 15, 21, 43);
+        final repository = _FakeFilesRepository(
+          connectionState: FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://api.example/api'),
+            accountLabel: 'member',
+          ),
+          listings: {
+            '/': DirectoryListing(
+              path: '/',
+              entries: [
+                FileEntry(
+                  id: 'dated',
+                  name: 'brief.txt',
+                  path: '/brief.txt',
+                  isDirectory: false,
+                  modifiedAt: modified,
+                ),
+              ],
+            ),
+          },
+        );
+        await tester.pumpWidget(
+          _filesTestApp(
+            const FilesScreen(),
+            overrides: [
+              filesRepositoryProvider.overrideWithValue(repository),
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+              ),
+              serverConfigurationRepositoryProvider.overrideWith(
+                (ref) => _FakeServerConfigurationRepository(
+                  buildTestConfiguration(),
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        final expected = DateFormat.yMMMd(
+          locale,
+        ).add_Hm().format(modified.toLocal());
+        expect(find.text(expected), findsOneWidget);
+      },
+    );
+  }
+
   for (final valid in [true, false]) {
     testWidgets('Open uses actual download bytes; valid UTF8=$valid', (
       tester,
@@ -1412,6 +1631,127 @@ void main() {
       expect(find.byTooltip('Delete old.txt'), findsNothing);
       expect(find.byIcon(Icons.delete_outline), findsNothing);
     });
+
+    for (final locale in ['en', 'de']) {
+      for (final scale in [1.0, 1.5]) {
+        testWidgets(
+          'shared toolbar remains accessible after replacement preview scroll '
+          '$locale text scale $scale',
+          (tester) async {
+            tester.view.physicalSize = const Size(402, 874);
+            tester.view.devicePixelRatio = 1;
+            addTearDown(tester.view.resetPhysicalSize);
+            addTearDown(tester.view.resetDevicePixelRatio);
+            tester.platformDispatcher.localesTestValue = [Locale(locale)];
+            addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+            final semantics = tester.ensureSemantics();
+            try {
+              final repository = _FakeFilesRepository(
+                connectionState: FilesConnectionState.connected(
+                  baseUrl: Uri.parse('https://api.example/api'),
+                  accountLabel: 'Weave files',
+                ),
+                download: FileDownload(
+                  fileName: _PostReplaceFilesController.name,
+                  mediaType: 'text/plain',
+                  bytes: Uint8List.fromList(
+                    utf8.encode('Updated release notes.'),
+                  ),
+                ),
+              );
+              await tester.pumpWidget(
+                _filesTestApp(
+                  Builder(
+                    builder: (context) => MediaQuery(
+                      data: MediaQuery.of(
+                        context,
+                      ).copyWith(textScaler: TextScaler.linear(scale)),
+                      child: const SizedBox(height: 700, child: FilesScreen()),
+                    ),
+                  ),
+                  overrides: [
+                    filesProvider.overrideWith(_PostReplaceFilesController.new),
+                    weaveApiMemberSpacesProvider.overrideWith(
+                      (ref) async => const MemberSpaceAccessSnapshot(
+                        visibleSpaceRefs: {'workspace-default'},
+                        defaultSpaceReadable: true,
+                      ),
+                    ),
+                    filesRepositoryProvider.overrideWithValue(repository),
+                  ],
+                ),
+              );
+              await tester.pumpAndSettle();
+              final scrollable = find.byType(Scrollable).first;
+              final update = find.byKey(const Key('files-update-shared'));
+              await tester.scrollUntilVisible(
+                update,
+                80,
+                scrollable: scrollable,
+              );
+              await tester.ensureVisible(update);
+              await tester.pumpAndSettle();
+              await tester.tap(update);
+              await tester.pumpAndSettle();
+              final open = find.byKey(const Key('files-open-shared'));
+              await tester.ensureVisible(open);
+              await tester.pumpAndSettle();
+              await tester.tap(open);
+              await tester.pumpAndSettle();
+              final content = find.byKey(const Key('files-preview-content'));
+              expect(content, findsOneWidget);
+              expect(find.text('Updated release notes.'), findsOneWidget);
+              final context = tester.element(content);
+              final l10n = AppLocalizations.of(context);
+              await tester.tap(
+                find.widgetWithText(
+                  TextButton,
+                  MaterialLocalizations.of(context).closeButtonLabel,
+                ),
+              );
+              await tester.pumpAndSettle();
+
+              // Stop mid-scroll, where a pinned large title clipped the selector's
+              // semantics despite its rendered 48px height.
+              final gesture = await tester.startGesture(
+                tester.getCenter(find.byType(CustomScrollView)),
+              );
+              await gesture.moveBy(const Offset(0, 50));
+              await tester.pump(const Duration(seconds: 1));
+              await gesture.up();
+              await tester.pumpAndSettle();
+              await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+              await expectLater(
+                tester,
+                meetsGuideline(labeledTapTargetGuideline),
+              );
+
+              // Essential workspace controls remain usable after returning to the
+              // top; a scrolling title must not hide or disable them.
+              tester.state<ScrollableState>(scrollable).position.jumpTo(0);
+              await tester.pumpAndSettle();
+              final selector = find.byKey(const Key('files-space-selector'));
+              expect(tester.getSize(selector).height, greaterThanOrEqualTo(48));
+              await tester.tap(selector);
+              await tester.pumpAndSettle();
+              await tester.tap(find.text(l10n.filesPrivateSpace).last);
+              await tester.pumpAndSettle();
+              final container = ProviderScope.containerOf(
+                tester.element(selector),
+              );
+              expect(
+                container.read(filesProvider).requireValue.rootSpaceRef,
+                isNull,
+              );
+              expect(repository.requestedPaths, ['/']);
+              expect(tester.takeException(), isNull);
+            } finally {
+              semantics.dispose();
+            }
+          },
+        );
+      }
+    }
 
     testWidgets('meets androidTapTargetGuideline', (tester) async {
       final repository = _FakeFilesRepository(

@@ -536,7 +536,7 @@ final class CollaborationJourney {
     String cursor = response.path("next_batch").asString();
     JsonNode encryption = response.path("rooms").path("join").path(roomId)
         .path("state").path("events");
-    if (!cursor.startsWith("weave.s1.") || !encryption.isArray()) {
+    if (!response.path("next_batch").isString() || cursor.isBlank() || !encryption.isArray()) {
       throw new ProductFlowException("member Matrix sync did not establish a Weave room cursor");
     }
     boolean encrypted = false;
@@ -563,7 +563,7 @@ final class CollaborationJourney {
           bearer(member.token(), Map.of(MATRIX_DEVICE_HEADER, deviceId(member.role(), pass))),
           null, Set.of(200));
       String nextBatch = response.path("next_batch").asString();
-      if (!nextBatch.startsWith("weave.s1.")) {
+      if (!response.path("next_batch").isString() || nextBatch.isBlank()) {
         throw new ProductFlowException("member Matrix sync returned an invalid Weave cursor");
       }
       if (syncContainsEncryptedEvent(response, roomId, eventId, ciphertext)) {

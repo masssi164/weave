@@ -1829,11 +1829,7 @@ async fn room_messages_inner(
         &to_device_diagnostics(profile_key)?,
         &peer_device_diagnostics(profile_key)?,
     );
-    let mut messages = response
-        .chunk
-        .iter()
-        .filter_map(|event| project_timeline_event(event, encrypted))
-        .collect::<Vec<_>>();
+    let mut messages = project_room_timeline(&room, &response.chunk, encrypted).await;
     messages.reverse();
     Ok(json!({
         "roomId": room_id.to_string(),
@@ -2621,6 +2617,47 @@ fn verification_json(profile_key: &str) -> Result<Value, String> {
     Ok(json!({ "phase": "none" }))
 }
 
+async fn project_room_timeline(
+    room: &Room,
+    events: &[TimelineEvent],
+    encrypted: bool,
+) -> Vec<Value> {
+    // Membership display metadata is local SDK state, never an admission input.
+    // Read each distinct sender once within this receive transaction.
+    let mut names: HashMap<OwnedUserId, Option<String>> = HashMap::new();
+    let mut messages = Vec::new();
+    for event in events {
+        let Some(mut message) = project_timeline_event(event, encrypted) else {
+            continue;
+        };
+        if let Some(sender) = event.sender() {
+            if !names.contains_key(&sender) {
+                let name = room
+                    .get_member_no_sync(&sender)
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|member| {
+                        member
+                            .display_name()
+                            .map(str::trim)
+                            .filter(|name| !name.is_empty())
+                            .map(str::to_owned)
+                    });
+                names.insert(sender.clone(), name);
+            }
+            if let Some(Some(name)) = names.get(&sender) {
+                message
+                    .as_object_mut()
+                    .expect("projected message object")
+                    .insert("senderDisplayName".to_owned(), json!(name));
+            }
+        }
+        messages.push(message);
+    }
+    messages
+}
+
 fn project_timeline_event(event: &TimelineEvent, encrypted_room: bool) -> Option<Value> {
     // MATRIX_E2EE_CLIENT_FAILS_CLOSED: never project a plaintext event as
     // content of an explicitly encrypted room.
@@ -2761,6 +2798,60 @@ mod tests {
     use base64::engine::general_purpose::STANDARD_NO_PAD;
     use ed25519_dalek::{Signature, VerifyingKey};
     use matrix_sdk::encryption::secret_storage::SecretStorageError;
+
+    #[test]
+    fn stored_member_profile_updates_and_clear_reach_message_projection() {
+        use matrix_sdk::ruma::api::IncomingResponse;
+        use matrix_sdk::ruma::exports::http;
+        use matrix_sdk_base::cross_process_lock::CrossProcessLockConfig;
+        use matrix_sdk_base::store::{MemoryStore, StoreConfig};
+        use matrix_sdk_base::{BaseClient, DmRoomDefinition, ThreadingSupport};
+        tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
+            let store = Arc::new(MemoryStore::new());
+            let base = BaseClient::new(StoreConfig::new(CrossProcessLockConfig::SingleProcess).state_store(store.clone()), ThreadingSupport::Disabled, DmRoomDefinition::default());
+            let identity = |subject: &str| -> OwnedUserId {
+                let who: Value = serde_json::from_str(&weave_matrix_protocol::project_json_or_error("whoami".into(), json!({"subject":subject,"identityIssuer":"https://issuer.test","deviceId":"TESTDEVICE"}).to_string(), "api.weave.test".into())).unwrap();
+                who["user_id"].as_str().unwrap().try_into().unwrap()
+            };
+            let owner = identity("author");
+            let peer = identity("peer");
+            base.activate(SessionMeta {user_id: owner.clone(), device_id: "TESTDEVICE".into()}, RoomLoadSettings::default(), None).await.unwrap();
+            let project = |cursor: &str, name: Option<&str>| -> Value {
+                serde_json::from_str(&weave_matrix_protocol::project_json_or_error("sync".into(), json!({
+                    "subject":"user:author", "identityIssuer":"https://issuer.test", "cursor":cursor,
+                    "conversations":[{"conversationId":"room-name-proof","title":"Name proof","memberships":[
+                        {"memberRef":"user:author","state":"joined"},
+                        {"memberRef":"user:peer","state":"joined","displayName":name}]}]
+                }).to_string(), "api.weave.test".into())).unwrap()
+            };
+            let receive = |value: Value| {
+                matrix_sdk::ruma::api::client::sync::sync_events::v3::Response::try_from_http_response(http::Response::builder().status(200).body(serde_json::to_vec(&value).unwrap()).unwrap()).unwrap()
+            };
+            let first = project("unchanged-message-cursor", Some("Peer Original"));
+            let room_id: OwnedRoomId = first["rooms"]["join"].as_object().unwrap().keys().next().unwrap().as_str().try_into().unwrap();
+            base.receive_sync_response(receive(first)).await.unwrap();
+            let client = Client::builder().homeserver_url("https://api.weave.test").store_config(StoreConfig::new(CrossProcessLockConfig::SingleProcess).state_store(store)).build().await.unwrap();
+            client.restore_session(MatrixSession {meta: SessionMeta {user_id:owner,device_id:"TESTDEVICE".into()},tokens:SessionTokens{access_token:"unused-test-token".into(),refresh_token:None}}).await.unwrap();
+            let room = client.get_room(&room_id).unwrap();
+            assert_eq!(room.state(), RoomState::Joined);
+            let events = ["$one:api.weave.test", "$two:api.weave.test"].map(|id| TimelineEvent::from_plaintext(serde_json::from_value(json!({"type":"m.room.message","event_id":id,"sender":peer,"origin_server_ts":1,"content":{"msgtype":"m.text","body":"actual body"}})).unwrap()));
+            for (phase, name) in [("rename",Some("Peer Renamed")),("clear",None),("blank",Some("   "))] {
+                let before = project_room_timeline(&room, &events, false).await;
+                if phase=="rename" {assert_eq!(before[0]["senderDisplayName"], "Peer Original");}
+                base.receive_sync_response(receive(project("unchanged-message-cursor",name))).await.unwrap();
+                let messages = project_room_timeline(&room, &events, false).await;
+                assert_eq!(messages.len(),2);
+                for message in messages {
+                    assert_eq!(message["sender"],peer.as_str());
+                    assert_eq!(message["body"],"actual body");
+                    assert_eq!(message.get("senderDisplayName").and_then(Value::as_str),name.map(str::trim).filter(|value|!value.is_empty()));
+                }
+            }
+            let missing = TimelineEvent::from_plaintext(serde_json::from_value(json!({"type":"m.room.message","event_id":"$missing:api.weave.test","sender":"@absent:api.weave.test","origin_server_ts":2,"content":{"msgtype":"m.text","body":"missing member"}})).unwrap());
+            assert!(project_room_timeline(&room,&[missing],false).await[0].get("senderDisplayName").is_none());
+            assert!(project_room_timeline(&room,&events,true).await.is_empty(), "Plaintext is still excluded from encrypted rooms");
+        });
+    }
 
     #[test]
     fn member_bearer_is_rejected_for_insecure_or_non_origin_matrix_urls() {

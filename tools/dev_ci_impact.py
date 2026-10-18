@@ -8,6 +8,9 @@ import re
 import subprocess
 from pathlib import Path, PurePosixPath
 
+ROOT = Path(__file__).resolve().parents[1]
+NATIVE_DRIVER = 'client/tool/ios_browser_driver/BrowserDriver.swift'
+
 GATES = ('user', 'admin', 'client', 'admin_console', 'infra', 'docs', 'rust', 'backend')
 # These roots have known owners. A new root must be reviewed before it can skip gates.
 KNOWN_ROOTS = {
@@ -98,6 +101,13 @@ def select(paths: list[str] | None) -> dict[str, bool]:
     return result
 
 
+def native_driver_only(paths: list[str] | None) -> bool:
+    # A deletion cannot qualify merely because its old path is the sole input.
+    driver = ROOT / NATIVE_DRIVER
+    return (bool(paths) and set(paths) == {NATIVE_DRIVER}
+            and not driver.is_symlink() and driver.is_file())
+
+
 def changed_paths(base: str, head: str = 'HEAD') -> list[str] | None:
     if not re.fullmatch(r'[0-9a-f]{40}', base) or base == '0' * 40:
         return None
@@ -125,7 +135,9 @@ def main() -> None:
     parser.add_argument('--base', default='')
     parser.add_argument('--head', default='HEAD')
     args = parser.parse_args()
-    result = select(changed_paths(args.base, args.head))
+    paths = changed_paths(args.base, args.head)
+    result = select(paths)
+    result['client_native_driver_only'] = native_driver_only(paths)
     output = '\n'.join(f'{key}={str(value).lower()}' for key, value in result.items()) + '\n'
     print(output, end='')
     if os.environ.get('GITHUB_OUTPUT'):

@@ -228,7 +228,8 @@ class NativeMatrixChatRepository
       }
       return ChatRoomTimeline(
         roomId: roomId,
-        roomTitle: _titleFromRoomId(roomId),
+        // Message reads do not carry room metadata. Preserve the room-list title.
+        roomTitle: '',
         isInvite: false,
         canSendMessages: true,
         memberStorageScope: session.memberStorageScope,
@@ -410,7 +411,9 @@ class NativeMatrixChatRepository
     return ChatMessage(
       id: projection.eventId,
       senderId: projection.sender,
-      senderDisplayName: _displayName(projection.sender),
+      senderDisplayName: projection.senderDisplayName?.trim().isNotEmpty == true
+          ? projection.senderDisplayName!.trim()
+          : _displayName(projection.sender),
       sentAt: DateTime.fromMillisecondsSinceEpoch(
         projection.originServerTimestamp,
         isUtc: true,

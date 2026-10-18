@@ -85,6 +85,65 @@ class _FakeCalendarRepository implements CalendarRepository {
 
 void main() {
   group('HomeScreen', () {
+    for (final locale in const [Locale('en'), Locale('de')]) {
+      testWidgets(
+        'preserves calendar wall-clock fields in ${locale.languageCode}',
+        (tester) async {
+          // Keep the fixture inside Home's rolling upcoming-event window.
+          final today = DateTime.now();
+          final eventDay = DateTime.utc(today.year, today.month, today.day + 2);
+          final event = CalendarEvent(
+            id: 'wall-clock-event',
+            title: 'Berlin wall-clock meeting',
+            startTime: eventDay.add(const Duration(hours: 2)),
+            endTime: eventDay.add(const Duration(hours: 3)),
+            timeKind: CalendarTimeKind.zoned,
+            timezone: 'Europe/Berlin',
+          );
+          await tester.pumpWidget(
+            createTestApp(
+              Builder(
+                builder: (context) => Localizations.override(
+                  context: context,
+                  locale: locale,
+                  child: const HomeScreen(),
+                ),
+              ),
+              overrides: [
+                appStartDiscoveryClientProvider.overrideWith(
+                  (ref) => buildTestDiscoveryClient(
+                    ref.watch(serverConfigurationRepositoryProvider),
+                  ),
+                ),
+                serverConfigurationRepositoryProvider.overrideWith(
+                  (ref) => _FakeServerConfigurationRepository(
+                    configuration: buildTestConfiguration(),
+                  ),
+                ),
+                calendarRepositoryProvider.overrideWithValue(
+                  _FakeCalendarRepository(events: [event]),
+                ),
+                weaveApiWorkspaceHomeProvider.overrideWith((ref) async => null),
+              ],
+            ),
+          );
+          await _pumpHomeData(tester);
+          final material = MaterialLocalizations.of(
+            tester.element(find.byType(HomeScreen)),
+          );
+          final expected =
+              '${material.formatMediumDate(event.startTime)}, '
+              '${material.formatTimeOfDay(const TimeOfDay(hour: 2, minute: 0))}-'
+              '${material.formatTimeOfDay(const TimeOfDay(hour: 3, minute: 0))}';
+          expect(find.text(expected), findsOneWidget);
+          expect(
+            find.bySemanticsLabel(RegExp(RegExp.escape(expected))),
+            findsOneWidget,
+          );
+        },
+      );
+    }
+
     testWidgets('renders product center sections and cross-app summaries', (
       tester,
     ) async {

@@ -28,16 +28,49 @@ class MemberDisplayNameQueryTest {
     @Test
     void returnsEditedProfileThenCanonicalProviderNameOnlyForAdmittedEnabledMembers() {
         when(identities.configuredOrganizationId()).thenReturn("provider-org");
-        when(identities.members("provider-org")).thenReturn(List.of(
-                member("edited", "Original name", true), member("fallback", "Weave E2E Member", true),
-                member("hidden", "Hidden name", true), member("disabled", "Disabled name", false)));
+        when(identities.requireMember("provider-org", "edited")).thenReturn(member("edited", "Original name", true));
+        when(identities.requireMember("provider-org", "fallback")).thenReturn(member("fallback", "Weave E2E Member", true));
+        when(identities.requireMember("provider-org", "disabled")).thenReturn(member("disabled", "Disabled name", false));
         when(profiles.findByPrimaryIdentityKey(IdentityReferences.primaryIdentityKey(ISSUER, "edited")))
                 .thenReturn(new ProductProfileOverride("Edited human name", null, null, null, Map.of(), "workspace"));
 
-        assertThat(query().displayNames(jwt(ISSUER, "tenant-default"), List.of("edited", "fallback", "disabled")))
+        assertThat(query().displayNames(jwt(ISSUER, "tenant-default"), List.of("edited", "fallback", "disabled", "edited")))
                 .containsExactlyInAnyOrderEntriesOf(Map.of("edited", "Edited human name", "fallback", "Weave E2E Member"));
+        verify(identities, never()).members(anyString());
+        verify(identities, never()).requireMember("provider-org", "hidden");
+        verify(identities, times(1)).requireMember("provider-org", "edited");
         verify(profiles, never()).findByPrimaryIdentityKey(IdentityReferences.primaryIdentityKey(ISSUER, "hidden"));
         verify(profiles, never()).findByPrimaryIdentityKey(IdentityReferences.primaryIdentityKey(ISSUER, "disabled"));
+    }
+
+    @Test
+    void missingDisabledInvalidRolesAndMismatchedSubjectsCannotProduceNames() {
+        when(identities.configuredOrganizationId()).thenReturn("provider-org");
+        when(identities.requireMember("provider-org", "missing"))
+                .thenThrow(new KeycloakIdentityAdminClient.KeycloakAdminException(404, "private provider detail"));
+        when(identities.requireMember("provider-org", "disabled")).thenReturn(member("disabled", "Name", false));
+        when(identities.requireMember("provider-org", "mismatch")).thenReturn(member("other", "Name", true));
+        when(identities.requireMember("provider-org", "ambiguous")).thenReturn(new ProviderMember(
+                "ambiguous", "private@example.invalid", "Name", List.of("member", "admin"), List.of(), true));
+        when(identities.requireMember("provider-org", "unknown-role")).thenReturn(new ProviderMember(
+                "unknown-role", "private@example.invalid", "Name", List.of("unknown"), List.of(), true));
+        when(identities.requireMember("provider-org", "unnamed")).thenReturn(member("unnamed", " ", true));
+        assertThat(query().displayNames(jwt(ISSUER, "tenant-default"),
+                List.of("missing", "disabled", "mismatch", "ambiguous", "unknown-role", "unnamed"))).isEmpty();
+        verify(profiles, times(1)).findByPrimaryIdentityKey(IdentityReferences.primaryIdentityKey(ISSUER, "unnamed"));
+        verifyNoMoreInteractions(profiles);
+        verify(identities, never()).members(anyString());
+    }
+
+    @Test
+    void nameAuthorityFailureNeverExposesProviderErrorOrFallsBackToSubject() {
+        when(identities.configuredOrganizationId()).thenReturn("provider-org");
+        when(identities.requireMember("provider-org", "peer"))
+                .thenThrow(new KeycloakIdentityAdminClient.KeycloakAdminException(503, "private provider detail"));
+        assertThatThrownBy(() -> query().displayNames(jwt(ISSUER, "tenant-default"), List.of("peer")))
+                .isInstanceOf(IllegalStateException.class).hasMessage("Member display name authority is unavailable")
+                .hasNoCause();
+        verifyNoInteractions(profiles);
     }
 
     @Test

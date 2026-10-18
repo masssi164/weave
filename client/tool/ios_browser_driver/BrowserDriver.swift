@@ -491,18 +491,67 @@ final class BrowserDriver: XCTestCase {
     while Date() < deadline {
       let file = app.staticTexts.matching(NSPredicate(format: "label == %@", stem))
       if mode == "import" && file.count == 1 && file.element.isHittable {
-        file.element.tap()
+        let picker = app.collectionViews.matching(identifier: "File View")
+        XCTAssertEqual(picker.count, 1, "Native file view must be unique")
+        let tile = picker.element.cells.containing(.staticText, identifier: stem)
+        XCTAssertEqual(tile.count, 1, "Owned document tile must be unique")
+        XCTAssertTrue(tile.element.isHittable, "Owned document tile must be hittable")
+        let preview = tile.element.images
+        XCTAssertEqual(preview.count, 1, "Owned document preview must be unique")
+        let previewFrame = preview.element.frame
+        let previewCenter = CGPoint(x: previewFrame.midX, y: previewFrame.midY)
+        XCTAssertTrue(
+          previewFrame.width > 0 && previewFrame.height > 0
+            && previewFrame.origin.x.isFinite && previewFrame.origin.y.isFinite
+            && previewFrame.width.isFinite && previewFrame.height.isFinite,
+          "Owned document preview must have a finite nonempty frame")
+        XCTAssertTrue(
+          tile.element.frame.contains(previewCenter) && app.frame.contains(previewCenter),
+          "Owned document preview center must be inside the visible owned tile")
+        guard Date() < deadline else { break }
+        preview.element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(
+          picker.element.waitForNonExistence(timeout: max(0, deadline.timeIntervalSinceNow)),
+          "Native file picker must dismiss after selecting the owned document")
         print("NATIVE_IOS_FILES_STAGE phase=import-selected")
         return
       }
       XCTAssertLessThanOrEqual(file.count, 1, "Owned document must be unique")
-      if mode == "export" && enteredWeave {
-        let save = app.buttons.matching(NSPredicate(format: "label IN %@", ["Save", "Sichern"]))
-        XCTAssertLessThanOrEqual(save.count, 1, "Native save action must be unique")
-        if save.count == 1 && save.element.isHittable {
-          save.element.tap()
-          print("NATIVE_IOS_FILES_STAGE phase=export-saved")
-          return
+      if mode == "export" {
+        let picker = app.otherElements.matching(identifier: "Browse View (Picker)")
+        XCTAssertLessThanOrEqual(picker.count, 1, "Native export picker must be unique")
+        if picker.count == 0 {
+          Thread.sleep(forTimeInterval: 0.25)
+          continue
+        }
+        let folder = picker.element.otherElements.matching(NSPredicate(format: "identifier BEGINSWITH %@", "DOC.browsingRoot Source: com.apple.FileProvider.LocalStorage, Title: "))
+        XCTAssertLessThanOrEqual(folder.count, 1, "Owned export folder must be unique")
+        if folder.count == 1 {
+          let navigation = folder.element.navigationBars.matching(identifier: "FullDocumentManagerViewControllerNavigationBar")
+          let filename = picker.element.textFields.matching(identifier: "DOCPicker.filenameTextField")
+          XCTAssertLessThanOrEqual(navigation.count, 1, "Native export navigation must be unique")
+          XCTAssertLessThanOrEqual(filename.count, 1, "Native export filename must be unique")
+          if navigation.count == 1 && filename.count == 1 {
+            let currentFolder = navigation.element.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Weave, "))
+            XCTAssertLessThanOrEqual(currentFolder.count, 1, "Current owned export folder must be unique")
+            if currentFolder.count == 0 || !currentFolder.element.isEnabled || !currentFolder.element.isHittable {
+              Thread.sleep(forTimeInterval: 0.25)
+              continue
+            }
+            let save = navigation.element.buttons.matching(NSPredicate(format: "label IN %@", ["Save", "Sichern"]))
+            XCTAssertLessThanOrEqual(save.count, 1, "Native save action must be unique")
+            if save.count == 1 && save.element.isEnabled && save.element.isHittable {
+              guard Date() < deadline else { break }
+              save.element.tap()
+              XCTAssertTrue(
+                picker.element.waitForNonExistence(timeout: max(0, deadline.timeIntervalSinceNow)),
+                "Native export picker must dismiss after saving")
+              print("NATIVE_IOS_FILES_STAGE phase=export-saved")
+              return
+            }
+          }
+          Thread.sleep(forTimeInterval: 0.25)
+          continue
         }
       }
       let weave = app.staticTexts.matching(NSPredicate(format: "label == %@", "Weave"))
@@ -569,19 +618,36 @@ final class BrowserDriver: XCTestCase {
     let action = try XCTUnwrap(fixture["action"] as? String)
     let app = XCUIApplication(bundleIdentifier: "com.massimotter.weave")
     if action == "background" {
-      XCTAssertEqual(app.state, .runningForeground)
+      let before = app.state
+      print("NATIVE_IOS_LIFECYCLE_DIAGNOSTIC action=background phase=before state=\(before.rawValue)")
+      XCTAssertEqual(before, .runningForeground)
       XCUIDevice.shared.press(.home)
-      let deadline = Date().addingTimeInterval(10)
-      while Date() < deadline && app.state == .runningForeground { Thread.sleep(forTimeInterval: 0.25) }
-      XCTAssertTrue(app.state == .runningBackground || app.state == .runningBackgroundSuspended)
+      let afterHome = app.state
+      print("NATIVE_IOS_LIFECYCLE_DIAGNOSTIC action=background phase=after-home state=\(afterHome.rawValue)")
+      let background = XCTNSPredicateExpectation(
+        predicate: NSPredicate { _, _ in
+          let state = app.state
+          return state == .runningBackground || state == .runningBackgroundSuspended
+        }, object: app)
+      let waitResult = XCTWaiter.wait(for: [background], timeout: 10)
+      let final = app.state
+      print("NATIVE_IOS_LIFECYCLE_DIAGNOSTIC action=background phase=final state=\(final.rawValue)")
+      XCTAssertEqual(waitResult, .completed)
+      XCTAssertTrue(final == .runningBackground || final == .runningBackgroundSuspended)
       print("NATIVE_IOS_LIFECYCLE_STAGE phase=background-observed")
     } else {
       XCTAssertEqual(action, "foreground")
-      XCTAssertTrue(app.state == .runningBackground || app.state == .runningBackgroundSuspended)
+      let before = app.state
+      print("NATIVE_IOS_LIFECYCLE_DIAGNOSTIC action=foreground phase=before state=\(before.rawValue)")
+      XCTAssertTrue(before == .runningBackground || before == .runningBackgroundSuspended)
       app.activate()  // Post-auth lifecycle only; attach the same existing process.
-      let deadline = Date().addingTimeInterval(10)
-      while Date() < deadline && app.state != .runningForeground { Thread.sleep(forTimeInterval: 0.25) }
-      XCTAssertEqual(app.state, .runningForeground)
+      let afterActivate = app.state
+      print("NATIVE_IOS_LIFECYCLE_DIAGNOSTIC action=foreground phase=after-activate state=\(afterActivate.rawValue)")
+      let reachedForeground = app.wait(for: .runningForeground, timeout: 10)
+      let final = app.state
+      print("NATIVE_IOS_LIFECYCLE_DIAGNOSTIC action=foreground phase=final state=\(final.rawValue)")
+      XCTAssertTrue(reachedForeground)
+      XCTAssertEqual(final, .runningForeground)
       print("NATIVE_IOS_LIFECYCLE_STAGE phase=foreground-observed")
     }
   }

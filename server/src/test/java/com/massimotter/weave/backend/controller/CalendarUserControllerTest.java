@@ -38,6 +38,42 @@ class CalendarUserControllerTest {
             """;
 
     @Test
+    void realGuestUserCalendarReadAndMutationStopAtCapabilityPolicyBeforeProviderAccess() throws Exception {
+        var properties = new org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties();
+        properties.getJwt().setIssuerUri("https://auth.example.invalid/realms/acme");
+        var policy = new com.massimotter.weave.backend.service.WorkspaceCapabilityService(properties,
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+        var guest = org.springframework.security.oauth2.jwt.Jwt.withTokenValue("guest-fixture")
+                .header("alg", "none").subject("guest").claim("iss", "https://auth.example.invalid/realms/acme")
+                .claim("aud", List.of("weave-app")).claim("weave_tenant_id", "tenant-default")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("guest")).build();
+        org.assertj.core.api.Assertions.assertThat(policy.effectivePolicySnapshot(guest, "workspace-default").orgRoles()).containsExactly("guest");
+        org.assertj.core.api.Assertions.assertThat(policy.grantedCapabilities(guest)).isEmpty();
+        var context = new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
+        var rights = mock(com.massimotter.weave.backend.context.authz.ContextAuthorizationPort.class);
+        var bindings = mock(com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository.class);
+        var audit = mock(com.massimotter.weave.backend.audit.AuditEventPublisher.class);
+        var realCalendar = new CalendarUserApiService(HumanJwtTestSupport.organizationAdmission(),
+                com.massimotter.weave.backend.service.OrganizationIdentityContextResolver.configured(context),
+                context, rights, policy, bindings, List.of(), audit);
+        // Reuse the MVC/security fixture while obtaining the denial from real policy code.
+        doAnswer(call -> realCalendar.read(call.getArgument(0), call.getArgument(1), call.getArgument(2)))
+                .when(calendar).read(any(), eq("calendar:test"), eq("event:guest-probe"));
+        doAnswer(call -> { realCalendar.delete(call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3)); return null; })
+                .when(calendar).delete(any(), eq("calendar:test"), eq("event:guest-probe"), any());
+        for (var denied : List.of(Map.entry(get(ROUTE + "/event:guest-probe"), "calendar.read"),
+                Map.entry(delete(ROUTE + "/event:guest-probe").header("If-Match", "\"calendar-" + "a".repeat(64) + "\""), "calendar.manage_events"))) {
+            mvc.perform(denied.getKey().with(jwt().jwt(guest).authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                    .andExpect(jsonPath("$.details.module").value("calendar"))
+                    .andExpect(jsonPath("$.details.requiredCapability").value(denied.getValue()))
+                    .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
+        }
+        verifyNoInteractions(rights, bindings, audit);
+    }
+
+    @Test
     void unauthenticatedAndForeignNativeOrganizationCannotReachCalendarService() throws Exception {
         mvc.perform(get("/api/calendar/calendars")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/calendar/calendars").with(jwt().jwt(token -> token.claim("organization", Map.of("foreign", Map.of("id", "foreign"))))

@@ -1335,7 +1335,7 @@ abstract class AppLocalizations {
   /// Status message after a file is exported to a native file surface
   ///
   /// In en, this message translates to:
-  /// **'Exported {name} to {destination}.'**
+  /// **'Saved {name} as {destination}.'**
   String filesExportCompletedMessage(String name, String destination);
 
   /// Status message after an unnamed file is exported
@@ -4208,30 +4208,14 @@ abstract class AppLocalizations {
   /// Title for the sign-in configuration summary card
   ///
   /// In en, this message translates to:
-  /// **'Current sign-in configuration'**
+  /// **'Your organization'**
   String get signInConfigurationTitle;
 
   /// Support-safe guidance shown when a dogfood handoff has prepared the sign-in route
   ///
   /// In en, this message translates to:
-  /// **'Your Weave invite selected the workspace sign-in endpoint. Continue with SSO; if this does not work, ask an admin/operator to refresh the invite and mention WEAVE-SSO-NOT-COMPLETE.'**
+  /// **'Continue in the system browser to sign in to your saved organization.'**
   String get signInHandoffConfigurationDescription;
-
-  /// Title shown after the app consumed a member handoff
-  ///
-  /// In en, this message translates to:
-  /// **'Workspace invite ready'**
-  String get signInHandoffReadyTitle;
-
-  /// Evidence message shown after the app consumed a member handoff
-  ///
-  /// In en, this message translates to:
-  /// **'Weave consumed the dogfood handoff for {organization}/{workspace}. Continue with SSO for run {runId}.'**
-  String signInHandoffReadyDescription(
-    String organization,
-    String workspace,
-    String runId,
-  );
 
   /// Summary line showing the issuer URL on the sign-in screen
   ///
@@ -4272,7 +4256,7 @@ abstract class AppLocalizations {
   /// Description shown when auth configuration is incomplete
   ///
   /// In en, this message translates to:
-  /// **'Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.'**
+  /// **'Enter your organization’s Weave address or invitation before signing in.'**
   String get signInMissingConfigurationDescription;
 
   /// Localized auth failure shown when the user cancels sign-in
@@ -4284,7 +4268,7 @@ abstract class AppLocalizations {
   /// Localized auth failure shown when local sign-in configuration is invalid
   ///
   /// In en, this message translates to:
-  /// **'The sign-in configuration is incomplete. Ask an admin/operator to refresh the invite.'**
+  /// **'Your organization’s sign-in information is incomplete. Check the organization address and try again.'**
   String get signInConfigurationFailure;
 
   /// Localized generic protocol auth failure
@@ -4461,6 +4445,12 @@ abstract class AppLocalizations {
   /// **'Profile saved.'**
   String get profileEditSavedMessage;
 
+  /// No description provided for @profileEditSaveFailureMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Your profile could not be saved. Your changes are kept. Check your connection and sign-in, then try again.'**
+  String get profileEditSaveFailureMessage;
+
   /// Row label for calendar readiness in the workspace readiness summary
   ///
   /// In en, this message translates to:
@@ -4482,7 +4472,7 @@ abstract class AppLocalizations {
   /// Description explaining that the current calendar surface is workspace-scoped rather than private-personal scoped
   ///
   /// In en, this message translates to:
-  /// **'This first Calendar slice is the workspace scope of Weave shared scheduling. Team and channel calendars are the next product scopes; private personal calendars are out of scope.'**
+  /// **'View and manage events shared with your organization in this workspace.'**
   String get calendarWorkspaceScopeDescription;
 
   /// Description for non-workspace calendar scope metadata returned by the backend
@@ -4798,7 +4788,7 @@ abstract class AppLocalizations {
   /// Calendar details text when the backend exposes safe context metadata but not a Matrix thread id
   ///
   /// In en, this message translates to:
-  /// **'Safe context metadata is available; chat thread linkage is not configured yet.'**
+  /// **'No conversation linked.'**
   String get calendarDetailsMeetingThreadPending;
 
   /// Label for safe attendee metadata in the calendar event details dialog
@@ -5712,19 +5702,19 @@ abstract class AppLocalizations {
   /// Description for the normal member handoff-first setup screen
   ///
   /// In en, this message translates to:
-  /// **'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you for technical service settings.'**
+  /// **'Use your organization’s Weave address or invitation to sign in to your workspace.'**
   String get setupMemberHandoffDescription;
 
   /// Organization access input label
   ///
   /// In en, this message translates to:
-  /// **'Server URI, invitation link, or QR payload'**
+  /// **'Organization address or invitation'**
   String get setupOrganizationUriLabel;
 
   /// Organization access input help
   ///
   /// In en, this message translates to:
-  /// **'Paste the link from your email or QR code, or enter your organization\'s Weave address.'**
+  /// **'Enter your organization’s Weave address, or paste the invitation link from your email or QR code.'**
   String get setupOrganizationUriHelper;
 
   /// Invalid organization access input
@@ -5802,7 +5792,7 @@ abstract class AppLocalizations {
   /// Success guidance shown after a member handoff is consumed and before sign-in
   ///
   /// In en, this message translates to:
-  /// **'Weave prepared {organization}/{workspace} from the invite. Continue with workspace sign-in next.'**
+  /// **'Your workspace {organization}/{workspace} is ready. Continue to sign in.'**
   String memberHandoffReadyGuidance(String organization, String workspace);
 
   /// Error title when member handoff consumption fails

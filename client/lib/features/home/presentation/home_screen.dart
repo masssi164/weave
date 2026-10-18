@@ -367,16 +367,14 @@ class _HomeEmptyState extends StatelessWidget {
 
 String _formatEventTime(BuildContext context, CalendarEvent event) {
   final material = MaterialLocalizations.of(context);
-  final date = material.formatMediumDate(event.startTime.toLocal());
+  final date = material.formatMediumDate(event.startTime);
   if (event.allDay) {
     return '${_HomeCopy.of(context).allDayLabel}, $date';
   }
   final start = material.formatTimeOfDay(
-    TimeOfDay.fromDateTime(event.startTime.toLocal()),
+    TimeOfDay.fromDateTime(event.startTime),
   );
-  final end = material.formatTimeOfDay(
-    TimeOfDay.fromDateTime(event.endTime.toLocal()),
-  );
+  final end = material.formatTimeOfDay(TimeOfDay.fromDateTime(event.endTime));
   return '$date, $start-$end';
 }
 

@@ -340,6 +340,8 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
                           ? null
                           : () => setState(() {
                               _selected.remove(member.userId);
+                              _participantInvalid =
+                                  _isDirect && _selected.length != 1;
                             }),
                     ),
                 ],
@@ -364,6 +366,8 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
                         } else {
                           _selected.remove(member.userId);
                         }
+                        _participantInvalid =
+                            _isDirect && _selected.length != 1;
                       }),
               ),
             if (_creationFailed)

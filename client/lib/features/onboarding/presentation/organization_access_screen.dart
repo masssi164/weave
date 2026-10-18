@@ -98,7 +98,8 @@ class _OrganizationAccessScreenState extends State<OrganizationAccessScreen> {
                       prefixIcon: const Icon(Icons.qr_code_2),
                       labelText: l10n.setupOrganizationUriLabel,
                       hintText: 'https://weave.example',
-                      helperText: l10n.setupOrganizationUriHelper,
+                      helper: Text(l10n.setupOrganizationUriHelper),
+                      errorMaxLines: 4,
                       errorText: _error,
                     ),
                     onChanged: (_) {

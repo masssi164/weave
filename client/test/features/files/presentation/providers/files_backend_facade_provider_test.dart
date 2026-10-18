@@ -552,6 +552,7 @@ void main() {
               BackendFilesRepository.rootFileId,
             );
             expect(request.url.queryParameters['name'], 'notes.txt');
+            expect(request.url.queryParameters['mediaType'], 'text/plain');
             expect(request.headers['content-type'], 'application/octet-stream');
             expect(request.headers['if-none-match'], '*');
             expect(
@@ -577,6 +578,43 @@ void main() {
         expect(progress, [3]);
       },
     );
+
+    for (final sample in [
+      ('plain.txt', utf8.encode('plain UTF-8 text\n'), 'text/plain'),
+      ('opaque.weave-unknown', [0, 1, 2, 3], 'application/octet-stream'),
+      ('misleading.txt', [137, 80, 78, 71, 13, 10, 26, 10], 'image/png'),
+    ]) {
+      test(
+        'upload propagates semantic MIME ${sample.$3} separately from binary transport',
+        () async {
+          final files = repository(
+            MockClient((request) async {
+              if (request.method == 'GET') {
+                return http.Response(_listing(), 200);
+              }
+              expect(request.url.queryParameters['mediaType'], sample.$3);
+              expect(
+                request.headers['content-type'],
+                'application/octet-stream',
+              );
+              expect(request.bodyBytes, sample.$2);
+              return http.Response(
+                jsonEncode(_item(name: sample.$1, path: '/${sample.$1}')),
+                200,
+              );
+            }),
+          );
+          await files.uploadFile(
+            '/',
+            FileUploadRequest(
+              fileName: sample.$1,
+              sizeInBytes: sample.$2.length,
+              byteStream: Stream.value(sample.$2),
+            ),
+          );
+        },
+      );
+    }
 
     test(
       'explicit Space applies to root and descendants inherit parent',
@@ -695,6 +733,11 @@ void main() {
               }
               writes++;
               expect(request.method, 'PUT');
+              expect(request.url.queryParameters['mediaType'], 'text/plain');
+              expect(
+                request.headers['content-type'],
+                'application/octet-stream',
+              );
               expect(request.headers['if-match'], '"sha256-$digest"');
               expect(request.headers['if-match'], isNot('sha256:revision'));
               expect(

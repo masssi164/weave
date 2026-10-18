@@ -204,6 +204,58 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
+    void realGuestUserFilesReadAndMutationStopAtCapabilityPolicyBeforeProviderAccess() throws Exception {
+        var properties = new OAuth2ResourceServerProperties();
+        properties.getJwt().setIssuerUri("https://auth.example.invalid/realms/acme");
+        var policy = new WorkspaceCapabilityService(properties,
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+        var guest = org.springframework.security.oauth2.jwt.Jwt.withTokenValue("guest-fixture")
+                .header("alg", "none").subject("guest")
+                .claim("iss", "https://auth.example.invalid/realms/acme")
+                .claim("aud", java.util.List.of("weave-app")).claim("weave_tenant_id", "tenant-default")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("guest")).build();
+        org.assertj.core.api.Assertions.assertThat(policy.effectivePolicySnapshot(guest, "workspace-default").orgRoles()).containsExactly("guest");
+        org.assertj.core.api.Assertions.assertThat(policy.grantedCapabilities(guest)).isEmpty();
+        var resources = org.mockito.Mockito.mock(com.massimotter.weave.backend.files.port.FilesUserResourceRepository.class);
+        var binding = org.mockito.Mockito.mock(com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository.class);
+        var spaces = org.mockito.Mockito.mock(com.massimotter.weave.backend.spaces.port.SpaceAccessPort.class);
+        var transactions = org.mockito.Mockito.mock(org.springframework.transaction.support.TransactionTemplate.class);
+        var resource = new com.massimotter.weave.backend.files.domain.FilesUserResource(
+                "tenant-default", "file:guest-probe", 1, "workspace-default", "file:root", "/protected.txt",
+                com.massimotter.weave.backend.files.domain.FilesDomain.Kind.FILE, "user:owner",
+                com.massimotter.weave.backend.files.domain.FilesUserResource.State.ACTIVE,
+                Instant.EPOCH, Instant.EPOCH, com.massimotter.weave.backend.files.domain.FilesUserResource.Scope.SPACE);
+        when(resources.find("tenant-default", "file:guest-probe")).thenReturn(java.util.Optional.of(resource));
+        var empty = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        var realFiles = new FilesUserApiService(OrganizationIdentityContextResolver.configured(
+                new com.massimotter.weave.backend.config.ContextAuthorizationProperties(null, null, null, null, null, null, null, null)),
+                contextAuthorizationProperties, contextAuthorizationPort, policy, binding, filesProviderResolver, resources,
+                filesMutationIntentService, transactions, auditEventPublisher,
+                empty.getBeanProvider(com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService.class),
+                empty.getBeanProvider(com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy.class), spaces);
+        // Keep this existing MVC/security fixture, but execute the real service and policy.
+        // Neither the exception nor its public error code is stubbed.
+        org.mockito.Mockito.doAnswer(call -> realFiles.download(call.getArgument(0), call.getArgument(1)))
+                .when(filesUserApiService).download(any(), eq("file:guest-probe"));
+        org.mockito.Mockito.doAnswer(call -> realFiles.update(call.getArgument(0), call.getArgument(1),
+                call.getArgument(2), call.getArgument(3), call.getArgument(4), call.getArgument(5)))
+                .when(filesUserApiService).update(any(), eq("file:guest-probe"), any(), any(), any(), any());
+        for (var denied : java.util.List.of(Map.entry(get("/api/files/items/file:guest-probe/content"), "files.read"),
+                Map.entry(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/files/items/file:guest-probe/content")
+                        .contentType("application/octet-stream").content("must not write")
+                        .header("If-Match", "\"sha256-" + "a".repeat(64) + "\"").header("Idempotency-Key", "guest-denial-proof-key"), "files.upload"))) {
+            mockMvc.perform(denied.getKey().with(jwt().jwt(guest).authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                    .andExpect(jsonPath("$.details.module").value("files"))
+                    .andExpect(jsonPath("$.details.requiredCapability").value(denied.getValue()))
+                    .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
+        }
+        org.mockito.Mockito.verifyNoInteractions(binding, filesProviderResolver, filesMutationIntentService,
+                transactions, auditEventPublisher, contextAuthorizationPort, spaces);
+    }
+
+    @Test
     void filesFacadeRequiresAuthenticatedWorkspaceScope() throws Exception {
         mockMvc.perform(get("/api/files/readiness"))
                 .andExpect(status().isUnauthorized())
