@@ -89,11 +89,14 @@ void main() {
       testWidgets(
         'preserves calendar wall-clock fields in ${locale.languageCode}',
         (tester) async {
+          // Keep the fixture inside Home's rolling upcoming-event window.
+          final today = DateTime.now();
+          final eventDay = DateTime.utc(today.year, today.month, today.day + 2);
           final event = CalendarEvent(
             id: 'wall-clock-event',
             title: 'Berlin wall-clock meeting',
-            startTime: DateTime.utc(2026, 10, 16, 2),
-            endTime: DateTime.utc(2026, 10, 16, 3),
+            startTime: eventDay.add(const Duration(hours: 2)),
+            endTime: eventDay.add(const Duration(hours: 3)),
             timeKind: CalendarTimeKind.zoned,
             timezone: 'Europe/Berlin',
           );
