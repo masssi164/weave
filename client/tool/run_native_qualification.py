@@ -7,11 +7,31 @@ import os
 import subprocess
 import signal
 import shutil
+import sys
 from pathlib import Path
 
 from run_ios_simulator_product_acceptance import inspect_toolchain
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def interrupt_native_process(process, *, graceful_seconds=60, reap_seconds=10) -> bool:
+    """Allow the owned runner to finalize evidence within the Java owner's 90s wait."""
+    try:
+        os.killpg(process.pid, signal.SIGINT)
+    except ProcessLookupError:
+        process.wait(timeout=reap_seconds)
+        return True
+    try:
+        process.wait(timeout=graceful_seconds)
+        return True
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait(timeout=reap_seconds)
+        return False
 
 
 def main() -> int:
@@ -56,29 +76,40 @@ def main() -> int:
                     raise RuntimeError('Stale or unsafe collaboration result path')
                 arguments += ['--output', str(collaboration_path)]
             process = subprocess.Popen(arguments, start_new_session=True, env=native_env)
+            interrupted_cleanup = False
             def interrupted(number, _frame):
-                # Python SIGINT invokes each runner's finally cleanup, including
-                # the iOS run-owned simulator and macOS checkout app.
+                nonlocal interrupted_cleanup
+                # Do not reenter bounded cleanup if the owner signals again.
+                signal.signal(signal.SIGTERM, signal.SIG_IGN)
+                signal.signal(signal.SIGINT, signal.SIG_IGN)
                 try:
-                    os.killpg(process.pid, signal.SIGINT)
-                    process.wait(timeout=90)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                raise SystemExit(128 + number)
+                    interrupted_cleanup = interrupt_native_process(process)
+                finally:
+                    raise SystemExit(128 + number)
             old_term = signal.signal(signal.SIGTERM, interrupted)
             old_int = signal.signal(signal.SIGINT, interrupted)
+            status = None
             try:
                 status = process.wait()
             finally:
+                pending_failure = sys.exc_info()[1]
                 signal.signal(signal.SIGTERM, old_term)
                 signal.signal(signal.SIGINT, old_int)
-            evidence[platform]['status'] = 'passed' if status == 0 else 'failed'
-            if platform == 'iosSimulator' and collaboration_path.is_file() and not collaboration_path.is_symlink():
-                evidence[platform]['collaboration'] = json.loads(collaboration_path.read_text())
-                if status == 0 and evidence[platform]['collaboration'].get('status') != 'passed':
-                    raise RuntimeError('Missing actual collaboration proof')
+                evidence[platform]['status'] = 'passed' if status == 0 else 'failed'
+                if platform == 'iosSimulator' and collaboration_path.is_file() and not collaboration_path.is_symlink():
+                    try:
+                        collaboration = json.loads(collaboration_path.read_text())
+                        if not isinstance(collaboration, dict):
+                            raise ValueError('Invalid collaboration result')
+                        evidence[platform]['collaboration'] = collaboration
+                    except (OSError, ValueError):
+                        if pending_failure is None:
+                            raise RuntimeError('Native collaboration result could not be collected') from None
+                        pending_failure.add_note('Native collaboration result could not be collected')
+                if pending_failure is not None and interrupted_cleanup and platform == 'iosSimulator':
+                    evidence['cleanupComplete'] = evidence[platform]['collaboration'].get('cleanupComplete') is True
+            if platform == 'iosSimulator' and status == 0 and evidence[platform]['collaboration'].get('status') != 'passed':
+                raise RuntimeError('Missing actual collaboration proof')
             if status:
                 return status
         if subprocess.check_output(['git', 'status', '--porcelain=v1', '--untracked-files=all'], cwd=ROOT, text=True).strip():
@@ -88,9 +119,25 @@ def main() -> int:
             raise RuntimeError('Dual simulator cleanup is unverified')
         return 0
     finally:
-        output.write_text(json.dumps(evidence, indent=2) + '\n')
-        if collaboration_path.is_file() and not collaboration_path.is_symlink():
-            collaboration_path.unlink()
+        pending_failure = sys.exc_info()[1]
+        collection_failure = None
+        try:
+            if collaboration_path.is_file() and not collaboration_path.is_symlink():
+                collaboration_path.unlink()
+        except OSError:
+            evidence['cleanupComplete'] = False
+            collection_failure = RuntimeError('Native collaboration private result cleanup failed')
+        try:
+            output.write_text(json.dumps(evidence, indent=2) + '\n')
+        except OSError:
+            if collection_failure is None:
+                collection_failure = RuntimeError('Native qualification evidence could not be written')
+            else:
+                collection_failure.add_note('Native qualification evidence could not be written')
+        if collection_failure is not None:
+            if pending_failure is None:
+                raise collection_failure from None
+            pending_failure.add_note(str(collection_failure))
 
 
 if __name__ == '__main__':

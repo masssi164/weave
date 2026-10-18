@@ -6,6 +6,7 @@ from contextlib import redirect_stdout
 import os
 import plistlib
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -1378,6 +1379,81 @@ void main() {
             self.assertEqual(evidence['macos']['status'], 'passed')
             self.assertEqual(evidence['iosSimulator']['status'], 'failed')
             self.assertFalse(evidence['cleanupComplete'])
+
+    def test_interrupted_qualification_retains_platform_and_collaboration_results(self):
+        for private_result in ('valid', 'forced', 'cleanup-failed', 'malformed', 'unreadable', 'missing'):
+            with self.subTest(private_result=private_result), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                (root / 'specs').mkdir()
+                (root / 'specs/weave-specs.lock.json').write_text(json.dumps({'specCorpus': {'gitCommit': 'b' * 40}}))
+                parent = root / 'client/build/private-ios-qualification'
+                parent.mkdir(parents=True)
+                result = parent / 'dual-ios-result-owned-run.json'
+                handlers = {}
+                mac = unittest.mock.Mock()
+                mac.wait.return_value = 0
+                ios_process = unittest.mock.Mock()
+                def interrupted_wait():
+                    if private_result in ('valid', 'forced', 'cleanup-failed'):
+                        result.write_text(json.dumps({'status': 'failed', 'cleanupComplete': True,
+                                                      'scenarios': {'chat': {'status': 'not-run'}}}))
+                    elif private_result in ('malformed', 'unreadable'):
+                        result.write_text('private-invalid-json')
+                    handlers[signal.SIGTERM](signal.SIGTERM, None)
+                ios_process.wait.side_effect = interrupted_wait
+                def install(number, handler):
+                    previous = handlers.get(number, signal.SIG_DFL)
+                    handlers[number] = handler
+                    return previous
+                original_read = Path.read_text
+                original_unlink = Path.unlink
+                def unlink(path, *args, **kwargs):
+                    if path == result and private_result == 'cleanup-failed':
+                        raise PermissionError('private-cleanup-payload')
+                    return original_unlink(path, *args, **kwargs)
+                def read(path, *args, **kwargs):
+                    if path == result and private_result == 'unreadable':
+                        raise PermissionError('private-payload')
+                    return original_read(path, *args, **kwargs)
+                with patch.object(qualification, 'ROOT', root), \
+                        patch.dict(os.environ, {'WEAVE_TEST_APP_RUN_ROOT': name, 'WEAVE_CANDIDATE_COMMIT': 'a' * 40, 'WEAVE_E2E_RUN_ID': 'owned-run'}), \
+                        patch.object(qualification.subprocess, 'check_output', side_effect=['a' * 40, '', 'c' * 40]), \
+                        patch.object(qualification.subprocess, 'Popen', side_effect=[mac, ios_process]), \
+                        patch.object(qualification, 'inspect_toolchain', return_value={'rustToolchain': '1.95.0'}), \
+                        patch.object(qualification.shutil, 'which', return_value='/private/rustup'), \
+                        patch.object(qualification.signal, 'signal', side_effect=install), \
+                        patch.object(qualification, 'interrupt_native_process', return_value=private_result != 'forced'), \
+                        patch.object(Path, 'unlink', unlink), \
+                        patch.object(Path, 'read_text', read):
+                    with self.assertRaises(SystemExit) as failure:
+                        qualification.main()
+                self.assertEqual(failure.exception.code, 128 + signal.SIGTERM)
+                evidence = json.loads((root / 'native-qualification.json').read_text())
+                self.assertEqual(evidence['macos']['status'], 'passed')
+                self.assertEqual(evidence['iosSimulator']['status'], 'failed')
+                self.assertEqual(evidence['cleanupComplete'], private_result == 'valid')
+                self.assertNotIn('private-invalid-json', json.dumps(evidence))
+                self.assertNotIn('private-payload', str(failure.exception))
+                if private_result in ('valid', 'forced', 'cleanup-failed'):
+                    self.assertEqual(evidence['iosSimulator']['collaboration']['scenarios']['chat']['status'], 'not-run')
+                else:
+                    self.assertEqual(evidence['iosSimulator']['collaboration']['status'], 'not-run')
+
+    def test_interrupted_native_process_is_forced_and_reaped_within_owner_budget(self):
+        process = subprocess.Popen([sys.executable, '-c',
+            "import signal,time; signal.signal(signal.SIGINT, signal.SIG_IGN); print('ready',flush=True); time.sleep(60)"],
+            start_new_session=True, stdout=subprocess.PIPE, text=True)
+        try:
+            self.assertEqual(process.stdout.readline().strip(), 'ready')
+            self.assertFalse(qualification.interrupt_native_process(process, graceful_seconds=0.05, reap_seconds=2))
+            self.assertEqual(process.poll(), -signal.SIGKILL)
+            with self.assertRaises(ProcessLookupError):
+                os.killpg(process.pid, 0)
+        finally:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=2)
+            process.stdout.close()
 
     def test_dirty_source_stops_before_any_native_execution(self):
         with tempfile.TemporaryDirectory() as name:
