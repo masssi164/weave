@@ -1,12 +1,12 @@
 # Weave #1470 release closure report
 
-This report records executed evidence and the protected delivery gates; it does not announce a release.
+This report preserves earlier-source evidence; it does not announce a release. Current delivery gates come from the pinned specification corpus and [specification policy](specification-source-of-truth.md), with current qualification progress recorded under [#1592](https://github.com/masssi164/weave/issues/1592).
 Live issue state and final promotion results are authoritative at
 [#1470](https://github.com/masssi164/weave/issues/1470).
 
 ## Authority and integrated source
 
-The accepted release contract is `masssi164/weave-specs/main`
+The historical evidence below was recorded against corpus revision
 `c726993168651f1109259f9a80cc23117d24a37f`, especially
 `steering/release-2026-10-product-consolidation.md`. Provider adoption,
 migration, cutover and rollback belong to #1498. Public northbound DAV,
@@ -38,7 +38,7 @@ a later candidate's required checks.
 | [#1475](https://github.com/masssi164/weave/issues/1475) bounded Matrix Chat | [Versioned v3 profile](reference/matrix-client-server-support-profile.md), native Rust Matrix SDK and real OpenClaw at the same Weave facade, business-room send/read/sync, current room/member/device denial, restart and refresh. | Closed on integrated source `5d78cade66199edfde6c47cea2661c453c4f602d`; [criterion evidence](https://github.com/masssi164/weave/issues/1475#issuecomment-6102766047) accepts the five Supported rows of the required profile. |
 | [#1476](https://github.com/masssi164/weave/issues/1476) stable resources/bindings | [Persistence and invariant audit](https://github.com/masssi164/weave/issues/1476#issuecomment-6075355496): transient browse, explicit idempotent materialization, stable IDs, one active binding, private mappings, access removal and restore. | Closed; populated-provider replacement remains #1498. |
 | [#1479](https://github.com/masssi164/weave/issues/1479) usable product | Two native processes prove one sign-in, generated Files upload/read and Calendar CRUD, business Chat, navigation and lifecycle. Real OpenClaw proves Files/Calendar catalog, writes, version conflicts and current permission denial with independent API readback. Admin identity/setup/readiness remains separate. | Latest integrated acceptance and required checks are recorded in the linked story; focused keyboard/focus and Calendar loading/empty assertions were completed in #1544. |
-| [#1480](https://github.com/masssi164/weave/issues/1480) integrated CI/E2E | Exact-source generated contracts/SDKs, stale/unsupported/duplicate-ID failures and consumer compilation; real disposable native/API/MCP/Matrix expectations, cross-organization denial and zero-resource cleanup. Protected dev requires real Gradle CI, label and Full Compose contexts with strict protection and administrator enforcement. | Exact integrated-source acceptance is recorded in the linked story after its required checks pass. No skipped compatibility job substitutes for a required check. |
+| [#1480](https://github.com/masssi164/weave/issues/1480) integrated CI/E2E | Exact-source generated contracts/SDKs, stale/unsupported/duplicate-ID failures and consumer compilation; real disposable native/API/MCP/Matrix expectations, cross-organization denial and zero-resource cleanup. Those historical Dev checks predate delivery consolidation. Current Dev runs deterministic checks; the exact protected Dogfood commit runs mandatory Compose, macOS and concurrent dual-iOS qualification before deployment and physical preparation for HIL. | Exact integrated-source acceptance is recorded in the linked story after its required checks pass. No skipped compatibility job substitutes for a required check. |
 | [#1481](https://github.com/masssi164/weave/issues/1481) main delivery | Existing #1544 enforces exact lane ancestry/tree, successful exact dogfood deployment and separate owner human evidence; distribution notices and README claims are reconciled. Weaver work is already merged and verified below. | Closure requires preceding outcomes, exact dogfood/human acceptance, remote Weave main and post-merge CI. |
 
 ## Native execution and independent assertions
@@ -107,11 +107,13 @@ EUPL applies only to the approved original Weaver scope. Existing third-party
 grants remain intact. Weave's Server/MCP images carry the accepted EUPL metadata
 and public notices, with Matrix vendor notices retained in Server.
 
-Existing #1533 and #1544 are integrated. #1561 continues the focused native
-automation correction. Qualify the final exact integrated source, then promote
-the accepted tree through protected `dev -> dogfood -> main`. Dogfood deployment
-requires explicit authorization under the workspace operating contract. The
-final owner human result must follow successful automated evidence on that exact
-deployed commit. No agent or job fabricates that result. Verify the remote main
-SHA, ancestry and applicable post-merge CI before closing #1481 and #1470.
-Production publication is a separate decision.
+Existing #1533 and #1544 are historical integrated work. Current qualification
+continues under #1592 through Feature → Dev → Dogfood E2E → HIL → Main.
+The protected Dogfood commit must pass mandatory Compose, macOS and concurrent
+dual-iOS qualification, then exact deployment and physical iPhone preparation.
+The owner reports human acceptance explicitly for that deployed candidate.
+Existing Main promotion #1591 must verify the unchanged qualified tree/spec and
+valid automated, deployment, physical and human evidence without repeating
+equivalent integration solely for promotion. A changed candidate requires new
+qualification. Verify remote Main ancestry and applicable post-merge checks
+before closing #1481 and #1470. Production publication is a separate decision.
