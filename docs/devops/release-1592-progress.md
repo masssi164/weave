@@ -2,9 +2,24 @@
 
 This is an implementation and evidence record. The pinned specification corpus remains normative. No automation or human result is implied by a plan or a merged specification.
 
-## Current checkpoint — October 16, 2026 UTC
+## Current checkpoint — October 18, 2026 UTC
 
 The accepted corpus remains `2c35d0304efe04f6cae1a7bba9f244004e017d29`. [PR #1634](https://github.com/masssi164/weave/pull/1634) remains draft HOLD while the reviewed local corrections complete qualification. Protected Dogfood remains `18a18bd573b9c190448e81c49ec899f72011c4a3`; deployment, physical preparation and HIL have not passed for the changed candidate.
+
+### Exact-candidate qualification and Files accessibility correction
+
+Normal local run `local-qual-20261016-0433` used clean commit `c125f69d803a3e01b695883d669e9496dacb72ac` and the accepted pin. Mandatory macOS qualification passed, including actual bearer expiry, restoration after application/backend restarts and protected-access denial after logout. The two concurrent real iOS apps independently authenticated, exchanged Chat messages and observed shared Calendar creation and modification. Both exported the initial uploaded file through the native picker. A imported replacement content and verified the changed revision, then the unchanged iOS tap-target guideline failed. This is a failed qualification; all seven final iOS scenario aggregates remain unpassed. Peer replacement verification, Calendar removal, authorization/revocation and recovery did not complete in that run. Existing lifecycle-wait changes were not reached.
+
+The original failed artifact and diagnostics were preserved. Independent inventory found no remaining owned simulators, processes, containers, networks or volumes; the exact-run guarded finalizer passed. No persistent Dogfood reset was repeated.
+
+| UX defect record | Evidence and minimal correction |
+| --- | --- |
+| Accessibility/user control; member replaces and previews a shared file, closes preview and scrolls; English, 402×874 logical viewport, normal text; release blocker | The pinned large Files title clipped a rendered 48px workspace selector to an actionable 18px semantics fragment. The unchanged widget reproduction failed before the fix and passed with the full 48px fragment afterward. Letting the title scroll removes the overlap while preserving every Files action and persistent shell navigation. No target-size threshold or semantics exclusion changed. |
+| Behavioral regression and localized coverage | The maintained update → preview → close → scroll regression fails against the original pinned header and passes with the correction. English/German at normal and 1.5× text scale retain the unchanged tap-target/label checks; each case also returns to the selector and changes workspace scope. These are layout tests with explicit unit fixtures, not real iOS collaboration evidence. |
+
+Actual-app replay and a complete clean-candidate normal/protected qualification remain required. The correction changes no public contract, bootstrap authority, provider boundary or release scope. The accepted accessibility contract requires the fix; a new normative specification is unnecessary.
+
+## Prior checkpoint — October 16, 2026 UTC
 
 ### Latest actual two-app observations
 

@@ -95,7 +95,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
 
     return CustomScrollView(
       slivers: [
-        SliverAppBar.large(title: Text(l10n.filesScreenTitle)),
+        // Keep scrolled directory controls clear of a pinned title's semantics clip.
+        SliverAppBar.large(pinned: false, title: Text(l10n.filesScreenTitle)),
         ...switch (capabilitySnapshot) {
           AsyncLoading() => <Widget>[
             _fillStateSliver(
