@@ -1119,6 +1119,11 @@ void main() {
             );
           case 'calendar-delete':
             expect(role, 'A');
+            await navigateNativeDualDestination(
+              tester,
+              Icons.calendar_month_outlined,
+            );
+            await _calendarReadback(tester, updatedTitle, true);
             await _tap(
               tester,
               find.byTooltip(
@@ -1139,6 +1144,10 @@ void main() {
             };
           case 'calendar-observe-deleted':
             expect(role, 'B');
+            await navigateNativeDualDestination(
+              tester,
+              Icons.calendar_month_outlined,
+            );
             await _calendarReadback(tester, updatedTitle, false);
             expect(
               container
