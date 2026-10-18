@@ -442,7 +442,7 @@ public final class FreshProductFlow {
         NativeActorNames nativeNames = nativeActorNames(ownerSession, memberSession, browser, organizationId);
         new MemberSessionRevocationJourney(environment, http).prove(
             browser, organizationId, ownerEmail, ownerPassword);
-        runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
+        runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession,
             memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
             browser, outsiderSession, outsiderEmail, outsiderPassword, organizationId, adminSession, memberSession, personRef, nativeNames);
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
@@ -539,7 +539,7 @@ public final class FreshProductFlow {
         NativeActorNames nativeNames = nativeActorNames(ownerSession, memberSession, browser, organizationId);
         new MemberSessionRevocationJourney(environment, http).prove(
             browser, organizationId, ownerEmail, ownerPassword);
-        runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
+        runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession,
             memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
             browser, outsiderSession, outsiderEmail, outsiderPassword, organizationId, adminSession, memberSession, personRef, nativeNames);
 
@@ -578,12 +578,13 @@ public final class FreshProductFlow {
   }
 
   private void runNativeAuthorizedJourney(
-      String memberEmail, String memberPassword, String ownerSubject,
+      String memberEmail, String memberPassword, OidcBrowserJourney.TokenSet nativeOwnerSession,
       String peerEmail, String peerPassword, String peerSubject, String invitationHandle,
       OidcBrowserJourney browser, OidcBrowserJourney.TokenSet outsiderSession,
       String outsiderEmail, String outsiderPassword, String organizationId,
       OidcBrowserJourney.TokenSet nativeAdminSession, OidcBrowserJourney.TokenSet nativePeerSession, String nativePeerAccountRef,
       NativeActorNames nativeNames) {
+    String ownerSubject = nativeOwnerSession.subject();
     String runner = System.getProperty("weave.e2e.native-runner", "");
     if (runner.isBlank()) {
       return;
@@ -670,15 +671,16 @@ public final class FreshProductFlow {
               + "/content", "code", "capability-policy-blocked", bearer);
           requireNativeDenial("calendar", "/api/calendar/calendars/" + nativePath(resources.path("calendarId").asString())
               + "/events/" + nativePath(resources.path("eventId").asString()), "code", "capability-policy-blocked", bearer);
-          var currentAdmin = browser.authorize("weave-admin-console", environment.productOrigin().resolve("/admin-console/"),
-              List.of("openid", "profile", "email", "agent-runtime.admin"), memberEmail, memberPassword,
-              "native-mutation-admin-fixture");
-          JsonNode adminClaims = browser.jwtPayload(currentAdmin.accessToken());
-          validateAdminToken(adminClaims);
-          requireNativeFixtureIdentity(nativeAdminSession, currentAdmin, adminClaims, "owner");
-          nativeAdminSession = currentAdmin;
+          // Authorized baseline reads use the same User client boundary as Flutter.
+          // Admin sessions remain exclusive to grant administration below.
+          var currentOwner = browser.authorize("weave-app", URI.create("com.massimotter.weave:/oauthredirect"),
+              List.of("openid", "profile", "email"), memberEmail, memberPassword,
+              "native-mutation-owner-fixture");
+          JsonNode ownerClaims = browser.jwtPayload(currentOwner.accessToken());
+          validateHumanWorkspaceToken(ownerClaims, "weave-app");
+          requireNativeFixtureIdentity(nativeOwnerSession, currentOwner, ownerClaims, "owner");
           requireNativeMutationDenials(http, environment.apiOrigin(), resources, environment.runId(),
-              bearer, Map.of("Authorization", "Bearer " + nativeAdminSession.accessToken()));
+              bearer, currentOwner);
           System.out.println("NATIVE_IOS_AUTHORIZATION readDenials=3 mutationDenials=3 supportSafe=true");
           Map<String, Object> proof = Map.of("status", "passed", "evidence", "server-denial",
               "deniedIdentityDigest", Hashing.sha256(outsiderSession.subject()),
@@ -825,7 +827,11 @@ public final class FreshProductFlow {
   }
 
   static void requireNativeMutationDenials(JsonHttpClient http, URI origin, JsonNode resources,
-      String runId, Map<String, String> deniedBearer, Map<String, String> authorizedBearer) {
+      String runId, Map<String, String> deniedBearer, OidcBrowserJourney.TokenSet authorizedSession) {
+    if (!"weave-app".equals(authorizedSession.clientId())) {
+      throw new ProductFlowException("native authorization baseline requires a User API session");
+    }
+    Map<String, String> authorizedBearer = Map.of("Authorization", "Bearer " + authorizedSession.accessToken());
     String filePath = "/api/files/items/" + nativePath(resources.path("fileId").asString()) + "/content";
     String eventPath = "/api/calendar/calendars/" + nativePath(resources.path("calendarId").asString())
         + "/events/" + nativePath(resources.path("eventId").asString());
