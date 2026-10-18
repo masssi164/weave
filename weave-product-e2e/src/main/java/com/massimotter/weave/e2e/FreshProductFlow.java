@@ -605,6 +605,7 @@ public final class FreshProductFlow {
     Path chatFailureSnapshot = privateInput.resolveSibling("dual-ios-chat-failure-" + environment.runId() + ".json");
     boolean privateInputCreated = false;
     Process nativeProcess = null;
+    Throwable primaryFailure = null;
     try {
       Path parent = privateInput.getParent();
       if (Files.isSymbolicLink(parent.getParent()) || Files.isSymbolicLink(parent)
@@ -736,45 +737,65 @@ public final class FreshProductFlow {
         throw new ProductFlowException("native Flutter acceptance failed");
       }
     } catch (IOException failure) {
-      throw new ProductFlowException("native Flutter acceptance could not start");
+      ProductFlowException wrapped = new ProductFlowException("native Flutter acceptance I/O failed", failure);
+      primaryFailure = wrapped;
+      throw wrapped;
     } catch (InterruptedException failure) {
+      ProductFlowException wrapped = new ProductFlowException("native Flutter acceptance was interrupted", failure);
+      primaryFailure = wrapped;
       Thread.currentThread().interrupt();
-      throw new ProductFlowException("native Flutter acceptance was interrupted");
+      throw wrapped;
+    } catch (RuntimeException | Error failure) {
+      primaryFailure = failure;
+      throw failure;
     } finally {
       process.environment().remove("WEAVE_NATIVE_MEMBER_PASSWORD");
+      cleanupNativeJourney(nativeProcess,
+          privateInputCreated ? List.of(privateInput, authorizationRequest, authorizationProof,
+              revocationRequest, revocationProof, chatFailureSnapshot) : List.of(),
+          primaryFailure, Duration.ofSeconds(90));
+    }
+  }
+
+  static void cleanupNativeJourney(
+      Process process, List<Path> ownedFiles, Throwable primaryFailure, Duration gracefulTimeout) {
+    ProductFlowException cleanupFailure = null;
+    // An interrupted caller still owns its child and private files until cleanup completes.
+    boolean interrupted = Thread.interrupted();
+    try {
       try {
-        if (nativeProcess != null && nativeProcess.isAlive()) {
-          nativeProcess.destroy();
+        if (process != null && process.isAlive()) {
+          process.destroy();
+          boolean exited = false;
           try {
-            if (!nativeProcess.waitFor(90, java.util.concurrent.TimeUnit.SECONDS)) {
-              nativeProcess.destroyForcibly();
-              throw new ProductFlowException("native qualification process cleanup is unverified");
-            }
-          } catch (InterruptedException interrupted) {
-            nativeProcess.destroyForcibly();
-            Thread.currentThread().interrupt();
-            throw new ProductFlowException("native qualification cleanup was interrupted");
+            exited = process.waitFor(gracefulTimeout.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+          } catch (InterruptedException failure) {
+            interrupted = true;
+          }
+          if (!exited) {
+            ProductFlowException unverified = new ProductFlowException("native qualification process cleanup is unverified");
+            throw BoundedProcessTree.terminatePreservingFailure(process, Duration.ofSeconds(10), unverified);
           }
         }
-      } finally {
+      } catch (RuntimeException failure) {
+        cleanupFailure = new ProductFlowException("native qualification process cleanup failed", failure);
+      }
+      for (Path owned : ownedFiles) {
         try {
-          if (privateInputCreated) {
-            IOException cleanupFailure = null;
-            for (Path owned : List.of(privateInput, authorizationRequest, authorizationProof, revocationRequest, revocationProof,
-                chatFailureSnapshot)) {
-              try {
-                Files.deleteIfExists(owned);
-              } catch (IOException failure) {
-                if (cleanupFailure == null) cleanupFailure = failure;
-                else cleanupFailure.addSuppressed(failure);
-              }
-            }
-            if (cleanupFailure != null) throw cleanupFailure;
-          }
+          Files.deleteIfExists(owned);
         } catch (IOException failure) {
-          throw new ProductFlowException("native private input cleanup failed", failure);
+          ProductFlowException privateFailure = new ProductFlowException("native private input cleanup failed", failure);
+          if (cleanupFailure == null) cleanupFailure = privateFailure;
+          else cleanupFailure.addSuppressed(privateFailure);
         }
       }
+    } finally {
+      if (interrupted) Thread.currentThread().interrupt();
+    }
+    if (cleanupFailure != null) {
+      if (primaryFailure == null) throw cleanupFailure;
+      primaryFailure.addSuppressed(cleanupFailure);
+      System.err.println("WEAVE_TEST_APP_CLEANUP_ERROR native-journey");
     }
   }
 
