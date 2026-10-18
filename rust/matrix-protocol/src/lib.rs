@@ -160,6 +160,8 @@ struct CanonicalConversationInput {
 struct CanonicalMembershipInput {
     member_ref: String,
     state: String,
+    #[serde(default)]
+    display_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -569,8 +571,31 @@ fn sync_value(
             left.insert(room_id, json!({}));
         }
     }
+    // The SDK deduplicates the whole response by next_batch. Names can change
+    // without a Chat/crypto revision, so bind the token to the admitted member state.
+    let mut membership_state = BTreeMap::<String, BTreeMap<String, Value>>::new();
+    for (room_id, room) in &joined {
+        let events = room
+            .state
+            .events
+            .iter()
+            .map(serde_json::to_value)
+            .collect::<Result<Vec<_>, _>>()?;
+        membership_state.insert(room_id.clone(), projected_membership_state(events)?);
+    }
+    for (room_id, room) in &invited {
+        let events = room["invite_state"]["events"]
+            .as_array()
+            .ok_or(MatrixCoreError::InvalidRequest)?;
+        membership_state.insert(room_id.clone(), projected_membership_state(events.clone())?);
+    }
+    let revision = format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(&membership_state)?)
+    );
+    let next_batch = encode_state_sync_token(&input.cursor, revision)?;
     Ok(json!({
-        "next_batch": encode_sync_token(&input.cursor),
+        "next_batch": next_batch,
         "rooms": { "join": joined, "invite": invited, "leave": left },
         "account_data": { "events": input.account_data.iter().map(|(t,c)| json!({"type":t,"content":c})).collect::<Vec<_>>() },
         "to_device": { "events": input.to_device_events },
@@ -582,6 +607,28 @@ fn sync_value(
         "providerDataPlaneExposed": false,
         "matrixCore": matrix_facade_descriptor(server_name.to_string())?,
     }))
+}
+
+fn projected_membership_state(
+    events: Vec<Value>,
+) -> Result<BTreeMap<String, Value>, MatrixCoreError> {
+    let mut members = BTreeMap::new();
+    for event in events {
+        if event["type"] != "m.room.member" {
+            continue;
+        }
+        let state_key = event["state_key"]
+            .as_str()
+            .ok_or(MatrixCoreError::InvalidRequest)?;
+        let content = event
+            .get("content")
+            .ok_or(MatrixCoreError::InvalidRequest)?
+            .clone();
+        if members.insert(state_key.to_owned(), content).is_some() {
+            return Err(MatrixCoreError::InvalidRequest);
+        }
+    }
+    Ok(members)
 }
 
 fn validate_sync_token_value(input: &ProjectionInput) -> Result<Value, MatrixCoreError> {
@@ -1215,23 +1262,53 @@ fn canonical_localpart(value: &str, field: &'static str) -> Result<String, Matri
     }
     Ok(output)
 }
-fn encode_sync_token(cursor: &str) -> String {
-    let cursor = if cursor.trim().is_empty() {
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StateSyncToken {
+    cursor: String,
+    membership_revision: String,
+}
+
+fn normalized_sync_cursor(cursor: &str) -> &str {
+    if cursor.trim().is_empty() {
         "0"
     } else {
         cursor.trim()
-    };
-    let encoded = cursor
+    }
+}
+
+fn encode_sync_token(cursor: &str) -> String {
+    let encoded = normalized_sync_cursor(cursor)
         .as_bytes()
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     format!("weave.s1.{encoded}")
 }
+
+fn encode_state_sync_token(
+    cursor: &str,
+    membership_revision: String,
+) -> Result<String, MatrixCoreError> {
+    let envelope = StateSyncToken {
+        cursor: normalized_sync_cursor(cursor).to_owned(),
+        membership_revision,
+    };
+    let encoded = serde_json::to_vec(&envelope)?
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    Ok(format!("weave.s2.{encoded}"))
+}
+
 fn decode_sync_token(value: &str) -> Result<String, MatrixCoreError> {
-    let raw = value
-        .strip_prefix("weave.s1.")
-        .ok_or(MatrixCoreError::InvalidSyncToken)?;
+    let (raw, state_bearing) = if let Some(raw) = value.strip_prefix("weave.s1.") {
+        (raw, false)
+    } else if let Some(raw) = value.strip_prefix("weave.s2.") {
+        (raw, true)
+    } else {
+        return Err(MatrixCoreError::InvalidSyncToken);
+    };
     if raw.is_empty() || raw.len() % 2 != 0 || !raw.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(MatrixCoreError::InvalidSyncToken);
     }
@@ -1240,7 +1317,22 @@ fn decode_sync_token(value: &str) -> Result<String, MatrixCoreError> {
         .map(|index| u8::from_str_radix(&raw[index..index + 2], 16))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| MatrixCoreError::InvalidSyncToken)?;
-    String::from_utf8(bytes).map_err(|_| MatrixCoreError::InvalidSyncToken)
+    if !state_bearing {
+        return String::from_utf8(bytes).map_err(|_| MatrixCoreError::InvalidSyncToken);
+    }
+    let envelope: StateSyncToken =
+        serde_json::from_slice(&bytes).map_err(|_| MatrixCoreError::InvalidSyncToken)?;
+    if envelope.cursor.is_empty()
+        || envelope.cursor.trim() != envelope.cursor
+        || envelope.membership_revision.len() != 64
+        || !envelope
+            .membership_revision
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(MatrixCoreError::InvalidSyncToken);
+    }
+    Ok(envelope.cursor)
 }
 fn parse<T: for<'de> Deserialize<'de>>(input: &str) -> Result<T, MatrixCoreError> {
     serde_json::from_str(input).map_err(|_| MatrixCoreError::InvalidRequest)
@@ -1301,19 +1393,29 @@ fn membership_event(
         _ => return Err(MatrixCoreError::InvalidRequest),
     };
     let user = matrix_actor_user_id(issuer, &membership.member_ref, server)?.to_string();
+    let mut content = json!({"membership":state});
+    if let Some(name) = membership
+        .display_name
+        .as_deref()
+        .filter(|name| !name.trim().is_empty())
+    {
+        content["displayname"] = json!(name);
+    }
+    // State updates must not reuse an event ID with different profile content.
+    let revision = format!("{:x}", Sha256::digest(content.to_string().as_bytes()));
     Ok(MatrixEvent {
         event_type: "m.room.member".into(),
         sender: user.clone(),
         event_id: matrix_event_id(
             &format!(
-                "{}-member-{}",
-                conversation.conversation_id, membership.member_ref
+                "{}-member-{}-{}",
+                conversation.conversation_id, membership.member_ref, revision
             ),
             server,
         )?
         .to_string(),
         origin_server_ts: conversation.updated_at_epoch_millis,
-        content: json!({"membership":state}),
+        content,
         state_key: Some(user),
     })
 }
@@ -1416,6 +1518,184 @@ mod jni_bridge {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn member_names_are_optional_and_profile_revisions_change_only_membership_event_ids() {
+        let mut input = json!({"subject":"user:alice", "identityIssuer":"https://auth.example", "cursor":"revision",
+            "conversations":[{"conversationId":"room", "title":"Room", "memberships":[
+                {"memberRef":"user:alice", "state":"joined"}], "messages":[
+                {"messageId":"message", "senderRef":"user:alice", "sentAtEpochMillis":1,
+                 "kind":"message", "body":"Hello", "deliveryState":"sent"}]}]});
+        let project = |input: &Value| -> Value {
+            serde_json::from_str(
+                &project_json("sync".into(), input.to_string(), "api.weave.test".into()).unwrap(),
+            )
+            .unwrap()
+        };
+        let original = project(&input);
+        let room = "/rooms/join/!room:api.weave.test";
+        let member = format!("{room}/state/events/1");
+        assert!(original
+            .pointer(&format!("{member}/content/displayname"))
+            .is_none());
+        input["conversations"][0]["memberships"][0]["displayName"] = json!("Alice Example");
+        let named = project(&input);
+        assert_eq!(
+            named.pointer(&format!("{member}/content/displayname")),
+            Some(&json!("Alice Example"))
+        );
+        assert_eq!(
+            named.pointer(&format!("{member}/event_id")),
+            project(&input).pointer(&format!("{member}/event_id"))
+        );
+        input["conversations"][0]["memberships"][0]["displayName"] = json!("Alice Renamed");
+        let renamed = project(&input);
+        assert_ne!(
+            named["next_batch"], renamed["next_batch"],
+            "name-only updates must reach the SDK at unchanged Chat/crypto positions"
+        );
+        assert_ne!(
+            named.pointer(&format!("{member}/event_id")),
+            renamed.pointer(&format!("{member}/event_id"))
+        );
+        assert_eq!(
+            named.pointer(&format!("{member}/state_key")),
+            renamed.pointer(&format!("{member}/state_key"))
+        );
+        assert_eq!(
+            original.pointer(&format!("{room}/timeline/events/0/event_id")),
+            renamed.pointer(&format!("{room}/timeline/events/0/event_id"))
+        );
+        input["conversations"][0]["memberships"][0]["displayName"] = Value::Null;
+        assert_eq!(original, project(&input));
+    }
+
+    #[test]
+    fn membership_sync_tokens_are_order_independent_and_detect_clears_and_removals() {
+        let input = json!({"subject":"user:alice", "identityIssuer":"https://auth.example", "cursor":"chat-revision-7|e2ee:v2:3:9",
+            "conversations":[
+                {"conversationId":"first", "title":"First", "memberships":[
+                    {"memberRef":"user:alice", "state":"joined", "displayName":"Alice"},
+                    {"memberRef":"user:bob", "state":"joined", "displayName":"Bob"}]},
+                {"conversationId":"second", "title":"Second", "memberships":[
+                    {"memberRef":"user:alice", "state":"joined", "displayName":"Alice"}]}]});
+        let token = |input: &Value| -> String {
+            let output: Value = serde_json::from_str(
+                &project_json("sync".into(), input.to_string(), "api.weave.test".into()).unwrap(),
+            )
+            .unwrap();
+            output["next_batch"].as_str().unwrap().to_owned()
+        };
+        let original = token(&input);
+        assert_eq!(original, token(&input));
+        assert!(original.starts_with("weave.s2."));
+        assert_eq!(
+            decode_sync_token(&original).unwrap(),
+            "chat-revision-7|e2ee:v2:3:9"
+        );
+        let mut reordered = input.clone();
+        reordered["conversations"].as_array_mut().unwrap().reverse();
+        reordered["conversations"][1]["memberships"]
+            .as_array_mut()
+            .unwrap()
+            .reverse();
+        assert_eq!(original, token(&reordered));
+        for mode in ["clear", "remove-member", "remove-room", "leave"] {
+            let mut changed = input.clone();
+            match mode {
+                "clear" => {
+                    changed["conversations"][0]["memberships"][0]["displayName"] = Value::Null
+                }
+                "remove-member" => {
+                    changed["conversations"][0]["memberships"]
+                        .as_array_mut()
+                        .unwrap()
+                        .pop();
+                }
+                "remove-room" => {
+                    changed["conversations"].as_array_mut().unwrap().pop();
+                }
+                "leave" => changed["conversations"][0]["memberships"][1]["state"] = json!("left"),
+                _ => unreachable!(),
+            }
+            let changed_token = token(&changed);
+            assert_ne!(
+                original, changed_token,
+                "{mode} must change the state token"
+            );
+            assert_eq!(
+                decode_sync_token(&changed_token).unwrap(),
+                decode_sync_token(&original).unwrap()
+            );
+        }
+        // Duplicate membership entries must not hide a conflicting state update.
+        let mut duplicate = input.clone();
+        duplicate["conversations"][0]["memberships"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"memberRef":"user:alice", "state":"joined", "displayName":"Other name"}));
+        assert!(project_json(
+            "sync".into(),
+            duplicate.to_string(),
+            "api.weave.test".into()
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn state_sync_envelopes_reject_malformed_or_ambiguous_payloads_and_keep_legacy_history() {
+        let encode = |raw: &str| -> String {
+            format!(
+                "weave.s2.{}",
+                raw.as_bytes()
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>()
+            )
+        };
+        let revision = "a".repeat(64);
+        let valid = format!(
+            r#"{{"cursor":"chat-revision-7|e2ee:v2:3:9","membershipRevision":"{revision}"}}"#
+        );
+        assert_eq!(
+            decode_sync_token(&encode(&valid)).unwrap(),
+            "chat-revision-7|e2ee:v2:3:9"
+        );
+        for malformed in [
+            "{}".to_owned(),
+            valid.replace("chat-revision-7|e2ee:v2:3:9", " "),
+            valid.replace(&revision, "short"),
+            valid.replace(&revision, &"A".repeat(64)),
+            valid.replace(&revision, &"z".repeat(64)),
+            valid.replace("}", r#", "unknown":true}"#),
+            valid.replace("}", r#", "cursor":"other"}"#),
+            valid.replace("}", &format!(r#", "membershipRevision":"{revision}"}}"#)),
+            valid.replace(&format!("\"{revision}\""), "42"),
+        ] {
+            assert!(
+                decode_sync_token(&encode(&malformed)).is_err(),
+                "malformed envelope must fail closed"
+            );
+        }
+        for malformed in [
+            "weave.s2.",
+            "weave.s2.0",
+            "weave.s2.zz",
+            "weave.s2.ff",
+            "weave.s3.00",
+        ] {
+            assert!(decode_sync_token(malformed).is_err());
+        }
+        for cursor in [
+            "chat-revision-7|e2ee:5",
+            "chat-revision-7|e2ee:v2:3:9",
+            "timeline-revision-6",
+        ] {
+            let legacy = encode_sync_token(cursor);
+            assert!(legacy.starts_with("weave.s1."));
+            assert_eq!(decode_sync_token(&legacy).unwrap(), cursor);
+        }
+    }
+
     #[test]
     fn sync_projects_only_the_current_actor_invitation_and_requires_acceptance() {
         let issuer = "https://auth.example";

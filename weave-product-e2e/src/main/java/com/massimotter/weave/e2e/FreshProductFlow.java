@@ -444,7 +444,7 @@ public final class FreshProductFlow {
             browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
             memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
-            browser, outsiderSession, organizationId, adminSession, memberSession, personRef, nativeNames);
+            browser, outsiderSession, outsiderEmail, outsiderPassword, organizationId, adminSession, memberSession, personRef, nativeNames);
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
             release.bindingRef(), mcpProof, restartProof, revocationDenied,
             calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
@@ -541,7 +541,7 @@ public final class FreshProductFlow {
             browser, organizationId, ownerEmail, ownerPassword);
         runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession.subject(),
             memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
-            browser, outsiderSession, organizationId, adminSession, memberSession, personRef, nativeNames);
+            browser, outsiderSession, outsiderEmail, outsiderPassword, organizationId, adminSession, memberSession, personRef, nativeNames);
 
         writeEvidence(
             startedAt,
@@ -580,7 +580,8 @@ public final class FreshProductFlow {
   private void runNativeAuthorizedJourney(
       String memberEmail, String memberPassword, String ownerSubject,
       String peerEmail, String peerPassword, String peerSubject, String invitationHandle,
-      OidcBrowserJourney browser, OidcBrowserJourney.TokenSet outsiderSession, String organizationId,
+      OidcBrowserJourney browser, OidcBrowserJourney.TokenSet outsiderSession,
+      String outsiderEmail, String outsiderPassword, String organizationId,
       OidcBrowserJourney.TokenSet nativeAdminSession, OidcBrowserJourney.TokenSet nativePeerSession, String nativePeerAccountRef,
       NativeActorNames nativeNames) {
     String runner = System.getProperty("weave.e2e.native-runner", "");
@@ -644,7 +645,14 @@ public final class FreshProductFlow {
             throw new ProductFlowException("native authorization request was repeated");
           }
           JsonNode request = requireOwnedNativeAuthorizationRequest(authorizationRequest, environment.runId(), ownerSubject, peerSubject);
-          outsiderSession = browser.refresh(outsiderSession);
+          // Native build/inspection can outlast an idle refresh grant. Acquire a real
+          // fixture browser session only when its owned resource probes are requested.
+          var currentOutsider = browser.authorize("weave-app", URI.create("com.massimotter.weave:/oauthredirect"),
+              List.of("openid", "profile", "email"), outsiderEmail, outsiderPassword, "native-denied-fixture");
+          JsonNode outsiderClaims = browser.jwtPayload(currentOutsider.accessToken());
+          validateHumanWorkspaceToken(outsiderClaims, "weave-app");
+          requireNativeFixtureIdentity(outsiderSession, currentOutsider, outsiderClaims, "guest");
+          outsiderSession = currentOutsider;
           var deniedActor = new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
               .authenticatedUser(outsiderSession.accessToken());
           if (!outsiderSession.subject().equals(deniedActor.getSubject())
@@ -655,10 +663,22 @@ public final class FreshProductFlow {
           JsonNode resources = request.path("resources");
           requireNativeDenial("chat", "/_matrix/client/v3/rooms/" + nativePath(resources.path("roomId").asString())
               + "/messages?dir=b&limit=1", "errcode", "M_FORBIDDEN", bearer);
+          // C is a guest: capability policy denies Files/Calendar before resource authorization.
+          // The separate B revocation/regrant journey exercises the current Space grant boundary.
           requireNativeDenial("files", "/api/files/items/" + nativePath(resources.path("fileId").asString())
-              + "/content", "code", "files-forbidden", bearer);
+              + "/content", "code", "capability-policy-blocked", bearer);
           requireNativeDenial("calendar", "/api/calendar/calendars/" + nativePath(resources.path("calendarId").asString())
-              + "/events/" + nativePath(resources.path("eventId").asString()), "code", "calendar-forbidden", bearer);
+              + "/events/" + nativePath(resources.path("eventId").asString()), "code", "capability-policy-blocked", bearer);
+          var currentAdmin = browser.authorize("weave-admin-console", environment.productOrigin().resolve("/admin-console/"),
+              List.of("openid", "profile", "email", "agent-runtime.admin"), memberEmail, memberPassword,
+              "native-mutation-admin-fixture");
+          JsonNode adminClaims = browser.jwtPayload(currentAdmin.accessToken());
+          validateAdminToken(adminClaims);
+          requireNativeFixtureIdentity(nativeAdminSession, currentAdmin, adminClaims, "owner");
+          nativeAdminSession = currentAdmin;
+          requireNativeMutationDenials(http, environment.apiOrigin(), resources, environment.runId(),
+              bearer, Map.of("Authorization", "Bearer " + nativeAdminSession.accessToken()));
+          System.out.println("NATIVE_IOS_AUTHORIZATION readDenials=3 mutationDenials=3 supportSafe=true");
           Map<String, Object> proof = Map.of("status", "passed", "evidence", "server-denial",
               "deniedIdentityDigest", Hashing.sha256(outsiderSession.subject()),
               "resourceDigest", Hashing.sha256(resources.path("fileId").asString()),
@@ -679,8 +699,19 @@ public final class FreshProductFlow {
             throw new ProductFlowException("native current grant exchange ordering was invalid");
           }
           JsonNode request = requireOwnedNativeAuthorizationRequest(revocationRequest, environment.runId(), ownerSubject, peerSubject);
-          nativeAdminSession = browser.refresh(nativeAdminSession);
-          nativePeerSession = browser.refresh(nativePeerSession);
+          var currentAdmin = browser.authorize("weave-admin-console", environment.productOrigin().resolve("/admin-console/"),
+              List.of("openid", "profile", "email", "agent-runtime.admin"), memberEmail, memberPassword,
+              "native-revocation-admin-fixture");
+          JsonNode adminClaims = browser.jwtPayload(currentAdmin.accessToken());
+          validateAdminToken(adminClaims);
+          requireNativeFixtureIdentity(nativeAdminSession, currentAdmin, adminClaims, "owner");
+          nativeAdminSession = currentAdmin;
+          var currentPeer = browser.authorize("weave-app", URI.create("com.massimotter.weave:/oauthredirect"),
+              List.of("openid", "profile", "email"), peerEmail, peerPassword, "native-revocation-peer-fixture");
+          JsonNode peerClaims = browser.jwtPayload(currentPeer.accessToken());
+          validateHumanWorkspaceToken(peerClaims, "weave-app");
+          requireNativeFixtureIdentity(nativePeerSession, currentPeer, peerClaims, "member");
+          nativePeerSession = currentPeer;
           String fileId = request.path("resources").path("fileId").asString();
           new GeneratedSpacesJourney(environment).verifyRevocationAndVersionedRegrant(
               nativeAdminSession.accessToken(), nativePeerSession.accessToken(), nativePeerAccountRef, fileId);
@@ -756,8 +787,94 @@ public final class FreshProductFlow {
       Map<String, String> bearer) {
     JsonNode denial = http.json("native current third-identity " + category + " denial", "GET",
         environment.apiOrigin().resolve(path), bearer, null, Set.of(403));
-    if (!code.equals(denial.path(field).asString())) {
-      throw new ProductFlowException("native " + category + " denial category was invalid");
+    requireNativeDenialCode(denial, category, field, code);
+  }
+
+  static void requireNativeFixtureIdentity(OidcBrowserJourney.TokenSet expected,
+      OidcBrowserJourney.TokenSet current, JsonNode claims, String expectedRole) {
+    Set<String> productRoles = Set.of("owner", "admin", "member", "guest");
+    Set<String> actualRoles = organizationRoles(claims, "weave-app").stream()
+        .filter(productRoles::contains).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    if (!expected.subject().equals(current.subject()) || !current.subject().equals(claims.path("sub").asString())
+        || !expected.clientId().equals(current.clientId()) || !current.clientId().equals(claims.path("azp").asString())
+        || !Set.copyOf(expected.requestedScopes()).equals(Set.copyOf(current.requestedScopes()))
+        || NativeOrganizationClaims.violation(claims) != null || !actualRoles.equals(Set.of(expectedRole))) {
+      throw new ProductFlowException("native fixture identity authority changed");
+    }
+  }
+
+  static void requireNativeMutationDenials(JsonHttpClient http, URI origin, JsonNode resources,
+      String runId, Map<String, String> deniedBearer, Map<String, String> authorizedBearer) {
+    String filePath = "/api/files/items/" + nativePath(resources.path("fileId").asString()) + "/content";
+    String eventPath = "/api/calendar/calendars/" + nativePath(resources.path("calendarId").asString())
+        + "/events/" + nativePath(resources.path("eventId").asString());
+    // Read only the current conditional-write versions; these API reads are not Flutter UI proof.
+    var fileBefore = http.send("read native authorization file version", "GET", origin.resolve(filePath),
+        authorizedBearer, null, null, Set.of(200));
+    var eventBefore = http.send("read native authorization event version", "GET", origin.resolve(eventPath),
+        authorizedBearer, null, null, Set.of(200));
+    String fileVersion = requireNativeStrongVersion(fileBefore, "files");
+    String eventVersion = requireNativeStrongVersion(eventBefore, "calendar");
+    var encrypted = http.mapper().createObjectNode();
+    encrypted.put("algorithm", "m.megolm.v1.aes-sha2");
+    encrypted.put("ciphertext", java.util.Base64.getEncoder().encodeToString(
+        ("native denied " + runId).getBytes(StandardCharsets.UTF_8)));
+    encrypted.put("sender_key", "curve25519:outsider");
+    encrypted.put("session_id", "native-denied");
+    encrypted.put("device_id", "NATIVE_DENIED");
+    // Exercise the accepted encrypted wire shape; this denied attempt is not E2EE proof.
+    JsonNode chatDenial = http.json("native third-identity chat mutation denial", "PUT", origin.resolve(
+        "/_matrix/client/v3/rooms/" + nativePath(resources.path("roomId").asString())
+            + "/send/m.room.encrypted/native-denied-" + nativePath(runId)),
+        deniedBearer, encrypted, Set.of(403));
+    requireNativeDenialCode(chatDenial, "chat mutation", "errcode", "M_FORBIDDEN");
+    Map<String, String> fileHeaders = new java.util.LinkedHashMap<>(deniedBearer);
+    fileHeaders.put("If-Match", fileVersion);
+    fileHeaders.put("Idempotency-Key", "native-denied-" + runId);
+    var fileDenial = http.send("native third-identity files mutation denial", "PUT", origin.resolve(filePath),
+        fileHeaders, "application/octet-stream", ("must not write " + runId).getBytes(StandardCharsets.UTF_8), Set.of(403));
+    try {
+      requireNativeDenialCode(http.mapper().readTree(fileDenial.body()), "files mutation", "code", "capability-policy-blocked");
+    } catch (JacksonException invalid) {
+      throw new ProductFlowException("native files mutation denial encoding was invalid");
+    }
+    Map<String, String> eventHeaders = new java.util.LinkedHashMap<>(deniedBearer);
+    eventHeaders.put("If-Match", eventVersion);
+    JsonNode eventDenial = http.json("native third-identity calendar mutation denial", "DELETE",
+        origin.resolve(eventPath), eventHeaders, null, Set.of(403));
+    requireNativeDenialCode(eventDenial, "calendar mutation", "code", "capability-policy-blocked");
+    var fileAfter = http.send("verify native denied file mutation preserved content", "GET", origin.resolve(filePath),
+        authorizedBearer, null, null, Set.of(200));
+    var eventAfter = http.send("verify native denied event mutation preserved content", "GET", origin.resolve(eventPath),
+        authorizedBearer, null, null, Set.of(200));
+    try {
+      if (!fileVersion.equals(fileAfter.firstHeader("ETag"))
+          || !java.util.Arrays.equals(fileBefore.body(), fileAfter.body())
+          || !eventVersion.equals(eventAfter.firstHeader("ETag"))
+          || !http.mapper().readTree(eventBefore.body()).equals(http.mapper().readTree(eventAfter.body()))) {
+        throw new ProductFlowException("native denied mutation changed protected content or version");
+      }
+    } catch (JacksonException invalid) {
+      throw new ProductFlowException("native protected event readback encoding was invalid");
+    }
+  }
+
+  private static String requireNativeStrongVersion(JsonHttpClient.Response response, String category) {
+    String version = response.firstHeader("ETag");
+    if (version.length() > 256 || !version.matches("\"[^\"\\r\\n]+\"")) {
+      throw new ProductFlowException("native " + category + " mutation requires a current strong version");
+    }
+    return version;
+  }
+
+  private static void requireNativeDenialCode(JsonNode denial, String category, String field, String code) {
+    if (denial == null || !code.equals(denial.path(field).asString())) {
+      String actual = denial == null ? "" : denial.path(field).asString("");
+      String safeActual = Set.of("M_FORBIDDEN", "files-forbidden", "calendar-forbidden", "capability-policy-blocked")
+          .contains(actual) ? actual : actual.isEmpty() ? "missing" : "unrecognized";
+      // Callers have already required HTTP 403; never include arbitrary response text.
+      throw new ProductFlowException("native " + category + " denial category was invalid"
+          + " (HTTP 403 expected=" + code + " observed=" + safeActual + ")");
     }
   }
 

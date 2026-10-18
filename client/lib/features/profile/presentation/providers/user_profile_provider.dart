@@ -15,7 +15,7 @@ final backendProfileClientProvider = Provider<BackendProfileClient>((ref) {
 final userProfileRepositoryProvider = Provider<UserProfileRepository>((ref) {
   return BackendUserProfileRepository(
     client: ref.watch(backendProfileClientProvider),
-    sessionResolver: () => ref.read(weaveAuthenticatedSessionProvider.future),
+    sessionResolver: () => resolveCurrentWeaveAuthenticatedSession(ref),
   );
 });
 

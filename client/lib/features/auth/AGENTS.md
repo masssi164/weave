@@ -2,7 +2,7 @@
 
 `auth` is a foundational feature for onboarding and setup, but it is not an `AppShell` tab. Setup flows may trigger auth work, but token and session ownership stays inside this feature.
 
-Authentik OIDC rules:
+Native OIDC boundary:
 - keep authorization, token exchange, refresh, and logout logic inside `auth`
 - expose auth state in a form onboarding/setup can consume without duplicating auth internals
 - do not let presentation code talk directly to token endpoints or persistence
@@ -20,10 +20,11 @@ Session expectations:
 - downstream integrations may consume restored app OIDC sessions to derive their own protocol access, but auth still owns token refresh, storage, and validity decisions
 - do not let non-auth features or integrations persist duplicate copies of app OIDC tokens
 
-Infrastructure-aligned app OIDC defaults:
-- keep the app-native redirect scheme aligned to infrastructure: `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout`
-- keep the app client ID aligned to infrastructure: `weave-app`
-- treat the app client as infra-managed by default; the server config flow may expose the client ID with `weave-app` as the default and allow override for custom issuers
+Accepted native OIDC configuration:
+- keep the app-native redirect scheme aligned to the accepted contract: `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout`
+- resolve the validated issuer and native client ID from the single OrgManifest v2 bootstrap returned by the generated User `GET /api/platform/config` operation
+- members enter only the public organization URL or an invitation; do not expose manual issuer, realm, client ID or provider configuration, or introduce a second bootstrap contract
+- use the system browser and Authorization Code with PKCE; preserve passkey and MFA compatibility and never collect passwords inside Flutter
 
 ## Global Weave agent baseline
 

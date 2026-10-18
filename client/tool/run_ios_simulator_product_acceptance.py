@@ -370,7 +370,25 @@ def run(arguments: list[str], *, env=None, timeout=900) -> str:
         stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as failure:
         stage = command_stage(arguments)
-        failure_marker('infrastructure', stage, 'command-timeout')
+        try:
+            partial = []
+            for stream in (failure.stdout, failure.stderr):
+                if isinstance(stream, bytes):
+                    stream = stream[-32768:].decode('utf-8', errors='replace')
+                if isinstance(stream, str):
+                    partial.append(stream[-32768:].encode('utf-8')[-32768:].decode('utf-8', errors='ignore'))
+            diagnostic = retain_private_diagnostic('\n'.join(partial))
+            print('NATIVE_IOS_COMMAND_RESULT status=timeout privateDiagnostic=' + diagnostic.name + ' supportSafe=true', flush=True)
+        except Exception:
+            # Private retention and its status marker cannot replace the timeout.
+            try:
+                print('NATIVE_IOS_COMMAND_RESULT status=unavailable supportSafe=true', flush=True)
+            except Exception:
+                pass
+        try:
+            failure_marker('infrastructure', stage, 'command-timeout')
+        except Exception:
+            pass
         raise NativeFailure('infrastructure', stage, 'command-timeout') from failure
     finally:
         stop_flutter_process_group(process)
@@ -624,7 +642,7 @@ def prepare_workspace_completion(temporary: Path, phase: str) -> Path:
     return completion
 
 
-def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path, phase: str, timeout: float = 360) -> bool:
+def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path, phase: str, timeout: float = 360, *, start_offset: int = 0) -> bool:
     # Independent read handle preserves the subprocess writer's offset. The
     # private IPC file carries no token/callback; its only producer is the exact
     # real Flutter workspace assertion. A submitted form is insufficient.
@@ -632,6 +650,10 @@ def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path
     pending = ''
     discard_line = False
     with log_path.open(errors='replace', newline='') as observer:
+        if start_offset < 0 or (start_offset > 0 and start_offset > log_path.stat().st_size):
+            raise NativeFailure('infrastructure', phase + '-auth-completion', 'invalid-owned-log-offset')
+        if start_offset:
+            observer.seek(start_offset)
         while time.monotonic() < deadline:
             if driver.poll() is not None:
                 return False

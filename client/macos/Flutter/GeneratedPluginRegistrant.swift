@@ -6,7 +6,7 @@ import FlutterMacOS
 import Foundation
 
 import app_links
-import file_picker
+import file_picker_darwin
 import flutter_appauth
 import flutter_secure_storage_darwin
 import package_info_plus

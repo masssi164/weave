@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -24,6 +25,9 @@ import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
+import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
+import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart'
+    show authSessionStorageKey;
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
 import 'package:weave/features/chat/data/repositories/matrix_device_identity_repository.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
@@ -54,6 +58,57 @@ const _runId = String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID');
 const _simulator = bool.fromEnvironment('WEAVE_NATIVE_EXPECT_SIMULATOR');
 const _disposable = bool.fromEnvironment('WEAVE_DEVICE_DISPOSABLE_STACK');
 const _actorTestBudget = Duration(minutes: 30);
+
+/// Snapshot only the owned export directory, without following links.
+Future<Set<String>> nativeDualExportSnapshot(Directory documents) async {
+  final root = await documents.resolveSymbolicLinks();
+  final files = <String>{};
+  var examined = 0;
+  await for (final entry in Directory(
+    root,
+  ).list(recursive: true, followLinks: false)) {
+    if (++examined > 4096) {
+      throw TestFailure(
+        'Owned export directory exceeds the observation bound.',
+      );
+    }
+    if (entry is File) {
+      files.add(entry.absolute.uri.normalizePath().toFilePath());
+    }
+  }
+  return files;
+}
+
+/// Verify the actual selected destination, rather than the picker staging file.
+Future<File> requireNativeDualExportDestination(
+  Directory documents,
+  Set<String> before,
+  String? selected,
+) async {
+  if (selected == null || !File(selected).isAbsolute) {
+    throw TestFailure('Native export did not return an absolute destination.');
+  }
+  final root = await documents.resolveSymbolicLinks();
+  final destination = File(selected).absolute.uri.normalizePath().toFilePath();
+  if (!destination.startsWith('$root${Platform.pathSeparator}') ||
+      before.contains(destination)) {
+    throw TestFailure('Native export destination is not a new owned file.');
+  }
+  var current = destination;
+  while (current != root) {
+    final type = await FileSystemEntity.type(current, followLinks: false);
+    if (type == FileSystemEntityType.link ||
+        type == FileSystemEntityType.notFound) {
+      throw TestFailure('Native export destination ownership is unavailable.');
+    }
+    current = File(current).parent.path;
+  }
+  if (await FileSystemEntity.type(destination, followLinks: false) !=
+      FileSystemEntityType.file) {
+    throw TestFailure('Native export destination is not a regular file.');
+  }
+  return File(destination);
+}
 
 Map<String, String> nativeDualSessionIdentityDigests(
   Map<String, dynamic> claims, {
@@ -256,6 +311,46 @@ Future<void> _reportOnboardingFailure(
   );
 }
 
+String nativeDualFilesUploadDiagnostic(AsyncValue<FilesViewState>? state) {
+  final value = state?.asData?.value;
+  return 'NATIVE_PRODUCT_STAGE phase=files-upload-wait-failed '
+      'initialized=${state != null} '
+      'loading=${state?.isLoading ?? false} '
+      'error=${state?.hasError ?? false} '
+      'data=${value != null} '
+      'uploadPhase=${value?.uploadStatus.phase.name ?? 'unavailable'} '
+      'uploadFailure=${value?.uploadStatus.failure?.type.name ?? 'unavailable'} '
+      'directoryFailure=${value?.directoryFailure?.type.name ?? 'unavailable'} '
+      'busy=${value?.isBusy ?? false}';
+}
+
+Future<void> nativeDualFilesUploadProbe(
+  ProviderContainer container,
+  Future<void> Function() operation, {
+  void Function(String)? diagnostic,
+}) async {
+  void emit(String message) => diagnostic != null
+      ? diagnostic(message)
+      : emitNativeProductDiagnostic(message, simulatorDriver: true);
+  try {
+    await operation();
+  } catch (_) {
+    await safelyReportDualOnboardingFailure(
+      report: () async => emit(
+        nativeDualFilesUploadDiagnostic(
+          container.exists(filesProvider)
+              ? container.read(filesProvider)
+              : null,
+        ),
+      ),
+      unavailable: () => emit(
+        'NATIVE_PRODUCT_STAGE phase=files-upload-wait-failed state=unavailable',
+      ),
+    );
+    rethrow;
+  }
+}
+
 Future<void> _wait(
   WidgetTester tester,
   bool Function() condition,
@@ -314,7 +409,193 @@ Future<Finder> openNativeDualChatCreationDialog(
   return name;
 }
 
+({bool home, bool entry}) nativeLocalInspectionSurface(Element? root) {
+  var home = false;
+  var entry = false;
+  void visit(Element element) {
+    final widget = element.widget;
+    if ((widget is Offstage && widget.offstage) ||
+        (widget is TickerMode && !widget.enabled)) {
+      return;
+    }
+    if (widget is OrganizationAccessScreen) entry = true;
+    if (widget.key == const ValueKey('weave.workspace.home')) home = true;
+    element.visitChildElements(visit);
+  }
+
+  if (root != null) visit(root);
+  return (home: home, entry: entry);
+}
+
+Future<Map<String, String>?> nativeLocalInspectionSessionSnapshot({
+  required Future<String?> Function() readSession,
+  required Future<String?> Function() readDevice,
+  required bool Function() workspaceCurrent,
+  required AuthConfiguration configuration,
+  required Map<String, dynamic> fixture,
+}) async {
+  final raw = await readSession();
+  if (raw == null || !workspaceCurrent()) return null;
+  final session = AuthSessionDto.decode(raw).toSession();
+  if (!session.matches(configuration)) return null;
+  final parts = session.accessToken.split('.');
+  if (parts.length != 3) return null;
+  final claims =
+      jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))))
+          as Map<String, dynamic>;
+  final identity = nativeDualSessionIdentityDigests(
+    claims,
+    expectedSubjectDigest: fixture['identityDigestExpected'] as String,
+    expectedIssuer: fixture['identityIssuer'] as String,
+    expectedNativeOrganizationId: fixture['nativeOrganizationId'] as String,
+  );
+  final device = await readDevice();
+  if (await readSession() != raw || !workspaceCurrent()) return null;
+  return {
+    ...identity,
+    if (device != null && device.isNotEmpty)
+      'matrixDeviceDigest': sha256.convert(utf8.encode(device)).toString(),
+  };
+}
+
+const nativeLocalInspectionEntryDiagnostic =
+    'NATIVE_PRODUCT_STAGE phase=local-inspection-entry-ready qualificationPassed=false supportSafe=true';
+const nativeLocalInspectionUnavailableDiagnostic =
+    'NATIVE_PRODUCT_STAGE phase=local-inspection-unavailable qualificationPassed=false supportSafe=true';
+
+Future<void> nativeLocalInspectionMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  ui.PlatformDispatcher.instance.setSemanticsTreeEnabled(true);
+  if (!(Platform.isIOS && _simulator && _disposable && _runId.isNotEmpty)) {
+    throw StateError(
+      'Local inspection requires its owned iOS simulator session.',
+    );
+  }
+  final support = await getApplicationSupportDirectory();
+  final fixture =
+      jsonDecode(
+            await File(
+              '${support.path}/weave-dual-ios-input.json',
+            ).readAsString(),
+          )
+          as Map<String, dynamic>;
+  if (fixture['runId'] != _runId || !['A', 'B'].contains(fixture['role'])) {
+    throw StateError('Local inspection actor binding is unavailable.');
+  }
+  final container = ProviderContainer();
+  runApp(
+    UncontrolledProviderScope(container: container, child: const WeaveApp()),
+  );
+  var checking = false;
+  var ready = false;
+  var entryObserved = false;
+  var unavailableReported = false;
+  final stateFile = File('${support.path}/weave-local-inspection-state.json');
+  // Passive local instrumentation never restores, refreshes or clears auth.
+  Timer.periodic(const Duration(seconds: 1), (_) async {
+    if (checking || !container.exists(appBootstrapProvider)) return;
+    checking = true;
+    try {
+      final surface = nativeLocalInspectionSurface(
+        WidgetsBinding.instance.rootElement,
+      );
+      if (!entryObserved && surface.entry) {
+        emitNativeProductDiagnostic(
+          nativeLocalInspectionEntryDiagnostic,
+          simulatorDriver: true,
+        );
+        entryObserved = true;
+      }
+      if (container.read(appBootstrapProvider).asData?.value.phase !=
+          BootstrapPhase.ready) {
+        if (ready) {
+          ready = false;
+          await writeNativeDualPrivateJson(stateFile, {
+            'mode': 'local-inspection',
+            'qualificationPassed': false,
+            'role': fixture['role'],
+            'runId': _runId,
+            'workspaceObserved': false,
+          });
+        }
+        return;
+      }
+      if (!container.exists(savedServerConfigurationProvider) ||
+          !container.exists(secureStoreProvider)) {
+        return;
+      }
+      final configuration = container
+          .read(savedServerConfigurationProvider)
+          .asData
+          ?.value;
+      if (configuration == null) return;
+      final store = container.read(secureStoreProvider);
+      bool current() =>
+          container.exists(appBootstrapProvider) &&
+          container.read(appBootstrapProvider).asData?.value.phase ==
+              BootstrapPhase.ready &&
+          identical(
+            container.read(savedServerConfigurationProvider).asData?.value,
+            configuration,
+          ) &&
+          nativeLocalInspectionSurface(
+            WidgetsBinding.instance.rootElement,
+          ).home;
+      if (ready) return;
+      if (!surface.home) return;
+      final identity = await nativeLocalInspectionSessionSnapshot(
+        readSession: () => store.read(authSessionStorageKey),
+        readDevice: () => store.read(matrixDeviceIdentityStorageKey),
+        workspaceCurrent: current,
+        configuration: AuthConfiguration(
+          issuer: configuration.oidcIssuerUrl,
+          clientId: configuration.oidcClientRegistration.clientId,
+        ),
+        fixture: fixture,
+      );
+      if (identity == null || !current()) return;
+      final observedProof = {
+        'mode': 'local-inspection',
+        'qualificationPassed': false,
+        'role': fixture['role'],
+        'runId': _runId,
+        'workspaceObserved': true,
+        'observedAt': DateTime.now().toUtc().toIso8601String(),
+        ...identity,
+      };
+      await writeNativeDualPrivateJson(stateFile, observedProof);
+      if (!current()) {
+        await writeNativeDualPrivateJson(stateFile, {
+          'mode': 'local-inspection',
+          'qualificationPassed': false,
+          'role': fixture['role'],
+          'runId': _runId,
+          'workspaceObserved': false,
+        });
+        return;
+      }
+      _stage('workspace-ready');
+      ready = true;
+      unavailableReported = false;
+    } catch (_) {
+      if (!unavailableReported) {
+        emitNativeProductDiagnostic(
+          nativeLocalInspectionUnavailableDiagnostic,
+          simulatorDriver: true,
+        );
+        unavailableReported = true;
+      }
+    } finally {
+      checking = false;
+    }
+  });
+}
+
 void main() {
+  if (const bool.fromEnvironment('WEAVE_NATIVE_LOCAL_INSPECTION')) {
+    unawaited(nativeLocalInspectionMain());
+    return;
+  }
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.platformDispatcher.semanticsEnabledTestValue = true;
   ui.PlatformDispatcher.instance.setSemanticsTreeEnabled(true);
@@ -510,9 +791,14 @@ void main() {
       };
       await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
-      scenarios['accessibility'] = {
-        'status': 'passed',
-        'evidence': 'flutter-ui',
+      final accessibilityScreens = <String>{
+        'home',
+        if (prior != null &&
+            scenarios['accessibility']?['status'] == 'passed') ...[
+          'chat',
+          'calendar',
+          'files',
+        ],
       };
       await _tap(
         tester,
@@ -663,6 +949,11 @@ void main() {
               const Duration(seconds: 60),
             );
             await tapNativeDualPeer(tester, peer, deadline: actionDeadline);
+            await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+            await expectLater(
+              tester,
+              meetsGuideline(labeledTapTargetGuideline),
+            );
             await _tap(
               tester,
               find.byKey(const Key('chat-create-conversation-submit-button')),
@@ -879,17 +1170,20 @@ void main() {
                 _copy(tester).filesUploadButton,
               ),
             );
-            await _wait(
-              tester,
-              () =>
-                  container
-                      .read(filesProvider)
-                      .asData
-                      ?.value
-                      .uploadStatus
-                      .phase ==
-                  FilesUploadPhase.completed,
-              const Duration(seconds: 90),
+            await nativeDualFilesUploadProbe(
+              container,
+              () => _wait(
+                tester,
+                () =>
+                    container
+                        .read(filesProvider)
+                        .asData
+                        ?.value
+                        .uploadStatus
+                        .phase ==
+                    FilesUploadPhase.completed,
+                const Duration(seconds: 90),
+              ),
             );
             final uploaded = container
                 .read(filesProvider)
@@ -1001,14 +1295,8 @@ void main() {
           case 'files-export':
           case 'files-export-updated':
             expect(fileId, isNotNull);
-            final output = File(
-              '${(await getApplicationDocumentsDirectory()).path}/$fileName',
-            );
-            expect(
-              await output.exists(),
-              isFalse,
-              reason: 'An existing fixture cannot prove native export.',
-            );
+            final documents = await getApplicationDocumentsDirectory();
+            final beforeExport = await nativeDualExportSnapshot(documents);
             await writeNativeDualPrivateJson(
               File('${support.path}/weave-dual-ios-native-request.json'),
               {'sequence': next, 'mode': 'export', 'fileName': fileName},
@@ -1025,6 +1313,15 @@ void main() {
                       .phase ==
                   FilesEntryActionPhase.exportedEntry,
               const Duration(seconds: 90),
+            );
+            final output = await requireNativeDualExportDestination(
+              documents,
+              beforeExport,
+              container
+                  .read(filesProvider)
+                  .requireValue
+                  .entryActionStatus
+                  .destination,
             );
             expect(
               await output.readAsString(),
@@ -1405,6 +1702,14 @@ void main() {
             };
           case 'finish':
             expect(
+              accessibilityScreens,
+              containsAll(['home', 'chat', 'calendar', 'files']),
+            );
+            scenarios['accessibility'] = {
+              'status': 'passed',
+              'evidence': 'flutter-ui',
+            };
+            expect(
               scenarios.keys.toSet(),
               containsAll([
                 'authentication',
@@ -1418,6 +1723,27 @@ void main() {
             );
           default:
             throw TestFailure('Unsupported private collaboration command.');
+        }
+        for (final screen in ['chat', 'calendar', 'files']) {
+          if (action.startsWith('$screen-')) {
+            await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+            await expectLater(
+              tester,
+              meetsGuideline(labeledTapTargetGuideline),
+            );
+            accessibilityScreens.add(screen);
+          }
+        }
+        if (accessibilityScreens.containsAll([
+          'home',
+          'chat',
+          'calendar',
+          'files',
+        ])) {
+          scenarios['accessibility'] = {
+            'status': 'passed',
+            'evidence': 'flutter-ui',
+          };
         }
         sequence = next;
         if (fileId != null) {
@@ -1492,6 +1818,8 @@ Future<void> _filePreview(
     const Duration(seconds: 90),
   );
   expect(tester.widget<SelectableText>(content).data, expected);
+  await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+  await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
   await _tap(
     tester,
     find.widgetWithText(
@@ -1898,6 +2226,8 @@ Future<void> editNativeDualCalendarEvent(
   if (!DateTime.now().isBefore(deadline)) {
     throw TestFailure('The real Calendar editor action deadline expired.');
   }
+  await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+  await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
   await _tap(
     tester,
     find.widgetWithText(FilledButton, copy.calendarSaveButton),

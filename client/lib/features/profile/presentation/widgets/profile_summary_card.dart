@@ -158,9 +158,9 @@ class _ProfileEditFormState extends ConsumerState<_ProfileEditForm> {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final editState = ref.watch(profileEditControllerProvider);
-    final message =
-        editState.failure?.message ??
-        (editState.savedSuccessfully ? l10n.profileEditSavedMessage : null);
+    final message = editState.failure != null
+        ? l10n.profileEditSaveFailureMessage
+        : (editState.savedSuccessfully ? l10n.profileEditSavedMessage : null);
     final messageColor = editState.failure == null
         ? theme.colorScheme.primary
         : theme.colorScheme.error;

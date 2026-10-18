@@ -15,6 +15,11 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def main() -> int:
+    if os.environ.get('WEAVE_NATIVE_LOCAL_INSPECTION') == 'true':
+        # Inspection cannot enter qualification artifact construction or PASS paths.
+        import run_dual_ios_collaboration as dual
+        output = dual.ios.verified_private_parent() / ('dual-ios-result-' + os.environ['WEAVE_E2E_RUN_ID'] + '.json')
+        return dual.main(['--output', str(output)]) or 70
     output = Path(os.environ['WEAVE_TEST_APP_RUN_ROOT']) / 'native-qualification.json'
     identity = json.loads((ROOT / 'specs/weave-specs.lock.json').read_text())
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:mime/mime.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_session.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
@@ -146,6 +147,16 @@ class BackendFilesRepository
         key,
         _uploadBody(content, onProgress: onProgress),
         spaceRef: listing.parentFileId == rootFileId ? spaceRef : null,
+        mediaType:
+            lookupMimeType(
+              request.fileName,
+              headerBytes: Uint8List.sublistView(
+                content,
+                0,
+                min(content.length, defaultMagicNumbersMaxLength),
+              ),
+            ) ??
+            'application/octet-stream',
       ),
       fallbackMessage: 'Unable to upload the file through Weave Files.',
       confirmIdentity: true,
@@ -313,6 +324,16 @@ class BackendFilesRepository
         validator,
         _idempotencyKey(),
         _uploadBody(content, onProgress: onProgress),
+        mediaType:
+            lookupMimeType(
+              entry.name,
+              headerBytes: Uint8List.sublistView(
+                content,
+                0,
+                min(content.length, defaultMagicNumbersMaxLength),
+              ),
+            ) ??
+            'application/octet-stream',
       ),
       fallbackMessage: 'Unable to update the file through Weave Files.',
       confirmIdentity: true,

@@ -17,7 +17,7 @@ fn response(value: Value) -> ruma::api::client::sync::sync_events::v3::Response 
 }
 
 #[test]
-fn invitation_requires_a_new_canonical_sync_cursor() {
+fn projected_membership_advances_opaque_matrix_sync_token() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -72,15 +72,17 @@ fn invitation_requires_a_new_canonical_sync_cursor() {
             .unwrap();
         assert!(client.rooms().is_empty());
         let pending = project("chat-revision-0", true);
-        assert_eq!(empty["next_batch"], pending["next_batch"]);
+        assert_ne!(empty["next_batch"], pending["next_batch"]);
         assert_eq!(pending["rooms"]["invite"].as_object().unwrap().len(), 1);
+        let mut repeated_token = pending.clone();
+        repeated_token["next_batch"] = empty["next_batch"].clone();
         client
-            .receive_sync_response(response(pending))
+            .receive_sync_response(response(repeated_token))
             .await
             .unwrap();
         assert!(client.rooms().is_empty());
         client
-            .receive_sync_response(response(project("chat-revision-1", true)))
+            .receive_sync_response(response(pending))
             .await
             .unwrap();
         assert_eq!(client.rooms().len(), 1);

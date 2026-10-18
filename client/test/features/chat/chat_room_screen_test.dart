@@ -829,6 +829,70 @@ void main() {
     },
   );
 
+  for (final locale in ['en', 'de']) {
+    testWidgets(
+      'metadata title, own sender and local time agree with semantics $locale',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        tester.platformDispatcher.localesTestValue = [Locale(locale)];
+        addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+        final semantics = tester.ensureSemantics();
+        final instant = DateTime.utc(2026, 10, 15, 21, 51);
+        final repository = FakeChatRepository(
+          loadRoomTimelineHandler: (_) async => ChatRoomTimeline(
+            roomId: conversation.id,
+            roomTitle: '',
+            isInvite: false,
+            canSendMessages: true,
+            messages: [
+              ChatMessage(
+                id: 'own-echo',
+                senderId: 'opaque-id',
+                senderDisplayName: 'opaque-acct',
+                sentAt: instant,
+                isMine: true,
+                deliveryState: ChatMessageDeliveryState.sent,
+                contentType: ChatMessageContentType.text,
+                text: 'Actual own echo',
+              ),
+            ],
+          ),
+        );
+        await tester.pumpWidget(
+          createTestApp(
+            Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: const TextScaler.linear(1.4)),
+                child: const ChatRoomScreen(conversation: conversation),
+              ),
+            ),
+            overrides: overridesFor(repository),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final context = tester.element(find.byType(ChatRoomScreen));
+        final you = AppLocalizations.of(context).chatRoomYouLabel;
+        final localTime = MaterialLocalizations.of(
+          context,
+        ).formatTimeOfDay(TimeOfDay.fromDateTime(instant.toLocal()));
+        expect(find.text('Project'), findsWidgets);
+        expect(find.text('opaque-acct'), findsNothing);
+        expect(find.text(you), findsOneWidget);
+        expect(find.text(localTime), findsOneWidget);
+        expect(
+          find.bySemanticsLabel('$you. Actual own echo. $localTime'),
+          findsOneWidget,
+        );
+        semantics.dispose();
+      },
+    );
+  }
+
   testWidgets('loads and renders a room timeline', (tester) async {
     final repository = FakeChatRepository(
       loadRoomTimelineHandler: (_) async => buildTimeline(),
@@ -1595,7 +1659,7 @@ void main() {
     );
     expect(
       find.bySemanticsLabel(
-        RegExp('Me.*Unsupported message.*Not sent'),
+        RegExp('You.*Unsupported message.*Not sent'),
         skipOffstage: false,
       ),
       findsOneWidget,

@@ -3,93 +3,51 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
-import 'package:weave/features/files/data/services/file_upload_request_from_path_stub.dart'
-    if (dart.library.io) 'package:weave/features/files/data/services/file_upload_request_from_path_io.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/services/files_import_picker.dart';
 
-typedef FilePickerPickFiles =
-    Future<FilePickerResult?> Function({
-      String? dialogTitle,
-      bool allowMultiple,
-      bool withData,
-      bool withReadStream,
-    });
+typedef FilePickerPickFile =
+    Future<PlatformFile?> Function({String? dialogTitle});
 
 class FilePickerFilesImportPicker implements FilesImportPicker {
-  FilePickerFilesImportPicker({FilePickerPickFiles? pickFiles})
-    : _pickFiles = pickFiles ?? _defaultPickFiles;
+  FilePickerFilesImportPicker({FilePickerPickFile? pickFile})
+    : _pickFile = pickFile ?? FilePicker.pickFile;
 
-  final FilePickerPickFiles _pickFiles;
-
-  static Future<FilePickerResult?> _defaultPickFiles({
-    String? dialogTitle,
-    bool allowMultiple = false,
-    bool withData = false,
-    bool withReadStream = false,
-  }) {
-    return FilePicker.pickFiles(
-      dialogTitle: dialogTitle,
-      allowMultiple: allowMultiple,
-      withData: withData,
-      withReadStream: withReadStream,
-    );
-  }
+  final FilePickerPickFile _pickFile;
 
   @override
   Future<FileUploadRequest?> pickFile() async {
-    final FilePickerResult? result;
+    final PlatformFile? file;
     try {
-      result = await _pickFiles(
-        dialogTitle: 'Choose a file to upload',
-        allowMultiple: false,
-        withData: false,
-        withReadStream: true,
-      );
+      file = await _pickFile(dialogTitle: 'Choose a file to upload');
     } on PlatformException catch (error) {
-      if (_isPickerCancellation(error)) {
-        return null;
-      }
+      if (_isPickerCancellation(error)) return null;
       throw _mapPlatformException(error);
     }
-
-    final file = result?.files.singleOrNull;
-    if (file == null) {
-      return null;
-    }
-
-    final byteStream = file.readStream;
-    if (byteStream != null) {
+    if (file == null) return null;
+    try {
+      final length = await file.length();
+      if (length == null || length < 0) {
+        throw const FilesFailure.storage(
+          'Weave could not read the selected file. Choose a local file you can access.',
+        );
+      }
       return FileUploadRequest(
         fileName: file.name,
-        sizeInBytes: file.size,
-        byteStream: byteStream,
+        sizeInBytes: length,
+        byteStream: file.readAsByteStream(),
+      );
+    } on FilesFailure {
+      rethrow;
+    } on PlatformException catch (error) {
+      throw _mapPlatformException(error);
+    } on Object catch (error) {
+      throw FilesFailure.storage(
+        'Weave could not read the selected file. Choose a local file you can access.',
+        cause: error,
       );
     }
-
-    final bytes = file.bytes;
-    if (bytes != null) {
-      return FileUploadRequest(
-        fileName: file.name,
-        sizeInBytes: bytes.length,
-        byteStream: Stream<List<int>>.value(bytes),
-      );
-    }
-
-    final pathRequest = fileUploadRequestFromPath(
-      fileName: file.name,
-      sizeInBytes: file.size,
-      path: file.path,
-    );
-    if (pathRequest != null) {
-      return pathRequest;
-    }
-
-    throw FilesFailure.unsupportedPlatform(
-      'This device selected ${file.name}, but did not provide a readable file. '
-      'Try choosing a local file or checking platform file permissions.',
-    );
   }
 
   bool _isPickerCancellation(PlatformException error) {

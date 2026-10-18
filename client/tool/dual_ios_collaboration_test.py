@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Private actor ownership and mandatory real-proof contract regressions."""
+import contextlib
+import io
 import hashlib
 import json
 import os
@@ -19,6 +21,284 @@ import run_ios_simulator_product_acceptance as ios
 
 
 class DualIosCollaborationTest(unittest.TestCase):
+    def test_inspection_run_uses_canonical_inputs_and_independent_outputs(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {'WEAVE_E2E_RUN_ID': 'owned-test'}):
+            root = Path(temporary)
+            client = root / 'client'
+            mapping = client / '.dart_tool/flutter_build/owned/native_assets.json'
+            app = client / 'build/ios/iphonesimulator/Runner.app'
+            commands = []
+            with mock.patch.object(ios, 'CLIENT', client):
+                for role in ['A', 'B']:
+                    compiler = root / role / 'compiler'
+                    commands.append(dual.inspection_run_command('owned-' + role, compiler, app, mapping))
+            for command in commands:
+                self.assertIn('--packages=' + str(client / '.dart_tool/package_config.json'), command)
+                self.assertIn('--native-assets-yaml-file=' + str(mapping), command)
+                self.assertIn('--use-application-binary=' + str(app), command)
+                self.assertTrue({'run', '--debug', '--no-build', '--no-pub', '--no-track-widget-creation'}.issubset(command))
+                self.assertFalse(any('start-paused' in arg or 'debug-url' in arg for arg in command))
+            for flag in ['--output-dill=', '--pid-file=']:
+                self.assertNotEqual(next(x for x in commands[0] if x.startswith(flag)), next(x for x in commands[1] if x.startswith(flag)))
+
+    def test_initial_build_map_comes_only_from_completed_ios_build_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            client = Path(temporary)
+            receipt = client / 'build/ios/Debug-iphonesimulator/.last_build_id'
+            receipt.parent.mkdir(parents=True)
+            build_id = 'a' * 32
+            mapping = client / '.dart_tool/flutter_build' / build_id / 'native_assets.json'
+            mapping.parent.mkdir(parents=True)
+            receipt.write_text(build_id)
+            mapping.write_text(json.dumps({'format-version': [1, 0, 0], 'native-assets': {'ios_arm64': {'owned': ['absolute', '/owned']}}}))
+            self.assertEqual(dual.initial_build_native_assets(client), mapping)
+            for invalid in ['../outside', 'b' * 32, '']:
+                receipt.write_text(invalid)
+                with self.assertRaises(ios.NativeFailure): dual.initial_build_native_assets(client)
+            receipt.write_text(build_id)
+            mapping.write_text('{}')
+            with self.assertRaises(ios.NativeFailure): dual.initial_build_native_assets(client)
+            mapping.unlink(); mapping.symlink_to(receipt)
+            with self.assertRaises(ios.NativeFailure): dual.initial_build_native_assets(client)
+
+    def test_inspection_run_starts_in_canonical_project_with_owned_pid_and_actual_marker(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {'WEAVE_E2E_RUN_ID': 'owned-test'}):
+            root = Path(temporary); compiler = root / 'compiler'; compiler.mkdir()
+            streams = []
+            process = mock.Mock(pid=123)
+            def start(command, **kwargs):
+                self.assertEqual(kwargs['cwd'], ios.CLIENT)
+                (compiler / 'run.pid').write_text('123')
+                kwargs['stdout'].write('NATIVE_PRODUCT_STAGE phase=local-inspection-entry-ready qualificationPassed=false supportSafe=true\n')
+                kwargs['stdout'].flush()
+                return process
+            try:
+                with mock.patch.object(dual.subprocess, 'Popen', side_effect=start), mock.patch.object(dual, 'track_process', side_effect=lambda p: p), mock.patch.object(ios, 'simulator_app_pid', return_value='456'), mock.patch.object(dual, 'current_actor_support', return_value=root / 'current-support'):
+                    actor = dual.start_local_actor('owned', compiler, root / 'Runner.app', root / 'native_assets.json', {}, root, streams, require_entry=True, generation=1, expected_fixture={'runId': 'owned-test', 'role': 'A', 'storageDigest': 'preinstall'})
+                self.assertEqual(actor['pid'], '456')
+                self.assertEqual(actor['process'], process)
+                self.assertFalse((root / 'client').exists(), 'local inspection must not copy a project')
+            finally:
+                for stream in streams: stream.close()
+
+    def test_current_support_follows_owned_reinstall_and_rejects_bad_fixture(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {'WEAVE_E2E_RUN_ID': 'owned-test'}):
+            root = Path(temporary).resolve()
+            udid = '11111111-1111-1111-1111-111111111111'
+            current = root / 'CoreSimulator/Devices' / udid / 'data/Containers/Data/Application/current'
+            support = current / 'Library/Application Support'; support.mkdir(parents=True)
+            fixture = support / 'weave-dual-ios-input.json'
+            expected = {'runId': 'owned-test', 'role': 'A', 'storageDigest': 'preinstall-digest'}
+            fixture.write_text(json.dumps(expected)); fixture.chmod(0o600)
+            with mock.patch.object(ios, 'simulator_app_pid', return_value='123'), mock.patch.object(ios, 'run', return_value=str(current)):
+                self.assertEqual(dual.current_actor_support(udid, '123', expected, {}), support)
+                self.assertFalse((current.parent / 'old').exists())
+                for changed in [{'role': 'B'}, {'runId': 'other'}, {'storageDigest': 'tampered'}]:
+                    fixture.write_text(json.dumps({**expected, **changed}))
+                    with self.assertRaises(ios.NativeFailure): dual.current_actor_support(udid, '123', expected, {})
+                fixture.write_text(json.dumps(expected)); fixture.chmod(0o644)
+                with self.assertRaises(ios.NativeFailure): dual.current_actor_support(udid, '123', expected, {})
+                fixture.chmod(0o600); original = support / 'original'; fixture.rename(original); fixture.symlink_to(original)
+                with self.assertRaises(ios.NativeFailure): dual.current_actor_support(udid, '123', expected, {})
+            with mock.patch.object(ios, 'simulator_app_pid', return_value='different'), mock.patch.object(ios, 'run') as query:
+                with self.assertRaises(ios.NativeFailure): dual.current_actor_support(udid, '123', expected, {})
+                query.assert_not_called()
+
+    def test_picker_reuses_main_thread_child_finally_on_owner_interruption(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            products = Path(temporary); (products / 'owned.xctestrun').touch()
+            (products / 'BrowserDriver.xctest').mkdir()
+            child = mock.Mock(); interruption = SystemExit(130)
+            child.communicate.side_effect = interruption
+            with mock.patch.object(ios, 'simulator_app_pid', return_value='123'), \
+                 mock.patch.object(ios.subprocess, 'Popen', return_value=child) as launch, \
+                 mock.patch.object(ios, 'stop_flutter_process_group') as stop:
+                with self.assertRaises(SystemExit) as caught:
+                    dual.perform_owned_picker('owned', '123', products, {}, 'import', 'weave-dual-initial-owned.txt')
+            self.assertIs(caught.exception, interruption)
+            stop.assert_called_once_with(child)
+            child.communicate.assert_called_once_with(timeout=90)
+            self.assertTrue(launch.call_args.kwargs['start_new_session'])
+            self.assertIn('-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker', launch.call_args.args[0])
+
+    def test_local_browser_waits_for_cu_and_picker_uses_same_owned_operation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); scope = root / 'scope'; scope.mkdir()
+            derived = root / 'derived'; products = derived / 'Build/Products'; products.mkdir(parents=True)
+            (products / 'owned.xctestrun').touch(); (products / 'BrowserDriver.xctest').mkdir()
+            prepared = {}
+            def prepare(actor, _udid, _app, _data, _env):
+                expected = {'role': actor['role'], 'runId': 'owned-test', 'storageDigest': 'preinstall'}
+                prepared[actor['role']] = expected
+                return root / 'obsolete', expected
+            def start(udid, compiler, _app, _map, env, actor_scope, streams, **kwargs):
+                log = actor_scope / 'run-1.log'; stream = log.open('w'); streams.append(stream)
+                process = mock.Mock(pid=123 if udid == 'A' else 456); process.poll.return_value = None
+                return {'udid': udid, 'pid': udid + '-pid', 'compiler': compiler, 'scope': actor_scope,
+                        'support': root / ('current-' + udid), 'fixture': kwargs['expected_fixture'],
+                        'env': env, 'process': process, 'stream': stream, 'log': log, 'generation': 1}
+            def relay(*_args, **_kwargs):
+                fixture = json.loads((scope / 'A/Build/Products/BrowserDriver.xctest/private-member.json').read_text())
+                self.assertIs(fixture['flutterInitiatesSignIn'], True)
+                self.assertEqual(fixture['phase'], 'initial')
+                return True
+            commands = [{'sequence': 1, 'action': 'browser', 'role': 'A'},
+                        {'sequence': 2, 'action': 'picker-replacement', 'role': 'A'},
+                        {'sequence': 3, 'action': 'close', 'role': 'both'}]
+            driver = mock.Mock(); driver.wait.return_value = 0
+            data = {'runId': 'owned-test', 'actors': [{'role': r, 'email': 'private-email', 'password': 'private-password'} for r in ['A', 'B']]}
+            with mock.patch.object(dual, 'prepare_actor_storage', side_effect=prepare), \
+                 mock.patch.object(dual, 'start_local_actor', side_effect=start), \
+                 mock.patch.object(dual, 'actor_proxy_environment', return_value={}), \
+                 mock.patch.object(dual, 'inspection_source', return_value={}), \
+                 mock.patch.object(ios, 'simulator_app_pid', side_effect=lambda udid: udid + '-pid'), \
+                 mock.patch.object(dual, 'read_inspection_command', side_effect=commands), \
+                 mock.patch.object(dual.subprocess, 'Popen', return_value=driver), \
+                 mock.patch.object(dual, 'track_process', side_effect=lambda p: p), \
+                 mock.patch.object(ios, 'relay_workspace_completion', side_effect=relay), \
+                 mock.patch.object(dual, 'perform_owned_picker') as picker, \
+                 mock.patch.object(dual, 'stop_owned_processes'), \
+                 mock.patch.object(dual.time, 'sleep'), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(dual.inspect_local_apps(data, {}, scope, ['A', 'B'], root / 'app', root / 'map', derived, {'A': None, 'B': None}, {'builtSource': {}}), 70)
+            self.assertEqual(picker.call_args.args[4:], ('import', 'weave-dual-replacement-owned-test.txt'))
+            self.assertEqual(picker.call_args.kwargs['result_path'], scope / 'A/picker-2.xcresult')
+            session = json.loads((scope / 'inspection-session-2.json').read_text())
+            self.assertEqual(session['actors']['A']['appSupport'], str(root / 'current-A'))
+            self.assertNotEqual(session['actors']['A']['storageDigest'], 'preinstall')
+            self.assertEqual(session['actors']['A']['fixturePreinstallStorageDigest'], 'preinstall')
+
+    def test_picker_inspection_commands_are_single_actor_and_bounded(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            p = Path(temporary) / 'command.json'
+            for action in ['picker-initial', 'picker-replacement', 'picker-export']:
+                for role in ['A', 'B']:
+                    if p.exists(): p.unlink()
+                    dual.publish_private_json(p, {'sequence': 1, 'action': action, 'role': role})
+                    self.assertEqual(dual.read_inspection_command(p, 0)['action'], action)
+                p.unlink(); dual.publish_private_json(p, {'sequence': 1, 'action': action, 'role': 'both'})
+                with self.assertRaises(ios.NativeFailure): dual.read_inspection_command(p, 0)
+            p.unlink(); dual.publish_private_json(p, {'sequence': 1, 'action': 'picker-arbitrary', 'role': 'A'})
+            with self.assertRaises(ios.NativeFailure): dual.read_inspection_command(p, 0)
+
+    def test_inspection_command_is_private_bounded_and_consumed_once(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'inspection-command.json'
+            value = {'sequence': 1, 'action': 'reload', 'role': 'both'}
+            dual.publish_private_json(path, value)
+            self.assertEqual(dual.read_inspection_command(path, 0), value)
+            self.assertIsNone(dual.read_inspection_command(path, 1))
+            for replacement in [{'sequence': 0}, {'sequence': True}, {'action': 'arbitrary'}, {'role': 'C'}]:
+                path.unlink()
+                dual.publish_private_json(path, {**value, **replacement})
+                with self.assertRaises(ios.NativeFailure):
+                    dual.read_inspection_command(path, 1)
+            path.unlink()
+            dual.publish_private_json(path, value)
+            path.chmod(0o644)
+            with self.assertRaises(ios.NativeFailure): dual.read_inspection_command(path, 0)
+            path.unlink()
+            target = Path(temporary) / 'foreign'
+            target.write_text(json.dumps(value))
+            path.symlink_to(target)
+            with self.assertRaises(ios.NativeFailure): dual.read_inspection_command(path, 0)
+
+    def test_inspection_refuses_or_yields_to_actual_worker_detection(self):
+        operation = mock.Mock()
+        with mock.patch.object(dual, 'inspection_ci_workers', return_value=1):
+            with self.assertRaises(ios.NativeFailure): dual.inspect_with_ci_priority(operation)
+        operation.assert_not_called()
+        yielded = threading.Event()
+        with mock.patch.object(dual, 'inspection_ci_workers', side_effect=[0, 1]), \
+             mock.patch.object(dual.os, 'kill', side_effect=lambda pid, sig: yielded.set()) as stop:
+            self.assertEqual(dual.inspect_with_ci_priority(lambda: 70 if yielded.wait(3) else self.fail('CI not observed')), 70)
+        stop.assert_called_once_with(os.getpid(), dual.signal.SIGINT)
+
+    def test_inspection_priority_handoff_is_armed_and_unknown_still_yields(self):
+        threads = []
+        real_thread = threading.Thread
+        observed = threading.Event()
+        output = io.StringIO()
+        def thread(*args, **kwargs):
+            created = real_thread(*args, **kwargs); threads.append(created); return created
+        def operation():
+            self.assertIn('phase=priority-watch-ready', output.getvalue())
+            self.assertTrue(threads[0].is_alive())
+            self.assertTrue(observed.wait(3), 'unknown ownership must interrupt')
+            return 70
+        with contextlib.redirect_stdout(output), \
+             mock.patch.object(dual.threading, 'Thread', side_effect=thread), \
+             mock.patch.object(dual, 'inspection_ci_workers', side_effect=[0, OSError('private detector failure')]), \
+             mock.patch.object(dual.os, 'kill', side_effect=lambda _pid, _signal: observed.set()) as stop:
+            self.assertEqual(dual.inspect_with_ci_priority(operation), 70)
+        stop.assert_called_once_with(os.getpid(), dual.signal.SIGINT)
+        self.assertFalse(threads[0].is_alive())
+        self.assertIn('phase=yield-ci reason=unknown workerCount=unavailable exceptionClass=OSError returnCode=unavailable', output.getvalue())
+        self.assertNotIn('private detector failure', output.getvalue())
+
+    def test_inspection_priority_failed_ps_exit_is_fixed_and_interrupts(self):
+        observed = threading.Event()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), \
+             mock.patch.object(dual, 'inspection_ci_workers', side_effect=[0, subprocess.CalledProcessError(7, ['private-command'], stderr='private-stderr')]), \
+             mock.patch.object(dual.os, 'kill', side_effect=lambda _pid, _signal: observed.set()):
+            self.assertEqual(dual.inspect_with_ci_priority(lambda: 70 if observed.wait(3) else self.fail('PS error was ignored')), 70)
+        self.assertIn('reason=unknown workerCount=unavailable exceptionClass=CalledProcessError returnCode=7', output.getvalue())
+        self.assertNotIn('private-', output.getvalue())
+
+    def test_inspection_priority_monitor_stops_when_operation_fails(self):
+        threads = []
+        real_thread = threading.Thread
+        def thread(*args, **kwargs):
+            created = real_thread(*args, **kwargs); threads.append(created); return created
+        original = RuntimeError('original operation failure')
+        with contextlib.redirect_stdout(io.StringIO()), mock.patch.object(dual.threading, 'Thread', side_effect=thread), mock.patch.object(dual, 'inspection_ci_workers', return_value=0):
+            with self.assertRaises(RuntimeError) as caught:
+                dual.inspect_with_ci_priority(lambda: (_ for _ in ()).throw(original))
+        self.assertIs(caught.exception, original)
+        self.assertFalse(threads[0].is_alive())
+
+    def test_inspection_run_uses_pinned_real_cli_parser(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {'WEAVE_E2E_RUN_ID': 'owned-test'}):
+            command = dual.inspection_run_command('owned-disposable-simulator', Path(temporary), Path(temporary) / 'Runner.app', Path(temporary) / 'native_assets.json')
+            if not shutil.which('flutter'):
+                self.skipTest('Flutter CLI required for actual run parser validation')
+            accepted = subprocess.run([*command, '--help'], capture_output=True, text=True, timeout=30)
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+            self.assertIn('--use-application-binary', accepted.stdout)
+            self.assertNotIn('--use-existing-app', command)
+
+    def test_partial_inspection_run_retains_private_failure_before_cleanup(self):
+        for retention_fails, stop_fails in ((False, False), (True, False), (False, True)):
+            with self.subTest(retention_fails=retention_fails, stop_fails=stop_fails), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); scope = root / 'owned'; scope.mkdir()
+                derived = root / 'derived'; (derived / 'Build/Products').mkdir(parents=True)
+                private = root / 'retained'; private.mkdir(mode=0o700)
+                failure = RuntimeError('original resident startup failure')
+                raw = 'private-token private-device private-path\nresident startup failed\n'
+                def attach(_udid, _compiler, _app, _native_assets, _env, actor_scope, streams, **_kwargs):
+                    stream = (actor_scope / 'run-1.log').open('w')
+                    stream.write(raw); streams.append(stream)
+                    raise failure
+                output = io.StringIO()
+                with mock.patch.object(dual, 'actor_proxy_environment', return_value={}), \
+                     mock.patch.object(dual, 'prepare_actor_storage', return_value=(root, {})), \
+                     mock.patch.object(dual, 'start_local_actor', side_effect=attach), \
+                     mock.patch.object(dual, 'stop_owned_processes', side_effect=[OSError('stop failed'), None] if stop_fails else None), \
+                     mock.patch.object(ios, 'verified_private_parent', return_value=private), \
+                     contextlib.redirect_stdout(output):
+                    retain = mock.patch.object(ios, 'retain_private_diagnostic', side_effect=OSError('private retention failure')) if retention_fails else contextlib.nullcontext()
+                    with retain, self.assertRaises(RuntimeError) as caught:
+                        dual.inspect_local_apps({'actors': [{'role': 'A'}]}, {}, scope, ['owned-device'], root / 'app', root / 'native_assets.json', derived, {'A': object()}, {'builtSource': {}})
+                self.assertIs(caught.exception, failure)
+                logs = list(private.glob('command-*.log'))
+                self.assertEqual(len(logs), 0 if retention_fails else 1)
+                if logs:
+                    self.assertEqual(logs[0].read_text(), raw)
+                    self.assertEqual(logs[0].stat().st_mode & 0o777, 0o600)
+                for secret in ('private-token', 'private-device', 'private-path', 'private retention failure', str(root)):
+                    self.assertNotIn(secret, output.getvalue())
+                self.assertIn('failure-log-unavailable' if retention_fails else 'failure-log-retained', output.getvalue())
+
     def test_actor_prepares_owner_only_result_before_actual_launch(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
@@ -48,6 +328,191 @@ class DualIosCollaborationTest(unittest.TestCase):
                                    root, root, root, root / 'app', data, {'WEAVE_NATIVE_ISSUER': 'https://issuer.test'}, 'a' * 64,
                                    None, None, None)
                 self.assertIs(caught.exception, stopped)
+
+    def test_inspection_storage_seeds_private_observer_without_workspace_proof(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            udid = '11111111-1111-1111-1111-111111111111'
+            container = root / 'CoreSimulator/Devices' / udid / 'data'
+            container.mkdir(parents=True)
+            actor = {'role': 'A', 'entryUri': 'https://owned.invalid', 'identityRef': 'owned-actor'}
+            data = {'runId': 'owned-test', 'publicOrigin': 'https://owned.invalid', 'nativeOrganizationId': 'owned-org',
+                    'sharedSpaceRef': 'workspace-default', 'actors': [{'role': 'A', 'displayName': 'Author'}, {'role': 'B', 'displayName': 'Peer'}]}
+            with mock.patch.object(ios, 'run', side_effect=['', str(container)]):
+                support, _ = dual.prepare_actor_storage(actor, udid, root / 'app', data,
+                    {'WEAVE_NATIVE_ISSUER': 'https://issuer.test', 'WEAVE_NATIVE_LOCAL_INSPECTION': 'true'})
+            proof = support / 'weave-local-inspection-state.json'
+            self.assertEqual(json.loads(proof.read_text()), {})
+            self.assertEqual(proof.stat().st_mode & 0o777, 0o600)
+            self.assertFalse(json.loads(proof.read_text()).get('workspaceObserved', False))
+
+    def test_picker_rejects_actual_skip_and_unverified_completion_before_pass_marker(self):
+        # Fixed excerpts from the actual 0321 skip and successful import transcripts.
+        selected = "Test Case '-[BrowserDriver.BrowserDriver testNativeDocumentPicker]'"
+        passed = selected + " passed (6.766 seconds).\n"
+        actual_skip = (selected + " skipped (0.138 seconds).\n"
+                       "Executed 1 test, with 1 test skipped and 0 failures (0 unexpected) in 0.138 (0.139) seconds\n"
+                       "** TEST EXECUTE SUCCEEDED **\n")
+        imported = 'NATIVE_IOS_FILES_STAGE phase=import-selected\n' + passed
+        exported = 'NATIVE_IOS_FILES_STAGE phase=export-saved\n' + passed
+        cases = [('import', imported, True), ('export', exported, True),
+                 ('export', actual_skip, False), ('export', passed, False),
+                 ('export', imported, False), ('export', exported + imported, False),
+                 ('export', exported + 'NATIVE_IOS_FILES_STAGE phase=export-saved\n', False),
+                 ('export', exported + actual_skip, False),
+                 ('export', exported + selected + ' skipped (0.138 seconds).\n', False),
+                 ('export', exported + 'Executed 1 test, with 1 test skipped and 0 failures\n', False),
+                 ('export', 'NATIVE_IOS_FILES_STAGE phase=export-saved\n', False),
+                 ('export', exported + passed, False)]
+        for mode, transcript, valid in cases:
+            with self.subTest(mode=mode, valid=valid, transcript=transcript), tempfile.TemporaryDirectory() as name:
+                root = Path(name); products = root / 'products'; products.mkdir()
+                (products / 'owned.xctestrun').write_text('owned plan')
+                (products / 'BrowserDriver.xctest').mkdir()
+                diagnostics = root / 'diagnostics'; diagnostics.mkdir(mode=0o700)
+                raw = transcript + 'private-credential private/path\n'
+                with mock.patch.object(ios, 'simulator_app_pid', return_value='123'), mock.patch.object(ios, 'run', return_value=raw) as command, mock.patch.object(ios, 'verified_private_parent', return_value=diagnostics), contextlib.redirect_stdout(io.StringIO()) as public:
+                    if valid:
+                        dual.perform_owned_picker('owned', '123', products, {}, mode, 'weave-dual-initial-owned.txt')
+                    else:
+                        with self.assertRaises(ios.NativeFailure) as caught:
+                            dual.perform_owned_picker('owned', '123', products, {}, mode, 'weave-dual-initial-owned.txt')
+                        self.assertEqual((caught.exception.category, caught.exception.reason),
+                                         ('infrastructure', 'native-picker-result-unverified'))
+                command.assert_called_once()
+                self.assertEqual(command.call_args.kwargs['timeout'], 90)
+                logs = list(diagnostics.glob('command-*.log')); self.assertEqual(len(logs), 1)
+                self.assertEqual(logs[0].read_text(), raw)
+                self.assertEqual(logs[0].stat().st_mode & 0o777, 0o600)
+                self.assertEqual('status=passed' in public.getvalue(), valid)
+                for private in ['private-credential', 'private/path', transcript.strip(), str(diagnostics)]:
+                    self.assertNotIn(private, public.getvalue())
+
+    def test_lifecycle_requires_actual_selected_action_proof_and_owned_process(self):
+        selected = "Test Case '-[BrowserDriver.BrowserDriver testNativeLifecycle]'"
+        passed = selected + ' passed (2.552 seconds).\n'
+        background = 'NATIVE_IOS_LIFECYCLE_STAGE phase=background-observed\n' + passed
+        foreground = 'NATIVE_IOS_LIFECYCLE_STAGE phase=foreground-observed\n' + passed
+        skipped = (selected + ' skipped (0.138 seconds).\n'
+                   'Executed 1 test, with 1 test skipped and 0 failures\n'
+                   '** TEST EXECUTE SUCCEEDED **\n')
+        cases = [('background', background, '123', None), ('foreground', foreground, '123', None),
+                 ('background', skipped, '123', 'native-lifecycle-result-unverified'),
+                 ('background', passed, '123', 'native-lifecycle-result-unverified'),
+                 ('background', foreground, '123', 'native-lifecycle-result-unverified'),
+                 ('background', background + 'NATIVE_IOS_LIFECYCLE_STAGE phase=background-observed\n', '123', 'native-lifecycle-result-unverified'),
+                 ('background', background + 'NATIVE_IOS_LIFECYCLE_STAGE phase=foreground-observed\n', '123', 'native-lifecycle-result-unverified'),
+                 ('background', background + selected + ' skipped (0.138 seconds).\n', '123', 'native-lifecycle-result-unverified'),
+                 ('foreground', foreground + 'Executed 1 test, with 1 test skipped and 0 failures\n', '123', 'native-lifecycle-result-unverified'),
+                 ('foreground', 'NATIVE_IOS_LIFECYCLE_STAGE phase=foreground-observed\n', '123', 'native-lifecycle-result-unverified'),
+                 ('foreground', foreground + passed, '123', 'native-lifecycle-result-unverified'),
+                 ('background', background, '456', 'owned-process-replaced')]
+        for action, transcript, final_pid, reason in cases:
+            with self.subTest(action=action, reason=reason, transcript=transcript), tempfile.TemporaryDirectory() as name:
+                root = Path(name); support = root / 'A'; support.mkdir()
+                products = support / 'products'; products.mkdir()
+                (products / 'owned.xctestrun').write_text('owned plan')
+                bundle = products / 'BrowserDriver.xctest'; bundle.mkdir()
+                diagnostics = root / 'diagnostics'; diagnostics.mkdir(mode=0o700)
+                raw = transcript + 'private-credential private/path\n'
+                with mock.patch.object(ios, 'simulator_app_pid', side_effect=['123', final_pid]), mock.patch.object(ios, 'run', return_value=raw) as command, mock.patch.object(ios, 'verified_private_parent', return_value=diagnostics), contextlib.redirect_stdout(io.StringIO()) as public:
+                    if reason is None:
+                        dual.perform_owned_lifecycle((support, 'owned', '123', products), action, {})
+                    else:
+                        with self.assertRaises(ios.NativeFailure) as caught:
+                            dual.perform_owned_lifecycle((support, 'owned', '123', products), action, {})
+                        self.assertEqual((caught.exception.category, caught.exception.stage, caught.exception.reason),
+                                         ('infrastructure', 'dual-lifecycle', reason))
+                command.assert_called_once()
+                self.assertEqual(command.call_args.kwargs['timeout'], 90)
+                self.assertIn('-only-testing:BrowserDriver/BrowserDriver/testNativeLifecycle', command.call_args.args[0])
+                self.assertEqual(json.loads((bundle / 'private-member.json').read_text()), {'phase': 'lifecycle', 'action': action})
+                logs = list(diagnostics.glob('command-*.log')); self.assertEqual(len(logs), 1)
+                self.assertEqual(logs[0].read_text(), raw)
+                self.assertEqual(logs[0].stat().st_mode & 0o777, 0o600)
+                self.assertEqual('status=passed' in public.getvalue(), reason is None)
+                for private in ['private-credential', 'private/path', str(diagnostics), transcript.strip()]:
+                    self.assertNotIn(private, public.getvalue())
+
+    def test_picker_pass_marker_requires_unchanged_owned_process(self):
+        transcript = ("NATIVE_IOS_FILES_STAGE phase=export-saved\n"
+                      "Test Case '-[BrowserDriver.BrowserDriver testNativeDocumentPicker]' passed (6.766 seconds).\n")
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); products = root / 'products'; products.mkdir()
+            (products / 'owned.xctestrun').write_text('owned plan')
+            (products / 'BrowserDriver.xctest').mkdir()
+            diagnostics = root / 'diagnostics'; diagnostics.mkdir(mode=0o700)
+            with mock.patch.object(ios, 'simulator_app_pid', side_effect=['123', '456']), mock.patch.object(ios, 'run', return_value=transcript), mock.patch.object(ios, 'verified_private_parent', return_value=diagnostics), contextlib.redirect_stdout(io.StringIO()) as public:
+                with self.assertRaises(ios.NativeFailure) as caught:
+                    dual.perform_owned_picker('owned', '123', products, {}, 'export', 'weave-dual-initial-owned.txt')
+            self.assertEqual(caught.exception.reason, 'owned-process-replaced')
+            self.assertNotIn('status=passed', public.getvalue())
+            logs = list(diagnostics.glob('command-*.log')); self.assertEqual(len(logs), 1)
+            self.assertEqual(logs[0].read_text(), transcript)
+
+    def test_successful_picker_stdout_is_owner_only_and_never_public(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            diagnostics = root / 'diagnostics'
+            diagnostics.mkdir(mode=0o700)
+            scopes = {}
+            for role, pid in [('A', '123'), ('B', '456')]:
+                support = root / role
+                support.mkdir()
+                products = support / 'products'
+                products.mkdir()
+                (products / 'owned.xctestrun').write_text('plan')
+                (products / 'BrowserDriver.xctest').mkdir()
+                scopes[role] = (support, role, pid, products)
+            (scopes['A'][0] / 'weave-dual-ios-native-request.json').write_text(json.dumps({
+                'sequence': 8, 'mode': 'import', 'fileName': 'weave-dual-initial-owned-test.txt'}))
+            picker_ran = False
+            stopped = RuntimeError('controlled stop after diagnostic retention')
+            raw = ("private-owned-file.txt private/path identity-sentinel\nNATIVE_IOS_FILES_STAGE phase=import-selected\n"
+                   "Test Case '-[BrowserDriver.BrowserDriver testNativeDocumentPicker]' passed (4.643 seconds).\n")
+            def picker(args, **kwargs):
+                nonlocal picker_ran
+                self.assertIn('-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker', args)
+                self.assertEqual(kwargs['timeout'], 90)
+                picker_ran = True
+                return raw
+            def acknowledge(_delay):
+                for support, *_ in scopes.values():
+                    command = support / 'weave-dual-ios-command.json'
+                    if command.exists():
+                        value = json.loads(command.read_text())
+                        (support / 'weave-dual-ios-ack.json').write_text(json.dumps({**value, 'status': 'passed'}))
+            task = mock.Mock()
+            task.done.side_effect = lambda: picker_ran
+            task.result.side_effect = stopped
+            with mock.patch.object(ios, 'simulator_app_pid', side_effect=lambda role: {'A': '123', 'B': '456'}[role]), \
+                 mock.patch.object(ios, 'run', side_effect=picker), \
+                 mock.patch.object(ios, 'verified_private_parent', return_value=diagnostics), \
+                 mock.patch.object(dual.time, 'monotonic', return_value=0), \
+                 mock.patch.object(dual.time, 'sleep', side_effect=acknowledge), \
+                 contextlib.redirect_stdout(io.StringIO()) as output:
+                with self.assertRaises(RuntimeError) as caught:
+                    dual.run_ui_commands(scopes, [task], {}, {'runId': 'owned-test'})
+            self.assertIs(caught.exception, stopped)
+            retained = list(diagnostics.glob('command-*.log'))
+            self.assertEqual(len(retained), 1)
+            self.assertEqual(retained[0].read_text(), raw)
+            self.assertEqual(retained[0].stat().st_mode & 0o777, 0o600)
+            self.assertIn('NATIVE_IOS_PICKER_RESULT status=passed privateDiagnostic=' + retained[0].name + ' supportSafe=true', output.getvalue())
+            for private in ['private-owned-file', 'private/path', 'identity-sentinel', str(diagnostics), 'import-selected']:
+                self.assertNotIn(private, output.getvalue())
+            picker_ran = False
+            with mock.patch.object(ios, 'simulator_app_pid', side_effect=lambda role: {'A': '123', 'B': '456'}[role]), \
+                 mock.patch.object(ios, 'run', side_effect=picker), \
+                 mock.patch.object(ios, 'retain_private_diagnostic', side_effect=OSError('private retention failure')), \
+                 mock.patch.object(dual.time, 'monotonic', return_value=0), \
+                 mock.patch.object(dual.time, 'sleep', side_effect=acknowledge), \
+                 contextlib.redirect_stdout(io.StringIO()) as unavailable:
+                with self.assertRaises(RuntimeError) as caught:
+                    dual.run_ui_commands(scopes, [task], {}, {'runId': 'owned-test'})
+            self.assertIs(caught.exception, stopped)
+            self.assertIn('NATIVE_IOS_PICKER_RESULT status=unavailable supportSafe=true', unavailable.getvalue())
+            self.assertNotIn('private retention failure', unavailable.getvalue())
 
     @unittest.skipUnless(shutil.which('flutter'), 'Flutter CLI is required for real argument-parser validation')
     def test_actual_flutter_drive_parser_accepts_both_phase_host_arguments(self):

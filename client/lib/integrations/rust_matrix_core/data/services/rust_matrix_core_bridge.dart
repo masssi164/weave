@@ -164,6 +164,7 @@ class RustMatrixMessageProjection {
   const RustMatrixMessageProjection({
     required this.eventId,
     required this.sender,
+    this.senderDisplayName,
     required this.originServerTimestamp,
     required this.body,
     required this.contentType,
@@ -173,6 +174,9 @@ class RustMatrixMessageProjection {
     return RustMatrixMessageProjection(
       eventId: _string(json['eventId']),
       sender: _string(json['sender']),
+      senderDisplayName: json['senderDisplayName'] is String
+          ? json['senderDisplayName'] as String
+          : null,
       originServerTimestamp: _integer(json['originServerTs']),
       body: json['body'] is String ? json['body'] as String : null,
       contentType: _string(json['contentType']),
@@ -181,6 +185,7 @@ class RustMatrixMessageProjection {
 
   final String eventId;
   final String sender;
+  final String? senderDisplayName;
   final int originServerTimestamp;
   final String? body;
   final String contentType;
