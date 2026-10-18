@@ -215,7 +215,7 @@ class NativeQualificationTest(unittest.TestCase):
                 derived = temporary / 'derived'
                 products = derived / 'Build/Products'
                 (products / 'BrowserDriver.xctest').mkdir(parents=True)
-                (products / 'test.xctestrun').touch()
+                (products / 'test.xctestrun').write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}}))
                 def launch(arguments, **kwargs):
                     process = unittest.mock.Mock()
                     process.poll.return_value = None if succeeded else 2
@@ -512,7 +512,7 @@ class NativeQualificationTest(unittest.TestCase):
                 products = derived / 'Build/Products'
                 bundle = products / 'BrowserDriver.xctest'
                 bundle.mkdir(parents=True)
-                (products / 'BrowserDriver.xctestrun').write_text('plan')
+                (products / 'BrowserDriver.xctestrun').write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}}))
                 def launch(arguments, **kwargs):
                     result = unittest.mock.Mock()
                     result.wait.return_value = 1 if arguments[0] == 'xcodebuild' else 0
@@ -543,7 +543,7 @@ class NativeQualificationTest(unittest.TestCase):
                 self.assertIn('NATIVE_PRODUCT_STAGE phase=sign-in-tapped', output.getvalue())
                 self.assertNotIn('raw-secret-password', output.getvalue())
                 self.assertNotIn('raw-private-email', output.getvalue())
-                self.assertFalse((bundle / 'private-member.json').exists())
+                self.assertFalse((products / 'private-member.json').exists())
                 self.assertFalse((temporary / 'ready').exists())
                 self.assertFalse((temporary / 'workspace-initial.ready').exists())
 
@@ -766,7 +766,7 @@ class NativeQualificationTest(unittest.TestCase):
                 products = derived / 'Build/Products'
                 bundle = products / 'BrowserDriver.xctest'
                 bundle.mkdir(parents=True)
-                (products / 'BrowserDriver.xctestrun').write_text('plan')
+                (products / 'BrowserDriver.xctestrun').write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}}))
                 flutter = unittest.mock.Mock()
                 flutter.poll.return_value = exit_code
                 clock = iter([0, 1, 901])
@@ -783,7 +783,7 @@ class NativeQualificationTest(unittest.TestCase):
                 self.assertEqual(raised.exception.reason, expected_reason)
                 self.assertEqual(launch.call_count, 1)
                 self.assertEqual(launch.call_args.args[0][0], 'make')
-                self.assertFalse((bundle / 'private-member.json').exists())
+                self.assertFalse((products / 'private-member.json').exists())
                 self.assertNotIn('raw-secret-password', output.getvalue())
                 self.assertNotIn('raw-private-email', output.getvalue())
 
@@ -1163,7 +1163,7 @@ void main() {
                 derived = temporary / 'derived'
                 products = derived / 'Build/Products'
                 (products / 'BrowserDriver.xctest').mkdir(parents=True)
-                (products / 'test.xctestrun').touch()
+                (products / 'test.xctestrun').write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}}))
                 flutter = unittest.mock.Mock()
                 flutter.poll.return_value = None
                 output = io.StringIO()
@@ -1182,7 +1182,7 @@ void main() {
                     self.assertEqual(raised.exception.reason, 'native-tool-unavailable')
                     self.assertEqual(launch.call_count, 2)
                     self.assertIn('status=relaunched distinctProcess=true', output.getvalue())
-                self.assertFalse((products / 'BrowserDriver.xctest/private-member.json').exists())
+                self.assertFalse((products / 'private-member.json').exists())
                 self.assertNotIn('private detail', output.getvalue())
 
     def test_exact_executable_identity_excludes_other_apps_devices_and_arguments(self):
