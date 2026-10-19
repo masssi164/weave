@@ -1313,6 +1313,153 @@ void main() {
         },
       );
     }
+    for (final locale in ['en', 'de']) {
+      for (final deepLink in [false, true]) {
+        for (final successful in deepLink ? [true, false] : [true]) {
+          testWidgets(
+            'handoff Back preserves entry and profile $locale deepLink=$deepLink successful=$successful',
+            (tester) async {
+              final repository = _FakeServerConfigurationRepository(
+                configuration: deepLink ? buildTestConfiguration() : null,
+              );
+              final client = MockClient((request) async {
+                final manifest =
+                    jsonDecode(
+                          File(
+                            'test/fixtures/org_manifest_v2_valid.json',
+                          ).readAsStringSync(),
+                        )
+                        as Map<String, dynamic>;
+                manifest['organizationOrigin'] = 'https://weave.example';
+                return http.Response(
+                  successful ? jsonEncode(manifest) : '{}',
+                  successful ? 200 : 503,
+                  headers: {'content-type': 'application/json'},
+                );
+              });
+              addTearDown(client.close);
+              final container = createContainer(
+                configuration: null,
+                configurationRepository: repository,
+                discoveryClient: AppStartDiscoveryClient(httpClient: client),
+              );
+              addTearDown(container.dispose);
+              await container.read(appBootstrapProvider.future);
+              final routerSubscription = container.listen(
+                appRouterProvider,
+                (_, _) {},
+              );
+              addTearDown(routerSubscription.close);
+              final router = routerSubscription.read();
+              if (deepLink) {
+                router.go(
+                  '/join?organization_origin=https%3A%2F%2Fweave.example',
+                );
+              }
+              await tester.pumpWidget(
+                UncontrolledProviderScope(
+                  container: container,
+                  child: MaterialApp.router(
+                    locale: Locale(locale),
+                    localizationsDelegates:
+                        AppLocalizations.localizationsDelegates,
+                    supportedLocales: AppLocalizations.supportedLocales,
+                    routerConfig: router,
+                  ),
+                ),
+              );
+              await tester.pumpAndSettle();
+              final copy = AppLocalizations.of(
+                tester.element(find.byType(Scaffold).first),
+              );
+              if (!deepLink) {
+                await tester.enterText(find.byType(TextField), 'weave.example');
+                await tester.tap(
+                  find.text(copy.setupOrganizationContinueButton),
+                );
+              }
+              for (var attempt = 0; attempt < 50; attempt++) {
+                await tester.runAsync(
+                  () => Future<void>.delayed(const Duration(milliseconds: 10)),
+                );
+                await tester.pumpAndSettle();
+                if (find
+                    .byTooltip(copy.signInBackToSetupButton)
+                    .evaluate()
+                    .isNotEmpty) {
+                  break;
+                }
+              }
+              expect(
+                find.text(
+                  successful
+                      ? copy.memberHandoffReadyTitle
+                      : copy.memberHandoffErrorTitle,
+                ),
+                findsOneWidget,
+              );
+              final saved = repository.configuration;
+              expect(saved, isNotNull);
+              await tester.tap(find.byTooltip(copy.signInBackToSetupButton));
+              await tester.pumpAndSettle();
+              expect(find.byType(OrganizationAccessScreen), findsOneWidget);
+              expect(
+                tester
+                    .widget<TextField>(find.byType(TextField))
+                    .controller!
+                    .text,
+                deepLink ? '' : 'weave.example',
+              );
+              expect(
+                repository.configuration,
+                same(saved),
+                reason: 'Back is navigation, not a workspace reset.',
+              );
+              expect(tester.takeException(), isNull);
+            },
+          );
+        }
+      }
+    }
+
+    testWidgets(
+      'saved sign-in can revisit public entry while product routes remain protected',
+      (tester) async {
+        final container = createContainer(
+          configuration: buildTestConfiguration(),
+        );
+        addTearDown(container.dispose);
+        await container.read(appBootstrapProvider.future);
+        final router = container.read(appRouterProvider);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(SignInScreen), findsOneWidget);
+        router.go(AppRoutes.organizationAccess);
+        await tester.pumpAndSettle();
+        expect(find.byType(OrganizationAccessScreen), findsOneWidget);
+        for (final location in [
+          AppRoutes.home,
+          AppRoutes.chat,
+          AppRoutes.files,
+          AppRoutes.calendar,
+          AppRoutes.settings,
+        ]) {
+          router.go(location);
+          await tester.pumpAndSettle();
+          expect(find.byType(SignInScreen), findsOneWidget, reason: location);
+          expect(find.byType(HomeScreen), findsNothing);
+          expect(find.byType(FilesScreen), findsNothing);
+          expect(find.byType(CalendarScreen), findsNothing);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     testWidgets('shows organization access when no configuration exists', (
       tester,
     ) async {

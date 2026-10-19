@@ -44,14 +44,19 @@ void setStartupInitialLocation(String? location) {
 GoRouter appRouter(Ref ref) {
   final refresh = ValueNotifier(0);
   ref.listen(appBootstrapProvider, (_, next) => refresh.value++);
+  final initialLocation =
+      _startupInitialLocation ??
+      initialLocationForDefaultRoute(
+        WidgetsBinding.instance.platformDispatcher.defaultRouteName,
+      );
+  final resumeSignIn =
+      initialLocation == AppRoutes.organizationAccess &&
+      ref.read(appBootstrapProvider).asData?.value.phase ==
+          BootstrapPhase.needsSignIn;
   final router = GoRouter(
     refreshListenable: refresh,
     navigatorKey: rootNavigatorKey,
-    initialLocation:
-        _startupInitialLocation ??
-        initialLocationForDefaultRoute(
-          WidgetsBinding.instance.platformDispatcher.defaultRouteName,
-        ),
+    initialLocation: resumeSignIn ? AppRoutes.signIn : initialLocation,
     onException: (context, state, router) {
       final normalizedLocation = initialLocationForDefaultRoute(
         state.uri.toString(),
@@ -80,7 +85,9 @@ GoRouter appRouter(Ref ref) {
               ? null
               : AppRoutes.organizationAccess;
         case BootstrapPhase.needsSignIn:
-          return (onSignIn || onJoin) ? null : AppRoutes.signIn;
+          return (onOrganizationAccess || onSignIn || onJoin)
+              ? null
+              : AppRoutes.signIn;
         case BootstrapPhase.ready:
           return (onOrganizationAccess || onSignIn) ? AppRoutes.home : null;
       }

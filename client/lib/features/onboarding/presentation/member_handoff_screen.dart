@@ -139,6 +139,23 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final busy = _signInBusy || ref.watch(authFlowControllerProvider).isBusy;
+    final setupNavigation = AppBar(
+      title: Text(l10n.setupTitle),
+      leading: IconButton(
+        tooltip: l10n.signInBackToSetupButton,
+        icon: const Icon(Icons.arrow_back),
+        onPressed: busy
+            ? null
+            : () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go(AppRoutes.organizationAccess);
+                }
+              },
+      ),
+    );
     final failure = _failure;
     if (failure != null) {
       final errorCode = supportSafeHandoffErrorCode(failure);
@@ -148,6 +165,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
           : l10n.memberHandoffErrorGuidance;
       _recordVisibleStateOnce('handoff_error', errorCode: errorCode);
       return Scaffold(
+        appBar: setupNavigation,
         body: SafeArea(
           child: Center(
             child: ErrorState(
@@ -170,6 +188,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       _recordVisibleStateOnce('handoff_ready', access: access);
       final signInFailure = _signInFailure;
       return Scaffold(
+        appBar: setupNavigation,
         body: SafeArea(
           child: Center(
             child: signInFailure == null
@@ -179,11 +198,11 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
                       access.organizationLabel,
                       access.workspaceLabel,
                     ),
-                    actionLabel: _signInBusy
+                    actionLabel: busy
                         ? l10n.signInInProgress
                         : l10n.signInButton,
                     liveRegion: false,
-                    onAction: _signInBusy
+                    onAction: busy
                         ? null
                         : () {
                             _startSignIn(context);
@@ -193,7 +212,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
                     message: authFailureMessage(l10n, signInFailure),
                     guidance: l10n.memberHandoffSignInRetryGuidance,
                     retryLabel: l10n.signInButton,
-                    onRetry: _signInBusy
+                    onRetry: busy
                         ? null
                         : () {
                             _startSignIn(context);
