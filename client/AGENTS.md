@@ -34,7 +34,7 @@ Accessibility is mandatory:
 Validation from `client/`:
 - `flutter pub get`
 - `flutter gen-l10n`
-- `dart run build_runner build --delete-conflicting-outputs`
+- `dart run build_runner build --force-aot --delete-conflicting-outputs`
 - `dart format --output=none --set-exit-if-changed .`
 - `flutter analyze --fatal-infos`
 - `flutter test`
