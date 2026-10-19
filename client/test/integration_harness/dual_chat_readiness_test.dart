@@ -45,6 +45,7 @@ import '../../integration_test/dual_ios_collaboration_test.dart'
         requireNativeDualPeerSelected,
         tapNativeDualPeer,
         tapNativeDualChatConversation,
+        openNativeDualChatConversation,
         writeNativeDualPrivateJson,
         nativeDualSessionIdentityDigests;
 
@@ -761,6 +762,136 @@ void main() {
         );
       },
     );
+  }
+
+  for (final locale in ['en', 'de']) {
+    testWidgets('room re-entry waits for the real Chat list; $locale', (
+      tester,
+    ) async {
+      const target = ChatConversation(
+        id: '!owned-reentry:example.invalid',
+        title: 'Owned delayed room',
+        previewType: ChatConversationPreviewType.none,
+        unreadCount: 0,
+        isInvite: false,
+        isDirectMessage: true,
+      );
+      final pending = Completer<List<ChatConversation>>();
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () => pending.future,
+        loadRoomTimelineHandler: (_) async => ChatRoomTimeline(
+          roomId: target.id,
+          roomTitle: target.title,
+          isInvite: false,
+          canSendMessages: true,
+          messages: [],
+        ),
+      );
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          StatefulShellRoute.indexedStack(
+            builder: (context, state, shell) =>
+                AppShell(navigationShell: shell),
+            branches: [
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(path: '/', builder: (_, _) => const SizedBox()),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/chat',
+                    builder: (_, _) => const ChatScreen(),
+                    routes: [
+                      GoRoute(
+                        path: AppRoutes.chatRoomRelative,
+                        builder: (_, state) => ChatRoomScreen(
+                          conversation: state.extra! as ChatConversation,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            preferencesStoreProvider.overrideWith(
+              (ref) => InMemoryPreferencesStore(),
+            ),
+            workspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) => const AsyncData(_readyChatSnapshot),
+            ),
+          ],
+          child: MaterialApp.router(
+            locale: Locale(locale),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(AppShell)),
+      );
+      final ready = Timer(const Duration(milliseconds: 750), () {
+        pending.complete(const [target]);
+      });
+      addTearDown(ready.cancel);
+      await openNativeDualChatConversation(
+        tester,
+        container,
+        target.title,
+        roomId: target.id,
+        deadline: DateTime.now().add(const Duration(seconds: 5)),
+      );
+      expect(find.byType(ChatRoomScreen), findsOneWidget);
+      expect(
+        tester
+            .widget<ChatRoomScreen>(find.byType(ChatRoomScreen))
+            .conversation
+            .id,
+        target.id,
+      );
+      expect(repository.loadConversationsCalls, 1);
+      await openNativeDualChatConversation(
+        tester,
+        container,
+        target.title,
+        roomId: target.id,
+        deadline: DateTime.now().add(const Duration(seconds: 5)),
+      );
+      expect(repository.loadConversationsCalls, 1);
+      await expectLater(
+        openNativeDualChatConversation(
+          tester,
+          container,
+          target.title,
+          roomId: '!another-room:example.invalid',
+          deadline: DateTime.now().add(const Duration(seconds: 5)),
+        ),
+        throwsA(isA<TestFailure>()),
+      );
+      await expectLater(
+        openNativeDualChatConversation(
+          tester,
+          container,
+          target.title,
+          roomId: target.id,
+          deadline: DateTime.now().subtract(const Duration(seconds: 1)),
+        ),
+        throwsA(isA<TestFailure>()),
+      );
+    });
   }
 
   for (final blocked in ['non-hittable', 'ambiguous', 'no-result']) {

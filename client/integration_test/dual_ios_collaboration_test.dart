@@ -1405,7 +1405,13 @@ void main() {
             );
             scenarios['authorization'] = proof;
           case 'network-ready':
-            await _openDualRoom(tester, conversation);
+            await openNativeDualChatConversation(
+              tester,
+              container,
+              conversation,
+              roomId: resources['roomId'] as String,
+              deadline: actionDeadline,
+            );
           case 'network-disconnected':
             expect(role, 'A');
             await tester.enterText(
@@ -1919,15 +1925,42 @@ void _orderedMessages(WidgetTester tester, String first, String second) {
   );
 }
 
-Future<void> _openDualRoom(WidgetTester tester, String title) async {
-  if (find.byType(ChatRoomScreen).evaluate().isNotEmpty) return;
-  await navigateNativeDualDestination(tester, Icons.chat_bubble_outline);
-  await _tap(tester, find.text(title));
+Future<void> openNativeDualChatConversation(
+  WidgetTester tester,
+  ProviderContainer container,
+  String title, {
+  required String roomId,
+  required DateTime deadline,
+}) async {
+  expect(DateTime.now().isBefore(deadline), isTrue);
+  final room = find.byType(ChatRoomScreen);
+  if (room.evaluate().isEmpty) {
+    await navigateNativeDualDestination(tester, Icons.chat_bubble_outline);
+    await waitNativeDualChatConversation(
+      tester,
+      container,
+      title,
+      deadline: deadline,
+    );
+    await tapNativeDualChatConversation(tester, title);
+  }
+  final remaining = deadline.difference(DateTime.now());
+  const roomWaitLimit = Duration(seconds: 90);
   await _wait(
     tester,
-    () => find.byType(TextField).evaluate().isNotEmpty,
-    const Duration(seconds: 90),
+    () =>
+        room.evaluate().length == 1 &&
+        find
+                .descendant(of: room, matching: find.byType(TextField))
+                .evaluate()
+                .length ==
+            1,
+    remaining < roomWaitLimit ? remaining : roomWaitLimit,
   );
+  final conversation = tester.widget<ChatRoomScreen>(room).conversation;
+  expect(conversation.id, roomId);
+  expect(conversation.title, title);
+  expect(DateTime.now().isBefore(deadline), isTrue);
 }
 
 Future<void> tapNativeDualPeer(

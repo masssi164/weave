@@ -1,5 +1,43 @@
 # Release qualification implementation progress for #1592
 
+## October 20: bounded Chat re-entry after protected qualification
+
+[Promotion #1639](https://github.com/masssi164/weave/pull/1639) merged normally as
+Dogfood `a613476238fc34212485a1c5b75a2d21dc88095f`, tree
+`2a5ae0c8644594cd95a25ab6d6b6395e616e3fb0`, accepted specification
+`92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`. Its own
+[Core run](https://github.com/masssi164/weave/actions/runs/39334742426) passed all
+15 jobs. The subsequent [protected Full run](https://github.com/masssi164/weave/actions/runs/39336866478)
+failed after 33m22s; deployment was skipped. macOS qualification passed. Two
+independently authenticated real Flutter iOS apps completed 19 UI actions:
+two-way Chat, shared Calendar create/update/cancel/confirmed deletion and peer
+readback, Files upload/replacement/content readback/native exports, and both
+authorization checks. Actor A then failed `network-ready`: expected one room-title
+widget after Chat navigation, observed zero. All seven final aggregates remain
+not-run. Partial actions do not qualify the release.
+
+The original failure is retained privately. [Support-safe evidence](https://github.com/masssi164/weave/actions/runs/39336866478/artifacts/12228680899)
+includes successful exact persistence-restart proof. Guarded finalization and
+inventories verified zero owned containers, networks, volumes and simulators.
+The original outer qualification cleanup flag remains false; it was not rewritten.
+
+The existing re-entry helper immediately tapped the room while the actual Chat
+list loads asynchronously. New English and German regressions reproduced the
+same zero-title failure against that body. Re-entry now reuses the existing
+bounded list-readiness helper and real tap, waits for the actual room/composer
+within the original action deadline, and checks exact room ID/title on fresh and
+already-open paths. Wrong-room and expired-deadline cases fail. The 35-test
+Chat-readiness suite and 41 existing dual-runner tests pass locally. These prove
+the harness correction, not native qualification. The existing coordinator emits
+a fixed phase/actor/action/sequence start marker before each attempt, retaining
+the actionable boundary without exposing resource contents or private identities.
+
+This slice changes only the native harness, its directly affected tests and this
+record. Product, authentication, bootstrap and specification contracts are
+unchanged. Real isolated replay, current-source qualification, deployment,
+physical preparation and explicit owner HIL remain required before Main.
+The release issues remain open. No persistent Dogfood reset occurred.
+
 ## October 19: real warm collaboration and native navigation corrections
 
 [Import-only PR1645](https://github.com/masssi164/weave/pull/1645) merged normally to

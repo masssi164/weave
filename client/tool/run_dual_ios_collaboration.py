@@ -618,6 +618,7 @@ def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict, phas
             if ios.simulator_app_pid(udid) != pid:
                 raise ios.NativeFailure('infrastructure', 'dual-process', 'owned-process-replaced')
     for sequence, (role, action) in enumerate(steps, start_sequence):
+        print(f'NATIVE_IOS_DUAL_UI_STAGE phase={phase} actor={role} action={action} sequence={sequence} status=started supportSafe=true', flush=True)
         verify_both_live()
         support, udid, pid, products = scopes[role]
         if action == 'network-disconnected':
