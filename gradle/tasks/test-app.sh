@@ -320,6 +320,7 @@ fi
 
 log "Starting one exact, import-initialized disposable Compose test stack."
 STACK_PREPARED=true
+bash "${COMPOSE}" e2e configure
 if [[ "${RELEASE_MCP}" == "true" ]]; then
   python3 - "${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads/release-mcp.json" <<'PY'
 import os

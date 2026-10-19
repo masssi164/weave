@@ -1,5 +1,7 @@
 # Release qualification implementation progress for #1592
 
+The first import-only local inspection (`local-cua-20261019-2053`, source `4c5e4f0068563878005b38481ffc06cd75670882`) stopped before Compose startup: the release-MCP workload placeholder depended on a directory previously created implicitly by migration preparation. The runner now invokes the existing Compose `configure` entry point after empty-namespace proof and teardown arming, before creating that placeholder. The original failure and successful exact namespace cleanup are retained; neither simulator launched and no native acceptance is claimed.
+
 ## October 19: import-only bootstrap and bounded pure-generation correction
 
 The owner completion brief starts from accepted Dev `5fb1cf6319d27cbba51dd6b6dcd8eab1dac3ffe4`.
