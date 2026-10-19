@@ -629,12 +629,16 @@ class DualIosCollaborationTest(unittest.TestCase):
                 task.done.return_value = False
                 with mock.patch.object(dual.ios, 'simulator_app_pid', side_effect=lambda role: {'A': '123', 'B': '456'}[role]), \
                      mock.patch.object(dual.time, 'monotonic', side_effect=[0, 179.999, 180]), \
-                     mock.patch.object(dual.time, 'sleep'):
+                     mock.patch.object(dual.time, 'sleep'), \
+                     contextlib.redirect_stdout(io.StringIO()) as output:
                     with self.assertRaises(ios.NativeFailure) as failure:
                         dual.run_ui_commands(scopes, [task], {}, {}, phase=phase)
                 self.assertEqual(failure.exception.reason, 'actual-ui-command-proof-missing')
                 command = json.loads((scopes['A'][0] / 'weave-dual-ios-command.json').read_text())
                 self.assertEqual(command['action'], expected_action)
+                sequence = 1 if phase == 'initial' else 30
+                self.assertEqual(output.getvalue().strip(),
+                                 f'NATIVE_IOS_DUAL_UI_STAGE phase={phase} actor=A action={expected_action} sequence={sequence} status=started supportSafe=true')
                 self.assertFalse((scopes['B'][0] / 'weave-dual-ios-command.json').exists())
                 task.result.assert_not_called()
 
