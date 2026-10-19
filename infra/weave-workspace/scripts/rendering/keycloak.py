@@ -203,7 +203,14 @@ def render_keycloak(context: ComposeContext) -> dict[str, object]:
             raise ContractError(f"public JWKS projection is unavailable: {path}")
         public_keys[secret_ref] = validate_public_jwks(json_object(path), owner=secret_ref)
 
-    realm_payload = pretty_json(project_realm(desired, public_keys))
+    migration_definition = json_object(migration_definition_source)
+    import_projection = {}
+    if context.environment in {"dev", "dogfood", "e2e"}:
+        import_projection = {
+            "import_defaults": json_object(context.root / "keycloak/stock-client-scopes-26.7.1.json"),
+            "organization_mapper": migration_definition["operations"][1]["desiredState"],
+        }
+    realm_payload = pretty_json(project_realm(desired, public_keys, **import_projection))
     rendered_digest = sha256_digest(realm_payload)
     migration_bundle = fresh_start_migration_bundle(
         desired, rendered_digest, json_object(migration_definition_source)

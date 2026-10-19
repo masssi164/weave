@@ -4,6 +4,12 @@ The first import-only local inspection (`local-cua-20261019-2053`, source `4c5e4
 
 ## October 19: import-only bootstrap and bounded pure-generation correction
 
+The corrected `584b4569...` inspection (`local-cua-20261019-2056`) brought up the isolated stack and passed real curated workload registration. The actual invitation/browser PKCE then failed the unchanged `native-organization-id` assertion before native execution. Exact cleanup removed all owned resources. This exposed another responsibility previously hidden in post-import migration: configuring Keycloak's native organization mapper to include its ID.
+
+The renderer now imports the pinned Keycloak26.7.1 stock scope projection explicitly in Dev/Dogfood/E2E, with automatic default-scope creation disabled. Keycloak's importer creates defaults before custom scopes and does not update an existing scope; importing another `organization` scope would duplicate its identity. The public projection was obtained by offline import/export from the already pinned stock image `sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2`, without network, credentials or product services. Runtime-generated IDs are excluded. All15 stock scopes, their default/optional membership and offline-access role mapping are retained. Only the native organization mapper is supplied from the existing reviewed migration-definition desired state; there is no duplicated mapper configuration, new realm baseline or startup mutation. Tests compare every other scope unchanged and reject version/duplicate-scope mismatches. Production keeps its existing stock-default creation and restricted post-import migration. This compatibility projection must be refreshed deliberately with a future Keycloak version update.
+
+Pure-generation PR1644 normally merged to Dev `7131db5a9248b9fe58cfc491e4877a2e97a59b2d`; its exact Core39321922006 passed all15 jobs in13m41. Hosted generation reported37s/10 outputs and Flutter job11m20, under different runner/cache conditions from local probes. No whole-CI causal percentage is claimed. This branch incorporates that accepted Dev change without rewriting history.
+
 The owner completion brief starts from accepted Dev `5fb1cf6319d27cbba51dd6b6dcd8eab1dac3ffe4`.
 PR1643's three instruction/template changes are preserved. Existing promotion PR1639 is draft
 while these foundation changes and actual collaboration qualification are completed; its earlier

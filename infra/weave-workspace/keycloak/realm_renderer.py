@@ -451,8 +451,11 @@ def _validate_deferred_fgap(
 def project_realm(
     desired: dict[str, Any],
     public_keys: dict[str, dict[str, object]],
+    *,
+    import_defaults: dict[str, Any] | None = None,
+    organization_mapper: dict[str, Any] | None = None,
 ) -> dict[str, object]:
-    """Return a Keycloak 26.7 ``RealmRepresentation`` for a Fresh Start."""
+    """Return one Keycloak 26.7 import, with explicit stock scopes when needed."""
     if desired.get("apiVersion") != "weave.keycloak-desired-state/v3":
         raise RealmProjectionError("renderer accepts only canonical desired-state v3")
     if desired.get("keycloakVersion") != KEYCLOAK_VERSION:
@@ -494,8 +497,9 @@ def project_realm(
             role_by_key[str(role["key"])] = {**role, "clientId": client_id}
         else:
             raise RealmProjectionError("role has unsupported scope")
-    # Keycloak creates built-in scopes before import. The explicit post-import
-    # migration configures its existing native organization mapper instead.
+    # Semantic scopes cannot shadow stock scopes. Development imports the
+    # versioned stock projection below so its organization mapper is complete
+    # without post-import mutation; production retains restricted migration.
     if "organization" in scope_names.values():
         raise RealmProjectionError("the built-in organization scope cannot be shadowed")
     projected_scopes: list[dict[str, object]] = []
@@ -667,6 +671,33 @@ def project_realm(
         "users": users,
         "verifyEmail": bool(realm.get("verifyEmail", True)),
     }
+    if import_defaults is not None:
+        if (import_defaults.get("keycloakVersion") != KEYCLOAK_VERSION
+                or not isinstance(import_defaults.get("clientScopes"), list)
+                or not isinstance(organization_mapper, dict)
+                or organization_mapper.get("clientScopeName") != "organization"
+                or organization_mapper.get("protocolMapper") != "oidc-organization-membership-mapper"
+                or organization_mapper.get("config", {}).get("addOrganizationId") != "true"):
+            raise RealmProjectionError("import-only stock scope projection is invalid")
+        # Copy public representations; never mutate the pinned stock projection.
+        defaults = json.loads(json.dumps(import_defaults))
+        stock_scopes = defaults["clientScopes"]
+        names = [scope["name"] for scope in stock_scopes]
+        if len(names) != len(set(names)) or set(names).intersection(scope_names.values()):
+            raise RealmProjectionError("import-only client scopes must be unique")
+        organizations = [scope for scope in stock_scopes if scope["name"] == "organization"]
+        if len(organizations) != 1:
+            raise RealmProjectionError("exactly one native organization scope is required")
+        organizations[0]["protocolMappers"] = [{
+            key: value for key, value in organization_mapper.items() if key != "clientScopeName"
+        }]
+        representation["attributes"]["CreateDefaultClientScopes"] = "false"
+        representation["clientScopes"] = stock_scopes + projected_scopes
+        representation["scopeMappings"] = defaults["scopeMappings"] + scope_mappings
+        for key in ("defaultDefaultClientScopes", "defaultOptionalClientScopes"):
+            representation[key] = defaults[key]
+    elif organization_mapper is not None:
+        raise RealmProjectionError("native organization mapper requires explicit stock import scopes")
     assert_secret_free(representation)
     return representation
 
