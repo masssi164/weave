@@ -164,7 +164,7 @@ class HumanTestingReadinessManifestTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertIn("proofKinds", completed.stderr)
 
-    def test_realm_evidence_requires_candidate_render_and_readback_proof(self) -> None:
+    def test_realm_evidence_requires_candidate_render_import_provenance(self) -> None:
         mutations = (
             (
                 lambda data: data["realmEvidence"].pop("semanticRealmSourceDigest"),
@@ -178,9 +178,17 @@ class HumanTestingReadinessManifestTest(unittest.TestCase):
             ),
             (
                 lambda data: data["realmEvidence"].__setitem__(
-                    "semanticReadbackVerified", False
+                    "initializationMode", "post-import-migration"
                 ),
+                "initializationMode",
+            ),
+            (
+                lambda data: data["realmEvidence"].__setitem__("semanticReadbackVerified", True),
                 "semanticReadbackVerified",
+            ),
+            (
+                lambda data: data["realmEvidence"].__setitem__("environmentRealmRenderStable", False),
+                "environmentRealmRenderStable",
             ),
             (
                 lambda data: data["realmEvidence"].__setitem__("containsSecrets", True),

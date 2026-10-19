@@ -28,10 +28,6 @@ services:
       - ${WEAVE_TLS_ROOT:?reviewed external TLS root required}/ca.pem:/opt/weave/trust/ca.pem:ro
       - ${WEAVE_GENERATED_ROOT:-./.generated/dogfood}/keycloak/import:/opt/keycloak/data/import:ro
 
-  keycloak-realm-migration-receipt-check:
-    profiles: !override
-      - identity-migration
-
   agent-runtime-keys-init:
     profiles: !override
       - weaver

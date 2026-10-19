@@ -1,5 +1,60 @@
 # Release qualification implementation progress for #1592
 
+The first import-only local inspection (`local-cua-20261019-2053`, source `4c5e4f0068563878005b38481ffc06cd75670882`) stopped before Compose startup: the release-MCP workload placeholder depended on a directory previously created implicitly by migration preparation. The runner now invokes the existing Compose `configure` entry point after empty-namespace proof and teardown arming, before creating that placeholder. The original failure and successful exact namespace cleanup are retained; neither simulator launched and no native acceptance is claimed.
+
+## October 19: import-only bootstrap and bounded pure-generation correction
+
+The corrected `584b4569...` inspection (`local-cua-20261019-2056`) brought up the isolated stack and passed real curated workload registration. The actual invitation/browser PKCE then failed the unchanged `native-organization-id` assertion before native execution. Exact cleanup removed all owned resources. This exposed another responsibility previously hidden in post-import migration: configuring Keycloak's native organization mapper to include its ID.
+
+The renderer now imports the pinned Keycloak26.7.1 stock scope projection explicitly in Dev/Dogfood/E2E, with automatic default-scope creation disabled. Keycloak's importer creates defaults before custom scopes and does not update an existing scope; importing another `organization` scope would duplicate its identity. The public projection was obtained by offline import/export from the already pinned stock image `sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2`, without network, credentials or product services. Runtime-generated IDs are excluded. All15 stock scopes, their default/optional membership and offline-access role mapping are retained. Only the native organization mapper is supplied from the existing reviewed migration-definition desired state; there is no duplicated mapper configuration, new realm baseline or startup mutation. Tests compare every other scope unchanged and reject version/duplicate-scope mismatches. Production keeps its existing stock-default creation and restricted post-import migration. This compatibility projection must be refreshed deliberately with a future Keycloak version update.
+
+Pure-generation PR1644 normally merged to Dev `7131db5a9248b9fe58cfc491e4877a2e97a59b2d`; its exact Core39321922006 passed all15 jobs in13m41. Hosted generation reported37s/10 outputs and Flutter job11m20, under different runner/cache conditions from local probes. No whole-CI causal percentage is claimed. This branch incorporates that accepted Dev change without rewriting history.
+
+The owner completion brief starts from accepted Dev `5fb1cf6319d27cbba51dd6b6dcd8eab1dac3ffe4`.
+PR1643's three instruction/template changes are preserved. Existing promotion PR1639 is draft
+while these foundation changes and actual collaboration qualification are completed; its earlier
+`ef41d64a...` deterministic result remains historical evidence for that source.
+
+The accepted DevOps import-only requirement conflicted with readiness schema5's migration-derived
+semantic-readback fields. Corpus PR159 merged normally as `92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`
+after actual corpus conformance, bundle signability and independent frozen review. This branch
+pins that accepted revision. Schema6 records stable import-render provenance without claiming live
+provider readback. Authentication, permitted identity operations, restart, mandatory native
+qualification, deployment, physical preparation and explicit human acceptance remain required.
+
+The implementation removes the E2E migration dispatcher and executor, includes E2E in the two
+permitted identity-admin development role grants, restricts migration receipt startup and writable
+migration ownership to production, and removes obsolete Dev/Dogfood migration overrides. Production
+keeps its restricted migration/backup/receipt boundary. E2E retains the current reviewed runtime
+image and workload policy needed by its existing curated MCP proof. No realm, persistent Dogfood
+state, operator TLS or reviewed secret is deleted. Startup import skips an existing realm;
+changed generated JSON is not an incremental migration.
+
+Direct evidence producers/consumers now share the import-provenance validation. The readiness
+schema loader reuses the existing exact corpus resolver instead of ignoring its accepted worktree
+coordinate. Unit fixtures are version6 and are not represented as live identity or HIL evidence.
+The existing [test strategy](../testing/core-test-strategy.md) maps each affected suite to its
+entry point, meaningful boundary and evidence; native and generated-client consumers remain
+separate obligations.
+
+Executed focused validation: production/development migration boundaries, realm renderer,
+Compose profile graph, seven realm-evidence cases, two runtime-image evidence cases, 43 automated/
+readiness/assembler cases, product-flow lifecycle contracts, pinned corpus157, acceptance,
+complete infraStatic and strict docs all passed. Initial stale receipt assertions and the old
+schema-path failure were repaired; original failing logs remain private. Real imported Keycloak
+bootstrap, ordinary restart and warm two-app interaction are the next runtime checks. No new
+all-seven qualification, deployment, physical installation or HIL success is claimed here.
+
+Independent pure-generation PR1644 uses public build_runner2.13.1 `--force-aot` with the pinned
+Flutter3.41.6/Dart3.11.4 toolchain. The JIT control entered Cargo and was stopped at1.100s. First
+builder AOT compilation passed12.386s; warm generation passed1.102s. A real Riverpod input rename
+regenerated its provider in6.159s; exact input restoration/regeneration passed5.738s and restored
+all998 tracked client/Rust file hashes. AOT probes observed no Cargo/rustc and no rejecting-wrapper
+calls. Each timing is one local sample with the existing dependency/asset cache; the first AOT run
+compiled the builders, and the mutation actually regenerated output. The stopped JIT run is not a
+complete latency baseline or a whole-CI improvement percentage. Native hooks and tests are unchanged.
+
+
 This is an implementation and evidence record. The pinned specification corpus remains normative. No automation or human result is implied by a plan or a merged specification.
 
 ## Current checkpoint — October 18, 2026 UTC

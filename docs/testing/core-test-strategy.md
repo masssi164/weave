@@ -6,6 +6,28 @@ consumer freshness and real user/admin/MCP/Matrix journeys. Provider adoption an
 migration tests belong to #1498. The commands below remain useful regression checks;
 their success alone does not close either epic.
 
+## Current October release responsibilities
+
+The pinned release/delivery contracts govern current work. The existing entry points below
+exercise distinct boundaries; similar operations at a generated-client, native UI or physical
+surface remain separate proof. These implementation notes do not redefine acceptance.
+
+| Responsibility | Existing entry point | Actual boundary | Evidence |
+| --- | --- | --- | --- |
+| Unit and module behavior | Focused Flutter tests and `testAppContract` | Pure decisions, state transitions, runner failure/cleanup and domain invariants | Test reports and bounded failure diagnostics; no running-product claim |
+| Contract and security | `generatedApiContractCi`, scoped generated-consumer gates, Server decoder/security tests | Code-first export, serialization, real configured JWT decoder/validators, claims/client admission and domain authorization | Freshness/drift results and positive/negative boundary assertions; mocked principals alone do not prove decoding |
+| Collaborating components | `postgresPersistenceCi`, relevant Server integration tests and `WEAVE_TEST_APP_RELEASE_MCP=true ./gradlew testApp` without a native runner | Real Spring/PostgreSQL/adapters/generated clients; imported Keycloak invitation, browser PKCE and permitted identity operations before native UI starts | Actual component/product protocol results, exact runtime/image/spec identity and cleanup; no native acceptance |
+| Native product journeys | Protected Full Compose E2E using existing `testApp` and mandatory native runner; its isolated inspection mode for local interaction | Actual macOS and two concurrent independent iOS Flutter apps, system browser/picker, collaboration and recovery | Exact-candidate native result, per-action and all-seven scenario outcomes, private diagnostics and owned-resource cleanup |
+| Physical and human acceptance | Existing Prepare Human Test and explicit owner protocol | In-place physical iPhone signing/install/launch, trusted TLS, contextual usability and VoiceOver | Exact preparation and separately supplied human result; simulator or fixture proof cannot manufacture acceptance |
+
+Development identity uses one generated canonical realm import. Ordinary restart preserves the
+existing realm; new import JSON is not an incremental migration. Production retains separately
+qualified restricted migration/backup/readback. Import-render provenance in readiness version 6
+never substitutes for real authentication and identity-operation results. Use the affected direct
+entry point to reproduce a regression before another complete native qualification.
+
+The sections below preserve the earlier foundation inventory and deferred portability scope.
+
 ## Principle
 
 Unit and contract tests cover edge cases. A small number of real boundary and system tests prove that the architecture works together. Compilation, mocks, fixture schemas, and controller reachability alone are insufficient.
@@ -82,7 +104,7 @@ The current `mcpFoundationCi` runs the separate-process tests honestly. It does 
 
 Owner: #1412.
 
-The disposable topology contains PostgreSQL, Keycloak and one-shot bootstrap, Flyway initialization, Weave Server, Weave MCP Server, Files blob storage, ingress/TLS where required, deterministic provider A/B fixtures, and one runner.
+The disposable topology contains PostgreSQL, import-initialized Keycloak, Flyway initialization, Weave Server, Weave MCP Server, Files blob storage, ingress/TLS where required, deterministic provider A/B fixtures, and one runner.
 
 It must not require Nextcloud, Tuwunel/Synapse, MAS, Element, MinIO, a real cloud provider, Flutter, or a physical device.
 

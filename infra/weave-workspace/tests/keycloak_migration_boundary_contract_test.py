@@ -242,7 +242,7 @@ def rejected(action) -> None:
 
 
 def assert_application_startup_requires_completed_migration() -> None:
-    for environment in ("e2e", "prod"):
+    for environment in ("prod",):
         context = SimpleNamespace(environment=environment, profile=environment, active_profiles=())
         events = []
 
@@ -278,8 +278,30 @@ def assert_application_startup_requires_completed_migration() -> None:
         assert events[-1][-2:] == ("backend", "mcp-server")
 
 
+def assert_development_startup_uses_import_only() -> None:
+    for environment in ("dev", "dogfood", "e2e"):
+        context = SimpleNamespace(environment=environment, profile=environment, active_profiles=())
+        roots = ("keycloak",) if environment == "dev" else ("backend", "mcp-server")
+        with (
+            mock.patch.object(compose_runtime, "script"),
+            mock.patch.object(compose_runtime, "prepare"),
+            mock.patch.object(compose_runtime, "compose") as compose,
+            mock.patch.object(compose_runtime, "runtime_root_services", return_value=roots),
+            mock.patch.object(compose_runtime, "require_completed_migration",
+                              side_effect=AssertionError("development must not read a migration receipt")) as receipt,
+            mock.patch.object(compose_runtime, "create_backup_proof",
+                              side_effect=AssertionError("development must not create a migration backup")) as backup,
+        ):
+            compose_runtime.execute(context, "up", [])
+        receipt.assert_not_called()
+        backup.assert_not_called()
+        assert compose.call_args.args[-len(roots):] == roots
+        assert not any("keycloak-realm-migration" in str(call) for call in compose.call_args_list)
+
+
 def main() -> None:
     assert_application_startup_requires_completed_migration()
+    assert_development_startup_uses_import_only()
     claims = base64.urlsafe_b64encode(
         json.dumps({"realm_access": {"roles": ["weaver-runtime"]}, "resource_access": {"realm-management": {"roles": ["create-client"]}}}, separators=(",", ":")).encode()
     ).rstrip(b"=").decode()

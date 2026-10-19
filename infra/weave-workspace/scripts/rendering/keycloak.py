@@ -90,12 +90,12 @@ def _desired(baseline: dict[str, object], overlay: dict[str, object]) -> dict[st
         # Weaver is an opt-in product line. The native Compose baseline must
         # remain compatible with stock Keycloak and must not activate its
         # downstream Dynamic Client Registration executor by default. The
-        # disposable E2E lane deliberately retains this policy because it
-        # proves the complete Weaver workload lifecycle.
+        # isolated E2E lane retains the reviewed workload policy needed by
+        # the existing curated MCP proof, without changing the runtime image.
         desired["clientPolicies"] = []
-    # Isolated E2E explicitly qualifies the production FGAP migration before
-    # application startup; it must not retain the development role bypass.
-    if overlay["environment"] in {"dev", "dogfood"}:
+    # All three development lanes initialize identity through the same import.
+    # Production retains the restricted, separately qualified FGAP migration.
+    if overlay["environment"] in {"dev", "dogfood", "e2e"}:
         grants = desired.get("serviceAccountRoleGrants")
         if not isinstance(grants, list):
             raise ContractError("canonical service-account role grants are required")
@@ -203,7 +203,14 @@ def render_keycloak(context: ComposeContext) -> dict[str, object]:
             raise ContractError(f"public JWKS projection is unavailable: {path}")
         public_keys[secret_ref] = validate_public_jwks(json_object(path), owner=secret_ref)
 
-    realm_payload = pretty_json(project_realm(desired, public_keys))
+    migration_definition = json_object(migration_definition_source)
+    import_projection = {}
+    if context.environment in {"dev", "dogfood", "e2e"}:
+        import_projection = {
+            "import_defaults": json_object(context.root / "keycloak/stock-client-scopes-26.7.1.json"),
+            "organization_mapper": migration_definition["operations"][1]["desiredState"],
+        }
+    realm_payload = pretty_json(project_realm(desired, public_keys, **import_projection))
     rendered_digest = sha256_digest(realm_payload)
     migration_bundle = fresh_start_migration_bundle(
         desired, rendered_digest, json_object(migration_definition_source)
@@ -221,7 +228,8 @@ def render_keycloak(context: ComposeContext) -> dict[str, object]:
     generated = context.generated_root
     runtime_owner = (int(context.env["WEAVE_RUNTIME_UID"]), int(context.env["WEAVE_RUNTIME_GID"]))
     runtime_directory(generated / "keycloak/import", runtime_owner)
-    runtime_directory(generated / "keycloak/migrations", runtime_owner)
+    if context.environment == "prod":
+        runtime_directory(generated / "keycloak/migrations", runtime_owner)
 
     write(generated / "keycloak/semantic-realm-source.json", semantic_payload, private=False)
     write(generated / "keycloak/migration-definition.json", migration_definition_payload, private=False)

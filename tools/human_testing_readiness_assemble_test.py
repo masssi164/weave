@@ -165,7 +165,6 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
         automated_realm = documents["automated"]["realmEvidence"]
         automated_realm["overlayDigest"] = "sha256:" + "1" * 64
         automated_realm["renderedRealmDigest"] = "sha256:" + "2" * 64
-        automated_realm["semanticReadbackDigest"] = "sha256:" + "3" * 64
         completed = self.run_assemble(documents)
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         result = json.loads((self.root / "result.json").read_text(encoding="utf-8"))
@@ -266,10 +265,10 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
                 "migrationDefinitionDigest", "sha256:" + "f" * 64
             ),
             lambda documents: documents["health"]["realmEvidence"].__setitem__(
-                "semanticReadbackDigest", "sha256:" + "e" * 64
+                "renderedRealmDigest", "sha256:" + "e" * 64
             ),
             lambda documents: documents["automated"]["realmEvidence"].__setitem__(
-                "semanticReadbackVerified", False
+                "initializationMode", "post-import-migration"
             ),
         )
         for mutate in mutations:

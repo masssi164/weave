@@ -320,7 +320,7 @@ fi
 
 log "Starting one exact, import-initialized disposable Compose test stack."
 STACK_PREPARED=true
-bash "${COMPOSE}" e2e keycloak-migration-apply
+bash "${COMPOSE}" e2e configure
 if [[ "${RELEASE_MCP}" == "true" ]]; then
   python3 - "${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads/release-mcp.json" <<'PY'
 import os
@@ -355,7 +355,7 @@ if [[ -n "${candidate_manifest_path}" ]]; then
     --first-render-manifest "${first_render_manifest}" \
     --current-render-manifest "${WEAVE_TEST_APP_GENERATED_ROOT}/render-manifest.json" \
     --render-evidence "${WEAVE_TEST_APP_GENERATED_ROOT}/keycloak/realm-render-evidence.json" \
-    --migration-receipt "${WEAVE_TEST_APP_GENERATED_ROOT}/keycloak/migrations/fgap-v2-primary-organization-post-import.receipt.json" \
+    --realm-import \
     --output "${realm_evidence_path}"
 fi
 
@@ -560,13 +560,12 @@ jq -e \
       .realmEvidenceVerified == true and
       .realmEvidence.candidateRealmDefinitionMatched == true and
       .realmEvidence.environmentRealmRenderStable == true and
-      .realmEvidence.semanticReadbackVerified == true and
+      .realmEvidence.initializationMode == "realm-import" and
       .realmEvidence.containsSecrets == false and
       (.realmEvidence.semanticRealmSourceDigest | test("^sha256:[0-9a-f]{64}$")) and
       (.realmEvidence.migrationDefinitionDigest | test("^sha256:[0-9a-f]{64}$")) and
       (.realmEvidence.overlayDigest | test("^sha256:[0-9a-f]{64}$")) and
-      (.realmEvidence.renderedRealmDigest | test("^sha256:[0-9a-f]{64}$")) and
-      (.realmEvidence.semanticReadbackDigest | test("^sha256:[0-9a-f]{64}$")))) and
+      (.realmEvidence.renderedRealmDigest | test("^sha256:[0-9a-f]{64}$")))) and
   (.images[] | select(.component == "keycloak-runtime") |
     .buildEvidenceDigest | test("^sha256:[0-9a-f]{64}$")) and
   ([.images[].matchesCandidate] | all) and

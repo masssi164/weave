@@ -19,24 +19,9 @@ DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 IMMUTABLE_IMAGE_PATTERN = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
 AUTOMATED_IMAGE_COMPONENTS = {"server", "mcp-server", "keycloak-runtime"}
 DEPLOYMENT_IMAGE_COMPONENTS = {"backend", "mcp", "keycloak"}
-REALM_EVIDENCE_FIELDS = {
-    "semanticRealmSourceDigest",
-    "migrationDefinitionDigest",
-    "overlayDigest",
-    "renderedRealmDigest",
-    "semanticReadbackDigest",
-    "candidateRealmDefinitionMatched",
-    "environmentRealmRenderStable",
-    "semanticReadbackVerified",
-    "containsSecrets",
-}
-REALM_EVIDENCE_DIGEST_FIELDS = {
-    "semanticRealmSourceDigest",
-    "migrationDefinitionDigest",
-    "overlayDigest",
-    "renderedRealmDigest",
-    "semanticReadbackDigest",
-}
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "infra/weave-workspace/scripts"))
+from keycloak_realm_evidence import EvidenceError as RealmEvidenceError, validate_import_evidence  # noqa: E402
+
 REALM_CANDIDATE_IDENTITY_FIELDS = (
     "semanticRealmSourceDigest",
     "migrationDefinitionDigest",
@@ -105,26 +90,11 @@ def require_automated_origins(automated: dict[str, Any]) -> dict[str, Any]:
 
 
 def require_realm_evidence(document: dict[str, Any], label: str) -> dict[str, Any]:
-    evidence = document.get("realmEvidence")
-    if not isinstance(evidence, dict) or set(evidence) != REALM_EVIDENCE_FIELDS:
-        raise ManifestError(f"{label} realm evidence is incomplete")
-    if any(
-        DIGEST_PATTERN.fullmatch(str(evidence.get(field))) is None
-        for field in REALM_EVIDENCE_DIGEST_FIELDS
-    ):
-        raise ManifestError(f"{label} realm evidence contains a malformed digest")
-    if any(
-        evidence.get(field) is not True
-        for field in (
-            "candidateRealmDefinitionMatched",
-            "environmentRealmRenderStable",
-            "semanticReadbackVerified",
-        )
-    ):
-        raise ManifestError(f"{label} realm evidence is not fully verified")
-    if evidence.get("containsSecrets") is not False:
-        raise ManifestError(f"{label} realm evidence must be secret-free")
-    return evidence
+    try:
+        return validate_import_evidence(document.get("realmEvidence"))
+    except RealmEvidenceError as error:
+        raise ManifestError(f"{label} realm evidence is incomplete or not verified") from error
+
 
 
 def require_same_realm_candidate_identity(
@@ -258,7 +228,7 @@ def assemble(
 
     surfaces = require_automated_origins(automated)
     return {
-        "schemaVersion": 5,
+        "schemaVersion": 6,
         "candidateCommit": candidate,
         "sourceCandidateCommit": source_candidate,
         "specCorpusCommit": spec_commit,

@@ -72,13 +72,12 @@ def identity(manifest: dict[str, Any], label: str) -> dict[str, Any]:
     return value
 
 
-def finalize(
+def _validated_render_identity(
     lane_candidate: str,
     candidate: dict[str, Any],
     first_render: dict[str, Any],
     current_render: dict[str, Any],
     render_evidence: dict[str, Any],
-    receipt: dict[str, Any],
 ) -> dict[str, Any]:
     if not COMMIT.fullmatch(lane_candidate):
         raise EvidenceError("lane candidate must be one exact lowercase Git object ID")
@@ -121,6 +120,52 @@ def finalize(
         or render_evidence.get("semanticReadbackVerified") is not False
     ):
         raise EvidenceError("pre-runtime environment render evidence is stale or overclaims readback")
+    return current_identity
+
+
+IMPORT_DIGEST_FIELDS = frozenset({
+    "semanticRealmSourceDigest", "migrationDefinitionDigest", "overlayDigest",
+    "renderedRealmDigest",
+})
+IMPORT_EVIDENCE_FIELDS = IMPORT_DIGEST_FIELDS | {
+    "initializationMode", "candidateRealmDefinitionMatched",
+    "environmentRealmRenderStable", "containsSecrets",
+}
+
+
+def validate_import_evidence(value: Any, definition: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Validate render provenance; authentication belongs to real product evidence."""
+    if (
+        not isinstance(value, dict) or set(value) != IMPORT_EVIDENCE_FIELDS
+        or any(not DIGEST.fullmatch(str(value.get(field, ""))) for field in IMPORT_DIGEST_FIELDS)
+        or value.get("initializationMode") != "realm-import"
+        or value.get("candidateRealmDefinitionMatched") is not True
+        or value.get("environmentRealmRenderStable") is not True
+        or value.get("containsSecrets") is not False
+        or (definition is not None and any(value.get(field) != definition.get(field)
+            for field in ("semanticRealmSourceDigest", "migrationDefinitionDigest")))
+    ):
+        raise EvidenceError("import realm provenance is incomplete or not candidate-bound")
+    return value
+
+
+def finalize_import(lane_candidate, candidate, first_render, current_render, render_evidence):
+    if render_evidence.get("environment") not in {"dev", "dogfood", "e2e"}:
+        raise EvidenceError("realm-import readiness is confined to development lanes")
+    current_identity = _validated_render_identity(
+        lane_candidate, candidate, first_render, current_render, render_evidence)
+    return validate_import_evidence({
+        **current_identity, "initializationMode": "realm-import",
+        "candidateRealmDefinitionMatched": True, "environmentRealmRenderStable": True,
+        "containsSecrets": False,
+    }, candidate["realmDefinition"])
+
+
+def finalize(lane_candidate, candidate, first_render, current_render, render_evidence, receipt):
+    if render_evidence.get("environment") != "prod":
+        raise EvidenceError("migration receipt finalization is confined to production")
+    current_identity = _validated_render_identity(
+        lane_candidate, candidate, first_render, current_render, render_evidence)
     if (
         receipt.get("schemaVersion") != RECEIPT_SCHEMA
         or receipt.get("status") != "complete"
@@ -172,7 +217,9 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--first-render-manifest", type=Path, required=True)
     value.add_argument("--current-render-manifest", type=Path, required=True)
     value.add_argument("--render-evidence", type=Path, required=True)
-    value.add_argument("--migration-receipt", type=Path, required=True)
+    initialization = value.add_mutually_exclusive_group(required=True)
+    initialization.add_argument("--migration-receipt", type=Path)
+    initialization.add_argument("--realm-import", action="store_true")
     value.add_argument("--output", type=Path, required=True)
     return value
 
@@ -180,14 +227,15 @@ def parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = parser().parse_args()
     try:
-        evidence = finalize(
+        inputs = (
             args.lane_candidate,
             load(args.candidate_manifest, "candidate manifest"),
             load(args.first_render_manifest, "first render manifest"),
             load(args.current_render_manifest, "current render manifest"),
             load(args.render_evidence, "render evidence"),
-            load(args.migration_receipt, "migration receipt"),
         )
+        evidence = (finalize_import(*inputs) if args.realm_import
+                    else finalize(*inputs, load(args.migration_receipt, "migration receipt")))
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(
             json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -197,7 +245,7 @@ def main() -> int:
         return 2
     print(
         "KEYCLOAK_REALM_EVIDENCE_RESULT status=passed "
-        f"semanticReadbackDigest={evidence['semanticReadbackDigest']} supportSafe=true"
+        "initialization=" + ("realm-import" if args.realm_import else "production-migration") + " supportSafe=true"
     )
     return 0
 

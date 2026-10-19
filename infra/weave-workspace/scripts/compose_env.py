@@ -587,7 +587,12 @@ def assert_revision(value: Mapping[str, object], source: Path) -> None:
 
 
 def specification_context(context: ComposeContext) -> tuple[Path, str]:
-    lock_path = context.repository_root / "specs/weave-specs.lock.json"
+    return pinned_specification_context(context.repository_root)
+
+
+def pinned_specification_context(repository_root: Path) -> tuple[Path, str]:
+    """Resolve the existing exact corpus coordinate without loading a runtime."""
+    lock_path = repository_root / "specs/weave-specs.lock.json"
     lock = json.loads(lock_path.read_text(encoding="utf-8"))
     corpus = lock.get("specCorpus", {})
     commit = corpus.get("gitCommit", "")
@@ -600,7 +605,7 @@ def specification_context(context: ComposeContext) -> tuple[Path, str]:
             fail("WEAVE_SPEC_CORPUS_ROOT must be an absolute Git worktree path")
         corpus_root = override_path.resolve()
     else:
-        corpus_root = (context.repository_root / corpus.get("localPath", "")).resolve()
+        corpus_root = (repository_root / corpus.get("localPath", "")).resolve()
     if not corpus_root.is_dir() or not (corpus_root / ".git").exists():
         # Git worktrees store .git as a regular file. Exported trees and bare
         # repositories cannot prove the exact checked-out specification HEAD.

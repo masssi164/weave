@@ -344,6 +344,36 @@ def run() -> None:
     assert not any(scope["name"] == "organization" for scope in first["clientScopes"]), (
         "Keycloak creates this built-in scope before custom-scope import"
     )
+    defaults = json.loads((ROOT / "keycloak/stock-client-scopes-26.7.1.json").read_text())
+    mapper = json.loads((ROOT / "keycloak/migration-definition.json").read_text())["operations"][1]["desiredState"]
+    imported = project_realm(copy.deepcopy(desired), public_by_ref,
+                             import_defaults=defaults, organization_mapper=mapper)
+    assert imported["attributes"]["CreateDefaultClientScopes"] == "false"
+    stock_names = {scope["name"] for scope in defaults["clientScopes"]}
+    assert len(stock_names) == 15
+    imported_scopes = {scope["name"]: scope for scope in imported["clientScopes"]}
+    assert len(imported_scopes) == len(imported["clientScopes"])
+    assert stock_names.issubset(imported_scopes)
+    for scope in defaults["clientScopes"]:
+        if scope["name"] != "organization":
+            assert imported_scopes[scope["name"]] == scope, "stock scope behavior changed"
+    assert imported_scopes["organization"]["protocolMappers"] == [
+        {key: value for key, value in mapper.items() if key != "clientScopeName"}
+    ]
+    assert imported["scopeMappings"] == defaults["scopeMappings"] + first["scopeMappings"]
+    assert first["attributes"]["CreateDefaultClientScopes"] == "true", "production baseline changed"
+    assert imported["defaultDefaultClientScopes"] == defaults["defaultDefaultClientScopes"]
+    assert imported["defaultOptionalClientScopes"] == defaults["defaultOptionalClientScopes"]
+    for malformed in ({**defaults, "keycloakVersion": "0.0.0"},
+                      {**defaults, "clientScopes": defaults["clientScopes"] + [defaults["clientScopes"][0]]}):
+        try:
+            project_realm(copy.deepcopy(desired), public_by_ref,
+                          import_defaults=malformed, organization_mapper=mapper)
+        except RealmProjectionError:
+            pass
+        else:
+            raise AssertionError("invalid stock projection was accepted")
+
     assert first["clientScopeMappings"] == {
         "realm-management": [
             {

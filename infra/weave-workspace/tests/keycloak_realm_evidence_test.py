@@ -50,6 +50,7 @@ class KeycloakRealmEvidenceTest(unittest.TestCase):
         self.render_evidence = {
             "schemaVersion": "weave.keycloak-environment-render-evidence/v1",
             "candidateCommit": self.lane,
+            "environment": "prod",
             "realmIdentity": self.identity,
             "semanticReadbackDigest": None,
             "semanticReadbackVerified": False,
@@ -82,6 +83,36 @@ class KeycloakRealmEvidenceTest(unittest.TestCase):
             self.render_evidence,
             self.receipt,
         )
+
+    def test_import_records_provenance_without_claiming_live_readback(self) -> None:
+        self.render_evidence["environment"] = "e2e"
+        evidence = module.finalize_import(
+            self.lane, self.candidate, self.render, self.render, self.render_evidence)
+        self.assertEqual(evidence["initializationMode"], "realm-import")
+        self.assertEqual(set(evidence), module.IMPORT_EVIDENCE_FIELDS)
+        self.assertNotIn("semanticReadbackDigest", evidence)
+        self.assertNotIn("semanticReadbackVerified", evidence)
+
+    def test_import_rejects_stale_candidate_and_overclaimed_readback(self) -> None:
+        self.render_evidence["environment"] = "e2e"
+        self.render_evidence["candidateCommit"] = self.source
+        with self.assertRaisesRegex(module.EvidenceError, "stale or overclaims"):
+            module.finalize_import(
+                self.lane, self.candidate, self.render, self.render, self.render_evidence)
+        self.render_evidence["candidateCommit"] = self.lane
+        evidence = module.finalize_import(
+            self.lane, self.candidate, self.render, self.render, self.render_evidence)
+        for field in ("semanticReadbackDigest", "semanticReadbackVerified"):
+            with self.subTest(field=field), self.assertRaises(module.EvidenceError):
+                module.validate_import_evidence({**evidence, field: True})
+
+    def test_initialization_modes_cannot_cross_environment_authority(self) -> None:
+        with self.assertRaisesRegex(module.EvidenceError, "development lanes"):
+            module.finalize_import(
+                self.lane, self.candidate, self.render, self.render, self.render_evidence)
+        self.render_evidence["environment"] = "e2e"
+        with self.assertRaisesRegex(module.EvidenceError, "production"):
+            self.finalize()
 
     def test_accepts_distinct_lane_and_manifest_source_when_each_is_bound(self) -> None:
         evidence = self.finalize()
