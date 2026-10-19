@@ -12,13 +12,19 @@ The approved consolidation contract is corpus file `steering/release-2026-10-pro
 
 Language policy: every `AGENTS.md`, agent prompt, checked-in project instruction, PR body, issue body, code comment, and documentation change must be written in English unless a user-facing localization file explicitly requires another language.
 
-Product-line background: read `docs/product-line-and-weaver-plan.md` for historical context, then apply the pinned release profile above for the current implementation. Weave remains an independently usable provider-neutral organization suite; Weaver is optional.
+Product-line background: `docs/product-line-and-weaver-plan.md` provides historical context when relevant to the assigned scope; the pinned release profile above governs the current implementation. Weave remains an independently usable provider-neutral organization suite; Weaver is optional.
 
 v0.1 is dogfood-production, not preview. No scaffold, roadmap, or coming-soon UX in normal member paths.
 
 ## Required project standards
 
-Before coding, opening PRs, merging, or declaring work complete, read and follow:
+Before coding or delivery, identify and follow the applicable standards below. Read the root and all applicable scoped `AGENTS.md` files. This list identifies contract owners; it is not an instruction to reread the entire corpus, repository, or issue history at every stage.
+
+For a prepared bounded task, a source-pinned brief may satisfy background truth recovery when it supplies the implementation baseline, corpus pin, governing requirements and source paths, settled decisions, allowed scope, acceptance, required checks, and stop conditions. Verify those inputs against the checkout and inspect the affected implementation before editing. Missing requirements require a targeted read of their owner, not a new whole-project audit. A changed source or corpus pin requires reviewing the relevant delta; unknown material impact requires the stronger applicable review. Prepared context never overrides applicable instructions or grants additional action permissions. Revalidate consequential live checks and permissions at the action boundary. Do not transfer qualification to a changed candidate; unchanged-candidate promotion may reuse only evidence permitted by the pinned delivery contract. Unstructured chat memory is not source evidence.
+
+A bounded task is not a request to finish the whole sprint. Completion means its stated acceptance is met, required checks and review are satisfied, and no blocking finding remains. Record optional improvements as non-blocking follow-ups; do not recursively expand the task or create new optimization work without authorization.
+
+Apply the relevant standards:
 
 - `docs/developer-handbook.md` for coding conventions, Gradle gates, generated code, accessibility/i18n, and evidence expectations.
 - `docs/gitflow-pr-workflow.md` for lane-based DevOps flow, protected `main`/`dev`, PR readiness, merge rules, and release-notes labels.
@@ -40,7 +46,7 @@ A sprint-finish request authorizes normal repository delivery actions needed to 
 
 When assigned a sprint or milestone, the delivery lead must run this loop without handing decomposition back to the requester:
 
-1. **Truth recovery**: identify governing spec corpus files first, then fetch the current integration and stable lanes (`origin/dev` and `origin/main`), inspect GitHub milestone/issues/PRs/checks, read linked repo specs/tasks/docs as conformance artifacts, and identify the governing delivery lifecycle.
+1. **Truth recovery**: at sprint entry, establish the governing corpus revision, implementation baseline, issue DAG and delivery lifecycle. Reuse that source-pinned state for prepared tasks. After a merge or handoff, review changed inputs and refresh consequential live checks; reopen only affected decisions. Missing or materially invalidated context requires targeted recovery, not routine rereading of every issue and document.
 2. **Acceptance derivation**: turn each issue/spec/task into testable acceptance criteria and evidence gates. If an issue lacks acceptance, infer it from linked specs/docs and update the issue or sprint plan instead of asking the user for restatement.
 3. **Issue DAG**: build or repair the dependency graph; mark independent work parallel and ordered work sequential.
 4. **Delegation**: brief scoped reviewers or implementers with strict repo-safe inputs: task id, allowed files/globs, relevant docs, derived acceptance, required gates, output contract, and stop conditions.
@@ -51,7 +57,7 @@ When assigned a sprint or milestone, the delivery lead must run this loop withou
 9. **Closure report**: create/update `docs/sprint-<n>-closure-report.md` with governing specs, issue DAG final state, merged PRs in order, gates/CI evidence, release/RC impact, unresolved decisions, and next safe action.
 10. **GitHub closure gate**: verify via GitHub that the target milestone has zero open issues, all sprint issues are closed, the closure report exists on `origin/main`, and the final `main` CI after the last merge is green.
 
-Do not stop after one PR. Do not report success from local git state, a green branch, or a raw diff. If the closure gate fails, report `BLOCKED` with the exact issue, PR, command, check, missing decision, or permission that prevents progress.
+For an explicitly assigned full sprint, do not stop after one PR; its closure gate still applies. For a bounded task, stop at its own accepted completion boundary without inheriting whole-sprint or Main-promotion work. Do not report success from local git state, a green branch, or a raw diff. If a required gate fails, report `BLOCKED` with the exact issue, PR, command, check, missing decision, or permission that prevents progress.
 
 ## Work routing
 
@@ -74,7 +80,7 @@ Accessibility, supportability, auditability, and deployability are release block
 ## Global Weave agent baseline
 
 - Write agent instructions, PRs, issues, code comments, and documentation in English unless an explicit localization file requires another language.
-- Follow `docs/developer-handbook.md`, `docs/gitflow-pr-workflow.md`, `docs/weave-operating-model.md`, and relevant domain docs before coding, opening PRs, merging, or declaring work complete.
+- Follow the applicable requirements in `docs/developer-handbook.md`, `docs/gitflow-pr-workflow.md`, `docs/weave-operating-model.md`, and relevant domain docs. Use the prepared-task truth-recovery rule above; repeated background reading is not a delivery gate.
 - If the user asks to finish a sprint/milestone, derive acceptance first from the pinned spec corpus, then from GitHub issues/milestones, repo conformance specs/tasks, docs, CI policy, and evidence; do not require the user to restate issue acceptance criteria.
 - Keep live assistant runtime configuration, allowlists, hierarchy, model routing, and personal operator paths outside this product repo.
-- Use protected `main`, short-lived branches, exactly one `release-notes-*` label per PR, smallest meaningful local gates, green CI, fallback review evidence, and GitHub closure verification before reporting completion.
+- Use protected `main`, short-lived branches, exactly one `release-notes-*` label per PR, smallest meaningful local gates, green CI, fallback review evidence, and GitHub verification for the assigned completion boundary before reporting completion.
