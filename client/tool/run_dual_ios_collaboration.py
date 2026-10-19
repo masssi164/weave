@@ -1016,9 +1016,11 @@ def inspect_local_apps(input_data, env, temporary, devices, app, native_assets, 
                         relays[role].interrupt() if action == 'network-off' else relays[role].restore()
                     elif action == 'relaunch':
                         old_pid = item['pid']
+                        # Stopping flutter run can terminate its app. Verify and
+                        # stop the exact owned app before closing that resident.
+                        ios.terminate_initial_app(item['udid'], old_pid)
                         stop_flutter_process_group(item['process'])
                         item['stream'].close()
-                        ios.terminate_initial_app(item['udid'], old_pid)
                         pid_file = item['compiler'] / 'run.pid'
                         if pid_file.is_symlink():
                             raise ios.NativeFailure('infrastructure', 'local-inspection', 'unsafe-run-pid')

@@ -45,7 +45,7 @@ class _OrganizationAccessScreenState extends State<OrganizationAccessScreen> {
       return;
     }
     setState(() => _error = null);
-    context.go(uri.toString());
+    context.push(uri.toString());
   }
 
   @override

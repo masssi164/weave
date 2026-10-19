@@ -1,5 +1,51 @@
 # Release qualification implementation progress for #1592
 
+## October 19: real warm collaboration and native navigation corrections
+
+[Import-only PR1645](https://github.com/masssi164/weave/pull/1645) merged normally to
+Dev `e64882dd7e32b85d167dfdb942c55fe6ad26e89a`, preserving reviewed tree
+`89b55e660db8ba9b3237daa41903f56d0a6f93af` and accepted corpus
+`92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`. Its [exact-head Core run](https://github.com/masssi164/weave/actions/runs/39324749377)
+passed all15 jobs. The accepted corpus [Main run](https://github.com/masssi164/weave-specs/actions/runs/39322106333)
+passed corpus, bundle and signing checks. No equivalent integration qualification is implied.
+
+Warm local inspection `local-cua-20261019-2105` built clean reviewed `c7597253824340044011c92ace93ff2aa423b45c`
+with that same tree and pin. Before native entry, real invitation/browser PKCE, generated User/Admin
+operations, Matrix exchange, foreign-organization denials, generated/real Calendar MCP operations,
+revocation/refresh denial/regrant and ordinary PostgreSQL plus dependent Keycloak restart passed.
+The same runtime-state container and volume retained the exact fixture across restart. No post-start
+identity repair was applied. These component results do not establish native acceptance.
+
+Two concurrent independent real Flutter iOS apps then independently authenticated through the
+system browser. Computer Use observed A create a direct conversation and send unique content,
+B receive and reply, and A receive the reply once in order. A created and updated a shared workspace
+Calendar event; B retrieved both states through normal range navigation. Cancel preserved the event
+for both after server readback, and confirmed deletion removed it for both. A used the actual native
+picker to upload and replace a shared file. B displayed the actual initial48 and replacement52 bytes.
+B cancelled native export and recovered usable controls, then saved through the picker; the owned
+destination exactly matched replacement bytes (SHA256 `e23a7b4a0a1f29ef8e7a2eaac12f0973c4af4895051dc8b2c8547e8aab5d6f34`).
+EN/DE controls were observed; touch scrolling reached Files actions. This mixed-source exploratory
+session never qualifies a candidate and does not establish physical VoiceOver or human acceptance.
+
+| Observed defect | Correction and verification boundary |
+| --- | --- |
+| User control/error robustness; pre-auth member A, English and German, normal phone display; entering the organization URL reached ready state without an operable return path; mandatory-task recovery blocker | Organization entry now pushes the handoff, retaining its form. A localized Back control pops it or returns a direct invitation/error to public entry. Existing saved-profile cold start still opens Sign In; protected product routes remain gated. No configuration/session reset or second bootstrap is added. Actual A Back preserved the full host/port, continued and authenticated. EN/DE router regressions cover ready/error/direct entry, profile retention and protected routes. Shared/local sign-in busy states disable conflicting navigation. |
+| Inspection lifecycle; independent process restart A; infrastructure blocker | The old relaunch stopped `flutter run`, which could terminate its app, before validating that app's PID. The run failed `process-restart: initial-process-identity-changed`; no recovery pass is claimed. Relaunch now verifies/terminates the exact app before stopping its resident and starts a distinct process with the retained owned fixture. The existing lifecycle regression verifies ordering, unchanged B, retained A storage and explicit nonqualification. Real replay remains required. |
+
+The original inspection failure is retained. Existing teardown and independent Docker/Simulator
+inventories confirmed zero owned containers, networks, volumes and simulators. Persistent Dogfood,
+operator TLS and reviewed secrets were untouched. The native Calendar delete journey now cancels
+first, rereads the same event/version, then confirms deletion through the existing controls. This
+adds behavioral coverage within the existing scenario, without a new framework or acceptance skip.
+
+Warm iteration reused the same stack and apps for three acknowledged Dart reloads: 1.450s,485ms
+and349ms, one sample each with the existing native/dependency cache. The first value uses German
+thousands formatting. Loaded-script digest verification was explicitly false; these observations
+show iteration without repeated bootstrap, not a comparable full-CI speedup. Final exact-candidate
+Compose, macOS, all seven dual-iOS aggregates, deployment, physical preparation, HIL and Main are
+still required. The release issues remain open and promotion PR1639 remains held.
+
+
 The first import-only local inspection (`local-cua-20261019-2053`, source `4c5e4f0068563878005b38481ffc06cd75670882`) stopped before Compose startup: the release-MCP workload placeholder depended on a directory previously created implicitly by migration preparation. The runner now invokes the existing Compose `configure` entry point after empty-namespace proof and teardown arming, before creating that placeholder. The original failure and successful exact namespace cleanup are retained; neither simulator launched and no native acceptance is claimed.
 
 ## October 19: import-only bootstrap and bounded pure-generation correction

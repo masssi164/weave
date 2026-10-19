@@ -186,22 +186,35 @@ class DualIosCollaborationTest(unittest.TestCase):
             self.assertTrue(launch.call_args.kwargs['start_new_session'])
             self.assertIn('-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker', launch.call_args.args[0])
 
-    def test_local_browser_waits_for_cu_and_picker_uses_same_owned_operation(self):
+    def test_local_browser_picker_and_relaunch_preserve_the_owned_actor_lifecycle(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); scope = root / 'scope'; scope.mkdir()
             derived = root / 'derived'; products = derived / 'Build/Products'; products.mkdir(parents=True)
             (products / 'owned.xctestrun').write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}})); (products / 'BrowserDriver.xctest').mkdir()
             prepared = {}
+            current_pids = {}
+            lifecycle = []
             def prepare(actor, _udid, _app, _data, _env):
                 expected = {'role': actor['role'], 'runId': 'owned-test', 'storageDigest': 'preinstall'}
                 prepared[actor['role']] = expected
                 return root / 'obsolete', expected
             def start(udid, compiler, _app, _map, env, actor_scope, streams, **kwargs):
-                log = actor_scope / 'run-1.log'; stream = log.open('w'); streams.append(stream)
+                generation = kwargs['generation']
+                current_pids[udid] = udid + '-pid-' + str(generation)
+                lifecycle.append(('start', udid, generation))
+                log = actor_scope / ('run-' + str(generation) + '.log'); stream = log.open('w'); streams.append(stream)
                 process = mock.Mock(pid=123 if udid == 'A' else 456); process.poll.return_value = None
-                return {'udid': udid, 'pid': udid + '-pid', 'compiler': compiler, 'scope': actor_scope,
+                return {'udid': udid, 'pid': current_pids[udid], 'compiler': compiler, 'scope': actor_scope,
                         'support': root / ('current-' + udid), 'fixture': kwargs['expected_fixture'],
-                        'env': env, 'process': process, 'stream': stream, 'log': log, 'generation': 1}
+                        'env': env, 'process': process, 'stream': stream, 'log': log, 'generation': generation}
+            def terminate(udid, pid):
+                self.assertEqual(current_pids[udid], pid, 'verify ownership before resident shutdown can remove the app')
+                lifecycle.append(('terminate', udid, pid))
+                current_pids[udid] = None
+            def stop_resident(process):
+                self.assertEqual(process.pid, 123)
+                lifecycle.append(('stop-resident', 'A'))
+                current_pids['A'] = None
             def relay(*_args, **_kwargs):
                 fixture = json.loads((scope / 'A/Build/Products/private-member.json').read_text())
                 self.assertIs(fixture['flutterInitiatesSignIn'], True)
@@ -209,14 +222,17 @@ class DualIosCollaborationTest(unittest.TestCase):
                 return True
             commands = [{'sequence': 1, 'action': 'browser', 'role': 'A'},
                         {'sequence': 2, 'action': 'picker-replacement', 'role': 'A'},
-                        {'sequence': 3, 'action': 'close', 'role': 'both'}]
+                        {'sequence': 3, 'action': 'relaunch', 'role': 'A'},
+                        {'sequence': 4, 'action': 'close', 'role': 'both'}]
             driver = mock.Mock(); driver.wait.return_value = 0
             data = {'runId': 'owned-test', 'actors': [{'role': r, 'email': 'private-email', 'password': 'private-password'} for r in ['A', 'B']]}
             with mock.patch.object(dual, 'prepare_actor_storage', side_effect=prepare), \
                  mock.patch.object(dual, 'start_local_actor', side_effect=start), \
                  mock.patch.object(dual, 'actor_proxy_environment', return_value={}), \
                  mock.patch.object(dual, 'inspection_source', return_value={}), \
-                 mock.patch.object(ios, 'simulator_app_pid', side_effect=lambda udid: udid + '-pid'), \
+                 mock.patch.object(ios, 'simulator_app_pid', side_effect=lambda udid: current_pids[udid]), \
+                 mock.patch.object(ios, 'terminate_initial_app', side_effect=terminate), \
+                 mock.patch.object(dual, 'stop_flutter_process_group', side_effect=stop_resident), \
                  mock.patch.object(dual, 'read_inspection_command', side_effect=commands), \
                  mock.patch.object(dual.subprocess, 'Popen', return_value=driver), \
                  mock.patch.object(dual, 'track_process', side_effect=lambda p: p), \
@@ -231,6 +247,15 @@ class DualIosCollaborationTest(unittest.TestCase):
             self.assertEqual(session['actors']['A']['appSupport'], str(root / 'current-A'))
             self.assertNotEqual(session['actors']['A']['storageDigest'], 'preinstall')
             self.assertEqual(session['actors']['A']['fixturePreinstallStorageDigest'], 'preinstall')
+            restarted = json.loads((scope / 'inspection-session-3.json').read_text())
+            self.assertEqual(lifecycle, [('start', 'A', 1), ('start', 'B', 1), ('terminate', 'A', 'A-pid-1'),
+                                         ('stop-resident', 'A'), ('start', 'A', 2)])
+            self.assertEqual(restarted['actors']['A']['processId'], 'A-pid-2')
+            self.assertEqual(restarted['actors']['B'], session['actors']['B'])
+            self.assertEqual(restarted['actors']['A']['appSupport'], session['actors']['A']['appSupport'])
+            operations = json.loads((scope / 'inspection-operations-3.json').read_text())
+            self.assertTrue(operations[-1]['distinctProcessObserved'])
+            self.assertFalse(restarted['qualificationPassed'])
 
     def test_picker_inspection_commands_are_single_actor_and_bounded(self):
         with tempfile.TemporaryDirectory() as temporary:
