@@ -833,7 +833,7 @@ services:
       com.massimotter.weave.operation: schema-receipt-verify
 
   keycloak-realm-migration-receipt-check:
-    profiles: *application-profiles
+    profiles: [prod]
     image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-keycloak-realm-migration-receipt-check
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
@@ -890,8 +890,6 @@ services:
       keycloak:
         condition: service_healthy
       agent-runtime-keys-init:
-        condition: service_completed_successfully
-      keycloak-realm-migration-receipt-check:
         condition: service_completed_successfully
     environment:
       WEAVE_CANDIDATE_COMMIT: ${WEAVE_CANDIDATE_COMMIT:?prepared deployment descriptor required}

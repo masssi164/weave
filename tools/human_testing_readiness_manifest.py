@@ -65,24 +65,14 @@ REQUIRED_PHYSICAL_STEPS = {
     "identityContinuity",
 }
 REQUIRED_IMAGE_COMPONENTS = {"server", "mcp-server", "keycloak-runtime"}
-REQUIRED_REALM_EVIDENCE_FIELDS = {
-    "semanticRealmSourceDigest",
-    "migrationDefinitionDigest",
-    "overlayDigest",
-    "renderedRealmDigest",
-    "semanticReadbackDigest",
-    "candidateRealmDefinitionMatched",
-    "environmentRealmRenderStable",
-    "semanticReadbackVerified",
-    "containsSecrets",
-}
-REALM_EVIDENCE_DIGEST_FIELDS = {
-    "semanticRealmSourceDigest",
-    "migrationDefinitionDigest",
-    "overlayDigest",
-    "renderedRealmDigest",
-    "semanticReadbackDigest",
-}
+# Import provenance is shared with its producer; it is not authentication proof.
+sys.path.insert(0, str(ROOT / "infra/weave-workspace/scripts"))
+from compose_env import ContractError, pinned_specification_context  # noqa: E402
+from keycloak_realm_evidence import (  # noqa: E402
+    EvidenceError as RealmEvidenceError,
+    validate_import_evidence,
+)
+
 IMMUTABLE_IMAGE_PATTERN = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
 REQUIRED_COLLABORATION_SCENARIOS = {
     "authenticationShell",
@@ -396,8 +386,13 @@ def _load_canonical_contract() -> tuple[str, dict[str, Any]]:
     expected_commit = _require_string(corpus.get("gitCommit"), "lock.specCorpus.gitCommit")
     if not COMMIT_PATTERN.fullmatch(expected_commit):
         raise ManifestError("lock.specCorpus.gitCommit must be a full lowercase SHA-1")
-    local_path = _require_string(corpus.get("localPath"), "lock.specCorpus.localPath")
-    schema_path = (ROOT / local_path / SCHEMA_RELATIVE_PATH).resolve()
+    try:
+        corpus_root, resolved_commit = pinned_specification_context(ROOT)
+    except ContractError as error:
+        raise ManifestError(str(error)) from error
+    if resolved_commit != expected_commit:
+        raise ManifestError("canonical schema revision does not match the implementation lock")
+    schema_path = corpus_root / SCHEMA_RELATIVE_PATH
     schema = _load_json(schema_path)
     if schema.get("$id") != EXPECTED_SCHEMA_ID:
         raise ManifestError(f"canonical readiness schema has unexpected $id: {schema.get('$id')!r}")
@@ -456,21 +451,10 @@ def evaluate_manifest(
         if not isinstance(reference, str) or not IMMUTABLE_IMAGE_PATTERN.fullmatch(reference):
             raise ManifestError(f"images.{component} must be an immutable digest reference")
     realm_evidence = _require_object(manifest.get("realmEvidence"), "realmEvidence")
-    if set(realm_evidence) != REQUIRED_REALM_EVIDENCE_FIELDS:
-        raise ManifestError("realmEvidence must contain the exact candidate, render, and readback evidence")
-    for field in REALM_EVIDENCE_DIGEST_FIELDS:
-        digest = _require_string(realm_evidence.get(field), f"realmEvidence.{field}")
-        if not HASH_PATTERN.fullmatch(digest):
-            raise ManifestError(f"realmEvidence.{field} must be a sha256 reference")
-    for field in (
-        "candidateRealmDefinitionMatched",
-        "environmentRealmRenderStable",
-        "semanticReadbackVerified",
-    ):
-        if realm_evidence.get(field) is not True:
-            raise ManifestError(f"realmEvidence.{field} must be true")
-    if realm_evidence.get("containsSecrets") is not False:
-        raise ManifestError("realmEvidence.containsSecrets must be false")
+    try:
+        validate_import_evidence(realm_evidence)
+    except RealmEvidenceError as error:
+        raise ManifestError("realmEvidence must contain exact secret-free import provenance") from error
     evidence_modes = manifest.get("evidenceModes")
     if evidence_modes != ["live-provider-backed", "fixture-ui"]:
         raise ManifestError("evidenceModes must contain the ordered mandatory live and fixture modes")

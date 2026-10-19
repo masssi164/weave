@@ -9,6 +9,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import NoReturn
 
@@ -22,24 +23,13 @@ REALM_DEFINITION_FIELDS = {
     "migrationDefinitionDigest",
     "containsSecrets",
 }
-REALM_EVIDENCE_FIELDS = {
-    "semanticRealmSourceDigest",
-    "migrationDefinitionDigest",
-    "overlayDigest",
-    "renderedRealmDigest",
-    "semanticReadbackDigest",
-    "candidateRealmDefinitionMatched",
-    "environmentRealmRenderStable",
-    "semanticReadbackVerified",
-    "containsSecrets",
-}
-REALM_EVIDENCE_DIGEST_FIELDS = {
-    "semanticRealmSourceDigest",
-    "migrationDefinitionDigest",
-    "overlayDigest",
-    "renderedRealmDigest",
-    "semanticReadbackDigest",
-}
+# The same import provenance contract is used by its producer and consumers.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infra/weave-workspace/scripts"))
+from keycloak_realm_evidence import (  # noqa: E402
+    IMPORT_DIGEST_FIELDS as REALM_EVIDENCE_DIGEST_FIELDS,
+    IMPORT_EVIDENCE_FIELDS as REALM_EVIDENCE_FIELDS,
+)
+
 RUNNING_SERVICES = {
     "server": "backend",
     "mcp-server": "mcp",
@@ -242,7 +232,7 @@ def main() -> int:
             != definition.get("migrationDefinitionDigest")
             or observed.get("candidateRealmDefinitionMatched") is not True
             or observed.get("environmentRealmRenderStable") is not True
-            or observed.get("semanticReadbackVerified") is not True
+            or observed.get("initializationMode") != "realm-import"
             or observed.get("containsSecrets") is not False
         ):
             fail("finalized realm evidence is invalid or not candidate-bound")

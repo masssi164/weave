@@ -90,12 +90,12 @@ def _desired(baseline: dict[str, object], overlay: dict[str, object]) -> dict[st
         # Weaver is an opt-in product line. The native Compose baseline must
         # remain compatible with stock Keycloak and must not activate its
         # downstream Dynamic Client Registration executor by default. The
-        # disposable E2E lane deliberately retains this policy because it
-        # proves the complete Weaver workload lifecycle.
+        # isolated E2E lane retains the reviewed workload policy needed by
+        # the existing curated MCP proof, without changing the runtime image.
         desired["clientPolicies"] = []
-    # Isolated E2E explicitly qualifies the production FGAP migration before
-    # application startup; it must not retain the development role bypass.
-    if overlay["environment"] in {"dev", "dogfood"}:
+    # All three development lanes initialize identity through the same import.
+    # Production retains the restricted, separately qualified FGAP migration.
+    if overlay["environment"] in {"dev", "dogfood", "e2e"}:
         grants = desired.get("serviceAccountRoleGrants")
         if not isinstance(grants, list):
             raise ContractError("canonical service-account role grants are required")
@@ -221,7 +221,8 @@ def render_keycloak(context: ComposeContext) -> dict[str, object]:
     generated = context.generated_root
     runtime_owner = (int(context.env["WEAVE_RUNTIME_UID"]), int(context.env["WEAVE_RUNTIME_GID"]))
     runtime_directory(generated / "keycloak/import", runtime_owner)
-    runtime_directory(generated / "keycloak/migrations", runtime_owner)
+    if context.environment == "prod":
+        runtime_directory(generated / "keycloak/migrations", runtime_owner)
 
     write(generated / "keycloak/semantic-realm-source.json", semantic_payload, private=False)
     write(generated / "keycloak/migration-definition.json", migration_definition_payload, private=False)

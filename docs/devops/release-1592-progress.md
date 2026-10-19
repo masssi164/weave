@@ -1,5 +1,52 @@
 # Release qualification implementation progress for #1592
 
+## October 19: import-only bootstrap and bounded pure-generation correction
+
+The owner completion brief starts from accepted Dev `5fb1cf6319d27cbba51dd6b6dcd8eab1dac3ffe4`.
+PR1643's three instruction/template changes are preserved. Existing promotion PR1639 is draft
+while these foundation changes and actual collaboration qualification are completed; its earlier
+`ef41d64a...` deterministic result remains historical evidence for that source.
+
+The accepted DevOps import-only requirement conflicted with readiness schema5's migration-derived
+semantic-readback fields. Corpus PR159 merged normally as `92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`
+after actual corpus conformance, bundle signability and independent frozen review. This branch
+pins that accepted revision. Schema6 records stable import-render provenance without claiming live
+provider readback. Authentication, permitted identity operations, restart, mandatory native
+qualification, deployment, physical preparation and explicit human acceptance remain required.
+
+The implementation removes the E2E migration dispatcher and executor, includes E2E in the two
+permitted identity-admin development role grants, restricts migration receipt startup and writable
+migration ownership to production, and removes obsolete Dev/Dogfood migration overrides. Production
+keeps its restricted migration/backup/receipt boundary. E2E retains the current reviewed runtime
+image and workload policy needed by its existing curated MCP proof. No realm, persistent Dogfood
+state, operator TLS or reviewed secret is deleted. Startup import skips an existing realm;
+changed generated JSON is not an incremental migration.
+
+Direct evidence producers/consumers now share the import-provenance validation. The readiness
+schema loader reuses the existing exact corpus resolver instead of ignoring its accepted worktree
+coordinate. Unit fixtures are version6 and are not represented as live identity or HIL evidence.
+The existing [test strategy](../testing/core-test-strategy.md) maps each affected suite to its
+entry point, meaningful boundary and evidence; native and generated-client consumers remain
+separate obligations.
+
+Executed focused validation: production/development migration boundaries, realm renderer,
+Compose profile graph, seven realm-evidence cases, two runtime-image evidence cases, 43 automated/
+readiness/assembler cases, product-flow lifecycle contracts, pinned corpus157, acceptance,
+complete infraStatic and strict docs all passed. Initial stale receipt assertions and the old
+schema-path failure were repaired; original failing logs remain private. Real imported Keycloak
+bootstrap, ordinary restart and warm two-app interaction are the next runtime checks. No new
+all-seven qualification, deployment, physical installation or HIL success is claimed here.
+
+Independent pure-generation PR1644 uses public build_runner2.13.1 `--force-aot` with the pinned
+Flutter3.41.6/Dart3.11.4 toolchain. The JIT control entered Cargo and was stopped at1.100s. First
+builder AOT compilation passed12.386s; warm generation passed1.102s. A real Riverpod input rename
+regenerated its provider in6.159s; exact input restoration/regeneration passed5.738s and restored
+all998 tracked client/Rust file hashes. AOT probes observed no Cargo/rustc and no rejecting-wrapper
+calls. Each timing is one local sample with the existing dependency/asset cache; the first AOT run
+compiled the builders, and the mutation actually regenerated output. The stopped JIT run is not a
+complete latency baseline or a whole-CI improvement percentage. Native hooks and tests are unchanged.
+
+
 This is an implementation and evidence record. The pinned specification corpus remains normative. No automation or human result is implied by a plan or a merged specification.
 
 ## Current checkpoint — October 18, 2026 UTC
