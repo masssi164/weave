@@ -1,5 +1,106 @@
 # Release qualification implementation progress for #1592
 
+## October 19: real warm collaboration and native navigation corrections
+
+[Import-only PR1645](https://github.com/masssi164/weave/pull/1645) merged normally to
+Dev `e64882dd7e32b85d167dfdb942c55fe6ad26e89a`, preserving reviewed tree
+`89b55e660db8ba9b3237daa41903f56d0a6f93af` and accepted corpus
+`92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`. Its [exact-head Core run](https://github.com/masssi164/weave/actions/runs/39324749377)
+passed all15 jobs. The accepted corpus [Main run](https://github.com/masssi164/weave-specs/actions/runs/39322106333)
+passed corpus, bundle and signing checks. No equivalent integration qualification is implied.
+
+Warm local inspection `local-cua-20261019-2105` built clean reviewed `c7597253824340044011c92ace93ff2aa423b45c`
+with that same tree and pin. Before native entry, real invitation/browser PKCE, generated User/Admin
+operations, Matrix exchange, foreign-organization denials, generated/real Calendar MCP operations,
+revocation/refresh denial/regrant and ordinary PostgreSQL plus dependent Keycloak restart passed.
+The same runtime-state container and volume retained the exact fixture across restart. No post-start
+identity repair was applied. These component results do not establish native acceptance.
+
+Two concurrent independent real Flutter iOS apps then independently authenticated through the
+system browser. Computer Use observed A create a direct conversation and send unique content,
+B receive and reply, and A receive the reply once in order. A created and updated a shared workspace
+Calendar event; B retrieved both states through normal range navigation. Cancel preserved the event
+for both after server readback, and confirmed deletion removed it for both. A used the actual native
+picker to upload and replace a shared file. B displayed the actual initial48 and replacement52 bytes.
+B cancelled native export and recovered usable controls, then saved through the picker; the owned
+destination exactly matched replacement bytes (SHA256 `e23a7b4a0a1f29ef8e7a2eaac12f0973c4af4895051dc8b2c8547e8aab5d6f34`).
+EN/DE controls were observed; touch scrolling reached Files actions. This mixed-source exploratory
+session never qualifies a candidate and does not establish physical VoiceOver or human acceptance.
+
+| Observed defect | Correction and verification boundary |
+| --- | --- |
+| User control/error robustness; pre-auth member A, English and German, normal phone display; entering the organization URL reached ready state without an operable return path; mandatory-task recovery blocker | Organization entry now pushes the handoff, retaining its form. A localized Back control pops it or returns a direct invitation/error to public entry. Existing saved-profile cold start still opens Sign In; protected product routes remain gated. No configuration/session reset or second bootstrap is added. Actual A Back preserved the full host/port, continued and authenticated. EN/DE router regressions cover ready/error/direct entry, profile retention and protected routes. Shared/local sign-in busy states disable conflicting navigation. |
+| Inspection lifecycle; independent process restart A; infrastructure blocker | The old relaunch stopped `flutter run`, which could terminate its app, before validating that app's PID. The run failed `process-restart: initial-process-identity-changed`; no recovery pass is claimed. Relaunch now verifies/terminates the exact app before stopping its resident and starts a distinct process with the retained owned fixture. The existing lifecycle regression verifies ordering, unchanged B, retained A storage and explicit nonqualification. Real replay remains required. |
+
+The original inspection failure is retained. Existing teardown and independent Docker/Simulator
+inventories confirmed zero owned containers, networks, volumes and simulators. Persistent Dogfood,
+operator TLS and reviewed secrets were untouched. The native Calendar delete journey now cancels
+first, rereads the same event/version, then confirms deletion through the existing controls. This
+adds behavioral coverage within the existing scenario, without a new framework or acceptance skip.
+
+Warm iteration reused the same stack and apps for three acknowledged Dart reloads: 1.450s,485ms
+and349ms, one sample each with the existing native/dependency cache. The first value uses German
+thousands formatting. Loaded-script digest verification was explicitly false; these observations
+show iteration without repeated bootstrap, not a comparable full-CI speedup. Final exact-candidate
+Compose, macOS, all seven dual-iOS aggregates, deployment, physical preparation, HIL and Main are
+still required. The release issues remain open and promotion PR1639 remains held.
+
+
+The first import-only local inspection (`local-cua-20261019-2053`, source `4c5e4f0068563878005b38481ffc06cd75670882`) stopped before Compose startup: the release-MCP workload placeholder depended on a directory previously created implicitly by migration preparation. The runner now invokes the existing Compose `configure` entry point after empty-namespace proof and teardown arming, before creating that placeholder. The original failure and successful exact namespace cleanup are retained; neither simulator launched and no native acceptance is claimed.
+
+## October 19: import-only bootstrap and bounded pure-generation correction
+
+The corrected `584b4569...` inspection (`local-cua-20261019-2056`) brought up the isolated stack and passed real curated workload registration. The actual invitation/browser PKCE then failed the unchanged `native-organization-id` assertion before native execution. Exact cleanup removed all owned resources. This exposed another responsibility previously hidden in post-import migration: configuring Keycloak's native organization mapper to include its ID.
+
+The renderer now imports the pinned Keycloak26.7.1 stock scope projection explicitly in Dev/Dogfood/E2E, with automatic default-scope creation disabled. Keycloak's importer creates defaults before custom scopes and does not update an existing scope; importing another `organization` scope would duplicate its identity. The public projection was obtained by offline import/export from the already pinned stock image `sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2`, without network, credentials or product services. Runtime-generated IDs are excluded. All15 stock scopes, their default/optional membership and offline-access role mapping are retained. Only the native organization mapper is supplied from the existing reviewed migration-definition desired state; there is no duplicated mapper configuration, new realm baseline or startup mutation. Tests compare every other scope unchanged and reject version/duplicate-scope mismatches. Production keeps its existing stock-default creation and restricted post-import migration. This compatibility projection must be refreshed deliberately with a future Keycloak version update.
+
+Pure-generation PR1644 normally merged to Dev `7131db5a9248b9fe58cfc491e4877a2e97a59b2d`; its exact Core39321922006 passed all15 jobs in13m41. Hosted generation reported37s/10 outputs and Flutter job11m20, under different runner/cache conditions from local probes. No whole-CI causal percentage is claimed. This branch incorporates that accepted Dev change without rewriting history.
+
+The owner completion brief starts from accepted Dev `5fb1cf6319d27cbba51dd6b6dcd8eab1dac3ffe4`.
+PR1643's three instruction/template changes are preserved. Existing promotion PR1639 is draft
+while these foundation changes and actual collaboration qualification are completed; its earlier
+`ef41d64a...` deterministic result remains historical evidence for that source.
+
+The accepted DevOps import-only requirement conflicted with readiness schema5's migration-derived
+semantic-readback fields. Corpus PR159 merged normally as `92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`
+after actual corpus conformance, bundle signability and independent frozen review. This branch
+pins that accepted revision. Schema6 records stable import-render provenance without claiming live
+provider readback. Authentication, permitted identity operations, restart, mandatory native
+qualification, deployment, physical preparation and explicit human acceptance remain required.
+
+The implementation removes the E2E migration dispatcher and executor, includes E2E in the two
+permitted identity-admin development role grants, restricts migration receipt startup and writable
+migration ownership to production, and removes obsolete Dev/Dogfood migration overrides. Production
+keeps its restricted migration/backup/receipt boundary. E2E retains the current reviewed runtime
+image and workload policy needed by its existing curated MCP proof. No realm, persistent Dogfood
+state, operator TLS or reviewed secret is deleted. Startup import skips an existing realm;
+changed generated JSON is not an incremental migration.
+
+Direct evidence producers/consumers now share the import-provenance validation. The readiness
+schema loader reuses the existing exact corpus resolver instead of ignoring its accepted worktree
+coordinate. Unit fixtures are version6 and are not represented as live identity or HIL evidence.
+The existing [test strategy](../testing/core-test-strategy.md) maps each affected suite to its
+entry point, meaningful boundary and evidence; native and generated-client consumers remain
+separate obligations.
+
+Executed focused validation: production/development migration boundaries, realm renderer,
+Compose profile graph, seven realm-evidence cases, two runtime-image evidence cases, 43 automated/
+readiness/assembler cases, product-flow lifecycle contracts, pinned corpus157, acceptance,
+complete infraStatic and strict docs all passed. Initial stale receipt assertions and the old
+schema-path failure were repaired; original failing logs remain private. Real imported Keycloak
+bootstrap, ordinary restart and warm two-app interaction are the next runtime checks. No new
+all-seven qualification, deployment, physical installation or HIL success is claimed here.
+
+Independent pure-generation PR1644 uses public build_runner2.13.1 `--force-aot` with the pinned
+Flutter3.41.6/Dart3.11.4 toolchain. The JIT control entered Cargo and was stopped at1.100s. First
+builder AOT compilation passed12.386s; warm generation passed1.102s. A real Riverpod input rename
+regenerated its provider in6.159s; exact input restoration/regeneration passed5.738s and restored
+all998 tracked client/Rust file hashes. AOT probes observed no Cargo/rustc and no rejecting-wrapper
+calls. Each timing is one local sample with the existing dependency/asset cache; the first AOT run
+compiled the builders, and the mutation actually regenerated output. The stopped JIT run is not a
+complete latency baseline or a whole-CI improvement percentage. Native hooks and tests are unchanged.
+
+
 This is an implementation and evidence record. The pinned specification corpus remains normative. No automation or human result is implied by a plan or a merged specification.
 
 ## Current checkpoint — October 18, 2026 UTC
@@ -10,7 +111,37 @@ The implementation pins accepted corpus `95c51221e932e1b92f637330aaf7a51f2372abd
 
 Focused actual-app replay `local-cua-20261018-1612` used clean `d0a392e3cc956b5c6e64e7f0dbff1555754938bb` with pin2c35. Two independent real iOS apps completed URL/invitation browser sign-in, actual Files 48/52-byte upload/replacement and peer readback, native export to a new destination and an operable selector after preview/scroll. Selected native background/foreground tests passed in 1.585/0.092 seconds. Inspection closed with its deliberate nonqualification result; original diagnostics, independent zero-owned-resource checks and finalization are retained. These focused observations do not establish complete Chat, Calendar, authorization, recovery or accessibility aggregates.
 
-Protected Dogfood remains `18a18bd573b9c190448e81c49ec899f72011c4a3`. This governance pin has no product-code change; its final candidate still requires protected Compose, macOS and all seven dual-iOS aggregates before exact deployment and physical preparation. No prior source/spec pass transfers to the new candidate. HIL and Main remain unavailable until their real evidence gates pass. The October12 persistent Dogfood reset is complete and must not repeat.
+[PR #1636](https://github.com/masssi164/weave/pull/1636) promoted accepted Dev through a normal protected merge to Dogfood `5f96518536f123b2d0f85dec398d1ab4727106e7`, tree `c2ff890231db4f7feadb3f213101be09a511873f`, with the accepted specification above. [Full qualification, attempt 2](https://github.com/masssi164/weave/actions/runs/39154529584/attempts/2) failed; deployment was skipped. Final native macOS acceptance passed. Two concurrent independent real Flutter iOS applications completed 15 UI actions: three Chat exchanges, four Calendar create/read/update actions, and eight Files upload/export/peer/replacement actions. The next authorization exchange did not finish. Calendar deletion and later recovery were not reached; none of the seven final iOS scenario aggregates passed.
+
+The original exception was replaced by a Java `finally` cleanup error after 90 seconds. The nested Python runner also allowed 90 seconds for child cleanup and did not reap its forced termination before final evidence construction. The public artifact therefore lacks the outer native qualification JSON. Its retained private dual result reports failure, seven not-run scenarios and completed device cleanup. Independent inspection confirmed zero owned processes, simulators, containers, networks and volumes. These observations preserve the failed qualification rather than upgrading partial actions to acceptance.
+
+The focused harness correction preserves the first exception and cause, attaches cleanup errors as suppressed failures, attempts all owned private-file removals and reuses the existing bounded process-tree termination helper after graceful shutdown. The existing Python owner gives its child 60 seconds for graceful finalization and 10 seconds for forced termination and reaping, within Java's existing 90-second wait. It collects failed platform and collaboration results during cancellation and writes the final artifact without inferring scenario success. Forced or unverified cleanup remains a failure. No product authorization, bootstrap, API, UI, acceptance threshold or release gate changes.
+
+Focused regressions exercise an actual termination-resistant child, first-failure preservation despite process and private-file cleanup errors, an already-interrupted Java caller, and valid, missing, malformed or unreadable collaboration results during Python cancellation. These are deterministic harness tests, not native product evidence. The changed source requires a new protected candidate and fresh complete qualification. HIL and Main remain unavailable until their real evidence gates pass. The October12 persistent Dogfood reset is complete and must not repeat.
+
+### Native authorization fixture respects User and Admin session boundaries
+
+[PR #1637](https://github.com/masssi164/weave/pull/1637) merged normally into Dev as `a70fbef6fc81bb50c011fb07d5838f595ac9def9` after [exact-head Core CI](https://github.com/masssi164/weave/actions/runs/39160040515) passed 11 selected jobs with four valid impact skips. Local clean-source replay `local-qual-20261018-1945` on reviewed `4b8ce3ddd5a9974f911cec27afcbe088d2a7d6b8` and accepted95 passed final macOS acceptance and repeated the 15 actual iOS UI actions. It then failed with the preserved original HTTP401 from the authorized file-version read. The initiating exception from protected Full attempt2 remains unrecoverable; this local failure is separately verified. The final native JSON was retained: macOS passed, iOS failed, all seven aggregates not-run, nested device cleanup true and outer cleanup false. Independent inspection and the guarded exact-run finalizer confirmed no owned resources remain. None of these failure flags were rewritten.
+
+The native authorization harness had authenticated `weave-admin-console` for baseline Files/Calendar reads. The accepted User API requires `weave-app`; the server correctly rejected the Admin token. The correction obtains a fresh owner User session through the existing real browser, validates workspace claims and the original A identity, then uses that session for all four baseline/readback requests. Third-identity read/mutation denials and strong-version/content checks remain unchanged. Admin grant/revocation operations continue to use the separately admitted Admin session. The helper rejects Admin/workload sessions before issuing any User request. No server admission or product contract changes; the new replay and protected qualification remain required.
+
+### Native driver fixture delivery is independent of bundle installation
+
+[PR #1638](https://github.com/masssi164/weave/pull/1638) merged into Dev as `9d9e92747aa9f20658fe7f00bd1249aceeeb4d15` after [exact-head Core CI](https://github.com/masssi164/weave/actions/runs/39162697208) passed ten selected jobs with five valid impact skips. Local clean-source replay `local-qual-20261018-2021` on reviewed `1898857d8df9fb640dbd2571f9f162b234aecc2c`, tree `24086a72770c04122d31dd783f8424703c19bd30` and accepted95 passed final macOS acceptance and fourteen actual iOS UI actions. B opened the updated file, but its next native export test skipped because the installed driver did not load the document-picker phase. Xcode returned zero; the existing no-skips verifier correctly rejected it. The authorization correction was not reached in this run. All seven final iOS aggregates remain not-run. Original failed evidence is preserved; independent inventories and the guarded exact-run finalizer confirmed zero owned resources. [Promotion PR #1639](https://github.com/masssi164/weave/pull/1639) remains held while this failure is corrected.
+
+The driver previously read invocation data from a resource repeatedly rewritten inside its compiled XCTest bundle. A shared helper now atomically publishes one actor-private `0600` fixture outside that installed bundle and passes only its path through the standard `.xctestrun` test-host environment. It validates the single owned BrowserDriver target, preserves unrelated environment entries and rejects malformed plans and unsafe fixture paths. Authentication, picker and lifecycle invocations all use this one transport; Swift requires the explicit private file with no bundled fallback. This removes dependence on bundle resource replacement being reinstalled. It adds no product configuration, discovery endpoint, authentication bypass or orchestration layer. Actual gestures, selected-test execution, no-skips guards, content checks, process identity and deadlines are unchanged.
+
+Deterministic regressions cover both supported Xcode plan formats, successive invocation data, independent actor paths, preservation of existing environment, credentials absent from plans, malformed/ambiguous targets, symlinks and interrupted publication. The shared native suite passed 76 regressions and the dual suite passed 41. A real owned iOS Simulator then executed seven selected fixture-delivery tests across separate A/B plans and successive initial, document-picker and lifecycle phases, plus the unsafe-file Swift regression; all eight selected tests passed with zero skips. This verifies fresh standard test-host environment delivery without reinstalling fixture resources. The owned simulator was deleted and independently listed absent. It is driver-transport evidence, not Flutter collaboration acceptance; a fresh complete native replay and protected qualification remain required. No new normative specification is needed for this implementation conformance fix.
+
+### Calendar removal returns from Files through normal navigation
+
+[PR #1640](https://github.com/masssi164/weave/pull/1640) merged into Dev as `7255eb798a80e093e666def34e43658c10855543` after [exact-head Core CI](https://github.com/masssi164/weave/actions/runs/39165228328) passed eight selected jobs with seven valid impact skips. Flutter passed 844 tests with one existing offline-only skip, the separate offline path passed four, and all 76 native plus 41 dual harness regressions passed.
+
+Fresh normal local run `local-qual-20261018-2053` used clean reviewed `7a578a5ca5e8d9108d58ddfeaefa0ad7448879a5`, tree `d081fec98f34a1e5820150cb61334ac4d8a13fbc` and accepted95. Final macOS acceptance passed. The two real iOS apps completed fifteen collaboration actions, including B's updated-file export, then actual third-identity authorization passed three read and three mutation denials. Both Flutter authorization actions passed. This verifies the two preceding harness repairs in the real journey.
+
+The next Calendar-delete action failed before opening a dialog: its tooltip finder matched zero controls at the retained Flutter stack's line1122. Both apps were still on Files after the required export actions. The removal and peer-removal handlers omitted the normal Calendar navigation used by the earlier Calendar actions. The minimal correction reuses that existing navigation helper for both actors and the existing readback helper to establish A's updated event before deletion. Original deletion, confirmation, peer-removal, identity and accessibility assertions remain unchanged; no new abstraction, product behavior, API, deadline or specification is introduced.
+
+The original failed native JSON and private diagnostics are retained. All seven final iOS aggregates remain not-run; remaining recovery and accessibility proof is still required. Independent inventory and guarded exact-run finalization confirmed zero owned resources. Protected Dogfood remains `5f96518536f123b2d0f85dec398d1ab4727106e7`; its Full attempt2 failed and deployment was skipped. Existing promotion #1639 stays draft. No persistent reset, deployment, physical install or HIL pass is claimed.
 
 ### Exact-candidate qualification and Files accessibility correction
 

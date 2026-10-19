@@ -468,10 +468,60 @@ final class BrowserDriver: XCTestCase {
     return false
   }
 
+  static func privateFixtureData(at url: URL) throws -> Data {
+    let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+    guard attributes[.type] as? FileAttributeType == .typeRegular,
+          (attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600,
+          let size = attributes[.size] as? NSNumber,
+          size.intValue > 0 && size.intValue <= 8192 else {
+      throw NSError(domain: "NativeDriverFixture", code: 1)
+    }
+    return try Data(contentsOf: url)
+  }
+
+  func nativeFixtureData() throws -> Data {
+    // Xcode forwards this private test-plan value on every invocation. Keeping
+    // it outside the installed bundle avoids stale bundle-resource caching.
+    let path = try XCTUnwrap(ProcessInfo.processInfo.environment["WEAVE_NATIVE_DRIVER_FIXTURE_PATH"])
+    guard path.hasPrefix("/") else {
+      throw NSError(domain: "NativeDriverFixture", code: 2)
+    }
+    return try Self.privateFixtureData(at: URL(fileURLWithPath: path))
+  }
+
+  func testPrivateFixtureDelivery() throws {
+    let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: nativeFixtureData()) as? [String: Any])
+    let phase = try XCTUnwrap(fixture["phase"] as? String)
+    guard ["initial", "restore", "document-picker", "lifecycle"].contains(phase) else {
+      XCTFail("Driver fixture phase is invalid")
+      return
+    }
+    print("NATIVE_IOS_FIXTURE_STAGE phase=\(phase)")
+  }
+
+  func testPrivateFixtureRejectsUnsafeFiles() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let file = directory.appendingPathComponent("fixture.json")
+    XCTAssertThrowsError(try Self.privateFixtureData(at: file))
+    try Data("{}".utf8).write(to: file)
+    try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path)
+    XCTAssertThrowsError(try Self.privateFixtureData(at: file))
+    try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+    XCTAssertEqual(try Self.privateFixtureData(at: file), Data("{}".utf8))
+    let link = directory.appendingPathComponent("linked.json")
+    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: file)
+    XCTAssertThrowsError(try Self.privateFixtureData(at: link))
+    try Data().write(to: file)
+    XCTAssertThrowsError(try Self.privateFixtureData(at: file))
+    try Data(repeating: 32, count: 8193).write(to: file)
+    XCTAssertThrowsError(try Self.privateFixtureData(at: file))
+  }
+
   func testNativeDocumentPicker() throws {
     continueAfterFailure = false
-    let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "private-member", withExtension: "json"))
-    let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+    let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: nativeFixtureData()) as? [String: Any])
     guard fixture["phase"] as? String == "document-picker" else {
       throw XCTSkip("Document picker is a separate owned UI action")
     }
@@ -610,8 +660,7 @@ final class BrowserDriver: XCTestCase {
 
   func testNativeLifecycle() throws {
     continueAfterFailure = false
-    let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "private-member", withExtension: "json"))
-    let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+    let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: nativeFixtureData()) as? [String: Any])
     guard fixture["phase"] as? String == "lifecycle" else {
       throw XCTSkip("Lifecycle is a separate owned native UI action")
     }
@@ -657,8 +706,7 @@ final class BrowserDriver: XCTestCase {
     print("NATIVE_IOS_BROWSER_STAGE phase=driver-started")
     // XCTest activities can contain typed input. The runner keeps the entire
     // bundle, transcript and xcresult private and removes them after this run.
-    let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "private-member", withExtension: "json"))
-    let fixture = try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url))
+    let fixture = try JSONDecoder().decode(Fixture.self, from: nativeFixtureData())
     XCTAssertEqual(fixture.issuerHost, "auth.weave.localhost")
     let app = XCUIApplication(bundleIdentifier: fixture.appBundleIdentifier)
     let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")

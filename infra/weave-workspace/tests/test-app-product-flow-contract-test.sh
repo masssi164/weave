@@ -137,17 +137,20 @@ teardown_line="$(grep -nF 'bash "${TEARDOWN}" e2e' "${LIFECYCLE}" | cut -d: -f1)
   fail "bounded diagnostics must remain immediately before exact teardown"
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RESTART_EVIDENCE_PATH'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH'
-contains "${LIFECYCLE}" 'bash "${COMPOSE}" e2e keycloak-migration-apply'
+absent "${LIFECYCLE}" 'keycloak-migration-apply'
 empty_proof_line="$(grep -nF 'export WEAVE_E2E_EMPTY_NAMESPACE_PROOF=' "${LIFECYCLE}" | cut -d: -f1)"
 stack_prepared_line="$(grep -nF 'STACK_PREPARED=true' "${LIFECYCLE}" | cut -d: -f1)"
-realm_migration_line="$(grep -nF 'bash "${COMPOSE}" e2e keycloak-migration-apply' "${LIFECYCLE}" | cut -d: -f1)"
+configure_line="$(grep -nF 'bash "${COMPOSE}" e2e configure' "${LIFECYCLE}" | cut -d: -f1)"
+workload_placeholder_line="$(grep -nF 'descriptor = os.open(path,' "${LIFECYCLE}" | cut -d: -f1)"
 product_up_line="$(grep -nF 'bash "${COMPOSE}" e2e up' "${LIFECYCLE}" | cut -d: -f1)"
 [[ "${empty_proof_line}" =~ ^[0-9]+$ && "${stack_prepared_line}" =~ ^[0-9]+$ &&
-   "${realm_migration_line}" =~ ^[0-9]+$ && "${product_up_line}" =~ ^[0-9]+$ &&
+   "${configure_line}" =~ ^[0-9]+$ && "${workload_placeholder_line}" =~ ^[0-9]+$ &&
+   "${product_up_line}" =~ ^[0-9]+$ &&
    ${empty_proof_line} -lt ${stack_prepared_line} &&
-   ${stack_prepared_line} -lt ${realm_migration_line} &&
-   ${realm_migration_line} -lt ${product_up_line} ]] ||
-  fail "testApp must qualify the empty namespace and arm teardown before migration and product startup"
+   ${stack_prepared_line} -lt ${configure_line} &&
+   ${configure_line} -lt ${workload_placeholder_line} &&
+   ${workload_placeholder_line} -lt ${product_up_line} ]] ||
+  fail "testApp must qualify the empty namespace, arm teardown and prepare SecretRefs before import-only product startup"
 contains "${LIFECYCLE}" 'import-initialized disposable Compose test stack'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_CANDIDATE_MANIFEST'
 contains "${LIFECYCLE}" 'candidate-manifest-check.py'
@@ -266,7 +269,8 @@ contains "${LIFECYCLE}" 'keycloak_realm_evidence.py'
 contains "${LIFECYCLE}" '--lane-candidate "${candidate_commit}"'
 contains "${LIFECYCLE}" '--realm-evidence "${realm_evidence_path}"'
 contains "${LIFECYCLE}" 'keycloak/realm-render-evidence.json'
-contains "${LIFECYCLE}" 'fgap-v2-primary-organization-post-import.receipt.json'
+absent "${LIFECYCLE}" 'fgap-v2-primary-organization-post-import.receipt.json'
+contains "${LIFECYCLE}" '--realm-import'
 contains "${BROWSER_FLOW}" '--ignore-certificate-errors-spki-list='
 contains "${BROWSER_FLOW}" '--host-resolver-rules='
 contains "${BROWSER_FLOW}" 'isEmailVerificationRequiredAction'

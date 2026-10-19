@@ -18,6 +18,7 @@ import 'package:weave/features/app/domain/use_cases/sign_in_with_oidc.dart';
 import 'package:weave/features/app/domain/use_cases/resolve_app_bootstrap.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
+import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
@@ -381,63 +382,114 @@ void main() {
       },
     );
 
-    testWidgets('starts interactive sign-in from the handoff ready action', (
-      tester,
-    ) async {
-      final preferencesStore = InMemoryPreferencesStore();
-      final signIn = _RecordingSignInWithOidc();
-      final container = ProviderContainer.test(
-        overrides: [
-          preferencesStoreProvider.overrideWith((ref) => preferencesStore),
-          discoverOrganizationAccessProvider.overrideWithValue(
-            _SuccessfulDiscoverOrganizationAccess(
-              MemberHandoff(
-                handoffRef: 'handoff-s32-massimo-dogfood-home',
-                runId: 's32-massimo-dogfood',
-                organizationSlug: 'massimo-dogfood',
-                workspaceSlug: 'home',
-                productBaseUrl: Uri.parse('https://weave.test:44443'),
+    for (final controllerOnly in [false, true]) {
+      testWidgets(
+        controllerOnly
+            ? 'blocks handoff navigation during controller-only sign-in'
+            : 'starts interactive sign-in from the handoff ready action',
+        (tester) async {
+          final preferencesStore = InMemoryPreferencesStore();
+          final signIn = _RecordingSignInWithOidc();
+          final container = ProviderContainer.test(
+            overrides: [
+              preferencesStoreProvider.overrideWith((ref) => preferencesStore),
+              discoverOrganizationAccessProvider.overrideWithValue(
+                _SuccessfulDiscoverOrganizationAccess(
+                  MemberHandoff(
+                    handoffRef: 'handoff-s32-massimo-dogfood-home',
+                    runId: 's32-massimo-dogfood',
+                    organizationSlug: 'massimo-dogfood',
+                    workspaceSlug: 'home',
+                    productBaseUrl: Uri.parse('https://weave.test:44443'),
+                  ),
+                ),
+              ),
+              signInWithOidcProvider.overrideWithValue(signIn),
+            ],
+          );
+          addTearDown(container.dispose);
+
+          await tester.pumpWidget(
+            UncontrolledProviderScope(
+              container: container,
+              child: MaterialApp(
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: MemberHandoffScreen(
+                  uri: Uri.parse(
+                    'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+                  ),
+                ),
               ),
             ),
-          ),
-          signInWithOidcProvider.overrideWithValue(signIn),
-        ],
+          );
+          await tester.pumpAndSettle();
+
+          final saved = await container.read(
+            savedServerConfigurationProvider.future,
+          );
+          Future<bool>? externalSignIn;
+          if (controllerOnly) {
+            externalSignIn = container
+                .read(authFlowControllerProvider.notifier)
+                .signIn();
+          } else {
+            await tester.tap(find.text('Sign In'));
+          }
+          await tester.pump();
+
+          expect(signIn.callCount, 1);
+          expect(signIn.isInteractiveSignInSupported, isTrue);
+          expect(nativeDualHandoffSignIn('Sign In'), findsNothing);
+          expect(
+            tester
+                .widget<IconButton>(
+                  find.widgetWithIcon(IconButton, Icons.arrow_back),
+                )
+                .onPressed,
+            isNull,
+          );
+          await tester.tap(find.byTooltip('Back to Setup'));
+          await tester.pump();
+          expect(signIn.callCount, 1);
+          expect(find.byType(MemberHandoffScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+
+          expect(
+            await container.read(savedServerConfigurationProvider.future),
+            same(saved),
+          );
+          if (controllerOnly) {
+            signIn.completer.completeError(
+              const AuthFailure.unknown('Held sign-in ended.'),
+            );
+            expect(await externalSignIn!, isFalse);
+            await tester.pumpAndSettle();
+            expect(
+              tester
+                  .widget<IconButton>(
+                    find.widgetWithIcon(IconButton, Icons.arrow_back),
+                  )
+                  .onPressed,
+              isNotNull,
+            );
+            return;
+          }
+          final rawAuthState = preferencesStore.rawString(
+            dogfoodAuthStateStorageKey,
+          );
+          expect(rawAuthState, isNotNull);
+          final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
+          expect(
+            authState['schemaVersion'],
+            'weave.client.dogfood_auth_state.v1',
+          );
+          expect(authState['state'], 'sso_in_progress');
+          expect(authState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
+          expect(authState['supportSafe'], isTrue);
+        },
       );
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: MemberHandoffScreen(
-              uri: Uri.parse(
-                'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Sign In'));
-      await tester.pump();
-
-      expect(signIn.callCount, 1);
-      expect(signIn.isInteractiveSignInSupported, isTrue);
-      expect(nativeDualHandoffSignIn('Sign In'), findsNothing);
-
-      final rawAuthState = preferencesStore.rawString(
-        dogfoodAuthStateStorageKey,
-      );
-      expect(rawAuthState, isNotNull);
-      final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
-      expect(authState['schemaVersion'], 'weave.client.dogfood_auth_state.v1');
-      expect(authState['state'], 'sso_in_progress');
-      expect(authState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
-      expect(authState['supportSafe'], isTrue);
-    });
+    }
 
     testWidgets(
       'records browser return and workspace-ready evidence after successful sign-in',

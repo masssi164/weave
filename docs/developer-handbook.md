@@ -47,7 +47,7 @@ git clone https://github.com/masssi164/weave.git
 cd weave/client
 flutter pub get
 flutter gen-l10n
-dart run build_runner build --delete-conflicting-outputs
+dart run build_runner build --force-aot --delete-conflicting-outputs
 flutter run
 ```
 
@@ -91,7 +91,7 @@ Use the existing generated-code workflow before analysis or tests:
 ```sh
 flutter pub get
 flutter gen-l10n
-dart run build_runner build --delete-conflicting-outputs
+dart run build_runner build --force-aot --delete-conflicting-outputs
 ```
 
 Then run the cheap PR-safe gate:
@@ -110,8 +110,9 @@ contract.
 ## Generated code and l10n
 
 - Do not hand-edit generated Dart output.
+- Use build_runner's public `--force-aot` path for pure generation. It preserves builder discovery and freshness while avoiding a recursive native-assets build. Flutter and native tests retain their normal hooks and runtime checks.
 - Run `flutter gen-l10n` after localization changes.
-- Run `dart run build_runner build --delete-conflicting-outputs` after model/provider/codegen changes.
+- Run `dart run build_runner build --force-aot --delete-conflicting-outputs` after model/provider/codegen changes.
 - Keep user-facing strings localizable; do not add hard-coded English text in widgets when the surrounding feature already uses l10n.
 
 ## Lane-based PR and release workflow

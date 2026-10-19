@@ -24,24 +24,13 @@ REALM_DEFINITION_FIELDS = {
     "migrationDefinitionDigest",
     "containsSecrets",
 }
-REALM_EVIDENCE_FIELDS = {
-    "semanticRealmSourceDigest",
-    "migrationDefinitionDigest",
-    "overlayDigest",
-    "renderedRealmDigest",
-    "semanticReadbackDigest",
-    "candidateRealmDefinitionMatched",
-    "environmentRealmRenderStable",
-    "semanticReadbackVerified",
-    "containsSecrets",
-}
-REALM_EVIDENCE_DIGEST_FIELDS = {
-    "semanticRealmSourceDigest",
-    "migrationDefinitionDigest",
-    "overlayDigest",
-    "renderedRealmDigest",
-    "semanticReadbackDigest",
-}
+# The same import provenance contract is used by its producer and consumers.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "infra/weave-workspace/scripts"))
+from keycloak_realm_evidence import (  # noqa: E402
+    EvidenceError as RealmEvidenceError,
+    validate_import_evidence,
+)
+
 NATIVE_ISOLATED_VOLUME_SUFFIXES = {
     "caddy_data",
     "caddy_config",
@@ -229,24 +218,10 @@ def require_candidate_manifest(
 
 
 def require_realm_evidence(value: Any, definition: dict[str, Any]) -> dict[str, Any]:
-    if (
-        not isinstance(value, dict)
-        or set(value) != REALM_EVIDENCE_FIELDS
-        or any(
-            HASH.fullmatch(str(value.get(field, ""))) is None
-            for field in REALM_EVIDENCE_DIGEST_FIELDS
-        )
-        or value.get("semanticRealmSourceDigest")
-        != definition.get("semanticRealmSourceDigest")
-        or value.get("migrationDefinitionDigest")
-        != definition.get("migrationDefinitionDigest")
-        or value.get("candidateRealmDefinitionMatched") is not True
-        or value.get("environmentRealmRenderStable") is not True
-        or value.get("semanticReadbackVerified") is not True
-        or value.get("containsSecrets") is not False
-    ):
-        raise EvidenceError("runtime realm evidence is incomplete or not candidate-bound")
-    return dict(value)
+    try:
+        return dict(validate_import_evidence(value, definition))
+    except RealmEvidenceError as error:
+        raise EvidenceError("runtime realm evidence is incomplete or not candidate-bound") from error
 
 
 def require_runtime_image_evidence(
@@ -561,20 +536,15 @@ def combine(live: dict[str, Any], simulator: dict[str, Any]) -> dict[str, Any]:
         or not isinstance(images, dict)
         or set(images) != CANDIDATE_COMPONENTS
         or any(not isinstance(value, str) or IMMUTABLE_IMAGE.fullmatch(value) is None for value in images.values())
-        or not isinstance(realm_evidence, dict)
-        or set(realm_evidence) != REALM_EVIDENCE_FIELDS
-        or any(
-            HASH.fullmatch(str(realm_evidence.get(field, ""))) is None
-            for field in REALM_EVIDENCE_DIGEST_FIELDS
-        )
-        or realm_evidence.get("candidateRealmDefinitionMatched") is not True
-        or realm_evidence.get("environmentRealmRenderStable") is not True
-        or realm_evidence.get("semanticReadbackVerified") is not True
-        or realm_evidence.get("containsSecrets") is not False
         or not isinstance(compose_project, str)
         or re.fullmatch(r"weave-e2e-[0-9a-f]{16}", compose_project) is None
     ):
         raise EvidenceError("live evidence lost its manifest, image, realm, or Compose identity")
+
+    try:
+        validate_import_evidence(realm_evidence)
+    except RealmEvidenceError as error:
+        raise EvidenceError("live realm evidence is invalid import provenance") from error
 
     simulator_ref = simulator.get("evidenceRef")
     if not isinstance(simulator_ref, str) or not simulator_ref.startswith("artifact:"):

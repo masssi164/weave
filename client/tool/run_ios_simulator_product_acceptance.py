@@ -686,6 +686,49 @@ def relay_workspace_completion(flutter, driver, log_path: Path, completion: Path
     raise NativeFailure('integration', phase + '-auth-completion', 'native-workspace-completion-timeout')
 
 
+def prepare_browser_fixture(products: Path, fixture: dict) -> Path:
+    """Pass private invocation data outside the cached installed XCTest bundle."""
+    if products.is_symlink() or products.parent.is_symlink() or not products.is_dir():
+        raise NativeFailure('infrastructure', 'browser-driver-build', 'unsafe-private-driver-parent')
+    plans = list(products.glob('*.xctestrun'))
+    if len(plans) != 1 or plans[0].is_symlink():
+        raise NativeFailure('infrastructure', 'browser-driver-build', 'missing-owned-test-plan')
+    try:
+        plan = plistlib.loads(plans[0].read_bytes())
+        if 'TestConfigurations' in plan:
+            targets = [target for configuration in plan['TestConfigurations']
+                       for target in configuration.get('TestTargets', [])]
+        else:
+            targets = [target for name, target in plan.items()
+                       if name != '__xctestrun_metadata__' and isinstance(target, dict)]
+        if len(targets) != 1 or targets[0].get('BlueprintName') != 'BrowserDriver':
+            raise ValueError()
+        variables = targets[0].setdefault('EnvironmentVariables', {})
+        if not isinstance(variables, dict):
+            raise ValueError()
+    except (OSError, ValueError, TypeError, AttributeError, plistlib.InvalidFileException):
+        raise NativeFailure('infrastructure', 'browser-driver-build', 'invalid-owned-test-plan') from None
+    private = products / 'private-member.json'
+    if private.is_symlink() or (private.exists() and (not private.is_file() or private.stat().st_uid != os.getuid())):
+        raise NativeFailure('infrastructure', 'browser-driver-build', 'unsafe-private-driver-fixture')
+    # Each actor has its own products and invocations are sequential. Atomic
+    # publication prevents a native reader from observing a partial JSON write.
+    with tempfile.NamedTemporaryFile(mode='w', dir=products, prefix='driver-', delete=False) as output:
+        staged = Path(output.name)
+        try:
+            os.fchmod(output.fileno(), 0o600)
+            json.dump(fixture, output)
+            output.flush()
+            os.fsync(output.fileno())
+            staged.replace(private)
+        finally:
+            staged.unlink(missing_ok=True)
+    variables['WEAVE_NATIVE_DRIVER_FIXTURE_PATH'] = str(private.resolve(strict=True))
+    plans[0].write_bytes(plistlib.dumps(plan))
+    plans[0].chmod(0o600)
+    return private
+
+
 def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: dict[str, str], fixture: dict, *, previous_pid: str | None = None) -> str:
     plans = list((derived / 'Build/Products').glob('*.xctestrun'))
     bundles = list((derived / 'Build/Products').glob('**/BrowserDriver.xctest'))
@@ -694,9 +737,7 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
     completion = prepare_workspace_completion(temporary, phase)
     fixture['phase'] = phase
     fixture['nativeAuthCompletionPath'] = str(completion)
-    private_fixture = bundles[0] / 'private-member.json'
-    private_fixture.write_text(json.dumps(fixture))
-    private_fixture.chmod(0o600)
+    private_fixture = prepare_browser_fixture(derived / 'Build/Products', fixture)
     env['WEAVE_DEVICE_PRODUCT_PHASE'] = phase
     with open(temporary / f'flutter-{phase}.log', 'w+') as flutter_log, open(temporary / f'browser-{phase}.log', 'w+') as browser_log:
         flutter = None

@@ -1,6 +1,6 @@
 # AI-assisted delivery orchestration
 
-Status: active product-repo delivery guidance, 2026-05-29.
+Status: active product-repo delivery guidance, 2026-10-19.
 
 This page defines repo-safe rules for AI-assisted Weave delivery. It describes product-repository workflow expectations only. Live coding-agent configuration, allowlists, hierarchy, model routing, personal operator paths, and runtime policy belong outside this repository.
 
@@ -8,20 +8,22 @@ This page defines repo-safe rules for AI-assisted Weave delivery. It describes p
 
 A delivery lead owns issue/PR orchestration, merge sequencing, integration, and evidence. The lead does not become a mega-coder and must not declare a sprint complete just because one PR is green.
 
-Use this loop until the issue DAG is integrated or a real blocker stops safe progress:
+A prepared bounded task uses the root `AGENTS.md` truth-recovery and completion rules. The lead supplies a source-pinned brief with governing requirements, settled decisions, scope, acceptance, checks and stop conditions. Workers inspect the affected code and recover only missing or changed material inputs. Optional improvements do not extend an accepted task. Whole-sprint discovery and closure are not inherited by a leaf fix.
 
-1. Recover truth from the pinned spec corpus, then current `dev` and `main`, repo conformance specs/docs/tasks, GitHub issues/PRs, and CI/evidence.
+For an explicitly assigned full sprint, use this loop until the issue DAG is integrated or a real blocker stops safe progress:
+
+1. Establish source-pinned sprint truth once from the governing corpus, integration lanes, issue DAG and evidence. Reuse the prepared state for workers; refresh only missing or materially changed inputs and consequential live checks.
 2. Identify the governing corpus spec and decide whether it is ready for implementation. Keep unresolved product-core questions in `draft`/`proposed`.
 3. Convert the spec plan/tasks into a GitHub issue DAG. Label independent work `parallel`; label ordered work `sequential`; link issues/PRs back to the spec.
 4. Cut normal short-lived branches from updated `dev` (urgent stable-line hotfixes start from `main`) and open reviewable PRs in dependency order.
 5. Assign scoped implementation or review work only for narrow issue slices, each with exact files, inputs, stop conditions, and a required gate.
 6. Integrate only from returned evidence and inspected diffs, then run an adversarial Integration-Gate review.
 7. Merge dependency-free PRs once CI/gates/review evidence pass and branch protection permits; otherwise surface the exact missing approval or check.
-8. After every Dev merge, update `dev`, re-evaluate the remaining DAG, and continue the next slice.
+8. After a Dev merge, update the integration identity and review its relevant delta. Adjust only affected DAG nodes or decisions, then continue the next scoped slice without repeating whole-project discovery.
 9. Stop only when all sprint issues/PRs are merged or when a product-core clarification, live-infra/destructive approval, or failed gate blocks safe progress.
 10. Produce the sprint closure report from repo/GitHub/CI evidence.
 
-Material optimization means improved correctness, traceability, security/privacy, accessibility, supportability, deployability, CI/evidence quality, or reviewability without hidden scope expansion.
+Apply the finite acceptance loop and blocking-finding definition in `.specify/templates/weave-agent-briefs.md`. A bounded task does not inherit the full sprint closure gate, and optional improvements never authorize scope expansion.
 
 ## Sprint management responsibilities
 
@@ -85,16 +87,18 @@ A worker prompt must include:
 
 - role and one independently testable goal;
 - exact allowed files or globs;
-- governing spec/plan/tasks/docs paths;
-- required gate or reason the gate cannot run;
-- stop conditions;
+- implementation commit/tree, corpus pin, governing requirements and source paths;
+- settled decisions and the changed inputs that invalidate them;
+- observable acceptance and an explicit completion boundary;
+- required checks and review, with unavailable prerequisites reported;
+- stop conditions and action authorization;
 - evidence-only return format.
 
-Do not paste transcripts, broad sprint histories, hidden product assumptions, live runtime config, or private operator context into workers.
+Keep current blockers separate from historical failures and already integrated repairs. Bind check results to their actual source; report pending CI or independent review explicitly and refresh consequential live permissions/checks before acting. Do not paste transcripts, broad sprint histories, hidden product assumptions, live runtime config, or private operator context into workers.
 
 ## Professional evaluation rubric
 
-Score 0-3:
+Optional explanatory scores (0-3):
 
 - correctness against spec and acceptance;
 - traceability from issue/spec to evidence;
@@ -104,7 +108,7 @@ Score 0-3:
 - maintainability and simplicity;
 - evidence quality and reproducibility.
 
-A score below 2 in any release-blocking dimension requires another implementation loop or an explicit blocker.
+A concrete violation of an applicable release-blocking requirement requires correction or an explicit blocker. Explain it with the affected behavior, source and required fix. A score alone or an optional improvement does not require another implementation loop; satisfied scope acceptance and required gates end the task.
 
 ## Guardrails
 

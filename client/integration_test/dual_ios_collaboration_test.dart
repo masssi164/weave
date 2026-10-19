@@ -1119,6 +1119,43 @@ void main() {
             );
           case 'calendar-delete':
             expect(role, 'A');
+            await navigateNativeDualDestination(
+              tester,
+              Icons.calendar_month_outlined,
+            );
+            await _calendarReadback(tester, updatedTitle, true);
+            await _tap(
+              tester,
+              find.byTooltip(
+                _copy(tester).calendarDeleteEventTooltip(updatedTitle),
+              ),
+            );
+            final beforeCancellation = container
+                .read(calendarProvider)
+                .requireValue
+                .events
+                .where((event) => event.id == eventId)
+                .single;
+            await _tap(
+              tester,
+              find.widgetWithText(
+                TextButton,
+                _copy(tester).calendarCancelButton,
+              ),
+            );
+            await _calendarReadback(tester, updatedTitle, true);
+            expect(
+              container
+                  .read(calendarProvider)
+                  .requireValue
+                  .events
+                  .where((event) => event.id == eventId)
+                  .single
+                  .etag,
+              beforeCancellation.etag,
+              reason:
+                  'Cancelling deletion must preserve the shared event version.',
+            );
             await _tap(
               tester,
               find.byTooltip(
@@ -1139,6 +1176,10 @@ void main() {
             };
           case 'calendar-observe-deleted':
             expect(role, 'B');
+            await navigateNativeDualDestination(
+              tester,
+              Icons.calendar_month_outlined,
+            );
             await _calendarReadback(tester, updatedTitle, false);
             expect(
               container

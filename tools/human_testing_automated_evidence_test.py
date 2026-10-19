@@ -32,10 +32,9 @@ REALM_EVIDENCE = {
     **REALM_DEFINITION,
     "overlayDigest": "sha256:" + "8" * 64,
     "renderedRealmDigest": "sha256:" + "9" * 64,
-    "semanticReadbackDigest": "sha256:" + "a" * 64,
     "candidateRealmDefinitionMatched": True,
     "environmentRealmRenderStable": True,
-    "semanticReadbackVerified": True,
+    "initializationMode": "realm-import",
 }
 HASHES = {
     "author": "sha256:" + "a" * 64,
@@ -309,6 +308,32 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
         completed = self.live(runtime=runtime)
         self.assertEqual(completed.returncode, 2)
         self.assertIn("realm evidence", completed.stderr)
+
+    def test_import_provenance_rejects_readback_claims_and_unstable_renders(self) -> None:
+        mutations = (
+            lambda evidence: evidence.__setitem__("semanticReadbackVerified", True),
+            lambda evidence: evidence.__setitem__("semanticReadbackDigest", "sha256:" + "a" * 64),
+            lambda evidence: evidence.__setitem__("initializationMode", "post-import-migration"),
+            lambda evidence: evidence.__setitem__("candidateRealmDefinitionMatched", False),
+            lambda evidence: evidence.__setitem__("environmentRealmRenderStable", False),
+            lambda evidence: evidence.__setitem__("containsSecrets", True),
+            lambda evidence: evidence.__setitem__("overlayDigest", "not-a-digest"),
+            lambda evidence: evidence.pop("renderedRealmDigest"),
+        )
+        for mutate in mutations:
+            with self.subTest(mutation=mutate):
+                runtime = copy.deepcopy(self.runtime)
+                mutate(runtime["realmEvidence"])
+                completed = self.live(runtime=runtime)
+                self.assertEqual(completed.returncode, 2)
+                self.assertIn("realm evidence", completed.stderr)
+
+    def test_valid_import_provenance_cannot_replace_real_authentication(self) -> None:
+        product = copy.deepcopy(self.product)
+        product["collaboration"]["passes"][0]["freshAuthorizationCodePkce"] = False
+        completed = self.live(product)
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("freshAuthorizationCodePkce", completed.stderr)
 
     def test_rejects_fixture_ui_as_live_or_cross_candidate_evidence(self) -> None:
         completed = self.live()

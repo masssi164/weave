@@ -5,6 +5,7 @@ import io
 import hashlib
 import json
 import os
+import plistlib
 from pathlib import Path
 import sys
 import socket
@@ -21,6 +22,70 @@ import run_ios_simulator_product_acceptance as ios
 
 
 class DualIosCollaborationTest(unittest.TestCase):
+    def test_driver_fixture_transport_reuses_one_private_file_outside_bundles(self):
+        for version in (1, 2):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as temporary:
+                roots = [Path(temporary) / role for role in ('A', 'B')]
+                for root in roots:
+                    root.mkdir()
+                    target = {'BlueprintName': 'BrowserDriver', 'EnvironmentVariables': {'EXISTING': 'preserved'}}
+                    plan = ({'BrowserDriver': target} if version == 1 else
+                            {'TestConfigurations': [{'TestTargets': [target]}], '__xctestrun_metadata__': {'FormatVersion': 2}})
+                    path = root / 'owned.xctestrun'; path.write_bytes(plistlib.dumps(plan))
+                    for fixture in ({'phase': 'initial', 'password': 'private-password'},
+                                    {'phase': 'document-picker', 'pickerMode': 'export'},
+                                    {'phase': 'lifecycle', 'action': 'background'}):
+                        actual = ios.prepare_browser_fixture(root, fixture)
+                        updated = plistlib.loads(path.read_bytes())
+                        configured = (updated['BrowserDriver'] if version == 1 else
+                                      updated['TestConfigurations'][0]['TestTargets'][0])['EnvironmentVariables']
+                        self.assertEqual(configured['EXISTING'], 'preserved')
+                        self.assertEqual(Path(configured['WEAVE_NATIVE_DRIVER_FIXTURE_PATH']), actual.resolve())
+                        self.assertEqual(json.loads(actual.read_text()), fixture)
+                        self.assertEqual(actual.parent, root)
+                        self.assertEqual(actual.stat().st_mode & 0o777, 0o600)
+                        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                        self.assertNotIn(b'private-password', path.read_bytes())
+                        self.assertEqual(list(root.glob('driver-*')), [])
+                self.assertNotEqual((roots[0] / 'private-member.json').resolve(), (roots[1] / 'private-member.json').resolve())
+
+    def test_driver_fixture_rejects_invalid_or_ambiguous_plan_without_publishing(self):
+        cases = [b'not a plist', plistlib.dumps({}),
+                 plistlib.dumps({'Other': {'BlueprintName': 'Other'}}),
+                 plistlib.dumps({'A': {'BlueprintName': 'BrowserDriver'}, 'B': {'BlueprintName': 'BrowserDriver'}}),
+                 plistlib.dumps({'TestConfigurations': [{'TestTargets': [{'BlueprintName': 'BrowserDriver'}, {'BlueprintName': 'Other'}]}]}),
+                 plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver', 'EnvironmentVariables': 'unsafe'}})]
+        for contents in cases:
+            with self.subTest(contents=contents), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary); (root / 'owned.xctestrun').write_bytes(contents)
+                with self.assertRaises(ios.NativeFailure):
+                    ios.prepare_browser_fixture(root, {'phase': 'initial', 'password': 'private'})
+                self.assertFalse((root / 'private-member.json').exists())
+                self.assertEqual((root / 'owned.xctestrun').read_bytes(), contents)
+
+    def test_driver_fixture_rejects_symlinks_and_keeps_previous_bytes_on_write_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); products = root / 'products'; products.mkdir()
+            plan = products / 'owned.xctestrun'
+            plan.write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}}))
+            actual = ios.prepare_browser_fixture(products, {'phase': 'initial'})
+            original = actual.read_bytes()
+            with mock.patch.object(ios.json, 'dump', side_effect=ValueError('private write failure')):
+                with self.assertRaises(ValueError):
+                    ios.prepare_browser_fixture(products, {'phase': 'document-picker'})
+            self.assertEqual(actual.read_bytes(), original)
+            self.assertEqual(list(products.glob('driver-*')), [])
+            actual.unlink(); actual.symlink_to(root / 'outside.json')
+            with self.assertRaises(ios.NativeFailure):
+                ios.prepare_browser_fixture(products, {'phase': 'initial'})
+            self.assertFalse((root / 'outside.json').exists())
+            link = root / 'linked'; link.symlink_to(products, target_is_directory=True)
+            with self.assertRaises(ios.NativeFailure):
+                ios.prepare_browser_fixture(link, {'phase': 'initial'})
+            actual.unlink(); plan.unlink(); plan.symlink_to(root / 'outside-plan')
+            with self.assertRaises(ios.NativeFailure):
+                ios.prepare_browser_fixture(products, {'phase': 'initial'})
+
     def test_inspection_run_uses_canonical_inputs_and_independent_outputs(self):
         with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {'WEAVE_E2E_RUN_ID': 'owned-test'}):
             root = Path(temporary)
@@ -106,7 +171,7 @@ class DualIosCollaborationTest(unittest.TestCase):
 
     def test_picker_reuses_main_thread_child_finally_on_owner_interruption(self):
         with tempfile.TemporaryDirectory() as temporary:
-            products = Path(temporary); (products / 'owned.xctestrun').touch()
+            products = Path(temporary); (products / 'owned.xctestrun').write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}}))
             (products / 'BrowserDriver.xctest').mkdir()
             child = mock.Mock(); interruption = SystemExit(130)
             child.communicate.side_effect = interruption
@@ -121,37 +186,53 @@ class DualIosCollaborationTest(unittest.TestCase):
             self.assertTrue(launch.call_args.kwargs['start_new_session'])
             self.assertIn('-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker', launch.call_args.args[0])
 
-    def test_local_browser_waits_for_cu_and_picker_uses_same_owned_operation(self):
+    def test_local_browser_picker_and_relaunch_preserve_the_owned_actor_lifecycle(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); scope = root / 'scope'; scope.mkdir()
             derived = root / 'derived'; products = derived / 'Build/Products'; products.mkdir(parents=True)
-            (products / 'owned.xctestrun').touch(); (products / 'BrowserDriver.xctest').mkdir()
+            (products / 'owned.xctestrun').write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}})); (products / 'BrowserDriver.xctest').mkdir()
             prepared = {}
+            current_pids = {}
+            lifecycle = []
             def prepare(actor, _udid, _app, _data, _env):
                 expected = {'role': actor['role'], 'runId': 'owned-test', 'storageDigest': 'preinstall'}
                 prepared[actor['role']] = expected
                 return root / 'obsolete', expected
             def start(udid, compiler, _app, _map, env, actor_scope, streams, **kwargs):
-                log = actor_scope / 'run-1.log'; stream = log.open('w'); streams.append(stream)
+                generation = kwargs['generation']
+                current_pids[udid] = udid + '-pid-' + str(generation)
+                lifecycle.append(('start', udid, generation))
+                log = actor_scope / ('run-' + str(generation) + '.log'); stream = log.open('w'); streams.append(stream)
                 process = mock.Mock(pid=123 if udid == 'A' else 456); process.poll.return_value = None
-                return {'udid': udid, 'pid': udid + '-pid', 'compiler': compiler, 'scope': actor_scope,
+                return {'udid': udid, 'pid': current_pids[udid], 'compiler': compiler, 'scope': actor_scope,
                         'support': root / ('current-' + udid), 'fixture': kwargs['expected_fixture'],
-                        'env': env, 'process': process, 'stream': stream, 'log': log, 'generation': 1}
+                        'env': env, 'process': process, 'stream': stream, 'log': log, 'generation': generation}
+            def terminate(udid, pid):
+                self.assertEqual(current_pids[udid], pid, 'verify ownership before resident shutdown can remove the app')
+                lifecycle.append(('terminate', udid, pid))
+                current_pids[udid] = None
+            def stop_resident(process):
+                self.assertEqual(process.pid, 123)
+                lifecycle.append(('stop-resident', 'A'))
+                current_pids['A'] = None
             def relay(*_args, **_kwargs):
-                fixture = json.loads((scope / 'A/Build/Products/BrowserDriver.xctest/private-member.json').read_text())
+                fixture = json.loads((scope / 'A/Build/Products/private-member.json').read_text())
                 self.assertIs(fixture['flutterInitiatesSignIn'], True)
                 self.assertEqual(fixture['phase'], 'initial')
                 return True
             commands = [{'sequence': 1, 'action': 'browser', 'role': 'A'},
                         {'sequence': 2, 'action': 'picker-replacement', 'role': 'A'},
-                        {'sequence': 3, 'action': 'close', 'role': 'both'}]
+                        {'sequence': 3, 'action': 'relaunch', 'role': 'A'},
+                        {'sequence': 4, 'action': 'close', 'role': 'both'}]
             driver = mock.Mock(); driver.wait.return_value = 0
             data = {'runId': 'owned-test', 'actors': [{'role': r, 'email': 'private-email', 'password': 'private-password'} for r in ['A', 'B']]}
             with mock.patch.object(dual, 'prepare_actor_storage', side_effect=prepare), \
                  mock.patch.object(dual, 'start_local_actor', side_effect=start), \
                  mock.patch.object(dual, 'actor_proxy_environment', return_value={}), \
                  mock.patch.object(dual, 'inspection_source', return_value={}), \
-                 mock.patch.object(ios, 'simulator_app_pid', side_effect=lambda udid: udid + '-pid'), \
+                 mock.patch.object(ios, 'simulator_app_pid', side_effect=lambda udid: current_pids[udid]), \
+                 mock.patch.object(ios, 'terminate_initial_app', side_effect=terminate), \
+                 mock.patch.object(dual, 'stop_flutter_process_group', side_effect=stop_resident), \
                  mock.patch.object(dual, 'read_inspection_command', side_effect=commands), \
                  mock.patch.object(dual.subprocess, 'Popen', return_value=driver), \
                  mock.patch.object(dual, 'track_process', side_effect=lambda p: p), \
@@ -166,6 +247,15 @@ class DualIosCollaborationTest(unittest.TestCase):
             self.assertEqual(session['actors']['A']['appSupport'], str(root / 'current-A'))
             self.assertNotEqual(session['actors']['A']['storageDigest'], 'preinstall')
             self.assertEqual(session['actors']['A']['fixturePreinstallStorageDigest'], 'preinstall')
+            restarted = json.loads((scope / 'inspection-session-3.json').read_text())
+            self.assertEqual(lifecycle, [('start', 'A', 1), ('start', 'B', 1), ('terminate', 'A', 'A-pid-1'),
+                                         ('stop-resident', 'A'), ('start', 'A', 2)])
+            self.assertEqual(restarted['actors']['A']['processId'], 'A-pid-2')
+            self.assertEqual(restarted['actors']['B'], session['actors']['B'])
+            self.assertEqual(restarted['actors']['A']['appSupport'], session['actors']['A']['appSupport'])
+            operations = json.loads((scope / 'inspection-operations-3.json').read_text())
+            self.assertTrue(operations[-1]['distinctProcessObserved'])
+            self.assertFalse(restarted['qualificationPassed'])
 
     def test_picker_inspection_commands_are_single_actor_and_bounded(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -367,7 +457,7 @@ class DualIosCollaborationTest(unittest.TestCase):
         for mode, transcript, valid in cases:
             with self.subTest(mode=mode, valid=valid, transcript=transcript), tempfile.TemporaryDirectory() as name:
                 root = Path(name); products = root / 'products'; products.mkdir()
-                (products / 'owned.xctestrun').write_text('owned plan')
+                (products / 'owned.xctestrun').write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}}))
                 (products / 'BrowserDriver.xctest').mkdir()
                 diagnostics = root / 'diagnostics'; diagnostics.mkdir(mode=0o700)
                 raw = transcript + 'private-credential private/path\n'
@@ -411,7 +501,7 @@ class DualIosCollaborationTest(unittest.TestCase):
             with self.subTest(action=action, reason=reason, transcript=transcript), tempfile.TemporaryDirectory() as name:
                 root = Path(name); support = root / 'A'; support.mkdir()
                 products = support / 'products'; products.mkdir()
-                (products / 'owned.xctestrun').write_text('owned plan')
+                (products / 'owned.xctestrun').write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}}))
                 bundle = products / 'BrowserDriver.xctest'; bundle.mkdir()
                 diagnostics = root / 'diagnostics'; diagnostics.mkdir(mode=0o700)
                 raw = transcript + 'private-credential private/path\n'
@@ -426,7 +516,7 @@ class DualIosCollaborationTest(unittest.TestCase):
                 command.assert_called_once()
                 self.assertEqual(command.call_args.kwargs['timeout'], 90)
                 self.assertIn('-only-testing:BrowserDriver/BrowserDriver/testNativeLifecycle', command.call_args.args[0])
-                self.assertEqual(json.loads((bundle / 'private-member.json').read_text()), {'phase': 'lifecycle', 'action': action})
+                self.assertEqual(json.loads((products / 'private-member.json').read_text()), {'phase': 'lifecycle', 'action': action})
                 logs = list(diagnostics.glob('command-*.log')); self.assertEqual(len(logs), 1)
                 self.assertEqual(logs[0].read_text(), raw)
                 self.assertEqual(logs[0].stat().st_mode & 0o777, 0o600)
@@ -439,7 +529,7 @@ class DualIosCollaborationTest(unittest.TestCase):
                       "Test Case '-[BrowserDriver.BrowserDriver testNativeDocumentPicker]' passed (6.766 seconds).\n")
         with tempfile.TemporaryDirectory() as name:
             root = Path(name); products = root / 'products'; products.mkdir()
-            (products / 'owned.xctestrun').write_text('owned plan')
+            (products / 'owned.xctestrun').write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}}))
             (products / 'BrowserDriver.xctest').mkdir()
             diagnostics = root / 'diagnostics'; diagnostics.mkdir(mode=0o700)
             with mock.patch.object(ios, 'simulator_app_pid', side_effect=['123', '456']), mock.patch.object(ios, 'run', return_value=transcript), mock.patch.object(ios, 'verified_private_parent', return_value=diagnostics), contextlib.redirect_stdout(io.StringIO()) as public:
@@ -461,7 +551,7 @@ class DualIosCollaborationTest(unittest.TestCase):
                 support.mkdir()
                 products = support / 'products'
                 products.mkdir()
-                (products / 'owned.xctestrun').write_text('plan')
+                (products / 'owned.xctestrun').write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}}))
                 (products / 'BrowserDriver.xctest').mkdir()
                 scopes[role] = (support, role, pid, products)
             (scopes['A'][0] / 'weave-dual-ios-native-request.json').write_text(json.dumps({

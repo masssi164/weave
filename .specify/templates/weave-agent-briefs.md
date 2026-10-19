@@ -4,32 +4,31 @@ Use these compact templates for repo-safe AI-assisted delivery. Do not paste tra
 
 ## Invocation matrix
 
-- Delivery lead: recovers spec-corpus truth first, then repo/GitHub/CI truth, plans the issue DAG, integrates evidence, and enforces gates.
+- Delivery lead: validates source-bound context, supplies bounded task briefs, integrates evidence, and enforces gates. Whole-sprint discovery and issue-DAG planning apply to explicitly assigned sprint work.
 - Repo roles: scoped prompts with logical responsibilities such as Product/Spec, Architecture/Contract, Client/A11y, Server/Domain, Admin/Policy, Provider/Infra, QA/Evidence, Docs/Release, Security/Privacy, and Integration Review.
 - Coding harnesses: use only when explicitly selected by the operator environment. The product repo must not name deployable live harness profiles or allowlists.
-- Copilot review: fallback-only; do not block PR readiness on Copilot premium review exhaustion.
+- Copilot review: follow `docs/gitflow-pr-workflow.md`; use the required independent fallback when unavailable or waived. Exhaustion does not waive required review.
 - Stop conditions: secrets, live infra mutation, data loss, history rewrite, hidden scope expansion, or unresolved product-core ambiguity.
 
 ## Professional optimization loop
 
-Use the smallest pattern that solves the slice:
+Apply the root `AGENTS.md` prepared-task rule through a finite acceptance loop:
 
-1. Recover truth from the pinned spec corpus, then repo/GitHub/CI, and identify the contract/spec.
-2. Build a task DAG; parallelize only independent file/contract areas.
-3. Give each worker exact inputs, allowed files, required gates, and stop conditions.
-4. Integrate from evidence, not transcript claims.
-5. Run adversarial Integration-Gate review.
-6. If review finds material improvement, create the next scoped brief and repeat.
-7. Stop only when Integration-Gate returns no material optimization opportunity or a product-core clarification blocks safe progress.
+1. Validate the prepared brief's implementation baseline, corpus pin, governing requirements and source paths. Recover only missing or changed material inputs. Full sprint discovery belongs to the delivery lead at sprint entry, not every worker.
+2. Set one independently testable outcome, allowed files, required checks and completion boundary before implementation. Parallelize only independent owners; do not rebuild the whole sprint DAG for a leaf fix.
+3. Inspect the affected code, implement the slice and run its smallest meaningful proof. Integrate from observed results and source, not transcript claims.
+4. Review the actual diff for concrete acceptance violations, correctness, security, privacy, accessibility, supportability and required evidence. Fix blocking findings within scope; a materially new requirement returns to the lead instead of silently expanding the task.
+5. Stop when the stated acceptance, required checks and review are satisfied. Optional improvements do not prevent completion and do not automatically create another task, specialist or review round.
 
-Material optimization means a change that improves correctness, traceability, security/privacy, accessibility, supportability, deployability, CI/evidence quality, or reviewability without hidden scope expansion.
+A blocking finding identifies a violated applicable requirement, affected behavior and necessary correction. A general opportunity to improve quality, a rubric score, stylistic preference or a hypothetical future feature is not itself a blocker. Scope changes and all authorization and release gates remain explicit.
 
 ## Truth-Recovery
 
 ```text
-Recover current truth from the pinned Weave Specification Corpus, then the Weave repo, GitHub issues/PRs, and CI/evidence.
-Do not rely on chat memory except as orientation.
-Return: spec corpus commit/IDs, branch, relevant conformance docs/specs, open PRs/issues, latest CI/evidence, blockers, smallest safe next slice.
+Validate the prepared brief's implementation baseline, corpus pin, governing requirements, source paths and current consequential checks.
+For unchanged verified inputs, reuse the brief; unstructured chat memory is not evidence.
+Recover only missing or materially changed requirements from their owning source. Whole-sprint discovery is required only when explicitly assigned or materially invalidated.
+Return: validated identities, relevant deltas, blockers and the exact next scoped action.
 Do not modify files.
 ```
 
@@ -39,10 +38,13 @@ Do not modify files.
 Role: <Product/Spec | Architecture/Contract | Client/A11y | Server/Domain | Admin/Policy | Provider/Infra | QA/Evidence | Docs/Release | Security/Privacy | Integration Review>
 Goal: <one independently testable outcome>
 Allowed files: <exact paths/globs>
-Inputs: <spec/plan/docs/issues>
-Required gate: <command>
+Baseline: <implementation commit/tree and corpus pin>
+Inputs: <governing requirements and source paths; relevant issue/spec>
+Settled decisions and invalidation triggers: <decisions; changed inputs requiring review>
+Acceptance and completion boundary: <observable criteria; implementation, PR or authorized delivery>
+Required checks and review: <commands and review requirements>
 Stop before: secrets, live infra mutation, data loss, hidden scope expansion, unresolved [NEEDS CLARIFICATION].
-Return only: done/blocked, files changed, evidence command+result, risks, recommended next.
+Return only: done/blocked/partial at the assigned boundary, source identity, files changed, checks/review with results or pending status, blockers, next exact action. Stop at the assigned boundary.
 ```
 
 ## Coding-Harness-Brief
@@ -52,17 +54,22 @@ Runtime: operator-selected coding harness.
 Goal: <one coding-harness-suitable outcome>
 CWD: <repo root supplied by operator environment>
 Allowed scope: <exact files/globs>; do not touch live infra/secrets/generated artifacts.
-Inputs: <spec/plan/tasks/docs paths>
-Required gate: <command or explain why not runnable>
+Baseline: <implementation commit/tree and corpus pin>
+Inputs: <governing requirements and source paths; relevant issue/spec>
+Settled decisions and invalidation triggers: <decisions; changed inputs requiring review>
+Acceptance and completion boundary: <observable criteria; implementation, PR or authorized delivery>
+Required checks and review: <commands and review requirements; report unavailable prerequisites>
 Policy: if the configured harness is denied/unavailable, report the policy error. Do not silently switch runtime.
-Return only: status, files changed, evidence, risks, follow-up patch suggestion.
+Return only: status at the assigned boundary, source identity, files changed, checks/review with results or pending status, blockers, next exact action. Do not start follow-up implementation without authorization.
 ```
 
 ## Evidence-Return
 
 ```text
 Return concise evidence only:
-- Status: done | blocked | partial
+- Status: done | blocked | partial at the assigned completion boundary
+- Implementation commit/tree and corpus pin:
+- Required checks/review still pending:
 - Files changed:
 - Gates run:
 - Evidence artifacts:
@@ -76,8 +83,8 @@ No transcript recap. No broad architecture essay.
 ```text
 Inspect the branch/PR against spec and constitution.
 Check: linked issue/spec, release-notes label, acceptance mapping, docs impact, smallest local gate, CI status, review fallback, no unrelated files.
-Evaluate: professionalism, problem-solving strategy, result quality, simplicity, risk posture, and evidence strength.
-Return: merge-ready? yes/no, material optimization opportunities? yes/no, blockers, exact command/evidence, recommended next action.
+Evaluate concrete scope acceptance, correctness, risk and evidence. Every blocker must identify an applicable violated requirement and a necessary correction. Optional optimization opportunities do not change a passing completion verdict.
+Return: acceptance satisfied? yes/no, merge-ready? yes/no, concrete blockers, exact-source check/review results, next exact action. Separate optional follow-ups; pending required CI or independent review prevents merge readiness.
 ```
 
 ## Optimization-Review
@@ -85,13 +92,13 @@ Return: merge-ready? yes/no, material optimization opportunities? yes/no, blocke
 ```text
 Act as adversarial but practical integration reviewer.
 Inputs: <diff/spec/tasks/evidence>
-Score 0-3 each: correctness, traceability, spec protection, handoff usability, runtime-policy hygiene, maintainability, evidence quality.
-Find only material improvements; ignore taste-only rewrites.
+Optional scores (0-3): correctness, traceability, spec protection, handoff usability, runtime-policy hygiene, maintainability, evidence quality. Scores explain findings; they do not independently trigger implementation or another review round.
+Find concrete violations of applicable requirements; ignore taste-only rewrites. Preserve required security, privacy, accessibility, correctness and evidence checks. Review the correction when a blocker is fixed; stop when acceptance and required checks/review are satisfied.
 Return:
-- Verdict: no-material-optimizations | optimize-before-commit | blocked
-- Scores:
-- Findings, each with path, risk, exact suggested change, required gate
-- If no findings: final evidence needed before commit/PR
+- Verdict: acceptance-satisfied | changes-required | blocked
+- Blocking findings, each with requirement/source, path, affected behavior, necessary correction and required check
+- Pending required evidence or review, if any
+- Optional non-blocking follow-ups, without starting new work
 ```
 
 ## Sprint-Planning
@@ -125,7 +132,8 @@ Do not merge until branch protection, local gates, release-label policy, and Int
 ## Session-Handoff
 
 ```text
-Handoff current sprint/PR state.
-Include only: branch/PR/issue URLs, changed files, gates run with result, CI/check status, unresolved blockers, next exact command/action.
-Do not include raw diffs, transcripts, secrets, or broad narrative.
+Handoff one current, bounded work item.
+Include: implementation commit/tree, corpus pin, governing requirements and source paths, settled decisions, allowed files, acceptance and completion boundary, checks with exact-source results, unresolved blockers, and next exact command/action.
+Separate current blockers from historical failures and already accepted fixes. Identify the changed inputs that invalidate each reusable conclusion. Revalidate consequential live permissions/checks at the action boundary.
+Do not include raw diffs, transcripts, secrets, broad histories or an instruction to rediscover the whole project. A valid prepared handoff satisfies background truth recovery for unchanged inputs.
 ```

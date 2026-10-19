@@ -708,16 +708,17 @@ def prepare_runtime_paths(context: ComposeContext) -> None:
     manifest = context.generated_root / "render-manifest.json"
     if manifest.is_symlink() or not manifest.is_file():
         raise ContractError("render-manifest.json is missing; run render first")
-    migration_root = context.generated_root / "keycloak/migrations"
-    migration_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(migration_root, 0o700)
     runtime_uid = int(context.env["WEAVE_RUNTIME_UID"])
     runtime_gid = int(context.env["WEAVE_RUNTIME_GID"])
-    if migration_root.stat().st_uid != runtime_uid or migration_root.stat().st_gid != runtime_gid:
-        try:
-            os.chown(migration_root, runtime_uid, runtime_gid)
-        except PermissionError as error:
-            raise ContractError("Keycloak migration receipt directory is not writable by the rootless runtime uid/gid") from error
+    if context.environment == "prod":
+        migration_root = context.generated_root / "keycloak/migrations"
+        migration_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(migration_root, 0o700)
+        if migration_root.stat().st_uid != runtime_uid or migration_root.stat().st_gid != runtime_gid:
+            try:
+                os.chown(migration_root, runtime_uid, runtime_gid)
+            except PermissionError as error:
+                raise ContractError("Keycloak migration receipt directory is not writable by the rootless runtime uid/gid") from error
     for path in (
         context.secret_root / "agent-runtime/workloads",
         context.secret_root / "agent-runtime/workloads/weave/keycloak",
@@ -1887,7 +1888,7 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         if context.environment != "dev":
             compose(context, "up", "-d", "postgres", "postgres-reconcile")
         compose(context, "up", "-d", "--wait", "--wait-timeout", "600", "keycloak")
-        if context.environment in {"prod", "e2e"}:
+        if context.environment == "prod":
             require_completed_migration(context)
         compose(
             context,

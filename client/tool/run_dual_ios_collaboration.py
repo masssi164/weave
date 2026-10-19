@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Two owned live Flutter processes; credentials stay in actor-private XCTest bundles.
+"""Two owned live Flutter processes; credentials stay in actor-private driver fixtures.
 
 This extends the existing native qualification owner. It never upgrades missing
 UI journeys, transport feasibility, or server denial proofs to a passed result.
@@ -424,7 +424,7 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
     browser_fixture = dict(email=actor['email'], password=actor['password'], issuerHost='auth.weave.localhost',
                            appBundleIdentifier=ios.BUNDLE, phase='initial', nativeAuthCompletionPath=str(completion),
                            flutterInitiatesSignIn=True)
-    private = bundles[0] / 'private-member.json'; private.write_text(json.dumps(browser_fixture)); private.chmod(0o600)
+    ios.prepare_browser_fixture(products, browser_fixture)
     flutter = driver = None
     succeeded = False
     with (temporary / 'flutter-initial.log').open('w+') as log, (temporary / 'browser-initial.log').open('w+') as browser_log:
@@ -530,10 +530,7 @@ def perform_owned_picker(udid, pid, products, env, mode, name, *, result_path=No
     plans = list(products.glob('*.xctestrun')); bundles = list(products.glob('**/BrowserDriver.xctest'))
     if len(plans) != 1 or len(bundles) != 1:
         raise ios.NativeFailure('infrastructure', 'dual-files', 'missing-owned-test-plan')
-    fixture = bundles[0] / 'private-member.json'
-    if fixture.is_symlink():
-        raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-picker-fixture')
-    fixture.write_text(json.dumps({'phase': 'document-picker', 'pickerMode': mode, 'fileName': name})); fixture.chmod(0o600)
+    ios.prepare_browser_fixture(products, {'phase': 'document-picker', 'pickerMode': mode, 'fileName': name})
     command = ['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
                '-destination', 'platform=iOS Simulator,id=' + udid, '-parallel-testing-enabled', 'NO',
                '-only-testing:BrowserDriver/BrowserDriver/testNativeDocumentPicker']
@@ -568,8 +565,7 @@ def perform_owned_lifecycle(scope: tuple, action: str, env: dict, *, inspection_
     plans = list(products.glob('*.xctestrun')); bundles = list(products.glob('**/BrowserDriver.xctest'))
     if len(plans) != 1 or len(bundles) != 1:
         raise ios.NativeFailure('infrastructure', 'dual-lifecycle', 'owned-test-plan-missing')
-    private = bundles[0] / 'private-member.json'
-    private.write_text(json.dumps({'phase': 'lifecycle', 'action': action})); private.chmod(0o600)
+    ios.prepare_browser_fixture(products, {'phase': 'lifecycle', 'action': action})
     lifecycle_stdout = ios.run(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
              '-destination', 'platform=iOS Simulator,id=' + udid, '-parallel-testing-enabled', 'NO',
              '-only-testing:BrowserDriver/BrowserDriver/testNativeLifecycle',
@@ -1020,9 +1016,11 @@ def inspect_local_apps(input_data, env, temporary, devices, app, native_assets, 
                         relays[role].interrupt() if action == 'network-off' else relays[role].restore()
                     elif action == 'relaunch':
                         old_pid = item['pid']
+                        # Stopping flutter run can terminate its app. Verify and
+                        # stop the exact owned app before closing that resident.
+                        ios.terminate_initial_app(item['udid'], old_pid)
                         stop_flutter_process_group(item['process'])
                         item['stream'].close()
-                        ios.terminate_initial_app(item['udid'], old_pid)
                         pid_file = item['compiler'] / 'run.pid'
                         if pid_file.is_symlink():
                             raise ios.NativeFailure('infrastructure', 'local-inspection', 'unsafe-run-pid')
@@ -1054,10 +1052,7 @@ def inspect_local_apps(input_data, env, temporary, devices, app, native_assets, 
                             'email': actor['email'], 'password': actor['password'], 'issuerHost': 'auth.weave.localhost',
                             'appBundleIdentifier': ios.BUNDLE, 'phase': 'initial', 'nativeAuthCompletionPath': str(completion),
                             'flutterInitiatesSignIn': True}
-                        private = bundles[0] / 'private-member.json'
-                        if private.is_symlink():
-                            raise ios.NativeFailure('infrastructure', 'local-inspection', 'unsafe-browser-fixture')
-                        private.write_text(json.dumps(browser_fixture)); private.chmod(0o600)
+                        ios.prepare_browser_fixture(item['products'], browser_fixture)
                         browser_log = item['scope'] / ('browser-' + str(sequence) + '.log')
                         completion_offset = item['log'].stat().st_size
                         with browser_log.open('w') as stream:
