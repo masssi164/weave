@@ -1,8 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart' as http_testing;
+import 'package:test/test.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_session_access.dart';
 
@@ -153,30 +154,74 @@ void main() {
     });
   }
 
-  test(
-    'does not authorize Chat when the Weave API rejects the session',
-    () async {
-      final client = http_testing.MockClient(
-        (_) async => http.Response('', 401),
-      );
+  for (final path in ['/api/me', '/api/workspace/capabilities']) {
+    for (final (name, status, error, expected) in [
+      ('rejected session', 401, null, ChatFailureType.sessionRequired),
+      ('denied access', 403, null, ChatFailureType.sessionRequired),
+      ('invalid response', 400, null, ChatFailureType.protocol),
+      ('unavailable service', 503, null, ChatFailureType.protocol),
+      (
+        'connection failure',
+        null,
+        http.ClientException('Private transport detail'),
+        ChatFailureType.protocol,
+      ),
+      (
+        'request timeout',
+        null,
+        TimeoutException('Private timeout detail'),
+        ChatFailureType.protocol,
+      ),
+    ]) {
+      test(
+        'keeps the correct admission failure category for $name at $path',
+        () async {
+          final requests = <String>[];
+          final client = http_testing.MockClient((request) async {
+            requests.add(request.url.path);
+            if (request.url.path == path) {
+              if (error != null) throw error;
+              return http.Response('Private provider detail', status!);
+            }
+            return http.Response(
+              jsonEncode({
+                'subject': 'member-1',
+                'organizationId': 'organization-1',
+                'identityIssuer': issuer.toString(),
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          });
+          addTearDown(client.close);
 
-      await expectLater(
-        authorize(client),
-        throwsA(
-          isA<ChatFailure>()
-              .having(
-                (failure) => failure.type,
-                'localized failure category',
-                ChatFailureType.sessionRequired,
-              )
-              .having(
-                (failure) => failure.message,
-                'support-safe diagnostic code',
-                'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
-              )
-              .having((failure) => failure.cause, 'HTTP status only', 401),
-        ),
+          await expectLater(
+            authorize(client),
+            throwsA(
+              isA<ChatFailure>()
+                  .having(
+                    (failure) => failure.type,
+                    'recovery category',
+                    expected,
+                  )
+                  .having(
+                    (failure) => failure.message,
+                    'support-safe diagnostic code',
+                    'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
+                  )
+                  .having(
+                    (failure) => failure.cause,
+                    'HTTP status only',
+                    status ?? 400,
+                  ),
+            ),
+          );
+          expect(requests, [
+            '/api/me',
+            if (path != '/api/me') '/api/workspace/capabilities',
+          ]);
+        },
       );
-    },
-  );
+    }
+  }
 }
