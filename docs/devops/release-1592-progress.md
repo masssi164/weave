@@ -1,5 +1,66 @@
 # Release qualification implementation progress for #1592
 
+## October 20: retain actionable restoration failures
+
+[Promotion #1654](https://github.com/masssi164/weave/pull/1654) produced Dogfood
+`a4deef967b803933e625601b1a53d90d58932fa2`, tree
+`8d59f306471367a7f03b06b1ae2564fdbaa9630b`, with accepted corpus
+`92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`.
+[Full 39373908966](https://github.com/masssi164/weave/actions/runs/39373908966)
+failed in 18m19s during restored macOS bootstrap after the guarded service
+restart. Initial macOS journeys passed, but final macOS qualification failed;
+iOS and all seven dual-iOS aggregates were not run, and deployment was skipped.
+The [original artifact](https://github.com/masssi164/weave/actions/runs/39373908966/artifacts/12243402081)
+and original false native cleanup flag are preserved. Guarded teardown and an
+independent inventory verified zero owned resources. The retained bootstrap
+marker identifies an inner `AppFailure`, but does not establish its HTTP status,
+a timeout, decoding failure or a token-expiry cause.
+
+A fresh isolated inspection on clean Dev
+`7a9755d5ab26ed702901a91fd9a58a8da1441a65` (the same tree and pin) independently
+onboarded both real Flutter iOS applications through the organization URL and
+system-browser PKCE. Both reached their workspaces. After the existing guarded
+PostgreSQL/Keycloak/backend restart, both restored after Dart restart and after
+separate native process relaunches. Read-only observations matched the loaded
+bootstrap sources to disk and found no bootstrap error state. This probe does
+not reproduce the macOS failure, establish all seven scenario aggregates, or
+qualify this candidate. An initial A discovery error followed a truncated
+operator-entered URL; verifying and submitting the complete URL succeeded.
+That attempt is not evidence of a product discovery regression.
+
+The existing native diagnostic now shares one bounded typed-cause classifier
+between authentication and bootstrap reporting. It retains fixed backend failure
+categories and HTTP status values from 100 through 599, without error text,
+response bodies, credentials or URLs. The iOS relay accepts only the complete,
+ordered, bounded record. Reporting failures still preserve the original test
+failure. Authentication, current-grant authorization, bootstrap contracts,
+release gates and timeout budgets are unchanged. No speculative token refresh
+or retry was added.
+
+The four existing temporary pure-Dart probes now execute from their own temporary
+directories. Running one from the Flutter package directory dispatched native
+hooks and timed out at 30 seconds. With only its working directory corrected,
+the intended missing-diagnostic assertion failed in 0.630 seconds. After the
+correction, five focused diagnostic checks passed in 1.395 seconds, and all 118
+native-runner regressions passed in 14.623 seconds with zero skips. This is one
+local observation on Apple Silicon with Flutter 3.41.6/Dart 3.11.4; it is not a
+controlled whole-CI speed comparison. Native runtime and ABI qualification still
+use the ordinary native runners. The x64 simulator and macOS native caches were
+cold after storage cleanup; ARM64 simulator assets were retained.
+
+Only inactive generated caches and the explicitly owned isolated inspection
+resources were reclaimed. Certificates, reviewed secrets, Git history, release
+evidence and persistent Dogfood data were preserved. Closing the owned simulators
+returned observed free capacity to approximately 27 GiB. The inspection result
+is `closed`, `cleanupComplete=true`, `qualificationPassed=false`; no release pass
+is inferred from local exploration.
+
+The next required proof is a focused macOS restoration run with the nested
+failure diagnostic, followed by a demonstrated conformance correction if it
+fails. A new frozen candidate still requires complete Compose, macOS,
+concurrent dual-iOS and owned-cleanup qualification before deployment, physical
+preparation or HIL. #1592, #1481 and #1470 remain open.
+
 ## October 20: keep an explicit Chat send visible
 
 [Promotion #1652](https://github.com/masssi164/weave/pull/1652) merged as
