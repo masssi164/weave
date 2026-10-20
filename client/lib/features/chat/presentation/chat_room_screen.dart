@@ -750,7 +750,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
       return LayoutBuilder(
         builder: (context, constraints) {
           final compactContextPreview = constraints.maxHeight < 320;
-          final showRoomGovernancePreview = constraints.maxHeight >= 220;
+          final showRoomGovernancePreview =
+              constraints.maxHeight >= 220 &&
+              displayPendingMessage?.failure == null;
 
           return Column(
             children: [
@@ -1023,6 +1025,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
           ? buildChatTimelineBody()
           : _ChannelWorkspaceTabs(
               workspace: workspace,
+              showSummary: displayPendingMessage?.failure == null,
               chatChild: buildChatTimelineBody(),
               decisionsChild: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -1135,11 +1138,13 @@ String _chatRoomSendFailureMessage(AppLocalizations l10n, ChatFailure failure) {
 class _ChannelWorkspaceTabs extends StatelessWidget {
   const _ChannelWorkspaceTabs({
     required this.workspace,
+    required this.showSummary,
     required this.chatChild,
     required this.decisionsChild,
   });
 
   final ChannelWorkspacePreview workspace;
+  final bool showSummary;
   final Widget chatChild;
   final Widget decisionsChild;
 
@@ -1150,10 +1155,11 @@ class _ChannelWorkspaceTabs extends StatelessWidget {
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: _ChannelWorkspaceSummary(workspace: workspace),
-        ),
+        if (showSummary)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: _ChannelWorkspaceSummary(workspace: workspace),
+          ),
         Material(
           color: theme.colorScheme.surface,
           child: Semantics(

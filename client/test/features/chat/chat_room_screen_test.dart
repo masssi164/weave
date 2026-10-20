@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart' as http_testing;
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -18,6 +20,7 @@ import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/chat_admission_gate.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/matrix_session_access.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 
@@ -1729,80 +1732,148 @@ void main() {
     expect(find.byType(TextField), findsNothing);
   });
 
-  testWidgets('keeps a failed outgoing message visible with retry actions', (
-    tester,
-  ) async {
-    final semantics = tester.ensureSemantics();
-    var sendAttempts = 0;
-    final repository = FakeChatRepository(
-      loadRoomTimelineHandler: (_) async => buildTimeline(),
-      sendMessageHandler: ({required roomId, required message}) async {
-        sendAttempts++;
-        if (sendAttempts == 1) {
-          throw const ChatFailure.protocol(
-            'Raw send provider detail should not render.',
+  for (final locale in ['en', 'de']) {
+    testWidgets(
+      'retries a send after unavailable admission with keyboard $locale',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetViewInsets);
+        tester.platformDispatcher.localesTestValue = [Locale(locale)];
+        addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+        final semantics = tester.ensureSemantics();
+        try {
+          var sendAttempts = 0;
+          final client = http_testing.MockClient(
+            (_) async => http.Response(
+              'Raw send provider detail should not render.',
+              503,
+            ),
           );
+          addTearDown(client.close);
+          final repository = FakeChatRepository(
+            loadRoomTimelineHandler: (_) async => buildTimeline(),
+            sendMessageHandler: ({required roomId, required message}) async {
+              sendAttempts++;
+              expect(roomId, conversation.id);
+              expect(message, 'Retry me');
+              if (sendAttempts == 1) {
+                await GeneratedMatrixSessionAccess(
+                  httpClient: client,
+                ).authorize(
+                  userApiBaseUrl: Uri.parse('https://api.weave.test/api'),
+                  weaveAccessToken: 'test-member-session',
+                  expectedSubject: 'member-1',
+                  expectedIssuer: Uri.parse(
+                    'https://auth.weave.test/realms/weave',
+                  ),
+                );
+              }
+            },
+          );
+
+          await tester.pumpWidget(
+            createTestApp(
+              const ChatRoomScreen(conversation: conversation),
+              overrides: overridesFor(repository),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final copy = AppLocalizations.of(
+            tester.element(find.byType(ChatRoomScreen)),
+          );
+          final summary = find.text(
+            copy.channelWorkspaceSummaryTitle(conversation.title),
+          );
+          expect(summary, findsOneWidget);
+
+          await tester.enterText(find.byType(TextField), 'Retry me');
+          final send = find.widgetWithText(
+            FilledButton,
+            copy.chatRoomSendButton,
+          );
+          expect(send.hitTestable(), findsOneWidget);
+          await tester.tap(send);
+          await tester.pumpAndSettle();
+
+          expect(find.text('Retry me'), findsAtLeastNWidgets(1));
+          expect(find.text(copy.chatRoomMessageFailedStatus), findsOneWidget);
+          expect(summary, findsNothing);
+          final timeline = find.byWidgetPredicate(
+            (widget) => widget is ListView && widget.reverse,
+          );
+          final scrollable = find.descendant(
+            of: timeline,
+            matching: find.byType(Scrollable),
+          );
+          await tester.scrollUntilVisible(
+            find.text('Hey there'),
+            100,
+            scrollable: scrollable,
+          );
+          expect(find.text('Hey there'), findsOneWidget);
+          await tester.scrollUntilVisible(
+            find.text(copy.chatRoomMessageFailedStatus),
+            -100,
+            scrollable: scrollable,
+          );
+          expect(
+            tester.widget<TextField>(find.byType(TextField)).controller!.text,
+            'Retry me',
+          );
+          expect(find.text(copy.chatRoomSendFailureMessage), findsOneWidget);
+          expect(
+            find.text('Raw send provider detail should not render.'),
+            findsNothing,
+          );
+          expect(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is Semantics &&
+                  widget.properties.liveRegion == true &&
+                  widget.child is Text &&
+                  ((widget.child! as Text).data?.contains(
+                        copy.chatRoomSendFailureMessage,
+                      ) ??
+                      false),
+            ),
+            findsOneWidget,
+          );
+          expect(find.text(copy.chatRoomRetrySendAction), findsOneWidget);
+          _expectSemanticTapAction(
+            tester,
+            find.byTooltip(copy.chatRoomRetrySendAction),
+            label: copy.chatRoomRetrySendAction,
+          );
+
+          final retry = find.descendant(
+            of: find.byType(MaterialBanner),
+            matching: find.widgetWithText(
+              TextButton,
+              copy.chatRoomRetrySendAction,
+            ),
+          );
+          expect(retry.hitTestable(), findsOneWidget);
+          await tester.tap(retry);
+          await tester.pumpAndSettle();
+
+          expect(repository.sendMessageCalls, 2);
+          expect(find.text(copy.chatRoomMessageFailedStatus), findsNothing);
+          expect(
+            tester.widget<TextField>(find.byType(TextField)).controller!.text,
+            isEmpty,
+          );
+          expect(find.text(copy.chatRoomSendFailureMessage), findsNothing);
+          expect(summary, findsOneWidget);
+        } finally {
+          semantics.dispose();
         }
       },
     );
-
-    await tester.pumpWidget(
-      createTestApp(
-        const ChatRoomScreen(conversation: conversation),
-        overrides: overridesFor(repository),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.byType(TextField), 'Retry me');
-    await tester.tap(find.text('Send'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Retry me'), findsAtLeastNWidgets(1));
-    expect(find.text('Not sent'), findsOneWidget);
-    expect(
-      find.text(
-        'That message could not be sent right now. Check your connection and try again.',
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.text('Raw send provider detail should not render.'),
-      findsNothing,
-    );
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Semantics &&
-            widget.properties.liveRegion == true &&
-            widget.child is Text &&
-            ((widget.child! as Text).data?.contains(
-                  'That message could not be sent',
-                ) ??
-                false),
-      ),
-      findsOneWidget,
-    );
-    expect(find.text('Retry send'), findsOneWidget);
-    _expectSemanticTapAction(
-      tester,
-      find.byTooltip('Retry send'),
-      label: 'Retry send',
-    );
-    semantics.dispose();
-
-    await tester.tap(find.text('Retry send').first);
-    await tester.pumpAndSettle();
-
-    expect(repository.sendMessageCalls, 2);
-    expect(find.text('Not sent'), findsNothing);
-    expect(
-      find.text(
-        'That message could not be sent right now. Check your connection and try again.',
-      ),
-      findsNothing,
-    );
-  });
+  }
 
   testWidgets('announces a pending secure peer device with retry', (
     tester,
