@@ -1670,7 +1670,13 @@ void main() {
             _stage('restart-checkpoint-ready');
           case 'restore-readback':
             expect(restoring, isTrue);
-            await _tap(tester, find.text(conversation));
+            await openNativeDualChatConversation(
+              tester,
+              container,
+              conversation,
+              roomId: resources['roomId'] as String,
+              deadline: actionDeadline,
+            );
             await _wait(
               tester,
               () =>

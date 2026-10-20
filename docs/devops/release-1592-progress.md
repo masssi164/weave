@@ -52,6 +52,29 @@ background-send failure is fixed. The focused real dual-iOS reproduction and
 remaining checks follow before another candidate promotion. Any changed source
 requires fresh complete protected qualification.
 
+The first focused local attempt on `97c092a4ff22ec5675eae899a066c4a45182f5a3`
+failed before apps started: local storage cleanup removed compiler outputs while
+cached hook/build metadata still referenced them. The original build failure was
+retained; matching inactive iOS cache metadata was invalidated. A pinned simulator
+build then passed, with actual arm64 and x86_64 native libraries verified. This
+was an operator cache-recovery failure, not a product test result.
+
+The fresh focused run `local-ios-focus-20261020-2247` passed 30 real UI actions,
+including B's background send and A's foreground catch-up, before failing at A's
+restored-product readback. The restored session reached Chat, but the harness
+immediately tapped the saved conversation title after seeing the create button;
+the title was not yet in the widget tree. All seven final aggregates remained
+not-run. Native cleanup completed, and independent owned-resource inventories
+were zero. Original private logs and results remain separate from qualification.
+
+Restore readback now reuses the existing actual room-entry helper: navigate to
+Chat, wait for the real room list, open the conversation and verify its saved
+stable ID under the existing action deadline. Persisted message/file assertions
+remain unchanged. Existing delayed re-entry regressions passed in English and
+German, and changed-file analysis passed. Fresh real restored-product execution
+and complete protected qualification are still required; the prior 30 actions
+are not a final aggregate pass and will not be stitched into another candidate.
+
 ## October 20: admit a refreshed member without rebasing authority
 
 [Promotion #1656](https://github.com/masssi164/weave/pull/1656) produced Dogfood
