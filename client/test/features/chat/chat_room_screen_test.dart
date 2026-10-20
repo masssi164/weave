@@ -1337,6 +1337,141 @@ void main() {
     expect(find.text('Reply sent'), findsOneWidget);
   });
 
+  for (final locale in ['en', 'de']) {
+    for (final retry in [false, true]) {
+      testWidgets(
+        'shows an own send from older history with keyboard $locale retry=$retry',
+        (tester) async {
+          tester.view.physicalSize = const Size(390, 844);
+          tester.view.devicePixelRatio = 1;
+          tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          addTearDown(tester.view.resetViewInsets);
+          tester.platformDispatcher.localesTestValue = [Locale(locale)];
+          addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+
+          ChatMessage chatMessage(
+            String id,
+            String text, {
+            bool mine = false,
+          }) => ChatMessage(
+            id: id,
+            senderId: mine ? '@me:home.internal' : '@peer:home.internal',
+            senderDisplayName: mine ? 'Me' : 'Peer',
+            sentAt: DateTime(2026, 4, 20, 12),
+            isMine: mine,
+            deliveryState: ChatMessageDeliveryState.sent,
+            contentType: ChatMessageContentType.text,
+            text: text,
+          );
+          final messages = [
+            for (var index = 0; index < 30; index++)
+              chatMessage('history-$index', 'History $index'),
+          ];
+          final sent = Completer<void>();
+          addTearDown(() {
+            if (!sent.isCompleted) sent.complete();
+          });
+          var attempts = 0;
+          const outgoing = 'Reply after reading older history';
+          final outgoingBubble = find.byWidgetPredicate(
+            (widget) => widget is Text && widget.data == outgoing,
+          );
+          final repository = FakeChatRepository(
+            loadRoomTimelineHandler: (_) async =>
+                buildTimeline(messages: List.of(messages)),
+            sendMessageHandler: ({required roomId, required message}) async {
+              attempts++;
+              if (retry && attempts == 1) {
+                throw const ChatFailure.protocol('Connection unavailable.');
+              }
+              await sent.future;
+              messages.add(chatMessage('sent-reply', message, mine: true));
+            },
+          );
+          await tester.pumpWidget(
+            createTestApp(
+              const ChatRoomScreen(conversation: conversation),
+              overrides: overridesFor(repository),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final copy = AppLocalizations.of(
+            tester.element(find.byType(ChatRoomScreen)),
+          );
+          final timeline = find.byWidgetPredicate(
+            (widget) => widget is ListView && widget.reverse,
+          );
+          final scrollable = find.descendant(
+            of: timeline,
+            matching: find.byType(Scrollable),
+          );
+          Future<void> readOlderHistory() async {
+            await tester.scrollUntilVisible(
+              find.text('History 0'),
+              300,
+              scrollable: scrollable,
+            );
+            await Scrollable.ensureVisible(
+              tester.element(find.text('History 0')),
+              alignment: 0.5,
+            );
+            await tester.pumpAndSettle();
+            expect(find.text('History 0').hitTestable(), findsOneWidget);
+          }
+
+          await readOlderHistory();
+          messages.add(chatMessage('incoming', 'Incoming while reading'));
+          await tester.pump(const Duration(seconds: 3));
+          await tester.pumpAndSettle();
+          expect(
+            find.textContaining('History ').hitTestable(),
+            findsAtLeastNWidgets(1),
+          );
+          expect(
+            find.text('Incoming while reading').hitTestable(),
+            findsNothing,
+          );
+
+          await tester.enterText(find.byType(TextField), outgoing);
+          final send = find.widgetWithText(
+            FilledButton,
+            copy.chatRoomSendButton,
+          );
+          expect(send.hitTestable(), findsOneWidget);
+          await tester.tap(send);
+          await tester.pumpAndSettle();
+          expect(outgoingBubble.hitTestable(), findsOneWidget);
+          if (retry) {
+            final retrySend = find.descendant(
+              of: find.byType(MaterialBanner),
+              matching: find.widgetWithText(
+                TextButton,
+                copy.chatRoomRetrySendAction,
+              ),
+            );
+            await readOlderHistory();
+            expect(retrySend.hitTestable(), findsOneWidget);
+            await tester.tap(retrySend);
+            await tester.pumpAndSettle();
+            expect(outgoingBubble.hitTestable(), findsOneWidget);
+          }
+          sent.complete();
+          await tester.pumpAndSettle();
+          expect(outgoingBubble, findsOneWidget);
+          expect(outgoingBubble.hitTestable(), findsOneWidget);
+          expect(
+            tester.widget<TextField>(find.byType(TextField)).controller!.text,
+            isEmpty,
+          );
+          expect(attempts, retry ? 2 : 1);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
   testWidgets(
     'a persisted draft from member A is not restored for member B in the same room',
     (tester) async {
