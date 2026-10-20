@@ -33,6 +33,7 @@ class ChatRoomScreen extends ConsumerStatefulWidget {
 class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     with WidgetsBindingObserver {
   final _composerController = TextEditingController();
+  final _timelineScrollController = ScrollController();
   ChatRoomTimeline? _timeline;
   ChatFailure? _failure;
   Set<String> _archivedMessageIds = <String>{};
@@ -205,6 +206,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     _composerController
       ..removeListener(_onComposerChanged)
       ..dispose();
+    _timelineScrollController.dispose();
     super.dispose();
   }
 
@@ -463,6 +465,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
         deliveryState: ChatMessageDeliveryState.sending,
         failure: null,
       );
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (current() &&
+          _canReceive &&
+          !_showingArchivedMessages &&
+          _timelineScrollController.hasClients) {
+        _timelineScrollController.jumpTo(0);
+      }
     });
 
     try {
@@ -887,6 +897,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                   (false, final ChatRoomTimeline _, _) => RefreshIndicator(
                     onRefresh: _loadTimeline,
                     child: ListView.separated(
+                      controller: _timelineScrollController,
                       reverse: true,
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                       itemCount:

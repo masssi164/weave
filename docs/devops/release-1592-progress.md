@@ -1,5 +1,67 @@
 # Release qualification implementation progress for #1592
 
+## October 20: keep an explicit Chat send visible
+
+[Promotion #1652](https://github.com/masssi164/weave/pull/1652) merged as
+Dogfood `28eefafe5761404cec92ff83110e348df55bea48`, tree
+`53e941723771557b7887cfd2ea76eba848cfc564`, accepted corpus
+`92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`. Its
+[protected Full run](https://github.com/masssi164/weave/actions/runs/39361875201)
+failed after 34m20s; deployment was skipped. macOS passed. Two concurrent real
+Flutter iOS apps completed 26 acknowledged actions, including the repaired
+network interruption, retry and peer readback. B's next `background-peer-send`
+cleared its composer but timed out waiting for the message widget. All seven
+final aggregates remain not-run. The original
+[artifact](https://github.com/masssi164/weave/actions/runs/39361875201/artifacts/12238707113),
+private diagnostics and original cleanup flags are preserved. Exact finalization
+and independent inventory verified zero owned resources; no persistent Dogfood
+reset occurred.
+
+A warm inspection on Dev `9fe85cd5402f55dea1feb48aa1458fbaedec2299`, the same
+tree and pin, independently established a viewport defect. After reading older
+history, a real Flutter send cleared the composer while the new message remained
+outside the rendered list. Read-only observation found exactly one matching
+message in the live model, an active foreground room, no pending send, and the
+reversed list 375.64 pixels from newest. Actual scrolling revealed the committed
+text without resending. The warm background send itself succeeded before the
+correction, so the completed CI process's precise cause remains unproven; its
+missing widget alone does not establish a transport or cryptographic failure.
+
+The room now owns and disposes one timeline scroll controller. An explicit send
+or retry reveals its pending message after layout, guarded by the existing
+current authority, visible foreground room and active-timeline checks. Routine
+receive reads do not force the reader to newest. No transport, authorization,
+cryptographic state, retry semantics or public contract changes are introduced.
+
+Four EN/DE phone-and-keyboard cases fail before this correction and pass after it.
+They scroll through long history, retain a history view during an incoming
+update, send and retry through usable controls, and require the pending and
+single committed message to be hit-testable with the composer cleared. All 49
+Chat room tests pass, including existing denial, revocation, draft, lifecycle
+and archive cases. The initial local host native-asset preparation took about
+4m50s before test output; the cached four-case regression executes in 3 seconds.
+These different cache conditions do not establish a build-speed improvement.
+
+| UX defect | Conditions and reproduction | Expected / actual | Correction and verification |
+| --- | --- | --- | --- |
+| Self-descriptiveness, conformity with expectations, controllability and use-error robustness; member sends from history; collaboration observation blocker | Actual native iOS history reading and Send; EN/DE 390×844 widget viewport with 280-pixel keyboard, including failed send and Retry | Show the explicitly submitted pending/result message / composer clears while the message remains outside the lazy list viewport | Reveal explicit sends after layout; four behavioral cases and all 49 room tests pass. Warm real B sends and retry from older history show their pending/result immediately with one model copy. Both apps' loaded source is verified; mixed-source inspection does not qualify a release. |
+
+The existing owned inspection kept both real apps and their isolated stack warm
+for these iterations. Both users independently signed in through the actual
+system browser and exchanged messages through Flutter. A-only interruption and
+retry, B-only interruption and retry, and B sending while A was backgrounded
+were exercised. After loading the correction, B's explicit send and retry from
+older history immediately showed their pending/result; A visibly received the
+background message after foregrounding. Both live models contained one copy,
+with verified loaded source and no pending send. An earlier independent A process
+restart restored its session and persisted conversation while B's process stayed
+unchanged. These are diagnostic interaction results, not seven completed final
+scenario aggregates or physical VoiceOver acceptance.
+
+Fresh exact-candidate Compose, macOS and all seven concurrent dual-iOS aggregates,
+owned cleanup, deployment, physical preparation and explicit owner HIL remain
+required. The release issues remain open.
+
 ## October 20: recoverable Chat admission failures
 
 [Promotion #1649](https://github.com/masssi164/weave/pull/1649) merged as
