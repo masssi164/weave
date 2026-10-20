@@ -11,6 +11,8 @@ enum FilesFailureType {
 }
 
 class FilesFailure implements Exception {
+  static const identityUnavailableCode = 'WEAVE_FILES_IDENTITY_UNAVAILABLE';
+
   const FilesFailure({required this.type, required this.message, this.cause});
 
   const FilesFailure.cancelled(String message, {Object? cause})

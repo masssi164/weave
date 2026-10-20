@@ -445,7 +445,12 @@ class DualIosCollaborationTest(unittest.TestCase):
                        "** TEST EXECUTE SUCCEEDED **\n")
         imported = 'NATIVE_IOS_FILES_STAGE phase=import-selected\n' + passed
         exported = 'NATIVE_IOS_FILES_STAGE phase=export-saved\n' + passed
-        cases = [('import', imported, True), ('export', exported, True),
+        cancelled = 'NATIVE_IOS_FILES_STAGE phase=export-cancelled\n' + passed
+        cases = [('import', imported, True), ('export', exported, True), ('export-cancel', cancelled, True),
+                 ('export-cancel', actual_skip, False), ('export-cancel', exported, False),
+                 ('export-cancel', cancelled + exported, False), ('export', exported + cancelled, False),
+                 ('export-cancel', cancelled + 'NATIVE_IOS_FILES_STAGE phase=export-cancelled\n', False),
+                 ('export-cancel', cancelled + actual_skip, False), ('export-cancel', passed, False),
                  ('export', actual_skip, False), ('export', passed, False),
                  ('export', imported, False), ('export', exported + imported, False),
                  ('export', exported + 'NATIVE_IOS_FILES_STAGE phase=export-saved\n', False),
@@ -636,7 +641,7 @@ class DualIosCollaborationTest(unittest.TestCase):
                 self.assertEqual(failure.exception.reason, 'actual-ui-command-proof-missing')
                 command = json.loads((scopes['A'][0] / 'weave-dual-ios-command.json').read_text())
                 self.assertEqual(command['action'], expected_action)
-                sequence = 1 if phase == 'initial' else 30
+                sequence = 1 if phase == 'initial' else 31
                 self.assertEqual(output.getvalue().strip(),
                                  f'NATIVE_IOS_DUAL_UI_STAGE phase={phase} actor=A action={expected_action} sequence={sequence} status=started supportSafe=true')
                 self.assertFalse((scopes['B'][0] / 'weave-dual-ios-command.json').exists())
@@ -886,6 +891,7 @@ class DualIosCollaborationTest(unittest.TestCase):
 
     def test_picker_requests_bind_real_action_sequence_and_known_owned_file(self):
         for action, mode, prefix in [('files-upload', 'import', 'initial'), ('files-replace', 'import', 'replacement'),
+                                     ('files-export-cancel', 'export-cancel', 'initial'),
                                      ('files-export', 'export', 'initial'), ('files-export-updated', 'export', 'initial')]:
             request = {'sequence': 4, 'mode': mode, 'fileName': 'weave-dual-' + prefix + '-owned.txt'}
             self.assertEqual(dual.require_picker_request(request, 4, action, 'owned'), (mode, request['fileName']))

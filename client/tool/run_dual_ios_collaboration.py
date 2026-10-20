@@ -525,6 +525,9 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
 
 
 def perform_owned_picker(udid, pid, products, env, mode, name, *, result_path=None):
+    phases = {'import': 'import-selected', 'export': 'export-saved', 'export-cancel': 'export-cancelled'}
+    if mode not in phases:
+        raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-native-picker-request')
     if ios.simulator_app_pid(udid) != pid:
         raise ios.NativeFailure('infrastructure', 'dual-files', 'owned-process-mismatch')
     plans = list(products.glob('*.xctestrun')); bundles = list(products.glob('**/BrowserDriver.xctest'))
@@ -545,12 +548,12 @@ def perform_owned_picker(udid, pid, products, env, mode, name, *, result_path=No
     except (OSError, ValueError, ios.NativeFailure):
         print('NATIVE_IOS_PICKER_RESULT status=unavailable supportSafe=true', flush=True)
     lines = picker_stdout.splitlines()
-    expected = 'NATIVE_IOS_FILES_STAGE phase=' + ('import-selected' if mode == 'import' else 'export-saved')
-    opposite = 'NATIVE_IOS_FILES_STAGE phase=' + ('export-saved' if mode == 'import' else 'import-selected')
+    expected = 'NATIVE_IOS_FILES_STAGE phase=' + phases[mode]
+    opposite = {'NATIVE_IOS_FILES_STAGE phase=' + value for key, value in phases.items() if key != mode}
     selected = r"Test Case '-\[BrowserDriver\.BrowserDriver testNativeDocumentPicker\]'"
     passed = sum(bool(re.fullmatch(selected + r" passed \([0-9.]+ seconds\)\.", line)) for line in lines)
     skipped = re.search(selected + r" skipped\b|Executed \d+ tests?, with [1-9]\d* tests? skipped\b", picker_stdout)
-    if lines.count(expected) != 1 or opposite in lines or passed != 1 or skipped:
+    if lines.count(expected) != 1 or opposite.intersection(lines) or passed != 1 or skipped:
         raise ios.NativeFailure('infrastructure', 'dual-files', 'native-picker-result-unverified')
     if ios.simulator_app_pid(udid) != pid:
         raise ios.NativeFailure('infrastructure', 'dual-files', 'owned-process-replaced')
@@ -595,7 +598,7 @@ def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict, phas
     steps = [('A', 'chat-create-send'), ('B', 'chat-open-reply'), ('A', 'chat-observe'),
              ('A', 'calendar-create'), ('B', 'calendar-observe'),
              ('A', 'calendar-update'), ('B', 'calendar-observe-updated'),
-             ('A', 'files-upload'), ('A', 'files-export'), ('B', 'files-open'), ('B', 'files-export'),
+             ('A', 'files-upload'), ('A', 'files-export-cancel'), ('A', 'files-export'), ('B', 'files-open'), ('B', 'files-export'),
              ('A', 'files-replace'), ('A', 'files-export-updated'), ('B', 'files-open-updated'), ('B', 'files-export-updated'),
              ('A', 'authorization'), ('B', 'authorization'),
              ('A', 'calendar-delete'), ('B', 'calendar-observe-deleted'),
@@ -708,9 +711,9 @@ def publish_private_json(path: Path, value: dict) -> None:
 
 
 def require_picker_request(request: dict, sequence: int, action: str, run_id: str) -> tuple[str, str]:
-    if action not in {'files-upload', 'files-replace', 'files-export', 'files-export-updated'}:
+    if action not in {'files-upload', 'files-replace', 'files-export-cancel', 'files-export', 'files-export-updated'}:
         raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-native-picker-request')
-    mode = 'export' if action in {'files-export', 'files-export-updated'} else 'import'
+    mode = 'export-cancel' if action == 'files-export-cancel' else ('export' if action in {'files-export', 'files-export-updated'} else 'import')
     name = ('weave-dual-replacement-' if action == 'files-replace' else 'weave-dual-initial-') + run_id + '.txt'
     if request != {'sequence': sequence, 'mode': mode, 'fileName': name}:
         raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-native-picker-request')

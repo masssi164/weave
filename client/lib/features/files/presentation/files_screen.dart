@@ -407,6 +407,9 @@ String? _localizedFilesFailure(FilesFailure? failure, AppLocalizations l10n) {
   if (failure?.type == FilesFailureType.sessionRequired) {
     return l10n.filesInvalidSessionMessage;
   }
+  if (failure?.message == FilesFailure.identityUnavailableCode) {
+    return l10n.filesErrorGuidance;
+  }
   return failure?.message;
 }
 

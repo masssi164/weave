@@ -154,6 +154,56 @@ void main() {
   String Function(String token)? organization;
   late Map<String, Object?> stored;
   late List<String> calendarActions;
+  for (final status in [0, 401, 403, 503]) {
+    test(
+      'identity failure $status stays closed with an accurate retry outcome',
+      () async {
+        var unavailable = true;
+        var resourceCalls = 0;
+        final calendar = CalendarFacadeClient(
+          httpClient: MockClient((request) async {
+            if (request.url.path == '/api/me') {
+              if (unavailable) {
+                if (status == 0) {
+                  throw http.ClientException('private transport details');
+                }
+                return http.Response('', status);
+              }
+              return json({
+                'subject': 'member',
+                'organizationId': 'org',
+                'identityIssuer': 'https://auth.home.internal',
+              });
+            }
+            resourceCalls++;
+            return json({'calendars': []});
+          }),
+          serverConfigurationRepository: configuration,
+          authSessionRepository: auth,
+          evaluationTimeZone: () async => 'Europe/Berlin',
+        );
+        final expected = switch (status) {
+          401 => CalendarFailureKind.session,
+          403 => CalendarFailureKind.permission,
+          _ => CalendarFailureKind.unavailable,
+        };
+        await expectLater(
+          calendar.listScopes(),
+          throwsA(
+            isA<CalendarFailure>().having(
+              (f) => f.kind,
+              'failure category',
+              expected,
+            ),
+          ),
+        );
+        expect(resourceCalls, 0);
+        unavailable = false;
+        await calendar.listScopes();
+        expect(resourceCalls, 1);
+      },
+    );
+  }
   CalendarFacadeClient client(
     Future<http.Response?> Function(http.Request) handle, {
     String zone = 'Europe/Berlin',
