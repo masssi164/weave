@@ -311,7 +311,68 @@ class _ExportedFilesController extends FilesController {
   );
 }
 
+class _InterruptedFilesController extends _PostReplaceFilesController {
+  var retries = 0;
+
+  @override
+  Future<FilesViewState> build() async => (await super.build()).copyWith(
+    directoryFailure: const FilesFailure.unknown(
+      FilesFailure.identityUnavailableCode,
+    ),
+    entryActionStatus: const FilesEntryActionStatus.idle(),
+    uploadStatus: const FilesUploadStatus.idle(),
+  );
+
+  @override
+  Future<void> refresh() async {
+    retries++;
+    state = AsyncData(state.requireValue.copyWith(clearDirectoryFailure: true));
+  }
+}
+
 void main() {
+  for (final locale in ['en', 'de']) {
+    testWidgets(
+      'interrupted identity read offers an operable localized retry $locale',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        tester.platformDispatcher.localesTestValue = [Locale(locale)];
+        addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+        final controller = _InterruptedFilesController();
+        await tester.pumpWidget(
+          _filesTestApp(
+            const FilesScreen(),
+            overrides: [filesProvider.overrideWith(() => controller)],
+          ),
+        );
+        await tester.pumpAndSettle();
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(FilesScreen)),
+        );
+        expect(find.text(l10n.filesErrorGuidance), findsOneWidget);
+        expect(find.text(l10n.filesInvalidSessionMessage), findsNothing);
+        expect(find.text(FilesFailure.identityUnavailableCode), findsNothing);
+        final retry = find.text(l10n.filesStaleDirectoryRetryButton);
+        await tester.ensureVisible(retry);
+        await tester.pumpAndSettle();
+        expect(retry.hitTestable(), findsOneWidget);
+        await tester.tap(retry);
+        await tester.pumpAndSettle();
+        expect(controller.retries, 1);
+        expect(find.text(l10n.filesErrorGuidance), findsNothing);
+        await tester.scrollUntilVisible(
+          find.text(_PostReplaceFilesController.name),
+          150,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(find.text(_PostReplaceFilesController.name), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   for (final destination in [
     'content://provider/private-secret-token',
     'data:text/plain,private-secret-token',

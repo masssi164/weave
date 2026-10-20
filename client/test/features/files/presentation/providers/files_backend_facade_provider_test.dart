@@ -214,6 +214,65 @@ void main() {
       );
     });
 
+    for (final status in [0, 401, 403, 503]) {
+      test(
+        'identity failure $status stays closed with an accurate retry outcome',
+        () async {
+          var unavailable = true;
+          var resourceCalls = 0;
+          final files = BackendFilesRepository(
+            httpClient: MockClient((request) async {
+              if (request.url.path == '/api/me') {
+                if (unavailable) {
+                  if (status == 0) {
+                    throw http.ClientException('private transport details');
+                  }
+                  return http.Response('', status);
+                }
+                return http.Response(
+                  jsonEncode({
+                    'subject': 'member-one',
+                    'organizationId': 'org-one',
+                    'identityIssuer': 'https://auth.home.internal',
+                  }),
+                  200,
+                  headers: {'content-type': 'application/json'},
+                );
+              }
+              resourceCalls++;
+              return http.Response(
+                _listing(),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }),
+            serverConfigurationRepository: configurationRepository,
+            authSessionRepository: authSessionRepository,
+          );
+          final expected = switch (status) {
+            401 => FilesFailureType.sessionRequired,
+            403 => FilesFailureType.permissionDenied,
+            _ => FilesFailureType.unknown,
+          };
+          await expectLater(
+            files.listDirectory('/'),
+            throwsA(
+              isA<FilesFailure>().having(
+                (f) => f.type,
+                'failure category',
+                expected,
+              ),
+            ),
+          );
+          expect(resourceCalls, 0);
+          expect(authSessionRepository.state.isAuthenticated, isTrue);
+          unavailable = false;
+          expect((await files.listDirectory('/')).entries, isEmpty);
+          expect(resourceCalls, 1);
+        },
+      );
+    }
+
     test(
       'readiness grants gate browser; denied and unknown stay closed',
       () async {

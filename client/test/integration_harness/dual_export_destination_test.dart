@@ -1,7 +1,11 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import '../../integration_test/dual_ios_collaboration_test.dart'
-    show nativeDualExportSnapshot, requireNativeDualExportDestination;
+    show
+        nativeDualExportSnapshot,
+        requireNativeDualExportDestination,
+        createNativeDualExportSentinel,
+        requireNativeDualExportSentinelUnchanged;
 
 void main() {
   late Directory documents;
@@ -12,6 +16,41 @@ void main() {
   tearDown(() async {
     await documents.delete(recursive: true);
   });
+  test(
+    'export sentinel never replaces an existing document and detects damage',
+    () async {
+      final sentinel = await createNativeDualExportSentinel(
+        documents,
+        'owned-run',
+      );
+      final original = await sentinel.readAsBytes();
+      await requireNativeDualExportSentinelUnchanged(sentinel, 'owned-run');
+      await expectLater(
+        createNativeDualExportSentinel(documents, 'owned-run'),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await sentinel.readAsBytes(), original);
+      await sentinel.writeAsString('changed');
+      await expectLater(
+        requireNativeDualExportSentinelUnchanged(sentinel, 'owned-run'),
+        throwsA(isA<TestFailure>()),
+      );
+      await sentinel.delete();
+      await expectLater(
+        requireNativeDualExportSentinelUnchanged(sentinel, 'owned-run'),
+        throwsA(isA<TestFailure>()),
+      );
+      await Link(sentinel.path).create('${documents.path}/foreign');
+      await expectLater(
+        requireNativeDualExportSentinelUnchanged(sentinel, 'owned-run'),
+        throwsA(isA<TestFailure>()),
+      );
+      await expectLater(
+        createNativeDualExportSentinel(documents, '../foreign'),
+        throwsA(isA<TestFailure>()),
+      );
+    },
+  );
   test(
     'actual selected renamed file proves export, staging does not',
     () async {

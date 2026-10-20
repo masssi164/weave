@@ -1,5 +1,106 @@
 # Release qualification implementation progress for #1592
 
+
+## October 20: owned iOS transport interruption and native Files cancellation
+
+Chat re-entry PR1648 merged normally to Dev
+`5d2173a4d904e5328d27264b7f61a361f039fcfd`, tree
+`93fe2382cfe4744d69831d36cc5c0a1e909cd3a3`, accepted specification
+`92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`. Its own
+[Core run](https://github.com/masssi164/weave/actions/runs/39342304927) passed
+8 jobs, with 7 valid impact skips. A clean local full replay on the same tree
+passed macOS qualification and 21 actual dual-iOS UI actions, including both
+repaired Chat re-entry actions. Actor A then failed the independent generated
+User Files request assertion during `network-disconnected`: the native failed-send
+banner and Retry were observed, but the HTTP request unexpectedly succeeded.
+All seven final aggregates remain not-run. Original failure and cleanup flags
+are retained; guarded finalization and independent inventories verified zero
+owned resources. No persistent Dogfood reset occurred.
+
+The real warm inspection reproduced the transport configuration discrepancy in
+both apps: the native processes have all six reviewed proxy/bypass settings,
+while iOS Dart exposes an empty `Platform.environment` and resolves the User API
+to `DIRECT`. The qualification harness now reads only those six native settings
+through the existing FFI dependency. It requires matching HTTP/HTTPS relay
+values, the exact loopback host and valid port, and present empty bypass lists.
+Missing or inconsistent configuration fails closed. The ordinary HTTP client
+and TLS context remain intact; only proxy selection changes. The owned actor
+lifecycle installs it before app clients and restores the previous override on
+test teardown. Inspection ends with its owned process. No product endpoint,
+bootstrap contract, public setting or second relay authority is introduced.
+
+After an eligible Dart restart in the warm stack, actual A Files refresh failed
+during A-only interruption; B continued loading Files; A retried successfully
+after restoration without sign-in. These are mixed-source diagnostic results,
+not qualification. A real loopback HTTP test independently proves routing and
+failure when the relay closes. The 59-test integration-harness suite and 41
+coordinator tests passed. The 76 native qualification contract tests passed
+from their repository-root entry point; invoking them from `client/` first
+failed three stdout assertions because Dart dispatched package build hooks.
+No assertion was weakened to accommodate the wrong working directory.
+
+Files qualification now requires an actual native Cancel before its existing
+successful exports. It observes exporting/busy before accepting idle/not-busy,
+requires no destination or new document, and verifies an exclusively created
+unrelated owned sentinel remains byte-identical after Cancel and Save. Existing
+actual selected-destination and initial/replacement content checks remain.
+The native driver follows unique system navigation controls to Browse and
+requires actual cancellation/dismissal. The coordinator requires the exact
+selected XCTest pass and marker, zero skips/opposite markers and unchanged app
+PID within the original deadline. A newly built driver completed Cancel against
+the warm real app; this isolated picker observation does not establish Files
+collaboration or final scenario acceptance.
+
+| UX defect | Conditions and reproduction | Expected / actual | Correction and verification |
+| --- | --- | --- | --- |
+| Self-descriptiveness, use-error robustness; member A Files; mandatory recovery blocker | Real iOS phone layout, English; interrupt A's owned relay and refresh the current folder | Preserve listing and offer Retry / falsely claimed the Weave session expired, although Retry recovered without sign-in | Files and Calendar identity reads retain fail-closed admission, classify 401 as session and 403 as permission, and treat other transport/service failures as unavailable. Files uses existing EN/DE retry guidance. Generated-client regressions first reproduced six wrong classifications; all 60 affected repository tests now pass. EN/DE phone-layout widget tests verify the visible, operable Retry and preserved listing; actual warm English UI shows the corrected guidance and recovers without sign-in. Final exact-candidate recovery remains to be verified. |
+
+[Promotion PR1649](https://github.com/masssi164/weave/pull/1649) remains held.
+Its own [Core run](https://github.com/masssi164/weave/actions/runs/39343663172)
+passed 8 jobs with 7 valid impact skips on the earlier Dev head; this does not
+qualify these changes. A clean final candidate must complete current Compose,
+macOS and all seven concurrent dual-iOS aggregates, owned cleanup, deployment,
+physical preparation and explicit owner HIL before Main. The release issues
+remain open. No result is stitched across changed candidates.
+
+## October 20: bounded Chat re-entry after protected qualification
+
+[Promotion #1639](https://github.com/masssi164/weave/pull/1639) merged normally as
+Dogfood `a613476238fc34212485a1c5b75a2d21dc88095f`, tree
+`2a5ae0c8644594cd95a25ab6d6b6395e616e3fb0`, accepted specification
+`92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`. Its own
+[Core run](https://github.com/masssi164/weave/actions/runs/39334742426) passed all
+15 jobs. The subsequent [protected Full run](https://github.com/masssi164/weave/actions/runs/39336866478)
+failed after 33m22s; deployment was skipped. macOS qualification passed. Two
+independently authenticated real Flutter iOS apps completed 19 UI actions:
+two-way Chat, shared Calendar create/update/cancel/confirmed deletion and peer
+readback, Files upload/replacement/content readback/native exports, and both
+authorization checks. Actor A then failed `network-ready`: expected one room-title
+widget after Chat navigation, observed zero. All seven final aggregates remain
+not-run. Partial actions do not qualify the release.
+
+The original failure is retained privately. [Support-safe evidence](https://github.com/masssi164/weave/actions/runs/39336866478/artifacts/12228680899)
+includes successful exact persistence-restart proof. Guarded finalization and
+inventories verified zero owned containers, networks, volumes and simulators.
+The original outer qualification cleanup flag remains false; it was not rewritten.
+
+The existing re-entry helper immediately tapped the room while the actual Chat
+list loads asynchronously. New English and German regressions reproduced the
+same zero-title failure against that body. Re-entry now reuses the existing
+bounded list-readiness helper and real tap, waits for the actual room/composer
+within the original action deadline, and checks exact room ID/title on fresh and
+already-open paths. Wrong-room and expired-deadline cases fail. The 35-test
+Chat-readiness suite and 41 existing dual-runner tests pass locally. These prove
+the harness correction, not native qualification. The existing coordinator emits
+a fixed phase/actor/action/sequence start marker before each attempt, retaining
+the actionable boundary without exposing resource contents or private identities.
+
+This slice changes only the native harness, its directly affected tests and this
+record. Product, authentication, bootstrap and specification contracts are
+unchanged. Real isolated replay, current-source qualification, deployment,
+physical preparation and explicit owner HIL remain required before Main.
+The release issues remain open. No persistent Dogfood reset occurred.
+
 ## October 19: real warm collaboration and native navigation corrections
 
 [Import-only PR1645](https://github.com/masssi164/weave/pull/1645) merged normally to
