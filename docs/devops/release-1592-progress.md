@@ -1,5 +1,84 @@
 # Release qualification implementation progress for #1592
 
+## October 20: admit a refreshed member without rebasing authority
+
+[Promotion #1656](https://github.com/masssi164/weave/pull/1656) produced Dogfood
+`e4bca3e60a1972cfe4f67c61178b47c3e5e08668`, tree
+`3a29193f07667ae45cb9f2935fa16a88eaf143d2`, accepted corpus
+`92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`.
+[Full 39483251529](https://github.com/masssi164/weave/actions/runs/39483251529)
+failed after 35m58s. macOS passed, and both real iOS applications completed 26
+acknowledged actions, including Calendar cancellation/deletion, Files native
+picker/export and peer content readback, authorization and independent network
+failure/retry. B's following background send cleared its composer without the
+expected message widget appearing. All seven final aggregates remain not-run;
+deployment was skipped. The original
+[artifact](https://github.com/masssi164/weave/actions/runs/39483251529/artifacts/12294442319)
+and native cleanup flags are retained. Guarded finalization and independent
+inventory verified zero resources owned by that run. These partial actions do
+not qualify the candidate or permit HIL.
+
+An isolated warm session on the same accepted source tree independently
+onboarded two real Flutter apps through the organization URL and system-browser
+PKCE. Actual UI actions proved two-way Chat, B sending while A was backgrounded,
+A-only network failure with retained draft and visible retry, B remaining online,
+peer readback and foreground catch-up. Additional short and long background
+messages succeeded. The protected background-send failure did not reproduce;
+its model, transport and viewport cause remains unproven.
+
+The warm session separately observed B's room reporting the fixed
+`M_WEAVE_MATRIX_SESSION_CHANGED` category. Visible Retry restored the same room
+without another login. That category alone does not establish which identity,
+configuration or bearer comparison changed. A focused regression then proved
+that an ordinary same-member bearer refresh **during** admission is rejected by
+the existing token-equality check, including after native activation. All five
+new positive cases failed with that category before the correction.
+
+The coordinator now restarts the existing admission once only for a private,
+typed bearer-rotation signal, after confirming the current configuration and
+member identity. The retry pins the original issuer, client, User API, Matrix
+facade, subject and organization, repeats current server admission with the
+fresh bearer, and recomputes the native session fingerprint. Changed
+configuration is rejected before authentication restoration can contact it;
+changed subject is rejected before server admission, and changed organization
+before store/native side effects. Another rotation or any ordinary denial,
+logout, restore failure or binding change fails closed. Device identity,
+device proof, passphrase and encrypted state remain intact. Auth remains the
+only bearer owner; this adds no refresh mechanism, cached grant, configuration
+contract or general HTTP retry. This correction does not establish a fix for
+the protected background-send failure.
+
+The 53 coordinator tests and 49 existing Chat room tests pass together (102,
+zero skips). Cases cover new/reused clients, rotation before/after asynchronous
+admission and native activation, second rotation, concurrent identity/config/
+organization changes, grant denial, and binding changes before retry restoration.
+The initial combined invocation used a nonexistent Chat test path; its 53
+coordinator passes were retained, but the command failed. The corrected invocation
+uses the discovered existing path and passes all 102. Both warm apps accepted a
+Dart reload; a subsequent actual A send committed and B visibly received it.
+That dirty-source inspection is diagnostic only, with no release qualification.
+
+| Responsibility | Existing entry point | Boundary and evidence |
+| --- | --- | --- |
+| Member admission decisions and lifecycle invariants | `client/test/integrations/rust_matrix_core/data/services/weave_member_matrix_session_coordinator_test.dart` | Fake auth/server/native ports exercise actual coordinator control flow, pinned retry authority, fresh admission, disposal and crypto continuity; this is not JWT validation or native E2EE proof. |
+| Chat interaction and recovery state | `client/test/features/chat/chat_room_screen_test.dart` | Real Flutter widgets with repository fixtures protect drafts, denial, send/retry, lifecycle, history visibility and archive behavior; this is not real cross-user transport proof. |
+| Integrated native collaboration | Existing `testApp` / dual-iOS runner | Two independent real Flutter apps, browser PKCE, generated User API and native Rust/Matrix against one isolated stack; only a complete exact-candidate run establishes all seven aggregates. |
+
+Only an inactive, ignored x64 simulator compiler output with no open files was
+reclaimed during this continuation: observed free capacity increased from
+9.877 to 10.989 GiB. Active ARM64 assets, evidence, TLS, secrets and persistent
+Dogfood data were preserved. Cold host native preparation was required after
+prior cleanup. Two overlapping local Flutter commands collided at `lipo`;
+both stopped, and sequential validation succeeded. These different build/cache
+conditions are not a controlled runtime comparison. Keeping the same isolated
+stack and two native processes warm avoided recreating them for the Dart change.
+
+#1592, #1481 and #1470 remain open. The next gate is reviewed Dev integration,
+then a frozen Dogfood candidate with complete Compose, macOS, dual-iOS and
+owned-cleanup evidence. No deployment, physical installation, VoiceOver or human
+acceptance is inferred from these local results.
+
+
 ## October 20: retain actionable restoration failures
 
 [Promotion #1654](https://github.com/masssi164/weave/pull/1654) produced Dogfood

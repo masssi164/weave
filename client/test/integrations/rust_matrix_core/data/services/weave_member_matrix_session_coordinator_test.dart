@@ -25,9 +25,16 @@ import '../../../../helpers/server_config_test_data.dart';
 class _ConfigurationRepository implements ServerConfigurationRepository {
   _ConfigurationRepository(this.configuration);
   ServerConfiguration? configuration;
+  Future<void> Function(int call)? onLoad;
+  int loads = 0;
 
   @override
-  Future<ServerConfiguration?> loadConfiguration() async => configuration;
+  Future<ServerConfiguration?> loadConfiguration() async {
+    loads++;
+    await onLoad?.call(loads);
+    return configuration;
+  }
+
   @override
   Future<void> saveConfiguration(ServerConfiguration value) async =>
       configuration = value;
@@ -39,9 +46,14 @@ class _AuthRepository implements AuthSessionRepository {
   _AuthRepository(this.state);
   AuthState state;
   bool failRestore = false;
+  final restoredBindings = <({Uri issuer, String clientId})>[];
 
   @override
   Future<AuthState> restoreSession(AuthConfiguration configuration) async {
+    restoredBindings.add((
+      issuer: configuration.issuer,
+      clientId: configuration.clientId,
+    ));
     if (failRestore) throw StateError('Member session restore failed');
     return state;
   }
@@ -62,6 +74,8 @@ class _Access implements MatrixSessionAccessPort {
   bool allowed = true;
   Future<void> Function(int call)? onAdmission;
   int calls = 0;
+  final bearers = <String>[];
+  final admissionBindings = <({Uri api, Uri issuer, String subject})>[];
 
   @override
   Future<MatrixSessionAccess> authorize({
@@ -71,6 +85,12 @@ class _Access implements MatrixSessionAccessPort {
     required Uri expectedIssuer,
   }) async {
     calls++;
+    bearers.add(weaveAccessToken);
+    admissionBindings.add((
+      api: userApiBaseUrl,
+      issuer: expectedIssuer,
+      subject: expectedSubject,
+    ));
     await onAdmission?.call(calls);
     if (!allowed) {
       throw const ChatFailure.sessionRequired('M_WEAVE_MATRIX_ACCESS_DENIED');
@@ -323,6 +343,260 @@ void main() {
       );
     },
   );
+
+  for (final reuse in [false, true]) {
+    for (final offset in (reuse ? [1, 2] : [1, 2, 4])) {
+      test(
+        'refresh during admission preserves crypto; reuse=$reuse offset=$offset',
+        () async {
+          final current = coordinator();
+          final first = reuse ? await current.open(synchronize: false) : null;
+          final previousActivation = bridge.memberActivations.firstOrNull;
+          final rotateAt = access.calls + offset;
+          access.onAdmission = (call) async {
+            if (call == rotateAt) {
+              auth.state = AuthState.authenticated(
+                buildTestAuthSession(
+                  accessToken: 'refreshed-during-admission',
+                  idToken: _idToken(),
+                ),
+              );
+            }
+          };
+
+          final renewed = await current.open(synchronize: false);
+
+          expect(
+            bridge.memberActivations.last['accessToken'],
+            'refreshed-during-admission',
+          );
+          expect(
+            access.bearers
+                .where((value) => value == 'refreshed-during-admission')
+                .length,
+            greaterThanOrEqualTo(4),
+          );
+          expect(
+            bridge.memberActivations,
+            hasLength(reuse || offset == 4 ? 2 : 1),
+          );
+          if (first != null) {
+            expect(renewed.profileKey, first.profileKey);
+            expect(renewed.deviceId, first.deviceId);
+            expect(renewed.memberStorageScope, first.memberStorageScope);
+          }
+          final initial = previousActivation ?? bridge.memberActivations.first;
+          for (final key in [
+            'profileKey',
+            'deviceId',
+            'deviceProof',
+            'storePath',
+            'storePassphrase',
+          ]) {
+            expect(
+              bridge.memberActivations.last[key],
+              initial[key],
+              reason: key,
+            );
+          }
+          expect(
+            store.rawValue(
+              '$matrixCryptoStorePassphraseKeyPrefix${renewed.profileKey}',
+            ),
+            initial['storePassphrase'],
+          );
+          if (reuse || offset == 4) {
+            expect(bridge.disposedProfiles, contains(renewed.profileKey));
+          }
+        },
+      );
+    }
+  }
+
+  test(
+    'a second bearer rotation fails closed without an admission loop',
+    () async {
+      access.onAdmission = (call) async {
+        auth.state = AuthState.authenticated(
+          buildTestAuthSession(
+            accessToken: 'rotation-$call',
+            idToken: _idToken(),
+          ),
+        );
+      };
+      await expectLater(
+        coordinator().open(synchronize: false),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.message,
+            'bounded rotation rejection',
+            'M_WEAVE_MATRIX_SESSION_CHANGED',
+          ),
+        ),
+      );
+      expect(access.calls, 2);
+      expect(bridge.memberActivations, isEmpty);
+      expect(store.rawValue(matrixOAuthCurrentBindingKey), isNull);
+    },
+  );
+
+  for (final reuse in [false, true]) {
+    for (final change in [
+      'subject',
+      'organization',
+      'endpoint',
+      'api',
+      'issuer',
+      'client',
+      'clear',
+      'logout',
+      'denial',
+    ]) {
+      test('refresh cannot hide $change; reused client=$reuse', () async {
+        final current = coordinator();
+        final first = reuse ? await current.open(synchronize: false) : null;
+        final binding = store.rawValue(matrixOAuthCurrentBindingKey);
+        final start = access.calls;
+        final expectedBinding = (
+          api: configuration.configuration!.serviceEndpoints.backendApiBaseUrl,
+          issuer: configuration.configuration!.oidcIssuerUrl,
+          subject: 'person-1',
+        );
+        access.onAdmission = (call) async {
+          if (call == start + 1) {
+            auth.state = AuthState.authenticated(
+              buildTestAuthSession(accessToken: 'rotated', idToken: _idToken()),
+            );
+          }
+          if (call == start + 2) {
+            switch (change) {
+              case 'subject':
+                auth.state = AuthState.authenticated(
+                  buildTestAuthSession(
+                    accessToken: 'other-person',
+                    idToken: _idToken(subject: 'person-two'),
+                  ),
+                );
+              case 'organization':
+                access.organizationId = 'other-organization';
+              case 'endpoint':
+                configuration.configuration = buildTestConfiguration(
+                  matrixHomeserverUrl: 'https://other.weave.test',
+                );
+              case 'api':
+                configuration.configuration = buildTestConfiguration(
+                  backendApiBaseUrl: 'https://other.weave.test/api',
+                );
+              case 'issuer':
+                configuration.configuration = buildTestConfiguration(
+                  issuerUrl: 'https://other.weave.test',
+                );
+              case 'client':
+                configuration.configuration = buildTestConfiguration(
+                  clientId: 'other-client',
+                );
+              case 'clear':
+                configuration.configuration = null;
+              case 'logout':
+                auth.state = const AuthState.signedOut();
+              case 'denial':
+                access.allowed = false;
+            }
+          }
+        };
+        await expectLater(
+          current.open(synchronize: false),
+          throwsA(
+            isA<ChatFailure>().having(
+              (failure) => failure.message,
+              'current binding or grant rejection',
+              change == 'denial'
+                  ? 'M_WEAVE_MATRIX_ACCESS_DENIED'
+                  : 'M_WEAVE_MATRIX_SESSION_CHANGED',
+            ),
+          ),
+        );
+        expect(access.calls, start + 2);
+        expect(
+          access.admissionBindings.skip(start),
+          everyElement(expectedBinding),
+        );
+        expect(bridge.memberActivations, hasLength(reuse ? 1 : 0));
+        expect(store.rawValue(matrixOAuthCurrentBindingKey), binding);
+        if (first != null) {
+          expect(bridge.disposedProfiles, contains(first.profileKey));
+        }
+      });
+    }
+  }
+
+  for (final change in [
+    'issuer',
+    'client',
+    'api',
+    'matrix',
+    'subject',
+    'clear',
+  ]) {
+    test(
+      'retry stays bound before restore or admission when $change changes',
+      () async {
+        final initial = configuration.configuration!;
+        access.onAdmission = (call) async {
+          if (call == 1) {
+            auth.state = AuthState.authenticated(
+              buildTestAuthSession(accessToken: 'rotated', idToken: _idToken()),
+            );
+          }
+        };
+        configuration.onLoad = (call) async {
+          if (call != 3) return;
+          switch (change) {
+            case 'issuer':
+              configuration.configuration = buildTestConfiguration(
+                issuerUrl: 'https://other.weave.test',
+              );
+            case 'client':
+              configuration.configuration = buildTestConfiguration(
+                clientId: 'other-client',
+              );
+            case 'api':
+              configuration.configuration = buildTestConfiguration(
+                backendApiBaseUrl: 'https://other.weave.test/api',
+              );
+            case 'matrix':
+              configuration.configuration = buildTestConfiguration(
+                matrixHomeserverUrl: 'https://other.weave.test',
+              );
+            case 'subject':
+              auth.state = AuthState.authenticated(
+                buildTestAuthSession(
+                  accessToken: 'other-person',
+                  idToken: _idToken(subject: 'other-person'),
+                ),
+              );
+            case 'clear':
+              configuration.configuration = null;
+          }
+        };
+        await expectLater(
+          coordinator().open(synchronize: false),
+          throwsA(isA<ChatFailure>()),
+        );
+        expect(access.calls, 1);
+        expect(auth.restoredBindings, hasLength(change == 'subject' ? 3 : 2));
+        expect(
+          auth.restoredBindings,
+          everyElement((
+            issuer: initial.oidcIssuerUrl,
+            clientId: initial.oidcClientRegistration.clientId,
+          )),
+        );
+        expect(bridge.memberActivations, isEmpty);
+        expect(store.rawValue(matrixOAuthCurrentBindingKey), isNull);
+      },
+    );
+  }
 
   test(
     'loss of current organization access drops the live Matrix client',

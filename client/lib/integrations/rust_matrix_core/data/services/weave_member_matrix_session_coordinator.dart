@@ -20,6 +20,23 @@ import 'rust_matrix_core_bridge.dart';
 
 const _memberMatrixDeviceProofKeyPrefix = 'matrix_member_device_proof_v1_';
 
+typedef _MemberAdmissionIdentity = ({
+  Uri issuer,
+  String clientId,
+  Uri userApi,
+  Uri matrix,
+  String subject,
+});
+typedef _MemberAdmissionBinding = ({
+  _MemberAdmissionIdentity identity,
+  String organizationId,
+});
+
+class _MemberBearerRotated implements Exception {
+  const _MemberBearerRotated(this.binding);
+  final _MemberAdmissionBinding binding;
+}
+
 /// Opens the Weave Matrix facade with the member session owned by auth.
 /// The bearer is held only by the live Rust SDK client, never copied to a
 /// Matrix-specific token file or secure-store entry.
@@ -79,7 +96,24 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
 
   Future<MatrixCryptoSession> _open({required bool synchronize}) async {
     try {
-      return await _openAdmitted(synchronize: synchronize);
+      try {
+        return await _openAdmitted(synchronize: synchronize);
+      } on _MemberBearerRotated catch (rotation) {
+        // Auth may refresh while admission is in flight. Start once from the
+        // fresh bearer, retaining the original identity and organization; no
+        // previous grant or native activation authorizes this new attempt.
+        await _dropActive();
+        try {
+          return await _openAdmitted(
+            synchronize: synchronize,
+            expectedBinding: rotation.binding,
+          );
+        } on _MemberBearerRotated {
+          throw const ChatFailure.sessionRequired(
+            'M_WEAVE_MATRIX_SESSION_CHANGED',
+          );
+        }
+      }
     } on Object {
       // An auth restore, subject check, or local-store failure can happen
       // before the admission-specific branches below. Never leave the prior
@@ -89,12 +123,25 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
     }
   }
 
-  Future<MatrixCryptoSession> _openAdmitted({required bool synchronize}) async {
+  Future<MatrixCryptoSession> _openAdmitted({
+    required bool synchronize,
+    _MemberAdmissionBinding? expectedBinding,
+  }) async {
     final configuration = await _serverConfigurationRepository
         .loadConfiguration();
     if (configuration == null || !configuration.hasCompleteAuthConfiguration) {
       await _dropActive();
       throw const ChatFailure.configuration('M_WEAVE_CHAT_SETUP_REQUIRED');
+    }
+    if (expectedBinding != null &&
+        (configuration.oidcIssuerUrl != expectedBinding.identity.issuer ||
+            configuration.oidcClientRegistration.clientId !=
+                expectedBinding.identity.clientId ||
+            configuration.serviceEndpoints.backendApiBaseUrl !=
+                expectedBinding.identity.userApi ||
+            configuration.serviceEndpoints.matrixHomeserverUrl !=
+                expectedBinding.identity.matrix)) {
+      throw const ChatFailure.sessionRequired('M_WEAVE_MATRIX_SESSION_CHANGED');
     }
     final authConfiguration = AuthConfiguration(
       issuer: configuration.oidcIssuerUrl,
@@ -118,12 +165,27 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
         'M_WEAVE_MATRIX_ENDPOINT_UNCONFIRMED',
       );
     }
+    final identity = (
+      issuer: authConfiguration.issuer,
+      clientId: authConfiguration.clientId,
+      userApi: configuration.serviceEndpoints.backendApiBaseUrl,
+      matrix: homeserver,
+      subject: subject,
+    );
+    if (expectedBinding != null && expectedBinding.identity != identity) {
+      throw const ChatFailure.sessionRequired('M_WEAVE_MATRIX_SESSION_CHANGED');
+    }
     final access = await _authorize(
       configuration.serviceEndpoints.backendApiBaseUrl,
       session.accessToken,
       subject,
       authConfiguration.issuer,
     );
+    if (expectedBinding != null &&
+        expectedBinding.organizationId != access.organizationId) {
+      throw const ChatFailure.sessionRequired('M_WEAVE_MATRIX_SESSION_CHANGED');
+    }
+    final binding = (identity: identity, organizationId: access.organizationId);
     final deviceId = await _matrixDeviceIdentityRepository.loadOrCreate();
     final userId = matrixUserIdForMember(
       authConfiguration.issuer,
@@ -156,11 +218,14 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
         );
       }
       if (!current.isAuthenticated ||
-          current.session?.accessToken != session.accessToken ||
+          current.session == null ||
           _verifiedSubject(current.session!, authConfiguration) != subject) {
         throw const ChatFailure.sessionRequired(
           'M_WEAVE_MATRIX_SESSION_CHANGED',
         );
+      }
+      if (current.session!.accessToken != session.accessToken) {
+        throw _MemberBearerRotated(binding);
       }
     }
 
