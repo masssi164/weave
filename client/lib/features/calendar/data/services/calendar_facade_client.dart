@@ -626,8 +626,16 @@ class CalendarFacadeClient {
         throw const CalendarFailure(CalendarFailureKind.session);
       }
       return jsonEncode([identity!.subject, identity.organizationId]);
+    } on CalendarFailure {
+      rethrow;
+    } on api.ApiException catch (error) {
+      throw CalendarFailure(switch (error.code) {
+        401 => CalendarFailureKind.session,
+        403 => CalendarFailureKind.permission,
+        _ => CalendarFailureKind.unavailable,
+      });
     } catch (_) {
-      throw const CalendarFailure(CalendarFailureKind.session);
+      throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
   }
 

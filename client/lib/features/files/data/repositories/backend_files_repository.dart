@@ -632,9 +632,24 @@ class BackendFilesRepository
       return _FilesRequestIdentity(subject, organizationId);
     } on FilesFailure {
       rethrow;
-    } catch (_) {
-      throw const FilesFailure.sessionRequired(
-        'WEAVE_FILES_IDENTITY_UNCONFIRMED',
+    } on user_api.ApiException catch (error) {
+      if (error.code == 401) {
+        throw const FilesFailure.sessionRequired(
+          'WEAVE_FILES_IDENTITY_UNCONFIRMED',
+        );
+      }
+      if (error.code == 403) {
+        throw const FilesFailure.permissionDenied(
+          'Files identity access is not permitted.',
+        );
+      }
+      // Generated HTTP transport failures may carry a synthetic 400. This
+      // identity read is not a resource edit or provider configuration probe.
+      throw const FilesFailure.unknown(FilesFailure.identityUnavailableCode);
+    } catch (error) {
+      throw FilesFailure.unknown(
+        FilesFailure.identityUnavailableCode,
+        cause: error,
       );
     }
   }

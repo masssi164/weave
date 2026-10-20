@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart';
+import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -59,6 +61,74 @@ const _simulator = bool.fromEnvironment('WEAVE_NATIVE_EXPECT_SIMULATOR');
 const _disposable = bool.fromEnvironment('WEAVE_DEVICE_DISPOSABLE_STACK');
 const _actorTestBudget = Duration(minutes: 30);
 
+const _nativeProxyKeys = [
+  'http_proxy',
+  'https_proxy',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'no_proxy',
+  'NO_PROXY',
+];
+
+/// iOS exposes these launch settings to native libraries but not Dart's
+/// Platform.environment. Read only the existing owned relay settings.
+Map<String, String> nativeDualProcessProxyEnvironment() {
+  final getenv = ffi.DynamicLibrary.process()
+      .lookupFunction<
+        ffi.Pointer<Utf8> Function(ffi.Pointer<Utf8>),
+        ffi.Pointer<Utf8> Function(ffi.Pointer<Utf8>)
+      >('getenv');
+  final environment = <String, String>{};
+  for (final name in _nativeProxyKeys) {
+    final key = name.toNativeUtf8();
+    try {
+      final value = getenv(key);
+      if (value != ffi.nullptr) environment[name] = value.toDartString();
+    } finally {
+      malloc.free(key);
+    }
+  }
+  return environment;
+}
+
+String nativeDualProxyDirective(Map<String, String> environment) {
+  final proxy = environment['http_proxy'];
+  final match = proxy == null
+      ? null
+      : RegExp(r'^http://127\.0\.0\.1:([1-9][0-9]{0,4})$').firstMatch(proxy);
+  if (match == null ||
+      int.parse(match.group(1)!) > 65535 ||
+      _nativeProxyKeys.take(4).any((key) => environment[key] != proxy) ||
+      environment['no_proxy'] != '' ||
+      environment['NO_PROXY'] != '') {
+    throw StateError('Owned native HTTP relay configuration is unavailable.');
+  }
+  return 'PROXY 127.0.0.1:${match.group(1)}';
+}
+
+/// Keep the actual HTTP client and TLS context; only select the same owned
+/// fault relay already used by the native Matrix client.
+class NativeDualHttpOverrides extends HttpOverrides {
+  NativeDualHttpOverrides(Map<String, String> environment)
+    : _directive = nativeDualProxyDirective(environment);
+
+  final String _directive;
+
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)..findProxy = (_) => _directive;
+  }
+}
+
+void _installNativeDualProxy() {
+  if (!(Platform.isIOS && _simulator && _disposable && _runId.isNotEmpty)) {
+    throw StateError('Owned iOS simulator HTTP relay is required.');
+  }
+  HttpOverrides.global = NativeDualHttpOverrides(
+    nativeDualProcessProxyEnvironment(),
+  );
+}
+
 /// Snapshot only the owned export directory, without following links.
 Future<Set<String>> nativeDualExportSnapshot(Directory documents) async {
   final root = await documents.resolveSymbolicLinks();
@@ -77,6 +147,35 @@ Future<Set<String>> nativeDualExportSnapshot(Directory documents) async {
     }
   }
   return files;
+}
+
+Future<File> createNativeDualExportSentinel(
+  Directory documents,
+  String runId,
+) async {
+  if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$').hasMatch(runId)) {
+    throw TestFailure('Owned export sentinel run binding is unavailable.');
+  }
+  final root = await documents.resolveSymbolicLinks();
+  final sentinel = File('$root/weave-dual-preserve-$runId.txt');
+  await sentinel.create(exclusive: true);
+  await sentinel.writeAsString(
+    'Unrelated owned export sentinel $runId\n',
+    flush: true,
+  );
+  return sentinel;
+}
+
+Future<void> requireNativeDualExportSentinelUnchanged(
+  File sentinel,
+  String runId,
+) async {
+  if (await FileSystemEntity.type(sentinel.path, followLinks: false) !=
+          FileSystemEntityType.file ||
+      await sentinel.readAsString() !=
+          'Unrelated owned export sentinel $runId\n') {
+    throw TestFailure('Native export changed an unrelated owned document.');
+  }
 }
 
 /// Verify the actual selected destination, rather than the picker staging file.
@@ -482,6 +581,8 @@ Future<void> nativeLocalInspectionMain() async {
   if (fixture['runId'] != _runId || !['A', 'B'].contains(fixture['role'])) {
     throw StateError('Local inspection actor binding is unavailable.');
   }
+  // The inspection owner terminates this isolate with its owned app process.
+  _installNativeDualProxy();
   final container = ProviderContainer();
   runApp(
     UncontrolledProviderScope(container: container, child: const WeaveApp()),
@@ -614,6 +715,9 @@ void main() {
           jsonDecode(await fixtureFile.readAsString()) as Map<String, dynamic>;
       expect(fixture['role'], isIn(['A', 'B']));
       expect(fixture['runId'], _runId);
+      final previousHttpOverrides = HttpOverrides.current;
+      _installNativeDualProxy();
+      addTearDown(() => HttpOverrides.global = previousHttpOverrides);
       final role = fixture['role'] as String;
       final phase = fixture['phase'] ?? 'initial';
       expect(phase, isIn(['initial', 'restore']));
@@ -869,6 +973,7 @@ void main() {
       final replacementContent = fixture['replacementContent'] as String;
       String? fileId = prior?['resources']?['fileId'] as String?;
       String? fileRevision = recovery['fileRevision'] as String?;
+      File? exportSentinel;
       while (true) {
         await _wait(
           tester,
@@ -1333,46 +1438,91 @@ void main() {
                 .single
                 .revision;
             await _filePreview(tester, fileId!, replacementContent);
+          case 'files-export-cancel':
           case 'files-export':
           case 'files-export-updated':
             expect(fileId, isNotNull);
             final documents = await getApplicationDocumentsDirectory();
-            final beforeExport = await nativeDualExportSnapshot(documents);
-            await writeNativeDualPrivateJson(
-              File('${support.path}/weave-dual-ios-native-request.json'),
-              {'sequence': next, 'mode': 'export', 'fileName': fileName},
-            );
-            await _tap(tester, find.byKey(Key('files-export-$fileId')));
-            await _wait(
-              tester,
-              () =>
-                  container
-                      .read(filesProvider)
-                      .asData
-                      ?.value
-                      .entryActionStatus
-                      .phase ==
-                  FilesEntryActionPhase.exportedEntry,
-              const Duration(seconds: 90),
-            );
-            final output = await requireNativeDualExportDestination(
+            exportSentinel ??= await createNativeDualExportSentinel(
               documents,
-              beforeExport,
-              container
-                  .read(filesProvider)
-                  .requireValue
-                  .entryActionStatus
-                  .destination,
+              _runId,
             );
-            expect(
-              await output.readAsString(),
-              action == 'files-export' ? initialContent : replacementContent,
+            await requireNativeDualExportSentinelUnchanged(
+              exportSentinel,
+              _runId,
             );
-            if (action == 'files-export-updated') {
-              scenarios['files'] = {
-                'status': 'passed',
-                'evidence': 'flutter-ui',
-              };
+            final beforeExport = await nativeDualExportSnapshot(documents);
+            final cancelling = action == 'files-export-cancel';
+            var exportingObserved = false;
+            final exportSubscription = container.listen(filesProvider, (
+              _,
+              next,
+            ) {
+              final state = next.asData?.value;
+              if (state?.entryActionStatus.phase ==
+                      FilesEntryActionPhase.exportingEntry &&
+                  state?.isBusy == true) {
+                exportingObserved = true;
+              }
+            });
+            try {
+              await writeNativeDualPrivateJson(
+                File('${support.path}/weave-dual-ios-native-request.json'),
+                {
+                  'sequence': next,
+                  'mode': cancelling ? 'export-cancel' : 'export',
+                  'fileName': fileName,
+                },
+              );
+              await _tap(tester, find.byKey(Key('files-export-$fileId')));
+              await _wait(
+                tester,
+                () =>
+                    exportingObserved &&
+                    container
+                            .read(filesProvider)
+                            .asData
+                            ?.value
+                            .entryActionStatus
+                            .phase ==
+                        (cancelling
+                            ? FilesEntryActionPhase.idle
+                            : FilesEntryActionPhase.exportedEntry) &&
+                    container.read(filesProvider).asData?.value.isBusy == false,
+                const Duration(seconds: 90),
+              );
+              await requireNativeDualExportSentinelUnchanged(
+                exportSentinel,
+                _runId,
+              );
+              if (cancelling) {
+                final state = container.read(filesProvider).requireValue;
+                expect(state.entryActionStatus.destination, isNull);
+                expect(state.directoryFailure, isNull);
+                expect(await nativeDualExportSnapshot(documents), beforeExport);
+                break;
+              }
+              final output = await requireNativeDualExportDestination(
+                documents,
+                beforeExport,
+                container
+                    .read(filesProvider)
+                    .requireValue
+                    .entryActionStatus
+                    .destination,
+              );
+              expect(
+                await output.readAsString(),
+                action == 'files-export' ? initialContent : replacementContent,
+              );
+              if (action == 'files-export-updated') {
+                scenarios['files'] = {
+                  'status': 'passed',
+                  'evidence': 'flutter-ui',
+                };
+              }
+            } finally {
+              exportSubscription.close();
             }
           case 'authorization':
             final proofFile = File(

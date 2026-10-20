@@ -527,7 +527,7 @@ final class BrowserDriver: XCTestCase {
     }
     let mode = try XCTUnwrap(fixture["pickerMode"] as? String)
     let fileName = try XCTUnwrap(fixture["fileName"] as? String)
-    XCTAssertTrue(["import", "export"].contains(mode))
+    XCTAssertTrue(["import", "export", "export-cancel"].contains(mode))
     XCTAssertTrue(fileName.hasPrefix("weave-dual-"))
     XCTAssertFalse(fileName.contains("/"))
     let stem = (fileName as NSString).deletingPathExtension
@@ -567,10 +567,34 @@ final class BrowserDriver: XCTestCase {
         return
       }
       XCTAssertLessThanOrEqual(file.count, 1, "Owned document must be unique")
-      if mode == "export" {
+      if mode == "export" || mode == "export-cancel" {
         let picker = app.otherElements.matching(identifier: "Browse View (Picker)")
         XCTAssertLessThanOrEqual(picker.count, 1, "Native export picker must be unique")
         if picker.count == 0 {
+          Thread.sleep(forTimeInterval: 0.25)
+          continue
+        }
+        if mode == "export-cancel" {
+          let cancel = picker.element.buttons.matching(NSPredicate(format: "label IN %@", ["Cancel", "Abbrechen", "Close", "Schließen"]))
+          XCTAssertLessThanOrEqual(cancel.count, 1, "Native cancel action must be unique")
+          if cancel.count == 1 && cancel.element.isEnabled && cancel.element.isHittable {
+            guard Date() < deadline else { break }
+            cancel.element.tap()
+            XCTAssertTrue(
+              picker.element.waitForNonExistence(timeout: max(0, deadline.timeIntervalSinceNow)),
+              "Native export picker must dismiss after cancellation")
+            print("NATIVE_IOS_FILES_STAGE phase=export-cancelled")
+            return
+          }
+          // iOS 26.5 shows cancellation at Browse, above the current local
+          // folder. Follow only the native navigation bar's back control.
+          let back = picker.element.navigationBars.buttons.matching(NSPredicate(
+            format: "label IN %@", ["Back", "Zurück", "Browse", "Durchsuchen", "On My iPhone", "Auf meinem iPhone"]))
+          XCTAssertLessThanOrEqual(back.count, 1, "Native picker back action must be unique")
+          if back.count == 1 && back.element.isEnabled && back.element.isHittable {
+            guard Date() < deadline else { break }
+            back.element.tap()
+          }
           Thread.sleep(forTimeInterval: 0.25)
           continue
         }
