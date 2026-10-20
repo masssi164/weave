@@ -1,5 +1,70 @@
 # Release qualification implementation progress for #1592
 
+## October 20: recoverable Chat admission failures
+
+[Promotion #1649](https://github.com/masssi164/weave/pull/1649) merged as
+Dogfood `bac702071e642366b979e942765bb5047c3c7a03`, tree
+`7973149f983ea691ae93d6c2d60f21b78164861f`, accepted corpus
+`92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`. Its own
+[Core run](https://github.com/masssi164/weave/actions/runs/39350582484) passed
+8 jobs with 7 valid impact skips. The subsequent
+[protected Full run](https://github.com/masssi164/weave/actions/runs/39352191876)
+failed after 35m00s; deployment was skipped. macOS qualification passed, including
+actual browser sign-in, Files/Calendar/native Matrix, process/service restart,
+expired bearer, refresh, room-leave/logout denial and owned preferences cleanup.
+
+Two concurrent real Flutter iOS apps independently authenticated and completed
+22 acknowledged actions: two-way Chat, Calendar create/update/cancel/confirmed
+deletion and peer readback, native Files upload/Cancel/exports/replacement/actual
+peer content checks, both authorization checks and both Chat re-entry actions.
+A's `network-disconnected` action then timed out waiting for the failed-send
+banner. The independent generated User transport probe was not reached. All seven
+final aggregates remain not-run; partial actions do not qualify the candidate.
+
+The original private Flutter log identifies `operation=send stage=open
+type=sessionRequired code=M_WEAVE_MATRIX_ACCESS_UNCONFIRMED`. Current admission
+must fail closed, but its transport/service failure was incorrectly treated as
+session loss. The existing Chat handler consequently cleared the room and pending
+message instead of offering its ordinary recoverable send action. The correction
+uses the existing protocol-failure category for unavailable admission, preserving
+session denial for HTTP 401/403 and every existing identity/grant mismatch. It
+does not admit a failed check or bypass the Rust/session boundary.
+
+Eight pre-fix generated-client regressions failed at the two existing admission
+operations. All 19 contract cases pass after the correction, including transport,
+timeout, service and unchanged denial cases. This pure contract test now uses
+`package:test` through the existing pure Dart entry point, avoiding native builds
+for direct reproduction. Native/ABI and actual Flutter qualification remain on
+their existing mandatory runners. The EN/DE phone-layout regression exercises a
+real generated HTTP 503 classification, retained draft/timeline, localized live
+feedback and an actually hittable Retry while the keyboard occupies 280 logical
+pixels. Both localized cases and all 119 affected Chat/admission/session tests
+pass. Actual warm recovery replay is still required.
+
+The keyboard regression also reproduced a layout blocker: secondary context
+cards plus the send-error banner overflowed the room by 5.2 logical pixels in
+English and 122 in German. Collapsing the timeline's context preview alone left
+14 pixels of German overflow. The room now collapses its two secondary context
+summaries while an outgoing message has failed; title, workspace tabs, timeline,
+composer and recovery actions remain. The existing Decisions surface still owns
+its detailed content. Successful retry restores normal context. The regression
+actually scrolls to prior messages and back, preserves the unsent text, taps the
+visible localized Retry, and verifies restored context without a layout error.
+
+| UX defect | Conditions and reproduction | Expected / actual | Correction and verification |
+| --- | --- | --- | --- |
+| Self-descriptiveness, controllability, use-error robustness; member A Chat; mandatory recovery blocker | Real iOS phone layout, English; interrupt A's owned relay, enter a message and Send | Retain current content and unsent text with actionable Retry / admission logs session-required and the failed-send banner never appears | Preserve fail-closed admission while distinguishing confirmed denial from transport/service unavailability; 19 generated-client cases and both EN/DE keyboard regressions pass. Actual native recovery remains required. |
+| Task suitability, conformity with expectations, controllability; member retries Chat; accessibility blocker | EN/DE 390×844 logical phone viewport with 280-pixel keyboard; send fails | Keep history, draft and recovery controls reachable / context cards and banner overflow and obscure the pending message | Collapse secondary summaries during the error, retaining detailed context on its existing surface. Actual scrolling, semantic feedback, hittable Retry and context restoration pass in both localized widget cases; no physical VoiceOver acceptance is inferred. |
+
+[Support-safe evidence](https://github.com/masssi164/weave/actions/runs/39352191876/artifacts/12235265646)
+and 19 original private diagnostics/receipts are preserved. The original native
+artifact records macOS passed, iOS failed, all final aggregates not-run, nested
+dual cleanup true and outer qualification cleanup false; none was rewritten.
+The exact finalizer and independent inventory verified zero owned containers,
+networks, volumes and both simulators. No persistent Dogfood reset occurred.
+New-source qualification, exact deployment, physical preparation and explicit
+owner HIL remain required before Main. The release issues remain open.
+
 
 ## October 20: owned iOS transport interruption and native Files cancellation
 

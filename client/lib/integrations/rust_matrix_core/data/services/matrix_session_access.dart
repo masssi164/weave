@@ -81,12 +81,15 @@ class GeneratedMatrixSessionAccess implements MatrixSessionAccessPort {
     } on ChatFailure {
       rethrow;
     } on user_api.ApiException catch (error) {
-      throw ChatFailure.sessionRequired(
-        'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
+      throw ChatFailure(
+        type: error.code == 401 || error.code == 403
+            ? ChatFailureType.sessionRequired
+            : ChatFailureType.protocol,
+        message: 'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
         cause: error.code,
       );
     } catch (error) {
-      throw ChatFailure.sessionRequired(
+      throw ChatFailure.protocol(
         'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
         cause: error,
       );
