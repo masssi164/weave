@@ -1677,25 +1677,18 @@ void main() {
               roomId: resources['roomId'] as String,
               deadline: actionDeadline,
             );
-            await _wait(
+            await readNativeDualChatHistory(
               tester,
-              () =>
-                  _message(messageA).evaluate().length == 1 &&
-                  _message(messageB).evaluate().length == 1,
-              const Duration(seconds: 90),
+              [
+                messageA,
+                messageB,
+                'B remains online $_runId',
+                'A recoverable $_runId',
+                'B background catchup $_runId',
+              ],
+              roomId: resources['roomId'] as String,
+              deadline: actionDeadline,
             );
-            for (final retained in [
-              'A recoverable $_runId',
-              'B remains online $_runId',
-              'B background catchup $_runId',
-            ]) {
-              await _wait(
-                tester,
-                () => _message(retained).evaluate().length == 1,
-                const Duration(seconds: 90),
-              );
-            }
-            _orderedMessages(tester, messageA, messageB);
             await tapNativeDualBack(tester, deadline: actionDeadline);
             await _selectSharedFiles(
               tester,
@@ -2119,6 +2112,73 @@ Future<void> openNativeDualChatConversation(
   expect(conversation.id, roomId);
   expect(conversation.title, title);
   expect(DateTime.now().isBefore(deadline), isTrue);
+}
+
+Future<void> readNativeDualChatHistory(
+  WidgetTester tester,
+  List<String> chronologicalMessages, {
+  required String roomId,
+  required DateTime deadline,
+}) async {
+  expect(chronologicalMessages.length, greaterThanOrEqualTo(2));
+  final room = find.byType(ChatRoomScreen);
+  final timeline = find.descendant(
+    of: room,
+    matching: find.byWidgetPredicate(
+      (widget) => widget is ListView && widget.reverse,
+    ),
+  );
+  void requireCurrentRoom() {
+    expect(DateTime.now().isBefore(deadline), isTrue);
+    expect(room, findsOneWidget);
+    expect(tester.widget<ChatRoomScreen>(room).conversation.id, roomId);
+  }
+
+  requireCurrentRoom();
+  await _wait(
+    tester,
+    () => timeline.evaluate().length == 1,
+    deadline.difference(DateTime.now()),
+  );
+  final scrollable = find.descendant(
+    of: timeline,
+    matching: find.byType(Scrollable),
+  );
+  expect(scrollable, findsOneWidget);
+  expect(tester.widget<Scrollable>(scrollable).axisDirection, AxisDirection.up);
+  for (var index = 0; index < chronologicalMessages.length; index++) {
+    final message = find.descendant(
+      of: timeline,
+      matching: _message(chronologicalMessages[index]),
+    );
+    // A reversed lazy list starts at the newest messages. Read older history
+    // first, then follow its chronological order back toward the newest rows.
+    for (
+      var scrolls = 0;
+      message.evaluate().isEmpty && scrolls < 20;
+      scrolls++
+    ) {
+      requireCurrentRoom();
+      await tester.drag(scrollable, Offset(0, index == 0 ? 250 : -250));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    requireCurrentRoom();
+    expect(message, findsOneWidget);
+    await tester.ensureVisible(message);
+    await tester.pump(const Duration(milliseconds: 100));
+    requireCurrentRoom();
+    expect(message.hitTestable(), findsOneWidget);
+    if (index == 1) {
+      // Both original messages must be visible in the same viewport when their
+      // rendered order is checked, before scrolling through newer recovery rows.
+      expect(_message(chronologicalMessages[0]).hitTestable(), findsOneWidget);
+      _orderedMessages(
+        tester,
+        chronologicalMessages[0],
+        chronologicalMessages[1],
+      );
+    }
+  }
 }
 
 Future<void> tapNativeDualPeer(

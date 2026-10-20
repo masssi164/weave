@@ -75,6 +75,29 @@ German, and changed-file analysis passed. Fresh real restored-product execution
 and complete protected qualification are still required; the prior 30 actions
 are not a final aggregate pass and will not be stitched into another candidate.
 
+The fresh focused replay `local-ios-focus-20261020-2308`, on clean
+`c630d87a610447267fbc0e70c75e61bed211da46`, again completed 30 initial UI
+actions. Both applications restored their own sessions, and the corrected room
+entry opened A's saved conversation. The next wait failed because the two oldest
+message widgets were not found. All seven final aggregates remained not-run.
+Twenty original logs/receipts were retained, native cleanup completed and
+independent container, network, volume, simulator and known-process inventories
+were zero. [Current-head Core CI](https://github.com/masssi164/weave/actions/runs/39513053518)
+and its release-label gate passed; neither result qualifies native recovery.
+
+A phone-sized regression reproduced the same oldest-message lookup failure with
+all five expected messages supplied to the actual Chat widget. Its reversed lazy
+list does not initially build the oldest row. This demonstrates a harness
+assumption, not absence from the native message model. Restore verification now
+scrolls the actual room timeline to the oldest pair, checks their rendered order
+while both are visible, then reads each newer retained message. Saved room identity,
+the original action deadline, bounded gestures, actual visible controls and the
+existing Files identity/version/content assertions remain required. No history,
+cryptography, authentication or product API behavior was changed. The complete
+harness passed 51 tests, including English/German missing, reordered, wrong-room
+and expired-deadline failures. Fresh real native verification remains pending;
+no earlier partial actions are transferred to the changed candidate.
+
 ## October 20: admit a refreshed member without rebasing authority
 
 [Promotion #1656](https://github.com/masssi164/weave/pull/1656) produced Dogfood

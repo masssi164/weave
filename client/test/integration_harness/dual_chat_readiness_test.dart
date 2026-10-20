@@ -48,6 +48,7 @@ import '../../integration_test/dual_ios_collaboration_test.dart'
         tapNativeDualPeer,
         tapNativeDualChatConversation,
         openNativeDualChatConversation,
+        readNativeDualChatHistory,
         writeNativeDualPrivateJson,
         nativeDualSessionIdentityDigests,
         nativeDualChatReceiveDiagnostic;
@@ -1253,6 +1254,104 @@ void main() {
         expect(diagnostic, isNot(contains('private')));
         expect(diagnostic, isNot(contains(conversation.id)));
       });
+    }
+  }
+
+  for (final locale in ['en', 'de']) {
+    for (final condition in [
+      'complete',
+      'missing',
+      'reordered',
+      'wrong-room',
+      'expired',
+    ]) {
+      testWidgets(
+        'restored phone history scroll/readback; $locale $condition',
+        (tester) async {
+          tester.view.physicalSize = const Size(1206, 2622);
+          tester.view.devicePixelRatio = 3;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          const run = 'local-ios-focus-20261020-2308';
+          final bodies = [
+            'A UI $run',
+            'B UI $run',
+            'B remains online $run',
+            'A recoverable $run',
+            'B background catchup $run',
+          ];
+          final messages = [
+            for (var index = 0; index < bodies.length; index++)
+              ChatMessage(
+                id: 'owned-event-$index',
+                senderId: bodies[index].startsWith('A ')
+                    ? 'owned-a'
+                    : 'owned-b',
+                senderDisplayName: bodies[index].startsWith('A ')
+                    ? 'Owned actor A'
+                    : 'Owned actor B',
+                sentAt: DateTime(2026).add(Duration(seconds: index)),
+                isMine: bodies[index].startsWith('A '),
+                deliveryState: ChatMessageDeliveryState.sent,
+                contentType: ChatMessageContentType.text,
+                text: bodies[index],
+              ),
+          ];
+          if (condition == 'missing') messages.removeAt(0);
+          if (condition == 'reordered') {
+            final first = messages[0];
+            messages[0] = messages[1];
+            messages[1] = first;
+          }
+          final repository = FakeChatRepository(
+            loadRoomTimelineHandler: (_) async => ChatRoomTimeline(
+              roomId: conversation.id,
+              roomTitle: conversation.title,
+              isInvite: false,
+              canSendMessages: true,
+              messages: messages,
+            ),
+          );
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                chatRepositoryProvider.overrideWithValue(repository),
+                preferencesStoreProvider.overrideWith(
+                  (ref) => InMemoryPreferencesStore(),
+                ),
+              ],
+              child: MaterialApp(
+                theme: AppTheme.light,
+                locale: Locale(locale),
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: const ChatRoomScreen(conversation: conversation),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text(bodies[0]), findsNothing);
+          final readback = readNativeDualChatHistory(
+            tester,
+            bodies,
+            roomId: condition == 'wrong-room'
+                ? '!another-owned-room'
+                : conversation.id,
+            deadline: DateTime.now().add(
+              Duration(seconds: condition == 'expired' ? -1 : 5),
+            ),
+          );
+          if (condition == 'complete') {
+            await readback;
+            expect(find.text(bodies.last).hitTestable(), findsOneWidget);
+          } else {
+            await expectLater(readback, throwsA(isA<TestFailure>()));
+          }
+          expect(repository.sendMessageCalls, 0);
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump(const Duration(seconds: 1));
+        },
+      );
     }
   }
 
