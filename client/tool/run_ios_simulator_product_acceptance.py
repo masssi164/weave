@@ -181,6 +181,8 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
             'causeType': 'none|AppFailure|AuthFailure|PlatformException|StateError|FormatException|TimeoutException|SocketException|FlutterAppAuthPlatformException|unavailable',
             'platformCode': '-?[0-9]{1,6}|unavailable',
             'lifecycle': 'resumed|inactive|hidden|paused|detached|unavailable',
+            'backendFailure': 'none|session-rejected|timeout|request-failed|invalid-payload|unknown-state|inconsistent-state|response-decode|unavailable',
+            'backendStatus': '[1-5][0-9]{2}|unavailable',
         }
         pattern = r'(?:flutter: )?(NATIVE_PRODUCT_STAGE phase=shell-bootstrap-failed '
         pattern += ' '.join(key + r'=(?:' + values + r')' for key, values in enums.items())
@@ -263,7 +265,7 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
                          'AppFailure', 'AuthFailure', 'PlatformException', 'StateError',
                          'FormatException', 'TimeoutException', 'SocketException',
                          'int', 'String', 'Null', '_Exception', '_TypeError', '_ClientSocketException'}
-        backend_types = {'session-rejected', 'timeout', 'request-failed', 'invalid-payload', 'unknown-state', 'none'}
+        backend_types = {'session-rejected', 'timeout', 'request-failed', 'invalid-payload', 'unknown-state', 'inconsistent-state', 'response-decode', 'none'}
         appauth_codes = {'authorize_failed', 'authorize_and_exchange_code_failed',
                         'discovery_failed', 'token_failed', 'end_session_failed'}
         domains = {'org.openid.appauth.general', 'org.openid.appauth.oauth_token',

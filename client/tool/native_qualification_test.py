@@ -987,7 +987,7 @@ void main() {
   }
 }
 ''')
-            result = subprocess.run([dart, 'run', str(probe)], capture_output=True, text=True, timeout=30)
+            result = subprocess.run([dart, 'run', str(probe)], cwd=name, capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_actual_native_diagnostic_bypasses_only_simulator_print_capture(self):
@@ -1026,7 +1026,7 @@ void main() {
   }
 }
 ''')
-            result = subprocess.run([dart, 'run', str(probe)], capture_output=True, text=True, timeout=30)
+            result = subprocess.run([dart, 'run', str(probe)], cwd=name, capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.splitlines(), [
                 'NATIVE_PRODUCT_STAGE phase=shell-ready',
@@ -1034,6 +1034,61 @@ void main() {
                 'NATIVE_PRODUCT_INITIAL_RESULT status=passed',
                 'NATIVE_PRODUCT_SIGN_IN_RESULT status=passed'])
             self.assertNotIn('private-output', result.stdout + result.stderr)
+
+    def test_actual_backend_failure_classifier_reads_only_bounded_typed_causes(self):
+        dart = shutil.which('dart')
+        if dart is None:
+            self.skipTest('Dart SDK unavailable')
+        client = Path(__file__).resolve().parents[1]
+        source = (client / 'integration_test/system_browser_auth_e2e_test.dart').read_text()
+        helper = source.split('({String failure, String status}) nativeBackendFailureDiagnostic(', 1)[1].split('\nvoid emitNativeAuthFailureDiagnostic(', 1)[0]
+        with tempfile.TemporaryDirectory() as name:
+            probe = Path(name) / 'backend.dart'
+            probe.write_text("import 'dart:convert';\n"
+                + "import '" + (client / 'lib/core/failures/app_failure.dart').as_uri() + "';\n"
+                + "import '" + (client / 'lib/features/auth/domain/entities/auth_failure.dart').as_uri() + "';\n"
+                + '({String failure, String status}) nativeBackendFailureDiagnostic(' + helper + '''
+class PrivateCause {
+  @override
+  String toString() => throw StateError('private-secret-must-not-be-read');
+}
+void main() {
+  const rejected = 'The Weave backend rejected the current session.';
+  final cases = <Object?>[
+    const AppFailure.bootstrap('private-wrapper', cause: AppFailure.unknown(rejected, cause: 403)),
+    const AuthFailure.protocol('private-wrapper', cause: AppFailure.unknown(rejected, cause: 401)),
+    const AppFailure.bootstrap('private-wrapper', cause: AuthFailure.protocol('private-wrapper',
+      cause: AppFailure.unknown('The Weave backend failed to reconcile organization access.', cause: 503))),
+    const AppFailure.unknown('Unable to reach the Weave backend right now.'),
+    const AppFailure.unknown('Unable to decode a Weave backend response right now.'),
+    const AppFailure.unknown('The Weave backend returned an inconsistent identity-session reconciliation state.'),
+    AppFailure.unknown('private-password', cause: PrivateCause()),
+    for (final status in [99, 600, -401, '401 private-token']) AppFailure.unknown(rejected, cause: status),
+    const AppFailure.bootstrap('private-1', cause: AppFailure.bootstrap('private-2',
+      cause: AppFailure.bootstrap('private-3', cause: AppFailure.bootstrap('private-4',
+        cause: AppFailure.unknown(rejected, cause: 403))))),
+  ];
+  for (final value in cases) {
+    final result = nativeBackendFailureDiagnostic(value);
+    print(jsonEncode({'failure': result.failure, 'status': result.status}));
+  }
+}
+''')
+            result = subprocess.run([dart, 'run', str(probe)], cwd=name, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            records = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertEqual(records[:7], [
+                {'failure': 'session-rejected', 'status': '403'},
+                {'failure': 'session-rejected', 'status': '401'},
+                {'failure': 'request-failed', 'status': '503'},
+                {'failure': 'timeout', 'status': 'unavailable'},
+                {'failure': 'response-decode', 'status': 'unavailable'},
+                {'failure': 'inconsistent-state', 'status': 'unavailable'},
+                {'failure': 'none', 'status': 'unavailable'},
+            ])
+            self.assertEqual(records[7:11], [{'failure': 'session-rejected', 'status': 'unavailable'}] * 4)
+            self.assertEqual(records[11], {'failure': 'none', 'status': 'unavailable'})
+            self.assertNotIn('private', result.stdout + result.stderr)
 
     def test_actual_bootstrap_diagnostic_formats_only_fixed_enums_and_bounded_counts(self):
         dart = shutil.which('dart')
@@ -1051,18 +1106,21 @@ void main() {
     simulatorDriver: true, productEnabled: true, disposable: true, offline: false));
   print(nativeBootstrapDiagnostic(asyncState: 'private@example.invalid', bootstrapPhase: 'https://private.invalid',
     failureType: 'private-password', causeType: 'private-token', platformCode: '-34018 private', lifecycle: 'private-body',
+    backendFailure: 'private-backend', backendStatus: '403 private-token',
     counts: {'root': -1, 'error': 10000, 'private-password': 10},
     simulatorDriver: false, productEnabled: false, disposable: false, offline: true));
 }
 ''')
-            result = subprocess.run([dart, 'run', str(probe)], capture_output=True, text=True, timeout=30)
+            result = subprocess.run([dart, 'run', str(probe)], cwd=name, capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stderr)
             records = result.stdout.splitlines()
             self.assertEqual(len(records), 2)
             self.assertIn('asyncState=data bootstrapPhase=error failureType=storage causeType=PlatformException platformCode=-34018 lifecycle=resumed', records[0])
+            self.assertIn('backendFailure=none backendStatus=unavailable', records[0])
             self.assertIn('rootCount=1 bootstrapGateCount=1 errorCount=1 loadingCount=0 onboardingCount=0 signInCount=0 workspaceCount=0', records[0])
             self.assertIn('asyncState=unavailable bootstrapPhase=unavailable failureType=unavailable causeType=unavailable platformCode=unavailable lifecycle=unavailable', records[1])
             self.assertIn('rootCount=0 bootstrapGateCount=0 errorCount=999', records[1])
+            self.assertIn('backendFailure=unavailable backendStatus=unavailable', records[1])
             self.assertNotIn('private', result.stdout + result.stderr)
             output = io.StringIO()
             with redirect_stdout(output):
@@ -1072,6 +1130,7 @@ void main() {
     def test_bootstrap_diagnostic_relay_rejects_private_and_unbounded_records(self):
         record = ('NATIVE_PRODUCT_STAGE phase=shell-bootstrap-failed asyncState=data bootstrapPhase=error '
                   'failureType=storage causeType=PlatformException platformCode=-34018 lifecycle=resumed '
+                  'backendFailure=session-rejected backendStatus=403 '
                   'rootCount=1 bootstrapGateCount=1 errorCount=1 loadingCount=0 onboardingCount=0 signInCount=0 workspaceCount=0 '
                   'simulatorDriver=true productEnabled=true disposable=true offline=false')
         output = io.StringIO()
@@ -1081,6 +1140,10 @@ void main() {
         invalid = [record + ' private-password', 'flutter: flutter: ' + record, '00:01 +1: ' + record,
                    record + '\rprivate', record.replace('asyncState=data', 'asyncState=private'),
                    record.replace('platformCode=-34018', 'platformCode=-3401800'),
+                   record.replace('backendFailure=session-rejected', 'backendFailure=private'),
+                   record.replace('backendStatus=403', 'backendStatus=99'),
+                   record.replace('backendStatus=403', 'backendStatus=600'),
+                   record.replace('backendStatus=403', 'backendStatus=403 private'),
                    record.replace('rootCount=1', 'rootCount=1000'), record.replace('rootCount=1', 'rootCount=-1'),
                    record.replace('simulatorDriver=true', 'simulatorDriver=private'),
                    record.replace('phase=shell-bootstrap-failed', 'phase=private')]
@@ -1129,7 +1192,7 @@ void main() {
   }
 }
 ''')
-            result = subprocess.run([dart, 'run', str(probe)], capture_output=True, text=True, timeout=30)
+            result = subprocess.run([dart, 'run', str(probe)], cwd=name, capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, '')
 
