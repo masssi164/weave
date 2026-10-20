@@ -98,6 +98,44 @@ void _nativeProductDiagnostic(String message) => emitNativeProductDiagnostic(
   ),
 );
 
+({String failure, String status}) nativeBackendFailureDiagnostic(
+  Object? cause,
+) {
+  var category = 'none';
+  // Inspect only our typed wrappers, never arbitrary exception text or payloads.
+  for (var depth = 0; depth < 4; depth++) {
+    if (cause is AppFailure) {
+      final mapped = switch (cause.message) {
+        'The Weave backend rejected the current session.' => 'session-rejected',
+        'Unable to reach the Weave backend right now.' => 'timeout',
+        'The Weave backend failed to reconcile organization access.' =>
+          'request-failed',
+        'The Weave backend returned an invalid identity-session reconciliation payload.' =>
+          'invalid-payload',
+        'The Weave backend returned an unknown identity-session reconciliation state.' =>
+          'unknown-state',
+        'The Weave backend returned an inconsistent identity-session reconciliation state.' =>
+          'inconsistent-state',
+        'Unable to decode a Weave backend response right now.' =>
+          'response-decode',
+        _ => 'none',
+      };
+      if (mapped != 'none') category = mapped;
+      cause = cause.cause;
+    } else if (cause is AuthFailure) {
+      cause = cause.cause;
+    } else {
+      return (
+        failure: category,
+        status: cause is int && cause >= 100 && cause <= 599
+            ? cause.toString()
+            : 'unavailable',
+      );
+    }
+  }
+  return (failure: category, status: 'unavailable');
+}
+
 void emitNativeAuthFailureDiagnostic(
   AuthFailure failure, {
   required bool simulatorDriver,
@@ -108,21 +146,7 @@ void emitNativeAuthFailureDiagnostic(
   final platform = nestedCause is FlutterAppAuthPlatformException
       ? nestedCause
       : null;
-  final backendStatus =
-      nestedCause is int && nestedCause >= 100 && nestedCause <= 599
-      ? nestedCause.toString()
-      : 'unavailable';
-  final backendFailure = switch (appFailure?.message) {
-    'The Weave backend rejected the current session.' => 'session-rejected',
-    'Unable to reach the Weave backend right now.' => 'timeout',
-    'The Weave backend failed to reconcile organization access.' =>
-      'request-failed',
-    'The Weave backend returned an invalid identity-session reconciliation payload.' =>
-      'invalid-payload',
-    'The Weave backend returned an unknown identity-session reconciliation state.' =>
-      'unknown-state',
-    _ => 'none',
-  };
+  final backend = nativeBackendFailureDiagnostic(failure);
   String safeCode(String? value) =>
       value != null && RegExp(r'^[A-Za-z0-9_.-]{1,80}$').hasMatch(value)
       ? value
@@ -132,7 +156,7 @@ void emitNativeAuthFailureDiagnostic(
     'category=${failure.type.name} causeType=${cause.runtimeType} '
     'appFailureType=${appFailure?.type.name ?? 'none'} '
     'nestedCauseType=${nestedCause.runtimeType} '
-    'backendFailure=$backendFailure backendStatus=$backendStatus '
+    'backendFailure=${backend.failure} backendStatus=${backend.status} '
     'appAuthCode=${safeCode(platform?.code)} '
     'nativeType=${safeCode(platform?.platformErrorDetails.type)} '
     'nativeCode=${safeCode(platform?.platformErrorDetails.code)} '
@@ -148,6 +172,8 @@ String nativeBootstrapDiagnostic({
   required String causeType,
   required String platformCode,
   required String lifecycle,
+  String backendFailure = 'none',
+  String backendStatus = 'unavailable',
   required Map<String, int> counts,
   required bool simulatorDriver,
   required bool productEnabled,
@@ -167,6 +193,8 @@ String nativeBootstrapDiagnostic({
       'causeType=${known(causeType, ['none', 'AppFailure', 'AuthFailure', 'PlatformException', 'StateError', 'FormatException', 'TimeoutException', 'SocketException', 'FlutterAppAuthPlatformException'])} '
       'platformCode=$code '
       'lifecycle=${known(lifecycle, ['resumed', 'inactive', 'hidden', 'paused', 'detached'])} '
+      'backendFailure=${known(backendFailure, ['none', 'session-rejected', 'timeout', 'request-failed', 'invalid-payload', 'unknown-state', 'inconsistent-state', 'response-decode'])} '
+      'backendStatus=${RegExp(r"^[1-5][0-9]{2}$").stringMatch(backendStatus) == backendStatus ? backendStatus : 'unavailable'} '
       '${['root', 'bootstrapGate', 'error', 'loading', 'onboarding', 'signIn', 'workspace'].map((key) => '${key}Count=${(counts[key] ?? 0).clamp(0, 999)}').join(' ')} '
       'simulatorDriver=$simulatorDriver productEnabled=$productEnabled '
       'disposable=$disposable offline=$offline';
@@ -212,6 +240,7 @@ void _reportNativeBootstrapFailure(WidgetTester tester, TestConfig config) {
         );
   }
   final cause = failure?.cause ?? error;
+  final backend = nativeBackendFailureDiagnostic(failure ?? error);
   _nativeProductDiagnostic(
     nativeBootstrapDiagnostic(
       asyncState: asyncState,
@@ -219,6 +248,8 @@ void _reportNativeBootstrapFailure(WidgetTester tester, TestConfig config) {
       failureType: failure?.type.name ?? 'none',
       causeType: cause?.runtimeType.toString() ?? 'none',
       platformCode: cause is PlatformException ? cause.code : '',
+      backendFailure: backend.failure,
+      backendStatus: backend.status,
       lifecycle: tester.binding.lifecycleState?.name ?? 'unavailable',
       counts: {
         'root': root.evaluate().length,
