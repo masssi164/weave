@@ -21,6 +21,7 @@ import 'package:weave/features/chat/presentation/chat_admission_gate.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
+import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/widgets/success_state.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
@@ -43,6 +44,7 @@ import 'package:weave/features/server_config/presentation/providers/saved_server
 import 'package:weave/l10n/generated/app_localizations.dart';
 import 'package:weave/main.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart';
 import 'package:weave/integrations/rust_matrix_core/presentation/providers/matrix_crypto_session_provider.dart';
 
 import 'system_browser_auth_e2e_test.dart'
@@ -2189,8 +2191,25 @@ Future<void> sendNativeDualChatMessage(
     if (!DateTime.now().isBefore(deadline)) {
       throw TestFailure('The real Chat send action deadline expired.');
     }
+    // A native lifecycle handoff can close the IME while the test binding still
+    // remembers this editor. A real tap reacquires its current input connection.
+    await _tap(tester, field);
     await tester.enterText(field, message);
+    bool inputMatches() =>
+        field.evaluate().length == 1 &&
+        tester.widget<TextField>(field).controller?.text == message;
+    _stage('chat-send-input matchesExpected=${inputMatches()}');
+    expect(
+      inputMatches(),
+      isTrue,
+      reason: 'Native Chat keyboard input did not reach the current composer.',
+    );
     await _wait(tester, controlsReady, remaining());
+    expect(
+      inputMatches(),
+      isTrue,
+      reason: 'Native Chat composer changed before the Send interaction.',
+    );
     if (!DateTime.now().isBefore(deadline)) {
       throw TestFailure('The real Chat send action deadline expired.');
     }
@@ -2231,12 +2250,53 @@ Future<void> sendNativeDualChatMessage(
             ),
             simulatorDriver: true,
           );
+          await safelyReportDualOnboardingFailure(
+            report: () async => emitNativeProductDiagnostic(
+              await nativeDualChatReceiveDiagnostic(
+                store: container.read(secureStoreProvider),
+              ).timeout(const Duration(seconds: 5)),
+              simulatorDriver: true,
+            ),
+            unavailable: () => _stage('chat-cached-receive-unavailable'),
+          );
         }
       },
       unavailable: () {},
     );
     rethrow;
   }
+}
+
+Future<String> nativeDualChatReceiveDiagnostic({
+  required SecureStore store,
+  RustMatrixCoreBridge bridge = const RustMatrixCoreBridge(),
+}) async {
+  final bindingKey = await store.read(matrixOAuthCurrentBindingKey);
+  if (bindingKey == null ||
+      !RegExp(
+        '^$matrixOAuthBindingKeyPrefix[0-9a-f]{64}\$',
+      ).hasMatch(bindingKey)) {
+    throw StateError('Current native Chat binding is unavailable.');
+  }
+  final rawBinding = await store.read(bindingKey);
+  final binding = jsonDecode(rawBinding ?? '') as Map<String, dynamic>;
+  final profile = binding['profileKey'];
+  if (profile is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(profile)) {
+    throw StateError('Current native Chat profile is unavailable.');
+  }
+  // Read already-recorded native counters; do not restore auth, synchronize,
+  // reread HTTP history, or become another receive/cursor owner on failure.
+  final state = await bridge.loadReceiveDiagnostics(profileKey: profile);
+  if (await store.read(matrixOAuthCurrentBindingKey) != bindingKey ||
+      await store.read(bindingKey) != rawBinding) {
+    throw StateError('Native Chat binding changed during observation.');
+  }
+  int bounded(int value) => value.clamp(0, 999);
+  return 'NATIVE_PRODUCT_STAGE phase=chat-cached-receive '
+      'events=${bounded(state.eventCount)} '
+      'decrypted=${bounded(state.decryptedCount)} '
+      'unableToDecrypt=${bounded(state.unableToDecryptCount)} '
+      'plaintext=${bounded(state.plaintextCount)}';
 }
 
 String nativeDualChatSurfaceDiagnostic(

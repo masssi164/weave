@@ -28,6 +28,8 @@ import 'package:weave/features/app/presentation/providers/workspace_connection_p
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/shell/presentation/app_shell.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart';
 
 import '../helpers/fake_chat_repository.dart';
 import '../helpers/in_memory_stores.dart';
@@ -47,7 +49,8 @@ import '../../integration_test/dual_ios_collaboration_test.dart'
         tapNativeDualChatConversation,
         openNativeDualChatConversation,
         writeNativeDualPrivateJson,
-        nativeDualSessionIdentityDigests;
+        nativeDualSessionIdentityDigests,
+        nativeDualChatReceiveDiagnostic;
 
 const _readyChatSnapshot = WorkspaceCapabilitySnapshot(
   shellAccess: WorkspaceCapabilityState(
@@ -96,7 +99,79 @@ class _PeerRepository extends FakeChatRepository
   }
 }
 
+class _ReceiveDiagnosticBridge extends RustMatrixCoreBridge {
+  int calls = 0;
+  Future<void> Function()? duringRead;
+  @override
+  Future<RustMatrixDecryptionDiagnostics> loadReceiveDiagnostics({
+    required String profileKey,
+  }) async {
+    calls++;
+    expect(profileKey, List.filled(64, 'a').join());
+    await duringRead?.call();
+    return const RustMatrixDecryptionDiagnostics(
+      eventCount: 5,
+      decryptedCount: 4,
+      unableToDecryptCount: 0,
+      plaintextCount: 1,
+      reasonCounts: {'private untrusted reason': 7},
+    );
+  }
+}
+
 void main() {
+  for (final changed in [false, true]) {
+    test(
+      'cached receive diagnostic rejects changed binding=$changed',
+      () async {
+        final key =
+            '$matrixOAuthBindingKeyPrefix${List.filled(64, 'b').join()}';
+        final raw = jsonEncode({
+          'profileKey': List.filled(64, 'a').join(),
+          'private': 'member and endpoint must not be emitted',
+        });
+        final store = InMemorySecureStore({
+          matrixOAuthCurrentBindingKey: key,
+          key: raw,
+        });
+        final bridge = _ReceiveDiagnosticBridge();
+        if (changed) {
+          bridge.duringRead = () => store.delete(matrixOAuthCurrentBindingKey);
+          await expectLater(
+            nativeDualChatReceiveDiagnostic(store: store, bridge: bridge),
+            throwsStateError,
+          );
+        } else {
+          expect(
+            await nativeDualChatReceiveDiagnostic(store: store, bridge: bridge),
+            'NATIVE_PRODUCT_STAGE phase=chat-cached-receive '
+            'events=5 decrypted=4 unableToDecrypt=0 plaintext=1',
+          );
+          expect(store.rawValue(matrixOAuthCurrentBindingKey), key);
+          expect(store.rawValue(key), raw);
+        }
+        expect(bridge.calls, 1);
+      },
+    );
+  }
+  test(
+    'cached receive diagnostic rejects invalid profile before native IO',
+    () async {
+      final key = '$matrixOAuthBindingKeyPrefix${List.filled(64, 'b').join()}';
+      final bridge = _ReceiveDiagnosticBridge();
+      await expectLater(
+        nativeDualChatReceiveDiagnostic(
+          store: InMemorySecureStore({
+            matrixOAuthCurrentBindingKey: key,
+            key: jsonEncode({'profileKey': 'private invalid profile'}),
+          }),
+          bridge: bridge,
+        ),
+        throwsStateError,
+      );
+      expect(bridge.calls, 0);
+    },
+  );
   test(
     'actual native claim digests require one organization and redact claims',
     () {
@@ -1308,82 +1383,156 @@ void main() {
     expect(home.hitTestable(), findsOneWidget);
   });
 
-  for (final denied in [false, true]) {
-    testWidgets(
-      'real delayed composer sends once and verifies proof; denied=$denied',
-      (tester) async {
-        const body = 'Controlled widget message';
-        final messages = <ChatMessage>[];
-        final repository = FakeChatRepository(
-          loadRoomTimelineHandler: (_) async {
-            await Future<void>.delayed(const Duration(milliseconds: 500));
-            return ChatRoomTimeline(
-              roomId: conversation.id,
-              roomTitle: conversation.title,
-              isInvite: false,
-              canSendMessages: true,
-              messages: List.of(messages),
-            );
-          },
-          sendMessageHandler: ({required roomId, required message}) async {
-            expect(roomId, conversation.id);
-            expect(message, body);
-            if (denied) {
-              throw const ChatFailure.protocol('Controlled send denial');
-            }
-            messages.add(
-              ChatMessage(
-                id: 'owned-event',
-                senderId: 'owned-author',
-                senderDisplayName: 'Owned author',
-                sentAt: DateTime(2026),
-                isMine: true,
-                deliveryState: ChatMessageDeliveryState.sent,
-                contentType: ChatMessageContentType.text,
-                text: message,
-              ),
-            );
-          },
-        );
-        await tester.pumpWidget(
-          createTestApp(
-            const ChatRoomScreen(conversation: conversation),
-            overrides: [
-              chatRepositoryProvider.overrideWithValue(repository),
-              preferencesStoreProvider.overrideWith(
-                (ref) => InMemoryPreferencesStore(),
-              ),
-            ],
-          ),
-        );
-        expect(repository.sendMessageCalls, 0);
-        Object? failure;
-        try {
-          await sendNativeDualChatMessage(
-            tester,
-            body,
-            deadline: DateTime.now().add(Duration(seconds: denied ? 1 : 5)),
-          );
-        } catch (error) {
-          failure = error;
-        }
-        expect(repository.sendMessageCalls, 1);
-        final composer = find.descendant(
-          of: find.byType(ChatRoomScreen),
-          matching: find.byType(TextField),
-        );
-        if (denied) {
-          expect(failure, isA<TestFailure>());
-          expect(messages, isEmpty);
-        } else {
-          expect(failure, isNull);
-          expect(find.text(body), findsOneWidget);
-          expect(tester.widget<TextField>(composer).controller?.text, isEmpty);
-        }
-        await tester.pumpWidget(const SizedBox.shrink());
-        await tester.pump(const Duration(seconds: 1));
-      },
+  testWidgets('lost native keyboard input never taps an empty Send', (
+    tester,
+  ) async {
+    final pointerDowns = <Offset>[];
+    final repository = FakeChatRepository(
+      loadRoomTimelineHandler: (_) async => ChatRoomTimeline(
+        roomId: conversation.id,
+        roomTitle: conversation.title,
+        isInvite: false,
+        canSendMessages: true,
+        messages: const [],
+      ),
     );
+    await tester.pumpWidget(
+      createTestApp(
+        Listener(
+          onPointerDown: (event) => pointerDowns.add(event.position),
+          child: const ChatRoomScreen(conversation: conversation),
+        ),
+        overrides: [
+          chatRepositoryProvider.overrideWithValue(repository),
+          preferencesStoreProvider.overrideWith(
+            (ref) => InMemoryPreferencesStore(),
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    final controller = tester
+        .widget<TextField>(find.byType(TextField))
+        .controller!;
+    void loseInput() {
+      if (controller.text.isNotEmpty) controller.clear();
+    }
+
+    controller.addListener(loseInput);
+    Object? failure;
+    try {
+      await sendNativeDualChatMessage(
+        tester,
+        'Must reach the actual composer',
+        deadline: DateTime.now().add(const Duration(seconds: 2)),
+      );
+    } catch (error) {
+      failure = error;
+    }
+    controller.removeListener(loseInput);
+    expect(failure, isA<TestFailure>());
+    expect(failure.toString(), contains('keyboard input did not reach'));
+    final sendBounds = tester.getRect(
+      find.widgetWithText(
+        FilledButton,
+        AppLocalizations.of(
+          tester.element(find.byType(ChatRoomScreen)),
+        ).chatRoomSendButton,
+      ),
+    );
+    expect(pointerDowns.where(sendBounds.contains), isEmpty);
+    expect(repository.sendMessageCalls, 0);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  for (final closedInput in [false, true]) {
+    for (final denied in [false, true]) {
+      testWidgets(
+        'real delayed composer sends once and verifies proof; denied=$denied closedInput=$closedInput',
+        (tester) async {
+          const body = 'Controlled widget message';
+          final messages = <ChatMessage>[];
+          final repository = FakeChatRepository(
+            loadRoomTimelineHandler: (_) async {
+              await Future<void>.delayed(const Duration(milliseconds: 500));
+              return ChatRoomTimeline(
+                roomId: conversation.id,
+                roomTitle: conversation.title,
+                isInvite: false,
+                canSendMessages: true,
+                messages: List.of(messages),
+              );
+            },
+            sendMessageHandler: ({required roomId, required message}) async {
+              expect(roomId, conversation.id);
+              expect(message, body);
+              if (denied) {
+                throw const ChatFailure.protocol('Controlled send denial');
+              }
+              messages.add(
+                ChatMessage(
+                  id: 'owned-event',
+                  senderId: 'owned-author',
+                  senderDisplayName: 'Owned author',
+                  sentAt: DateTime(2026),
+                  isMine: true,
+                  deliveryState: ChatMessageDeliveryState.sent,
+                  contentType: ChatMessageContentType.text,
+                  text: message,
+                ),
+              );
+            },
+          );
+          await tester.pumpWidget(
+            createTestApp(
+              const ChatRoomScreen(conversation: conversation),
+              overrides: [
+                chatRepositoryProvider.overrideWithValue(repository),
+                preferencesStoreProvider.overrideWith(
+                  (ref) => InMemoryPreferencesStore(),
+                ),
+              ],
+            ),
+          );
+          expect(repository.sendMessageCalls, 0);
+          if (closedInput) {
+            await tester.pumpAndSettle();
+            await tester.showKeyboard(find.byType(TextField));
+            tester.testTextInput.closeConnection();
+            await tester.pump();
+          }
+          Object? failure;
+          try {
+            await sendNativeDualChatMessage(
+              tester,
+              body,
+              deadline: DateTime.now().add(Duration(seconds: denied ? 1 : 5)),
+            );
+          } catch (error) {
+            failure = error;
+          }
+          expect(repository.sendMessageCalls, 1);
+          final composer = find.descendant(
+            of: find.byType(ChatRoomScreen),
+            matching: find.byType(TextField),
+          );
+          if (denied) {
+            expect(failure, isA<TestFailure>());
+            expect(messages, isEmpty);
+          } else {
+            expect(failure, isNull);
+            expect(find.text(body), findsOneWidget);
+            expect(
+              tester.widget<TextField>(composer).controller?.text,
+              isEmpty,
+            );
+          }
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump(const Duration(seconds: 1));
+        },
+      );
+    }
   }
 
   testWidgets('waits for enabled real action and actual delayed dialog', (
