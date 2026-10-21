@@ -821,15 +821,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
               if (!_loading &&
                   !_showingArchivedMessages &&
                   showRoomGovernancePreview)
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: constraints.maxHeight >= 480
-                        ? constraints.maxHeight * 0.42
-                        : constraints.maxHeight * 0.32,
-                  ),
+                Flexible(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                    child: Column(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: ExpansionTile(
+                      key: const Key('chat-room-context-disclosure'),
+                      leading: const Icon(Icons.assignment_turned_in_outlined),
+                      title: Text(l10n.chatRoomDetailsAction),
                       children: [
                         _RoomDecisionEvidenceCard(
                           snapshot: decisionEvidenceSnapshot,
@@ -840,6 +838,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                   ),
                 ),
               Expanded(
+                flex: 2,
                 child: switch ((_loading, timeline, _failure)) {
                   (true, _, _) => LoadingState(
                     message: l10n.chatRoomLoadingLabel,
@@ -976,6 +975,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                             maxLines: 4,
                             enabled: canSend && !_sending,
                             decoration: InputDecoration(
+                              hintMaxLines: 1,
                               hintText: canSend
                                   ? l10n.chatRoomComposerHint
                                   : l10n.chatRoomComposerDisabledHint,
