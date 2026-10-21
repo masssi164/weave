@@ -291,10 +291,15 @@ def assert_development_startup_uses_import_only() -> None:
                               side_effect=AssertionError("development must not read a migration receipt")) as receipt,
             mock.patch.object(compose_runtime, "create_backup_proof",
                               side_effect=AssertionError("development must not create a migration backup")) as backup,
+            mock.patch.object(compose_runtime, "verify_dogfood_identity") as readiness,
         ):
             compose_runtime.execute(context, "up", [])
         receipt.assert_not_called()
         backup.assert_not_called()
+        if environment == "dogfood":
+            readiness.assert_called_once_with(context)
+        else:
+            readiness.assert_not_called()
         assert compose.call_args.args[-len(roots):] == roots
         assert not any("keycloak-realm-migration" in str(call) for call in compose.call_args_list)
 

@@ -15,6 +15,8 @@ import urllib.request
 import uuid
 from typing import Any
 
+MAX_TOKEN_RESPONSE_BYTES = 64 * 1024
+
 
 class OAuthProbeError(RuntimeError):
     pass
@@ -67,6 +69,8 @@ def private_key_jwt_token_response(
     client_id: str,
     private_jwk: dict[str, Any],
     assertion_audience: str | None = None,
+    *,
+    opener: urllib.request.OpenerDirector | None = None,
 ) -> tuple[int, dict[str, Any]]:
     if (
         private_jwk.get("kty") != "RSA"
@@ -114,8 +118,12 @@ def private_key_jwt_token_response(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
-            body = json.loads(response.read())
+        open_request = opener.open if opener is not None else urllib.request.urlopen
+        with open_request(request, timeout=15) as response:
+            payload = response.read(MAX_TOKEN_RESPONSE_BYTES + 1)
+            if len(payload) > MAX_TOKEN_RESPONSE_BYTES:
+                raise OAuthProbeError("private_key_jwt response exceeded its size bound; response withheld")
+            body = json.loads(payload)
             if not isinstance(body, dict):
                 raise OAuthProbeError("private_key_jwt response is malformed; response withheld")
             return response.status, body
