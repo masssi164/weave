@@ -60,6 +60,54 @@ class JpaFilesUserResourceRepositoryPostgresTest {
     }
 
     @Test
+    void sharedSpaceCandidatesIncludeOtherCreatorsWithoutLeakingPrivateOrForeignFiles() {
+        var source = new DriverManagerDataSource(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+        Flyway.configure().dataSource(source).locations("classpath:db/migration").load().migrate();
+        JpaTestDatabase.validateSchema(source);
+        var repository = JpaTestDatabase.transactional(source, new JpaFilesUserResourceRepository(
+                JpaTestDatabase.repository(source, FilesUserResourceJpaRepository.class)));
+        var privateAlice = scopedResource("file:01-private-a", "user:alice", "workspace-default",
+                "org:visibility", FilesUserResource.Scope.PRIVATE, FilesUserResource.State.ACTIVE);
+        var privateBob = scopedResource("file:02-private-b", "user:bob", "workspace-default",
+                "org:visibility", FilesUserResource.Scope.PRIVATE, FilesUserResource.State.ACTIVE);
+        var sharedAlice = scopedResource("file:03-shared-a", "user:alice", "workspace-default",
+                "org:visibility", FilesUserResource.Scope.SPACE, FilesUserResource.State.ACTIVE);
+        var sharedBob = scopedResource("file:04-shared-b", "user:bob", "workspace-default",
+                "org:visibility", FilesUserResource.Scope.SPACE, FilesUserResource.State.ACTIVE);
+        var otherSpace = scopedResource("file:05-other-space", "user:bob", "workspace-other",
+                "org:visibility", FilesUserResource.Scope.SPACE, FilesUserResource.State.ACTIVE);
+        var otherOrganization = scopedResource("file:06-other-org", "user:bob", "workspace-default",
+                "org:other", FilesUserResource.Scope.SPACE, FilesUserResource.State.ACTIVE);
+        var removed = scopedResource("file:07-removed", "user:bob", "workspace-default",
+                "org:visibility", FilesUserResource.Scope.SPACE, FilesUserResource.State.TOMBSTONED);
+        java.util.List.of(privateAlice, privateBob, sharedAlice, sharedBob, otherSpace,
+                otherOrganization, removed).forEach(repository::save);
+
+        assertThat(repository.activeInSpace("org:visibility", "workspace-default", "user:bob", "", 25))
+                .containsExactly(privateBob, sharedAlice, sharedBob);
+        assertThat(repository.activeInSpace("org:visibility", "workspace-default", "user:alice", "", 25))
+                .containsExactly(privateAlice, sharedAlice, sharedBob);
+        assertThat(repository.activeInSpace("org:visibility", "workspace-default", "user:alice", "", 2))
+                .containsExactly(privateAlice, sharedAlice);
+        assertThat(repository.activeInSpace("org:visibility", "workspace-default", "user:alice",
+                sharedAlice.fileId(), 1)).containsExactly(sharedBob);
+        assertThat(repository.activeInSpace("org:visibility", "workspace-default", "user:alice",
+                sharedBob.fileId(), 25)).isEmpty();
+        assertThat(repository.activeInSpace("org:visibility", "workspace-other", "user:alice", "", 25))
+                .containsExactly(otherSpace);
+        assertThat(repository.activeInSpace("org:other", "workspace-default", "user:alice", "", 25))
+                .containsExactly(otherOrganization);
+    }
+
+    private FilesUserResource scopedResource(String fileId, String owner, String space,
+            String organization, FilesUserResource.Scope scope, FilesUserResource.State state) {
+        Instant now = Instant.parse("2026-10-21T00:00:00Z");
+        return new FilesUserResource(organization, fileId, 1, space, "file:root",
+                "/" + fileId.replace(':', '-'), Kind.FILE, owner, state, now, now, scope);
+    }
+
+    @Test
     void forwardVisibilityMigrationPreservesLegacyPrivateRowsAndRejectsUnknownScopes() {
         DriverManagerDataSource source = new DriverManagerDataSource(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());

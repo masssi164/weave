@@ -137,7 +137,8 @@ interface FilesUserResourceJpaRepository extends JpaRepository<FilesUserResource
             select resource from FilesUserResourceJpaEntity resource
             where resource.id.organizationRef = :organizationRef
               and resource.spaceRef = :spaceRef
-              and resource.ownerPrincipalRef = :ownerPrincipalRef
+              and (resource.scope = SPACE
+                   or (resource.scope = PRIVATE and resource.ownerPrincipalRef = :ownerPrincipalRef))
               and resource.state = :state
               and resource.id.fileId > :afterFileId
             order by resource.id.fileId
