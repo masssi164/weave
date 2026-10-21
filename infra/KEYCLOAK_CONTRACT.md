@@ -6,26 +6,20 @@ anti-corruption layer. Static IAM structure is deployment state, never product r
 
 ## One semantic source, many derived environment renders
 
-Weave does not maintain `dev-realm.json`, `dogfood-realm.json`, and `prod-realm.json` as independent
-sources. Candidate Cut binds two environment-neutral identities:
+The renderer reads `contracts/examples/keycloak-desired-state.valid.json` from the corpus pinned by
+`specs/weave-specs.lock.json`, the versioned migration definition and the stock import defaults.
+Weave does not maintain independent `dev-realm.json`, `dogfood-realm.json` and `prod-realm.json`
+sources. Render provenance separates two environment-neutral definition identities:
 
 - `semanticRealmSourceDigest`: the canonical realm baseline revision from the pinned Specification
   Corpus;
 - `migrationDefinitionDigest`: the canonical digest of
   `infra/weave-workspace/keycloak/migration-definition.json`.
 
-Each environment then derives its own generated realm from those identities plus a small,
-allowlisted overlay and environment-owned public JWKS:
-
-```text
-semantic realm source
-+ canonical migration definition
-+ environment overlay
-+ environment-owned public JWKS
-        |
-        v
-.generated/<environment>/keycloak/import/weave-realm.json
-```
+Each environment derives `.generated/<environment>/keycloak/import/weave-realm.json` from the
+reviewed semantic source, import projection, environment overlay and environment-owned public JWKS.
+The migration definition also supplies the native organization mapper used by development imports;
+its presence in render provenance does not require executing a production migration.
 
 The generated `weave-realm.json` is a deployment artifact, not configuration truth. E2E, dogfood,
 and production may legitimately have different URLs, SMTP coordinates, organization presentation,
@@ -61,7 +55,7 @@ The semantic baseline owns structure that must exist before any human or workloa
 - the current single-primary deployment organization semantic slot;
 - `/owners`, `/admins`, `/members`, `/guests`, `/capabilities`, and
   `/capabilities/weaver` organization groups;
-- static service accounts and their minimum collection-gate role grants;
+- static service accounts and environment-appropriate role grants;
 - static FGAP intent and the workload-registration policy.
 
 The current primary organization is a deployment-owned bootstrap organization for the
@@ -83,6 +77,11 @@ Private first-party JWKs remain solely with their owning process. The renderer d
 inside that environment and only those public keys enter the realm render. Keycloak File Vault is
 used only for symmetric shared secrets Keycloak genuinely consumes, such as authenticated
 production SMTP. The realm contains `${vault.smtp-password}`, never the password value.
+
+For `dev`, `dogfood` and isolated `e2e`, the reviewed projection includes stock client scopes and
+the native organization mapper in the import, and adds `manage-organizations` and `manage-users`
+to `weave-identity-admin`. These development grants are forbidden in `prod`. They do not expand
+the permanent Server operation allowlist below.
 
 ## Dynamic Server ownership
 
@@ -106,48 +105,70 @@ an organization, group, role, realm, or static client.
 
 ## Dynamic workload ownership
 
-Agent Runtime Control owns per-Cell workload client registration, rotation, recovery/finalization,
-revocation, and deletion through the restricted DCR boundary. MCP has neither product persistence
+Where the optional workload lifecycle is enabled, Agent Runtime Control owns per-Cell workload
+client registration, rotation, recovery/finalization, revocation and deletion through the restricted
+DCR boundary. It does not become a native Dogfood prerequisite. MCP has neither product persistence
 nor a Keycloak administrative credential. Human roles and workload entitlement remain orthogonal.
 
-## Fresh import and explicit migration
+## Development import and reset
 
-A fresh Keycloak realm is established through Keycloak's supported startup import from the exact
-environment-derived `weave-realm.json`. Existing realms are not reconciled by startup import.
+Stock Keycloak startup import is the complete identity initialization for `dev`, `dogfood` and
+isolated `e2e`. No post-import FGAP migration, temporary migration credential, backup prerequisite
+or production receipt is required in those lanes. E2E still proves ownership of its absent,
+run-unique namespace before creating resources and cleans that namespace after execution.
 
-Keycloak 26.7 processes client authorization before Organizations during import, so the exact
-specific-organization FGAP projection requires one bounded post-import operation. This operation is
-not a general reconciler. It uses an ephemeral bootstrap authority, performs the closed reviewed
-FGAP mutation, requires semantic readback and an empty second plan, deletes the bootstrap authority,
-and negatively verifies its absence before publishing a support-safe receipt.
+Startup import skips an existing realm. A current `weave-realm.json` therefore does not establish
+that persisted issuer URLs, audiences, redirects, client URLs or role grants are current. Ordinary
+startup never reconciles static IAM and never deletes a realm to reapply an import.
 
-Migration preconditions remain distinct:
+Root `dogfoodUp` and `dogfoodDown` preserve the three Dogfood session volumes. An explicit
+`dogfoodReset` validates the exact checkout, reviewed environment, secret inputs and stable TLS,
+then recreates the fixed `weave-dogfood` stack with empty PostgreSQL, native Files and Mailpit
+volumes. This discards their users and product data, and imports the current canonical projection.
+Reviewed secret files and operator-owned TLS outside the volumes remain intact. The existing
+closed cleanup also handles the known unlabeled OpenTofu-era Dogfood stack after ownership checks;
+it does not remove bind-mounted host directories or unrelated resources.
 
-- **Fresh Start dogfood:** exact approved Fresh Start plan/apply evidence proves the previous owned
-  generation was retired; no legacy realm is transferred.
-- **Persistent non-empty dogfood/prod:** private candidate-bound backup plus isolated restore
-  rehearsal is mandatory before static IAM mutation.
-- **Disposable E2E:** the same static migration may run without durable backup only after a
-  machine-verifiable pre-creation proof establishes that the exact isolated run namespace and every
-  run-owned resource were absent. An `e2e` profile name or an empty-database assertion is not proof.
+Reset is serialized with first-owner bootstrap. After discarding the session resources, it removes
+only the two generated owner-bootstrap request/evidence records for that session. Ordinary startup
+and shutdown preserve them, and unrelated diagnostics remain available.
 
-Routine startup never performs realm-wide reconciliation and there is no permanent Identity Ops or
-`kcadm` authority.
+The resettable Dogfood contract requires no Fresh Start plan, migration receipt, backup/restore
+rehearsal, deletion manifest or approval token. Obsolete development state is replaced through
+that existing reset, not preserved with legacy URL aliases, separate realm sources or compatibility
+migrations. This development boundary does not authorize production data deletion.
 
-## Lifecycle
+## Production migration
 
-1. **Candidate Cut** binds `semanticRealmSourceDigest` and `migrationDefinitionDigest` independently
-   of any environment.
-2. **Environment configure** validates environment inputs, derives public JWKS, canonicalizes the
-   overlay, renders `weave-realm.json`, and records environment render evidence.
-3. **Fresh import** creates the static realm when the realm does not yet exist.
-4. **Explicit static migration** applies only the reviewed migration definition and publishes
-   readback/authority-retirement evidence.
-5. **First owner bootstrap** creates one invitation through normal Server identity administration.
-6. **Steady state** permits only dynamic Server/Agent Runtime operations; the realm render is not
-   reapplied.
-7. **Later static IAM change** changes the candidate semantic/migration identity and uses the
-   explicit protected migration path for an existing persistent realm.
+Production retains its restricted authority and explicit versioned FGAP migration. The existing
+`keycloak-migration-apply` executor accepts only `prod` with verified private backup and isolated
+restore evidence. It binds the candidate, semantic definition, migration definition and environment
+render, performs only the reviewed mutations, requires semantic readback and an empty second plan,
+deletes temporary bootstrap authority and negatively verifies its absence before issuing the receipt.
+Ambiguous or stale evidence fails closed. It is not a Dogfood repair command.
 
-A software release whose semantic realm source and migration-definition identities are unchanged
-requires no static Keycloak mutation merely because application code changed.
+Normal serving still has no static IAM reconciliation or permanent Identity Ops authority. An
+application-only update does not require a production IAM mutation merely because code changed.
+
+## Readiness and evidence
+
+Human-testing readiness schema version 6 records matching, stable `realm-import` provenance. Its
+definition/render digests are not live provider readback or successful authentication. Pre-runtime
+render evidence explicitly has `semanticReadbackDigest=null` and `semanticReadbackVerified=false`.
+
+Isolated automated qualification and readiness of the deployed Dogfood realm are separate results.
+Before HIL, the actual target must prove current authentication, allowed identity operations,
+ordinary restart and correct HTTPS configuration; the exact qualified build must be installed in
+place on the physical iPhone. Automated accessibility is not physical VoiceOver acceptance.
+
+Dogfood startup and direct owner bootstrap now check trusted-CA public HTTPS discovery against the
+reviewed issuer and endpoint URLs, then authenticate the existing private-key identity-admin client
+with the canonical issuer audience and require matching returned token identity. This fail-closed
+preflight does not mutate static IAM or reset data. It establishes the OIDC/client-auth boundary;
+it does not prove full realm equivalence, successful invitation or physical iPhone trust.
+
+Resetting the same candidate requires fresh affected live deployment and physical-preparation
+evidence. It does not require repeating equivalent full integration solely because session data was
+discarded. Changed source or specification requires new qualification; externally stateful evidence
+is not cached based on unchanged source paths. Candidate Cut and a versioned readiness document are
+not prerequisites for the development human-test loop.

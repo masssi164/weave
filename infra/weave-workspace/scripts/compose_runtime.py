@@ -18,9 +18,10 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Iterator
 
 from bounded_process import BoundedProcessTimeout, run_bounded
 from compose_env import (
@@ -32,6 +33,7 @@ from compose_env import (
 )
 from keycloak_migration import migration_inputs, require_completed_migration
 from keycloak_migration_backup import create_backup_proof
+from dogfood_identity_readiness import verify as verify_dogfood_identity
 
 
 COMMANDS = (
@@ -1489,9 +1491,50 @@ def _bootstrap_override_command(
     return run(command, context)
 
 
+@contextmanager
+def _dogfood_session_lock(context: ComposeContext) -> Iterator[None]:
+    """Serialize reset with the complete first-owner lifecycle and its evidence."""
+
+    lock_root = context.generated_root / "operations"
+    for path in (context.generated_root, lock_root):
+        if path.is_symlink() or (
+            path.exists()
+            and (not path.is_dir() or path.stat().st_uid != os.getuid())
+        ):
+            raise ContractError("dogfood session lock directory must be owned and not a symlink")
+    lock_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    lock_path = lock_root / "owner-bootstrap.lock"
+    try:
+        lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    except OSError:
+        raise ContractError("dogfood session lock file is unavailable") from None
+    try:
+        metadata = os.fstat(lock_fd)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+            or metadata.st_nlink != 1
+        ):
+            raise ContractError("dogfood session lock must be one owned private regular file")
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ContractError("another dogfood owner bootstrap or reset operation is active") from None
+        yield
+    finally:
+        os.close(lock_fd)
+
+
 def owner_bootstrap(context: ComposeContext, extra: list[str]) -> None:
     if context.environment != "dogfood" or context.isolated_namespace is not None:
         raise ContractError("bootstrap-owner is restricted to persistent dogfood")
+    with _dogfood_session_lock(context):
+        _dogfood_owner_session_files(context)
+        _owner_bootstrap_locked(context, extra)
+
+
+def _owner_bootstrap_locked(context: ComposeContext, extra: list[str]) -> None:
     request_path, requested_evidence_path = _owner_bootstrap_arguments(extra)
     owner_request = _owner_bootstrap_request(request_path)
     owner_bootstrap_root = context.generated_root / "owner-bootstrap"
@@ -1506,10 +1549,10 @@ def owner_bootstrap(context: ComposeContext, extra: list[str]) -> None:
     ).hexdigest()
     prepare(context)
     _owner_bootstrap_smtp_preflight(context)
+    for service in ("keycloak", "mailpit", "backend"):
+        _await_healthy(context, service)
+    verify_dogfood_identity(context)
     lock_root = context.generated_root / "operations"
-    lock_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(lock_root, 0o700)
-    lock_fd = os.open(lock_root / "owner-bootstrap.lock", os.O_RDWR | os.O_CREAT, 0o600)
     operation_root: Path | None = None
     override: Path | None = None
     primary_error: BaseException | None = None
@@ -1517,12 +1560,6 @@ def owner_bootstrap(context: ComposeContext, extra: list[str]) -> None:
     matched_message: tuple[str, str] | None = None
     canonical_image = ""
     try:
-        try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as error:
-            raise ContractError("another dogfood owner bootstrap operation is active") from error
-        for service in ("keycloak", "mailpit", "backend"):
-            _await_healthy(context, service)
         canonical_before = _service_container(context, "backend")
         if _bootstrap_boundary_present(canonical_before):
             canonical_before = _canonical_backend(context)
@@ -1671,7 +1708,6 @@ def owner_bootstrap(context: ComposeContext, extra: list[str]) -> None:
                 shutil.rmtree(operation_root)
         if override is not None and (override.exists() or override.is_symlink()):
             override.unlink()
-        os.close(lock_fd)
         if restoration_error is not None:
             raise ContractError("owner bootstrap could not restore the canonical backend boundary") from restoration_error
     if primary_error is not None:
@@ -1828,6 +1864,26 @@ def preflight_dogfood_reset(context: ComposeContext) -> None:
     prepare(context)
 
 
+def _dogfood_owner_session_files(context: ComposeContext) -> tuple[Path, Path]:
+    """Validate only the two host-side records belonging to the disposable session."""
+
+    root = context.generated_root / "owner-bootstrap"
+    for directory in (context.generated_root, root):
+        if directory.is_symlink() or (
+            directory.exists()
+            and (not directory.is_dir() or directory.stat().st_uid != os.getuid())
+        ):
+            raise ContractError("dogfood owner session directory must be owned and not a symlink")
+    files = (root / "request-anchor.json", root / "evidence.json")
+    for path in files:
+        if path.is_symlink() or (
+            path.exists()
+            and (not path.is_file() or path.stat().st_uid != os.getuid())
+        ):
+            raise ContractError("dogfood owner session record must be an owned regular file")
+    return files
+
+
 def reset_dogfood(context: ComposeContext) -> None:
     """Reset only the fixed dogfood project boundary and its session data."""
 
@@ -1835,17 +1891,21 @@ def reset_dogfood(context: ComposeContext) -> None:
         raise ContractError("reset is available only for the dogfood environment")
     if context.env["WEAVE_COMPOSE_PROJECT"] != "weave-dogfood":
         raise ContractError("dogfood reset requires WEAVE_COMPOSE_PROJECT=weave-dogfood")
-    preflight_dogfood_reset(context)
-    compose(context, "down", "--volumes", "--remove-orphans")
-    cleanup_retired_dogfood()
-    for key in (
-        "WEAVE_DB_DATA_VOLUME",
-        "WEAVE_NATIVE_FILES_DATA_VOLUME",
-        "WEAVE_MAILPIT_DATA_VOLUME",
-    ):
-        _remove_exact_dogfood_resource("volume", context.env[key])
-    _remove_exact_dogfood_resource("network", context.env["WEAVE_DOCKER_NETWORK"])
-    execute(context, "up", [])
+    with _dogfood_session_lock(context):
+        preflight_dogfood_reset(context)
+        _dogfood_owner_session_files(context)
+        compose(context, "down", "--volumes", "--remove-orphans")
+        cleanup_retired_dogfood()
+        for key in (
+            "WEAVE_DB_DATA_VOLUME",
+            "WEAVE_NATIVE_FILES_DATA_VOLUME",
+            "WEAVE_MAILPIT_DATA_VOLUME",
+        ):
+            _remove_exact_dogfood_resource("volume", context.env[key])
+        _remove_exact_dogfood_resource("network", context.env["WEAVE_DOCKER_NETWORK"])
+        for path in _dogfood_owner_session_files(context):
+            path.unlink(missing_ok=True)
+        execute(context, "up", [])
 
 
 def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
@@ -1902,6 +1962,8 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         )
         if context.environment != "dev" and "provider-nextcloud" in context.active_profiles:
             script(context, "nextcloud_reconcile.py")
+        if context.environment == "dogfood":
+            verify_dogfood_identity(context)
     elif command == "down":
         if context.profile == "dev":
             compose(

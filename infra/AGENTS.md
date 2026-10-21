@@ -51,8 +51,9 @@ list of known unlabeled legacy Weave resources after every target passes its pre
 
 ## Validation and safety
 
-- Run `./gradlew infraStatic`, the profile-specific `compose*Config` task, and the relevant
-  backup-gated Keycloak migration/receipt check.
+- Run `./gradlew infraStatic` and the profile-specific `compose*Config` task. Run the backup-gated
+  Keycloak migration/receipt checks only for changes to the production migration path; development
+  initialization uses the import and its relevant renderer/behavior checks.
 - `./gradlew noExecutableOpenTofuCheck` must remain green.
 - Keep images immutable by digest or exact local image ID where ADR 0022 allows it, Compose
   resources explicitly named and labeled, and teardown bounded to the exact selected project.
