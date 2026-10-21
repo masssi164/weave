@@ -1,5 +1,39 @@
 # Release qualification implementation progress for #1592
 
+## October 21 UTC: reuse native browser handling for dual-client logout
+
+The frozen local reproduction `local-ios-focus-20261021-0133`, source
+`c812ca8c81f8ac45e9e4a8dd7719b1d24fbf4335`, tree
+`748cbbb7da629291a67ce48da38c114fd851f25c`, passed actions 1–35. Both real
+Flutter apps completed independent PKCE, two-way Chat, Calendar and Files UI
+exchange, current-grant readback after revocation/regrant, network recovery,
+process restoration and actual bearer expiry/refresh. A36 then failed waiting
+for sign-in after tapping Sign out. All seven final aggregates and required
+cryptographic proof remained not-run; this is not release qualification.
+The original result reports cleanup complete; independent inventories found zero
+owned containers, networks, volumes or named simulators. Eighteen original
+private diagnostics/result/teardown files were retained with hashes.
+
+The production sign-out path clears the local OIDC session and opens AppAuth's
+system-browser end-session flow. Unlike the single-client runner, the dual
+coordinator did not start its existing native browser driver for this action.
+The narrow correction attaches that same driver's restore mode to A's existing
+process before publishing the Flutter logout command. Flutter still operates
+the real Settings control and verifies local logout, revoked bearer/device
+rejection and the peer's independent session. The driver supplies native consent
+and observes the real return; it never injects a callback, token or pass result.
+No product session contract, timeout, generated API or provider/configuration
+boundary changes. The bounded owner retains private diagnostics, verifies exact
+XCTest completion with no skips, rechecks process identity and reaps the driver
+on success and failure while preserving the first Flutter failure.
+
+Runner regressions cover missing/wrong process or plan, delayed/failed attachment,
+missing/duplicate/skipped completion, child failure/timeout, process replacement,
+and original-failure preservation during cleanup. These are harness boundary
+checks; the real dual-iOS run and protected exact-candidate qualification remain
+mandatory before deployment or HIL.
+
+
 ## October 21 UTC: shared File relationships use current scope, not creator alone
 
 The previously recorded B33 native exchange was traced to candidate selection, not File
