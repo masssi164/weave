@@ -3480,7 +3480,7 @@ abstract class AppLocalizations {
   /// Fallback preview text for a conversation without a recent event
   ///
   /// In en, this message translates to:
-  /// **'No recent messages'**
+  /// **'Open conversation'**
   String get chatConversationNoPreview;
 
   /// Fallback preview label for encrypted Matrix events
@@ -3752,6 +3752,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Review archived messages to restore one, or wait here for new messages.'**
   String get chatRoomArchivedEmptyGuidance;
+
+  /// Expandable room details containing explicitly captured decisions and evidence.
+  ///
+  /// In en, this message translates to:
+  /// **'Room details'**
+  String get chatRoomDetailsAction;
 
   /// Heading for the room decision and evidence snapshot panel
   ///

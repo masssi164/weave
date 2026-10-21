@@ -7,6 +7,7 @@ UI journeys, transport feasibility, or server denial proofs to a passed result.
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import hashlib
 import json
 import os
@@ -20,6 +21,7 @@ import subprocess
 import time
 import queue
 import threading
+import tempfile
 from datetime import datetime, timezone
 
 import run_ios_simulator_product_acceptance as ios
@@ -592,6 +594,70 @@ def perform_owned_lifecycle(scope: tuple, action: str, env: dict, *, inspection_
         print('NATIVE_IOS_LIFECYCLE_RESULT status=passed privateDiagnostic=' + diagnostic.name + ' supportSafe=true', flush=True)
 
 
+@contextlib.contextmanager
+def owned_logout_driver(scope: tuple, env: dict):
+    """Attach the existing system-browser driver before Flutter taps Sign out."""
+    _support, udid, pid, products = scope
+    if ios.simulator_app_pid(udid) != pid:
+        raise ios.NativeFailure('infrastructure', 'dual-logout', 'owned-process-mismatch')
+    plans = list(products.glob('*.xctestrun')); bundles = list(products.glob('**/BrowserDriver.xctest'))
+    if len(plans) != 1 or len(bundles) != 1:
+        raise ios.NativeFailure('infrastructure', 'dual-logout', 'owned-test-plan-missing')
+    # Restore mode handles only native consent and the production logout return.
+    # Required decoder fields contain no credentials and are unused in that mode.
+    ios.prepare_browser_fixture(products, dict(phase='restore', email='', password='',
+        issuerHost='auth.weave.localhost', appBundleIdentifier=ios.BUNDLE, nativeAuthCompletionPath=''))
+    child = None
+    failure = None
+    with tempfile.NamedTemporaryFile(mode='w+', prefix='logout-', suffix='.log', dir=products) as log:
+        try:
+            child = track_process(subprocess.Popen(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
+                '-destination', 'platform=iOS Simulator,id=' + udid, '-parallel-testing-enabled', 'NO',
+                '-only-testing:BrowserDriver/BrowserDriver/testProductionBrowser'], env=env,
+                stdout=log, stderr=subprocess.STDOUT, start_new_session=True))
+            deadline = time.monotonic() + 60
+            while True:
+                if child.poll() is not None:
+                    raise ios.NativeFailure('infrastructure', 'dual-logout', 'browser-exited-before-command')
+                log.seek(0)
+                if 'NATIVE_IOS_BROWSER_STAGE phase=app-observed' in log.read().splitlines(): break
+                if time.monotonic() >= deadline:
+                    raise ios.NativeFailure('infrastructure', 'dual-logout', 'browser-attach-timeout')
+                time.sleep(0.25)
+            if ios.simulator_app_pid(udid) != pid:
+                raise ios.NativeFailure('infrastructure', 'dual-logout', 'owned-process-replaced')
+            yield
+            try:
+                status = child.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                raise ios.NativeFailure('integration', 'dual-logout', 'browser-completion-timeout') from None
+            log.seek(0); transcript = log.read(); lines = transcript.splitlines()
+            selected = r"Test Case '-\[BrowserDriver\.BrowserDriver testProductionBrowser\]'"
+            passed = sum(bool(re.fullmatch(selected + r" passed \([0-9.]+ seconds\)\.", line)) for line in lines)
+            skipped = re.search(selected + r" skipped\b|Executed \d+ tests?, with [1-9]\d* tests? skipped\b", transcript)
+            if status or lines.count('NATIVE_IOS_BROWSER_RESULT status=passed phase=logout') != 1 or passed != 1 or skipped:
+                raise ios.NativeFailure('integration', 'dual-logout', 'native-browser-result-unverified')
+            if ios.simulator_app_pid(udid) != pid:
+                raise ios.NativeFailure('infrastructure', 'dual-logout', 'owned-process-replaced')
+            print('NATIVE_IOS_LOGOUT_RESULT status=passed supportSafe=true', flush=True)
+        except BaseException as error:
+            failure = error
+            raise
+        finally:
+            try:
+                if child is not None: stop_flutter_process_group(child)
+            except (OSError, RuntimeError, subprocess.SubprocessError):
+                print('NATIVE_IOS_LOGOUT_CLEANUP status=failed supportSafe=true', flush=True)
+                if failure is None: raise
+            finally:
+                try:
+                    log.seek(0)
+                    diagnostic = ios.retain_private_diagnostic(log.read())
+                    print('NATIVE_IOS_LOGOUT_DIAGNOSTIC privateDiagnostic=' + diagnostic.name + ' supportSafe=true', flush=True)
+                except (OSError, ValueError, ios.NativeFailure):
+                    print('NATIVE_IOS_LOGOUT_DIAGNOSTIC status=unavailable supportSafe=true', flush=True)
+
+
 def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict, phase: str = 'initial', relays: dict | None = None) -> dict:
     # Existing Python runner coordinates actual Flutter gestures using only
     # owned private files. Commands cannot inject results/auth/session data.
@@ -650,49 +716,50 @@ def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict, phas
                 if destination.read_text() != expected:
                     raise ios.NativeFailure('integration', 'dual-files', 'prior-owned-document-mismatch')
                 destination.unlink()
-        target = support / 'weave-dual-ios-command.json'
-        staging = support / 'weave-dual-ios-command.tmp'
-        if target.is_symlink() or staging.is_symlink():
-            raise ios.NativeFailure('infrastructure', 'dual-command', 'unsafe-private-command')
-        staging.write_text(json.dumps({'sequence': sequence, 'action': action})); staging.chmod(0o600)
-        staging.replace(target)
-        deadline = time.monotonic() + (420 if action == 'expiry-refresh' else 180)
-        picker_executed = False
-        while True:
-            for task in tasks:
-                if task.done(): task.result()
-            native_request = support / 'weave-dual-ios-native-request.json'
-            if not picker_executed and native_request.is_file() and not native_request.is_symlink() and native_request.stat().st_size <= 1024:
-                request = json.loads(native_request.read_text())
-                if request.get('sequence') == sequence:
-                    mode, name = require_picker_request(request, sequence, action, input_data['runId'])
-                    perform_owned_picker(udid, pid, products, env, mode, name)
-                    verify_both_live()
-                    picker_executed = True
-            ack = support / 'weave-dual-ios-ack.json'
-            if ack.is_file() and not ack.is_symlink() and ack.stat().st_size <= 1024:
-                proof = json.loads(ack.read_text())
-                if proof == {'sequence': sequence, 'action': action, 'status': 'passed'}:
-                    verify_both_live()
-                    if action == 'network-disconnected':
-                        network.update({'userApiFailureObserved': True, 'matrixSendFailureObserved': True, 'affectedConnections': relays['A'].blocked})
-                    if action == 'network-peer-online':
-                        count = relays['B'].forwarded_bytes - peer_bytes_before
-                        if count <= 0:
-                            raise ios.NativeFailure('infrastructure', 'dual-network', 'peer-actual-transport-not-observed')
-                        network['actorBForwardedBytesDuringInterruption'] = count
-                        network['peerUiContinuityObserved'] = True
-                    if action == 'network-resume':
-                        if relays['A'].forwarded_bytes <= restored_bytes_before:
-                            raise ios.NativeFailure('infrastructure', 'dual-network', 'restored-actual-transport-not-observed')
-                        network.update({'restoreObserved': True, 'matrixRetryObserved': True})
-                    if action == 'network-peer-readback': network['peerReceptionObserved'] = True
-                    if action == 'grant-revocation-readback': network['currentGrantRevocation'].update({'uiReadback': True, 'evidence': 'server-denial-and-flutter-readback'})
-                    print(f'NATIVE_IOS_DUAL_UI_RESULT actor={role} action={action} status=passed supportSafe=true', flush=True)
-                    break
-            if time.monotonic() >= deadline:
-                raise ios.NativeFailure('integration', 'dual-' + action.split('-')[0], 'actual-ui-command-proof-missing')
-            time.sleep(0.25)
+        with owned_logout_driver(scopes[role], env) if action == 'logout' else contextlib.nullcontext():
+            target = support / 'weave-dual-ios-command.json'
+            staging = support / 'weave-dual-ios-command.tmp'
+            if target.is_symlink() or staging.is_symlink():
+                raise ios.NativeFailure('infrastructure', 'dual-command', 'unsafe-private-command')
+            staging.write_text(json.dumps({'sequence': sequence, 'action': action})); staging.chmod(0o600)
+            staging.replace(target)
+            deadline = time.monotonic() + (420 if action == 'expiry-refresh' else 180)
+            picker_executed = False
+            while True:
+                for task in tasks:
+                    if task.done(): task.result()
+                native_request = support / 'weave-dual-ios-native-request.json'
+                if not picker_executed and native_request.is_file() and not native_request.is_symlink() and native_request.stat().st_size <= 1024:
+                    request = json.loads(native_request.read_text())
+                    if request.get('sequence') == sequence:
+                        mode, name = require_picker_request(request, sequence, action, input_data['runId'])
+                        perform_owned_picker(udid, pid, products, env, mode, name)
+                        verify_both_live()
+                        picker_executed = True
+                ack = support / 'weave-dual-ios-ack.json'
+                if ack.is_file() and not ack.is_symlink() and ack.stat().st_size <= 1024:
+                    proof = json.loads(ack.read_text())
+                    if proof == {'sequence': sequence, 'action': action, 'status': 'passed'}:
+                        verify_both_live()
+                        if action == 'network-disconnected':
+                            network.update({'userApiFailureObserved': True, 'matrixSendFailureObserved': True, 'affectedConnections': relays['A'].blocked})
+                        if action == 'network-peer-online':
+                            count = relays['B'].forwarded_bytes - peer_bytes_before
+                            if count <= 0:
+                                raise ios.NativeFailure('infrastructure', 'dual-network', 'peer-actual-transport-not-observed')
+                            network['actorBForwardedBytesDuringInterruption'] = count
+                            network['peerUiContinuityObserved'] = True
+                        if action == 'network-resume':
+                            if relays['A'].forwarded_bytes <= restored_bytes_before:
+                                raise ios.NativeFailure('infrastructure', 'dual-network', 'restored-actual-transport-not-observed')
+                            network.update({'restoreObserved': True, 'matrixRetryObserved': True})
+                        if action == 'network-peer-readback': network['peerReceptionObserved'] = True
+                        if action == 'grant-revocation-readback': network['currentGrantRevocation'].update({'uiReadback': True, 'evidence': 'server-denial-and-flutter-readback'})
+                        print(f'NATIVE_IOS_DUAL_UI_RESULT actor={role} action={action} status=passed supportSafe=true', flush=True)
+                        break
+                if time.monotonic() >= deadline:
+                    raise ios.NativeFailure('integration', 'dual-' + action.split('-')[0], 'actual-ui-command-proof-missing')
+                time.sleep(0.25)
     return network
 
 

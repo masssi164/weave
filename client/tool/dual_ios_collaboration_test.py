@@ -22,6 +22,113 @@ import run_ios_simulator_product_acceptance as ios
 
 
 class DualIosCollaborationTest(unittest.TestCase):
+    def test_logout_driver_attaches_before_flutter_and_requires_native_completion(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            products = Path(temporary) / 'Build/Products'
+            products.mkdir(parents=True)
+            (products / 'owned.xctestrun').touch()
+            (products / 'BrowserDriver.xctest').mkdir()
+            scope = (Path(temporary), 'actor-A', '123', products)
+            child = mock.Mock()
+            child.poll.return_value = None
+            child.wait.return_value = 0
+            events = []
+            def launch(command, **kwargs):
+                events.append('driver-started')
+                self.assertIn('-only-testing:BrowserDriver/BrowserDriver/testProductionBrowser', command)
+                self.assertTrue(kwargs['start_new_session'])
+                kwargs['stdout'].write('NATIVE_IOS_BROWSER_STAGE phase=app-observed\n')
+                kwargs['stdout'].flush()
+                return child
+            with mock.patch.object(dual.ios, 'simulator_app_pid', return_value='123'), \
+                 mock.patch.object(dual.ios, 'prepare_browser_fixture') as fixture, \
+                 mock.patch.object(dual.subprocess, 'Popen', side_effect=launch), \
+                 mock.patch.object(dual, 'track_process', side_effect=lambda p: p), \
+                 mock.patch.object(dual, 'stop_flutter_process_group') as stop, \
+                 mock.patch.object(dual.ios, 'retain_private_diagnostic', return_value=Path('command-private.log')) as retain:
+                with dual.owned_logout_driver(scope, {}):
+                    events.append('flutter-command')
+                    log = next(products.glob('logout-*.log'))
+                    with log.open('a') as output:
+                        output.write("NATIVE_IOS_BROWSER_RESULT status=passed phase=logout\n"
+                                     "Test Case '-[BrowserDriver.BrowserDriver testProductionBrowser]' passed (1.0 seconds).\n")
+                self.assertEqual(events, ['driver-started', 'flutter-command'])
+                self.assertEqual(fixture.call_args.args[1]['phase'], 'restore')
+                self.assertNotIn('private-password', json.dumps(fixture.call_args.args[1]))
+                stop.assert_called_once_with(child)
+                retain.assert_called_once()
+
+    def test_logout_driver_rejects_wrong_process_missing_plan_and_incomplete_result(self):
+        for mode in ['wrong-process', 'missing-plan', 'missing-proof', 'skipped', 'duplicate', 'exit', 'startup-exit', 'startup-timeout', 'completion-timeout', 'process-replaced', 'flutter-failed', 'cleanup-after-flutter-failed']:
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                products = Path(temporary)
+                if mode != 'missing-plan':
+                    (products / 'owned.xctestrun').touch()
+                    (products / 'BrowserDriver.xctest').mkdir()
+                child = mock.Mock()
+                child.poll.return_value = 1 if mode == 'startup-exit' else None
+                child.wait.return_value = 1 if mode == 'exit' else 0
+                if mode == 'completion-timeout': child.wait.side_effect = subprocess.TimeoutExpired('xcodebuild', 30)
+                def launch(command, **kwargs):
+                    if mode != 'startup-timeout':
+                        kwargs['stdout'].write('NATIVE_IOS_BROWSER_STAGE phase=app-observed\n')
+                        kwargs['stdout'].flush()
+                    return child
+                clock = iter([0, 60]) if mode == 'startup-timeout' else None
+                with mock.patch.object(dual.ios, 'simulator_app_pid', side_effect=['123', '123', '999'] if mode == 'process-replaced' else None, return_value='999' if mode == 'wrong-process' else '123'), \
+                     mock.patch.object(dual.ios, 'prepare_browser_fixture'), \
+                     mock.patch.object(dual.subprocess, 'Popen', side_effect=launch), \
+                     mock.patch.object(dual, 'track_process', side_effect=lambda p: p), \
+                     mock.patch.object(dual, 'stop_flutter_process_group', side_effect=RuntimeError('cleanup failed') if mode == 'cleanup-after-flutter-failed' else None) as stop, \
+                     mock.patch.object(dual.ios, 'retain_private_diagnostic', return_value=Path('command-private.log')), \
+                     mock.patch.object(dual.time, 'monotonic', side_effect=(lambda: next(clock)) if clock else None, return_value=0), \
+                     mock.patch.object(dual.time, 'sleep'):
+                    with self.assertRaises((ios.NativeFailure, ValueError)) as failure:
+                        with dual.owned_logout_driver((products, 'A', '123', products), {}):
+                            if mode in ['flutter-failed', 'cleanup-after-flutter-failed']: raise ValueError('original Flutter failure')
+                            log = next(products.glob('logout-*.log'))
+                            with log.open('a') as output:
+                                if mode != 'missing-proof':
+                                    output.write('NATIVE_IOS_BROWSER_RESULT status=passed phase=logout\n' * (2 if mode == 'duplicate' else 1))
+                                output.write("Test Case '-[BrowserDriver.BrowserDriver testProductionBrowser]' passed (1.0 seconds).\n")
+                                if mode == 'skipped': output.write('Executed 1 test, with 1 test skipped\n')
+                    if mode in ['flutter-failed', 'cleanup-after-flutter-failed']: self.assertEqual(str(failure.exception), 'original Flutter failure')
+                    self.assertEqual(stop.call_count, 0 if mode in ['wrong-process', 'missing-plan'] else 1)
+
+    def test_restore_coordinates_only_actor_a_logout_with_attached_driver(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            scopes = {}
+            for role in ('A', 'B'):
+                support = Path(temporary) / role; support.mkdir()
+                scopes[role] = (support, role, role + '-pid', support)
+            observed = []
+            original_replace = Path.replace
+            def acknowledge(path, target):
+                result = original_replace(path, target)
+                command = json.loads(target.read_text())
+                observed.append((target.parent.name, command['action']))
+                (target.parent / 'weave-dual-ios-ack.json').write_text(json.dumps({**command, 'status': 'passed'}))
+                return result
+            @contextlib.contextmanager
+            def browser(scope, env):
+                self.assertEqual(scope, scopes['A'])
+                self.assertEqual(observed[-1], ('B', 'expiry-refresh'))
+                observed.append(('A', 'browser-attached'))
+                yield
+                self.assertEqual(observed[-1], ('A', 'logout'))
+                observed.append(('A', 'browser-completed'))
+            with mock.patch.object(dual.ios, 'simulator_app_pid', side_effect=lambda role: role + '-pid'), \
+                 mock.patch.object(dual, 'authorize_ui_resources', return_value={}), \
+                 mock.patch.object(dual, 'owned_logout_driver', side_effect=browser) as driver, \
+                 mock.patch.object(Path, 'replace', acknowledge), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                result = dual.run_ui_commands(scopes, [], {}, {}, phase='restore')
+            driver.assert_called_once_with(scopes['A'], {})
+            logout_index = observed.index(('A', 'logout'))
+            self.assertEqual(observed[logout_index-1:logout_index+3],
+                             [('A', 'browser-attached'), ('A', 'logout'), ('A', 'browser-completed'), ('B', 'peer-logout-independent')])
+            self.assertTrue(result['currentGrantRevocation']['uiReadback'])
+
     def test_driver_fixture_transport_reuses_one_private_file_outside_bundles(self):
         for version in (1, 2):
             with self.subTest(version=version), tempfile.TemporaryDirectory() as temporary:

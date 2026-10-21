@@ -2496,7 +2496,7 @@
   "@chatErrorTitle": {
     "description": "Friendly error-state title shown when the chat list cannot load"
   },
-  "chatConversationNoPreview": "No recent messages",
+  "chatConversationNoPreview": "Open conversation",
   "@chatConversationNoPreview": {
     "description": "Fallback preview text for a conversation without a recent event"
   },
@@ -2689,6 +2689,10 @@
   "chatRoomArchivedEmptyGuidance": "Review archived messages to restore one, or wait here for new messages.",
   "@chatRoomArchivedEmptyGuidance": {
     "description": "Guidance shown when all loaded messages are archived from the active timeline"
+  },
+  "chatRoomDetailsAction": "Room details",
+  "@chatRoomDetailsAction": {
+    "description": "Expandable room details containing explicitly captured decisions and evidence."
   },
   "chatDecisionEvidencePanelTitle": "Decisions, risks, questions, and evidence",
   "@chatDecisionEvidencePanelTitle": {

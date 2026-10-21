@@ -1,5 +1,263 @@
 # Release qualification implementation progress for #1592
 
+## October 21 UTC: reuse native browser handling for dual-client logout
+
+The frozen local reproduction `local-ios-focus-20261021-0133`, source
+`c812ca8c81f8ac45e9e4a8dd7719b1d24fbf4335`, tree
+`748cbbb7da629291a67ce48da38c114fd851f25c`, passed actions 1–35. Both real
+Flutter apps completed independent PKCE, two-way Chat, Calendar and Files UI
+exchange, current-grant readback after revocation/regrant, network recovery,
+process restoration and actual bearer expiry/refresh. A36 then failed waiting
+for sign-in after tapping Sign out. All seven final aggregates and required
+cryptographic proof remained not-run; this is not release qualification.
+The original result reports cleanup complete; independent inventories found zero
+owned containers, networks, volumes or named simulators. Eighteen original
+private diagnostics/result/teardown files were retained with hashes.
+
+The production sign-out path clears the local OIDC session and opens AppAuth's
+system-browser end-session flow. Unlike the single-client runner, the dual
+coordinator did not start its existing native browser driver for this action.
+The narrow correction attaches that same driver's restore mode to A's existing
+process before publishing the Flutter logout command. Flutter still operates
+the real Settings control and verifies local logout, revoked bearer/device
+rejection and the peer's independent session. The driver supplies native consent
+and observes the real return; it never injects a callback, token or pass result.
+No product session contract, timeout, generated API or provider/configuration
+boundary changes. The bounded owner retains private diagnostics, verifies exact
+XCTest completion with no skips, rechecks process identity and reaps the driver
+on success and failure while preserving the first Flutter failure.
+
+Runner regressions cover missing/wrong process or plan, delayed/failed attachment,
+missing/duplicate/skipped completion, child failure/timeout, process replacement,
+and original-failure preservation during cleanup. These are harness boundary
+checks; the real dual-iOS run and protected exact-candidate qualification remain
+mandatory before deployment or HIL.
+
+
+## October 21 UTC: shared File relationships use current scope, not creator alone
+
+The previously recorded B33 native exchange was traced to candidate selection, not File
+payload loss or proof that regrant deleted a relationship. The Space relationship
+query selected only rows whose creator matched the reader. A's explicitly shared
+File remained readable by authorized B through the generated Files API, but the
+relationship candidate query omitted it even before any revocation. The accepted
+Files shared-workspace contract makes creator provenance rather than the sole
+access rule for explicitly shared objects; private owner-only Files remain private.
+
+The smallest correction selects `SPACE` resources or the caller's `PRIVATE`
+resources within the same organization, Space, ACTIVE lifecycle, stable cursor
+and bounded limit. The existing Space relationship service still requires current
+organization admission and Space VIEW, then performs owning-domain File inspect
+for each candidate, including active binding and resource checks. No schema,
+public API, provider, identity or configuration mechanism changes. Unknown scopes
+are not selected. The existing repository port comment now states the candidate
+boundary explicitly.
+
+A real PostgreSQL/Flyway/JPA regression failed against the old query before any
+revocation: B's own private/shared rows appeared, but A's shared row was absent.
+The corrected repository/migration suite passed three tests, including both
+creators' private/shared rows, foreign organization/Space, tombstone exclusion,
+ordering, limit and cursor. The existing real Spring/native-Files/PostgreSQL
+integration passed two tests for binary/validator/private/current-grant behavior.
+Ten focused Space relationship service tests passed; the standard task also
+executed twelve existing Cucumber checks, all passing. Fixture JWTs and mocked
+decoder/policy ports in these component tests do not prove JWT validation or live
+Keycloak authentication. Original RED report/log and GREEN reports are retained.
+Independent source review found no blocking findings.
+
+These direct regressions reproduce the relevant boundary without another full
+native run solely to locate the missing relation. No timing percentage is inferred
+from the cold 42-second RED build versus warm 26-second GREEN run. Full native
+regrant, all seven dual-iOS aggregates, mandatory macOS, protected exact-candidate
+Compose qualification, deployment, physical preparation and explicit HIL remain
+required on the integrated source. No earlier partial results are stitched across
+changed candidates.
+
+After local verification, only this isolated backend checkout's whole inactive
+compiler target was removed under ownership, source-clean, ignored-path and
+no-open-file guards: approximately 785 MiB allocated, with observed available
+storage 20.308 → 20.932 GiB. Reports, original diagnostics, native qualification
+caches, TLS/secrets, persistent Dogfood, Git and CI evidence were preserved.
+
+
+## October 21 UTC: keep real conversations and messages primary on phones
+
+[PR #1659](https://github.com/masssi164/weave/pull/1659) merged into Dev
+`ba84c4f942f01af50b5c7891be2021723a4da6a3`, tree
+`00567ed4169a2cecb648d50d4806a88a96840ec3`, with accepted corpus
+`92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de` unchanged. Its
+[Core CI](https://github.com/masssi164/weave/actions/runs/39515864483) passed.
+This integrates the input/history harness repairs below, not native acceptance.
+
+A subsequent isolated inspection kept two independent real Flutter iOS apps and
+their common real stack warm. Both users independently completed system-browser
+PKCE and reached their own workspace. A created a conversation and sent content;
+B received it and replied; A received the reply. After A's process restart, its
+own session restored and actual timeline drags exposed the original ordered
+messages beneath newer content. This was exploratory interaction, followed by
+mixed-source Dart iteration, not a frozen-candidate qualification run. All seven
+final aggregates remain not-run. The owned stack, two simulators and processes
+were closed; independent inventories were zero. Startup, operation receipts,
+passive observations and terminal result are retained privately. No password or
+browser transcript is published. One post-relaunch host accessibility-export
+observation remains unresolved; framework semantics getters alone do not prove
+native accessibility or physical VoiceOver acceptance.
+
+The bounded client correction removes the duplicate Chat overview hero and empty
+Favorites section. Populated favorites, personal messages, channels, unread
+metadata, creation, invitations, admission, errors and recovery remain. Explicitly
+captured room decisions/evidence remain available through a localized, collapsed
+standard Room details disclosure and the existing channel Decisions tab. Its
+scrolling area shares remaining space with the timeline after the composer,
+instead of reserving a percentage of the entire room. The composer placeholder
+uses one line; typed messages retain the existing four-line allowance. When the
+native list has no preview, the row says Open conversation rather than claiming
+that a retained conversation has no recent messages. No extra history fetch,
+client, authentication state or configuration mechanism is introduced.
+
+Compact interaction defect record (ISO 9241-110 principles, not certification):
+
+| Principle / task | Conditions and reproduction | Expected / actual before correction | Severity and correction | Verification |
+| --- | --- | --- | --- | --- |
+| Task suitability, learnability; member opens a conversation | 402×874 logical phone, EN/DE, text scale 1 and 2; one real room in the list | First conversation discoverable without passing duplicate overview/empty sections; previously below the initial viewport | Discoverability defect; remove duplicate hero and empty categories, retain populated groups | Four phone widget cases actually tap the row, open its saved identity and read the timeline |
+| Controllability, task suitability; member reads and composes | Same phone, EN/DE, scale 1/2, keyboard inset 0/350; expand/collapse details with a draft | Messages and Send remain operable and draft survives; verbose context and multiline placeholder previously obscured the primary task | Mandatory interaction/accessibility blocker at increased scale; collapsed localized disclosure, flexible detail scrolling and single-line placeholder | Eight phone cases assert hit testing, semantic tap action, real timeline scroll when needed, preserved draft and actual repository send/readback; no overflow |
+| Self-descriptiveness; member opens retained native history | Native conversation has no preview but contains messages | Absence of preview must not claim absence of history; old fallback said No recent messages | Misleading state; localized neutral Open conversation fallback | Four phone cases open a no-preview row and render retained history; actual warm inspection independently observed retained history |
+
+All 12 new phone cases failed against the previous presentation. The corrected
+Chat screen, room and existing dual harness suites passed **134 tests** in one
+focused run, retaining authorization, draft isolation, retry, archive, provenance,
+chronology and negative harness cases. Fixtures now use populated lists/longer
+history where the regression specifically requires offscreen or lazy content;
+they do not create outcomes for the real native scenarios. These are widget and
+harness responsibilities, not backend or native collaboration proof. The next
+frozen source still requires all seven real dual-iOS aggregates and the protected
+Compose/macOS gates before deployment, physical preparation or HIL.
+
+The first feature CI failed because the existing Home daily-loop mapping still
+required literal copy from the removed Chat hero. Both acceptance conformance and
+its client mapping regression reported the same three missing fragments. The
+mapping now names the actual Home cross-app/semantic test and retained Chat
+populated-group/unread behavior. It preserves the scenario and evidence mode;
+it does not restore duplicate UI or turn offline evidence into runtime proof.
+
+Focused real dual run `local-ios-focus-20261021-0049` on feature
+`a83bbd5b7bb00472df774906c47775a04ac18c47` passed 32 initial/restored UI actions:
+independent native PKCE, two-way Chat, shared Calendar create/update/cancel/delete,
+native Files upload/save/cancel/replace and peer content, independent network
+recovery, background send/catch-up, and both process-restored history readbacks.
+It then failed before B's grant-revocation readback: the existing generated Space
+journey reported **Stable File relation was lost after Space regrant**. All seven
+final aggregates, including required encryption qualification, remained not-run.
+No partial action success becomes acceptance. Cleanup completed and independent
+owned container/network/volume/simulator/process inventories were zero; 20
+original diagnostics were retained. A separate focused relationship diagnosis is
+required before another protected candidate. This run does not qualify the
+subsequently corrected mapping revision or replace mandatory macOS coverage.
+
+Storage after owned inspection cleanup was 21 GiB free. Warm compiler caches,
+original CI evidence, reviewed TLS and persistent Dogfood were preserved. No
+additional persistent reset occurred. Existing comparable generation timings
+below remain the bounded velocity evidence; this presentation correction claims
+no new whole-CI percentage improvement.
+
+## October 20 UTC: locate the background-send failure before another promotion
+
+[#1657](https://github.com/masssi164/weave/pull/1657) integrated the bounded
+same-member admission refresh repair. Normal [promotion #1658](https://github.com/masssi164/weave/pull/1658)
+produced frozen Dogfood `7180e00446ac48cf125dd43d75eedf393f16bc6b`, tree
+`8daa2d2d07f0687ca3ce6cd18b7a7aac6dc8d3b0`, with unchanged accepted corpus
+`92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`. Its
+[Full qualification](https://github.com/masssi164/weave/actions/runs/39501934667)
+failed in 34m56s. macOS passed. Both independent real iOS apps authenticated and
+completed actions 1–26, then B's background-send action failed. All seven final
+aggregates remained not-run and deployment was skipped. The
+[support-safe artifact](https://github.com/masssi164/weave/actions/runs/39501934667/artifacts/12303049582)
+and original private native logs are retained. Nested dual cleanup=true and
+outer cleanup=false remain distinct; independent exact-scope container, network,
+volume and simulator inventories were zero. No physical, HIL or Main result is
+inferred.
+
+Three read-only observations bound to the live candidate, app process and loaded
+source found B's expected message absent from its four-message model, with no
+pending send, the room visible and foregrounded, and access not denied. The
+receive request completed between observations. These are diagnostic snapshots,
+not qualification or proof that the send reached the server. In particular,
+composer-empty alone cannot establish successful input, send or persistence.
+Unassociated scroll positions were not attributed to the room. The source of
+missing input or missing history/projection remains under investigation.
+
+A focused Flutter regression reproduced lost input after the platform closes its
+connection while the test binding still remembers the same editor. Both accepted
+and denied-send cases failed before the repository was called. The pinned
+Flutter binding requests a keyboard only when its remembered editor changes;
+reassigning the same editor does not reopen the closed connection. The existing
+dual-iOS helper now actually taps the composer to reacquire current native input,
+verifies that keyboard entry reached it, then rechecks immediately before the real
+Send tap. It does not
+retry or write the controller directly. Failure reports may read existing cached
+native receive counters through the current stored profile, with before/after
+binding checks and a five-second diagnostic bound. They do not restore auth,
+synchronize, request history or acquire another cursor owner. Counts describe the
+last profile-level receive observation, not a particular sent event. The existing
+Python relay accepts only complete fixed boolean/count records, excluding private
+fields, reasons and trailing text. Original failures survive diagnostic failure.
+
+The lost-input regression failed with the previous helper behavior; the corrected
+harness passed 41 tests, including both closed-connection cases, delayed successful
+and denied sends, and input loss that must never tap Send. The native diagnostic
+relay passed 78 tests and dual-runner contracts passed 41 tests. Changed-file
+analysis passed after correcting one interpolation lint. These are
+harness regressions, not executed native acceptance or a claim that the protected
+background-send failure is fixed. The focused real dual-iOS reproduction and
+remaining checks follow before another candidate promotion. Any changed source
+requires fresh complete protected qualification.
+
+The first focused local attempt on `97c092a4ff22ec5675eae899a066c4a45182f5a3`
+failed before apps started: local storage cleanup removed compiler outputs while
+cached hook/build metadata still referenced them. The original build failure was
+retained; matching inactive iOS cache metadata was invalidated. A pinned simulator
+build then passed, with actual arm64 and x86_64 native libraries verified. This
+was an operator cache-recovery failure, not a product test result.
+
+The fresh focused run `local-ios-focus-20261020-2247` passed 30 real UI actions,
+including B's background send and A's foreground catch-up, before failing at A's
+restored-product readback. The restored session reached Chat, but the harness
+immediately tapped the saved conversation title after seeing the create button;
+the title was not yet in the widget tree. All seven final aggregates remained
+not-run. Native cleanup completed, and independent owned-resource inventories
+were zero. Original private logs and results remain separate from qualification.
+
+Restore readback now reuses the existing actual room-entry helper: navigate to
+Chat, wait for the real room list, open the conversation and verify its saved
+stable ID under the existing action deadline. Persisted message/file assertions
+remain unchanged. Existing delayed re-entry regressions passed in English and
+German, and changed-file analysis passed. Fresh real restored-product execution
+and complete protected qualification are still required; the prior 30 actions
+are not a final aggregate pass and will not be stitched into another candidate.
+
+The fresh focused replay `local-ios-focus-20261020-2308`, on clean
+`c630d87a610447267fbc0e70c75e61bed211da46`, again completed 30 initial UI
+actions. Both applications restored their own sessions, and the corrected room
+entry opened A's saved conversation. The next wait failed because the two oldest
+message widgets were not found. All seven final aggregates remained not-run.
+Twenty original logs/receipts were retained, native cleanup completed and
+independent container, network, volume, simulator and known-process inventories
+were zero. [Current-head Core CI](https://github.com/masssi164/weave/actions/runs/39513053518)
+and its release-label gate passed; neither result qualifies native recovery.
+
+A phone-sized regression reproduced the same oldest-message lookup failure with
+all five expected messages supplied to the actual Chat widget. Its reversed lazy
+list does not initially build the oldest row. This demonstrates a harness
+assumption, not absence from the native message model. Restore verification now
+scrolls the actual room timeline to the oldest pair, checks their rendered order
+while both are visible, then reads each newer retained message. Saved room identity,
+the original action deadline, bounded gestures, actual visible controls and the
+existing Files identity/version/content assertions remain required. No history,
+cryptography, authentication or product API behavior was changed. The complete
+harness passed 51 tests, including English/German missing, reordered, wrong-room
+and expired-deadline failures. Fresh real native verification remains pending;
+no earlier partial actions are transferred to the changed candidate.
+
 ## October 20: admit a refreshed member without rebasing authority
 
 [Promotion #1656](https://github.com/masssi164/weave/pull/1656) produced Dogfood

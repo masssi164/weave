@@ -2084,7 +2084,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatErrorTitle => 'Chat ist gerade nicht verfügbar';
 
   @override
-  String get chatConversationNoPreview => 'Keine aktuellen Nachrichten';
+  String get chatConversationNoPreview => 'Unterhaltung öffnen';
 
   @override
   String get chatConversationEncryptedPreview => 'Verschlüsselte Nachricht';
@@ -2256,6 +2256,9 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get chatRoomArchivedEmptyGuidance =>
       'Prüfe die archivierten Nachrichten, um eine wiederherzustellen, oder warte hier auf neue Nachrichten.';
+
+  @override
+  String get chatRoomDetailsAction => 'Raumdetails';
 
   @override
   String get chatDecisionEvidencePanelTitle =>
