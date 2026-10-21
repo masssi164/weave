@@ -1,5 +1,103 @@
 # Release qualification implementation progress for #1592
 
+## October 20 UTC: locate the background-send failure before another promotion
+
+[#1657](https://github.com/masssi164/weave/pull/1657) integrated the bounded
+same-member admission refresh repair. Normal [promotion #1658](https://github.com/masssi164/weave/pull/1658)
+produced frozen Dogfood `7180e00446ac48cf125dd43d75eedf393f16bc6b`, tree
+`8daa2d2d07f0687ca3ce6cd18b7a7aac6dc8d3b0`, with unchanged accepted corpus
+`92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de`. Its
+[Full qualification](https://github.com/masssi164/weave/actions/runs/39501934667)
+failed in 34m56s. macOS passed. Both independent real iOS apps authenticated and
+completed actions 1–26, then B's background-send action failed. All seven final
+aggregates remained not-run and deployment was skipped. The
+[support-safe artifact](https://github.com/masssi164/weave/actions/runs/39501934667/artifacts/12303049582)
+and original private native logs are retained. Nested dual cleanup=true and
+outer cleanup=false remain distinct; independent exact-scope container, network,
+volume and simulator inventories were zero. No physical, HIL or Main result is
+inferred.
+
+Three read-only observations bound to the live candidate, app process and loaded
+source found B's expected message absent from its four-message model, with no
+pending send, the room visible and foregrounded, and access not denied. The
+receive request completed between observations. These are diagnostic snapshots,
+not qualification or proof that the send reached the server. In particular,
+composer-empty alone cannot establish successful input, send or persistence.
+Unassociated scroll positions were not attributed to the room. The source of
+missing input or missing history/projection remains under investigation.
+
+A focused Flutter regression reproduced lost input after the platform closes its
+connection while the test binding still remembers the same editor. Both accepted
+and denied-send cases failed before the repository was called. The pinned
+Flutter binding requests a keyboard only when its remembered editor changes;
+reassigning the same editor does not reopen the closed connection. The existing
+dual-iOS helper now actually taps the composer to reacquire current native input,
+verifies that keyboard entry reached it, then rechecks immediately before the real
+Send tap. It does not
+retry or write the controller directly. Failure reports may read existing cached
+native receive counters through the current stored profile, with before/after
+binding checks and a five-second diagnostic bound. They do not restore auth,
+synchronize, request history or acquire another cursor owner. Counts describe the
+last profile-level receive observation, not a particular sent event. The existing
+Python relay accepts only complete fixed boolean/count records, excluding private
+fields, reasons and trailing text. Original failures survive diagnostic failure.
+
+The lost-input regression failed with the previous helper behavior; the corrected
+harness passed 41 tests, including both closed-connection cases, delayed successful
+and denied sends, and input loss that must never tap Send. The native diagnostic
+relay passed 78 tests and dual-runner contracts passed 41 tests. Changed-file
+analysis passed after correcting one interpolation lint. These are
+harness regressions, not executed native acceptance or a claim that the protected
+background-send failure is fixed. The focused real dual-iOS reproduction and
+remaining checks follow before another candidate promotion. Any changed source
+requires fresh complete protected qualification.
+
+The first focused local attempt on `97c092a4ff22ec5675eae899a066c4a45182f5a3`
+failed before apps started: local storage cleanup removed compiler outputs while
+cached hook/build metadata still referenced them. The original build failure was
+retained; matching inactive iOS cache metadata was invalidated. A pinned simulator
+build then passed, with actual arm64 and x86_64 native libraries verified. This
+was an operator cache-recovery failure, not a product test result.
+
+The fresh focused run `local-ios-focus-20261020-2247` passed 30 real UI actions,
+including B's background send and A's foreground catch-up, before failing at A's
+restored-product readback. The restored session reached Chat, but the harness
+immediately tapped the saved conversation title after seeing the create button;
+the title was not yet in the widget tree. All seven final aggregates remained
+not-run. Native cleanup completed, and independent owned-resource inventories
+were zero. Original private logs and results remain separate from qualification.
+
+Restore readback now reuses the existing actual room-entry helper: navigate to
+Chat, wait for the real room list, open the conversation and verify its saved
+stable ID under the existing action deadline. Persisted message/file assertions
+remain unchanged. Existing delayed re-entry regressions passed in English and
+German, and changed-file analysis passed. Fresh real restored-product execution
+and complete protected qualification are still required; the prior 30 actions
+are not a final aggregate pass and will not be stitched into another candidate.
+
+The fresh focused replay `local-ios-focus-20261020-2308`, on clean
+`c630d87a610447267fbc0e70c75e61bed211da46`, again completed 30 initial UI
+actions. Both applications restored their own sessions, and the corrected room
+entry opened A's saved conversation. The next wait failed because the two oldest
+message widgets were not found. All seven final aggregates remained not-run.
+Twenty original logs/receipts were retained, native cleanup completed and
+independent container, network, volume, simulator and known-process inventories
+were zero. [Current-head Core CI](https://github.com/masssi164/weave/actions/runs/39513053518)
+and its release-label gate passed; neither result qualifies native recovery.
+
+A phone-sized regression reproduced the same oldest-message lookup failure with
+all five expected messages supplied to the actual Chat widget. Its reversed lazy
+list does not initially build the oldest row. This demonstrates a harness
+assumption, not absence from the native message model. Restore verification now
+scrolls the actual room timeline to the oldest pair, checks their rendered order
+while both are visible, then reads each newer retained message. Saved room identity,
+the original action deadline, bounded gestures, actual visible controls and the
+existing Files identity/version/content assertions remain required. No history,
+cryptography, authentication or product API behavior was changed. The complete
+harness passed 51 tests, including English/German missing, reordered, wrong-room
+and expired-deadline failures. Fresh real native verification remains pending;
+no earlier partial actions are transferred to the changed candidate.
+
 ## October 20: admit a refreshed member without rebasing authority
 
 [Promotion #1656](https://github.com/masssi164/weave/pull/1656) produced Dogfood

@@ -48,6 +48,7 @@ SAFE_PRODUCT_STAGES = {
     'refresh-passed', 'session-reopen-passed', 'app-state-restored',
     'process-restart-restored', 'expired-bearer-denied',
     'own-room-leave-denied', 'logout-denial-passed',
+    'chat-cached-receive-unavailable',
 }
 SAFE_BROWSER_STAGES = {
     'driver-started', 'sign-in-control-observed', 'sign-in-tapped', 'app-wait-started', 'app-observed', 'issuer-observed',
@@ -159,6 +160,21 @@ def emit_phase_stages(phase: str, flutter_output: str, browser_output: str) -> N
     if phase in {'initial', 'restore'}:
         for marker in onboarding_diagnostics(flutter_output):
             print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} {marker} supportSafe=true', flush=True)
+        # These describe input readback and the last cached profile receive,
+        # not an acknowledged event or room-specific delivery result.
+        chat_patterns = [
+            r'(?:flutter: )?(NATIVE_PRODUCT_STAGE phase=chat-send-input matchesExpected=(?:true|false))',
+            r'(?:flutter: )?(NATIVE_PRODUCT_STAGE phase=chat-cached-receive events=[0-9]{1,3} decrypted=[0-9]{1,3} unableToDecrypt=[0-9]{1,3} plaintext=[0-9]{1,3})',
+        ]
+        observed_chat = set()
+        for line in flutter_output.split('\n'):
+            for pattern in chat_patterns:
+                match = re.fullmatch(pattern, line)
+                if match and match[1] not in observed_chat:
+                    observed_chat.add(match[1])
+                    print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} {match[1]} supportSafe=true', flush=True)
+            if len(observed_chat) >= 6:
+                break
     patterns = [
         (flutter_output, r'NATIVE_PRODUCT_STAGE phase=[a-z-]+', SAFE_PRODUCT_STAGES),
         (browser_output, r'NATIVE_IOS_BROWSER_STAGE phase=[a-z-]+', SAFE_BROWSER_STAGES),
