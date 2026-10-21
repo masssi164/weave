@@ -53,6 +53,27 @@ harness responsibilities, not backend or native collaboration proof. The next
 frozen source still requires all seven real dual-iOS aggregates and the protected
 Compose/macOS gates before deployment, physical preparation or HIL.
 
+The first feature CI failed because the existing Home daily-loop mapping still
+required literal copy from the removed Chat hero. Both acceptance conformance and
+its client mapping regression reported the same three missing fragments. The
+mapping now names the actual Home cross-app/semantic test and retained Chat
+populated-group/unread behavior. It preserves the scenario and evidence mode;
+it does not restore duplicate UI or turn offline evidence into runtime proof.
+
+Focused real dual run `local-ios-focus-20261021-0049` on feature
+`a83bbd5b7bb00472df774906c47775a04ac18c47` passed 32 initial/restored UI actions:
+independent native PKCE, two-way Chat, shared Calendar create/update/cancel/delete,
+native Files upload/save/cancel/replace and peer content, independent network
+recovery, background send/catch-up, and both process-restored history readbacks.
+It then failed before B's grant-revocation readback: the existing generated Space
+journey reported **Stable File relation was lost after Space regrant**. All seven
+final aggregates, including required encryption qualification, remained not-run.
+No partial action success becomes acceptance. Cleanup completed and independent
+owned container/network/volume/simulator/process inventories were zero; 20
+original diagnostics were retained. A separate focused relationship diagnosis is
+required before another protected candidate. This run does not qualify the
+subsequently corrected mapping revision or replace mandatory macOS coverage.
+
 Storage after owned inspection cleanup was 21 GiB free. Warm compiler caches,
 original CI evidence, reviewed TLS and persistent Dogfood were preserved. No
 additional persistent reset occurred. Existing comparable generation timings

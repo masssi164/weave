@@ -250,12 +250,21 @@
           ]
         },
         {
+          "path": "client/test/features/home/home_screen_test.dart",
+          "fragments": [
+            "renders product center sections and cross-app summaries",
+            "Planning sync",
+            "Workspace status",
+            "find.bySemanticsLabel"
+          ]
+        },
+        {
           "path": "client/test/features/chat/chat_screen_test.dart",
           "fragments": [
-            "Your organization workspace",
-            "3 unread items",
+            "groups conversations into favorites, personal messages, and channels",
+            "keeps unread recent room metadata within the tile",
             "Personal messages",
-            "Open next work item"
+            "Channels"
           ]
         }
       ],
