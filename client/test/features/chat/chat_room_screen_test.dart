@@ -7,6 +7,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/core/theme/app_theme.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
@@ -192,6 +193,176 @@ void main() {
         (ref) => store ?? InMemoryPreferencesStore(),
       ),
     ];
+  }
+
+  for (final locale in ['en', 'de']) {
+    for (final scale in [1.0, 2.0]) {
+      for (final keyboard in [0.0, 350.0]) {
+        testWidgets(
+          'phone Chat keeps context optional and the composer usable; $locale $scale $keyboard',
+          (tester) async {
+            tester.view.physicalSize = const Size(1206, 2622);
+            tester.view.devicePixelRatio = 3;
+            tester.view.viewInsets = FakeViewPadding(bottom: keyboard * 3);
+            addTearDown(tester.view.resetPhysicalSize);
+            addTearDown(tester.view.resetDevicePixelRatio);
+            addTearDown(tester.view.resetViewInsets);
+            const directConversation = ChatConversation(
+              id: '!room:home.internal',
+              title: 'Project',
+              previewType: ChatConversationPreviewType.text,
+              unreadCount: 2,
+              isInvite: false,
+              isDirectMessage: true,
+            );
+            final semantics = tester.ensureSemantics();
+            try {
+              final messages = List<ChatMessage>.of(buildTimeline().messages);
+              final repository = FakeChatRepository(
+                loadRoomTimelineHandler: (_) async =>
+                    buildTimeline(messages: List.of(messages)),
+                sendMessageHandler:
+                    ({required roomId, required message}) async {
+                      expect(roomId, conversation.id);
+                      messages.add(
+                        ChatMessage(
+                          id: 'owned-sent-message',
+                          senderId: 'owned-self',
+                          senderDisplayName: 'Owned author',
+                          sentAt: DateTime(2026),
+                          isMine: true,
+                          deliveryState: ChatMessageDeliveryState.sent,
+                          contentType: ChatMessageContentType.text,
+                          text: message,
+                        ),
+                      );
+                    },
+              );
+              await tester.pumpWidget(
+                ProviderScope(
+                  overrides: [
+                    chatRepositoryProvider.overrideWithValue(repository),
+                    preferencesStoreProvider.overrideWith(
+                      (ref) => InMemoryPreferencesStore(),
+                    ),
+                  ],
+                  child: MaterialApp(
+                    theme: AppTheme.light,
+                    locale: Locale(locale),
+                    localizationsDelegates:
+                        AppLocalizations.localizationsDelegates,
+                    supportedLocales: AppLocalizations.supportedLocales,
+                    builder: (context, child) => MediaQuery(
+                      data: MediaQuery.of(
+                        context,
+                      ).copyWith(textScaler: TextScaler.linear(scale)),
+                      child: child!,
+                    ),
+                    home: Scaffold(
+                      body: const ChatRoomScreen(
+                        conversation: directConversation,
+                      ),
+                      bottomNavigationBar: NavigationBar(
+                        destinations: [
+                          NavigationDestination(
+                            icon: const Icon(Icons.home_outlined),
+                            label: locale == 'de' ? 'Start' : 'Home',
+                          ),
+                          const NavigationDestination(
+                            icon: Icon(Icons.chat_bubble_outline),
+                            label: 'Chat',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+              await tester.pumpAndSettle();
+              final copy = AppLocalizations.of(
+                tester.element(find.byType(ChatRoomScreen)),
+              );
+              final disclosure = find.byKey(
+                const Key('chat-room-context-disclosure'),
+              );
+              final toggle = find.descendant(
+                of: disclosure,
+                matching: find.byType(ListTile),
+              );
+              final composer = find.byType(TextField);
+              final send = find.widgetWithText(
+                FilledButton,
+                copy.chatRoomSendButton,
+              );
+              expect(send.hitTestable(), findsOneWidget);
+              // A large bubble can exceed the keyboard viewport. Read it through
+              // the actual timeline without compromising the composer controls.
+              if (find.text('Hey there').hitTestable().evaluate().isEmpty) {
+                final timeline = find.byWidgetPredicate(
+                  (widget) => widget is ListView && widget.reverse,
+                );
+                final scrollable = find.descendant(
+                  of: timeline,
+                  matching: find.byType(Scrollable),
+                );
+                expect(scrollable, findsOneWidget);
+                await tester.drag(scrollable, const Offset(0, 120));
+                await tester.pumpAndSettle();
+              }
+              expect(
+                find.text('Hey there').hitTestable(),
+                findsOneWidget,
+                reason:
+                    'Message bounds ${tester.getRect(find.text('Hey there'))}; composer ${tester.getRect(composer)}; context ${tester.getRect(disclosure)}; view ${tester.view.physicalSize / tester.view.devicePixelRatio}',
+              );
+              expect(
+                find.text(copy.chatDecisionEvidenceEmptyState),
+                findsNothing,
+              );
+              expect(
+                find.bySemanticsLabel(RegExp('audit://chat/')),
+                findsNothing,
+              );
+              expect(toggle.hitTestable(), findsOneWidget);
+              _expectSemanticTapAction(
+                tester,
+                toggle,
+                label: copy.chatRoomDetailsAction,
+              );
+              await tester.enterText(composer, 'Retained draft');
+              await tester.tap(toggle);
+              await tester.pumpAndSettle();
+              expect(
+                find.text(copy.chatDecisionEvidenceEmptyState),
+                findsOneWidget,
+              );
+              expect(send.hitTestable(), findsOneWidget);
+              expect(
+                tester.widget<TextField>(composer).controller!.text,
+                'Retained draft',
+              );
+              await tester.tap(toggle);
+              await tester.pumpAndSettle();
+              expect(
+                find.text(copy.chatDecisionEvidenceEmptyState),
+                findsNothing,
+              );
+              expect(find.text('Hey there').hitTestable(), findsOneWidget);
+              expect(send.hitTestable(), findsOneWidget);
+              await tester.tap(send);
+              await tester.pumpAndSettle();
+              expect(repository.sendMessageCalls, 1);
+              expect(find.text('Retained draft').hitTestable(), findsOneWidget);
+              expect(tester.takeException(), isNull);
+              await tester.pumpWidget(const SizedBox.shrink());
+              await tester.pump(const Duration(seconds: 1));
+            } finally {
+              semantics.dispose();
+            }
+          },
+        );
+      }
+    }
   }
 
   for (final denied in [false, true]) {
@@ -909,6 +1080,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Hey there').hitTestable(), findsOneWidget);
+    final details = find.descendant(
+      of: find.byKey(const Key('chat-room-context-disclosure')),
+      matching: find.byType(ListTile),
+    );
+    await tester.tap(details);
+    await tester.pumpAndSettle();
+
     expect(find.text('Project'), findsAtLeastNWidgets(1));
     expect(
       find.text('Decisions, risks, questions, and evidence'),
@@ -1080,6 +1259,13 @@ void main() {
     await tester.tap(find.byTooltip('Message actions'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Capture as decision'));
+    await tester.pumpAndSettle();
+
+    final details = find.descendant(
+      of: find.byKey(const Key('chat-room-context-disclosure')),
+      matching: find.byType(ListTile),
+    );
+    await tester.tap(details);
     await tester.pumpAndSettle();
 
     expect(find.text('Decision Ledger'), findsOneWidget);

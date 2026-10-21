@@ -509,7 +509,7 @@ class _ChatErrorState extends StatelessWidget {
   }
 }
 
-class _ChatOverviewSliver extends ConsumerWidget {
+class _ChatOverviewSliver extends StatelessWidget {
   const _ChatOverviewSliver({
     required this.conversations,
     required this.onOpenConversation,
@@ -519,7 +519,7 @@ class _ChatOverviewSliver extends ConsumerWidget {
   final ValueChanged<ChatConversation> onOpenConversation;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final overview = ChatOverview.fromConversations(conversations);
     return SliverToBoxAdapter(
@@ -528,197 +528,43 @@ class _ChatOverviewSliver extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Semantics(
-              header: true,
-              child: Text(
-                l10n.chatOverviewTitle,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              l10n.chatOverviewDescription,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 20),
-            _ChatHomeHeroCard(
-              overview: overview,
-              onOpenConversation: onOpenConversation,
-            ),
-            const SizedBox(height: 20),
-            _ChatOverviewSection(
-              title: l10n.chatFavoritesSectionTitle,
-              countLabel: l10n.chatOverviewSectionCount(
-                overview.favorites.length,
-              ),
-              description: l10n.chatFavoritesSectionDescription,
-              emptyMessage: l10n.chatFavoritesSectionEmpty,
-              icon: Icons.star_outline,
-              conversations: overview.favorites,
-              onOpenConversation: onOpenConversation,
-            ),
-            const SizedBox(height: 20),
-            _ChatOverviewSection(
-              title: l10n.chatPersonalMessagesSectionTitle,
-              countLabel: l10n.chatOverviewSectionCount(
-                overview.personalMessages.length,
-              ),
-              description: l10n.chatPersonalMessagesSectionDescription,
-              emptyMessage: l10n.chatPersonalMessagesSectionEmpty,
-              icon: Icons.person_outline,
-              conversations: overview.personalMessages,
-              onOpenConversation: onOpenConversation,
-            ),
-            const SizedBox(height: 20),
-            _ChatOverviewSection(
-              title: l10n.chatChannelsSectionTitle,
-              countLabel: l10n.chatOverviewSectionCount(
-                overview.channels.length,
-              ),
-              description: l10n.chatChannelsSectionDescription,
-              emptyMessage: l10n.chatChannelsSectionEmpty,
-              icon: Icons.tag,
-              conversations: overview.channels,
-              onOpenConversation: onOpenConversation,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ChatHomeHeroCard extends StatelessWidget {
-  const _ChatHomeHeroCard({
-    required this.overview,
-    required this.onOpenConversation,
-  });
-
-  final ChatOverview overview;
-  final ValueChanged<ChatConversation> onOpenConversation;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final nextConversation = overview.nextConversation;
-    return Semantics(
-      container: true,
-      explicitChildNodes: true,
-      child: Card(
-        elevation: 0,
-        color: theme.colorScheme.primaryContainer,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: theme.colorScheme.primary),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.dashboard_customize_outlined,
-                    color: theme.colorScheme.onPrimaryContainer,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.chatHomeHeroTitle,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: theme.colorScheme.onPrimaryContainer,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          l10n.chatHomeHeroDescription,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onPrimaryContainer,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _ChatHomeMetricChip(
-                    icon: Icons.mark_unread_chat_alt_outlined,
-                    label: l10n.chatHomeUnreadMetric(overview.unreadCount),
-                  ),
-                  _ChatHomeMetricChip(
-                    icon: Icons.tag,
-                    label: l10n.chatHomeChannelsMetric(
-                      overview.channels.length,
-                    ),
-                  ),
-                  _ChatHomeMetricChip(
-                    icon: Icons.person_outline,
-                    label: l10n.chatHomePeopleMetric(
-                      overview.personalMessages.length,
-                    ),
-                  ),
-                ],
-              ),
-              if (nextConversation != null) ...[
-                const SizedBox(height: 16),
-                Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: FilledButton.icon(
-                    onPressed: () => onOpenConversation(nextConversation),
-                    icon: const Icon(Icons.arrow_forward),
-                    label: Text(l10n.chatHomeContinueButton),
-                  ),
+            if (overview.favorites.isNotEmpty)
+              _ChatOverviewSection(
+                title: l10n.chatFavoritesSectionTitle,
+                countLabel: l10n.chatOverviewSectionCount(
+                  overview.favorites.length,
                 ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ChatHomeMetricChip extends StatelessWidget {
-  const _ChatHomeMetricChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+                icon: Icons.star_outline,
+                conversations: overview.favorites,
+                onOpenConversation: onOpenConversation,
               ),
-            ),
+            if (overview.favorites.isNotEmpty &&
+                overview.personalMessages.isNotEmpty)
+              const SizedBox(height: 20),
+            if (overview.personalMessages.isNotEmpty)
+              _ChatOverviewSection(
+                title: l10n.chatPersonalMessagesSectionTitle,
+                countLabel: l10n.chatOverviewSectionCount(
+                  overview.personalMessages.length,
+                ),
+                icon: Icons.person_outline,
+                conversations: overview.personalMessages,
+                onOpenConversation: onOpenConversation,
+              ),
+            if ((overview.favorites.isNotEmpty ||
+                    overview.personalMessages.isNotEmpty) &&
+                overview.channels.isNotEmpty)
+              const SizedBox(height: 20),
+            if (overview.channels.isNotEmpty)
+              _ChatOverviewSection(
+                title: l10n.chatChannelsSectionTitle,
+                countLabel: l10n.chatOverviewSectionCount(
+                  overview.channels.length,
+                ),
+                icon: Icons.tag,
+                conversations: overview.channels,
+                onOpenConversation: onOpenConversation,
+              ),
           ],
         ),
       ),
@@ -730,8 +576,6 @@ class _ChatOverviewSection extends StatelessWidget {
   const _ChatOverviewSection({
     required this.title,
     required this.countLabel,
-    required this.description,
-    required this.emptyMessage,
     required this.icon,
     required this.conversations,
     required this.onOpenConversation,
@@ -739,8 +583,6 @@ class _ChatOverviewSection extends StatelessWidget {
 
   final String title;
   final String countLabel;
-  final String description;
-  final String emptyMessage;
   final IconData icon;
   final List<ChatConversation> conversations;
   final ValueChanged<ChatConversation> onOpenConversation;
@@ -762,7 +604,12 @@ class _ChatOverviewSection extends StatelessWidget {
               Expanded(
                 child: Semantics(
                   header: true,
-                  child: Text(title, style: theme.textTheme.titleLarge),
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
               DecoratedBox(
@@ -786,62 +633,17 @@ class _ChatOverviewSection extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            description,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+          const SizedBox(height: 12),
+          ...conversations.map(
+            (conversation) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _ConversationTile(
+                conversation: conversation,
+                onTap: () => onOpenConversation(conversation),
+              ),
             ),
           ),
-          const SizedBox(height: 12),
-          if (conversations.isEmpty)
-            _ChatOverviewEmptyCard(message: emptyMessage, icon: icon)
-          else
-            ...conversations.map(
-              (conversation) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _ConversationTile(
-                  conversation: conversation,
-                  onTap: () => onOpenConversation(conversation),
-                ),
-              ),
-            ),
         ],
-      ),
-    );
-  }
-}
-
-class _ChatOverviewEmptyCard extends StatelessWidget {
-  const _ChatOverviewEmptyCard({required this.message, required this.icon});
-
-  final String message;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      elevation: 0,
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

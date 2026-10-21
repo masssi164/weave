@@ -1,5 +1,64 @@
 # Release qualification implementation progress for #1592
 
+## October 21 UTC: keep real conversations and messages primary on phones
+
+[PR #1659](https://github.com/masssi164/weave/pull/1659) merged into Dev
+`ba84c4f942f01af50b5c7891be2021723a4da6a3`, tree
+`00567ed4169a2cecb648d50d4806a88a96840ec3`, with accepted corpus
+`92ef89141f2b58ed8dd507b6b3df15f7ffd5b1de` unchanged. Its
+[Core CI](https://github.com/masssi164/weave/actions/runs/39515864483) passed.
+This integrates the input/history harness repairs below, not native acceptance.
+
+A subsequent isolated inspection kept two independent real Flutter iOS apps and
+their common real stack warm. Both users independently completed system-browser
+PKCE and reached their own workspace. A created a conversation and sent content;
+B received it and replied; A received the reply. After A's process restart, its
+own session restored and actual timeline drags exposed the original ordered
+messages beneath newer content. This was exploratory interaction, followed by
+mixed-source Dart iteration, not a frozen-candidate qualification run. All seven
+final aggregates remain not-run. The owned stack, two simulators and processes
+were closed; independent inventories were zero. Startup, operation receipts,
+passive observations and terminal result are retained privately. No password or
+browser transcript is published. One post-relaunch host accessibility-export
+observation remains unresolved; framework semantics getters alone do not prove
+native accessibility or physical VoiceOver acceptance.
+
+The bounded client correction removes the duplicate Chat overview hero and empty
+Favorites section. Populated favorites, personal messages, channels, unread
+metadata, creation, invitations, admission, errors and recovery remain. Explicitly
+captured room decisions/evidence remain available through a localized, collapsed
+standard Room details disclosure and the existing channel Decisions tab. Its
+scrolling area shares remaining space with the timeline after the composer,
+instead of reserving a percentage of the entire room. The composer placeholder
+uses one line; typed messages retain the existing four-line allowance. When the
+native list has no preview, the row says Open conversation rather than claiming
+that a retained conversation has no recent messages. No extra history fetch,
+client, authentication state or configuration mechanism is introduced.
+
+Compact interaction defect record (ISO 9241-110 principles, not certification):
+
+| Principle / task | Conditions and reproduction | Expected / actual before correction | Severity and correction | Verification |
+| --- | --- | --- | --- | --- |
+| Task suitability, learnability; member opens a conversation | 402×874 logical phone, EN/DE, text scale 1 and 2; one real room in the list | First conversation discoverable without passing duplicate overview/empty sections; previously below the initial viewport | Discoverability defect; remove duplicate hero and empty categories, retain populated groups | Four phone widget cases actually tap the row, open its saved identity and read the timeline |
+| Controllability, task suitability; member reads and composes | Same phone, EN/DE, scale 1/2, keyboard inset 0/350; expand/collapse details with a draft | Messages and Send remain operable and draft survives; verbose context and multiline placeholder previously obscured the primary task | Mandatory interaction/accessibility blocker at increased scale; collapsed localized disclosure, flexible detail scrolling and single-line placeholder | Eight phone cases assert hit testing, semantic tap action, real timeline scroll when needed, preserved draft and actual repository send/readback; no overflow |
+| Self-descriptiveness; member opens retained native history | Native conversation has no preview but contains messages | Absence of preview must not claim absence of history; old fallback said No recent messages | Misleading state; localized neutral Open conversation fallback | Four phone cases open a no-preview row and render retained history; actual warm inspection independently observed retained history |
+
+All 12 new phone cases failed against the previous presentation. The corrected
+Chat screen, room and existing dual harness suites passed **134 tests** in one
+focused run, retaining authorization, draft isolation, retry, archive, provenance,
+chronology and negative harness cases. Fixtures now use populated lists/longer
+history where the regression specifically requires offscreen or lazy content;
+they do not create outcomes for the real native scenarios. These are widget and
+harness responsibilities, not backend or native collaboration proof. The next
+frozen source still requires all seven real dual-iOS aggregates and the protected
+Compose/macOS gates before deployment, physical preparation or HIL.
+
+Storage after owned inspection cleanup was 21 GiB free. Warm compiler caches,
+original CI evidence, reviewed TLS and persistent Dogfood were preserved. No
+additional persistent reset occurred. Existing comparable generation timings
+below remain the bounded velocity evidence; this presentation correction claims
+no new whole-CI percentage improvement.
+
 ## October 20 UTC: locate the background-send failure before another promotion
 
 [#1657](https://github.com/masssi164/weave/pull/1657) integrated the bounded

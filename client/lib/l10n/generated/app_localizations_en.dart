@@ -2055,7 +2055,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatErrorTitle => 'Chat is not available right now';
 
   @override
-  String get chatConversationNoPreview => 'No recent messages';
+  String get chatConversationNoPreview => 'Open conversation';
 
   @override
   String get chatConversationEncryptedPreview => 'Encrypted message';
@@ -2223,6 +2223,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chatRoomArchivedEmptyGuidance =>
       'Review archived messages to restore one, or wait here for new messages.';
+
+  @override
+  String get chatRoomDetailsAction => 'Room details';
 
   @override
   String get chatDecisionEvidencePanelTitle =>
