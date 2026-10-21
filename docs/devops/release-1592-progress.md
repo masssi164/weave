@@ -1,5 +1,51 @@
 # Release qualification implementation progress for #1592
 
+## October 21 UTC: shared File relationships use current scope, not creator alone
+
+The previously recorded B33 native exchange was traced to candidate selection, not File
+payload loss or proof that regrant deleted a relationship. The Space relationship
+query selected only rows whose creator matched the reader. A's explicitly shared
+File remained readable by authorized B through the generated Files API, but the
+relationship candidate query omitted it even before any revocation. The accepted
+Files shared-workspace contract makes creator provenance rather than the sole
+access rule for explicitly shared objects; private owner-only Files remain private.
+
+The smallest correction selects `SPACE` resources or the caller's `PRIVATE`
+resources within the same organization, Space, ACTIVE lifecycle, stable cursor
+and bounded limit. The existing Space relationship service still requires current
+organization admission and Space VIEW, then performs owning-domain File inspect
+for each candidate, including active binding and resource checks. No schema,
+public API, provider, identity or configuration mechanism changes. Unknown scopes
+are not selected. The existing repository port comment now states the candidate
+boundary explicitly.
+
+A real PostgreSQL/Flyway/JPA regression failed against the old query before any
+revocation: B's own private/shared rows appeared, but A's shared row was absent.
+The corrected repository/migration suite passed three tests, including both
+creators' private/shared rows, foreign organization/Space, tombstone exclusion,
+ordering, limit and cursor. The existing real Spring/native-Files/PostgreSQL
+integration passed two tests for binary/validator/private/current-grant behavior.
+Ten focused Space relationship service tests passed; the standard task also
+executed twelve existing Cucumber checks, all passing. Fixture JWTs and mocked
+decoder/policy ports in these component tests do not prove JWT validation or live
+Keycloak authentication. Original RED report/log and GREEN reports are retained.
+Independent source review found no blocking findings.
+
+These direct regressions reproduce the relevant boundary without another full
+native run solely to locate the missing relation. No timing percentage is inferred
+from the cold 42-second RED build versus warm 26-second GREEN run. Full native
+regrant, all seven dual-iOS aggregates, mandatory macOS, protected exact-candidate
+Compose qualification, deployment, physical preparation and explicit HIL remain
+required on the integrated source. No earlier partial results are stitched across
+changed candidates.
+
+After local verification, only this isolated backend checkout's whole inactive
+compiler target was removed under ownership, source-clean, ignored-path and
+no-open-file guards: approximately 785 MiB allocated, with observed available
+storage 20.308 → 20.932 GiB. Reports, original diagnostics, native qualification
+caches, TLS/secrets, persistent Dogfood, Git and CI evidence were preserved.
+
+
 ## October 21 UTC: keep real conversations and messages primary on phones
 
 [PR #1659](https://github.com/masssi164/weave/pull/1659) merged into Dev

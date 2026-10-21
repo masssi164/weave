@@ -14,7 +14,11 @@ public interface FilesUserResourceRepository {
 
     List<FilesUserResource> activeChildren(String organizationRef, String parentFileId);
 
-    /** Bounded materialized identities for the owning Space, never a provider browse result. */
+    /**
+     * Bounded materialized candidates: shared Space Files and the caller's private Files.
+     * The caller must still enforce current Space and owning-domain read authorization.
+     * Never a provider browse result.
+     */
     List<FilesUserResource> activeInSpace(
             String organizationRef, String spaceRef, String ownerPrincipalRef,
             String afterFileId, int limit);
