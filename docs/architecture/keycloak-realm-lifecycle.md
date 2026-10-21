@@ -1,6 +1,8 @@
 # Keycloak realm lifecycle
 
-Status: canonical implementation architecture for static IAM ownership, environment rendering, migration qualification, runtime lifecycle, and the boundary to Spring application configuration.
+Status: implementation guide for the Keycloak lifecycle defined by the pinned corpus
+`steering/devops-conformance.md`, ADR 0022, and human-testing acceptance. The pinned corpus is
+normative; this page describes its current implementation.
 
 ## Objective
 
@@ -20,14 +22,19 @@ For OAuth/OIDC, the public issuer is deliberately separate from internal transpo
 
 ## Source of truth
 
-The authoritative static IAM source lives under `infra/weave-workspace/keycloak`.
+The semantic realm baseline is `contracts/examples/keycloak-desired-state.valid.json` in the
+corpus selected by `specs/weave-specs.lock.json`. The versioned migration definition and stock
+client-scope import defaults live under `infra/weave-workspace/keycloak`. The environment renderer
+projects those reviewed inputs into the Keycloak import; it does not maintain a separate baseline.
 
 Candidate-level semantic identity consists of exactly two values:
 
 - `semanticRealmSourceDigest`: the normative semantic realm baseline revision from the pinned specification corpus;
 - `migrationDefinitionDigest`: the canonical digest of `infra/weave-workspace/keycloak/migration-definition.json`.
 
-No rendered `realm.json`, environment URL, SMTP endpoint, public JWKS value, candidate run id, or private secret contributes to candidate semantic identity.
+Environment URLs, SMTP coordinates and public JWKS are recorded separately in the environment
+render identity. A generated `weave-realm.json` or a live realm export is not a second source of
+truth. Candidate identity alone does not prove the configuration of an existing running realm.
 
 ## Environment projection
 
@@ -100,7 +107,10 @@ Server may consume the same Keycloak Admin REST anti-corruption layer used by mi
 
 ## Workload ownership
 
-Agent Runtime Control owns workload-cell lifecycle and per-cell workload identity. MCP remains workload-only and receives no realm-administration authority. Dynamic workload clients are not human users and must not share credentials or grants with human lifecycle administration.
+Where the optional workload lifecycle is enabled, Agent Runtime Control owns workload-cell
+lifecycle and per-cell workload identity. It is not a prerequisite for the native Dogfood baseline.
+MCP remains workload-only and receives no realm-administration authority. Dynamic workload clients
+are not human users and must not share credentials or grants with human lifecycle administration.
 
 ## Secret boundary
 
@@ -118,78 +128,108 @@ Generated realm and support-safe evidence must reject:
 - SecretRef payload values;
 - raw provider credentials or diagnostic payloads.
 
-## Fresh realm import
+## Development identity initialization
 
-For a proven-empty realm, Keycloak startup import establishes the static baseline. Startup import is not a reconciliation mechanism and is not used to update an existing realm.
+For `dev`, `dogfood`, and isolated `e2e`, stock Keycloak startup import is the complete static
+identity initialization. The renderer includes the required stock client scopes and native
+organization membership mapper in the import. The development projection adds only
+`manage-organizations` and `manage-users` to the private-key `weave-identity-admin` service
+account. The Server's existing closed human-lifecycle operation policy remains enforced.
+These development grants are forbidden in `prod`.
 
-After import, the bounded migration applies the declared FGAP policy and configures the existing native organization membership mapper to include its native ID. The supported Keycloak import order cannot express these operations safely. The migration must be explicit and idempotent. The isolated `testApp` lifecycle runs `e2e keycloak-migration-apply` after proving its namespace empty and before application startup; E2E and production startup both require its completed, digest-bound receipt. The temporary bootstrap authority is retired before the first product login.
+There is no post-import FGAP migration, temporary migration authority, backup prerequisite or
+production migration receipt in these development lanes. `testApp` creates its own absent,
+run-unique Compose namespace, proves real invitation/activation, PKCE and product behavior, then
+removes only that run's resources. It does not execute `e2e keycloak-migration-apply`.
 
-## Migration qualification
+Keycloak imports a realm only when it does not already exist. Ordinary startup skips an existing
+realm, so rerendering `keycloak/import/weave-realm.json` does not update its stored issuer,
+audiences, redirects, client URLs or role grants. A successful render is not live reconciliation.
 
-### Proven-empty Fresh Start
+## Resettable Dogfood
 
-A persistent Fresh Start is authorized by the exact approved Fresh-Start plan and apply evidence proving the retired generation was removed and the target generation is newly created.
+The supported operator entry points are root Gradle tasks:
 
-The new empty realm does not require a fabricated backup. Recovery evidence belongs to the retired generation before destructive cutover, not to the newly created empty realm.
+- `dogfoodUp` builds and starts the clean, exact checkout while preserving the session volumes;
+- `dogfoodDown` stops the stack and preserves the session volumes and external TLS;
+- `dogfoodReset` recreates the fixed `weave-dogfood` stack with empty PostgreSQL, native Files and
+  Mailpit session volumes, importing the current generated realm.
 
-### Disposable E2E
+The explicit reset discards Dogfood users and product data in those session volumes. It preserves
+the reviewed secret files and operator-owned CA, certificates and keys outside Docker volumes.
+Its preflight validates configuration, secret inputs and stable TLS before removal. The existing
+closed cleanup may also remove the known unlabeled OpenTofu-era Dogfood resources only after its
+name, network, mount and ownership checks pass; bind-mounted host directories are not targets.
 
-Disposable E2E may use the same static migration without durable backup only when machine-verifiable preflight proves the exact run-owned Docker namespace and resources do not yet exist. Profile name alone is insufficient.
+Reset and first-owner bootstrap share a session lock. After session resources have been removed,
+reset clears only the generated `owner-bootstrap/request-anchor.json` and
+`owner-bootstrap/evidence.json` records belonging to that discarded session. Unrelated diagnostics
+remain available, and ordinary up/down preserves the bootstrap records.
 
-The isolated E2E realm uses the canonical query-only identity-administration roles and the organization-scoped FGAP migration. It does not use the resettable dev/dogfood overlay's broad identity-administration roles; the explicit E2E phase now qualifies the same narrow authority required in production.
+These are resettable development sessions, not a promise to migrate an obsolete Dogfood identity
+or URL scheme. Use the existing reset when discarding stale session state; do not add legacy URL
+aliases, parallel realm files or a production-migration compatibility path. Ordinary startup does
+not reset data, and an import-file change never authorizes deleting a realm on its own. The bounded
+Dogfood reset has no Fresh Start plan, backup/restore rehearsal, deletion manifest or approval-token
+prerequisite. Production data is outside that boundary.
 
-### Existing persistent realm
+## Production migration
 
-A genuinely existing non-empty dogfood or production realm changes only through a versioned migration bound to:
+Production retains the restricted identity-administration model and its explicit, versioned FGAP
+migration. `keycloak-migration-apply` is production-only and requires verified private backup and
+isolated restore evidence. It must not be repurposed to repair a development realm.
 
-- current semantic baseline identity;
-- target semantic baseline identity;
-- migration-definition digest;
-- environment render evidence;
-- private backup evidence;
-- successful isolated restore rehearsal.
-
-Ambiguous or stale state fails closed before mutation.
-
-## Migration completion
-
-Every qualified migration path must prove:
-
-1. exact candidate semantic identity;
-2. exact environment render identity;
-3. allowlisted mutation only;
-4. semantic post-apply readback;
-5. an empty second plan;
-6. deletion of temporary bootstrap authority;
-7. negative readback proving bootstrap authority is gone;
-8. support-safe receipt evidence.
-
-Final `realmEvidence` binds:
-
-- `semanticRealmSourceDigest`;
-- `migrationDefinitionDigest`;
-- `overlayDigest`;
-- `renderedRealmDigest`;
-- `semanticReadbackDigest`;
-- `candidateRealmDefinitionMatched=true`;
-- `environmentRealmRenderStable=true`;
-- `semanticReadbackVerified=true`.
+A production migration binds the reviewed semantic definition, migration definition, environment
+render and candidate. It permits only the declared changes and requires semantic provider readback,
+an empty second plan, deletion of temporary bootstrap authority, negative readback proving that
+authority is gone, and a support-safe receipt. Missing, stale or ambiguous evidence fails closed.
+These production requirements do not become Dev, Dogfood, E2E or HIL prerequisites.
 
 ## Cross-environment comparison
 
 E2E, dogfood, and production are expected to render different concrete realm bytes because URLs, public JWKS, SMTP coordinates, and organization metadata may differ.
 
-Cross-environment comparison therefore requires only identical candidate semantic definition digests. Concrete `overlayDigest`, `renderedRealmDigest`, and `semanticReadbackDigest` are environment-specific.
+Cross-environment comparison uses the same candidate semantic definition. Concrete `overlayDigest`
+and `renderedRealmDigest` values are environment-specific. Production migration additionally has
+environment-specific semantic readback; development import provenance makes no such claim.
 
-Within one environment and candidate, repeated configure/install must converge to the same semantic/render identity.
+Within one environment and candidate, repeated rendering of unchanged inputs must produce the same
+semantic/render identity. This determinism does not prove that an existing realm consumed the import.
 
 ## Release and readiness evidence
 
-Candidate Manifest v4 binds only semantic realm identity and the three candidate runtime images: Server, MCP Server, and Keycloak Runtime.
+Where human-testing readiness evidence is emitted, schema version 6 records `realmEvidence` with
+`initializationMode=realm-import`, the two semantic-definition digests, `overlayDigest`,
+`renderedRealmDigest`, `candidateRealmDefinitionMatched=true`, `environmentRealmRenderStable=true`
+and `containsSecrets=false`. These are matching render-provenance facts, not semantic provider
+readback or a claim that authentication works. Pre-runtime render evidence keeps
+`semanticReadbackDigest=null` and `semanticReadbackVerified=false`.
 
-Human-testing readiness schema v5 consumes finalized environment `realmEvidence`. Provider-health evidence must match the dogfood deployment realm evidence exactly. Automated E2E evidence may carry a different environment render while sharing the same candidate semantic identity.
+Green isolated Compose/native qualification proves the selected source in its disposable test
+environment. Target Dogfood readiness additionally needs current live evidence for its reviewed
+HTTPS origins, actual authentication and permitted identity operations, ordinary restart, and
+deployment identity. A stored realm with obsolete URLs blocks readiness even when source and
+generated import are correct. Do not relax issuer/audience validation to accept it.
 
-No v3 candidate reader, rendered-realm candidate authority, dual write, compatibility conversion, or second static IAM authority is retained.
+Dogfood startup and direct first-owner bootstrap check the live identity boundary before reporting
+success or creating an invitation. The check uses trusted-CA HTTPS discovery, matches the issuer and
+authorization/token/userinfo/JWKS/logout endpoints to the reviewed auth origin, and exercises the
+existing identity-admin `private_key_jwt` authentication with that issuer as assertion audience.
+Returned token issuer/client identity must match. Failure reports the boundary without exposing
+credentials; it does not patch static IAM or reset data. This check proves the observed OIDC and
+client-authentication boundary, not complete realm equivalence, invitation success, physical-device
+CA trust or human acceptance.
+
+An explicit reset of the same source and specification does not itself change the qualified
+candidate. Refresh the affected live deployment and physical-preparation evidence after reset;
+externally stateful evidence is not reusable merely because repository paths are unchanged.
+Changed candidate source or specification requires new qualification through the normal delivery
+lanes. Equivalent full integration work is not repeated solely for an unchanged Main promotion.
+
+HIL starts only after mandatory exact-candidate qualification, ready Dogfood deployment and an
+in-place installation of that build on the physical iPhone. VoiceOver, session behavior and explicit
+owner acceptance remain physical/human results. Candidate Cut, Fresh Start and a versioned readiness
+document are not prerequisites for beginning this development test loop.
 
 ## Operator rule
 

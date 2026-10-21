@@ -4,7 +4,10 @@
 
 `infra/` owns the Docker Compose foundation for a self-hosted Weave deployment: identity, native collaboration services, backend API routing, local HTTPS, provider-readiness checks, backups, restore rehearsal, migration evidence, and support diagnostics. Executable OpenTofu/Terraform and its state have been retired.
 
-This directory is the provider-stack implementation layer inside the Weave monorepo. The canonical product bootstrap boundary is `../docs/bootstrap-foundation-contract.md`; the canonical Keycloak ownership and migration model is `../docs/architecture/keycloak-realm-lifecycle.md`.
+This directory is the provider-stack implementation layer inside the Weave monorepo. The pinned
+specification corpus owns the product and delivery contracts. Implementation guides are
+[Product bootstrap](../docs/bootstrap-foundation-contract.md) and
+[Keycloak realm lifecycle](../docs/architecture/keycloak-realm-lifecycle.md).
 
 ## What it provisions
 
@@ -20,13 +23,23 @@ This directory is the provider-stack implementation layer inside the Weave monor
 
 ## Identity lifecycle
 
-Keycloak static IAM is deployment-owned. `infra/weave-workspace/keycloak` contains the canonical semantic source and versioned migration definition. Each environment renders its own public URLs, organization presentation metadata, SMTP coordinates, and public JWKS.
+Keycloak static IAM is deployment-owned. The semantic baseline comes from the corpus pinned by
+`specs/weave-specs.lock.json`; `weave-workspace/keycloak` contains its projection support, stock
+import defaults and versioned production migration definition. Each environment renders its own
+public URLs, organization presentation, SMTP coordinates and public JWKS.
 
-A generated `realm.json` is an environment deployment artifact, not source control authority.
+A generated `keycloak/import/weave-realm.json` is an environment deployment artifact, not a second
+configuration source. Keep the canonical inputs and current generated artifact aligned.
 
-- Proven-empty Fresh Start: startup import creates the realm; the bounded FGAP operation is authorized by Fresh-Start plan/apply evidence.
-- Disposable E2E: the same operation is allowed only after exact run-owned namespace absence is proven before resource creation.
-- Existing non-empty dogfood/prod realm: static IAM changes require explicit versioned migration, private backup, and isolated restore rehearsal.
+- `dev`, `dogfood` and isolated `e2e`: stock startup import completely initializes identity, including
+  the reviewed development role grants and native organization mapper. No post-import migration,
+  temporary migration authority, backup prerequisite or production receipt is required.
+- Existing realm: startup import skips it. New generated JSON does not update persisted issuer,
+  audience or redirect/client URLs, so a green isolated test does not prove the target realm is ready.
+- Stale resettable Dogfood state: use the existing explicit `dogfoodReset` lifecycle to recreate it
+  from the current import. Do not maintain legacy URL aliases or a separate compatibility realm.
+- Production: static IAM changes retain the restricted, versioned migration path with private
+  backup, isolated restore rehearsal and semantic readback. Its executor is production-only.
 
 Normal Server runtime never reconciles static realm structure.
 
@@ -39,9 +52,38 @@ For normal local development:
 ./gradlew :server:serverDevBoot
 ```
 
-The dev renderer produces the environment-specific realm from the same semantic source used by every other environment. Dev does not inherit the persistent dogfood/prod backup contract; persistent-realm recovery gates apply only when an existing non-empty persistent realm is being mutated.
+The dev renderer uses the same pinned semantic baseline as other environments. Root `devUp`,
+`devRun` and `devDown` are the supported convenience tasks for dependency and host-process lifecycle.
+Production backup and migration requirements do not apply to these development tasks.
 
-Use `./gradlew testApp` for the disposable Fresh product proof. The E2E path must prove its exact namespace is absent before it creates resources and may not infer Fresh eligibility from the profile name alone.
+Use `./gradlew testApp` for disposable product qualification. The E2E path proves its run-unique
+namespace is absent before creating resources and removes only its owned resources afterwards.
+
+## Resettable Dogfood path
+
+Root `dogfoodUp` builds and starts the exact clean checkout; `dogfoodDown` stops it while retaining
+the session. Explicit `dogfoodReset` recreates the fixed `weave-dogfood` project and its PostgreSQL,
+native Files and Mailpit session volumes. Reset discards their users and product data but preserves
+reviewed secrets and the operator-owned CA, certificates and keys outside Docker volumes. The
+existing closed legacy cleanup checks ownership before removing known unlabeled old Dogfood
+resources; it does not remove host bind-mount directories or unrelated resources.
+
+Reset and owner bootstrap share a session lock. Only the discarded session's generated
+owner-bootstrap request/evidence records are cleared after its resource removal; ordinary up/down
+and unrelated diagnostics are preserved.
+
+Dogfood reset has no Fresh Start plan, backup/restore rehearsal, migration receipt, deletion manifest
+or approval-token prerequisite. It is separate from ordinary startup and production data policy.
+After reset, verify the live target's authentication, permitted identity operations and ordinary
+restart, then refresh deployment and physical-preparation evidence. Unchanged source/specification
+may reuse valid automated qualification; changed source/specification requires a new qualified
+candidate. Actual physical VoiceOver and owner acceptance remain required before Main.
+
+Dogfood startup and direct owner bootstrap fail early when trusted-CA public discovery or
+identity-admin private-key authentication disagrees with the reviewed issuer/client boundary.
+The preflight neither repairs IAM nor resets data. A stale-origin failure points to the explicit
+reset path; successful preflight alone does not establish complete realm equivalence, invitation
+success, physical-device trust or HIL readiness.
 
 ## Single-host operator path
 
@@ -87,7 +129,8 @@ Support bundles redact tokens, cookies, passwords, signing keys, private JWK mat
 - `weave-workspace/teardown.sh`: exact isolated-E2E cleanup only.
 - `weave-workspace/backup.sh`: private consistency backup for persistent recovery paths.
 - `weave-workspace/support-bundle.sh`: support-safe diagnostics, not backup material.
-- `../gradle/tasks/test-app.sh`: disposable invitation/activation/PKCE/product proof; its current MCP segment still exercises the guarded ARC Cell path and is not yet the bounded #1470 OpenClaw acceptance run.
+- `../gradle/tasks/test-app.sh`: disposable invitation, browser PKCE, collaboration, curated MCP,
+  authorization, restart and owned-resource cleanup proof.
 
 ## Validation
 
@@ -102,13 +145,20 @@ WEAVE_E2E_STACK_SCOPE=isolated WEAVE_E2E_RUN_ID=<unique-run-id> \
   WEAVE_ENV_FILE=/absolute/path/to/reviewed-e2e.env ./gradlew :infra:composeE2eConfig
 ```
 
-The environment is explicit and independent of Git branch. `dogfood` and `prod` are persistent; `e2e` is disposable and run-unique. Environment files provide reviewed non-secret coordinates; SecretRefs and private keys remain outside generated support-safe artifacts.
+The environment is explicit and independent of Git branch. Dogfood preserves resettable session
+data between ordinary starts; production retains its separate persistent policy. E2E is disposable
+and run-unique. Environment files provide reviewed non-secret coordinates; SecretRefs and private
+keys remain outside generated support-safe artifacts.
 
-Compose remains the lifecycle engine. `compose.sh <environment> up/down` owns SecretRef permissions, provenance labels, resource ownership checks, static migration completion checks, and exact isolated cleanup. It does not perform general identity reconciliation or select an environment from a branch.
+Compose remains the lifecycle engine. The environment wrapper validates SecretRef permissions,
+provenance and resource ownership; production additionally enforces static migration completion.
+It does not perform general identity reconciliation or select an environment from a branch.
 
 ## Operator safety
 
 - `compose.sh <environment> down` stops without deleting persistent volumes or SecretRefs.
-- Destructive cleanup exists only for exact isolated E2E, or through an explicitly approved Fresh Start operation.
-- Existing persistent realm upgrades require private backup and restore rehearsal before static IAM mutation.
+- Destructive development cleanup is bounded to exact isolated E2E resources or the explicit
+  fixed-project `dogfoodReset` lifecycle. Ordinary `down` never removes session data.
+- Production static IAM upgrades require their private backup, restore and migration evidence.
+- Generated realm provenance does not prove live target readiness or replace authentication checks.
 - Support bundles are not backups; keep database dumps, private config, and recovery archives private.
