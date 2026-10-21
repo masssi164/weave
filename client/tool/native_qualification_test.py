@@ -110,6 +110,31 @@ class NativeQualificationTest(unittest.TestCase):
         with redirect_stdout(output): ios.emit_phase_stages('foreign', marker, '')
         self.assertNotIn('IOS_FLUTTER_DIAGNOSTIC', output.getvalue())
 
+    def test_chat_send_boundary_records_require_complete_safe_fields(self):
+        markers = [
+            'NATIVE_PRODUCT_STAGE phase=chat-send-input matchesExpected=true',
+            'NATIVE_PRODUCT_STAGE phase=chat-send-input matchesExpected=false',
+            'NATIVE_PRODUCT_STAGE phase=chat-cached-receive events=5 decrypted=4 unableToDecrypt=0 plaintext=1',
+        ]
+        for marker in markers:
+            output = io.StringIO()
+            with redirect_stdout(output):
+                ios.emit_phase_stages('initial', marker + '\nflutter: ' + marker, '')
+            self.assertEqual(output.getvalue().count('IOS_FLUTTER_DIAGNOSTIC'), 1)
+            self.assertIn(marker, output.getvalue())
+            bad_records = [marker + ' private=value', 'private ' + marker,
+                           marker + '\r', marker.replace('=true', '=1'),
+                           marker.replace('=false', '=private@example.invalid'),
+                           marker.replace('events=5', 'events=-1'),
+                           marker.replace('events=5', 'events=1000')]
+            for bad in (value for value in bad_records if value != marker):
+                output = io.StringIO()
+                with redirect_stdout(output): ios.emit_phase_stages('initial', bad, '')
+                self.assertNotIn('IOS_FLUTTER_DIAGNOSTIC', output.getvalue())
+            output = io.StringIO()
+            with redirect_stdout(output): ios.emit_phase_stages('foreign', marker, '')
+            self.assertNotIn('IOS_FLUTTER_DIAGNOSTIC', output.getvalue())
+
     def setUp(self):
         # Failure transcript retention must remain inside this test's owned
         # disposable client directory, never the real workspace build outputs.

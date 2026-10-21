@@ -14,6 +14,7 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
+import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
@@ -147,6 +148,135 @@ class _ParticipantChatRepository extends FakeChatRepository
 }
 
 void main() {
+  for (final locale in ['en', 'de']) {
+    for (final scale in [1.0, 2.0]) {
+      testWidgets(
+        'phone Chat opens its first real conversation; $locale $scale',
+        (tester) async {
+          tester.view.physicalSize = const Size(1206, 2622);
+          tester.view.devicePixelRatio = 3;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          const target = ChatConversation(
+            id: '!owned-direct:weave.test',
+            title: 'Owned conversation',
+            previewType: ChatConversationPreviewType.none,
+            unreadCount: 1,
+            isInvite: false,
+            isDirectMessage: true,
+          );
+          final repository = FakeChatRepository(
+            loadConversationsHandler: () async => [target],
+            loadRoomTimelineHandler: (_) async => ChatRoomTimeline(
+              roomId: target.id,
+              roomTitle: target.title,
+              isInvite: false,
+              canSendMessages: true,
+              messages: [
+                ChatMessage(
+                  id: 'retained-owned-message',
+                  senderId: 'owned-peer',
+                  senderDisplayName: 'Owned peer',
+                  sentAt: DateTime(2026),
+                  isMine: false,
+                  deliveryState: ChatMessageDeliveryState.sent,
+                  contentType: ChatMessageContentType.text,
+                  text: 'Retained conversation content',
+                ),
+              ],
+            ),
+          );
+          final router = GoRouter(
+            initialLocation: '/chat',
+            routes: [
+              GoRoute(
+                path: '/chat',
+                builder: (context, state) => Scaffold(
+                  body: const ChatScreen(),
+                  bottomNavigationBar: NavigationBar(
+                    selectedIndex: 1,
+                    destinations: [
+                      NavigationDestination(
+                        icon: const Icon(Icons.home_outlined),
+                        label: AppLocalizations.of(context).navHome,
+                      ),
+                      NavigationDestination(
+                        icon: const Icon(Icons.chat_bubble_outline),
+                        label: AppLocalizations.of(context).navChat,
+                      ),
+                    ],
+                  ),
+                ),
+                routes: [
+                  GoRoute(
+                    path: 'rooms/:roomId',
+                    builder: (_, state) => ChatRoomScreen(
+                      conversation: state.extra! as ChatConversation,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+          addTearDown(router.dispose);
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                workspaceCapabilitySnapshotProvider.overrideWithValue(
+                  const AsyncData(_readyChatSnapshot),
+                ),
+                chatRepositoryProvider.overrideWithValue(repository),
+                preferencesStoreProvider.overrideWith(
+                  (ref) => InMemoryPreferencesStore(),
+                ),
+              ],
+              child: MaterialApp.router(
+                theme: AppTheme.light,
+                locale: Locale(locale),
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(scale)),
+                  child: child!,
+                ),
+                routerConfig: router,
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text(target.title).hitTestable(), findsOneWidget);
+          final copy = AppLocalizations.of(
+            tester.element(find.byType(ChatScreen)),
+          );
+          expect(
+            find.byTooltip(copy.chatCreateConversationAction).hitTestable(),
+            findsOneWidget,
+          );
+          expect(find.text(copy.chatFavoritesSectionTitle), findsNothing);
+          expect(find.text(copy.chatConversationNoPreview), findsOneWidget);
+          await tester.tap(find.text(target.title));
+          await tester.pumpAndSettle();
+          expect(
+            tester
+                .widget<ChatRoomScreen>(find.byType(ChatRoomScreen))
+                .conversation
+                .id,
+            target.id,
+          );
+          expect(repository.loadRoomTimelineCalls, greaterThan(0));
+          expect(
+            find.text('Retained conversation content').hitTestable(),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump(const Duration(seconds: 1));
+        },
+      );
+    }
+  }
   group('ChatScreen', () {
     testWidgets('hides revoked rooms and reloads after grant restoration', (
       tester,
@@ -832,12 +962,6 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Weave Home'), findsOneWidget);
-        expect(find.text('Your organization workspace'), findsOneWidget);
-        expect(find.text('3 unread items'), findsOneWidget);
-        expect(find.text('1 channel workspace'), findsOneWidget);
-        expect(find.text('1 personal message'), findsOneWidget);
-        expect(find.text('Open next work item'), findsOneWidget);
         expect(find.text('Context for this workspace'), findsNothing);
         expect(find.text('Channel context'), findsNothing);
         expect(find.text('Agent context packs'), findsNothing);
@@ -861,60 +985,60 @@ void main() {
       },
     );
 
-    testWidgets(
-      'keeps collaboration sections visible when backend data is not ready',
-      (tester) async {
-        final repository = FakeChatRepository(
-          loadConversationsHandler: () async => const <ChatConversation>[
-            ChatConversation(
-              id: '@sam:home.internal',
-              title: 'Sam',
-              previewType: ChatConversationPreviewType.text,
-              previewText: 'See you soon',
-              unreadCount: 0,
-              isInvite: false,
-              isDirectMessage: true,
-            ),
-            ChatConversation(
-              id: '!project:home.internal',
-              title: 'Project channel',
-              previewType: ChatConversationPreviewType.text,
-              previewText: 'Build is green',
-              unreadCount: 0,
-              isInvite: false,
-              isDirectMessage: false,
+    testWidgets('shows populated groups without an empty favorites section', (
+      tester,
+    ) async {
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async => const <ChatConversation>[
+          ChatConversation(
+            id: '@sam:home.internal',
+            title: 'Sam',
+            previewType: ChatConversationPreviewType.text,
+            previewText: 'See you soon',
+            unreadCount: 0,
+            isInvite: false,
+            isDirectMessage: true,
+          ),
+          ChatConversation(
+            id: '!project:home.internal',
+            title: 'Project channel',
+            previewType: ChatConversationPreviewType.text,
+            previewText: 'Build is green',
+            unreadCount: 0,
+            isInvite: false,
+            isDirectMessage: false,
+          ),
+        ],
+      );
+      final securityRepository = buildSecurityRepository();
+
+      await tester.pumpWidget(
+        _chatTestApp(
+          const ChatScreen(),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
             ),
           ],
-        );
-        final securityRepository = buildSecurityRepository();
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        await tester.pumpWidget(
-          _chatTestApp(
-            const ChatScreen(),
-            overrides: [
-              chatRepositoryProvider.overrideWithValue(repository),
-              chatSecurityRepositoryProvider.overrideWithValue(
-                securityRepository,
-              ),
-            ],
-          ),
-        );
-        await tester.pumpAndSettle();
+      expect(find.text('Favorites'), findsNothing);
+      expect(find.text('Personal messages'), findsOneWidget);
+      expect(find.text('Channels'), findsOneWidget);
+      expect(find.text('Sam'), findsOneWidget);
+      expect(find.text('Project channel'), findsOneWidget);
+      expect(
+        find.text(
+          'No favorites yet. Important direct messages and channels marked as favorites stay here.',
+        ),
+        findsNothing,
+      );
 
-        expect(find.text('No unread work'), findsOneWidget);
-        expect(find.text('1 channel workspace'), findsOneWidget);
-        expect(find.text('1 personal message'), findsOneWidget);
-        expect(find.text('Favorites'), findsOneWidget);
-        expect(
-          find.text(
-            'No favorites yet. Important direct messages and channels marked as favorites stay here.',
-          ),
-          findsOneWidget,
-        );
-
-        expect(find.text('AI chats'), findsNothing);
-      },
-    );
+      expect(find.text('AI chats'), findsNothing);
+    });
 
     testWidgets('keeps unread recent room metadata within the tile', (
       tester,
