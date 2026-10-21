@@ -382,7 +382,20 @@ void main() {
           isDirectMessage: false,
         );
         final repository = FakeChatRepository(
-          loadConversationsHandler: () async => [target],
+          loadConversationsHandler: () async => [
+            // Keep this scroll-preparation regression below a populated list;
+            // a single conversation is now deliberately visible immediately.
+            for (var index = 0; index < 7; index++)
+              ChatConversation(
+                id: '!earlier-$index:example.invalid',
+                title: 'Earlier conversation $index',
+                previewType: ChatConversationPreviewType.none,
+                unreadCount: 0,
+                isInvite: false,
+                isDirectMessage: true,
+              ),
+            target,
+          ],
           loadRoomTimelineHandler: (_) async => ChatRoomTimeline(
             roomId: target.id,
             roomTitle: target.title,
@@ -1279,6 +1292,9 @@ void main() {
             'B remains online $run',
             'A recoverable $run',
             'B background catchup $run',
+            // Long retained history must remain lazy even with compact room UI.
+            for (var index = 0; index < 8; index++)
+              'A retained follow-up $index $run',
           ];
           final messages = [
             for (var index = 0; index < bodies.length; index++)
