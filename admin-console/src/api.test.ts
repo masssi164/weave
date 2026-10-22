@@ -555,3 +555,23 @@ describe("AdminControlPlaneApi provider boundary", () => {
 
 
 });
+
+describe("default Space provisioning boundary", () => {
+  const config = { apiBaseUrl: "https://api.example.invalid/api", oidcIssuerUrl: "https://auth.example.invalid", oidcClientId: "weave-admin-console" };
+  it("requires an authenticated session before any request", async () => {
+    const fetchImpl = vi.fn();
+    await expect(new AdminControlPlaneApi(config, fetchImpl).provisionDefaultSpace()).rejects.toMatchObject({ status: 401 });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+  it("uses the generated Admin operation with only the acting owner and preserves conflicts", async () => {
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(null, { status: 409 }));
+    const api = new AdminControlPlaneApi(config, fetchImpl, () => "current-admin-session");
+    await expect(api.provisionDefaultSpace()).rejects.toMatchObject({ status: 409 });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const [url, request] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://api.example.invalid/api/admin/spaces");
+    expect(request?.method).toBe("POST");
+    expect(JSON.parse(String(request?.body))).toEqual({ spaceRef: "workspace-default", memberAccountRefs: [] });
+    expect(new Headers(request?.headers).get("Authorization")).toBe("Bearer current-admin-session");
+  });
+});

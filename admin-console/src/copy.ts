@@ -38,6 +38,15 @@ export const adminConsoleMessages = {
     memberStateLabel: 'Member state',
     memberStateDescription:
       'Members see only the stable capability state for this product area.',
+    defaultSpaceHeading: 'Default Space setup',
+    defaultSpaceDescription: 'Create or confirm the default Space for your current organization. Only your authenticated administrator account receives access. Other members are not added. Existing memberships are never replaced.',
+    defaultSpaceUnverified: 'Default Space setup has not been verified in this session. Provider readiness alone does not establish Space access.',
+    defaultSpaceButton: 'Create or confirm default Space',
+    defaultSpaceBusy: 'Checking default Space setup…',
+    defaultSpaceReady: 'Default Space setup is confirmed for your account. Return to Weave and retry Files or Calendar. Other members still need explicit Space access.',
+    defaultSpaceConflict: 'The existing Space has different membership settings. Nothing was replaced. Ask a current Space administrator to review access.',
+    defaultSpaceDenied: 'Organization sign-in and current owner or administrator permission are required. No setup was confirmed.',
+    defaultSpaceFailed: 'Space setup could not be confirmed. Retry or contact your administrator.',
     setupAssistantHeading: 'Guided setup assistant',
     setupAssistantDescription:
       'Admins bind, unbind, validate, switch, or detach provider adapters only through backend admin APIs. Every apply path requires dry-run/preflight, member impact preview, clear consequences, and recovery guidance before an irreversible change.',
@@ -216,6 +225,15 @@ export const adminConsoleMessages = {
     memberStateLabel: 'Mitgliedszustand',
     memberStateDescription:
       'Mitglieder sehen nur den stabilen Fähigkeitszustand dieses Produktbereichs.',
+    defaultSpaceHeading: 'Standard-Space einrichten',
+    defaultSpaceDescription: 'Erstelle oder bestätige den Standard-Space deiner aktuellen Organisation. Nur dein angemeldetes Administratorkonto erhält Zugriff. Andere Mitglieder werden nicht hinzugefügt. Bestehende Mitgliedschaften werden nicht ersetzt.',
+    defaultSpaceUnverified: 'Die Space-Einrichtung wurde in dieser Sitzung noch nicht bestätigt. Anbieterbereitschaft allein bestätigt keinen Space-Zugriff.',
+    defaultSpaceButton: 'Standard-Space erstellen oder bestätigen',
+    defaultSpaceBusy: 'Space-Einrichtung wird geprüft…',
+    defaultSpaceReady: 'Die Space-Einrichtung ist für dein Konto bestätigt. Kehre zu Weave zurück und versuche Dateien oder Kalender erneut. Andere Mitglieder benötigen weiterhin ausdrücklichen Space-Zugriff.',
+    defaultSpaceConflict: 'Der bestehende Space hat andere Mitgliedschaftseinstellungen. Nichts wurde ersetzt. Bitte einen aktuellen Space-Administrator, den Zugriff zu prüfen.',
+    defaultSpaceDenied: 'Organisationsanmeldung und aktuelle Inhaber- oder Administratorrechte sind erforderlich. Die Einrichtung wurde nicht bestätigt.',
+    defaultSpaceFailed: 'Die Space-Einrichtung konnte nicht bestätigt werden. Versuche es erneut oder kontaktiere deinen Administrator.',
     setupAssistantHeading: 'Geführter Einrichtungsassistent',
     setupAssistantDescription:
       'Admins binden, lösen, validieren, wechseln oder entfernen Provider-Adapter nur über Backend-Admin-APIs. Jeder Apply-Pfad verlangt Dry-Run/Preflight, Mitgliederfolgenvorschau, klare Konsequenzen und Wiederherstellungshinweise vor einer unumkehrbaren Änderung.',

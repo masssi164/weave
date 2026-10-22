@@ -15,6 +15,7 @@ class EmptyState extends StatelessWidget {
     this.actionLabel,
     this.onAction,
     this.semanticLabel,
+    this.secondaryAction,
   });
 
   /// Localised empty-state title, e.g. `No conversations yet`.
@@ -35,6 +36,7 @@ class EmptyState extends StatelessWidget {
 
   /// Optional full screen-reader label for the live empty-state region.
   final String? semanticLabel;
+  final Widget? secondaryAction;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +49,7 @@ class EmptyState extends StatelessWidget {
       onAction: onAction,
       semanticLabel: semanticLabel,
       outlinedAction: true,
+      secondaryAction: secondaryAction,
     );
   }
 }

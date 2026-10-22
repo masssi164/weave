@@ -1809,6 +1809,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsWorkspaceRecoveryAvailable => 'Available';
 
   @override
+  String get workspaceSetupOpenAction => 'Open workspace setup';
+
+  @override
+  String get workspaceSetupOpenFailed =>
+      'Workspace setup could not open. Try again.';
+
+  @override
+  String get settingsWorkspaceRecoveryNoAccessibleWorkspace =>
+      'No accessible workspace';
+
+  @override
+  String get settingsWorkspaceRecoveryNoAccessibleWorkspaceAction =>
+      'Ask a workspace admin to finish setup or grant you access.';
+
+  @override
   String get settingsWorkspaceRecoveryDisabledByPolicy => 'Disabled by policy';
 
   @override
@@ -3510,15 +3525,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Join from an invite or organization sign-in';
 
   @override
-  String get setupMemberHandoffDescription =>
-      'Use your organization’s Weave address or invitation to sign in to your workspace.';
+  String get setupMemberHandoffDescription => 'Sign in with your organization.';
 
   @override
   String get setupOrganizationUriLabel => 'Organization address or invitation';
 
   @override
   String get setupOrganizationUriHelper =>
-      'Enter your organization’s Weave address, or paste the invitation link from your email or QR code.';
+      'Next, review your organization and choose Sign in.';
 
   @override
   String get setupOrganizationUriError =>

@@ -317,14 +317,23 @@ void main() {
           chat: WorkspaceCapabilityState(
             capability: WorkspaceCapability.chat,
             readiness: WorkspaceCapabilityReadiness.ready,
+            policyState: WorkspaceCapabilityPolicyState.allowed,
+            supportRef: 'support:workspace-capability:chat:ready:allowed',
+            grantedCapabilities: ['chat.read'],
           ),
           files: WorkspaceCapabilityState(
             capability: WorkspaceCapability.files,
             readiness: WorkspaceCapabilityReadiness.ready,
+            policyState: WorkspaceCapabilityPolicyState.allowed,
+            supportRef: 'support:workspace-capability:files:ready:allowed',
+            grantedCapabilities: ['files.read'],
           ),
           calendar: WorkspaceCapabilityState(
             capability: WorkspaceCapability.calendar,
             readiness: WorkspaceCapabilityReadiness.ready,
+            policyState: WorkspaceCapabilityPolicyState.allowed,
+            supportRef: 'support:workspace-capability:calendar:ready:allowed',
+            grantedCapabilities: ['calendar.read'],
           ),
           boards: WorkspaceCapabilityState(
             capability: WorkspaceCapability.boards,
@@ -381,6 +390,22 @@ void main() {
         expect(revoked.chat.isReady, isFalse);
         expect(revoked.files.isReady, isFalse);
         expect(revoked.calendar.isReady, isFalse);
+        for (final capability in [
+          revoked.chat,
+          revoked.files,
+          revoked.calendar,
+        ]) {
+          expect(
+            capability.policyState,
+            WorkspaceCapabilityPolicyState.policyBlocked,
+          );
+          expect(capability.grantedCapabilities, isEmpty);
+          expect(capability.memberSpaceAccessUnavailable, isTrue);
+          expect(
+            capability.supportRef,
+            'support:member-space-access:${capability.capability.name}:unavailable',
+          );
+        }
 
         access = const MemberSpaceAccessSnapshot(
           visibleSpaceRefs: {'workspace-default'},
@@ -394,8 +419,87 @@ void main() {
         expect(restored.chat.isReady, isTrue);
         expect(restored.files.isReady, isTrue);
         expect(restored.calendar.isReady, isTrue);
+        expect(restored.files.supportRef, backend.files.supportRef);
+        expect(
+          restored.files.grantedCapabilities,
+          backend.files.grantedCapabilities,
+        );
+        expect(restored.files.memberSpaceAccessUnavailable, isFalse);
+        expect(restored.calendar.supportRef, backend.calendar.supportRef);
       },
     );
+
+    for (final (index, access) in <MemberSpaceAccessSnapshot?>[
+      null,
+      const MemberSpaceAccessSnapshot(
+        visibleSpaceRefs: {},
+        defaultSpaceReadable: false,
+      ),
+      const MemberSpaceAccessSnapshot(
+        visibleSpaceRefs: {'workspace-default'},
+        defaultSpaceReadable: false,
+      ),
+    ].indexed) {
+      test(
+        'missing Space admission has its own support reference: $index',
+        () async {
+          const files = WorkspaceCapabilityState(
+            capability: WorkspaceCapability.files,
+            readiness: WorkspaceCapabilityReadiness.ready,
+            policyState: WorkspaceCapabilityPolicyState.allowed,
+            supportRef: 'support:workspace-capability:files:ready:allowed',
+            grantedCapabilities: ['files.read'],
+          );
+          const calendar = WorkspaceCapabilityState(
+            capability: WorkspaceCapability.calendar,
+            readiness: WorkspaceCapabilityReadiness.blocked,
+            policyState: WorkspaceCapabilityPolicyState.policyBlocked,
+            supportRef:
+                'support:workspace-capability:calendar:blocked:policy_blocked',
+          );
+          final container = ProviderContainer.test(
+            overrides: [
+              appBootstrapProvider.overrideWith(
+                () => _FakeAppBootstrap(const BootstrapState.ready()),
+              ),
+              weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+                (ref) async => const WorkspaceCapabilitySnapshot(
+                  shellAccess: files,
+                  chat: files,
+                  files: files,
+                  calendar: calendar,
+                  boards: calendar,
+                ),
+              ),
+              weaveApiMemberSpacesProvider.overrideWith((ref) async => access),
+            ],
+          );
+          addTearDown(container.dispose);
+          await container.read(appBootstrapProvider.future);
+          await container.read(
+            weaveApiWorkspaceCapabilitySnapshotProvider.future,
+          );
+          await container.read(weaveApiMemberSpacesProvider.future);
+          final snapshot = container
+              .read(workspaceCapabilitySnapshotProvider)
+              .requireValue;
+          expect(snapshot.files.isReady, isFalse);
+          expect(snapshot.files.memberSpaceAccessUnavailable, isTrue);
+          expect(snapshot.calendar.memberSpaceAccessUnavailable, isFalse);
+          expect(snapshot.files.grantedCapabilities, isEmpty);
+          expect(
+            snapshot.files.policyState,
+            WorkspaceCapabilityPolicyState.policyBlocked,
+          );
+          expect(
+            snapshot.files.supportRef,
+            'support:member-space-access:files:unavailable',
+          );
+          expect(snapshot.calendar.supportRef, calendar.supportRef);
+          expect(snapshot.calendar.policyState, calendar.policyState);
+        },
+      );
+    }
 
     test(
       'workspace connection uses backend readiness without restoring provider sessions',
