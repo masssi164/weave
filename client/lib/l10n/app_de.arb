@@ -534,6 +534,8 @@
   "settingsWorkspaceImpactLabel": "Member-Auswirkung",
   "settingsWorkspaceRecoveryLabel": "Wiederherstellung",
   "settingsWorkspaceRecoveryAvailable": "Verfügbar",
+  "workspaceSetupOpenAction": "Workspace-Einrichtung öffnen",
+  "workspaceSetupOpenFailed": "Die Workspace-Einrichtung konnte nicht geöffnet werden. Versuche es erneut.",
   "settingsWorkspaceRecoveryNoAccessibleWorkspace": "Kein zugänglicher Workspace",
   "settingsWorkspaceRecoveryNoAccessibleWorkspaceAction": "Bitte eine Workspace-Adminperson, die Einrichtung abzuschließen oder dir Zugriff zu geben.",
   "settingsWorkspaceRecoveryDisabledByPolicy": "Per Policy deaktiviert",

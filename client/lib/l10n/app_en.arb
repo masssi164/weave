@@ -2177,6 +2177,8 @@
   "@settingsWorkspaceRecoveryAvailable": {
     "description": "Member capability recovery state when a capability is available"
   },
+  "workspaceSetupOpenAction": "Open workspace setup",
+  "workspaceSetupOpenFailed": "Workspace setup could not open. Try again.",
   "settingsWorkspaceRecoveryNoAccessibleWorkspace": "No accessible workspace",
   "settingsWorkspaceRecoveryNoAccessibleWorkspaceAction": "Ask a workspace admin to finish setup or grant you access.",
   "settingsWorkspaceRecoveryDisabledByPolicy": "Disabled by policy",

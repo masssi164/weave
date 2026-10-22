@@ -3040,6 +3040,18 @@ abstract class AppLocalizations {
   /// **'Available'**
   String get settingsWorkspaceRecoveryAvailable;
 
+  /// No description provided for @workspaceSetupOpenAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Open workspace setup'**
+  String get workspaceSetupOpenAction;
+
+  /// No description provided for @workspaceSetupOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace setup could not open. Try again.'**
+  String get workspaceSetupOpenFailed;
+
   /// No description provided for @settingsWorkspaceRecoveryNoAccessibleWorkspace.
   ///
   /// In en, this message translates to:

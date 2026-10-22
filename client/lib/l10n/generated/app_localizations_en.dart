@@ -1809,6 +1809,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsWorkspaceRecoveryAvailable => 'Available';
 
   @override
+  String get workspaceSetupOpenAction => 'Open workspace setup';
+
+  @override
+  String get workspaceSetupOpenFailed =>
+      'Workspace setup could not open. Try again.';
+
+  @override
   String get settingsWorkspaceRecoveryNoAccessibleWorkspace =>
       'No accessible workspace';
 

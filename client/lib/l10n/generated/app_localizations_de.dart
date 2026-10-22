@@ -1834,6 +1834,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsWorkspaceRecoveryAvailable => 'Verfügbar';
 
   @override
+  String get workspaceSetupOpenAction => 'Workspace-Einrichtung öffnen';
+
+  @override
+  String get workspaceSetupOpenFailed =>
+      'Die Workspace-Einrichtung konnte nicht geöffnet werden. Versuche es erneut.';
+
+  @override
   String get settingsWorkspaceRecoveryNoAccessibleWorkspace =>
       'Kein zugänglicher Workspace';
 
