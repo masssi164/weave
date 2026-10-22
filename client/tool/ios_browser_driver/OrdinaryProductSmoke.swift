@@ -13,6 +13,7 @@ extension BrowserDriver {
     let conversation: String
     let participant: String
     let folder: String
+    let privateFolder: String
     let filename: String
     let filePayload: String
     let event: String
@@ -39,7 +40,7 @@ extension BrowserDriver {
   }
   // End bounded scroll budget.
 
-  func smokeScroll(_ budget: inout OrdinaryScrollBudget, toward target: XCUIElement? = nil) throws {
+  func smokeScroll(_ budget: inout OrdinaryScrollBudget, toward target: XCUIElement? = nil, towardTop: Bool = false) throws {
     guard budget.request(now: Date()) else { return }
     let app = XCUIApplication(bundleIdentifier: "com.massimotter.weave")
     let frame = app.frame
@@ -50,14 +51,14 @@ extension BrowserDriver {
     let upper = frame.height * 0.25
     let lower = min(frame.height * 0.75, keyboards.count == 1 ? keyboards.element.frame.minY - frame.minY - 16 : frame.height * 0.75)
     guard lower.isFinite && lower - upper >= 48 else { throw NSError(domain: "ordinary-smoke-scroll-obstructed", code: 1) }
-    let moveTowardTop = target.map { $0.frame.midY < frame.minY + upper } ?? false
+    let moveTowardTop = towardTop || (target.map { $0.frame.midY < frame.minY + upper } ?? false)
     let origin = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
     let start = origin.withOffset(CGVector(dx: 0, dy: moveTowardTop ? upper : lower))
     let end = origin.withOffset(CGVector(dx: 0, dy: moveTowardTop ? lower : upper))
     start.press(forDuration: 0.05, thenDragTo: end)
   }
 
-  func smokeElement(_ app: XCUIElement, identifier: String, labels: [String] = [], timeout: TimeInterval = 40) throws -> XCUIElement {
+  func smokeElement(_ app: XCUIElement, identifier: String, labels: [String] = [], timeout: TimeInterval = 40, searchTowardTop: Bool = false) throws -> XCUIElement {
     let deadline = Date().addingTimeInterval(timeout)
     var scrolling = OrdinaryScrollBudget(nextAllowedAt: Date().addingTimeInterval(0.75))
     while Date() < deadline {
@@ -70,7 +71,7 @@ extension BrowserDriver {
         target = labelled.count == 1 ? labelled.element : nil
       }
       if let target = target, target.exists && target.isHittable { return target }
-      try smokeScroll(&scrolling, toward: target)
+      try smokeScroll(&scrolling, toward: target, towardTop: target == nil && searchTowardTop)
       Thread.sleep(forTimeInterval: 0.25)
     }
     throw NSError(domain: "ordinary-smoke-control-unavailable", code: 1)
@@ -146,21 +147,135 @@ extension BrowserDriver {
     }
   }
 
-  func smokeSharedFolder(_ app: XCUIApplication, _ fixture: OrdinarySmokeFixture, create: Bool) throws -> String {
-    try smokeTap(app, "nav-files")
-    try smokeTap(app, "files-space-selector")
-    try smokeTap(app, "files-space-option-workspace-default")
-    try smokeTap(app, "files-refresh")
-    if create {
-      try smokeTap(app, "files-create-folder")
-      try smokeText(app, "files-folder-name", fixture.folder)
-      try smokeTap(app, "files-confirm-create-folder")
+  // A successful marker is current only while the ordinary listing is neither
+  // loading nor failed. A later generation proves the requested read completed.
+  struct OrdinaryFilesRead {
+    static func generation(_ identifier: String) -> UInt64? {
+      let prefix = "files-loaded-"
+      guard identifier.hasPrefix(prefix), let value = UInt64(identifier.dropFirst(prefix.count)), value > 0 else { return nil }
+      return value
     }
-    let digest = try smokeResource(app, prefix: "files-entry-", name: fixture.folder, expected: fixture.expected["folder"])
-    let row = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "files-entry-", fixture.folder))
-    guard row.count == 1, row.element.isHittable else { throw NSError(domain: "ordinary-smoke-folder-unavailable", code: 1) }
-    row.element.tap()
+
+    static func isFresh(_ observed: UInt64?, after previous: UInt64) -> Bool {
+      guard let observed = observed else { return false }
+      return observed > previous
+    }
+  }
+  // End current Files read proof.
+
+  func smokeFilesGeneration(_ app: XCUIApplication) throws -> UInt64? {
+    let loaded = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "files-loaded-"))
+    guard loaded.count <= 1 else { throw NSError(domain: "ordinary-smoke-files-context-ambiguous", code: 1) }
+    guard loaded.count == 1 else { return nil }
+    guard let value = OrdinaryFilesRead.generation(loaded.element.identifier) else {
+      throw NSError(domain: "ordinary-smoke-files-generation-invalid", code: 1)
+    }
+    return value
+  }
+
+  @discardableResult
+  func smokeAwaitFilesRead(_ app: XCUIApplication, after previous: UInt64 = 0) throws -> UInt64 {
+    let deadline = Date().addingTimeInterval(60)
+    while Date() < deadline {
+      let generation = try smokeFilesGeneration(app)
+      if OrdinaryFilesRead.isFresh(generation, after: previous) { return generation! }
+      Thread.sleep(forTimeInterval: 0.25)
+    }
+    throw NSError(domain: "ordinary-smoke-files-refresh-not-completed", code: 1)
+  }
+
+  @discardableResult
+  func smokeRefreshFiles(_ app: XCUIApplication) throws -> UInt64 {
+    let previous = try smokeAwaitFilesRead(app)
+    let refresh = try smokeElement(app, identifier: "files-refresh", searchTowardTop: true)
+    guard refresh.isEnabled else { throw NSError(domain: "ordinary-smoke-control-disabled", code: 1) }
+    refresh.tap()
+    return try smokeAwaitFilesRead(app, after: previous)
+  }
+
+  func smokeFilesRoot(_ app: XCUIApplication, privateScope: Bool) throws {
+    try smokeTap(app, "nav-files")
+    let previous = try smokeAwaitFilesRead(app)
+    let selector = try smokeElement(app, identifier: "files-space-selector", searchTowardTop: true)
+    guard selector.isEnabled else { throw NSError(domain: "ordinary-smoke-control-disabled", code: 1) }
+    selector.tap()
+    try smokeTap(app, privateScope ? "files-space-option-private" : "files-space-option-workspace-default")
+    try smokeAwaitFilesRead(app, after: previous)
+    try smokeRefreshFiles(app)
+    // Reaching the root breadcrumb also positions the scan above all entries.
+    let root = try smokeElement(app, identifier: "files-location-root", searchTowardTop: true)
+    guard root.isSelected else { throw NSError(domain: "ordinary-smoke-files-root-not-current", code: 1) }
+  }
+
+  func smokeCurrentPrivateFolder(_ app: XCUIApplication, expected: String) throws {
+    try smokeAwaitFilesRead(app)
+    let current = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "files-current-folder-"))
+    guard current.count == 1 else { throw NSError(domain: "ordinary-smoke-files-current-folder-ambiguous", code: 1) }
+    // The directory entry and current breadcrumb expose the same opaque FileId
+    // with different semantic prefixes. Compare in the entry's identity domain.
+    let entryIdentifier = "files-entry-" + current.element.identifier.dropFirst("files-current-folder-".count)
+    let observed = SHA256.hash(data: Data(entryIdentifier.utf8)).map { String(format: "%02x", $0) }.joined()
+    guard observed == expected else { throw NSError(domain: "ordinary-smoke-files-current-folder-mismatch", code: 1) }
+    _ = try smokeElement(app, identifier: current.element.identifier)
+  }
+
+  func smokeFolder(_ app: XCUIApplication, name: String, expected: String?, create: Bool) throws -> String {
+    if create {
+      let previous = try smokeAwaitFilesRead(app)
+      try smokeTap(app, "files-create-folder")
+      try smokeText(app, "files-folder-name", name)
+      try smokeTap(app, "files-confirm-create-folder")
+      try smokeAwaitFilesRead(app, after: previous)
+    }
+    let row = try smokeResourceElement(app, prefix: "files-entry-", name: name, expected: expected)
+    let digest = SHA256.hash(data: Data(row.identifier.utf8)).map { String(format: "%02x", $0) }.joined()
+    let previous = try smokeAwaitFilesRead(app)
+    row.tap()
+    try smokeAwaitFilesRead(app, after: previous)
+    try smokeCurrentPrivateFolder(app, expected: digest)
     return digest
+  }
+
+  func smokeSharedFolder(_ app: XCUIApplication, _ fixture: OrdinarySmokeFixture, create: Bool) throws -> String {
+    try smokeFilesRoot(app, privateScope: false)
+    return try smokeFolder(app, name: fixture.folder, expected: fixture.expected["folder"], create: create)
+  }
+
+  func smokePrivateFolder(_ app: XCUIApplication, _ fixture: OrdinarySmokeFixture, create: Bool = false) throws -> String {
+    try smokeFilesRoot(app, privateScope: true)
+    return try smokeFolder(app, name: fixture.privateFolder, expected: fixture.expected["privateFolder"], create: create)
+  }
+
+  func smokePrivateFolderAbsent(_ app: XCUIApplication, _ fixture: OrdinarySmokeFixture) throws {
+    let expected = try XCTUnwrap(fixture.expected["privateFolder"])
+    let generation = try smokeAwaitFilesRead(app)
+    let deadline = Date().addingTimeInterval(40)
+    var scrolling = OrdinaryScrollBudget(nextAllowedAt: Date().addingTimeInterval(0.75))
+    while Date() < deadline {
+      guard try smokeFilesGeneration(app) == generation else {
+        throw NSError(domain: "ordinary-smoke-files-absence-read-not-current", code: 1)
+      }
+      let rows = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "files-entry-"))
+      let forbidden = rows.allElementsBoundByIndex.contains { row in
+        let observed = SHA256.hash(data: Data(row.identifier.utf8)).map { String(format: "%02x", $0) }.joined()
+        return observed == expected || row.label.contains(fixture.privateFolder)
+      }
+      guard !forbidden else { throw NSError(domain: "ordinary-smoke-private-files-isolation-failed", code: 1) }
+      let end = app.descendants(matching: .any).matching(identifier: "files-listing-end")
+      guard end.count <= 1 else { throw NSError(domain: "ordinary-smoke-files-listing-end-ambiguous", code: 1) }
+      if end.count == 1 && end.element.isHittable {
+        guard try smokeFilesGeneration(app) == generation else {
+          throw NSError(domain: "ordinary-smoke-files-absence-read-not-current", code: 1)
+        }
+        return
+      }
+      // An offscreen row cannot establish absence. Reach the successful listing's
+      // actual end through ordinary scrolling, or leave the proof incomplete.
+      guard scrolling.remaining > 0 else { throw NSError(domain: "ordinary-smoke-files-absence-scan-incomplete", code: 1) }
+      try smokeScroll(&scrolling)
+      Thread.sleep(forTimeInterval: 0.25)
+    }
+    throw NSError(domain: "ordinary-smoke-files-absence-scan-incomplete", code: 1)
   }
 
   func smokeConversation(_ app: XCUIApplication, _ fixture: OrdinarySmokeFixture) throws -> String {
@@ -198,6 +313,7 @@ extension BrowserDriver {
     let fixture = try JSONDecoder().decode(OrdinarySmokeFixture.self, from: nativeFixtureData())
     guard fixture.schemaVersion == "weave.ordinary-product-ui/v1", fixture.runId.count >= 6,
           fixture.nonce.count == 32, fixture.folder.hasPrefix("weave-smoke-"),
+          fixture.privateFolder.hasPrefix("weave-smoke-private-"),
           fixture.filename.hasPrefix("weave-dual-smoke-") else { throw NSError(domain: "ordinary-smoke-invalid-fixture", code: 1) }
     let app = XCUIApplication(bundleIdentifier: "com.massimotter.weave")
     app.activate()
@@ -249,6 +365,25 @@ extension BrowserDriver {
       try smokeObserveMessage(app, fixture.conversation + "-b", conversationDigest: try XCTUnwrap(resources["conversation"]))
     case "folder-create":
       resources["folder"] = try smokeSharedFolder(app, fixture, create: true)
+    case "private-folder-create", "private-folder-read":
+      resources["privateFolder"] = try smokePrivateFolder(app, fixture, create: fixture.operation == "private-folder-create")
+    case "private-scope-switch":
+      resources["privateFolder"] = try smokePrivateFolder(app, fixture)
+      try smokeFilesRoot(app, privateScope: false)
+      try smokePrivateFolderAbsent(app, fixture)
+      resources["privateFolder"] = try smokePrivateFolder(app, fixture)
+    case "private-tab-restore":
+      let expected = try smokePrivateFolder(app, fixture)
+      try smokeTap(app, "nav-chat")
+      try smokeTap(app, "nav-files")
+      // Do not select a scope or reopen a path: tab return itself must preserve it.
+      try smokeCurrentPrivateFolder(app, expected: expected)
+      try smokeRefreshFiles(app)
+      try smokeCurrentPrivateFolder(app, expected: expected)
+      resources["privateFolder"] = expected
+    case "private-folder-absent":
+      try smokeFilesRoot(app, privateScope: true)
+      try smokePrivateFolderAbsent(app, fixture)
     case "file-upload":
       resources["folder"] = try smokeSharedFolder(app, fixture, create: false)
       try smokeTap(app, "files-upload")

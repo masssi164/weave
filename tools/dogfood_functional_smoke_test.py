@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Offline negative tests for real UI producer/receipt boundaries, never live proof."""
+import ast
 import copy
 import json
 import os
@@ -18,7 +19,7 @@ import dogfood_functional_smoke as smoke
 
 def receipt(stage='physical', sha='a' * 40, tree='b' * 40, spec='c' * 40, run_id=123, attempt=1):
     return {
-        'schemaVersion': 'weave.dogfood-functional-smoke/v1', 'candidateCommit': sha,
+        'schemaVersion': 'weave.dogfood-functional-smoke/v2', 'candidateCommit': sha,
         'sourceTree': tree, 'specificationCommit': spec, 'qualificationRunId': run_id,
         'qualificationRunAttempt': attempt, 'stage': stage, 'status': 'passed',
         'entrypoint': 'lib/main.dart', 'routing': 'reviewed-direct', 'appSessionInjection': False,
@@ -26,9 +27,10 @@ def receipt(stage='physical', sha='a' * 40, tree='b' * 40, spec='c' * 40, run_id
         'ownedSimulatorsRemoved': True, 'privateInvocationInputsRemoved': True,
         'supportSafe': True, 'containsSecretValues': False, 'retainedStateRestartVerified': True,
         'retainedStateUpdateVerified': True, 'calendarPeerAbsenceVerified': True,
-        'independentPeerReadbackVerified': True, 'deployedSourceTree': tree,
+        'independentPeerReadbackVerified': True, 'privateFilesScopeIsolationVerified': True,
+        'privateFilesPeerIsolationVerified': True, 'privateFilesContinuityVerified': True, 'deployedSourceTree': tree,
         'operations': list(smoke.OPERATIONS),
-        'resourceIdentityDigests': {**{key: 'd' * 64 for key in ('conversation', 'folder', 'file', 'event', 'account', 'organization')}, 'peerAccount': 'e' * 64},
+        'resourceIdentityDigests': {**{key: 'd' * 64 for key in ('conversation', 'folder', 'file', 'event', 'account', 'organization')}, 'peerAccount': 'e' * 64, 'privateFolder': 'f' * 64},
         'appBuildSha256': '1' * 64, 'peerAppBuildSha256': '2' * 64, 'routingSha256': '3' * 64,
         'exportedFileSha256': '4' * 64, 'deployedImage': 'sha256:' + '5' * 64,
         'deviceIdentitySha256': '6' * 64,
@@ -57,6 +59,65 @@ class FunctionalSmokeTest(unittest.TestCase):
             self.assertFalse(self.valid({**value, 'operations': bad}))
         self.assertFalse(self.valid({**value, 'build': {**value['build'], 'mode': 'debug'}}))
         self.assertFalse(self.valid({**value, 'verifiedAtUtc': '2026-10-22T12:00:00Z'}))
+
+    def test_private_files_proof_rejects_old_partial_and_scope_reused_receipts(self):
+        value = receipt()
+        self.assertFalse(self.valid({**value, 'schemaVersion': 'weave.dogfood-functional-smoke/v1'}))
+        for flag in ('privateFilesScopeIsolationVerified', 'privateFilesPeerIsolationVerified', 'privateFilesContinuityVerified'):
+            for bad in (False, None, 1, 'passed'):
+                self.assertFalse(self.valid({**value, flag: bad}), (flag, bad))
+        for bad in (None, '', 'raw-private-folder-id', value['resourceIdentityDigests']['folder']):
+            broken = copy.deepcopy(value)
+            broken['resourceIdentityDigests']['privateFolder'] = bad
+            self.assertFalse(self.valid(broken), bad)
+        broken = copy.deepcopy(value)
+        del broken['resourceIdentityDigests']['privateFolder']
+        self.assertFalse(self.valid(broken))
+        required = ('A:private-folder-create', 'A:private-scope-switch', 'A:private-tab-restore',
+                    'B:private-folder-absent', 'A:restart-private-folder', 'A:update-private-folder')
+        for operation in required:
+            self.assertIn(operation, smoke.OPERATIONS)
+            self.assertFalse(self.valid({**value, 'operations': [item for item in smoke.OPERATIONS if item != operation]}))
+
+    def test_host_observed_operation_order_matches_the_strict_receipt(self):
+        tree = ast.parse(Path(smoke.__file__).read_text())
+        main = next(item for item in tree.body if isinstance(item, ast.FunctionDef) and item.name == 'main')
+        observed = []
+        class Phases(ast.NodeVisitor):
+            def visit_Call(self, node):
+                if isinstance(node.func, ast.Name) and node.func.id == 'phase':
+                    role, operation = (arg.value for arg in node.args[:2])
+                    observed.append(role + ':' + (node.args[2].value if len(node.args) > 2 else operation))
+                self.generic_visit(node)
+        Phases().visit(main)
+        self.assertEqual(observed, list(smoke.OPERATIONS))
+
+    def test_private_negative_ui_requires_current_complete_listing_not_visible_rows_only(self):
+        driver = (smoke.CLIENT / 'tool/ios_browser_driver/OrdinaryProductSmoke.swift').read_text()
+        fresh = driver.split('struct OrdinaryFilesRead {', 1)[1].split('// End current Files read proof.', 1)[0]
+        self.assertIn('value > 0', fresh)
+        self.assertIn('guard let observed = observed else { return false }', fresh)
+        self.assertIn('observed > previous', fresh)
+        root = driver.split('func smokeFilesRoot(', 1)[1].split('func smokeCurrentPrivateFolder(', 1)[0]
+        self.assertIn('try smokeAwaitFilesRead(app, after: previous)', root)
+        self.assertIn('try smokeRefreshFiles(app)', root)
+        self.assertIn('guard root.isSelected', root)
+        negative = driver.split('func smokePrivateFolderAbsent(', 1)[1].split('func smokeConversation(', 1)[0]
+        self.assertIn('try smokeFilesGeneration(app) == generation', negative)
+        self.assertIn('observed == expected || row.label.contains(fixture.privateFolder)', negative)
+        self.assertIn('"files-listing-end"', negative)
+        self.assertIn('end.count == 1 && end.element.isHittable', negative)
+        self.assertIn('guard scrolling.remaining > 0 else', negative)
+        self.assertIn('try smokeScroll(&scrolling)', negative)
+        self.assertNotIn('guard rows.count == 0', negative)
+        current = driver.split('func smokeCurrentPrivateFolder(', 1)[1].split('func smokeFolder(', 1)[0]
+        self.assertIn('"files-entry-" + current.element.identifier.dropFirst("files-current-folder-".count)', current)
+        self.assertIn('guard observed == expected', current)
+        tab = driver.split('case "private-tab-restore":', 1)[1].split('case "private-folder-absent":', 1)[0]
+        restored = tab.split('try smokeTap(app, "nav-chat")', 1)[1]
+        self.assertEqual(restored.count('try smokeCurrentPrivateFolder(app, expected: expected)'), 2)
+        self.assertNotIn('smokeFilesRoot', restored)
+        self.assertNotIn('smokePrivateFolder(app', restored)
 
     def test_xctest_result_is_fresh_unique_and_closed(self):
         fixture = {'runId': 'owned-run', 'nonce': '1' * 32, 'operation': 'chat-peer'}

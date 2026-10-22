@@ -41,9 +41,10 @@ SHA = re.compile(r'^[0-9a-f]{40}$')
 OPERATIONS = (
     'A:identity-before', 'B:identity', 'A:chat-create', 'B:chat-peer', 'A:chat-readback',
     'A:folder-create', 'B:file-upload', 'A:file-readback', 'B:file-export',
+    'A:private-folder-create', 'A:private-scope-switch', 'A:private-tab-restore', 'B:private-folder-absent',
     'A:calendar-create', 'B:calendar-read', 'A:calendar-update', 'B:calendar-updated',
     'A:calendar-delete', 'B:calendar-absent', 'A:restart-chat', 'A:restart-file',
-    'A:update-chat', 'A:update-file', 'A:identity-after',
+    'A:restart-private-folder', 'A:update-chat', 'A:update-file', 'A:update-private-folder', 'A:identity-after',
 )
 
 
@@ -117,7 +118,7 @@ def functional_smoke_passed(value: dict, sha: str, tree: str, spec: str,
     if not isinstance(value, dict):
         return False
     expected = {
-        'schemaVersion': 'weave.dogfood-functional-smoke/v1', 'candidateCommit': sha,
+        'schemaVersion': 'weave.dogfood-functional-smoke/v2', 'candidateCommit': sha,
         'sourceTree': tree, 'specificationCommit': spec, 'qualificationRunId': run_id,
         'qualificationRunAttempt': attempt, 'stage': stage, 'status': 'passed',
         'entrypoint': 'lib/main.dart', 'routing': 'reviewed-direct',
@@ -126,18 +127,19 @@ def functional_smoke_passed(value: dict, sha: str, tree: str, spec: str,
         'privateInvocationInputsRemoved': True, 'supportSafe': True, 'containsSecretValues': False,
         'retainedStateRestartVerified': True, 'retainedStateUpdateVerified': True,
         'calendarPeerAbsenceVerified': True, 'independentPeerReadbackVerified': True,
-        'deployedSourceTree': tree,
+        'privateFilesScopeIsolationVerified': True, 'privateFilesPeerIsolationVerified': True,
+        'privateFilesContinuityVerified': True, 'deployedSourceTree': tree,
     }
     if any(value.get(key) != item or type(value.get(key)) is not type(item) for key, item in expected.items()):
         return False
     if value.get('operations') != list(OPERATIONS):
         return False
     resources = value.get('resourceIdentityDigests')
-    if not isinstance(resources, dict) or set(resources) != {'conversation', 'folder', 'file', 'event', 'account', 'peerAccount', 'organization'}:
+    if not isinstance(resources, dict) or set(resources) != {'conversation', 'folder', 'privateFolder', 'file', 'event', 'account', 'peerAccount', 'organization'}:
         return False
     if any(not isinstance(item, str) or not HASH.fullmatch(item) for item in resources.values()):
         return False
-    if resources['account'] == resources['peerAccount']:
+    if resources['account'] == resources['peerAccount'] or resources['folder'] == resources['privateFolder']:
         return False
     for key in ('appBuildSha256', 'peerAppBuildSha256', 'routingSha256', 'exportedFileSha256', 'deviceIdentitySha256'):
         if not isinstance(value.get(key), str) or not HASH.fullmatch(value[key]):
@@ -318,7 +320,7 @@ def main() -> int:
     parser.add_argument('--device-id')
     parser.add_argument('--diagnostic-only', action='store_true', help='Observe retained owner entry; always incomplete, never a readiness pass')
     args = parser.parse_args()
-    receipt = {'schemaVersion': 'weave.dogfood-functional-smoke/v1', 'status': 'incomplete',
+    receipt = {'schemaVersion': 'weave.dogfood-functional-smoke/v2', 'status': 'incomplete',
                'stage': args.stage, 'candidateCommit': args.candidate,
                'supportSafe': True, 'containsSecretValues': False}
     previous_term = signal.getsignal(signal.SIGTERM)
@@ -392,7 +394,7 @@ def main() -> int:
                                'products': derived / 'Build/Products', 'app': physical_app, 'driverBundle': driver_bundle}
                 diagnostic = {'schemaVersion': 'weave.ordinary-product-ui/v1', 'runId': run_id, 'nonce': secrets.token_hex(16),
                               'operation': 'discover', 'organizationOrigin': origin, 'conversation': '', 'participant': '',
-                              'folder': 'weave-smoke-diagnostic', 'filename': 'weave-dual-smoke-diagnostic.txt',
+                              'folder': 'weave-smoke-diagnostic', 'privateFolder': 'weave-smoke-private-diagnostic', 'filename': 'weave-dual-smoke-diagnostic.txt',
                               'filePayload': '', 'event': '', 'expected': {}}
                 verify_installed_build(runner, actors['A'])
                 restart(runner, actors['A'])
@@ -435,7 +437,7 @@ def main() -> int:
             nonce = secrets.token_hex(8)
             base = {'schemaVersion': 'weave.ordinary-product-ui/v1', 'runId': run_id,
                     'organizationOrigin': origin, 'conversation': 'weave-smoke-' + nonce,
-                    'folder': 'weave-smoke-' + nonce, 'filename': 'weave-dual-smoke-' + nonce + '.txt',
+                    'folder': 'weave-smoke-' + nonce, 'privateFolder': 'weave-smoke-private-' + nonce, 'filename': 'weave-dual-smoke-' + nonce + '.txt',
                     'filePayload': 'Weave ordinary file bytes ' + nonce, 'event': 'weave-smoke-' + nonce}
             def phase(role: str, operation: str, evidence_name: str | None = None, **expected):
                 receipt['boundaryOperation'] = role + ':' + (evidence_name or operation)
@@ -492,13 +494,17 @@ def main() -> int:
                 raise SmokeError('exported-file-byte-readback-mismatch')
             exported_digest = digest(source_file.read_bytes())
             source_file.unlink()
+            phase('A', 'private-folder-create'); phase('A', 'private-scope-switch')
+            phase('A', 'private-tab-restore'); phase('B', 'private-folder-absent')
             phase('A', 'calendar-create'); phase('B', 'calendar-read')
             phase('A', 'calendar-update'); phase('B', 'calendar-read', 'calendar-updated', updated='true')
             phase('A', 'calendar-delete', updated='true'); phase('B', 'calendar-absent', updated='true')
             phase('A', 'chat-readback', 'restart-chat'); phase('A', 'file-readback', 'restart-file')
+            phase('A', 'private-folder-read', 'restart-private-folder')
             before_build = app_digest(actors['A']['app'])
             reinstall(runner, actors['A'])
             phase('A', 'chat-readback', 'update-chat'); phase('A', 'file-readback', 'update-file')
+            phase('A', 'private-folder-read', 'update-private-folder')
             phase('A', 'identity', 'identity-after')
             after = _service_container(context, 'backend', deadline=time.monotonic() + 30)
             if after.get('Image') != before.get('Image') or app_digest(actors['A']['app']) != before_build:
@@ -508,6 +514,7 @@ def main() -> int:
                            appSessionInjection=False, proxyUsed=False, ownerSessionReplaced=False,
                            cleanupStatus='retained-owned-content', retainedStateRestartVerified=True,
                            retainedStateUpdateVerified=True, calendarPeerAbsenceVerified=True, independentPeerReadbackVerified=True,
+                           privateFilesScopeIsolationVerified=True, privateFilesPeerIsolationVerified=True, privateFilesContinuityVerified=True,
                            deployedSourceTree=tree, deployedImage=before['Image'], appBuildSha256=before_build,
                            peerAppBuildSha256=app_digest(simulator_app), exportedFileSha256=exported_digest,
                            build=build if args.stage == 'physical' else simulator_build,

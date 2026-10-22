@@ -31,6 +31,8 @@ import 'package:weave/integrations/weave_api/presentation/providers/weave_api_pr
 
 import '../../helpers/server_config_test_data.dart';
 import '../../helpers/test_app.dart';
+import '../../../integration_test/dual_ios_collaboration_test.dart'
+    show selectNativeDualFilesScope;
 
 const _readyFilesSnapshot = WorkspaceCapabilitySnapshot(
   shellAccess: WorkspaceCapabilityState(
@@ -375,6 +377,302 @@ class _NamedFilesRepository extends _FakeFilesRepository
 }
 
 void main() {
+  testWidgets(
+    'successful Files read markers change only on current completed reads',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        Completer<DirectoryListing>? pending;
+        final repository = _FakeFilesRepository(
+          connectionState: FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://api.example/api'),
+            accountLabel: 'Weave files',
+          ),
+          listDirectoryHandler: (path) async => pending == null
+              ? DirectoryListing(
+                  path: path,
+                  parentFileId: 'file:root',
+                  entries: [],
+                )
+              : pending.future,
+        );
+        await tester.pumpWidget(
+          _filesTestApp(
+            const FilesScreen(),
+            overrides: [
+              filesRepositoryProvider.overrideWithValue(repository),
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {},
+                  defaultSpaceReadable: false,
+                ),
+              ),
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+              ),
+              serverConfigurationRepositoryProvider.overrideWith(
+                (ref) => _FakeServerConfigurationRepository(
+                  buildTestConfiguration(),
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(FilesScreen)),
+        );
+        final controller = container.read(filesProvider.notifier);
+        final scrollable = find
+            .descendant(
+              of: find.byType(CustomScrollView),
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        final loaded = find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              (widget.properties.identifier?.startsWith('files-loaded-') ??
+                  false),
+        );
+        final end = find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.identifier == 'files-listing-end',
+        );
+        final root = find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.identifier == 'files-location-root',
+        );
+        final current = find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.identifier == 'files-current-folder-file:root',
+        );
+        await tester.scrollUntilVisible(
+          root,
+          -300,
+          maxScrolls: 30,
+          scrollable: scrollable,
+        );
+        await tester.pump();
+        expect(loaded, findsOneWidget);
+        final initial = tester
+            .getSemantics(loaded)
+            .getSemanticsData()
+            .identifier;
+        expect(initial, matches(r'^files-loaded-[1-9][0-9]*$'));
+        final marker = tester.widget<Semantics>(loaded);
+        expect(marker.explicitChildNodes, isTrue);
+        expect(marker.excludeSemantics, isFalse);
+        expect(tester.getSemantics(loaded).getSemanticsData().label, isEmpty);
+        expect(
+          tester
+              .getSemantics(loaded)
+              .getSemanticsData()
+              .flagsCollection
+              .isFocused
+              .toBoolOrNull(),
+          isNull,
+        );
+        await tester.scrollUntilVisible(
+          end,
+          300,
+          maxScrolls: 30,
+          scrollable: scrollable,
+        );
+        await tester.pumpAndSettle();
+        expect(end.hitTestable(), findsOneWidget);
+        expect(
+          tester.getSemantics(end).getSemanticsData().label,
+          'End of folder',
+        );
+        expect(
+          tester.getSemantics(end).getSemanticsData().flagsCollection.isButton,
+          isFalse,
+        );
+        expect(
+          tester.getSemantics(loaded).getSemanticsData().identifier,
+          initial,
+        );
+        await tester.scrollUntilVisible(
+          root,
+          -300,
+          maxScrolls: 30,
+          scrollable: scrollable,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .getSemantics(root)
+              .getSemanticsData()
+              .flagsCollection
+              .isSelected
+              .toBoolOrNull(),
+          isTrue,
+        );
+        expect(
+          tester.getSemantics(current).getSemanticsData().identifier,
+          'files-current-folder-file:root',
+        );
+        pending = Completer<DirectoryListing>();
+        final refresh = controller.refresh();
+        await tester.pump();
+        expect(loaded, findsNothing);
+        expect(end, findsNothing);
+        expect(
+          container.read(filesProvider).requireValue.directoryListing,
+          isNotNull,
+        );
+        pending.completeError(const FilesFailure.unknown('Read unavailable'));
+        await refresh;
+        await tester.pumpAndSettle();
+        expect(
+          loaded,
+          findsNothing,
+          reason: 'Retained stale empty data cannot prove absence.',
+        );
+        expect(
+          container.read(filesProvider).requireValue.successfulReadGeneration,
+          0,
+        );
+        expect(end, findsNothing);
+        pending = Completer<DirectoryListing>();
+        final retry = controller.refresh();
+        await tester.pump();
+        expect(loaded, findsNothing);
+        pending.complete(
+          DirectoryListing(
+            path: '/',
+            parentFileId: 'file:root',
+            entries: List.generate(
+              30,
+              (index) => FileEntry(
+                id: 'visible-$index',
+                name: 'readback-$index.txt',
+                path: '/readback-$index.txt',
+                isDirectory: false,
+              ),
+            ),
+          ),
+        );
+        await retry;
+        await tester.pumpAndSettle();
+        expect(loaded, findsOneWidget);
+        final after = tester.getSemantics(loaded).getSemanticsData().identifier;
+        expect(
+          int.parse(after.split('-').last),
+          greaterThan(int.parse(initial.split('-').last)),
+        );
+        await tester.scrollUntilVisible(
+          end,
+          300,
+          maxScrolls: 30,
+          scrollable: scrollable,
+        );
+        await tester.pumpAndSettle();
+        expect(end.hitTestable(), findsOneWidget);
+        expect(
+          tester.getSemantics(loaded).getSemanticsData().identifier,
+          after,
+        );
+        final row = find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.identifier == 'files-entry-visible-29',
+        );
+        expect(
+          tester.getSemantics(row).getSemanticsData().label,
+          contains('readback-29.txt'),
+        );
+        final openFile = find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.identifier == 'files-open-visible-29',
+        );
+        await tester.ensureVisible(openFile);
+        await tester.pumpAndSettle();
+        final buttonTooltips = <String>[];
+        tester.getSemantics(openFile).visitChildren((node) {
+          final data = node.getSemanticsData();
+          if (data.flagsCollection.isButton) buttonTooltips.add(data.tooltip);
+          return true;
+        });
+        expect(buttonTooltips, [
+          'Open readback-29.txt',
+          'Export readback-29.txt to native files',
+        ]);
+        expect(tester.getRect(row).top, lessThan(tester.getRect(end).top));
+        await tester.scrollUntilVisible(
+          root,
+          -300,
+          maxScrolls: 30,
+          scrollable: scrollable,
+        );
+        await tester.pumpAndSettle();
+        pending = Completer<DirectoryListing>();
+        final open = controller.openDirectory('/Reports');
+        await tester.pump();
+        expect(loaded, findsNothing);
+        pending.complete(
+          const DirectoryListing(
+            path: '/Reports',
+            parentFileId: 'file:reports',
+            entries: [],
+          ),
+        );
+        await open;
+        await tester.pumpAndSettle();
+        final nested = find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.identifier ==
+                  'files-current-folder-file:reports',
+        );
+        expect(nested, findsOneWidget);
+        expect(
+          tester.getSemantics(nested).getSemanticsData().identifier,
+          'files-current-folder-file:reports',
+        );
+        expect(root.hitTestable(), findsOneWidget);
+        pending = null;
+        await tester.tap(root);
+        await tester.pumpAndSettle();
+        expect(container.read(filesProvider).requireValue.currentPath, '/');
+        expect(current, findsOneWidget);
+        expect(loaded, findsOneWidget);
+        pending = Completer<DirectoryListing>();
+        container.invalidate(filesProvider);
+        await tester.pump();
+        expect(container.read(filesProvider).isLoading, isTrue);
+        await tester.pump();
+        expect(loaded, findsNothing);
+        expect(end, findsNothing);
+        pending.complete(
+          const DirectoryListing(
+            path: '/',
+            parentFileId: 'file:root',
+            entries: [],
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(loaded, findsOneWidget);
+        final rebuilt = tester
+            .getSemantics(loaded)
+            .getSemanticsData()
+            .identifier;
+        expect(
+          int.parse(rebuilt.split('-').last),
+          greaterThan(int.parse(after.split('-').last)),
+        );
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
   for (final locale in ['en', 'de']) {
     for (final changedContext in [false, true]) {
       testWidgets(
@@ -449,12 +747,48 @@ void main() {
             );
             await tester.tap(namedOption.hitTestable());
             await tester.pumpAndSettle();
+            final beforeReselect = ProviderScope.containerOf(
+              tester.element(selector),
+            ).read(filesProvider).requireValue.successfulReadGeneration;
+            await selectNativeDualFilesScope(tester, 'opaque-b');
+            await tester.pumpAndSettle();
+            expect(namedOption, findsNothing);
             final container = ProviderScope.containerOf(
               tester.element(selector),
             );
             expect(
+              container
+                  .read(filesProvider)
+                  .requireValue
+                  .successfulReadGeneration,
+              greaterThan(beforeReselect),
+            );
+            expect(
               container.read(filesProvider).requireValue.rootSpaceRef,
               'opaque-b',
+            );
+            await selectNativeDualFilesScope(tester, null);
+            await tester.pumpAndSettle();
+            expect(
+              container.read(filesProvider).requireValue.rootSpaceRef,
+              isNull,
+            );
+            final privateGeneration = container
+                .read(filesProvider)
+                .requireValue
+                .successfulReadGeneration;
+            await selectNativeDualFilesScope(tester, 'opaque-b');
+            await tester.pumpAndSettle();
+            expect(
+              container.read(filesProvider).requireValue.rootSpaceRef,
+              'opaque-b',
+            );
+            expect(
+              container
+                  .read(filesProvider)
+                  .requireValue
+                  .successfulReadGeneration,
+              greaterThan(privateGeneration),
             );
             expect(find.text('opaque-b'), findsNothing);
             expect(find.text('opaque-a'), findsNothing);
