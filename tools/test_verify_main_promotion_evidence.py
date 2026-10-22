@@ -17,6 +17,7 @@ from tools.verify_main_promotion_evidence import (
     attempt_artifact,
     native_qualification_passed,
     preparation_passed,
+    owner_workspace_passed,
     qualified_run,
     prepared_run,
     deployed_run,
@@ -35,6 +36,20 @@ TOOLCHAIN = {
     "xcodeBuild": "17F42", "iosSimulatorSdkVersion": "26.5", "rustToolchain": "1.95.0",
     "rustCompilerVersion": "rustc 1.95.0 (1234567 2026-01-01)",
 }
+
+def owner_workspace_proof():
+    return {
+        "schemaVersion": "weave.default-space-preparation/v1", "environment": "dogfood",
+        "candidateCommit": SHA,
+        "sourceTree": OTHER, "specificationCommit": "c" * 40,
+        "status": "passed", "spaceRef": "workspace-default", "outcome": "CREATED",
+        **{key: True for key in ("ownerAccessVerified", "filesReady", "calendarReady",
+                                "bootstrapAuthorityAbsent", "bootstrapMountAbsent",
+                                "tokenAbsent", "canonicalImageUnchanged", "supportSafe")},
+        "containsSecretValues": False,
+    }
+
+
 def dual_ios_proof():
     start, end = "2026-10-12T10:00:00Z", "2026-10-12T10:05:00Z"
     proof = {
@@ -243,11 +258,28 @@ class MainPromotionEvidenceTest(unittest.TestCase):
                         {**TOOLCHAIN, "rustCompilerVersion": "rustc 1.94.0 (1234567 2026-01-01)"}):
             self.assertFalse(native_toolchain_recorded(invalid))
 
+    def test_owner_workspace_requires_current_access_and_removed_temporary_authority(self) -> None:
+        valid = owner_workspace_proof()
+        self.assertTrue(owner_workspace_passed(valid, SHA, OTHER, "c" * 40))
+        self.assertTrue(owner_workspace_passed({**valid, "outcome": "VERIFIED"}, SHA, OTHER, "c" * 40))
+        for key in valid:
+            broken = {name: value for name, value in valid.items() if name != key}
+            self.assertFalse(owner_workspace_passed(broken, SHA, OTHER, "c" * 40), key)
+            if type(valid[key]) is bool:
+                self.assertFalse(owner_workspace_passed({**valid, key: not valid[key]}, SHA, OTHER, "c" * 40), key)
+                self.assertFalse(owner_workspace_passed({**valid, key: int(valid[key])}, SHA, OTHER, "c" * 40), key)
+        for broken in (None, [], {**valid, "candidateCommit": OTHER},
+                       {**valid, "sourceTree": SHA}, {**valid, "specificationCommit": SHA},
+                       {**valid, "outcome": "REGRANTED"}, {**valid, "environment": "e2e"},
+                       {**valid, "environment": "Dogfood"}, {**valid, "spaceRef": "another-space"}):
+            self.assertFalse(owner_workspace_passed(broken, SHA, OTHER, "c" * 40))
+
     def test_preparation_requires_current_qualification_and_exact_installed_identity(self) -> None:
-        valid = {"schemaVersion": "weave.hil-preparation/v1", "candidateCommit": SHA,
+        valid = {"schemaVersion": "weave.hil-preparation/v2", "candidateCommit": SHA,
                  "sourceTree": OTHER, "specificationCommit": "c" * 40,
                  "qualificationRunId": 123, "qualificationRunAttempt": 1, "status": "passed", "install": "update_in_place",
                  "toolchain": {**TOOLCHAIN, "iosDeviceSdkVersion": "26.5"},
+                 "ownerWorkspace": owner_workspace_proof(),
                  "supportSafe": True, "containsSecretValues": False}
         self.assertTrue(preparation_passed(valid, SHA, OTHER, "c" * 40, 123, 1))
         self.assertFalse(preparation_passed(valid, SHA, OTHER, "c" * 40, 124, 1))
@@ -325,11 +357,12 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         with patch("tools.verify_main_promotion_evidence.paged", return_value=[run]):
             with self.assertRaisesRegex(ValueError, "start after"):
                 prepared_run("masssi164/weave", SHA, OTHER, "c" * 40, qualification, "fixture-token")
-        valid = {"schemaVersion": "weave.hil-preparation/v1", "candidateCommit": SHA,
+        valid = {"schemaVersion": "weave.hil-preparation/v2", "candidateCommit": SHA,
                  "sourceTree": OTHER, "specificationCommit": "c" * 40,
                  "qualificationRunId": 123, "qualificationRunAttempt": 1,
                  "status": "passed", "install": "update_in_place",
                  "toolchain": {**TOOLCHAIN, "iosDeviceSdkVersion": "26.5"},
+                 "ownerWorkspace": owner_workspace_proof(),
                  "supportSafe": True, "containsSecretValues": False}
         self.assertTrue(preparation_passed(valid, SHA, OTHER, "c" * 40, 123, 1))
         self.assertFalse(preparation_passed(valid, SHA, OTHER, "c" * 40, 123, 2))

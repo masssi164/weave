@@ -8,6 +8,7 @@ import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import com.massimotter.weave.backend.config.ConnectorRuntimeProperties;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.DeploymentOrganizationProperties;
+import com.massimotter.weave.backend.config.DefaultSpaceBootstrapProperties;
 import com.massimotter.weave.backend.config.FilesRuntimeProperties;
 import com.massimotter.weave.backend.config.FilesProviderAccountsProperties;
 import com.massimotter.weave.backend.config.GuestAccessProperties;
@@ -42,6 +43,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         ConnectorRuntimeProperties.class,
         ContextAuthorizationProperties.class,
         DeploymentOrganizationProperties.class,
+        DefaultSpaceBootstrapProperties.class,
         FilesRuntimeProperties.class,
         FilesProviderAccountsProperties.class,
         GuestAccessProperties.class,

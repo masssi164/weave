@@ -24,6 +24,27 @@ import static org.mockito.Mockito.when;
 
 class WorkspaceCapabilityServiceTest {
 
+    @Test
+    void verifiedLiveMemberContextUsesTheSamePolicyAsNormalHumanTokens() {
+        var service = new WorkspaceCapabilityService(resourceServerProperties("https://auth.weave.test/realms/weave"),
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+        for (String role : List.of("owner", "admin", "member", "guest", "unmapped-role")) {
+            var token = jwt(List.of(role), List.of("/" + role + "s"));
+            var context = OrganizationIdentityContextResolver.defaults().resolve(token);
+            assertThat(service.snapshotForVerifiedMember(context)).isEqualTo(service.snapshot(token));
+            if (role.equals("owner") || role.equals("admin")) {
+                service.requireCapabilityForVerifiedMember(context, "admin.policy.edit", "spaces", "bootstrap");
+            } else {
+                assertThatThrownBy(() -> service.requireCapabilityForVerifiedMember(
+                        context, "admin.policy.edit", "spaces", "bootstrap"))
+                        .isInstanceOfSatisfying(ApiErrorException.class,
+                                error -> assertThat(error.code()).isEqualTo("capability-policy-blocked"));
+            }
+        }
+        assertThatThrownBy(() -> service.snapshotForVerifiedMember(null)).isInstanceOf(NullPointerException.class);
+    }
+
     // V01_KEYCLOAK_RBAC_CAPABILITY_POLICY
 
     @Test

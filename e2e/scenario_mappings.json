@@ -5973,6 +5973,46 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@human-ready-owner-space-preparation",
+      "scenario": "Physical preparation establishes usable owner workspace access",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/DefaultSpacePreparationJourney.java",
+      "evidenceMarkers": [
+        "WEAVE_DEFAULT_SPACE_JOURNEY"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "test-app"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
+          "fragments": [
+            "spacePreparation.prepare(\"CREATED\")",
+            "spacePreparation.prepare(\"VERIFIED\")",
+            "defaultSpacePreparedBeforeMemberTesting"
+          ]
+        },
+        {
+          "path": ".github/workflows/ios-dogfood.yml",
+          "fragments": [
+            "Establish and verify current owner default Space access",
+            "ownerWorkspace"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@human-ready-owner-space-access-preserved",
+      "scenario": "Repeated preparation preserves explicit Space access decisions",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/test_verify_main_promotion_evidence.py",
+      "evidenceMarkers": [
+        "test_owner_workspace_requires_current_access_and_removed_temporary_authority"
+      ],
+      "evidenceMode": "offline-spec"
     }
   ]
 }

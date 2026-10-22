@@ -96,7 +96,7 @@ A worker prompt must include:
 
 Keep current blockers separate from historical failures and already integrated repairs. Bind check results to their actual source; report pending CI or independent review explicitly and refresh consequential live permissions/checks before acting. Do not paste transcripts, broad sprint histories, hidden product assumptions, live runtime config, or private operator context into workers.
 
-## Professional evaluation rubric
+## Material optimization and professional evaluation rubric
 
 Optional explanatory scores (0-3):
 

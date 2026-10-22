@@ -40,3 +40,20 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
     When the exact development-signed build is installed in place
     Then the tester may begin without a candidate manifest or versioned readiness document
     And a human result cannot automatically publish a tag or production release
+
+  @human-ready-owner-space-preparation
+  Scenario: Physical preparation establishes usable owner workspace access
+    Given the qualified Dogfood candidate has one activated current organization owner
+    And the default Space has never existed
+    When explicit physical preparation establishes workspace access
+    Then the durable default Space admits the actual owner
+    And temporary setup authority is removed before installation
+    And Files and Calendar require no manual Space setup
+
+  @human-ready-owner-space-access-preserved
+  Scenario: Repeated preparation preserves explicit Space access decisions
+    Given a default Space already has durable memberships
+    When physical preparation verifies current owner access
+    Then valid access is accepted without changing memberships
+    And revoked missing suspended or ambiguous access blocks readiness
+    And proof without complete setup cleanup is rejected
