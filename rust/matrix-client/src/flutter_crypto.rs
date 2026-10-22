@@ -39,7 +39,7 @@ use matrix_sdk::{
     },
     store::RoomLoadSettings,
     utils::UrlOrQuery,
-    Client, HttpError, RefreshTokenError, Room, RoomMemberships, RoomState, SessionMeta,
+    Client, ClientBuildError, HttpError, RefreshTokenError, Room, RoomMemberships, RoomState, SessionMeta,
 };
 use matrix_sdk_store_encryption::StoreCipher;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -822,7 +822,7 @@ async fn activate_oauth_session(
         })
         .build()
         .await
-        .map_err(|_| "M_WEAVE_E2EE_STORE".to_string())?;
+        .map_err(|error| matrix_client_build_error_code(&error))?;
     let oauth_session_persistence_enabled = install_oauth_session_callbacks(
         &client,
         PathBuf::from(&store_path),
@@ -997,7 +997,7 @@ async fn member_session_activate_inner(
         })
         .build()
         .await
-        .map_err(|_| "M_WEAVE_E2EE_STORE".to_string())?;
+        .map_err(|error| matrix_client_build_error_code(&error))?;
     client
         .restore_session(MatrixSession {
             meta: SessionMeta {
@@ -1010,7 +1010,7 @@ async fn member_session_activate_inner(
             },
         })
         .await
-        .map_err(|_| "M_WEAVE_MATRIX_MEMBER_SESSION".to_string())?;
+        .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_MATRIX_MEMBER_SESSION"))?;
     // Verify the member bearer and device possession before publishing the
     // native client. Callers may open without an initial sync, and only a
     // verified activation may retire an older OAuth grant on disk.
@@ -1031,9 +1031,13 @@ async fn member_session_activate_inner(
             client
                 .whoami()
                 .await
-                .map_err(|_| "M_WEAVE_MATRIX_DEVICE_RECOVERY".to_string())?
+                .map_err(|error| {
+                    matrix_http_error_code(&error, "M_WEAVE_MATRIX_DEVICE_RECOVERY")
+                })?
         }
-        Err(_) => return Err("M_WEAVE_MATRIX_MEMBER_SESSION".to_string()),
+        Err(error) => {
+            return Err(matrix_http_error_code(&error, "M_WEAVE_MATRIX_MEMBER_SESSION"))
+        }
     };
     if whoami.user_id != user_id
         || whoami.device_id.as_deref().map(|value| value.as_str()) != Some(device_id.as_str())
@@ -1812,16 +1816,10 @@ async fn room_messages_inner(
     let mut options = MessagesOptions::backward();
     options.limit =
         UInt::new(u64::from(limit.clamp(1, 100))).expect("bounded Matrix message limit");
-    let response = room.messages(options).await.map_err(|error| {
-        let code = matrix_sdk_error_code(&error, "M_WEAVE_E2EE_TIMELINE");
-        match code.as_str() {
-            "M_FORBIDDEN"
-            | "M_UNKNOWN_TOKEN"
-            | "M_MISSING_TOKEN"
-            | "M_WEAVE_MATRIX_SESSION_EXPIRED" => code,
-            _ => "M_WEAVE_E2EE_TIMELINE".to_string(),
-        }
-    })?;
+    let response = room
+        .messages(options)
+        .await
+        .map_err(|error| matrix_timeline_error_code(&error))?;
     let timeline_diagnostics = TimelineDecryptionDiagnostics::from_events(&response.chunk);
     remember_timeline_decryption_diagnostics(profile_key, timeline_diagnostics.clone())?;
     let decryption = decryption_diagnostics(
@@ -2746,20 +2744,113 @@ fn bootstrap_recovery_error_code(error: &RecoveryError) -> &'static str {
     }
 }
 
-fn matrix_sdk_error_code(error: &matrix_sdk::Error, fallback: &str) -> String {
-    if let matrix_sdk::Error::Http(http_error) = error {
-        if let HttpError::RefreshToken(RefreshTokenError::OAuth(oauth_error)) = &**http_error {
-            if matches!(
-                &**oauth_error,
-                OAuthError::RefreshToken(RequestTokenError::ServerResponse(response))
-                    if *response.error() == BasicErrorResponseType::InvalidGrant
-            ) {
-                return "M_WEAVE_MATRIX_SESSION_EXPIRED".to_string();
-            }
-        }
-        return matrix_error_kind_code(http_error.client_api_error_kind(), fallback);
+// Keep typed SDK boundaries intact without emitting URLs, server bodies or local paths.
+fn matrix_client_build_error_code(error: &ClientBuildError) -> String {
+    match error {
+        ClientBuildError::SqliteStore(_) => "M_WEAVE_E2EE_STORE".to_owned(),
+        ClientBuildError::Http(error) => matrix_http_error_code(error, "M_WEAVE_MATRIX_BUILD"),
+        ClientBuildError::MissingHomeserver
+        | ClientBuildError::InvalidServerName
+        | ClientBuildError::Url(_) => "M_WEAVE_MATRIX_CONFIGURATION".to_owned(),
+        _ => "M_WEAVE_MATRIX_PROTOCOL".to_owned(),
     }
-    fallback.to_owned()
+}
+
+fn matrix_http_error_code(error: &HttpError, fallback: &str) -> String {
+    if let HttpError::Cached(error) = error {
+        return matrix_http_error_code(error, fallback);
+    }
+    if let HttpError::RefreshToken(RefreshTokenError::OAuth(oauth_error)) = error {
+        if matches!(
+            &**oauth_error,
+            OAuthError::RefreshToken(RequestTokenError::ServerResponse(response))
+                if *response.error() == BasicErrorResponseType::InvalidGrant
+        ) {
+            return "M_WEAVE_MATRIX_SESSION_EXPIRED".to_owned();
+        }
+    }
+    // HTTP availability and access denials remain authoritative even when the
+    // Matrix body uses M_UNKNOWN. Preserve canonical authentication errcodes.
+    if let Some(response) = error.as_client_api_error() {
+        let status = response.status_code.as_u16();
+        let canonical_auth = error.client_api_error_kind().is_some_and(|kind| {
+            matches!(
+                kind.errcode().as_str(),
+                "M_MISSING_TOKEN" | "M_UNKNOWN_TOKEN" | "M_FORBIDDEN"
+            )
+        });
+        if response.status_code.is_server_error()
+            || (matches!(status, 401 | 403) && !canonical_auth)
+        {
+            return format!("M_WEAVE_MATRIX_HTTP_{status}");
+        }
+    }
+    if let Some(kind) = error.client_api_error_kind() {
+        return matrix_error_kind_code(Some(kind), fallback);
+    }
+    if let Some(response) = error.as_client_api_error() {
+        return format!("M_WEAVE_MATRIX_HTTP_{}", response.status_code.as_u16());
+    }
+    match error {
+        HttpError::Reqwest(error) if error.is_timeout() => {
+            "M_WEAVE_MATRIX_TRANSPORT_TIMEOUT".to_owned()
+        }
+        HttpError::Reqwest(error) if error.is_connect() => {
+            "M_WEAVE_MATRIX_TRANSPORT_CONNECTION".to_owned()
+        }
+        HttpError::Reqwest(error) if error.status().is_some() => {
+            format!("M_WEAVE_MATRIX_HTTP_{}", error.status().unwrap().as_u16())
+        }
+        HttpError::Reqwest(error) if error.is_body() => "M_WEAVE_MATRIX_TRANSPORT_BODY".to_owned(),
+        HttpError::Reqwest(_) | HttpError::IntoHttp(_) | HttpError::Api(_) => {
+            "M_WEAVE_MATRIX_PROTOCOL".to_owned()
+        }
+        _ => fallback.to_owned(),
+    }
+}
+
+fn matrix_timeline_error_code(error: &matrix_sdk::Error) -> String {
+    matrix_timeline_code(matrix_sdk_error_code(error, "M_WEAVE_E2EE_TIMELINE"))
+}
+
+fn matrix_timeline_code(code: String) -> String {
+    let bounded_http = code
+        .strip_prefix("M_WEAVE_MATRIX_HTTP_")
+        .filter(|status| status.len() == 3 && status.bytes().all(|byte| byte.is_ascii_digit()))
+        .and_then(|status| status.parse::<u16>().ok())
+        .is_some_and(|status| (100..=599).contains(&status));
+    if bounded_http {
+        return code;
+    }
+    match code.as_str() {
+        "M_FORBIDDEN"
+        | "M_UNKNOWN_TOKEN"
+        | "M_MISSING_TOKEN"
+        | "M_WEAVE_MATRIX_SESSION_EXPIRED"
+        | "M_WEAVE_MATRIX_MEMBER_SESSION"
+        | "M_WEAVE_E2EE_STORE"
+        | "M_WEAVE_MATRIX_PROTOCOL"
+        | "M_WEAVE_MATRIX_CONFIGURATION"
+        | "M_WEAVE_MATRIX_TRANSPORT_TIMEOUT"
+        | "M_WEAVE_MATRIX_TRANSPORT_CONNECTION"
+        | "M_WEAVE_MATRIX_TRANSPORT_BODY" => code,
+        _ => "M_WEAVE_E2EE_TIMELINE".to_string(),
+    }
+}
+
+fn matrix_sdk_error_code(error: &matrix_sdk::Error, fallback: &str) -> String {
+    match error {
+        matrix_sdk::Error::Http(error) => matrix_http_error_code(error, fallback),
+        matrix_sdk::Error::StateStore(_)
+        | matrix_sdk::Error::CryptoStoreError(_)
+        | matrix_sdk::Error::BadCryptoStoreState
+        | matrix_sdk::Error::Io(_) => "M_WEAVE_E2EE_STORE".to_owned(),
+        matrix_sdk::Error::SerdeJson(_)
+        | matrix_sdk::Error::Identifier(_)
+        | matrix_sdk::Error::Url(_) => "M_WEAVE_MATRIX_PROTOCOL".to_owned(),
+        matrix_sdk::Error::AuthenticationRequired => "M_WEAVE_MATRIX_MEMBER_SESSION".to_owned(),
+        _ => fallback.to_owned(),
+    }
 }
 
 fn matrix_error_kind_code(kind: Option<&ErrorKind>, fallback: &str) -> String {
@@ -3059,6 +3150,121 @@ mod tests {
             matrix_error_kind_code(None, "M_WEAVE_E2EE_SYNC"),
             "M_WEAVE_E2EE_SYNC"
         );
+    }
+
+    #[test]
+    fn native_failure_classes_use_types_without_exposing_causes() {
+        assert_eq!(
+            matrix_client_build_error_code(&ClientBuildError::MissingHomeserver),
+            "M_WEAVE_MATRIX_CONFIGURATION"
+        );
+        let private = "private device path and bearer";
+        let storage = matrix_sdk::Error::Io(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            private,
+        ));
+        assert_eq!(
+            matrix_sdk_error_code(&storage, "fallback"),
+            "M_WEAVE_E2EE_STORE"
+        );
+        let invalid_request = reqwest::Client::new().get("http://[").build().unwrap_err();
+        assert_eq!(
+            matrix_http_error_code(&HttpError::Reqwest(invalid_request), "fallback"),
+            "M_WEAVE_MATRIX_PROTOCOL"
+        );
+        assert!(!json_result(Err(matrix_sdk_error_code(&storage, "fallback"))).contains(private));
+    }
+
+    #[test]
+    fn native_http_availability_retains_status_and_authentication_errcodes() {
+        use matrix_sdk::ruma::api::{
+            client::uiaa::UiaaResponse,
+            error::{Error, ErrorBody, FromHttpResponseError, StandardErrorBody},
+        };
+        use matrix_sdk::ruma::exports::http::StatusCode;
+        for (status, kind, expected) in [
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                ErrorKind::Unknown,
+                "M_WEAVE_MATRIX_HTTP_503",
+            ),
+            (
+                StatusCode::UNAUTHORIZED,
+                ErrorKind::MissingToken,
+                "M_MISSING_TOKEN",
+            ),
+            (StatusCode::FORBIDDEN, ErrorKind::Forbidden, "M_FORBIDDEN"),
+            (
+                StatusCode::UNAUTHORIZED,
+                ErrorKind::Unknown,
+                "M_WEAVE_MATRIX_HTTP_401",
+            ),
+            (
+                StatusCode::FORBIDDEN,
+                ErrorKind::Unknown,
+                "M_WEAVE_MATRIX_HTTP_403",
+            ),
+        ] {
+            let error = HttpError::Api(Box::new(FromHttpResponseError::Server(
+                UiaaResponse::MatrixError(Error::new(
+                    status,
+                    ErrorBody::Standard(StandardErrorBody::new(
+                        kind,
+                        "private token and server payload".to_owned(),
+                    )),
+                )),
+            )));
+            assert_eq!(matrix_http_error_code(&error, "fallback"), expected);
+            assert!(
+                !json_result(Err(matrix_http_error_code(&error, "fallback"))).contains("private")
+            );
+            let cached = HttpError::Cached(Arc::new(error));
+            assert_eq!(matrix_http_error_code(&cached, "fallback"), expected);
+            let sdk_error = matrix_sdk::Error::Http(Box::new(cached));
+            assert_eq!(matrix_sdk_error_code(&sdk_error, "fallback"), expected);
+            assert_eq!(matrix_timeline_error_code(&sdk_error), expected);
+        }
+    }
+
+    #[test]
+    fn native_timeline_projection_preserves_only_closed_failure_classes() {
+        let private = "private device path and bearer";
+        let storage = matrix_sdk::Error::Io(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            private,
+        ));
+        assert_eq!(matrix_timeline_error_code(&storage), "M_WEAVE_E2EE_STORE");
+        let protocol = matrix_sdk::Error::Http(Box::new(HttpError::Reqwest(
+            reqwest::Client::new().get("http://[").build().unwrap_err(),
+        )));
+        assert_eq!(
+            matrix_timeline_error_code(&protocol),
+            "M_WEAVE_MATRIX_PROTOCOL"
+        );
+        for code in [
+            "M_WEAVE_MATRIX_TRANSPORT_TIMEOUT",
+            "M_WEAVE_MATRIX_TRANSPORT_CONNECTION",
+            "M_WEAVE_MATRIX_TRANSPORT_BODY",
+            "M_WEAVE_MATRIX_HTTP_401",
+            "M_WEAVE_MATRIX_HTTP_403",
+            "M_WEAVE_MATRIX_HTTP_503",
+        ] {
+            assert_eq!(matrix_timeline_code(code.to_owned()), code);
+        }
+        for code in [
+            private,
+            "M_UNKNOWN",
+            "M_WEAVE_MATRIX_HTTP_999",
+            "M_WEAVE_MATRIX_HTTP_0401",
+            "M_WEAVE_MATRIX_HTTP_401 private",
+            "M_WEAVE_MATRIX_TRANSPORT_private",
+        ] {
+            assert_eq!(
+                matrix_timeline_code(code.to_owned()),
+                "M_WEAVE_E2EE_TIMELINE"
+            );
+        }
+        assert!(!json_result(Err(matrix_timeline_error_code(&storage))).contains(private));
     }
 
     #[test]

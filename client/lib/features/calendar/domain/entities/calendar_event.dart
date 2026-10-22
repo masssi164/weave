@@ -106,10 +106,12 @@ class CalendarEventList {
   const CalendarEventList({
     this.scope = CalendarScope.workspace,
     this.events = const [],
+    this.readGeneration = 0,
   });
 
   final CalendarScope scope;
   final List<CalendarEvent> events;
+  final int readGeneration;
 }
 
 enum CalendarTimeKind { date, floating, utc, zoned }

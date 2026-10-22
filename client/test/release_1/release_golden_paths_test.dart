@@ -226,7 +226,11 @@ void main() {
         await tester.tap(find.widgetWithText(ListTile, 'Documents'));
         await tester.pumpAndSettle();
 
-        expect(find.text('/Documents'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel('Current folder: Documents'),
+          findsOneWidget,
+        );
+        expect(find.text('Root'), findsNothing);
         expect(find.widgetWithText(ListTile, 'Plans'), findsOneWidget);
         expect(find.widgetWithText(ListTile, 'spec.pdf'), findsOneWidget);
 

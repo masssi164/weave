@@ -145,6 +145,7 @@ void main() {
             weaveApiMemberSpacesProvider.overrideWith(
               (ref) async => const MemberSpaceAccessSnapshot(
                 visibleSpaceRefs: {'workspace-default'},
+                displayNames: {'workspace-default': 'Organization workspace'},
                 defaultSpaceReadable: true,
               ),
             ),
@@ -249,6 +250,7 @@ void main() {
             weaveApiMemberSpacesProvider.overrideWith(
               (ref) async => const MemberSpaceAccessSnapshot(
                 visibleSpaceRefs: {'workspace-default'},
+                displayNames: {'workspace-default': 'Organization workspace'},
                 defaultSpaceReadable: true,
               ),
             ),
@@ -307,6 +309,7 @@ void main() {
       () async {
         var access = const MemberSpaceAccessSnapshot(
           visibleSpaceRefs: {'workspace-default'},
+          displayNames: {'workspace-default': 'Organization workspace'},
           defaultSpaceReadable: true,
         );
         const backend = WorkspaceCapabilitySnapshot(
@@ -409,6 +412,7 @@ void main() {
 
         access = const MemberSpaceAccessSnapshot(
           visibleSpaceRefs: {'workspace-default'},
+          displayNames: {'workspace-default': 'Organization workspace'},
           defaultSpaceReadable: true,
         );
         container.invalidate(weaveApiMemberSpacesProvider);
@@ -437,6 +441,7 @@ void main() {
       ),
       const MemberSpaceAccessSnapshot(
         visibleSpaceRefs: {'workspace-default'},
+        displayNames: {'workspace-default': 'Organization workspace'},
         defaultSpaceReadable: false,
       ),
     ].indexed) {

@@ -234,7 +234,7 @@ jobs:
           git fetch --no-tags origin '+refs/heads/dogfood:refs/remotes/origin/dogfood'
           [[ "$(git rev-parse origin/dogfood)" == "$DOGFOOD_COMMIT" ]]
           tools/dogfood_iphone_entry.sh \
-            --run \
+            --run --ordinary-startup \
             --device-id "$WEAVE_IOS_DEVICE_ID" \
             --build-mode profile \
             --reset-mode update_in_place \
@@ -243,6 +243,16 @@ jobs:
             --run-id "human-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --handoff-ref "dogfood-${DOGFOOD_COMMIT}" \
             --evidence-dir "$WEAVE_DOGFOOD_EVIDENCE_DIR"
+
+      - name: Verify retained owner and independent peer functional behavior
+        working-directory: weave
+        run: |
+          umask 077
+          python3 tools/dogfood_functional_smoke.py --stage physical \
+            --candidate "$DOGFOOD_COMMIT" --device-id "$WEAVE_IOS_DEVICE_ID" \
+            --qualification-run-id "$FULL_COMPOSE_E2E_RUN_ID" \
+            --qualification-run-attempt "$FULL_COMPOSE_E2E_RUN_ATTEMPT" \
+            --output build/evidence/prepare-human-test/functional-smoke.json
 
       - name: Record exact physical preparation
         working-directory: weave
@@ -257,17 +267,22 @@ jobs:
           tree = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], text=True).strip()
           workspace = json.loads(Path("build/evidence/prepare-human-test/owner-space.json").read_text())
           from tools.verify_main_promotion_evidence import owner_workspace_passed
+          from tools.dogfood_functional_smoke import functional_smoke_passed
+          functional = json.loads(Path("build/evidence/prepare-human-test/functional-smoke.json").read_text())
+          if not functional_smoke_passed(functional, sha, tree, spec,
+                  int(os.environ["FULL_COMPOSE_E2E_RUN_ID"]), int(os.environ["FULL_COMPOSE_E2E_RUN_ATTEMPT"]), "physical"):
+              raise SystemExit("Physical preparation requires actual ordinary authenticated functional UI proof")
           if not owner_workspace_passed(workspace, sha, tree, spec):
               raise SystemExit("Physical preparation lacks verified current owner Space access")
           output = Path("build/evidence/prepare-human-test/preparation-result.json")
           output.parent.mkdir(parents=True, exist_ok=True)
           output.write_text(json.dumps({
-              "schemaVersion": "weave.hil-preparation/v2", "candidateCommit": sha,
+              "schemaVersion": "weave.hil-preparation/v3", "candidateCommit": sha,
               "sourceTree": tree, "specificationCommit": spec,
               "qualificationRunId": int(os.environ["FULL_COMPOSE_E2E_RUN_ID"]),
               "qualificationRunAttempt": int(os.environ["FULL_COMPOSE_E2E_RUN_ATTEMPT"]),
               "toolchain": json.loads(os.environ["PHYSICAL_TOOLCHAIN_JSON"]),
-              "ownerWorkspace": workspace,
+              "ownerWorkspace": workspace, "functionalSmoke": functional,
               "status": "passed", "install": "update_in_place",
               "supportSafe": True, "containsSecretValues": False,
           }, indent=2) + "\n")
@@ -310,5 +325,6 @@ jobs:
             weave/build/evidence/prepare-human-test/preparation-result.json
             weave/build/evidence/prepare-human-test/tls-persistence.json
             weave/build/evidence/prepare-human-test/owner-space.json
+            weave/build/evidence/prepare-human-test/functional-smoke.json
           if-no-files-found: error
           retention-days: 14

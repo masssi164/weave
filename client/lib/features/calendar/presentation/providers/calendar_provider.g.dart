@@ -138,7 +138,7 @@ final class SelectedCalendarScopeProvider
 }
 
 String _$selectedCalendarScopeHash() =>
-    r'0c5e723169e1116b25402c7b9d6831a09d1ee6c9';
+    r'babfc5f75130b213219af3d8b8a0fbce0630486c';
 
 abstract class _$SelectedCalendarScope extends $Notifier<CalendarScope> {
   CalendarScope build();
@@ -197,7 +197,7 @@ final class CalendarScopesProvider
   }
 }
 
-String _$calendarScopesHash() => r'e9a5ea7efbf9aba9494c2e94cd67b5d479dab920';
+String _$calendarScopesHash() => r'80cac7eeb05d289dd6c9673d4db26fca76b49310';
 
 @ProviderFor(calendarEvaluationTimeZone)
 final calendarEvaluationTimeZoneProvider =
@@ -333,7 +333,7 @@ final class CalendarNotifierProvider
   CalendarNotifier create() => CalendarNotifier();
 }
 
-String _$calendarNotifierHash() => r'f48c9f655cc36ddebb8f95b76dfbb211e6c404a3';
+String _$calendarNotifierHash() => r'7a313e0e49eed74e6f8f2a126bdb9aa57fee13c3';
 
 abstract class _$CalendarNotifier extends $AsyncNotifier<CalendarEventList> {
   FutureOr<CalendarEventList> build();

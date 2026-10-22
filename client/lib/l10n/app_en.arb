@@ -781,7 +781,7 @@
   "@filesUpButton": {
     "description": "Button label used to open the parent Weave Files directory"
   },
-  "filesRootBreadcrumb": "Root",
+  "filesRootBreadcrumb": "Files",
   "@filesRootBreadcrumb": {
     "description": "Label for the root breadcrumb in the files browser"
   },
@@ -4496,5 +4496,85 @@
   "chatDirectConversationLabel": "Direct conversation",
   "chatDirectConversationHelp": "Choose one organization member. They can read and reply without accepting an invitation.",
   "chatRestrictedConversationHelp": "Restricted group. Invited members must accept before reading or replying.",
-  "chatDirectParticipantRequired": "Choose exactly one other member for a direct conversation."
+  "chatDirectParticipantRequired": "Choose exactly one other member for a direct conversation.",
+  "calendarSavedRefreshPending": "Saved. The calendar could not refresh. Refresh to see the latest events; do not create the event again.",
+  "calendarWriteUncertain": "We could not confirm whether this event was saved. Retry the same event to avoid duplicates.",
+  "calendarSaving": "Saving…",
+  "filesFolderSavedRefreshPending": "Folder created. Refresh this location to confirm the listing; do not create it again.",
+  "filesFolderWriteUncertain": "We could not confirm folder creation. Retry the same folder in this location.",
+  "filesFolderLocation": "Location: {scope} · {path}",
+  "settingsPreferencesTitle": "Appearance and language",
+  "settingsPreferencesDescription": "Choose your theme and preferred language.",
+  "settingsSupportLinkDescription": "Open technical details when you need help.",
+  "@filesFolderLocation": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "chatErrorTransportGuidance": "Chat could not connect to Weave. Check your connection and try again.",
+  "chatErrorAccessDeniedGuidance": "Your current workspace access does not allow this Chat action. Ask a workspace administrator to review your access.",
+  "chatErrorStorageGuidance": "Chat could not open its protected data on this device. Retry, and contact support if this continues.",
+  "chatErrorProtocolGuidance": "Chat received an unexpected response. Retry, and contact support if this continues.",
+  "chatErrorServiceGuidance": "The Chat service is currently unavailable. Retry, and contact support if this continues.",
+  "chatErrorUnknownGuidance": "Chat could not complete this action. Retry, and contact support if this continues.",
+  "chatErrorPeerDevicePendingGuidance": "Chat is waiting for a participant’s secure device. Retry shortly.",
+  "calendarRefreshButton": "Refresh calendar",
+  "settingsSupportAccountReference": "Account reference",
+  "settingsSupportOrganizationReference": "Organization reference",
+  "settingsSupportCopyIdentityReferences": "Copy identity references",
+  "calendarTimeZoneLoadFailure": "Your calendar time zone could not be loaded.",
+  "calendarAgendaLoadFailure": "Your events could not be loaded.",
+  "calendarResponseLoadFailure": "The calendar response could not be read.",
+  "calendarWriteReadbackUnavailable": "The saved calendar state could not be confirmed.",
+  "calendarLoadRetryGuidance": "Retry to load the current calendar. Your draft stays in the editor if saving failed.",
+  "filesPrivateEmptyMessage": "Your private Files are empty.",
+  "filesSharedEmptyMessage": "This shared folder is empty.",
+  "filesTopFolder": "Top folder",
+  "filesCurrentLocation": "{scope} · {path}",
+  "@filesCurrentLocation": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "filesPrivateEmptyGuidance": "Upload a file or create a folder in your private Files.",
+  "filesSharedEmptyGuidance": "Upload a file or create a folder here. Access follows this shared Space.",
+  "filesSpaceOrdinal": "{name} ({ordinal})",
+  "@filesSpaceOrdinal": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "ordinal": {
+        "type": "int"
+      }
+    }
+  },
+  "calendarUnavailableScopeName": "Unavailable calendar",
+  "calendarTeamScopeName": "{name} · Team calendar",
+  "calendarChannelScopeName": "{name} · Channel calendar",
+  "@calendarTeamScopeName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@calendarChannelScopeName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesListingEnd": "End of folder"
 }

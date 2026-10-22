@@ -109,6 +109,7 @@ PUBLIC_PREPARATION_FILES = (
     "weave/build/evidence/prepare-human-test/preparation-result.json",
     "weave/build/evidence/prepare-human-test/tls-persistence.json",
     "weave/build/evidence/prepare-human-test/owner-space.json",
+    "weave/build/evidence/prepare-human-test/functional-smoke.json",
 )
 
 
@@ -128,7 +129,7 @@ def check_public_preparation_upload(workflow: str) -> None:
     initialization = next(step for step in steps if step.startswith("name: Initialize private physical diagnostics"))
     for guard in ("umask 077", "path.is_symlink()", "directory.stat().st_uid != os.getuid()", "directory.chmod(0o700)"):
         require(guard in initialization, "private physical directory ownership/mode guard missing")
-    for name in ("Create first owner invitation in private Mailpit", "Establish and verify current owner default Space access", "Build, sign, install in place, and launch on physical iPhone"):
+    for name in ("Create first owner invitation in private Mailpit", "Establish and verify current owner default Space access", "Build, sign, install in place, and launch on physical iPhone", "Verify retained owner and independent peer functional behavior"):
         step = next((step for step in steps if step.startswith("name: " + name)), None)
         require(step is not None, "required physical preparation producer is missing")
         require("        run: |\n          umask 077\n" in step,
@@ -141,16 +142,38 @@ def check_public_preparation_upload(workflow: str) -> None:
     require(workflow.index("name: Establish and verify current owner default Space access")
             < workflow.index("name: Build, sign, install in place, and launch on physical iPhone"),
             "current owner Space access must be established before installation")
-    require('"schemaVersion": "weave.hil-preparation/v2"' in workflow
+    require('"schemaVersion": "weave.hil-preparation/v3"' in workflow
             and '"ownerWorkspace": workspace' in workflow
             and "owner_workspace_passed(workspace, sha, tree, spec)" in workflow,
             "physical evidence must validate and bind owner Space access to the exact candidate")
+    require('"functionalSmoke": functional' in workflow
+            and 'functional_smoke_passed(functional, sha, tree, spec,' in workflow
+            and 'int(os.environ["FULL_COMPOSE_E2E_RUN_ATTEMPT"])' in workflow,
+            "physical evidence must validate actual functional proof against the final qualification attempt")
+    install = next(step for step in steps if step.startswith(
+        "name: Build, sign, install in place, and launch on physical iPhone"))
+    require("--run --ordinary-startup" in install and "--reset-mode update_in_place" in install,
+            "physical owner preparation must launch ordinarily and preserve existing state")
+    functional = next(step for step in steps if step.startswith(
+        "name: Verify retained owner and independent peer functional behavior"))
+    require("tools/dogfood_functional_smoke.py --stage physical" in functional
+            and "--diagnostic-only" not in functional and "continue-on-error" not in functional,
+            "physical functional verification cannot be replaced by a diagnostic or ignored failure")
+    require(workflow.index("name: Build, sign, install in place, and launch on physical iPhone")
+            < workflow.index("name: Verify retained owner and independent peer functional behavior")
+            < workflow.index("name: Record exact physical preparation"),
+            "physical functional proof must precede a successful preparation receipt")
 
 
 def check_public_preparation_upload_regressions(workflow: str) -> None:
     check_public_preparation_upload(workflow)
     literal = "          path: |\n" + "".join(f"            {path}\n" for path in PUBLIC_PREPARATION_FILES)
     variants = [
+        workflow.replace('"schemaVersion": "weave.hil-preparation/v3"', '"schemaVersion": "weave.hil-preparation/v2"'),
+        workflow.replace('"functionalSmoke": functional', '"functionalSmoke": {}'),
+        workflow.replace('functional_smoke_passed(functional, sha, tree, spec,', 'bool(functional), #'),
+        workflow.replace('--run --ordinary-startup', '--run'),
+        workflow.replace('--stage physical', '--stage physical --diagnostic-only'),
         workflow.replace("Establish and verify current owner default Space access", "Optional workspace setup"),
         workflow.replace("infra/weave-workspace/compose.sh dogfood bootstrap-space", "echo skipped setup"),
         workflow.replace('"ownerWorkspace": workspace', '"ownerWorkspace": {}'),
@@ -158,6 +181,9 @@ def check_public_preparation_upload_regressions(workflow: str) -> None:
         workflow.replace(PUBLIC_PREPARATION_FILES[1], "weave/build/evidence/prepare-human-test/*"),
         workflow.replace(PUBLIC_PREPARATION_FILES[1], "weave/build/evidence/prepare-human-test/ios-app-preferences.txt"),
         workflow.replace(literal, literal + "            weave/build/evidence/prepare-human-test/ios-device-details.json\n"),
+        workflow.replace(literal, literal + "            weave/build/evidence/prepare-human-test/private-member.json\n"),
+        workflow.replace(literal, literal + "            weave/build/evidence/prepare-human-test/functional.xcresult\n"),
+        workflow.replace(literal, literal + "            weave/build/evidence/prepare-human-test/browser.log\n"),
         workflow.replace(literal, literal + "          path: weave/build/evidence/prepare-human-test\n"),
         workflow + "\n      - uses: actions/upload-artifact@unsafe\n        with:\n          path: weave/build/evidence/prepare-human-test\n",
     ]

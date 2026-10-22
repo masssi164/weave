@@ -58,3 +58,22 @@ Feature: WEAVE-SPEC-0005 acceptance
     When implementation or release evidence is reviewed against Product boundaries
     Then the claim remains blocked unless this scenario maps the requirement category explicitly
     And the catalog and Flutter mapping guard include the same marker and scenario name
+
+  # Current name scenarios project the pinned WEAVE-DOMAIN-SPACES contract.
+  @spaces-readable-name-identity
+  Scenario: Human-readable Space names preserve opaque operation identity
+    Given an owner provisions a Space with a readable name and current member access
+    When the member lists and reads that Space after restart
+    Then both responses contain the same persisted readable name and stable Space reference
+    And Files scope selection and creation destination announcements use the readable name
+    And operations and resource relationships retain the stable reference internally
+    And another organization or a revoked member cannot read the name
+    And conflicting-name provisioning does not rename the Space or change grants
+
+  @spaces-legacy-name-preservation
+  Scenario: Existing unnamed Spaces acquire names without losing owner data
+    Given the persisted default Space and another Space predate readable names
+    When additive schema evolution and normal startup complete
+    Then both Spaces have persisted readable names without manual owner setup
+    And original references memberships and resource relationships remain unchanged
+    And repeating startup preserves those names and current grants

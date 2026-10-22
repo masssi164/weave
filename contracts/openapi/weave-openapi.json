@@ -6406,6 +6406,11 @@
       },
       "SpaceProvisionRequest": {
         "properties": {
+          "displayName": {
+            "description": "Readable Space name, at most 160 Unicode code points, without control characters.",
+            "minLength": 1,
+            "type": "string"
+          },
           "memberAccountRefs": {
             "description": "Member account references granted VIEW. The acting administrator receives ADMIN.",
             "items": {
@@ -6425,6 +6430,7 @@
           }
         },
         "required": [
+          "displayName",
           "spaceRef"
         ],
         "type": "object"
@@ -6517,12 +6523,17 @@
       },
       "SpaceUserResponse": {
         "properties": {
+          "displayName": {
+            "description": "Current readable Space name.",
+            "type": "string"
+          },
           "spaceRef": {
             "description": "Stable Weave Space reference.",
             "type": "string"
           }
         },
         "required": [
+          "displayName",
           "spaceRef"
         ],
         "type": "object"

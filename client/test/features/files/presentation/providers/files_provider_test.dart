@@ -276,6 +276,7 @@ void main() {
             weaveApiMemberSpacesProvider.overrideWith(
               (ref) async => const MemberSpaceAccessSnapshot(
                 visibleSpaceRefs: {'workspace-default'},
+                displayNames: {'workspace-default': 'Organization workspace'},
                 defaultSpaceReadable: true,
               ),
             ),
@@ -924,6 +925,277 @@ void main() {
         expect(state.directoryListing?.entries.single.name, 'existing.txt');
         expect(state.directoryFailure, isNull);
         expect(state.isBusy, isFalse);
+      },
+    );
+
+    test(
+      'same path rebound parent cannot confirm or publish folder readback, retry never creates',
+      () async {
+        var writes = 0;
+        var rebound = true;
+        final repository = _FakeFilesRepository(
+          restoreConnectionHandler: () async => FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://api.example/api'),
+            accountLabel: 'member',
+          ),
+          connectHandler: () async => throw UnimplementedError(),
+          disconnectHandler: () async {},
+          listDirectoryHandler: (path) async => DirectoryListing(
+            path: path,
+            parentFileId: writes > 0 && rebound
+                ? 'different-parent'
+                : 'captured-parent',
+            entries: writes > 0
+                ? const [
+                    FileEntry(
+                      id: 'created-id',
+                      name: 'Plans',
+                      path: '/Plans',
+                      isDirectory: true,
+                    ),
+                  ]
+                : const [],
+          ),
+          createFolderHandler: (path, name) async {
+            writes++;
+            return const FileEntry(
+              id: 'created-id',
+              name: 'Plans',
+              path: '/Plans',
+              isDirectory: true,
+            );
+          },
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        final subscription = container.listen(filesProvider, (_, _) {});
+        addTearDown(subscription.close);
+        await container.read(filesProvider.future);
+        final notifier = container.read(filesProvider.notifier);
+        final result = await notifier.createFolder('Plans');
+        expect(result!.writeOutcome, FilesWriteOutcome.committedRefreshPending);
+        expect(result.parentFileId, 'captured-parent');
+        expect(
+          container
+              .read(filesProvider)
+              .requireValue
+              .directoryListing
+              ?.parentFileId,
+          'captured-parent',
+        );
+        expect(
+          container.read(filesProvider).requireValue.directoryListing?.entries,
+          isEmpty,
+        );
+        await notifier.retryFolderReadback();
+        expect(
+          container
+              .read(filesProvider)
+              .requireValue
+              .entryActionStatus
+              .writeOutcome,
+          FilesWriteOutcome.committedRefreshPending,
+        );
+        expect(
+          container
+              .read(filesProvider)
+              .requireValue
+              .directoryListing
+              ?.parentFileId,
+          'captured-parent',
+        );
+        rebound = false;
+        await notifier.retryFolderReadback();
+        expect(
+          container
+              .read(filesProvider)
+              .requireValue
+              .entryActionStatus
+              .writeOutcome,
+          FilesWriteOutcome.committed,
+        );
+        expect(
+          container
+              .read(filesProvider)
+              .requireValue
+              .directoryListing
+              ?.entries
+              .single
+              .id,
+          'created-id',
+        );
+        expect(writes, 1);
+      },
+    );
+
+    for (final outcome in FilesWriteOutcome.values) {
+      test('folder write and readback remain distinct: $outcome', () async {
+        var writes = 0;
+        var refreshFails = outcome == FilesWriteOutcome.committedRefreshPending;
+        final repository = _FakeFilesRepository(
+          restoreConnectionHandler: () async => FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://api.home.internal/api'),
+            accountLabel: 'member',
+          ),
+          connectHandler: () async => throw UnimplementedError(),
+          disconnectHandler: () async {},
+          listDirectoryHandler: (path) async {
+            if (writes > 0 && refreshFails) {
+              throw const FilesFailure.unknown('Readback unavailable');
+            }
+            return DirectoryListing(
+              path: path,
+              parentFileId: 'parent-id',
+              entries: writes > 0
+                  ? const [
+                      FileEntry(
+                        id: 'created-id',
+                        name: 'Plans',
+                        path: '/Plans',
+                        isDirectory: true,
+                      ),
+                    ]
+                  : const [],
+            );
+          },
+          createFolderHandler: (path, name) async {
+            writes++;
+            if (outcome == FilesWriteOutcome.notCommitted) {
+              throw const FilesFailure.permissionDenied('Write denied');
+            }
+            if (outcome == FilesWriteOutcome.uncertain) {
+              throw const FilesFailure(
+                type: FilesFailureType.unknown,
+                message: 'Write uncertain',
+                writeMayHaveCommitted: true,
+              );
+            }
+            return const FileEntry(
+              id: 'created-id',
+              name: 'Plans',
+              path: '/Plans',
+              isDirectory: true,
+            );
+          },
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        await container.read(filesProvider.future);
+        await container.read(filesProvider.notifier).createFolder('Plans');
+        final status = container
+            .read(filesProvider)
+            .requireValue
+            .entryActionStatus;
+        expect(status.writeOutcome, outcome);
+        expect(status.parentFileId, 'parent-id');
+        expect(status.parentPath, '/');
+        if (outcome == FilesWriteOutcome.committed ||
+            outcome == FilesWriteOutcome.committedRefreshPending) {
+          expect(status.createdEntry?.id, 'created-id');
+        }
+        if (refreshFails) {
+          refreshFails = false;
+          await container.read(filesProvider.notifier).retryFolderReadback();
+          expect(
+            container
+                .read(filesProvider)
+                .requireValue
+                .entryActionStatus
+                .writeOutcome,
+            FilesWriteOutcome.committed,
+          );
+        }
+        expect(writes, 1);
+      });
+    }
+
+    test(
+      'late folder acknowledgement retains its ID without changing a newly opened directory',
+      () async {
+        final write = Completer<FileEntry>();
+        final repository = _FakeFilesRepository(
+          restoreConnectionHandler: () async => FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://api.home.internal/api'),
+            accountLabel: 'member',
+          ),
+          connectHandler: () async => throw UnimplementedError(),
+          disconnectHandler: () async {},
+          listDirectoryHandler: (path) async => DirectoryListing(
+            path: path,
+            parentFileId: path == '/' ? 'parent-id' : 'other-id',
+            entries: const [],
+          ),
+          createFolderHandler: (_, _) => write.future,
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            appStartDiscoveryClientProvider.overrideWith(
+              (ref) => buildTestDiscoveryClient(
+                ref.watch(serverConfigurationRepositoryProvider),
+              ),
+            ),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        await container.read(filesProvider.future);
+        final pending = container
+            .read(filesProvider.notifier)
+            .createFolder('Plans');
+        await container.read(filesProvider.notifier).openDirectory('/Other');
+        write.complete(
+          const FileEntry(
+            id: 'acknowledged-id',
+            name: 'Plans',
+            path: '/Plans',
+            isDirectory: true,
+          ),
+        );
+        final acknowledgement = await pending;
+        expect(acknowledgement?.createdEntry?.id, 'acknowledged-id');
+        expect(
+          acknowledgement?.writeOutcome,
+          FilesWriteOutcome.committedRefreshPending,
+        );
+        expect(acknowledgement?.parentFileId, 'parent-id');
+        expect(
+          container.read(filesProvider).requireValue.currentPath,
+          '/Other',
+        );
+        expect(
+          container.read(filesProvider).requireValue.directoryListing?.entries,
+          isEmpty,
+        );
       },
     );
 

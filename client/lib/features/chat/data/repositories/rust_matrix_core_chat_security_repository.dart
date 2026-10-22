@@ -1,3 +1,4 @@
+import 'package:weave/integrations/rust_matrix_core/data/services/chat_operation_diagnostics.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/domain/repositories/chat_security_repository.dart';
@@ -214,12 +215,12 @@ class RustMatrixCoreChatSecurityRepository implements ChatSecurityRepository {
     }
     if (error.code == 'M_WEAVE_E2EE_NOT_INITIALIZED' ||
         error.code == 'M_WEAVE_E2EE_SESSION') {
-      return ChatFailure.sessionRequired(message);
+      return ChatFailure.sessionRequired(message, cause: error);
     }
     if (error.code == 'M_WEAVE_E2EE_STORE') {
-      return ChatFailure.storage(message);
+      return ChatFailure.storage(message, cause: error);
     }
-    return ChatFailure.protocol(message);
+    return classifyChatFailure(ChatFailure.protocol(message, cause: error));
   }
 
   String _verificationSignature(ChatVerificationSession verification) {

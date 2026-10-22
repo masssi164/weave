@@ -216,6 +216,7 @@ class _StaticWeaveApiClient implements WeaveApiClient {
     required String accessToken,
   }) async => const MemberSpaceAccessSnapshot(
     visibleSpaceRefs: {'workspace-default'},
+    displayNames: {'workspace-default': 'Organization workspace'},
     defaultSpaceReadable: true,
   );
 

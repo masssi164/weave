@@ -674,7 +674,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get filesUpButton => 'Nach oben';
 
   @override
-  String get filesRootBreadcrumb => 'Root';
+  String get filesRootBreadcrumb => 'Dateien';
 
   @override
   String filesOpenFolderSemantic(String name) {
@@ -3760,4 +3760,143 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get chatDirectParticipantRequired =>
       'Wähle genau ein anderes Mitglied für eine direkte Unterhaltung.';
+
+  @override
+  String get calendarSavedRefreshPending =>
+      'Gespeichert. Der Kalender konnte nicht aktualisiert werden. Aktualisiere die Ansicht, statt den Termin erneut anzulegen.';
+
+  @override
+  String get calendarWriteUncertain =>
+      'Wir konnten nicht bestätigen, ob der Termin gespeichert wurde. Wiederhole denselben Vorgang, um Duplikate zu vermeiden.';
+
+  @override
+  String get calendarSaving => 'Wird gespeichert…';
+
+  @override
+  String get filesFolderSavedRefreshPending =>
+      'Ordner erstellt. Aktualisiere diesen Ort, um die Liste zu prüfen. Lege den Ordner nicht erneut an.';
+
+  @override
+  String get filesFolderWriteUncertain =>
+      'Die Ordnererstellung konnte nicht bestätigt werden. Wiederhole denselben Vorgang an diesem Ort.';
+
+  @override
+  String filesFolderLocation(String scope, String path) {
+    return 'Ort: $scope · $path';
+  }
+
+  @override
+  String get settingsPreferencesTitle => 'Darstellung und Sprache';
+
+  @override
+  String get settingsPreferencesDescription =>
+      'Wähle das Design und deine bevorzugte Sprache.';
+
+  @override
+  String get settingsSupportLinkDescription =>
+      'Öffne technische Angaben, wenn du Unterstützung benötigst.';
+
+  @override
+  String get chatErrorTransportGuidance =>
+      'Chat konnte keine Verbindung zu Weave herstellen. Prüfe deine Verbindung und versuche es erneut.';
+
+  @override
+  String get chatErrorAccessDeniedGuidance =>
+      'Dein aktueller Workspace-Zugriff erlaubt diese Chat-Aktion nicht. Bitte eine Workspace-Adminperson, deinen Zugriff zu prüfen.';
+
+  @override
+  String get chatErrorStorageGuidance =>
+      'Chat konnte die geschützten Daten auf diesem Gerät nicht öffnen. Versuche es erneut und wende dich bei anhaltenden Problemen an den Support.';
+
+  @override
+  String get chatErrorProtocolGuidance =>
+      'Chat hat eine unerwartete Antwort erhalten. Versuche es erneut und wende dich bei anhaltenden Problemen an den Support.';
+
+  @override
+  String get chatErrorServiceGuidance =>
+      'Der Chat-Dienst ist derzeit nicht verfügbar. Versuche es erneut und wende dich bei anhaltenden Problemen an den Support.';
+
+  @override
+  String get chatErrorUnknownGuidance =>
+      'Chat konnte diese Aktion nicht abschließen. Versuche es erneut und wende dich bei anhaltenden Problemen an den Support.';
+
+  @override
+  String get chatErrorPeerDevicePendingGuidance =>
+      'Chat wartet auf das sichere Gerät eines Teilnehmenden. Versuche es in Kürze erneut.';
+
+  @override
+  String get calendarRefreshButton => 'Kalender aktualisieren';
+
+  @override
+  String get settingsSupportAccountReference => 'Kontoreferenz';
+
+  @override
+  String get settingsSupportOrganizationReference => 'Organisationsreferenz';
+
+  @override
+  String get settingsSupportCopyIdentityReferences =>
+      'Identitätsreferenzen kopieren';
+
+  @override
+  String get calendarTimeZoneLoadFailure =>
+      'Deine Kalender-Zeitzone konnte nicht geladen werden.';
+
+  @override
+  String get calendarAgendaLoadFailure =>
+      'Deine Termine konnten nicht geladen werden.';
+
+  @override
+  String get calendarResponseLoadFailure =>
+      'Die Kalenderantwort konnte nicht gelesen werden.';
+
+  @override
+  String get calendarWriteReadbackUnavailable =>
+      'Der gespeicherte Kalenderstand konnte nicht bestätigt werden.';
+
+  @override
+  String get calendarLoadRetryGuidance =>
+      'Versuche erneut, den aktuellen Kalender zu laden. Dein Entwurf bleibt bei einem Speicherfehler im Editor.';
+
+  @override
+  String get filesPrivateEmptyMessage => 'Deine privaten Dateien sind leer.';
+
+  @override
+  String get filesSharedEmptyMessage => 'Dieser gemeinsame Ordner ist leer.';
+
+  @override
+  String get filesTopFolder => 'Oberster Ordner';
+
+  @override
+  String filesCurrentLocation(String scope, String path) {
+    return '$scope · $path';
+  }
+
+  @override
+  String get filesPrivateEmptyGuidance =>
+      'Lade eine Datei hoch oder erstelle einen Ordner in deinen privaten Dateien.';
+
+  @override
+  String get filesSharedEmptyGuidance =>
+      'Lade hier eine Datei hoch oder erstelle einen Ordner. Der Zugriff richtet sich nach diesem gemeinsamen Space.';
+
+  @override
+  String filesSpaceOrdinal(String name, int ordinal) {
+    return '$name ($ordinal)';
+  }
+
+  @override
+  String get calendarUnavailableScopeName => 'Nicht verfügbarer Kalender';
+
+  @override
+  String calendarTeamScopeName(String name) {
+    return '$name · Teamkalender';
+  }
+
+  @override
+  String calendarChannelScopeName(String name) {
+    return '$name · Kanalkalender';
+  }
+
+  @override
+  String get filesListingEnd => 'Ende des Ordners';
 }

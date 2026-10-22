@@ -5,10 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_failure.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_workspace_context.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
@@ -40,10 +44,13 @@ class _FakeCalendarRepository implements CalendarRepository {
   final List<CalendarEventDraft> updatedDrafts = [];
   int scopeLoads = 0;
   int eventLoads = 0;
+  CalendarFailure? scopeFailure;
+  CalendarFailure? eventFailure;
 
   @override
   Future<CalendarScopeList> loadScopes() async {
     scopeLoads++;
+    if (scopeFailure != null) throw scopeFailure!;
     if (scopeLoadGate != null) await scopeLoadGate;
     return const CalendarScopeList(
       scopes: [
@@ -69,6 +76,7 @@ class _FakeCalendarRepository implements CalendarRepository {
     DateTime? to,
   }) async {
     eventLoads++;
+    if (eventFailure != null) throw eventFailure!;
     if (eventLoadGate != null) await eventLoadGate;
     return CalendarEventList(
       scope: scope ?? CalendarScope.workspace,
@@ -199,6 +207,161 @@ class _CalendarCapabilityController
 }
 
 void main() {
+  for (final stage in [
+    CalendarOperationStage.discovery,
+    CalendarOperationStage.profileTimeZone,
+    CalendarOperationStage.agenda,
+    CalendarOperationStage.read,
+    CalendarOperationStage.decode,
+  ]) {
+    testWidgets(
+      'one coherent Calendar $stage error retries context before agenda',
+      (tester) async {
+        var failing = true;
+        final repository = _FakeCalendarRepository(events: []);
+        final failure = CalendarFailure(
+          CalendarFailureKind.unavailable,
+          stage: stage,
+        );
+        if (stage == CalendarOperationStage.discovery) {
+          repository.scopeFailure = failure;
+        }
+        if (stage != CalendarOperationStage.discovery &&
+            stage != CalendarOperationStage.profileTimeZone) {
+          repository.eventFailure = failure;
+        }
+        await tester.pumpWidget(
+          createTestApp(
+            const CalendarScreen(),
+            overrides: [
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {'workspace-default'},
+                  displayNames: {'workspace-default': 'Organization workspace'},
+                  defaultSpaceReadable: true,
+                ),
+              ),
+              weaveAuthenticatedSessionProvider.overrideWith(
+                (ref) async => WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                  accessToken: 'test',
+                ),
+              ),
+              workspaceCapabilitySnapshotProvider.overrideWithValue(
+                const AsyncData(_readySnapshot),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+              calendarEvaluationTimeZoneProvider.overrideWith((ref) async {
+                if (failing &&
+                    stage == CalendarOperationStage.profileTimeZone) {
+                  throw failure;
+                }
+                return 'UTC';
+              }),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(ErrorState), findsOneWidget);
+        final error = tester.widget<ErrorState>(find.byType(ErrorState));
+        expect(error.message, switch (stage) {
+          CalendarOperationStage.discovery =>
+            'Your calendars could not be loaded. Retry to check your current access.',
+          CalendarOperationStage.profileTimeZone =>
+            'Your calendar time zone could not be loaded.',
+          CalendarOperationStage.agenda => 'Your events could not be loaded.',
+          CalendarOperationStage.read =>
+            'Calendar event details are unavailable right now.',
+          _ => 'The calendar response could not be read.',
+        });
+        expect(
+          find.text('The calendar could not save that change right now.'),
+          findsNothing,
+        );
+        expect(
+          find.byWidgetPredicate(
+            (w) =>
+                w is Semantics &&
+                (w.properties.identifier?.startsWith('calendar-loaded-') ??
+                    false),
+          ),
+          findsNothing,
+        );
+        final scopesBefore = repository.scopeLoads;
+        failing = false;
+        repository.scopeFailure = null;
+        repository.eventFailure = null;
+        await tester.ensureVisible(find.widgetWithText(FilledButton, 'Retry'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Retry'));
+        await tester.pumpAndSettle();
+        expect(repository.scopeLoads, greaterThan(scopesBefore));
+        expect(repository.eventLoads, greaterThan(0));
+        expect(find.byType(ErrorState), findsNothing);
+        expect(find.text('No events yet'), findsOneWidget);
+      },
+    );
+  }
+
+  testWidgets('calendar-loaded is absent until successful current event read', (
+    tester,
+  ) async {
+    final gate = Completer<void>();
+    final repository = _FakeCalendarRepository(
+      events: [],
+      eventLoadGate: gate.future,
+    );
+    await tester.pumpWidget(
+      createTestApp(
+        const CalendarScreen(),
+        overrides: [
+          weaveApiMemberSpacesProvider.overrideWith(
+            (ref) async => const MemberSpaceAccessSnapshot(
+              visibleSpaceRefs: {'workspace-default'},
+              displayNames: {'workspace-default': 'Organization workspace'},
+              defaultSpaceReadable: true,
+            ),
+          ),
+          weaveAuthenticatedSessionProvider.overrideWith(
+            (ref) async => WeaveAuthenticatedSession(
+              apiBaseUrl: Uri.parse('https://api.example.test/api'),
+              accessToken: 'test-session',
+            ),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            const AsyncData(_readySnapshot),
+          ),
+          calendarRepositoryProvider.overrideWithValue(repository),
+          calendarEvaluationTimeZoneProvider.overrideWith((ref) async => 'UTC'),
+        ],
+      ),
+    );
+    await tester.pump();
+    final loaded = find.byWidgetPredicate(
+      (w) =>
+          w is Semantics &&
+          (w.properties.identifier?.startsWith('calendar-loaded-') ?? false),
+    );
+    expect(loaded, findsNothing);
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(loaded, findsOneWidget);
+    final previous = tester.widget<Semantics>(loaded).properties.identifier;
+    await tester.tap(find.byTooltip('Refresh calendar'));
+    await tester.pumpAndSettle();
+    expect(loaded, findsOneWidget);
+    expect(
+      tester.widget<Semantics>(loaded).properties.identifier,
+      isNot(previous),
+    );
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Semantics && w.properties.identifier == 'calendar-refresh',
+      ),
+      findsOneWidget,
+    );
+  });
+
   for (final completeBeforeFrame in [false, true]) {
     testWidgets(
       'Calendar readiness handles pending capability, completed before frame: $completeBeforeFrame',
@@ -209,6 +372,19 @@ void main() {
           createTestApp(
             const CalendarScreen(),
             overrides: [
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {'workspace-default'},
+                  displayNames: {'workspace-default': 'Organization workspace'},
+                  defaultSpaceReadable: true,
+                ),
+              ),
+              weaveAuthenticatedSessionProvider.overrideWith(
+                (ref) async => WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                  accessToken: 'test-session',
+                ),
+              ),
               workspaceCapabilitySnapshotProvider.overrideWith(
                 (ref) => ref.watch(capability),
               ),
@@ -296,6 +472,22 @@ void main() {
         createTestApp(
           const CalendarScreen(),
           overrides: [
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => const MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: {'workspace-default'},
+                displayNames: {'workspace-default': 'Organization workspace'},
+                defaultSpaceReadable: true,
+              ),
+            ),
+            calendarEvaluationTimeZoneProvider.overrideWith(
+              (ref) async => 'UTC',
+            ),
+            weaveAuthenticatedSessionProvider.overrideWith(
+              (ref) async => WeaveAuthenticatedSession(
+                apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                accessToken: 'test-session',
+              ),
+            ),
             workspaceCapabilitySnapshotProvider.overrideWithValue(entry.value),
           ],
         ),
@@ -359,6 +551,22 @@ void main() {
               ],
             ),
             overrides: [
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {'workspace-default'},
+                  displayNames: {'workspace-default': 'Organization workspace'},
+                  defaultSpaceReadable: true,
+                ),
+              ),
+              calendarEvaluationTimeZoneProvider.overrideWith(
+                (ref) async => 'UTC',
+              ),
+              weaveAuthenticatedSessionProvider.overrideWith(
+                (ref) async => WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                  accessToken: 'test-session',
+                ),
+              ),
               workspaceCapabilitySnapshotProvider.overrideWithValue(
                 const AsyncData(_readySnapshot),
               ),
@@ -401,6 +609,20 @@ void main() {
       createTestApp(
         const SizedBox(key: surface),
         overrides: [
+          weaveApiMemberSpacesProvider.overrideWith(
+            (ref) async => const MemberSpaceAccessSnapshot(
+              visibleSpaceRefs: {'workspace-default'},
+              displayNames: {'workspace-default': 'Organization workspace'},
+              defaultSpaceReadable: true,
+            ),
+          ),
+          calendarEvaluationTimeZoneProvider.overrideWith((ref) async => 'UTC'),
+          weaveAuthenticatedSessionProvider.overrideWith(
+            (ref) async => WeaveAuthenticatedSession(
+              apiBaseUrl: Uri.parse('https://api.example.test/api'),
+              accessToken: 'test-session',
+            ),
+          ),
           workspaceCapabilitySnapshotProvider.overrideWithValue(
             const AsyncData(_readySnapshot),
           ),
@@ -441,6 +663,19 @@ void main() {
           createTestApp(
             const CalendarScreen(),
             overrides: [
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {'workspace-default'},
+                  displayNames: {'workspace-default': 'Organization workspace'},
+                  defaultSpaceReadable: true,
+                ),
+              ),
+              weaveAuthenticatedSessionProvider.overrideWith(
+                (ref) async => WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                  accessToken: 'test-session',
+                ),
+              ),
               workspaceCapabilitySnapshotProvider.overrideWithValue(
                 const AsyncData(_readySnapshot),
               ),
@@ -474,6 +709,19 @@ void main() {
         createTestApp(
           const CalendarScreen(),
           overrides: [
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => const MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: {'workspace-default'},
+                displayNames: {'workspace-default': 'Organization workspace'},
+                defaultSpaceReadable: true,
+              ),
+            ),
+            weaveAuthenticatedSessionProvider.overrideWith(
+              (ref) async => WeaveAuthenticatedSession(
+                apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                accessToken: 'test-session',
+              ),
+            ),
             workspaceCapabilitySnapshotProvider.overrideWithValue(
               const AsyncData(_readySnapshot),
             ),
@@ -541,6 +789,19 @@ void main() {
           createTestApp(
             const CalendarScreen(),
             overrides: [
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {'workspace-default'},
+                  displayNames: {'workspace-default': 'Organization workspace'},
+                  defaultSpaceReadable: true,
+                ),
+              ),
+              weaveAuthenticatedSessionProvider.overrideWith(
+                (ref) async => WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                  accessToken: 'test-session',
+                ),
+              ),
               workspaceCapabilitySnapshotProvider.overrideWith(
                 (ref) => ref.watch(capabilityState),
               ),
@@ -597,6 +858,19 @@ void main() {
           createTestApp(
             const CalendarScreen(),
             overrides: [
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {'workspace-default'},
+                  displayNames: {'workspace-default': 'Organization workspace'},
+                  defaultSpaceReadable: true,
+                ),
+              ),
+              weaveAuthenticatedSessionProvider.overrideWith(
+                (ref) async => WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                  accessToken: 'test-session',
+                ),
+              ),
               workspaceCapabilitySnapshotProvider.overrideWithValue(
                 const AsyncData(_readySnapshot),
               ),
@@ -637,6 +911,19 @@ void main() {
           createTestApp(
             const CalendarScreen(),
             overrides: [
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {'workspace-default'},
+                  displayNames: {'workspace-default': 'Organization workspace'},
+                  defaultSpaceReadable: true,
+                ),
+              ),
+              weaveAuthenticatedSessionProvider.overrideWith(
+                (ref) async => WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                  accessToken: 'test-session',
+                ),
+              ),
               workspaceCapabilitySnapshotProvider.overrideWithValue(
                 AsyncData(_calendarUnavailableSnapshot()),
               ),
@@ -711,6 +998,19 @@ void main() {
               ),
             ),
             overrides: [
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {'workspace-default'},
+                  displayNames: {'workspace-default': 'Organization workspace'},
+                  defaultSpaceReadable: true,
+                ),
+              ),
+              weaveAuthenticatedSessionProvider.overrideWith(
+                (ref) async => WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                  accessToken: 'test-session',
+                ),
+              ),
               workspaceCapabilitySnapshotProvider.overrideWithValue(
                 const AsyncData(_readySnapshot),
               ),
@@ -765,6 +1065,19 @@ void main() {
               child: const CalendarScreen(),
             ),
             overrides: [
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {'workspace-default'},
+                  displayNames: {'workspace-default': 'Organization workspace'},
+                  defaultSpaceReadable: true,
+                ),
+              ),
+              weaveAuthenticatedSessionProvider.overrideWith(
+                (ref) async => WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                  accessToken: 'test-session',
+                ),
+              ),
               workspaceCapabilitySnapshotProvider.overrideWithValue(
                 AsyncData(
                   failure == 'disabled'
@@ -794,7 +1107,10 @@ void main() {
           caught = error;
         }
         expect(caught, isA<TestFailure>());
-        expect(pointerDowns, failure == 'editor-error' ? 1 : 0);
+        expect(
+          pointerDowns,
+          0,
+        ); // Context failure disables activation before opening.
         expect(repository.createdDrafts, isEmpty);
         expect(repository.updatedDrafts, isEmpty);
         expect(find.byType(AlertDialog), findsNothing);
@@ -810,6 +1126,19 @@ void main() {
         createTestApp(
           const CalendarScreen(),
           overrides: [
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => const MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: {'workspace-default'},
+                displayNames: {'workspace-default': 'Organization workspace'},
+                defaultSpaceReadable: true,
+              ),
+            ),
+            weaveAuthenticatedSessionProvider.overrideWith(
+              (ref) async => WeaveAuthenticatedSession(
+                apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                accessToken: 'test-session',
+              ),
+            ),
             workspaceCapabilitySnapshotProvider.overrideWithValue(
               const AsyncData(_readySnapshot),
             ),
@@ -859,6 +1188,19 @@ void main() {
         createTestApp(
           const CalendarScreen(),
           overrides: [
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => const MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: {'workspace-default'},
+                displayNames: {'workspace-default': 'Organization workspace'},
+                defaultSpaceReadable: true,
+              ),
+            ),
+            weaveAuthenticatedSessionProvider.overrideWith(
+              (ref) async => WeaveAuthenticatedSession(
+                apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                accessToken: 'test-session',
+              ),
+            ),
             workspaceCapabilitySnapshotProvider.overrideWithValue(
               const AsyncData(_readySnapshot),
             ),
@@ -901,6 +1243,19 @@ void main() {
         createTestApp(
           const CalendarScreen(),
           overrides: [
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => const MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: {'workspace-default'},
+                displayNames: {'workspace-default': 'Organization workspace'},
+                defaultSpaceReadable: true,
+              ),
+            ),
+            weaveAuthenticatedSessionProvider.overrideWith(
+              (ref) async => WeaveAuthenticatedSession(
+                apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                accessToken: 'test-session',
+              ),
+            ),
             workspaceCapabilitySnapshotProvider.overrideWithValue(
               const AsyncData(_readySnapshot),
             ),
@@ -920,15 +1275,27 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.createdDrafts.single.title, 'Planning sync');
-      expect(find.text('Design review'), findsOneWidget);
+      expect(find.byType(AlertDialog), findsOneWidget);
       expect(
-        find.text('The calendar could not save that change right now.'),
+        tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+        'Planning sync',
+      );
+      expect(
+        find.text(
+          'We could not confirm whether this event was saved. Retry the same event to avoid duplicates.',
+        ),
         findsOneWidget,
       );
       expect(
-        find.text('Calendar event details are unavailable right now.'),
+        find.byWidgetPredicate(
+          (w) =>
+              w is Semantics &&
+              (w.properties.identifier?.startsWith('calendar-loaded-') ??
+                  false),
+        ),
         findsNothing,
       );
+      expect(repository.createdDrafts, hasLength(1));
     });
 
     testWidgets(
@@ -950,6 +1317,22 @@ void main() {
           createTestApp(
             const CalendarScreen(),
             overrides: [
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {'workspace-default'},
+                  displayNames: {'workspace-default': 'Organization workspace'},
+                  defaultSpaceReadable: true,
+                ),
+              ),
+              calendarEvaluationTimeZoneProvider.overrideWith(
+                (ref) async => 'UTC',
+              ),
+              weaveAuthenticatedSessionProvider.overrideWith(
+                (ref) async => WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                  accessToken: 'test-session',
+                ),
+              ),
               workspaceCapabilitySnapshotProvider.overrideWithValue(
                 const AsyncData(_readySnapshot),
               ),
@@ -1004,6 +1387,22 @@ void main() {
         createTestApp(
           const CalendarScreen(),
           overrides: [
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => const MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: {'workspace-default'},
+                displayNames: {'workspace-default': 'Organization workspace'},
+                defaultSpaceReadable: true,
+              ),
+            ),
+            calendarEvaluationTimeZoneProvider.overrideWith(
+              (ref) async => 'UTC',
+            ),
+            weaveAuthenticatedSessionProvider.overrideWith(
+              (ref) async => WeaveAuthenticatedSession(
+                apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                accessToken: 'test-session',
+              ),
+            ),
             workspaceCapabilitySnapshotProvider.overrideWithValue(
               const AsyncData(_readySnapshot),
             ),
@@ -1057,6 +1456,19 @@ void main() {
         createTestApp(
           const CalendarScreen(),
           overrides: [
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => const MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: {'workspace-default'},
+                displayNames: {'workspace-default': 'Organization workspace'},
+                defaultSpaceReadable: true,
+              ),
+            ),
+            weaveAuthenticatedSessionProvider.overrideWith(
+              (ref) async => WeaveAuthenticatedSession(
+                apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                accessToken: 'test-session',
+              ),
+            ),
             workspaceCapabilitySnapshotProvider.overrideWithValue(
               const AsyncData(_readySnapshot),
             ),
@@ -1098,6 +1510,19 @@ void main() {
           createTestApp(
             const CalendarScreen(),
             overrides: [
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {'workspace-default'},
+                  displayNames: {'workspace-default': 'Organization workspace'},
+                  defaultSpaceReadable: true,
+                ),
+              ),
+              weaveAuthenticatedSessionProvider.overrideWith(
+                (ref) async => WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                  accessToken: 'test-session',
+                ),
+              ),
               workspaceCapabilitySnapshotProvider.overrideWithValue(
                 const AsyncData(_readySnapshot),
               ),
@@ -1117,7 +1542,10 @@ void main() {
           find.textContaining('This event changed. Refresh'),
           findsOneWidget,
         );
-        expect(find.text('Review'), findsOneWidget);
+        expect(
+          find.text('Review'),
+          findsNWidgets(2),
+        ); // Retained editor plus original event.
       },
     );
 
@@ -1129,6 +1557,19 @@ void main() {
         createTestApp(
           const CalendarScreen(),
           overrides: [
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => const MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: {'workspace-default'},
+                displayNames: {'workspace-default': 'Organization workspace'},
+                defaultSpaceReadable: true,
+              ),
+            ),
+            weaveAuthenticatedSessionProvider.overrideWith(
+              (ref) async => WeaveAuthenticatedSession(
+                apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                accessToken: 'test-session',
+              ),
+            ),
             workspaceCapabilitySnapshotProvider.overrideWithValue(
               const AsyncData(_readySnapshot),
             ),
@@ -1190,6 +1631,24 @@ void main() {
             createTestApp(
               const CalendarScreen(),
               overrides: [
+                weaveApiMemberSpacesProvider.overrideWith(
+                  (ref) async => const MemberSpaceAccessSnapshot(
+                    visibleSpaceRefs: {'workspace-default'},
+                    displayNames: {
+                      'workspace-default': 'Organization workspace',
+                    },
+                    defaultSpaceReadable: true,
+                  ),
+                ),
+                calendarEvaluationTimeZoneProvider.overrideWith(
+                  (ref) async => 'UTC',
+                ),
+                weaveAuthenticatedSessionProvider.overrideWith(
+                  (ref) async => WeaveAuthenticatedSession(
+                    apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                    accessToken: 'test-session',
+                  ),
+                ),
                 workspaceCapabilitySnapshotProvider.overrideWithValue(
                   const AsyncData(_readySnapshot),
                 ),
@@ -1226,6 +1685,19 @@ void main() {
           createTestApp(
             const CalendarScreen(),
             overrides: [
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {'workspace-default'},
+                  displayNames: {'workspace-default': 'Organization workspace'},
+                  defaultSpaceReadable: true,
+                ),
+              ),
+              weaveAuthenticatedSessionProvider.overrideWith(
+                (ref) async => WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://api.example.test/api'),
+                  accessToken: 'test-session',
+                ),
+              ),
               workspaceCapabilitySnapshotProvider.overrideWithValue(
                 const AsyncData(_readySnapshot),
               ),
@@ -1257,6 +1729,7 @@ void main() {
       'a draft opened by a previous session cannot be submitted by the next member',
       (tester) async {
         final repository = _FakeCalendarRepository(events: []);
+        var ownerKey = 'first-member';
         var session = WeaveAuthenticatedSession(
           apiBaseUrl: Uri.parse('https://api.example.test/api'),
           accessToken: 'first',
@@ -1265,6 +1738,23 @@ void main() {
           createTestApp(
             const CalendarScreen(),
             overrides: [
+              weaveApiMemberSpacesProvider.overrideWith(
+                (ref) async => const MemberSpaceAccessSnapshot(
+                  visibleSpaceRefs: {'workspace-default'},
+                  displayNames: {'workspace-default': 'Organization workspace'},
+                  defaultSpaceReadable: true,
+                ),
+              ),
+              calendarWorkspaceContextProvider.overrideWith((ref) async {
+                await ref.watch(weaveAuthenticatedSessionProvider.future);
+                final scopes = await repository.loadScopes();
+                return CalendarWorkspaceContext(
+                  ownerKey: ownerKey,
+                  scopes: scopes,
+                  selectedScope: scopes.scopes.first,
+                  evaluationTimeZone: 'Europe/Berlin',
+                );
+              }),
               workspaceCapabilitySnapshotProvider.overrideWithValue(
                 const AsyncData(_readySnapshot),
               ),
@@ -1288,6 +1778,7 @@ void main() {
         final container = ProviderScope.containerOf(
           tester.element(find.byType(CalendarScreen)),
         );
+        ownerKey = 'second-member';
         session = WeaveAuthenticatedSession(
           apiBaseUrl: Uri.parse('https://api.example.test/api'),
           accessToken: 'second',

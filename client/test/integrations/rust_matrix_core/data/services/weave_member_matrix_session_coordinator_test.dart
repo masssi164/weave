@@ -4,6 +4,9 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart';
+import 'package:weave/features/chat/data/repositories/native_matrix_chat_repository.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart' as http_testing;
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
@@ -112,6 +115,45 @@ class _FailingBindingStore extends InMemorySecureStore {
   }
 }
 
+class _StageFailureBridge extends FakeRustMatrixCoreBridge {
+  _StageFailureBridge(this.atSync);
+  final bool atSync;
+  @override
+  Future<RustMatrixOAuthIdentity> activateMemberSession({
+    required String profileKey,
+    required String homeserverUrl,
+    required String userId,
+    required String deviceId,
+    required String accessToken,
+    required String deviceProof,
+    required String storePath,
+    required String storePassphrase,
+  }) async {
+    if (!atSync) {
+      throw const RustMatrixCoreBridgeException(
+        'M_WEAVE_MATRIX_TRANSPORT_CONNECTION',
+      );
+    }
+    return super.activateMemberSession(
+      profileKey: profileKey,
+      homeserverUrl: homeserverUrl,
+      userId: userId,
+      deviceId: deviceId,
+      accessToken: accessToken,
+      deviceProof: deviceProof,
+      storePath: storePath,
+      storePassphrase: storePassphrase,
+    );
+  }
+
+  @override
+  Future<void> syncClient({required String profileKey}) async {
+    throw const RustMatrixCoreBridgeException(
+      'M_WEAVE_MATRIX_TRANSPORT_TIMEOUT',
+    );
+  }
+}
+
 String _idToken({
   String issuer = 'https://auth.home.internal',
   String subject = 'person-1',
@@ -168,6 +210,57 @@ void main() {
   tearDown(() async {
     if (await root.exists()) await root.delete(recursive: true);
   });
+
+  for (final phase in [
+    'admission',
+    'bindingStorage',
+    'nativeActivation',
+    'sync',
+  ]) {
+    test(
+      'first conversation load captures real coordinator phase $phase',
+      () async {
+        if (phase == 'admission') {
+          access.onAdmission = (_) async {
+            throw const ChatFailure.accessDenied(
+              'M_WEAVE_MATRIX_ACCESS_DENIED',
+            );
+          };
+        } else if (phase == 'bindingStorage') {
+          await coordinator().open(synchronize: false);
+          final key = store.rawValue(matrixOAuthCurrentBindingKey)!;
+          await store.write(key, 'private malformed binding');
+        } else {
+          bridge = _StageFailureBridge(phase == 'sync');
+        }
+        final original = debugPrint;
+        final records = <String>[];
+        debugPrint = (String? value, {int? wrapWidth}) =>
+            records.add(value ?? '');
+        addTearDown(() => debugPrint = original);
+        final repository = NativeMatrixChatRepository(
+          matrixCryptoSessionCoordinator: coordinator(),
+          rustMatrixCoreBridge: bridge,
+        );
+        await expectLater(
+          repository.loadConversations(),
+          throwsA(isA<ChatFailure>()),
+        );
+        expect(
+          records.single,
+          contains('operation=conversations stage=$phase '),
+        );
+        expect(records.single, contains('supportSafe=true'));
+        expect(records.join(), isNot(contains('private')));
+        expect(records.join(), isNot(contains('access-token')));
+        expect(records.join(), isNot(contains('@acct_')));
+        if (phase == 'bindingStorage') {
+          final key = store.rawValue(matrixOAuthCurrentBindingKey)!;
+          expect(store.rawValue(key), 'private malformed binding');
+        }
+      },
+    );
+  }
 
   test(
     'opens the native Matrix client with the current Weave member token',

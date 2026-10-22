@@ -111,6 +111,7 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
     required String accessToken,
   }) async => const MemberSpaceAccessSnapshot(
     visibleSpaceRefs: {'workspace-default'},
+    displayNames: {'workspace-default': 'Organization workspace'},
     defaultSpaceReadable: true,
   );
   Uri? lastBaseUrl;

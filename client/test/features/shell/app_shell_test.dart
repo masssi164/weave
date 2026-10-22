@@ -319,26 +319,39 @@ void main() {
       },
     );
 
-    testWidgets('keeps the current shell usable at large Dynamic Type', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-      tester.platformDispatcher.textScaleFactorTestValue = 2;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-
-      await pumpReadyShell(tester);
-
-      expect(find.byType(NavigationBar), findsOneWidget);
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Chat'), findsOneWidget);
-      expect(find.text('Files'), findsOneWidget);
-      expect(find.text('Calendar'), findsOneWidget);
-      expect(find.text('Settings'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
+    for (final locale in ['en', 'de']) {
+      testWidgets('full navigation labels and targets fit $locale large text', (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await pumpReadyShell(
+          tester,
+          preferencesStore: InMemoryPreferencesStore({
+            appLocalePreferenceStorageKey: locale,
+          }),
+        );
+        for (final id in ['home', 'chat', 'files', 'calendar', 'settings']) {
+          final target = find.byWidgetPredicate(
+            (w) => w is Semantics && w.properties.identifier == 'nav-$id',
+          );
+          expect(target, findsOneWidget);
+          final size = tester.getSize(target);
+          expect(size.width, greaterThanOrEqualTo(48));
+          expect(size.height, greaterThanOrEqualTo(48));
+          expect(tester.getRect(target).right, lessThanOrEqualTo(390));
+        }
+        expect(
+          find.text(locale == 'de' ? 'Einstellungen' : 'Settings'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
 
     testWidgets('applies the persisted personal theme across the shell', (
       tester,

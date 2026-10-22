@@ -1,3 +1,4 @@
+import 'chat_operation_diagnostics.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/generated/user_api/api.dart' as user_api;
@@ -57,22 +58,33 @@ class GeneratedMatrixSessionAccess implements MatrixSessionAccessPort {
           organizationId.isEmpty ||
           subject == null ||
           subject != expectedSubject ||
-          identity?.identityIssuer != expectedIssuer.toString() ||
-          chat?.enabled != true ||
-          chat?.policyState !=
+          identity?.identityIssuer != expectedIssuer.toString()) {
+        throw const ChatFailure.sessionRequired(
+          'M_WEAVE_MATRIX_MEMBER_SESSION_REQUIRED',
+        );
+      }
+      if (chat == null) {
+        throw const ChatFailure.protocol('M_WEAVE_MATRIX_ACCESS_UNCONFIRMED');
+      }
+      if (chat.policyState !=
               user_api
                   .WorkspaceCapabilityStatusResponsePolicyStateEnum
                   .allowed ||
-          (chat?.readiness !=
+          !chat.grantedCapabilities.contains('chat.read')) {
+        throw const ChatFailure.accessDenied('M_WEAVE_MATRIX_ACCESS_DENIED');
+      }
+      if (chat.enabled != true ||
+          (chat.readiness !=
                   user_api
                       .WorkspaceCapabilityStatusResponseReadinessEnum
                       .ready &&
-              chat?.readiness !=
+              chat.readiness !=
                   user_api
                       .WorkspaceCapabilityStatusResponseReadinessEnum
-                      .degraded) ||
-          !chat!.grantedCapabilities.contains('chat.read')) {
-        throw const ChatFailure.sessionRequired('M_WEAVE_MATRIX_ACCESS_DENIED');
+                      .degraded)) {
+        throw const ChatFailure.serviceUnavailable(
+          'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
+        );
       }
       return MatrixSessionAccess(
         organizationId: organizationId,
@@ -81,17 +93,29 @@ class GeneratedMatrixSessionAccess implements MatrixSessionAccessPort {
     } on ChatFailure {
       rethrow;
     } on user_api.ApiException catch (error) {
+      if (error.innerException != null) {
+        throw classifyChatFailure(
+          ChatFailure.protocol(
+            'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
+            cause: error.innerException,
+          ),
+        );
+      }
+      ChatOperationDiagnostics.status(error.code);
       throw ChatFailure(
-        type: error.code == 401 || error.code == 403
+        type: error.code == 401
             ? ChatFailureType.sessionRequired
+            : error.code == 403
+            ? ChatFailureType.accessDenied
+            : error.code >= 500
+            ? ChatFailureType.serviceUnavailable
             : ChatFailureType.protocol,
         message: 'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
         cause: error.code,
       );
     } catch (error) {
-      throw ChatFailure.protocol(
-        'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
-        cause: error,
+      throw classifyChatFailure(
+        ChatFailure.protocol('M_WEAVE_MATRIX_ACCESS_UNCONFIRMED', cause: error),
       );
     }
   }

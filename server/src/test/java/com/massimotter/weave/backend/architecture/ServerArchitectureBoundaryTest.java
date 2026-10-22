@@ -20,12 +20,13 @@ class ServerArchitectureBoundaryTest {
     // WEAVE-DOMAIN-SPACES names this sole fixed statement under ADR 0023. The rest of its file remains guarded.
     private static final String SPACE_CREATION_FENCE_DECLARATION =
             "@Modifying(flushAutomatically = true) @Query(value = \"\"\" "
-                    + "insert into weave_spaces (organization_ref, space_ref, lifecycle_state, "
+                    + "insert into weave_spaces (organization_ref, space_ref, display_name, lifecycle_state, "
                     + "created_at_utc, updated_at_utc, version) "
-                    + "values (:organizationRef, :spaceRef, 'ACTIVE', :now, :now, 0) "
+                    + "values (:organizationRef, :spaceRef, :displayName, 'ACTIVE', :now, :now, 0) "
                     + "on conflict do nothing \"\"\", nativeQuery = true) "
                     + "int insertIfAbsent(@Param(\"organizationRef\") String organizationRef, "
-                    + "@Param(\"spaceRef\") String spaceRef, @Param(\"now\") OffsetDateTime now);";
+                    + "@Param(\"spaceRef\") String spaceRef, @Param(\"displayName\") String displayName, "
+                    + "@Param(\"now\") OffsetDateTime now);";
 
     private static final List<String> DOMAIN_FORBIDDEN_IMPORT_PREFIXES = List.of(
             BACKEND_PACKAGE + "controller.",
@@ -533,6 +534,7 @@ class ServerArchitectureBoundaryTest {
         for (String changed : List.of(
                 source.text().replace("on conflict do nothing", "on conflict do update set lifecycle_state = 'ACTIVE'"),
                 source.text().replace(":organizationRef, :spaceRef", "'fixed-org', :spaceRef"),
+                source.text().replace(":displayName", "'Unreviewed fixed name'"),
                 source.text().replace("int insertIfAbsent(", "int executeArbitrarySql("))) {
             assertThatThrownBy(() -> assertNoUnreviewedNativeDataAccess(withText(source, changed)))
                     .isInstanceOf(AssertionError.class);

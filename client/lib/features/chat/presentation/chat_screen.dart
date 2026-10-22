@@ -83,11 +83,14 @@ class _AdmittedChatScreen extends ConsumerWidget {
         SliverAppBar.large(
           title: Text(l10n.chatScreenTitle),
           actions: [
-            IconButton(
-              key: const Key('chat-create-conversation-button'),
-              tooltip: l10n.chatCreateConversationAction,
-              onPressed: canCreateConversation ? createConversation : null,
-              icon: const Icon(Icons.add_comment_outlined),
+            Semantics(
+              identifier: 'chat-create-conversation',
+              child: IconButton(
+                key: const Key('chat-create-conversation-button'),
+                tooltip: l10n.chatCreateConversationAction,
+                onPressed: canCreateConversation ? createConversation : null,
+                icon: const Icon(Icons.add_comment_outlined),
+              ),
             ),
           ],
         ),
@@ -272,29 +275,32 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
           children: [
             Text(l10n.chatCreateConversationDescription),
             const SizedBox(height: 16),
-            TextField(
-              key: const Key('chat-create-conversation-name-field'),
-              controller: _nameController,
-              enabled: !_submitting,
-              autofocus: true,
-              maxLength: 200,
-              textInputAction: TextInputAction.done,
-              decoration: InputDecoration(
-                labelText: l10n.chatCreateConversationNameLabel,
-                hintText: l10n.chatCreateConversationNameHint,
-                errorText: _nameInvalid
-                    ? l10n.chatCreateConversationNameRequired
-                    : null,
+            Semantics(
+              identifier: 'chat-conversation-name',
+              child: TextField(
+                key: const Key('chat-create-conversation-name-field'),
+                controller: _nameController,
+                enabled: !_submitting,
+                autofocus: true,
+                maxLength: 200,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  labelText: l10n.chatCreateConversationNameLabel,
+                  hintText: l10n.chatCreateConversationNameHint,
+                  errorText: _nameInvalid
+                      ? l10n.chatCreateConversationNameRequired
+                      : null,
+                ),
+                onChanged: (_) {
+                  if (_nameInvalid || _creationFailed) {
+                    setState(() {
+                      _nameInvalid = false;
+                      _creationFailed = false;
+                    });
+                  }
+                },
+                onSubmitted: (_) => _submit(),
               ),
-              onChanged: (_) {
-                if (_nameInvalid || _creationFailed) {
-                  setState(() {
-                    _nameInvalid = false;
-                    _creationFailed = false;
-                  });
-                }
-              },
-              onSubmitted: (_) => _submit(),
             ),
             const SizedBox(height: 16),
             SwitchListTile(
@@ -318,16 +324,19 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
                 liveRegion: true,
                 child: Text(l10n.chatDirectParticipantRequired),
               ),
-            TextField(
-              key: const Key('chat-create-conversation-participant-field'),
-              controller: _participantController,
-              enabled: !_submitting,
-              maxLength: 200,
-              decoration: InputDecoration(
-                labelText: l10n.chatParticipantsLabel,
-                helperText: l10n.chatParticipantsHelp,
+            Semantics(
+              identifier: 'chat-participants',
+              child: TextField(
+                key: const Key('chat-create-conversation-participant-field'),
+                controller: _participantController,
+                enabled: !_submitting,
+                maxLength: 200,
+                decoration: InputDecoration(
+                  labelText: l10n.chatParticipantsLabel,
+                  helperText: l10n.chatParticipantsHelp,
+                ),
+                onChanged: _search,
               ),
-              onChanged: _search,
             ),
             if (_selected.isNotEmpty)
               Wrap(
@@ -392,13 +401,16 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
           onPressed: _submitting ? null : () => Navigator.of(context).pop(),
           child: Text(l10n.chatCreateConversationCancel),
         ),
-        FilledButton(
-          key: const Key('chat-create-conversation-submit-button'),
-          onPressed: _submitting ? null : _submit,
-          child: Text(
-            _submitting
-                ? l10n.chatCreateConversationSubmitting
-                : l10n.chatCreateConversationSubmit,
+        Semantics(
+          identifier: 'chat-create-submit',
+          child: FilledButton(
+            key: const Key('chat-create-conversation-submit-button'),
+            onPressed: _submitting ? null : _submit,
+            child: Text(
+              _submitting
+                  ? l10n.chatCreateConversationSubmitting
+                  : l10n.chatCreateConversationSubmit,
+            ),
           ),
         ),
       ],
@@ -452,7 +464,7 @@ class _ChatStaleNotice extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                l10n.chatStaleRoomsGuidance,
+                _ChatErrorState._guidanceForFailure(l10n, failure.type),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onTertiaryContainer,
                 ),
@@ -493,7 +505,10 @@ class _ChatErrorState extends StatelessWidget {
     );
   }
 
-  String _guidanceForFailure(AppLocalizations l10n, ChatFailureType type) {
+  static String _guidanceForFailure(
+    AppLocalizations l10n,
+    ChatFailureType type,
+  ) {
     return switch (type) {
       ChatFailureType.cancelled => l10n.chatErrorCancelledGuidance,
       ChatFailureType.configuration ||
@@ -501,10 +516,14 @@ class _ChatErrorState extends StatelessWidget {
       ChatFailureType.sessionRequired => l10n.chatErrorSessionRequiredGuidance,
       ChatFailureType.unsupportedPlatform =>
         l10n.chatErrorUnsupportedPlatformGuidance,
-      ChatFailureType.peerDevicePending ||
-      ChatFailureType.protocol ||
-      ChatFailureType.storage ||
-      ChatFailureType.unknown => l10n.chatErrorRetryGuidance,
+      ChatFailureType.peerDevicePending =>
+        l10n.chatErrorPeerDevicePendingGuidance,
+      ChatFailureType.transport => l10n.chatErrorTransportGuidance,
+      ChatFailureType.accessDenied => l10n.chatErrorAccessDeniedGuidance,
+      ChatFailureType.serviceUnavailable => l10n.chatErrorServiceGuidance,
+      ChatFailureType.protocol => l10n.chatErrorProtocolGuidance,
+      ChatFailureType.storage => l10n.chatErrorStorageGuidance,
+      ChatFailureType.unknown => l10n.chatErrorUnknownGuidance,
     };
   }
 }
@@ -696,6 +715,7 @@ class _ConversationTile extends StatelessWidget {
     ].join('. ');
 
     return Semantics(
+      identifier: 'chat-conversation-${conversation.id}',
       container: true,
       button: true,
       enabled: true,

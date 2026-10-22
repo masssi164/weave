@@ -6013,6 +6013,105 @@
         "test_owner_workspace_requires_current_access_and_removed_temporary_authority"
       ],
       "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@human-ready-ordinary-functional",
+      "scenario": "Ordinary startup proves authenticated domain behavior",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/dogfood_functional_smoke.py",
+      "evidenceMarkers": [
+        "DOGFOOD_FUNCTIONAL_SMOKE_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "dogfood-functional"
+      ]
+    },
+    {
+      "tag": "@human-ready-physical-functional",
+      "scenario": "Physical readiness includes the installed authenticated application",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/dogfood_functional_smoke.py",
+      "evidenceMarkers": [
+        "DOGFOOD_FUNCTIONAL_SMOKE_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "dogfood-functional"
+      ]
+    },
+    {
+      "tag": "@human-ready-auth-incomplete",
+      "scenario": "Required authentication remains an explicit incomplete boundary",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/dogfood_functional_smoke_test.py",
+      "evidenceMarkers": [
+        "test_unprotected_invocation_is_incomplete_without_native_side_effects"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@human-ready-write-readback",
+      "scenario": "Successful writes and failed refreshes are not conflated",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "client/test/features/calendar/calendar_provider_test.dart",
+      "evidenceMarkers": [
+        "write acknowledgement stays distinct from"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@spaces-readable-name-identity",
+      "scenario": "Human-readable Space names preserve opaque operation identity",
+      "feature": "e2e/features/weave_spec_0005_acceptance.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/spaces/adapter/SpaceDisplayNamesPersistenceTest.java",
+      "evidenceMarkers": [
+        "currentNamesSurviveReopenAndConflictingProvisionDoesNotRenameOrReplaceGrants"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/spaces/SpaceUserApiServiceTest.java",
+          "fragments": [
+            "singleReadReturnsCurrentAuthorizedDisplayName",
+            "listsOnlyDurableVisibleSpacesInBoundedKeysetOrder",
+            "absentRevokedAndForeignSpacesHaveTheSameNotFoundResult"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/spaces/SpaceAdminApiServiceTest.java",
+          "fragments": [
+            "changedRequestConflictsWithoutAuditOrMembershipOverwrite"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@spaces-legacy-name-preservation",
+      "scenario": "Existing unnamed Spaces acquire names without losing owner data",
+      "feature": "e2e/features/weave_spec_0005_acceptance.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/spaces/adapter/JpaSpaceAccessAdapterPostgresTest.java",
+      "evidenceMarkers": [
+        "legacyNameMigrationPreservesReferencesGrantsAndMaterializedFileRelationships"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/spaces/adapter/SpaceDisplayNamesPersistenceTest.java",
+          "fragments": [
+            "explicitDefaultBootstrapCreatesCanonicalNameAndPreservesItsIdentityOnRetry",
+            "currentNamesSurviveReopenAndConflictingProvisionDoesNotRenameOrReplaceGrants"
+          ]
+        },
+        {
+          "path": "server/src/main/resources/db/migration/V14__space_display_names.sql",
+          "fragments": [
+            "ALTER TABLE weave_spaces ADD COLUMN display_name",
+            "PARTITION BY organization_ref ORDER BY space_ref",
+            "ALTER COLUMN display_name SET NOT NULL"
+          ]
+        }
+      ]
     }
   ]
 }

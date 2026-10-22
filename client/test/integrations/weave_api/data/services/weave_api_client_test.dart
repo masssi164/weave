@@ -818,20 +818,26 @@ void main() {
             requestedPaths.add(request.url.path);
             expect(request.headers['Authorization'], 'Bearer token-123');
             if (request.url.path.endsWith('/workspace-default')) {
-              return _jsonResponse({'spaceRef': 'workspace-default'});
+              return _jsonResponse({
+                'spaceRef': 'workspace-default',
+                'displayName': 'Organization workspace',
+              });
             }
             if (request.url.queryParameters['afterSpaceRef'] ==
                 'workspace-default') {
               return _jsonResponse({
                 'spaces': [
-                  {'spaceRef': 'team-space'},
+                  {'spaceRef': 'team-space', 'displayName': 'Design team'},
                 ],
                 'nextAfterSpaceRef': null,
               });
             }
             return _jsonResponse({
               'spaces': [
-                {'spaceRef': 'workspace-default'},
+                {
+                  'spaceRef': 'workspace-default',
+                  'displayName': 'Organization workspace',
+                },
               ],
               'nextAfterSpaceRef': 'workspace-default',
             });
@@ -845,11 +851,99 @@ void main() {
 
         expect(access.hasDefaultSpace, isTrue);
         expect(access.visibleSpaceRefs, {'workspace-default', 'team-space'});
+        expect(access.displayNames, {
+          'workspace-default': 'Organization workspace',
+          'team-space': 'Design team',
+        });
         expect(requestedPaths, [
           '/api/spaces',
           '/api/spaces',
           '/api/spaces/workspace-default',
         ]);
+      },
+    );
+
+    for (final name in [
+      '',
+      '  ',
+      'Bad\u0000name',
+      'Bad\u007fname',
+      'Bad\u0085name',
+      List.filled(161, '😀').join(),
+    ]) {
+      test(
+        'rejects invalid generated Space name without granting partial admission',
+        () async {
+          final client = HttpWeaveApiClient(
+            httpClient: _RecordingHttpClient(
+              (request) async => _jsonResponse({
+                'spaces': [
+                  {'spaceRef': 'opaque-only', 'displayName': name},
+                ],
+                'nextAfterSpaceRef': null,
+              }),
+            ),
+          );
+          await expectLater(
+            client.fetchMemberSpaces(
+              baseUrl: Uri.parse('https://api.weave.test/api'),
+              accessToken: 'token',
+            ),
+            throwsA(isA<AppFailure>()),
+          );
+        },
+      );
+    }
+    test(
+      '160 Unicode code points are accepted independently of UTF16 length',
+      () async {
+        final name = List.filled(160, '😀').join();
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient(
+            (request) async => _jsonResponse({
+              'spaces': [
+                {'spaceRef': 'opaque-only', 'displayName': name},
+              ],
+              'nextAfterSpaceRef': null,
+            }),
+          ),
+        );
+        final result = await client.fetchMemberSpaces(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accessToken: 'token',
+        );
+        expect(result.displayNames['opaque-only'], name);
+      },
+    );
+    test(
+      'conflicting repeated ref metadata cannot turn partial pages into admission',
+      () async {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient(
+            (request) async => _jsonResponse({
+              'spaces': [
+                {
+                  'spaceRef': 'opaque-only',
+                  'displayName':
+                      request.url.queryParameters.containsKey('afterSpaceRef')
+                      ? 'Second'
+                      : 'First',
+                },
+              ],
+              'nextAfterSpaceRef':
+                  request.url.queryParameters.containsKey('afterSpaceRef')
+                  ? null
+                  : 'opaque-only',
+            }),
+          ),
+        );
+        await expectLater(
+          client.fetchMemberSpaces(
+            baseUrl: Uri.parse('https://api.weave.test/api'),
+            accessToken: 'token',
+          ),
+          throwsA(isA<AppFailure>()),
+        );
       },
     );
 
@@ -861,7 +955,10 @@ void main() {
           }
           return _jsonResponse({
             'spaces': [
-              {'spaceRef': 'workspace-default'},
+              {
+                'spaceRef': 'workspace-default',
+                'displayName': 'Organization workspace',
+              },
             ],
             'nextAfterSpaceRef': null,
           });
@@ -885,7 +982,10 @@ void main() {
           }
           return _jsonResponse({
             'spaces': [
-              {'spaceRef': 'workspace-default'},
+              {
+                'spaceRef': 'workspace-default',
+                'displayName': 'Organization workspace',
+              },
             ],
             'nextAfterSpaceRef': null,
           });

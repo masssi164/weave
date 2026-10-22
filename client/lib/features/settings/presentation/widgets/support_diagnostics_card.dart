@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:weave/features/settings/presentation/providers/support_identity_reference_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/application_identity/domain/client_build_identity.dart';
 import 'package:weave/core/application_identity/presentation/providers/client_build_identity_provider.dart';
@@ -16,6 +18,13 @@ class SupportDiagnosticsCard extends ConsumerWidget {
     final buildIdentity = ref.watch(clientBuildIdentityProvider);
     final configuration = ref.watch(savedServerConfigurationProvider);
     final identity = buildIdentity.asData?.value;
+    final references = ref.watch(supportIdentityReferenceProvider);
+    final currentReferences = !references.isLoading && !references.hasError
+        ? references.asData?.value
+        : null;
+    final referenceUnavailable = references.isLoading
+        ? l10n.settingsSupportValueLoading
+        : l10n.settingsSupportValueUnavailable;
 
     return Card(
       elevation: 0,
@@ -47,6 +56,28 @@ class SupportDiagnosticsCard extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
+              _DiagnosticValue(
+                identifier: 'settings-current-account-reference',
+                label: l10n.settingsSupportAccountReference,
+                value: currentReferences?.account ?? referenceUnavailable,
+              ),
+              _DiagnosticValue(
+                identifier: 'settings-current-organization-reference',
+                label: l10n.settingsSupportOrganizationReference,
+                value: currentReferences?.organization ?? referenceUnavailable,
+              ),
+              TextButton.icon(
+                onPressed: currentReferences == null
+                    ? null
+                    : () => Clipboard.setData(
+                        ClipboardData(
+                          text:
+                              '${l10n.settingsSupportAccountReference}: ${currentReferences.account}\n${l10n.settingsSupportOrganizationReference}: ${currentReferences.organization}',
+                        ),
+                      ),
+                icon: const Icon(Icons.copy),
+                label: Text(l10n.settingsSupportCopyIdentityReferences),
+              ),
               _DiagnosticValue(
                 label: l10n.settingsSupportServerLabel,
                 value: _serverValue(configuration, l10n),
@@ -146,7 +177,12 @@ class SupportDiagnosticsCard extends ConsumerWidget {
 }
 
 class _DiagnosticValue extends StatelessWidget {
-  const _DiagnosticValue({required this.label, required this.value});
+  const _DiagnosticValue({
+    required this.label,
+    required this.value,
+    this.identifier,
+  });
+  final String? identifier;
 
   final String label;
   final String value;
@@ -158,6 +194,7 @@ class _DiagnosticValue extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Semantics(
         container: true,
+        identifier: identifier,
         label: '$label: $value',
         child: ExcludeSemantics(
           child: Column(

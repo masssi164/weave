@@ -129,6 +129,7 @@ final class BrowserDriver: XCTestCase {
     let nativeAuthCompletionPath: String
     // Private simulator harness initiator; absent preserves native tap consumers.
     let flutterInitiatesSignIn: Bool?
+    let ordinaryOrganizationOrigin: String?
   }
 
   func testPrivateSignInInitiatorDefaultsToNativeAndRejectsInvalidType() throws {
@@ -359,7 +360,7 @@ final class BrowserDriver: XCTestCase {
     while Date() < deadline {
       // Only the runner's observation of Flutter's real workspace assertion
       // releases this wait; a submit tap or disappearing browser never does.
-      if Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath) {
+      if (fixture.ordinaryOrganizationOrigin != nil && Self.ordinaryWorkspaceObserved(app)) || (fixture.ordinaryOrganizationOrigin == nil && Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath)) {
         print("NATIVE_IOS_BROWSER_STAGE phase=auth-completion-observed")
         return true
       }
@@ -369,7 +370,7 @@ final class BrowserDriver: XCTestCase {
         app: app, system: system, deadline: deadline, completionPath: fixture.nativeAuthCompletionPath,
         promptSeen: &promptSeen
       ) != nil else { return false }
-      if Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath) { continue }
+      if (fixture.ordinaryOrganizationOrigin != nil && Self.ordinaryWorkspaceObserved(app)) || (fixture.ordinaryOrganizationOrigin == nil && Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath)) { continue }
       if !recoveryConsidered && Date() >= recoveryAfter {
         // One optional native Return on the freshly resolved original issuer form.
         // No refill, further Return attempts, app activation, or representation-dependent pass.
@@ -483,6 +484,19 @@ final class BrowserDriver: XCTestCase {
     // Xcode forwards this private test-plan value on every invocation. Keeping
     // it outside the installed bundle avoids stale bundle-resource caching.
     let path = try XCTUnwrap(ProcessInfo.processInfo.environment["WEAVE_NATIVE_DRIVER_FIXTURE_PATH"])
+    if path == "runner-documents:private-member.json" {
+      // Physical XCTest has no host filesystem. The existing runner receives
+      // this file in its own sandbox, never the member application's container.
+      let documents = try XCTUnwrap(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
+      let url = documents.appendingPathComponent("private-member.json")
+      let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+      guard attributes[.type] as? FileAttributeType == .typeRegular else {
+        throw NSError(domain: "NativeDriverFixture", code: 2)
+      }
+      try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+      defer { try? FileManager.default.removeItem(at: url) }
+      return try Self.privateFixtureData(at: url)
+    }
     guard path.hasPrefix("/") else {
       throw NSError(domain: "NativeDriverFixture", code: 2)
     }
@@ -530,6 +544,12 @@ final class BrowserDriver: XCTestCase {
     XCTAssertTrue(["import", "export", "export-cancel"].contains(mode))
     XCTAssertTrue(fileName.hasPrefix("weave-dual-"))
     XCTAssertFalse(fileName.contains("/"))
+    try ordinaryDocumentPicker(mode: mode, fileName: fileName)
+  }
+
+  func ordinaryDocumentPicker(mode: String, fileName: String) throws {
+    guard ["import", "export", "export-cancel"].contains(mode), fileName.hasPrefix("weave-dual-"),
+          !fileName.contains("/") else { throw NSError(domain: "invalid-owned-picker-input", code: 1) }
     let stem = (fileName as NSString).deletingPathExtension
     let app = XCUIApplication(bundleIdentifier: "com.massimotter.weave")
     // Authentication has completed. Attach once to the already running app;
@@ -731,7 +751,17 @@ final class BrowserDriver: XCTestCase {
     // XCTest activities can contain typed input. The runner keeps the entire
     // bundle, transcript and xcresult private and removes them after this run.
     let fixture = try JSONDecoder().decode(Fixture.self, from: nativeFixtureData())
-    XCTAssertEqual(fixture.issuerHost, "auth.weave.localhost")
+    if let origin = fixture.ordinaryOrganizationOrigin {
+      let url = try XCTUnwrap(URLComponents(string: origin))
+      guard url.scheme == "https", url.host != nil, url.user == nil, url.password == nil,
+            url.query == nil, url.fragment == nil, ["", "/"].contains(url.path),
+            fixture.appBundleIdentifier == "com.massimotter.weave",
+            !fixture.issuerHost.isEmpty, !fixture.issuerHost.contains("/") else {
+        throw NSError(domain: "ordinary-smoke-invalid-auth-origin", code: 1)
+      }
+    } else {
+      XCTAssertEqual(fixture.issuerHost, "auth.weave.localhost")
+    }
     let app = XCUIApplication(bundleIdentifier: fixture.appBundleIdentifier)
     let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
     let browser = XCUIApplication(bundleIdentifier: "com.apple.SafariViewService")

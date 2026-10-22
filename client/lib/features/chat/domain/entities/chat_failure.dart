@@ -4,6 +4,9 @@ enum ChatFailureType {
   sessionRequired,
   unsupportedConfiguration,
   peerDevicePending,
+  transport,
+  accessDenied,
+  serviceUnavailable,
   protocol,
   storage,
   unsupportedPlatform,
@@ -40,6 +43,19 @@ class ChatFailure implements Exception {
         cause: cause,
       );
 
+  const ChatFailure.transport(String message, {Object? cause})
+    : this(type: ChatFailureType.transport, message: message, cause: cause);
+
+  const ChatFailure.accessDenied(String message, {Object? cause})
+    : this(type: ChatFailureType.accessDenied, message: message, cause: cause);
+
+  const ChatFailure.serviceUnavailable(String message, {Object? cause})
+    : this(
+        type: ChatFailureType.serviceUnavailable,
+        message: message,
+        cause: cause,
+      );
+
   const ChatFailure.protocol(String message, {Object? cause})
     : this(type: ChatFailureType.protocol, message: message, cause: cause);
 
@@ -59,6 +75,10 @@ class ChatFailure implements Exception {
   final ChatFailureType type;
   final String message;
   final Object? cause;
+
+  bool get deniesCurrentAccess =>
+      type == ChatFailureType.sessionRequired ||
+      type == ChatFailureType.accessDenied;
 
   @override
   String toString() => 'ChatFailure(type: $type, message: $message)';

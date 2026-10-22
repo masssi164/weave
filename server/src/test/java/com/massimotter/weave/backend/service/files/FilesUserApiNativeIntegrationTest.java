@@ -70,7 +70,7 @@ class FilesUserApiNativeIntegrationTest {
         String owner = account("owner");
         String alice = account("alice");
         // The outsider may view the Space, but never Alice's owner-only File.
-        spaces.provision(organization, "workspace-default", owner,
+        spaces.provision(organization, "workspace-default", "Organization workspace", owner,
                 Set.of(alice, account("outsider")));
         var view = memberships.get(organization, "workspace-default", owner, alice);
         memberships.grant(organization, "workspace-default", owner, alice,
@@ -101,7 +101,7 @@ class FilesUserApiNativeIntegrationTest {
         String organization = "org:files-user-integration";
         String space = "workspace-shared";
         String owner = account("shared-owner");
-        spaces.provision(organization, space, owner, Set.of(account("shared-a"), account("shared-b")));
+        spaces.provision(organization, space, "Organization workspace", owner, Set.of(account("shared-a"), account("shared-b")));
         for (String subject : Set.of("shared-a", "shared-b")) {
             var current = memberships.get(organization, space, owner, account(subject));
             memberships.grant(organization, space, owner, account(subject),

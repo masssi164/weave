@@ -2007,7 +2007,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Unable to load this conversation right now.'),
+      find.text(
+        'Chat received an unexpected response. Retry, and contact support if this continues.',
+      ),
       findsAtLeastNWidgets(1),
     );
     expect(
@@ -2145,7 +2147,7 @@ void main() {
             tester.widget<TextField>(find.byType(TextField)).controller!.text,
             'Retry me',
           );
-          expect(find.text(copy.chatRoomSendFailureMessage), findsOneWidget);
+          expect(find.text(copy.chatErrorServiceGuidance), findsOneWidget);
           expect(
             find.text('Raw send provider detail should not render.'),
             findsNothing,
@@ -2157,7 +2159,7 @@ void main() {
                   widget.properties.liveRegion == true &&
                   widget.child is Text &&
                   ((widget.child! as Text).data?.contains(
-                        copy.chatRoomSendFailureMessage,
+                        copy.chatErrorServiceGuidance,
                       ) ??
                       false),
             ),
@@ -2187,7 +2189,7 @@ void main() {
             tester.widget<TextField>(find.byType(TextField)).controller!.text,
             isEmpty,
           );
-          expect(find.text(copy.chatRoomSendFailureMessage), findsNothing);
+          expect(find.text(copy.chatErrorServiceGuidance), findsNothing);
           expect(summary, findsOneWidget);
         } finally {
           semantics.dispose();
@@ -2204,7 +2206,7 @@ void main() {
       loadRoomTimelineHandler: (_) async => buildTimeline(),
       sendMessageHandler: ({required roomId, required message}) async {
         throw const ChatFailure.peerDevicePending(
-          'Waiting for a participant’s secure device. Try again shortly or contact support if this continues.',
+          'Chat is waiting for a participant’s secure device. Retry shortly.',
         );
       },
     );
@@ -2223,7 +2225,7 @@ void main() {
 
     expect(
       find.text(
-        'Waiting for a participant’s secure device. Try again shortly or contact support if this continues.',
+        'Chat is waiting for a participant’s secure device. Retry shortly.',
       ),
       findsOneWidget,
     );
@@ -2235,7 +2237,7 @@ void main() {
             widget.properties.liveRegion == true &&
             widget.child is Text &&
             ((widget.child! as Text).data?.startsWith(
-                  'Waiting for a participant’s secure device',
+                  'Chat is waiting for a participant’s secure device',
                 ) ??
                 false),
       ),

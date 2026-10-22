@@ -1173,7 +1173,7 @@ abstract class AppLocalizations {
   /// Label for the root breadcrumb in the files browser
   ///
   /// In en, this message translates to:
-  /// **'Root'**
+  /// **'Files'**
   String get filesRootBreadcrumb;
 
   /// Semantic label for a breadcrumb that opens a folder in the files browser
@@ -6022,6 +6022,222 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose exactly one other member for a direct conversation.'**
   String get chatDirectParticipantRequired;
+
+  /// No description provided for @calendarSavedRefreshPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved. The calendar could not refresh. Refresh to see the latest events; do not create the event again.'**
+  String get calendarSavedRefreshPending;
+
+  /// No description provided for @calendarWriteUncertain.
+  ///
+  /// In en, this message translates to:
+  /// **'We could not confirm whether this event was saved. Retry the same event to avoid duplicates.'**
+  String get calendarWriteUncertain;
+
+  /// No description provided for @calendarSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving…'**
+  String get calendarSaving;
+
+  /// No description provided for @filesFolderSavedRefreshPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder created. Refresh this location to confirm the listing; do not create it again.'**
+  String get filesFolderSavedRefreshPending;
+
+  /// No description provided for @filesFolderWriteUncertain.
+  ///
+  /// In en, this message translates to:
+  /// **'We could not confirm folder creation. Retry the same folder in this location.'**
+  String get filesFolderWriteUncertain;
+
+  /// No description provided for @filesFolderLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Location: {scope} · {path}'**
+  String filesFolderLocation(String scope, String path);
+
+  /// No description provided for @settingsPreferencesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance and language'**
+  String get settingsPreferencesTitle;
+
+  /// No description provided for @settingsPreferencesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose your theme and preferred language.'**
+  String get settingsPreferencesDescription;
+
+  /// No description provided for @settingsSupportLinkDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Open technical details when you need help.'**
+  String get settingsSupportLinkDescription;
+
+  /// No description provided for @chatErrorTransportGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat could not connect to Weave. Check your connection and try again.'**
+  String get chatErrorTransportGuidance;
+
+  /// No description provided for @chatErrorAccessDeniedGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current workspace access does not allow this Chat action. Ask a workspace administrator to review your access.'**
+  String get chatErrorAccessDeniedGuidance;
+
+  /// No description provided for @chatErrorStorageGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat could not open its protected data on this device. Retry, and contact support if this continues.'**
+  String get chatErrorStorageGuidance;
+
+  /// No description provided for @chatErrorProtocolGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat received an unexpected response. Retry, and contact support if this continues.'**
+  String get chatErrorProtocolGuidance;
+
+  /// No description provided for @chatErrorServiceGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'The Chat service is currently unavailable. Retry, and contact support if this continues.'**
+  String get chatErrorServiceGuidance;
+
+  /// No description provided for @chatErrorUnknownGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat could not complete this action. Retry, and contact support if this continues.'**
+  String get chatErrorUnknownGuidance;
+
+  /// No description provided for @chatErrorPeerDevicePendingGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is waiting for a participant’s secure device. Retry shortly.'**
+  String get chatErrorPeerDevicePendingGuidance;
+
+  /// No description provided for @calendarRefreshButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh calendar'**
+  String get calendarRefreshButton;
+
+  /// No description provided for @settingsSupportAccountReference.
+  ///
+  /// In en, this message translates to:
+  /// **'Account reference'**
+  String get settingsSupportAccountReference;
+
+  /// No description provided for @settingsSupportOrganizationReference.
+  ///
+  /// In en, this message translates to:
+  /// **'Organization reference'**
+  String get settingsSupportOrganizationReference;
+
+  /// No description provided for @settingsSupportCopyIdentityReferences.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy identity references'**
+  String get settingsSupportCopyIdentityReferences;
+
+  /// No description provided for @calendarTimeZoneLoadFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Your calendar time zone could not be loaded.'**
+  String get calendarTimeZoneLoadFailure;
+
+  /// No description provided for @calendarAgendaLoadFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Your events could not be loaded.'**
+  String get calendarAgendaLoadFailure;
+
+  /// No description provided for @calendarResponseLoadFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'The calendar response could not be read.'**
+  String get calendarResponseLoadFailure;
+
+  /// No description provided for @calendarWriteReadbackUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The saved calendar state could not be confirmed.'**
+  String get calendarWriteReadbackUnavailable;
+
+  /// No description provided for @calendarLoadRetryGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry to load the current calendar. Your draft stays in the editor if saving failed.'**
+  String get calendarLoadRetryGuidance;
+
+  /// No description provided for @filesPrivateEmptyMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Your private Files are empty.'**
+  String get filesPrivateEmptyMessage;
+
+  /// No description provided for @filesSharedEmptyMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This shared folder is empty.'**
+  String get filesSharedEmptyMessage;
+
+  /// No description provided for @filesTopFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Top folder'**
+  String get filesTopFolder;
+
+  /// No description provided for @filesCurrentLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'{scope} · {path}'**
+  String filesCurrentLocation(String scope, String path);
+
+  /// No description provided for @filesPrivateEmptyGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload a file or create a folder in your private Files.'**
+  String get filesPrivateEmptyGuidance;
+
+  /// No description provided for @filesSharedEmptyGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload a file or create a folder here. Access follows this shared Space.'**
+  String get filesSharedEmptyGuidance;
+
+  /// No description provided for @filesSpaceOrdinal.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} ({ordinal})'**
+  String filesSpaceOrdinal(String name, int ordinal);
+
+  /// No description provided for @calendarUnavailableScopeName.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable calendar'**
+  String get calendarUnavailableScopeName;
+
+  /// No description provided for @calendarTeamScopeName.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} · Team calendar'**
+  String calendarTeamScopeName(String name);
+
+  /// No description provided for @calendarChannelScopeName.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} · Channel calendar'**
+  String calendarChannelScopeName(String name);
+
+  /// No description provided for @filesListingEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'End of folder'**
+  String get filesListingEnd;
 }
 
 class _AppLocalizationsDelegate

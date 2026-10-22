@@ -15,6 +15,10 @@ public record SpaceProvisionRequest(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                 description = "Chosen stable Weave Space reference in the current organization.")
         String spaceRef,
+        @NotBlank
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                description = "Readable Space name, at most 160 Unicode code points, without control characters.")
+        String displayName,
         @Size(max = 100)
         @Schema(description = "Member account references granted VIEW. The acting administrator receives ADMIN.")
         List<@Pattern(regexp = "acct_[0-9a-f]{32}") String> memberAccountRefs) {

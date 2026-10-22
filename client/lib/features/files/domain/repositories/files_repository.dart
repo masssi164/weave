@@ -70,3 +70,14 @@ abstract interface class FilesContentReplacementRepository {
     FileUploadProgressCallback? onProgress,
   });
 }
+
+/// Creates only in the stable parent that was visible when the operation began.
+abstract interface class FilesCapturedParentRepository {
+  Future<FileEntry> createFolderInParent({
+    required String parentFileId,
+    required String ownerKey,
+    required String parentPath,
+    required String name,
+    String? spaceRef,
+  });
+}
