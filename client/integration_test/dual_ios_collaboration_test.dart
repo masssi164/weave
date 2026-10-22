@@ -1981,18 +1981,7 @@ Future<void> _selectSharedFiles(
   String spaceRef,
 ) async {
   await navigateNativeDualDestination(tester, Icons.folder_outlined);
-  final selector = find.byKey(const Key('files-space-selector'));
-  await _wait(
-    tester,
-    () => selector.evaluate().length == 1,
-    const Duration(seconds: 90),
-  );
-  await _tap(tester, selector);
-  final choice = find
-      .text(_copy(tester).filesSharedOrganizationSpace)
-      .hitTestable();
-  expect(choice, findsOneWidget);
-  await _tap(tester, choice);
+  await selectNativeDualFilesScope(tester, spaceRef);
   await _wait(tester, () {
     final state = container.read(filesProvider).asData?.value;
     return state?.rootSpaceRef == spaceRef &&
@@ -2000,6 +1989,28 @@ Future<void> _selectSharedFiles(
         !state!.isBusy &&
         state.directoryFailure == null;
   }, const Duration(seconds: 90));
+}
+
+/// Selects the real popup option by its stable ordinary accessibility identity.
+Future<void> selectNativeDualFilesScope(
+  WidgetTester tester,
+  String? spaceRef,
+) async {
+  final selector = find.byKey(const Key('files-space-selector'));
+  await _wait(
+    tester,
+    () => selector.evaluate().length == 1,
+    const Duration(seconds: 90),
+  );
+  await _tap(tester, selector);
+  final choice = find.byWidgetPredicate(
+    (widget) =>
+        widget is Semantics &&
+        widget.properties.identifier ==
+            'files-space-option-${spaceRef ?? 'private'}',
+  );
+  expect(choice, findsOneWidget);
+  await _tap(tester, choice);
 }
 
 Future<void> _filePreview(

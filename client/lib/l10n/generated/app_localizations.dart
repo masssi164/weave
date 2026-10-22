@@ -6232,6 +6232,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{name} · Channel calendar'**
   String calendarChannelScopeName(String name);
+
+  /// No description provided for @filesListingEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'End of folder'**
+  String get filesListingEnd;
 }
 
 class _AppLocalizationsDelegate

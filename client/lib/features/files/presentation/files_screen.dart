@@ -96,7 +96,13 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       _syncInitialPath(asyncFiles);
     }
 
-    return CustomScrollView(
+    final currentFiles = asyncFiles?.asData?.value;
+    final currentRead =
+        filesReady &&
+        asyncFiles?.isLoading == false &&
+        asyncFiles?.hasError == false &&
+        currentFiles?.hasSuccessfulCurrentRead == true;
+    final content = CustomScrollView(
       slivers: [
         // Keep scrolled directory controls clear of a pinned title's semantics clip.
         SliverAppBar.large(pinned: false, title: Text(l10n.filesScreenTitle)),
@@ -159,10 +165,19 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
               ref,
               l10n,
               value,
+              isCurrentRead: !asyncFiles.isLoading && !asyncFiles.hasError,
             ),
           },
         },
       ],
+    );
+    return Semantics(
+      identifier: currentRead
+          ? 'files-loaded-${currentFiles!.successfulReadGeneration}'
+          : null,
+      container: true,
+      explicitChildNodes: true,
+      child: content,
     );
   }
 
@@ -206,8 +221,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     BuildContext context,
     WidgetRef ref,
     AppLocalizations l10n,
-    FilesViewState state,
-  ) {
+    FilesViewState state, {
+    required bool isCurrentRead,
+  }) {
     final slivers = <Widget>[
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
@@ -259,6 +275,22 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     }
 
     slivers.add(_buildContentSliver(context, ref, l10n, state));
+    if (isCurrentRead && state.hasSuccessfulCurrentRead) {
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          sliver: SliverToBoxAdapter(
+            child: Semantics(
+              identifier: 'files-listing-end',
+              child: Text(
+                l10n.filesListingEnd,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return slivers;
   }
 
@@ -575,6 +607,7 @@ class _DirectoryToolbar extends ConsumerWidget {
         _PathBreadcrumbs(
           path: state.currentPath,
           isBusy: state.isBusy,
+          currentParentId: listing?.parentFileId,
           rootLabel: _filesScopeLabel(l10n, state.rootSpaceRef, access),
         ),
         const SizedBox(height: 12),
@@ -898,7 +931,9 @@ class _PathBreadcrumbs extends ConsumerWidget {
     required this.path,
     required this.isBusy,
     required this.rootLabel,
+    required this.currentParentId,
   });
+  final String? currentParentId;
   final String rootLabel;
 
   final String path;
@@ -910,6 +945,8 @@ class _PathBreadcrumbs extends ConsumerWidget {
     final segments = path.split('/')..removeWhere((segment) => segment.isEmpty);
     final crumbs = <Widget>[
       _BreadcrumbChip(
+        identifier: 'files-location-root',
+        currentParentId: path == '/' ? currentParentId : null,
         label: rootLabel,
         semanticLabel: path == '/'
             ? l10n.filesCurrentFolderSemantic(rootLabel)
@@ -938,6 +975,7 @@ class _PathBreadcrumbs extends ConsumerWidget {
         )
         ..add(
           _BreadcrumbChip(
+            currentParentId: isCurrent ? currentParentId : null,
             label: segments[index],
             semanticLabel: isCurrent
                 ? l10n.filesCurrentFolderSemantic(segments[index])
@@ -961,6 +999,8 @@ class _PathBreadcrumbs extends ConsumerWidget {
 
 class _BreadcrumbChip extends StatelessWidget {
   const _BreadcrumbChip({
+    this.identifier,
+    this.currentParentId,
     required this.label,
     required this.semanticLabel,
     required this.isCurrent,
@@ -968,13 +1008,16 @@ class _BreadcrumbChip extends StatelessWidget {
   });
 
   final String label;
+  final String? identifier;
+  final String? currentParentId;
   final String semanticLabel;
   final bool isCurrent;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
+    final chip = Semantics(
+      identifier: identifier,
       button: onPressed != null,
       enabled: onPressed != null,
       selected: isCurrent,
@@ -987,6 +1030,14 @@ class _BreadcrumbChip extends StatelessWidget {
         ),
       ),
     );
+    return currentParentId == null
+        ? chip
+        : Semantics(
+            identifier: 'files-current-folder-$currentParentId',
+            container: true,
+            explicitChildNodes: true,
+            child: chip,
+          );
   }
 }
 

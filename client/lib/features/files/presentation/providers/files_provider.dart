@@ -104,6 +104,7 @@ class FilesViewState {
     this.entryActionStatus = const FilesEntryActionStatus.idle(),
     this.rootSpaceRef,
     this.isBusy = false,
+    this.successfulReadGeneration = 0,
   });
 
   final FilesConnectionState connectionState;
@@ -114,7 +115,19 @@ class FilesViewState {
   final String? rootSpaceRef;
   final bool isBusy;
 
+  /// Process-local successful current-listing publication, without resource data.
+  final int successfulReadGeneration;
+
   String get currentPath => directoryListing?.path ?? '/';
+
+  bool get hasSuccessfulCurrentRead =>
+      connectionState.isConnected &&
+      directoryListing != null &&
+      !isBusy &&
+      directoryFailure == null &&
+      entryActionStatus.failure == null &&
+      uploadStatus.failure == null &&
+      successfulReadGeneration > 0;
 
   FilesViewState copyWith({
     String? rootSpaceRef,
@@ -125,6 +138,7 @@ class FilesViewState {
     FilesUploadStatus? uploadStatus,
     FilesEntryActionStatus? entryActionStatus,
     bool? isBusy,
+    int? successfulReadGeneration,
     bool clearDirectoryListing = false,
     bool clearDirectoryFailure = false,
     bool clearUploadStatus = false,
@@ -147,12 +161,17 @@ class FilesViewState {
       entryActionStatus: clearEntryActionStatus
           ? const FilesEntryActionStatus.idle()
           : (entryActionStatus ?? this.entryActionStatus),
+      successfulReadGeneration:
+          clearDirectoryListing || isBusy == true || directoryFailure != null
+          ? 0
+          : successfulReadGeneration ?? this.successfulReadGeneration,
       isBusy: isBusy ?? this.isBusy,
     );
   }
 }
 
 class FilesController extends AsyncNotifier<FilesViewState> {
+  static int _successfulReadGeneration = 0;
   String? _selectedRootSpaceRef;
   int _directorySequence = 0;
 
@@ -210,6 +229,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
           rootSpaceRef: _selectedRootSpaceRef,
           connectionState: connectionState,
           directoryListing: listing,
+          successfulReadGeneration: ++_successfulReadGeneration,
         ),
       );
     } on FilesFailure catch (failure) {
@@ -365,6 +385,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
       state = AsyncData(
         current.copyWith(
           directoryListing: listing,
+          successfulReadGeneration: ++_successfulReadGeneration,
           isBusy: false,
           entryActionStatus: FilesEntryActionStatus(
             phase: FilesEntryActionPhase.replacedContent,
@@ -523,6 +544,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
       state = AsyncData(
         latest.copyWith(
           directoryListing: listing,
+          successfulReadGeneration: ++_successfulReadGeneration,
           isBusy: false,
           uploadStatus: FilesUploadStatus(
             phase: FilesUploadPhase.completed,
@@ -688,6 +710,9 @@ class FilesController extends AsyncNotifier<FilesViewState> {
       state = AsyncData(
         latest.copyWith(
           directoryListing: listing,
+          successfulReadGeneration: listing == null || refreshFailure != null
+              ? 0
+              : ++_successfulReadGeneration,
           clearDirectoryListing:
               refreshFailure?.type == FilesFailureType.invalidCredentials ||
               refreshFailure?.type == FilesFailureType.permissionDenied,
@@ -786,6 +811,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
       state = AsyncData(
         current.copyWith(
           directoryListing: listing,
+          successfulReadGeneration: ++_successfulReadGeneration,
           isBusy: false,
           clearDirectoryFailure: confirmed,
           entryActionStatus: FilesEntryActionStatus(
@@ -866,6 +892,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
       state = AsyncData(
         latest.copyWith(
           directoryListing: listing,
+          successfulReadGeneration: ++_successfulReadGeneration,
           isBusy: false,
           entryActionStatus: FilesEntryActionStatus(
             phase: FilesEntryActionPhase.deletedEntry,
@@ -1033,6 +1060,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
       state = AsyncData(
         baseState.copyWith(
           directoryListing: listing,
+          successfulReadGeneration: ++_successfulReadGeneration,
           isBusy: false,
           clearDirectoryFailure: true,
         ),
@@ -1080,6 +1108,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
         rootSpaceRef: _selectedRootSpaceRef,
         connectionState: connectionState,
         directoryListing: listing,
+        successfulReadGeneration: ++_successfulReadGeneration,
       );
     } on FilesFailure catch (failure) {
       if (failure.type == FilesFailureType.invalidCredentials) {
