@@ -437,7 +437,8 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
             barrier = ios.simulator_driver_barrier(udid, input_data['runId'])
             driver = track_process(subprocess.Popen(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]),
                                        '-destination', 'platform=iOS Simulator,id=' + udid,
-                                       '-parallel-testing-enabled', 'NO', '-resultBundlePath', str(temporary / 'browser.xcresult')],
+                                       '-parallel-testing-enabled', 'NO', '-resultBundlePath', str(temporary / 'browser.xcresult'),
+                                       '-only-testing:BrowserDriver/BrowserDriver/testProductionBrowser'],
                                       env=env, stdout=browser_log, stderr=subprocess.STDOUT, start_new_session=True))
             ios.release_driver_barrier(flutter, driver, temporary / 'browser-initial.log', udid, pid, barrier, 'initial', require_sign_in_observation=True)
             if not ios.relay_workspace_completion(flutter, driver, temporary / 'flutter-initial.log', completion, 'initial'):

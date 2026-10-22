@@ -286,6 +286,55 @@ class NativeQualificationTest(unittest.TestCase):
                 self.assertNotIn('raw-private-email', output.getvalue())
                 self.assertNotIn('private cleanup details', output.getvalue())
 
+    def test_initial_and_restart_browser_invocations_select_only_the_production_journey(self):
+        selected = '-only-testing:BrowserDriver/BrowserDriver/testProductionBrowser'
+        for phase in ('initial', 'restore'):
+            for browser_exit in (0, 65):
+                with self.subTest(phase=phase, browser_exit=browser_exit), tempfile.TemporaryDirectory() as name:
+                    temporary = Path(name)
+                    derived = temporary / 'derived'
+                    products = derived / 'Build/Products'
+                    (products / 'BrowserDriver.xctest').mkdir(parents=True)
+                    (products / 'owned.xctestrun').write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}}))
+                    observed = []
+                    def launch(arguments, **kwargs):
+                        process = unittest.mock.Mock()
+                        process.poll.return_value = browser_exit if arguments[0] == 'xcodebuild' else 0
+                        process.wait.return_value = process.poll.return_value
+                        if arguments[0] == 'xcodebuild':
+                            observed.append(arguments)
+                            self.assertEqual([arg for arg in arguments if arg.startswith('-only-testing:')], [selected])
+                            self.assertFalse(any(arg.startswith('-skip-testing:') for arg in arguments))
+                            self.assertNotIn('testOrdinaryOrganizationEntry', ' '.join(arguments))
+                            self.assertNotIn('testOrdinaryProductSmoke', ' '.join(arguments))
+                            kwargs['stdout'].write('NATIVE_IOS_BROWSER_STAGE phase=app-observed\n')
+                            kwargs['stdout'].write('NATIVE_IOS_BROWSER_STAGE phase=auth-completion-observed\n')
+                            kwargs['stdout'].write('NATIVE_IOS_BROWSER_RESULT status=passed phase=' + ('form-submitted' if phase == 'initial' else 'logout') + '\n')
+                        else:
+                            kwargs['stdout'].write(('NATIVE_PRODUCT_INITIAL_RESULT' if phase == 'initial' else 'NATIVE_PRODUCT_SIGN_IN_RESULT') + ' status=passed\nAll tests passed.\nNATIVE_PRODUCT_STAGE phase=expired-bearer-denied\n')
+                        kwargs['stdout'].flush()
+                        return process
+                    fixture = {}
+                    with patch.object(ios.subprocess, 'Popen', side_effect=launch), \
+                         patch.object(ios, 'stop_flutter_process_group'), \
+                         patch.object(ios, 'wait_for_flutter_shell'), \
+                         patch.object(ios, 'simulator_driver_barrier', return_value=temporary / 'ready'), \
+                         patch.object(ios, 'simulator_app_pid', return_value='202'), \
+                         patch.object(ios, 'release_driver_barrier'), \
+                         patch.object(ios, 'relay_workspace_completion', return_value=True), redirect_stdout(io.StringIO()):
+                        if browser_exit:
+                            with self.assertRaises(ios.NativeFailure) as caught:
+                                ios.execute_phase(phase, 'owned', derived, temporary,
+                                                  {'WEAVE_NATIVE_TEST_RUN_ID': 'owned-run'}, fixture,
+                                                  previous_pid='101' if phase == 'restore' else None)
+                            self.assertEqual(caught.exception.reason, 'browser-ui-failed')
+                        else:
+                            self.assertEqual(ios.execute_phase(phase, 'owned', derived, temporary,
+                                                               {'WEAVE_NATIVE_TEST_RUN_ID': 'owned-run'}, fixture,
+                                                               previous_pid='101' if phase == 'restore' else None), '202')
+                    self.assertEqual(len(observed), 1)
+                    self.assertEqual(fixture['phase'], phase)
+
     def test_native_sign_in_selector_matches_supported_product_resources(self):
         client = Path(__file__).resolve().parents[1]
         labels = [json.loads((client / f'lib/l10n/app_{locale}.arb').read_text())['signInButton']

@@ -785,7 +785,7 @@ def execute_phase(phase: str, udid: str, derived: Path, temporary: Path, env: di
                     raise NativeFailure('infrastructure', 'process-restart', 'restore-process-not-replaced')
                 print('NATIVE_IOS_PROCESS_RESTART_RESULT status=relaunched distinctProcess=true supportSafe=true', flush=True)
             driver_deadline = time.monotonic() + 420
-            driver = subprocess.Popen(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]), '-destination', f'platform=iOS Simulator,id={udid}', '-resultBundlePath', str(temporary / f'{phase}.xcresult'), '-parallel-testing-enabled', 'NO', '-maximum-concurrent-test-simulator-destinations', '1'], cwd=CLIENT, env=env, stdout=browser_log, stderr=subprocess.STDOUT, start_new_session=True)
+            driver = subprocess.Popen(['xcodebuild', 'test-without-building', '-xctestrun', str(plans[0]), '-destination', f'platform=iOS Simulator,id={udid}', '-resultBundlePath', str(temporary / f'{phase}.xcresult'), '-parallel-testing-enabled', 'NO', '-maximum-concurrent-test-simulator-destinations', '1', '-only-testing:BrowserDriver/BrowserDriver/testProductionBrowser'], cwd=CLIENT, env=env, stdout=browser_log, stderr=subprocess.STDOUT, start_new_session=True)
             release_driver_barrier(flutter, driver, temporary / f'browser-{phase}.log', udid, pid, barrier, phase)
             completion_relayed = True
             if phase == 'initial':
