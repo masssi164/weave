@@ -13,8 +13,12 @@ part of weave_user_api;
 class SpaceUserResponse {
   /// Returns a new [SpaceUserResponse] instance.
   SpaceUserResponse({
+    required this.displayName,
     required this.spaceRef,
   });
+
+  /// Current readable Space name.
+  String displayName;
 
   /// Stable Weave Space reference.
   String spaceRef;
@@ -22,18 +26,22 @@ class SpaceUserResponse {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is SpaceUserResponse && other.spaceRef == spaceRef;
+      other is SpaceUserResponse &&
+          other.displayName == displayName &&
+          other.spaceRef == spaceRef;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (spaceRef.hashCode);
+      (displayName.hashCode) + (spaceRef.hashCode);
 
   @override
-  String toString() => 'SpaceUserResponse[spaceRef=$spaceRef]';
+  String toString() =>
+      'SpaceUserResponse[displayName=$displayName, spaceRef=$spaceRef]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
+    json[r'displayName'] = this.displayName;
     json[r'spaceRef'] = this.spaceRef;
     return json;
   }
@@ -59,6 +67,7 @@ class SpaceUserResponse {
       }());
 
       return SpaceUserResponse(
+        displayName: mapValueOfType<String>(json, r'displayName')!,
         spaceRef: mapValueOfType<String>(json, r'spaceRef')!,
       );
     }
@@ -116,6 +125,7 @@ class SpaceUserResponse {
 
   /// The list of required keys that must be present in a JSON.
   static const requiredKeys = <String>{
+    'displayName',
     'spaceRef',
   };
 }

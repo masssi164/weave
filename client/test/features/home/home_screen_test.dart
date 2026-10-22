@@ -5,6 +5,7 @@ import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_workspace_context.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/home/presentation/home_screen.dart';
@@ -120,6 +121,14 @@ void main() {
                     configuration: buildTestConfiguration(),
                   ),
                 ),
+                calendarWorkspaceContextProvider.overrideWith(
+                  (ref) async => const CalendarWorkspaceContext(
+                    ownerKey: 'fixture-member',
+                    scopes: CalendarScopeList(),
+                    selectedScope: CalendarScope.workspace,
+                    evaluationTimeZone: 'Europe/Berlin',
+                  ),
+                ),
                 calendarRepositoryProvider.overrideWithValue(
                   _FakeCalendarRepository(events: [event]),
                 ),
@@ -208,6 +217,14 @@ void main() {
                 configuration: buildTestConfiguration(),
               ),
             ),
+            calendarWorkspaceContextProvider.overrideWith(
+              (ref) async => const CalendarWorkspaceContext(
+                ownerKey: 'fixture-member',
+                scopes: CalendarScopeList(),
+                selectedScope: CalendarScope.workspace,
+                evaluationTimeZone: 'Europe/Berlin',
+              ),
+            ),
             calendarRepositoryProvider.overrideWithValue(calendarRepository),
             weaveApiWorkspaceHomeProvider.overrideWith((ref) async => home),
           ],
@@ -272,6 +289,14 @@ void main() {
                 shellModulePreferencesStorageKey:
                     '{"hiddenModules":["workspaceStatus","recentActivity"]}',
               }),
+            ),
+            calendarWorkspaceContextProvider.overrideWith(
+              (ref) async => const CalendarWorkspaceContext(
+                ownerKey: 'fixture-member',
+                scopes: CalendarScopeList(),
+                selectedScope: CalendarScope.workspace,
+                evaluationTimeZone: 'Europe/Berlin',
+              ),
             ),
             calendarRepositoryProvider.overrideWithValue(
               const _FakeCalendarRepository(events: []),

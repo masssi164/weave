@@ -32,14 +32,18 @@ class BackendFilesRepository
         FilesRelocationRepository,
         FilesExportRepository,
         FilesSpaceRepository,
-        FilesContentReplacementRepository {
-  const BackendFilesRepository({
+        FilesContentReplacementRepository,
+        FilesCapturedParentRepository {
+  BackendFilesRepository({
     required http.Client httpClient,
     required ServerConfigurationRepository serverConfigurationRepository,
     required AuthSessionRepository authSessionRepository,
   }) : _httpClient = httpClient,
        _serverConfigurationRepository = serverConfigurationRepository,
        _authSessionRepository = authSessionRepository;
+
+  final _pendingFolderCreates = <String, String>{};
+  String? _folderOwner;
 
   static const accountLabel = 'Weave files';
   static const rootFileId = 'file:root';
@@ -51,6 +55,20 @@ class BackendFilesRepository
   final http.Client _httpClient;
   final ServerConfigurationRepository _serverConfigurationRepository;
   final AuthSessionRepository _authSessionRepository;
+
+  String _ownerKey(_BackendFilesContext context) => sha256
+      .convert(
+        utf8.encode(
+          jsonEncode([
+            context.baseUrl.toString(),
+            context.authConfiguration.issuer.toString(),
+            context.authConfiguration.clientId,
+            context.identity.subject,
+            context.identity.organizationId,
+          ]),
+        ),
+      )
+      .toString();
 
   @override
   Future<FilesConnectionState> restoreConnection() async {
@@ -101,6 +119,7 @@ class BackendFilesRepository
     return DirectoryListing(
       path: normalizedPath,
       parentFileId: listing.parentFileId,
+      ownerKey: _ownerKey(context),
       allowedActions: listing.allowedActions.toSet(),
       entries: listing.items
           .map(
@@ -178,45 +197,126 @@ class BackendFilesRepository
     required String parentPath,
     required String name,
     String? spaceRef,
+  }) => _createFolder(parentPath: parentPath, name: name, spaceRef: spaceRef);
+
+  @override
+  Future<FileEntry> createFolderInParent({
+    required String parentFileId,
+    required String ownerKey,
+    required String parentPath,
+    required String name,
+    String? spaceRef,
+  }) => _createFolder(
+    parentPath: parentPath,
+    name: name,
+    spaceRef: spaceRef,
+    expectedParentFileId: parentFileId,
+    expectedOwnerKey: ownerKey,
+  );
+
+  Future<FileEntry> _createFolder({
+    required String parentPath,
+    required String name,
+    String? spaceRef,
+    String? expectedParentFileId,
+    String? expectedOwnerKey,
   }) async {
     _validateChildName(name);
     final context = await _requireContext();
+    if (expectedOwnerKey != null && expectedOwnerKey != _ownerKey(context)) {
+      throw const FilesFailure.sessionRequired(
+        'The Files session changed before creation could begin.',
+      );
+    }
     final listing = await _listAtPath(
       context,
       _normalizePath(parentPath),
       spaceRef: spaceRef,
     );
+    if (expectedParentFileId != null &&
+        listing.parentFileId != expectedParentFileId) {
+      throw const FilesFailure.protocol(
+        'The folder changed before creation could begin.',
+      );
+    }
     _requireAction(listing.allowedActions, 'createFolder');
-    final key = _idempotencyKey();
-    final result = await _invoke(
-      context,
-      (api) => api.createFilesFolder(
-        '*',
-        key,
-        user_api.FilesUserCreateFolderRequest(
-          parentFileId: listing.parentFileId,
-          name: name,
-          spaceRef: listing.parentFileId == rootFileId ? spaceRef : null,
+    final owner = jsonEncode([
+      context.baseUrl.toString(),
+      context.authConfiguration.issuer.toString(),
+      context.authConfiguration.clientId,
+      context.identity.subject,
+      context.identity.organizationId,
+    ]);
+    if (_folderOwner != owner) {
+      _pendingFolderCreates.clear();
+      _folderOwner = owner;
+    }
+    final fingerprint = jsonEncode([
+      owner,
+      listing.parentFileId,
+      spaceRef,
+      name,
+    ]);
+    final key = _pendingFolderCreates.putIfAbsent(fingerprint, _idempotencyKey);
+    user_api.FilesUserItemResponse? result;
+    try {
+      result = await _invoke(
+        context,
+        (api) => api.createFilesFolder(
+          '*',
+          key,
+          user_api.FilesUserCreateFolderRequest(
+            parentFileId: listing.parentFileId,
+            name: name,
+            spaceRef: listing.parentFileId == rootFileId ? spaceRef : null,
+          ),
         ),
-      ),
-      fallbackMessage: 'Unable to create the folder through Weave Files.',
-      confirmIdentity: true,
-    );
+        fallbackMessage: 'Unable to create the folder through Weave Files.',
+        confirmIdentity: true,
+      );
+    } on FilesFailure catch (failure) {
+      final code = failure.cause;
+      final uncertain =
+          failure.type == FilesFailureType.unknown ||
+          (code is int && code >= 500);
+      if (!uncertain) _pendingFolderCreates.remove(fingerprint);
+      throw FilesFailure(
+        type: failure.type,
+        message: failure.message,
+        cause: failure.cause,
+        writeMayHaveCommitted: uncertain,
+      );
+    }
     if (result == null) {
-      throw const FilesFailure.protocol(
-        'Weave Files returned no created folder.',
+      throw const FilesFailure(
+        type: FilesFailureType.protocol,
+        message: 'Weave Files returned no created folder.',
+        writeMayHaveCommitted: true,
       );
     }
-    final entry = _entry(
-      result,
-      parentId: listing.parentFileId,
-      parentPath: _normalizePath(parentPath),
-    );
+    FileEntry entry;
+    try {
+      entry = _entry(
+        result,
+        parentId: listing.parentFileId,
+        parentPath: _normalizePath(parentPath),
+      );
+    } on FilesFailure catch (failure) {
+      throw FilesFailure(
+        type: failure.type,
+        message: failure.message,
+        cause: failure.cause,
+        writeMayHaveCommitted: true,
+      );
+    }
     if (!entry.isDirectory) {
-      throw const FilesFailure.protocol(
-        'Weave Files returned an invalid folder.',
+      throw const FilesFailure(
+        type: FilesFailureType.protocol,
+        message: 'Weave Files returned an invalid folder.',
+        writeMayHaveCommitted: true,
       );
     }
+    _pendingFolderCreates.remove(fingerprint);
     return entry;
   }
 
@@ -791,6 +891,12 @@ class BackendFilesRepository
   }
 
   FilesFailure _apiFailure(user_api.ApiException error) {
+    // A generated transport/decode wrapper carries no actual HTTP rejection.
+    if (error.innerException != null) {
+      return const FilesFailure.unknown(
+        'The Files request could not be completed right now.',
+      );
+    }
     final message = _errorMessage(error.message);
     if (error.code == 401) {
       return FilesFailure.invalidCredentials(

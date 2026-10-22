@@ -412,7 +412,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     } on ChatFailure catch (failure) {
       if (!current()) return;
       setState(() {
-        if (failure.type == ChatFailureType.sessionRequired) {
+        if (failure.deniesCurrentAccess) {
           _accessDenied = true;
           _receiveGeneration++;
           _authorityGeneration++;
@@ -489,7 +489,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     } on ChatFailure catch (failure) {
       if (!current()) return;
       setState(() {
-        if (failure.type == ChatFailureType.sessionRequired) {
+        if (failure.deniesCurrentAccess) {
           _authorityGeneration++;
           _suspendReceive();
           _accessDenied = true;
@@ -686,7 +686,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                   Semantics(
                     liveRegion: true,
                     child: Text(
-                      _failure!.type == ChatFailureType.sessionRequired
+                      _failure!.deniesCurrentAccess
                           ? l10n.chatErrorSessionRequiredGuidance
                           : l10n.chatInvitationFailed,
                     ),
@@ -713,7 +713,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
         ),
       );
     }
-    if (_failure?.type == ChatFailureType.sessionRequired) {
+    if (_failure?.deniesCurrentAccess == true) {
       return Scaffold(
         appBar: AppBar(title: Text(l10n.chatScreenTitle)),
         body: ErrorState(
@@ -969,27 +969,35 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Expanded(
-                          child: TextField(
-                            controller: _composerController,
-                            minLines: 1,
-                            maxLines: 4,
-                            enabled: canSend && !_sending,
-                            decoration: InputDecoration(
-                              hintMaxLines: 1,
-                              hintText: canSend
-                                  ? l10n.chatRoomComposerHint
-                                  : l10n.chatRoomComposerDisabledHint,
+                          child: Semantics(
+                            identifier: 'chat-message-input',
+                            child: TextField(
+                              controller: _composerController,
+                              minLines: 1,
+                              maxLines: 4,
+                              enabled: canSend && !_sending,
+                              decoration: InputDecoration(
+                                hintMaxLines: 1,
+                                hintText: canSend
+                                    ? l10n.chatRoomComposerHint
+                                    : l10n.chatRoomComposerDisabledHint,
+                              ),
+                              onSubmitted: (_) => _sendMessage(),
                             ),
-                            onSubmitted: (_) => _sendMessage(),
                           ),
                         ),
                         const SizedBox(width: 12),
-                        FilledButton(
-                          onPressed: canSend && !_sending ? _sendMessage : null,
-                          child: Text(
-                            _sending
-                                ? l10n.chatRoomSendingButton
-                                : l10n.chatRoomSendButton,
+                        Semantics(
+                          identifier: 'chat-send-message',
+                          child: FilledButton(
+                            onPressed: canSend && !_sending
+                                ? _sendMessage
+                                : null,
+                            child: Text(
+                              _sending
+                                  ? l10n.chatRoomSendingButton
+                                  : l10n.chatRoomSendButton,
+                            ),
                           ),
                         ),
                       ],
@@ -1048,13 +1056,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
             ),
     );
 
+    final activeConversation = Semantics(
+      identifier: 'chat-active-conversation-${widget.conversation.id}',
+      child: scaffold,
+    );
     if (workspace == null) {
-      return scaffold;
+      return activeConversation;
     }
 
     return DefaultTabController(
       length: workspace.surfaces.length,
-      child: scaffold,
+      child: activeConversation,
     );
   }
 
@@ -1123,11 +1135,15 @@ String _chatRoomLoadFailureMessage(AppLocalizations l10n, ChatFailure failure) {
     ChatFailureType.sessionRequired => l10n.chatErrorSessionRequiredGuidance,
     ChatFailureType.unsupportedPlatform =>
       l10n.chatErrorUnsupportedPlatformGuidance,
-    ChatFailureType.peerDevicePending => failure.message,
-    ChatFailureType.cancelled ||
-    ChatFailureType.protocol ||
-    ChatFailureType.storage ||
-    ChatFailureType.unknown => l10n.chatRoomLoadFailureMessage,
+    ChatFailureType.peerDevicePending =>
+      l10n.chatErrorPeerDevicePendingGuidance,
+    ChatFailureType.transport => l10n.chatErrorTransportGuidance,
+    ChatFailureType.accessDenied => l10n.chatErrorAccessDeniedGuidance,
+    ChatFailureType.serviceUnavailable => l10n.chatErrorServiceGuidance,
+    ChatFailureType.protocol => l10n.chatErrorProtocolGuidance,
+    ChatFailureType.storage => l10n.chatErrorStorageGuidance,
+    ChatFailureType.unknown => l10n.chatErrorUnknownGuidance,
+    ChatFailureType.cancelled => l10n.chatErrorCancelledGuidance,
   };
 }
 
@@ -1138,11 +1154,15 @@ String _chatRoomSendFailureMessage(AppLocalizations l10n, ChatFailure failure) {
     ChatFailureType.sessionRequired => l10n.chatErrorSessionRequiredGuidance,
     ChatFailureType.unsupportedPlatform =>
       l10n.chatErrorUnsupportedPlatformGuidance,
-    ChatFailureType.peerDevicePending => failure.message,
-    ChatFailureType.cancelled ||
-    ChatFailureType.protocol ||
-    ChatFailureType.storage ||
-    ChatFailureType.unknown => l10n.chatRoomSendFailureMessage,
+    ChatFailureType.peerDevicePending =>
+      l10n.chatErrorPeerDevicePendingGuidance,
+    ChatFailureType.transport => l10n.chatErrorTransportGuidance,
+    ChatFailureType.accessDenied => l10n.chatErrorAccessDeniedGuidance,
+    ChatFailureType.serviceUnavailable => l10n.chatErrorServiceGuidance,
+    ChatFailureType.protocol => l10n.chatErrorProtocolGuidance,
+    ChatFailureType.storage => l10n.chatErrorStorageGuidance,
+    ChatFailureType.unknown => l10n.chatErrorUnknownGuidance,
+    ChatFailureType.cancelled => l10n.chatErrorCancelledGuidance,
   };
 }
 
@@ -2260,6 +2280,7 @@ class _MessageBubble extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
         child: Semantics(
+          identifier: 'chat-message-${message.id}',
           container: true,
           explicitChildNodes: true,
           label: [

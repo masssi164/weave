@@ -14,7 +14,6 @@ import 'package:weave/core/theme/app_theme_preference.dart';
 import 'package:weave/core/theme/app_theme_preference_provider.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
-import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
@@ -55,24 +54,40 @@ class SettingsScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const _SettingsBrandCard(),
-                const SizedBox(height: 32),
-                const SupportDiagnosticsCard(),
-                const SizedBox(height: 32),
-                const _ThemePreferenceSection(),
-                const SizedBox(height: 32),
-                const _LanguagePreferenceSection(),
-                const SizedBox(height: 32),
                 const _ProfileSettingsLinkCard(),
-                const SizedBox(height: 32),
-                const _SettingsHelpCard(),
-                const SizedBox(height: 32),
-                const _ShellModuleVisibilitySettingsSection(),
+                const SizedBox(height: 16),
+                _SettingsNavigationCard(
+                  title: l10n.settingsThemeTitle,
+                  description: l10n.settingsThemeDescription,
+                  icon: Icons.tune,
+                  route: "${AppRoutes.settingsPreferences}?section=appearance",
+                ),
+                const SizedBox(height: 16),
+                _SettingsNavigationCard(
+                  title: l10n.settingsLanguageTitle,
+                  description: l10n.settingsLanguageDescription,
+                  icon: Icons.language,
+                  route: "${AppRoutes.settingsPreferences}?section=language",
+                ),
+                const SizedBox(height: 16),
+                _SettingsNavigationCard(
+                  title: l10n.settingsShellModulesTitle,
+                  description: l10n.settingsShellModulesDescription,
+                  icon: Icons.home_outlined,
+                  route: "${AppRoutes.settingsPreferences}?section=modules",
+                ),
+                const SizedBox(height: 16),
+                _SettingsNavigationCard(
+                  title: l10n.settingsHelpTitle,
+                  description: l10n.settingsHelpDescription,
+                  icon: Icons.help_outline,
+                  route: AppRoutes.settingsSupport,
+                ),
                 if (canAdministerWorkspace) ...[
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
                   const _WorkspaceHealthLinkCard(),
                 ],
-                const SizedBox(height: 32),
+                const SizedBox(height: 16),
                 Text(
                   l10n.settingsSignOutTitle,
                   style: Theme.of(context).textTheme.headlineSmall,
@@ -115,6 +130,87 @@ class SettingsScreen extends ConsumerWidget {
       ],
     );
   }
+}
+
+class _SettingsNavigationCard extends StatelessWidget {
+  const _SettingsNavigationCard({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.route,
+  });
+  final String title;
+  final String description;
+  final IconData icon;
+  final String route;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    identifier: route == AppRoutes.settingsSupport ? 'settings-help' : null,
+    child: Card(
+      child: AccessibleListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        subtitle: Text(description),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push(route),
+      ),
+    ),
+  );
+}
+
+class SettingsPreferencesScreen extends StatelessWidget {
+  const SettingsPreferencesScreen({super.key, this.section});
+  final String? section;
+  @override
+  Widget build(BuildContext context) => CustomScrollView(
+    slivers: [
+      SliverAppBar.large(
+        title: Text(AppLocalizations.of(context).settingsPreferencesTitle),
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.all(24),
+        sliver: SliverToBoxAdapter(
+          child: Column(
+            children: [
+              if (section == null || section == 'appearance')
+                const _ThemePreferenceSection(),
+              if (section == null) const SizedBox(height: 24),
+              if (section == null || section == 'language')
+                const _LanguagePreferenceSection(),
+              if (section == 'modules')
+                const _ShellModuleVisibilitySettingsSection(),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+class SettingsSupportScreen extends StatelessWidget {
+  const SettingsSupportScreen({super.key});
+  @override
+  Widget build(BuildContext context) => CustomScrollView(
+    slivers: [
+      SliverAppBar.large(
+        title: Text(
+          AppLocalizations.of(context).settingsSupportDiagnosticsTitle,
+        ),
+      ),
+      const SliverPadding(
+        padding: EdgeInsets.all(24),
+        sliver: SliverToBoxAdapter(
+          child: Column(
+            children: [
+              _SettingsHelpCard(),
+              SizedBox(height: 16),
+              SupportDiagnosticsCard(),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 class WorkspaceHealthScreen extends ConsumerWidget {
@@ -211,7 +307,10 @@ class _ProfileSettingsLinkCard extends ConsumerWidget {
             color: theme.colorScheme.primary,
           ),
           title: Text(l10n.settingsProfileLinkTitle),
-          subtitle: Text(subtitle),
+          subtitle: Semantics(
+            identifier: 'settings-current-account',
+            child: Text(subtitle),
+          ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push(AppRoutes.profile),
         ),
@@ -522,55 +621,6 @@ class _PreviewSurfaceTile extends StatelessWidget {
           AppLocalizations.of(context).settingsWorkspaceRecoveryUnavailable,
         ),
         side: BorderSide(color: theme.colorScheme.outlineVariant),
-      ),
-    );
-  }
-}
-
-class _SettingsBrandCard extends StatelessWidget {
-  const _SettingsBrandCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-
-    return Card(
-      elevation: 0,
-      color: theme.colorScheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: MergeSemantics(
-          child: Row(
-            children: [
-              WeaveLogo(
-                semanticLabel: l10n.semanticWeaveLogo,
-                width: 72,
-                framed: false,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.appTitle, style: theme.textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.settingsBrandSectionDescription,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

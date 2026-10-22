@@ -82,6 +82,36 @@ void main() {
       );
     });
 
+    test(
+      'machine Chat diagnostic exception cannot exempt member-facing text or another file',
+      () {
+        const path =
+            'lib/integrations/rust_matrix_core/data/services/chat_operation_diagnostics.dart';
+        expect(_machineChatDiagnosticLines, hasLength(4));
+        for (final line in _machineChatDiagnosticLines) {
+          expect(_isMachineChatDiagnostic(path, line), isTrue);
+          expect(
+            _isMachineChatDiagnostic(
+              'lib/features/chat/data/services/other.dart',
+              line,
+            ),
+            isFalse,
+          );
+          expect(
+            _isMachineChatDiagnostic(path, '$line extra member copy'),
+            isFalse,
+          );
+        }
+        expect(
+          _isMachineChatDiagnostic(
+            path,
+            "return 'Chat could not complete this action.';",
+          ),
+          isFalse,
+        );
+      },
+    );
+
     test('user-facing hardcoded copy stays fenced until localized', () {
       final findings = <String>[];
 
@@ -94,6 +124,7 @@ void main() {
         final lines = File(file).readAsLinesSync();
         for (var index = 0; index < lines.length; index += 1) {
           final line = _withoutComment(lines[index]);
+          if (_isMachineChatDiagnostic(file, line)) continue;
           if (_looksLikeUserFacingString(line)) {
             findings.add('$file:${index + 1}: ${line.trim()}');
           }
@@ -505,6 +536,20 @@ bool _isLocalizationApprovedPath(String path) {
   return normalized.startsWith('lib/l10n/') ||
       normalized.startsWith('lib/generated/');
 }
+
+// These exact machine log/UUID expressions never render member copy. New text in
+// this file remains subject to the same localization fence as other services.
+bool _isMachineChatDiagnostic(String path, String line) =>
+    _normalize(path) ==
+        'lib/integrations/rust_matrix_core/data/services/chat_operation_diagnostics.dart' &&
+    _machineChatDiagnosticLines.contains(line.trim());
+
+const _machineChatDiagnosticLines = <String>{
+  r"""'WEAVE_NATIVE_CHAT_FAILURE operation=${operation.name} '""",
+  r"""'stage=${stage.name} type=${failure.type.name} code=${_safeCode(code)} '""",
+  r"""'httpStatus=${httpStatus ?? 'unavailable'} correlation=$correlation candidate=$safeCandidate supportSafe=true',""",
+  r"""return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';""",
+};
 
 bool _looksLikeUserFacingString(String line) {
   if (!line.contains("'") && !line.contains('"')) return false;

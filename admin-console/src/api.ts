@@ -484,7 +484,7 @@ export class AdminControlPlaneApi {
       throw new AdminApiError("Organization sign-in is required.", 401);
     }
     return this.generated(this.generatedSpaces.provisionSpace({
-      spaceProvisionRequest: { spaceRef: "workspace-default", memberAccountRefs: [] },
+      spaceProvisionRequest: { spaceRef: "workspace-default", displayName: "Organization workspace", memberAccountRefs: [] },
     }));
   }
 

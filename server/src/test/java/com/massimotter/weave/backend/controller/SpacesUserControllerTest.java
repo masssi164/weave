@@ -46,9 +46,9 @@ class SpacesUserControllerTest {
     @Test
     void memberGetsOnlySpaceReferencesFromTheUserTransport() throws Exception {
         when(spaces.list(any(), isNull(), eq(25))).thenReturn(new SpaceUserListResponse(
-                List.of(new SpaceUserResponse("space:team")), null));
+                List.of(new SpaceUserResponse("space:team", "Team workspace")), null));
         when(spaces.inspect(any(), eq("space:team")))
-                .thenReturn(new SpaceUserResponse("space:team"));
+                .thenReturn(new SpaceUserResponse("space:team", "Team workspace"));
         mvc.perform(get("/api/spaces").with(member()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.spaces[0].spaceRef").value("space:team"))

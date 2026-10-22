@@ -171,7 +171,7 @@ class ChatController extends Notifier<ChatUiState> {
     ChatFailure failure,
     List<ChatConversation>? staleConversations,
   ) {
-    if (failure.type != ChatFailureType.sessionRequired &&
+    if (!failure.deniesCurrentAccess &&
         staleConversations != null &&
         staleConversations.isNotEmpty) {
       return ChatUiState.content(staleConversations, staleFailure: failure);

@@ -743,6 +743,109 @@ void main() {
   );
 
   for (final locale in ['en', 'de']) {
+    testWidgets(
+      'actual wrapped shell navigation uses unique hittable identifiers at large $locale text',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final router = GoRouter(
+          routes: [
+            StatefulShellRoute.indexedStack(
+              builder: (context, state, shell) =>
+                  AppShell(navigationShell: shell),
+              branches: [
+                for (var i = 0; i < 5; i++)
+                  StatefulShellBranch(
+                    routes: [
+                      GoRoute(
+                        path: const [
+                          '/',
+                          '/chat',
+                          '/files',
+                          '/calendar',
+                          '/settings',
+                        ][i],
+                        builder: (_, _) => Text('actual-page-$i'),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              preferencesStoreProvider.overrideWith(
+                (ref) => InMemoryPreferencesStore(),
+              ),
+            ],
+            child: MaterialApp.router(
+              routerConfig: router,
+              locale: Locale(locale),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(NavigationBar), findsNothing);
+        const icons = [
+          Icons.home_outlined,
+          Icons.chat_bubble_outline,
+          Icons.folder_outlined,
+          Icons.calendar_month_outlined,
+          Icons.settings_outlined,
+        ];
+        for (var i = 0; i < icons.length; i++) {
+          await navigateNativeDualDestination(tester, icons[i]);
+          await tester.pumpAndSettle();
+          expect(find.text('actual-page-$i'), findsOneWidget);
+          expect(
+            nativeDualChatListDiagnostic(tester, null, null, null, 'unused'),
+            contains('navigationSelected=$i'),
+          );
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'duplicate ordinary navigation identifiers fail before any activation',
+    (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        createTestApp(
+          Row(
+            children: [
+              for (var i = 0; i < 2; i++)
+                Semantics(
+                  identifier: 'nav-chat',
+                  child: TextButton(
+                    onPressed: () => taps++,
+                    child: const Text('Chat'),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        () => navigateNativeDualDestination(tester, Icons.chat_bubble_outline),
+        throwsA(isA<TestFailure>()),
+      );
+      expect(taps, 0);
+    },
+  );
+
+  for (final locale in ['en', 'de']) {
     testWidgets('actual localized Home/Chat navigation; locale=$locale', (
       tester,
     ) async {

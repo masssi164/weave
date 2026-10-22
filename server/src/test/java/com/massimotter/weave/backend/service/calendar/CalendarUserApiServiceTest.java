@@ -73,6 +73,17 @@ class CalendarUserApiServiceTest {
     }
 
     @Test
+    void missingCalendarBindingBlocksDiscoveryAndAgendaBeforeProviderAccess() {
+        when(bindings.current("tenant-default", "calendar")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.calendars(member)).isInstanceOfSatisfying(ApiErrorException.class,
+                error -> { assertThat(error.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(error.code()).isEqualTo("calendar-provider-unavailable"); });
+        assertStatus(() -> service.agenda(member, calendar, Instant.parse("2026-01-01T00:00:00Z"),
+                Instant.parse("2026-01-02T00:00:00Z"), "UTC"), HttpStatus.SERVICE_UNAVAILABLE);
+        verify(provider, never()).query(any(), any(), any(), any());
+    }
+
+    @Test
     void durableSpaceRevocationHidesCalendarsAndBlocksProviderQueryDespiteStaticGrant() {
         SpaceAccessPort spaces = mock(SpaceAccessPort.class);
         when(spaces.allows(eq("tenant-default"), eq("workspace-default"), anyString(),
@@ -196,7 +207,8 @@ class CalendarUserApiServiceTest {
         var context = new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
         return new CalendarUserApiService(HumanJwtTestSupport.organizationAdmission(),
                 OrganizationIdentityContextResolver.configured(context), context, rights, null,
-                capabilities, bindings, List.of(provider), audit, authorizationProvider, tokenProvider);
+                capabilities, bindings, List.of(provider), audit, authorizationProvider, tokenProvider,
+                new CalendarProviderBindingReadiness(bindings, List.of(provider)));
     }
 
     private Jwt workloadJwt() {

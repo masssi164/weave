@@ -30,6 +30,9 @@ class SpaceJpaEntity {
     @EmbeddedId
     private SpaceId id;
 
+    @Column(name = "display_name", nullable = false, length = 160)
+    private String displayName;
+
     @Column(name = "lifecycle_state", nullable = false, length = 32)
     private String lifecycleState;
 
@@ -52,6 +55,7 @@ class SpaceJpaEntity {
             Instant now) {
         SpaceJpaEntity entity = new SpaceJpaEntity();
         entity.id = new SpaceId(organizationRef, spaceRef);
+        entity.displayName = com.massimotter.weave.backend.spaces.port.SpaceDisplayName.DEFAULT_WORKSPACE;
         entity.lifecycleState = "ACTIVE";
         entity.createdAt = utc(now);
         entity.updatedAt = utc(now);
@@ -65,6 +69,8 @@ class SpaceJpaEntity {
         lifecycleState = targetState;
         updatedAt = utc(now);
     }
+
+    String displayName() { return displayName; }
 
     boolean active() {
         return "ACTIVE".equals(lifecycleState);
@@ -114,13 +120,14 @@ interface SpaceJpaRepository extends JpaRepository<SpaceJpaEntity, SpaceId> {
     /** Primary-key arbitration inserts once; a losing creator never merges into current state. */
     @Modifying(flushAutomatically = true)
     @Query(value = """
-            insert into weave_spaces (organization_ref, space_ref, lifecycle_state,
+            insert into weave_spaces (organization_ref, space_ref, display_name, lifecycle_state,
                     created_at_utc, updated_at_utc, version)
-            values (:organizationRef, :spaceRef, 'ACTIVE', :now, :now, 0)
+            values (:organizationRef, :spaceRef, :displayName, 'ACTIVE', :now, :now, 0)
             on conflict do nothing
             """, nativeQuery = true)
     int insertIfAbsent(@Param("organizationRef") String organizationRef,
-            @Param("spaceRef") String spaceRef, @Param("now") OffsetDateTime now);
+            @Param("spaceRef") String spaceRef, @Param("displayName") String displayName,
+            @Param("now") OffsetDateTime now);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select space from SpaceJpaEntity space where space.id = :id")
@@ -288,4 +295,39 @@ interface SpaceMembershipJpaRepository
             @Param("personRef") String personRef,
             @Param("afterSpaceRef") String afterSpaceRef,
             Pageable page);
+    @Query("""
+            select new com.massimotter.weave.backend.spaces.port.SpaceReadPort$SpaceSummary(s.id.spaceRef, s.displayName) from SpaceJpaEntity s, SpaceMembershipJpaEntity m
+            where s.id.organizationRef = :organizationRef
+              and m.id.organizationRef = :organizationRef
+              and s.id.spaceRef = m.id.spaceRef
+              and m.id.personRef = :personRef
+              and s.lifecycleState = 'ACTIVE'
+              and m.lifecycleState = 'ACTIVE'
+              and m.permissionSet in ('VIEW', 'VIEW,EDIT', 'VIEW,EDIT,ADMIN')
+              and s.id.spaceRef > :afterSpaceRef
+            order by s.id.spaceRef
+            """)
+    List<com.massimotter.weave.backend.spaces.port.SpaceReadPort.SpaceSummary> visibleSpaces(
+            @Param("organizationRef") String organizationRef,
+            @Param("personRef") String personRef,
+            @Param("afterSpaceRef") String afterSpaceRef,
+            Pageable page);
+
+    @Query("""
+            select new com.massimotter.weave.backend.spaces.port.SpaceReadPort$SpaceSummary(s.id.spaceRef, s.displayName) from SpaceJpaEntity s, SpaceMembershipJpaEntity m
+            where s.id.organizationRef = :organizationRef
+              and m.id.organizationRef = :organizationRef
+              and s.id.spaceRef = m.id.spaceRef
+              and m.id.personRef = :personRef
+              and s.lifecycleState = 'ACTIVE'
+              and m.lifecycleState = 'ACTIVE'
+              and m.permissionSet in ('VIEW', 'VIEW,EDIT', 'VIEW,EDIT,ADMIN')
+              and s.id.spaceRef = :spaceRef
+            order by s.id.spaceRef
+            """)
+    Optional<com.massimotter.weave.backend.spaces.port.SpaceReadPort.SpaceSummary> visibleSpace(
+            @Param("organizationRef") String organizationRef,
+            @Param("personRef") String personRef,
+            @Param("spaceRef") String spaceRef);
+
 }

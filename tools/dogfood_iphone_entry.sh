@@ -11,6 +11,7 @@ LOCAL_CA_TRUST_STATUS="${WEAVE_IOS_LOCAL_CA_TRUST_STATUS:-not_verified}"
 RUN_ID="${WEAVE_DOGFOOD_RUN_ID:-s32-massimo-dogfood}"
 HANDOFF_REF="${WEAVE_DOGFOOD_HANDOFF_REF:-handoff-s32-massimo-dogfood-home}"
 ACTION="run"
+ORDINARY_STARTUP=0
 
 usage() {
   cat <<'USAGE'
@@ -29,6 +30,7 @@ Options:
                                 Default: update_in_place.
   --transport wifi|usb|unknown  Evidence label for the intended install transport. Default: wifi.
   --local-ca-trust STATUS       trusted, manual_pending, publicly_trusted, not_required, or not_verified.
+  --ordinary-startup            Preserve the owner session; launch without an onboarding URL.
   --run-id ID                   Dogfood evidence run id.
   --handoff-ref REF             Support-safe handoff/invite reference.
   --evidence-dir DIR            Evidence output directory.
@@ -58,6 +60,10 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --run)
       ACTION="run"
+      shift
+      ;;
+    --ordinary-startup)
+      ORDINARY_STARTUP=1
       shift
       ;;
     --device-id)
@@ -136,6 +142,8 @@ FLUTTER_BIN="${FLUTTER_BIN:-${HOME}/flutter/bin/flutter}"
 mkdir -p "${EVIDENCE_DIR}"
 EVIDENCE_DIR="$(cd "${EVIDENCE_DIR}" && pwd)"
 
+DEEPLINK=""
+if [[ "${ORDINARY_STARTUP}" == "0" ]]; then
 python3 "${ROOT_DIR}/tools/dogfood_handoff_bundle.py" \
   --run-id "${RUN_ID}" \
   --handoff-ref "${HANDOFF_REF}" \
@@ -151,6 +159,8 @@ print(payload["testerVisible"]["deepLink"])
 PY
 )"
 [[ -n "${DEEPLINK}" ]] || fail "handoff generation did not produce a deeplink"
+
+fi
 
 xcrun devicectl device info details \
   --device "${DEVICE_ID}" \
@@ -171,15 +181,17 @@ export WEAVE_DOGFOOD_HANDOFF_REF="${HANDOFF_REF}"
 export WEAVE_DOGFOOD_LOCAL_CA_REQUIRED="${LOCAL_DOGFOOD_TLS_REQUIRED}"
 export WEAVE_DOGFOOD_EVIDENCE_DIR="${EVIDENCE_DIR}"
 
+launch_arguments=()
+if [[ "${ORDINARY_STARTUP}" == "1" ]]; then launch_arguments+=(--ordinary-startup); fi
 case "${ACTION}" in
   check)
     echo "DOGFOOD_IPHONE_ENTRY_CHECK_READY deviceId=${DEVICE_ID} buildMode=${BUILD_MODE} resetMode=${RESET_MODE} evidence=${EVIDENCE_DIR}/handoff.json"
     ;;
   dry-run)
-    echo "WEAVE_IOS_DEVICE_ID='${DEVICE_ID}' WEAVE_IOS_BUILD_MODE='${BUILD_MODE}' WEAVE_IOS_RESET_MODE='${RESET_MODE}' WEAVE_IOS_INSTALL_TRANSPORT='${INSTALL_TRANSPORT}' WEAVE_IOS_LOCAL_CA_TRUST_STATUS='${LOCAL_CA_TRUST_STATUS}' WEAVE_DOGFOOD_EVIDENCE_DIR='${EVIDENCE_DIR}' WEAVE_DOGFOOD_ORGANIZATION_ORIGIN='${ORGANIZATION_ORIGIN}' WEAVE_DOGFOOD_RUN_ID='${RUN_ID}' WEAVE_DOGFOOD_HANDOFF_REF='${HANDOFF_REF}' WEAVE_DOGFOOD_LOCAL_CA_REQUIRED='${LOCAL_DOGFOOD_TLS_REQUIRED}' WEAVE_DOGFOOD_DEEPLINK='<support-safe handoff from ${EVIDENCE_DIR}/handoff.json>' tools/dogfood_ios_deeplink_smoke.sh"
+    echo "WEAVE_IOS_DEVICE_ID='${DEVICE_ID}' WEAVE_IOS_BUILD_MODE='${BUILD_MODE}' WEAVE_IOS_RESET_MODE='${RESET_MODE}' WEAVE_IOS_INSTALL_TRANSPORT='${INSTALL_TRANSPORT}' WEAVE_IOS_LOCAL_CA_TRUST_STATUS='${LOCAL_CA_TRUST_STATUS}' WEAVE_DOGFOOD_EVIDENCE_DIR='${EVIDENCE_DIR}' WEAVE_DOGFOOD_ORGANIZATION_ORIGIN='${ORGANIZATION_ORIGIN}' WEAVE_DOGFOOD_RUN_ID='${RUN_ID}' WEAVE_DOGFOOD_HANDOFF_REF='${HANDOFF_REF}' WEAVE_DOGFOOD_LOCAL_CA_REQUIRED='${LOCAL_DOGFOOD_TLS_REQUIRED}' WEAVE_DOGFOOD_DEEPLINK='<support-safe handoff from ${EVIDENCE_DIR}/handoff.json>' tools/dogfood_ios_deeplink_smoke.sh ${launch_arguments[*]}"
     ;;
   run)
-    "${ROOT_DIR}/tools/dogfood_ios_deeplink_smoke.sh"
-    echo "DOGFOOD_IPHONE_ENTRY_LAUNCHED evidence=${EVIDENCE_DIR}/ios-deeplink-smoke.json"
+    "${ROOT_DIR}/tools/dogfood_ios_deeplink_smoke.sh" "${launch_arguments[@]}"
+    echo "DOGFOOD_IPHONE_ENTRY_LAUNCHED ordinaryStartup=${ORDINARY_STARTUP} functionalProof=pending"
     ;;
 esac

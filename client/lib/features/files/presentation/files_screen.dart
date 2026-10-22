@@ -8,6 +8,7 @@ import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/app/presentation/workspace_capability_recovery_presenter.dart';
 import 'package:weave/features/app/presentation/workspace_setup_action.dart';
@@ -16,6 +17,7 @@ import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
+import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -237,6 +239,18 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
             sliver: SliverToBoxAdapter(
               child: _EntryActionStatusCard(
                 actionStatus: state.entryActionStatus,
+                onRetryRead: () =>
+                    ref.read(filesProvider.notifier).retryFolderReadback(),
+                onRetryWrite: () {
+                  final operation = state.entryActionStatus;
+                  if (operation.parentPath == state.currentPath &&
+                      operation.rootSpaceRef == state.rootSpaceRef &&
+                      operation.entryName != null) {
+                    ref
+                        .read(filesProvider.notifier)
+                        .createFolder(operation.entryName!);
+                  }
+                },
               ),
             ),
           ),
@@ -322,8 +336,12 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
             (listing.entries.isEmpty && directoryFailure == null)) {
           return _fillStateSliver(
             child: EmptyState(
-              message: l10n.filesEmptyMessage,
-              guidance: l10n.filesEmptyGuidance,
+              message: state.rootSpaceRef == null
+                  ? l10n.filesPrivateEmptyMessage
+                  : l10n.filesSharedEmptyMessage,
+              guidance: state.rootSpaceRef == null
+                  ? l10n.filesPrivateEmptyGuidance
+                  : l10n.filesSharedEmptyGuidance,
               icon: Icons.folder_outlined,
               actionLabel: l10n.filesRefreshButton,
               onAction: state.isBusy
@@ -498,16 +516,10 @@ class _DirectoryToolbar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final listing = state.directoryListing;
-    final spaces =
-        ref
-            .watch(weaveApiMemberSpacesProvider)
-            .asData
-            ?.value
-            ?.visibleSpaceRefs ??
-        const <String>{};
+    final access = ref.watch(weaveApiMemberSpacesProvider).asData?.value;
+    final spaces = access?.visibleSpaceRefs ?? const <String>{};
     final selectedSpace = state.rootSpaceRef;
 
     return Column(
@@ -515,44 +527,62 @@ class _DirectoryToolbar extends ConsumerWidget {
       children: [
         InputDecorator(
           decoration: InputDecoration(labelText: l10n.filesSpaceLabel),
-          child: DropdownButton<String>(
-            key: const Key('files-space-selector'),
-            value: selectedSpace ?? '',
-            isExpanded: true,
-            items: [
-              DropdownMenuItem(value: '', child: Text(l10n.filesPrivateSpace)),
-              for (final space in spaces.toList()..sort())
+          child: Semantics(
+            identifier: 'files-space-selector',
+            child: DropdownButton<String>(
+              key: const Key('files-space-selector'),
+              value: selectedSpace ?? '',
+              isExpanded: true,
+              selectedItemBuilder: (context) => [
+                Text(l10n.filesPrivateSpace),
+                for (final space in spaces.toList()..sort())
+                  Text(_filesScopeLabel(l10n, space, access)),
+                if (selectedSpace != null && !spaces.contains(selectedSpace))
+                  Text(l10n.filesUnavailableSpace),
+              ],
+              items: [
                 DropdownMenuItem(
-                  value: space,
-                  child: Text(
-                    space == 'workspace-default'
-                        ? l10n.filesSharedOrganizationSpace
-                        : space,
+                  value: '',
+                  child: Semantics(
+                    identifier: 'files-space-option-private',
+                    child: Text(l10n.filesPrivateSpace),
                   ),
                 ),
-              if (selectedSpace != null && !spaces.contains(selectedSpace))
-                DropdownMenuItem(
-                  value: selectedSpace,
-                  enabled: false,
-                  child: Text(l10n.filesUnavailableSpace),
-                ),
-            ],
-            onChanged: state.isBusy
-                ? null
-                : (value) => ref
-                      .read(filesProvider.notifier)
-                      .selectRootSpace(value == '' ? null : value),
+                for (final space in spaces.toList()..sort())
+                  DropdownMenuItem(
+                    value: space,
+                    child: Semantics(
+                      identifier: 'files-space-option-$space',
+                      child: Text(_filesScopeLabel(l10n, space, access)),
+                    ),
+                  ),
+                if (selectedSpace != null && !spaces.contains(selectedSpace))
+                  DropdownMenuItem(
+                    value: selectedSpace,
+                    enabled: false,
+                    child: Text(l10n.filesUnavailableSpace),
+                  ),
+              ],
+              onChanged: state.isBusy
+                  ? null
+                  : (value) => ref
+                        .read(filesProvider.notifier)
+                        .selectRootSpace(value == '' ? null : value),
+            ),
           ),
         ),
         const SizedBox(height: 16),
-        _PathBreadcrumbs(path: state.currentPath, isBusy: state.isBusy),
+        _PathBreadcrumbs(
+          path: state.currentPath,
+          isBusy: state.isBusy,
+          rootLabel: _filesScopeLabel(l10n, state.rootSpaceRef, access),
+        ),
         const SizedBox(height: 12),
         Wrap(
           spacing: 12,
           runSpacing: 12,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Text(state.currentPath, style: theme.textTheme.titleMedium),
             if (!(listing?.isRoot ?? true))
               AccessibleButton(
                 outlined: true,
@@ -564,45 +594,77 @@ class _DirectoryToolbar extends ConsumerWidget {
                 semanticLabel: l10n.filesOpenParentSemantic,
                 child: Text(l10n.filesUpButton),
               ),
-            AccessibleButton(
-              outlined: true,
-              onPressed: state.isBusy
-                  ? null
-                  : () {
-                      ref.read(filesProvider.notifier).refresh();
-                    },
-              semanticLabel: l10n.filesRefreshCurrentFolderSemantic,
-              child: Text(l10n.filesRefreshButton),
-            ),
-            if (listing?.allows('createFolder') == true)
-              AccessibleButton(
+            Semantics(
+              identifier: 'files-refresh',
+              child: AccessibleButton(
                 outlined: true,
                 onPressed: state.isBusy
                     ? null
-                    : () async {
-                        final folderName = await showDialog<String>(
-                          context: context,
-                          builder: (context) => const _CreateFolderDialog(),
-                        );
-                        if (folderName == null) {
-                          return;
-                        }
-                        ref
-                            .read(filesProvider.notifier)
-                            .createFolder(folderName);
+                    : () {
+                        ref.read(filesProvider.notifier).refresh();
                       },
-                semanticLabel: l10n.filesCreateFolderCurrentFolderSemantic,
-                child: Text(l10n.filesCreateFolderButton),
+                semanticLabel: l10n.filesRefreshCurrentFolderSemantic,
+                child: Text(l10n.filesRefreshButton),
+              ),
+            ),
+            if (listing?.allows('createFolder') == true)
+              Semantics(
+                identifier: 'files-create-folder',
+                child: AccessibleButton(
+                  outlined: true,
+                  onPressed: state.isBusy
+                      ? null
+                      : () async {
+                          final operationRepository = ref.read(
+                            filesRepositoryProvider,
+                          );
+                          final folderName = await showDialog<String>(
+                            context: context,
+                            builder: (context) => _CreateFolderDialog(
+                              destination: l10n.filesCurrentLocation(
+                                _filesScopeLabel(
+                                  l10n,
+                                  state.rootSpaceRef,
+                                  access,
+                                ),
+                                state.currentPath == '/'
+                                    ? l10n.filesTopFolder
+                                    : state.currentPath,
+                              ),
+                            ),
+                          );
+                          final active = ref.read(filesProvider).asData?.value;
+                          if (folderName == null ||
+                              !context.mounted ||
+                              active == null ||
+                              active.rootSpaceRef != state.rootSpaceRef ||
+                              active.currentPath != state.currentPath ||
+                              !identical(
+                                operationRepository,
+                                ref.read(filesRepositoryProvider),
+                              )) {
+                            return;
+                          }
+                          ref
+                              .read(filesProvider.notifier)
+                              .createFolder(folderName);
+                        },
+                  semanticLabel: l10n.filesCreateFolderCurrentFolderSemantic,
+                  child: Text(l10n.filesCreateFolderButton),
+                ),
               ),
             if (listing?.allows('upload') == true)
-              AccessibleButton(
-                onPressed: state.isBusy
-                    ? null
-                    : () {
-                        ref.read(filesProvider.notifier).pickAndUpload();
-                      },
-                semanticLabel: l10n.filesUploadCurrentFolderSemantic,
-                child: Text(l10n.filesUploadButton),
+              Semantics(
+                identifier: 'files-upload',
+                child: AccessibleButton(
+                  onPressed: state.isBusy
+                      ? null
+                      : () {
+                          ref.read(filesProvider.notifier).pickAndUpload();
+                        },
+                  semanticLabel: l10n.filesUploadCurrentFolderSemantic,
+                  child: Text(l10n.filesUploadButton),
+                ),
               ),
           ],
         ),
@@ -611,58 +673,70 @@ class _DirectoryToolbar extends ConsumerWidget {
   }
 }
 
-class _EntryActionStatusCard extends StatelessWidget {
-  const _EntryActionStatusCard({required this.actionStatus});
+class _EntryActionStatusCard extends ConsumerWidget {
+  const _EntryActionStatusCard({
+    required this.actionStatus,
+    this.onRetryRead,
+    this.onRetryWrite,
+  });
 
   final FilesEntryActionStatus actionStatus;
+  final VoidCallback? onRetryRead;
+  final VoidCallback? onRetryWrite;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    final access = ref.watch(weaveApiMemberSpacesProvider).asData?.value;
     final entryName = actionStatus.entryName;
-    final message = switch (actionStatus.phase) {
-      FilesEntryActionPhase.replacingContent => l10n.filesContentUpdating(
-        entryName ?? l10n.filesScreenTitle,
-      ),
-      FilesEntryActionPhase.replacedContent => l10n.filesContentUpdated(
-        entryName ?? l10n.filesScreenTitle,
-      ),
-      FilesEntryActionPhase.idle => '',
-      FilesEntryActionPhase.creatingFolder =>
-        entryName == null
-            ? l10n.filesCreateFolderProgressUnknownMessage
-            : l10n.filesCreateFolderProgressMessage(entryName),
-      FilesEntryActionPhase.createdFolder =>
-        entryName == null
-            ? l10n.filesCreateFolderCompletedUnknownMessage
-            : l10n.filesCreateFolderCompletedMessage(entryName),
-      FilesEntryActionPhase.deletingEntry =>
-        entryName == null
-            ? l10n.filesDeleteProgressUnknownMessage
-            : l10n.filesDeleteProgressMessage(entryName),
-      FilesEntryActionPhase.deletedEntry =>
-        entryName == null
-            ? l10n.filesDeleteCompletedUnknownMessage
-            : l10n.filesDeleteCompletedMessage(entryName),
-      FilesEntryActionPhase.exportingEntry =>
-        entryName == null
-            ? l10n.filesExportProgressUnknownMessage
-            : l10n.filesExportProgressMessage(entryName),
-      FilesEntryActionPhase.exportedEntry =>
-        entryName == null
-            ? l10n.filesExportCompletedUnknownMessage
-            : l10n.filesExportCompletedMessage(
-                entryName,
-                _exportDestinationLabel(
-                  actionStatus.destination,
-                  l10n.filesExportUserVisibleFallback,
-                ),
-              ),
-      FilesEntryActionPhase.failed =>
-        _localizedFilesFailure(actionStatus.failure, l10n) ??
-            l10n.filesEntryActionFailedMessage,
-    };
+    final message =
+        actionStatus.writeOutcome == FilesWriteOutcome.committedRefreshPending
+        ? l10n.filesFolderSavedRefreshPending
+        : actionStatus.writeOutcome == FilesWriteOutcome.uncertain
+        ? l10n.filesFolderWriteUncertain
+        : switch (actionStatus.phase) {
+            FilesEntryActionPhase.replacingContent => l10n.filesContentUpdating(
+              entryName ?? l10n.filesScreenTitle,
+            ),
+            FilesEntryActionPhase.replacedContent => l10n.filesContentUpdated(
+              entryName ?? l10n.filesScreenTitle,
+            ),
+            FilesEntryActionPhase.idle => '',
+            FilesEntryActionPhase.creatingFolder =>
+              entryName == null
+                  ? l10n.filesCreateFolderProgressUnknownMessage
+                  : l10n.filesCreateFolderProgressMessage(entryName),
+            FilesEntryActionPhase.createdFolder =>
+              entryName == null
+                  ? l10n.filesCreateFolderCompletedUnknownMessage
+                  : l10n.filesCreateFolderCompletedMessage(entryName),
+            FilesEntryActionPhase.deletingEntry =>
+              entryName == null
+                  ? l10n.filesDeleteProgressUnknownMessage
+                  : l10n.filesDeleteProgressMessage(entryName),
+            FilesEntryActionPhase.deletedEntry =>
+              entryName == null
+                  ? l10n.filesDeleteCompletedUnknownMessage
+                  : l10n.filesDeleteCompletedMessage(entryName),
+            FilesEntryActionPhase.exportingEntry =>
+              entryName == null
+                  ? l10n.filesExportProgressUnknownMessage
+                  : l10n.filesExportProgressMessage(entryName),
+            FilesEntryActionPhase.exportedEntry =>
+              entryName == null
+                  ? l10n.filesExportCompletedUnknownMessage
+                  : l10n.filesExportCompletedMessage(
+                      entryName,
+                      _exportDestinationLabel(
+                        actionStatus.destination,
+                        l10n.filesExportUserVisibleFallback,
+                      ),
+                    ),
+            FilesEntryActionPhase.failed =>
+              _localizedFilesFailure(actionStatus.failure, l10n) ??
+                  l10n.filesEntryActionFailedMessage,
+          };
     final icon = switch (actionStatus.phase) {
       FilesEntryActionPhase.replacedContent => Icons.check_circle_outline,
       FilesEntryActionPhase.createdFolder => Icons.check_circle_outline,
@@ -675,7 +749,9 @@ class _EntryActionStatusCard extends StatelessWidget {
 
     return Semantics(
       liveRegion: actionStatus.phase != FilesEntryActionPhase.idle,
-      label: message,
+      label: actionStatus.parentPath == null
+          ? message
+          : '$message ${l10n.filesCurrentLocation(_filesScopeLabel(l10n, actionStatus.rootSpaceRef, access), actionStatus.parentPath == '/' ? l10n.filesTopFolder : actionStatus.parentPath!)}',
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -683,7 +759,43 @@ class _EntryActionStatusCard extends StatelessWidget {
             children: [
               ExcludeSemantics(child: Icon(icon)),
               const SizedBox(width: 12),
-              Expanded(child: Text(message, style: theme.textTheme.bodyMedium)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(message, style: theme.textTheme.bodyMedium),
+                    if (actionStatus.parentPath != null)
+                      Text(
+                        l10n.filesFolderLocation(
+                          _filesScopeLabel(
+                            l10n,
+                            actionStatus.rootSpaceRef,
+                            access,
+                          ),
+                          actionStatus.parentPath == '/'
+                              ? l10n.filesTopFolder
+                              : actionStatus.parentPath!,
+                        ),
+                      ),
+                    if (actionStatus.writeOutcome ==
+                        FilesWriteOutcome.committedRefreshPending)
+                      AccessibleButton(
+                        onPressed: onRetryRead,
+                        semanticLabel: l10n.filesRefreshButton,
+                        outlined: true,
+                        child: Text(l10n.filesRefreshButton),
+                      ),
+                    if (actionStatus.writeOutcome ==
+                        FilesWriteOutcome.uncertain)
+                      AccessibleButton(
+                        onPressed: onRetryWrite,
+                        semanticLabel: l10n.retryButton,
+                        outlined: true,
+                        child: Text(l10n.retryButton),
+                      ),
+                  ],
+                ),
+              ),
               if (actionStatus.phase == FilesEntryActionPhase.creatingFolder ||
                   actionStatus.phase == FilesEntryActionPhase.deletingEntry ||
                   actionStatus.phase == FilesEntryActionPhase.exportingEntry ||
@@ -782,7 +894,12 @@ class _UploadStatusCard extends StatelessWidget {
 }
 
 class _PathBreadcrumbs extends ConsumerWidget {
-  const _PathBreadcrumbs({required this.path, required this.isBusy});
+  const _PathBreadcrumbs({
+    required this.path,
+    required this.isBusy,
+    required this.rootLabel,
+  });
+  final String rootLabel;
 
   final String path;
   final bool isBusy;
@@ -793,10 +910,10 @@ class _PathBreadcrumbs extends ConsumerWidget {
     final segments = path.split('/')..removeWhere((segment) => segment.isEmpty);
     final crumbs = <Widget>[
       _BreadcrumbChip(
-        label: l10n.filesRootBreadcrumb,
+        label: rootLabel,
         semanticLabel: path == '/'
-            ? l10n.filesCurrentFolderSemantic(l10n.filesRootBreadcrumb)
-            : l10n.filesOpenFolderSemantic(l10n.filesRootBreadcrumb),
+            ? l10n.filesCurrentFolderSemantic(rootLabel)
+            : l10n.filesOpenFolderSemantic(rootLabel),
         isCurrent: path == '/',
         onPressed: path == '/' || isBusy
             ? null
@@ -1005,7 +1122,8 @@ class _FilesBoundaryNotice extends StatelessWidget {
 }
 
 class _CreateFolderDialog extends StatefulWidget {
-  const _CreateFolderDialog();
+  const _CreateFolderDialog({required this.destination});
+  final String destination;
 
   @override
   State<_CreateFolderDialog> createState() => _CreateFolderDialogState();
@@ -1039,19 +1157,30 @@ class _CreateFolderDialogState extends State<_CreateFolderDialog> {
 
     return AlertDialog(
       title: Text(l10n.filesCreateFolderDialogTitle),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        textInputAction: TextInputAction.done,
-        decoration: InputDecoration(
-          labelText: l10n.filesCreateFolderNameLabel,
-          hintText: l10n.filesCreateFolderNameHint,
-        ),
-        onSubmitted: name.isEmpty
-            ? null
-            : (_) {
-                Navigator.of(context).pop(name);
-              },
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(widget.destination),
+          const SizedBox(height: 12),
+          Semantics(
+            identifier: 'files-folder-name',
+            child: TextField(
+              controller: _controller,
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                labelText: l10n.filesCreateFolderNameLabel,
+                hintText: l10n.filesCreateFolderNameHint,
+              ),
+              onSubmitted: name.isEmpty
+                  ? null
+                  : (_) {
+                      Navigator.of(context).pop(name);
+                    },
+            ),
+          ),
+        ],
       ),
       actions: [
         TextButton(
@@ -1060,13 +1189,16 @@ class _CreateFolderDialogState extends State<_CreateFolderDialog> {
           },
           child: Text(l10n.filesCancelButton),
         ),
-        FilledButton(
-          onPressed: name.isEmpty
-              ? null
-              : () {
-                  Navigator.of(context).pop(name);
-                },
-          child: Text(l10n.filesCreateFolderConfirmButton),
+        Semantics(
+          identifier: 'files-confirm-create-folder',
+          child: FilledButton(
+            onPressed: name.isEmpty
+                ? null
+                : () {
+                    Navigator.of(context).pop(name);
+                  },
+            child: Text(l10n.filesCreateFolderConfirmButton),
+          ),
         ),
       ],
     );
@@ -1115,9 +1247,12 @@ class _FilePreview extends ConsumerWidget {
                         allowMalformed: false,
                       );
                       return SingleChildScrollView(
-                        child: SelectableText(
-                          text,
-                          key: const Key('files-preview-content'),
+                        child: Semantics(
+                          identifier: 'files-preview-content',
+                          child: SelectableText(
+                            text,
+                            key: const Key('files-preview-content'),
+                          ),
                         ),
                       );
                     } on FormatException {
@@ -1145,9 +1280,12 @@ class _FilePreview extends ConsumerWidget {
               ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(MaterialLocalizations.of(context).closeButtonLabel),
+        Semantics(
+          identifier: 'files-preview-close',
+          child: TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(MaterialLocalizations.of(context).closeButtonLabel),
+          ),
         ),
       ],
     );
@@ -1168,6 +1306,7 @@ class _FileEntryTile extends ConsumerWidget {
       container: true,
       explicitChildNodes: true,
       button: entry.isDirectory,
+      identifier: 'files-entry-${entry.id}',
       label: _semanticLabel(l10n, entry, subtitle),
       child: ListTile(
         key: ValueKey('files-entry-${entry.id}'),
@@ -1185,26 +1324,29 @@ class _FileEntryTile extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (!entry.isDirectory && entry.allows('download'))
-              IconButton(
-                key: ValueKey('files-open-${entry.id}'),
-                tooltip: l10n.filesOpenEntrySemantic(entry.name),
-                onPressed: isBusy
-                    ? null
-                    : () => showDialog<void>(
-                        context: context,
-                        builder: (_) => _FilePreview(
-                          entry: entry,
-                          rootSpaceRef: ref
-                              .read(filesProvider)
-                              .asData
-                              ?.value
-                              .rootSpaceRef,
-                          download: ref
-                              .read(filesProvider.notifier)
-                              .downloadForPreview(entry),
+              Semantics(
+                identifier: 'files-open-${entry.id}',
+                child: IconButton(
+                  key: ValueKey('files-open-${entry.id}'),
+                  tooltip: l10n.filesOpenEntrySemantic(entry.name),
+                  onPressed: isBusy
+                      ? null
+                      : () => showDialog<void>(
+                          context: context,
+                          builder: (_) => _FilePreview(
+                            entry: entry,
+                            rootSpaceRef: ref
+                                .read(filesProvider)
+                                .asData
+                                ?.value
+                                .rootSpaceRef,
+                            download: ref
+                                .read(filesProvider.notifier)
+                                .downloadForPreview(entry),
+                          ),
                         ),
-                      ),
-                icon: const Icon(Icons.visibility_outlined),
+                  icon: const Icon(Icons.visibility_outlined),
+                ),
               ),
             if (!entry.isDirectory && entry.allows('updateContent'))
               IconButton(
@@ -1218,15 +1360,18 @@ class _FileEntryTile extends ConsumerWidget {
                 icon: const Icon(Icons.upload_file_outlined),
               ),
             if (!entry.isDirectory && entry.allows('download'))
-              IconButton(
-                key: ValueKey('files-export-${entry.id}'),
-                tooltip: l10n.filesExportEntrySemantic(entry.name),
-                onPressed: isBusy
-                    ? null
-                    : () {
-                        ref.read(filesProvider.notifier).exportEntry(entry);
-                      },
-                icon: const Icon(Icons.file_download_outlined),
+              Semantics(
+                identifier: 'files-export-${entry.id}',
+                child: IconButton(
+                  key: ValueKey('files-export-${entry.id}'),
+                  tooltip: l10n.filesExportEntrySemantic(entry.name),
+                  onPressed: isBusy
+                      ? null
+                      : () {
+                          ref.read(filesProvider.notifier).exportEntry(entry);
+                        },
+                  icon: const Icon(Icons.file_download_outlined),
+                ),
               ),
             if (entry.isDirectory)
               const ExcludeSemantics(child: Icon(Icons.chevron_right)),
@@ -1288,4 +1433,16 @@ class _FileEntryTile extends ConsumerWidget {
         : size.toStringAsFixed(1);
     return '$formatted ${units[unitIndex]}';
   }
+}
+
+String _filesScopeLabel(
+  AppLocalizations l10n,
+  String? scope,
+  MemberSpaceAccessSnapshot? access,
+) {
+  if (scope == null) return l10n.filesPrivateSpace;
+  final name = access?.displayNameFor(scope);
+  if (name == null) return l10n.filesUnavailableSpace;
+  final ordinal = access?.displayOrdinalFor(scope);
+  return ordinal == null ? name : l10n.filesSpaceOrdinal(name, ordinal);
 }

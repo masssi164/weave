@@ -12,6 +12,8 @@ abstract final class AppRoutes {
   static const calendar = '/calendar';
   static const profile = '/profile';
   static const settings = '/settings';
+  static const settingsPreferences = '/settings/preferences';
+  static const settingsSupport = '/settings/support';
   static const workspaceHealth = '/settings/workspace-health';
   static const help = '/help';
 

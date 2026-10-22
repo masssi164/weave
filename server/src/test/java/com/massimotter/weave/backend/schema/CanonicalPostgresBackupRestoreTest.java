@@ -102,9 +102,9 @@ class CanonicalPostgresBackupRestoreTest {
     JdbcTemplate sourceJdbc = new JdbcTemplate(sourceDataSource);
     sourceJdbc.update("""
         INSERT INTO weave_spaces
-          (organization_ref, space_ref, created_at_utc, lifecycle_state, updated_at_utc, version)
-        VALUES (?, ?, ?, 'ACTIVE', ?, 0)
-        """, "org:restore", "space:workspace", Timestamp.from(now), Timestamp.from(now));
+          (organization_ref, space_ref, display_name, created_at_utc, lifecycle_state, updated_at_utc, version)
+        VALUES (?, ?, ?, ?, 'ACTIVE', ?, 0)
+        """, "org:restore", "space:workspace", "Recovery workspace", Timestamp.from(now), Timestamp.from(now));
     sourceJdbc.update("""
         INSERT INTO weave_space_memberships
           (organization_ref, person_ref, space_ref, created_at_utc, lifecycle_state,
@@ -169,6 +169,10 @@ class CanonicalPostgresBackupRestoreTest {
         SELECT count(*) FROM weave_spaces
         WHERE organization_ref = ? AND space_ref = ? AND lifecycle_state = 'ACTIVE'
         """, Integer.class, "org:restore", stableFile.spaceRef())).isEqualTo(1);
+    assertThat(targetJdbc.queryForObject("""
+        SELECT display_name FROM weave_spaces
+        WHERE organization_ref = ? AND space_ref = ?
+        """, String.class, "org:restore", stableFile.spaceRef())).isEqualTo("Recovery workspace");
     assertThat(targetJdbc.queryForObject("""
         SELECT count(*) FROM weave_space_memberships
         WHERE organization_ref = ? AND space_ref = ? AND person_ref = ?

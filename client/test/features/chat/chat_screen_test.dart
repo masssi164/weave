@@ -148,6 +148,55 @@ class _ParticipantChatRepository extends FakeChatRepository
 }
 
 void main() {
+  for (final type in [
+    ChatFailureType.transport,
+    ChatFailureType.storage,
+    ChatFailureType.protocol,
+    ChatFailureType.peerDevicePending,
+    ChatFailureType.serviceUnavailable,
+    ChatFailureType.unknown,
+    ChatFailureType.accessDenied,
+  ]) {
+    testWidgets(
+      'initial Chat failure renders safe class-specific guidance $type',
+      (tester) async {
+        final repository = FakeChatRepository(
+          loadConversationsHandler: () async {
+            throw ChatFailure(
+              type: type,
+              message: 'private provider body bearer',
+            );
+          },
+        );
+        await tester.pumpWidget(
+          _chatTestApp(
+            const ChatScreen(),
+            overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+          ),
+        );
+        await tester.pumpAndSettle();
+        final copy = AppLocalizations.of(
+          tester.element(find.byType(ChatScreen)),
+        );
+        final expected = switch (type) {
+          ChatFailureType.transport => copy.chatErrorTransportGuidance,
+          ChatFailureType.storage => copy.chatErrorStorageGuidance,
+          ChatFailureType.protocol => copy.chatErrorProtocolGuidance,
+          ChatFailureType.peerDevicePending =>
+            copy.chatErrorPeerDevicePendingGuidance,
+          ChatFailureType.serviceUnavailable => copy.chatErrorServiceGuidance,
+          ChatFailureType.accessDenied => copy.chatErrorAccessDeniedGuidance,
+          _ => copy.chatErrorUnknownGuidance,
+        };
+        expect(find.text(expected), findsOneWidget);
+        expect(find.textContaining('private provider'), findsNothing);
+        if (type != ChatFailureType.transport) {
+          expect(find.text(copy.chatErrorTransportGuidance), findsNothing);
+        }
+      },
+    );
+  }
+
   for (final locale in ['en', 'de']) {
     for (final scale in [1.0, 2.0]) {
       testWidgets(
@@ -726,10 +775,19 @@ void main() {
             await tester.pumpAndSettle();
             expect(repository.direct, direct);
             expect(repository.invited, hasLength(1));
-            expect(find.byType(ChatRoomScreen), findsOneWidget);
             final actual = tester
                 .widget<ChatRoomScreen>(find.byType(ChatRoomScreen))
                 .conversation;
+            expect(find.byType(ChatRoomScreen), findsOneWidget);
+            expect(
+              find.byWidgetPredicate(
+                (widget) =>
+                    widget is Semantics &&
+                    widget.properties.identifier ==
+                        'chat-active-conversation-${actual.id}',
+              ),
+              findsOneWidget,
+            );
             expect(actual.isDirectMessage, direct);
             expect(actual.isInvite, isFalse);
             expect(
@@ -1190,7 +1248,7 @@ void main() {
       expect(find.text('Showing last known rooms'), findsOneWidget);
       expect(
         find.text(
-          'Chat could not refresh just now. Your conversation list is preserved so you can keep your place and retry when the connection is back.',
+          'Chat received an unexpected response. Retry, and contact support if this continues.',
         ),
         findsOneWidget,
       );

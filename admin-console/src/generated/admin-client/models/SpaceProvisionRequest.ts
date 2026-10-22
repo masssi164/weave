@@ -20,6 +20,12 @@ import { mapValues } from '../runtime';
  */
 export interface SpaceProvisionRequest {
     /**
+     * Readable Space name, at most 160 Unicode code points, without control characters.
+     * @type {string}
+     * @memberof SpaceProvisionRequest
+     */
+    displayName: string;
+    /**
      * Member account references granted VIEW. The acting administrator receives ADMIN.
      * @type {Array<string>}
      * @memberof SpaceProvisionRequest
@@ -37,6 +43,7 @@ export interface SpaceProvisionRequest {
  * Check if a given object implements the SpaceProvisionRequest interface.
  */
 export function instanceOfSpaceProvisionRequest(value: object): value is SpaceProvisionRequest {
+    if (!('displayName' in value) || value['displayName'] === undefined) return false;
     if (!('spaceRef' in value) || value['spaceRef'] === undefined) return false;
     return true;
 }
@@ -51,6 +58,7 @@ export function SpaceProvisionRequestFromJSONTyped(json: any, ignoreDiscriminato
     }
     return {
 
+        'displayName': json['displayName'],
         'memberAccountRefs': json['memberAccountRefs'] == null ? undefined : json['memberAccountRefs'],
         'spaceRef': json['spaceRef'],
     };
@@ -67,6 +75,7 @@ export function SpaceProvisionRequestToJSONTyped(value?: SpaceProvisionRequest |
 
     return {
 
+        'displayName': value['displayName'],
         'memberAccountRefs': value['memberAccountRefs'],
         'spaceRef': value['spaceRef'],
     };

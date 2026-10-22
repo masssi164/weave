@@ -20,6 +20,12 @@ import { mapValues } from '../runtime';
  */
 export interface SpaceUserResponse {
     /**
+     * Current readable Space name.
+     * @type {string}
+     * @memberof SpaceUserResponse
+     */
+    displayName: string;
+    /**
      * Stable Weave Space reference.
      * @type {string}
      * @memberof SpaceUserResponse
@@ -31,6 +37,7 @@ export interface SpaceUserResponse {
  * Check if a given object implements the SpaceUserResponse interface.
  */
 export function instanceOfSpaceUserResponse(value: object): value is SpaceUserResponse {
+    if (!('displayName' in value) || value['displayName'] === undefined) return false;
     if (!('spaceRef' in value) || value['spaceRef'] === undefined) return false;
     return true;
 }
@@ -45,6 +52,7 @@ export function SpaceUserResponseFromJSONTyped(json: any, ignoreDiscriminator: b
     }
     return {
 
+        'displayName': json['displayName'],
         'spaceRef': json['spaceRef'],
     };
 }
@@ -60,6 +68,7 @@ export function SpaceUserResponseToJSONTyped(value?: SpaceUserResponse | null, i
 
     return {
 
+        'displayName': value['displayName'],
         'spaceRef': value['spaceRef'],
     };
 }

@@ -3415,6 +3415,11 @@
       },
       "SpaceProvisionRequest": {
         "properties": {
+          "displayName": {
+            "description": "Readable Space name, at most 160 Unicode code points, without control characters.",
+            "minLength": 1,
+            "type": "string"
+          },
           "memberAccountRefs": {
             "description": "Member account references granted VIEW. The acting administrator receives ADMIN.",
             "items": {
@@ -3434,6 +3439,7 @@
           }
         },
         "required": [
+          "displayName",
           "spaceRef"
         ],
         "type": "object"

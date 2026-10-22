@@ -3202,12 +3202,17 @@
       },
       "SpaceUserResponse": {
         "properties": {
+          "displayName": {
+            "description": "Current readable Space name.",
+            "type": "string"
+          },
           "spaceRef": {
             "description": "Stable Weave Space reference.",
             "type": "string"
           }
         },
         "required": [
+          "displayName",
           "spaceRef"
         ],
         "type": "object"

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -8,6 +9,8 @@ import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
 import 'package:weave/features/calendar/data/services/calendar_facade_client.dart';
+import 'package:weave/features/calendar/data/repositories/backend_calendar_repository.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_workspace_context.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_failure.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -207,7 +210,9 @@ void main() {
   CalendarFacadeClient client(
     Future<http.Response?> Function(http.Request) handle, {
     String zone = 'Europe/Berlin',
+    void Function(String)? diagnostic,
   }) => CalendarFacadeClient(
+    diagnostic: diagnostic,
     httpClient: MockClient((request) async {
       calls.add(request);
       if (request.url.path == '/api/me') {
@@ -270,6 +275,217 @@ void main() {
     stored = event();
     calendarActions = ['read', 'create', 'update', 'delete'];
   });
+
+  for (final operation in ['create', 'update', 'delete']) {
+    for (final boundary in [
+      'account',
+      'organization',
+      'server',
+      'scope',
+      'same-owner-refresh',
+    ]) {
+      test(
+        'bound $operation checks expected $boundary before any generated mutation',
+        () async {
+          final service = client((_) async => null);
+          final repository = BackendCalendarRepository(client: service);
+          var expected = await repository.loadWorkspaceContext(scope);
+          await repository.loadEvents();
+          if (boundary == 'scope') {
+            expected = CalendarWorkspaceContext(
+              ownerKey: expected.ownerKey,
+              scopes: expected.scopes,
+              selectedScope: const CalendarScope(
+                id: 'other-calendar',
+                type: 'workspace',
+                label: 'Other',
+              ),
+              evaluationTimeZone: expected.evaluationTimeZone,
+            );
+          } else {
+            auth.state = AuthState.authenticated(
+              buildTestAuthSession(accessToken: 'new-token'),
+            );
+            if (boundary == 'account') {
+              subject = (token) =>
+                  token.contains('new-token') ? 'different-member' : 'member';
+            }
+            if (boundary == 'organization') {
+              organization = (token) =>
+                  token.contains('new-token') ? 'different-org' : 'org';
+            }
+            if (boundary == 'server') {
+              configuration.configuration = buildTestConfiguration(
+                backendApiBaseUrl: 'https://other-api.example.test/api',
+              );
+            }
+          }
+          final bound = repository.bindMutationContext(expected);
+          Future<Object?> mutate() async {
+            if (operation == 'create') return bound.createEvent(draft());
+            if (operation == 'update') {
+              return bound.updateEvent(eventId, draft(), etag: version);
+            }
+            await bound.deleteEvent(eventId, etag: version);
+            return null;
+          }
+
+          if (boundary == 'same-owner-refresh') {
+            await mutate();
+            final writes = calls
+                .where(
+                  (request) =>
+                      ['POST', 'PUT', 'DELETE'].contains(request.method),
+                )
+                .toList();
+            expect(writes, hasLength(1));
+            expect(writes.single.headers['authorization'], 'Bearer new-token');
+          } else {
+            await expectLater(mutate(), throwsA(isA<CalendarFailure>()));
+            expect(
+              calls.where(
+                (request) => ['POST', 'PUT', 'DELETE'].contains(request.method),
+              ),
+              isEmpty,
+            );
+          }
+        },
+      );
+    }
+  }
+
+  for (final boundary in ['account', 'token']) {
+    test(
+      'delayed create ACK survives $boundary change without cross-owner cache',
+      () async {
+        final sent = Completer<void>();
+        final response = Completer<http.Response>();
+        final service = client((request) async {
+          if (request.method == 'POST') {
+            sent.complete();
+            return response.future;
+          }
+          return null;
+        });
+        final operation = service.createEvent(draft());
+        await sent.future;
+        auth.state = AuthState.authenticated(
+          buildTestAuthSession(accessToken: 'new-token'),
+        );
+        if (boundary == 'account') {
+          subject = (token) => token.contains('new-token') ? 'other' : 'member';
+        }
+        response.complete(json(event(), 201));
+        final acknowledged = await operation;
+        expect(acknowledged.id, eventId);
+        expect(calls.where((r) => r.method == 'POST'), hasLength(1));
+        if (boundary == 'account') {
+          await expectLater(
+            service.updateEvent(id: eventId, draft: draft(), version: version),
+            throwsA(isA<CalendarFailure>()),
+          );
+          expect(calls.where((r) => r.method == 'PUT'), isEmpty);
+        }
+      },
+    );
+  }
+
+  for (final malformed in ['null', 'wrong-id', 'decode']) {
+    test('acknowledged update $malformed response remains uncertain', () async {
+      final service = client((request) async {
+        if (request.method != 'PUT') return null;
+        if (malformed == 'null') return http.Response('', 204);
+        final result = event();
+        if (malformed == 'wrong-id') {
+          result['id'] = 'event:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+        }
+        if (malformed == 'decode') result['version'] = 'invalid';
+        return json(result);
+      });
+      await service.listEvents(
+        from: DateTime.utc(2026, 10),
+        to: DateTime.utc(2026, 11),
+      );
+      await expectLater(
+        service.updateEvent(id: eventId, draft: draft(), version: version),
+        throwsA(
+          isA<CalendarFailure>().having(
+            (f) => f.writeMayHaveCommitted,
+            'uncertain acknowledgement',
+            true,
+          ),
+        ),
+      );
+      expect(calls.where((r) => r.method == 'PUT'), hasLength(1));
+    });
+  }
+
+  for (final transport in ['client', 'socket', 'decode', 'real-http-400']) {
+    test(
+      'generated create response loss preserves key while real 400 is definitive: $transport',
+      () async {
+        var posts = 0;
+        final diagnostics = <String>[];
+        final service = client((request) async {
+          if (request.method == 'POST' && posts++ == 0) {
+            if (transport == 'client') {
+              throw http.ClientException('private-response-lost');
+            }
+            if (transport == 'socket') {
+              throw const SocketException('private-response-lost');
+            }
+            if (transport == 'decode') {
+              return http.Response(
+                'invalid-json',
+                201,
+                headers: {'content-type': 'application/json'},
+              );
+            }
+            return http.Response('{}', 400);
+          }
+          return null;
+        }, diagnostic: diagnostics.add);
+        await expectLater(
+          service.createEvent(draft()),
+          throwsA(
+            isA<CalendarFailure>()
+                .having(
+                  (failure) => failure.writeMayHaveCommitted,
+                  'uncertain after actual POST',
+                  transport != 'real-http-400',
+                )
+                .having(
+                  (failure) => failure.httpStatus,
+                  'real HTTP status only',
+                  transport == 'real-http-400' ? 400 : null,
+                ),
+          ),
+        );
+        await service.createEvent(draft());
+        final writes = calls
+            .where((request) => request.method == 'POST')
+            .toList();
+        expect(writes, hasLength(2));
+        expect(
+          writes[1].headers['idempotency-key'],
+          transport == 'real-http-400'
+              ? isNot(writes[0].headers['idempotency-key'])
+              : writes[0].headers['idempotency-key'],
+        );
+        expect(writes[1].body, writes[0].body);
+        expect(diagnostics, hasLength(1));
+        expect(
+          diagnostics.single,
+          contains(
+            transport == 'real-http-400'
+                ? 'httpStatus=400'
+                : 'httpStatus=unavailable',
+          ),
+        );
+        expect(diagnostics.single, isNot(contains('private-response-lost')));
+      },
+    );
+  }
 
   test(
     'CALENDAR_USER_API_GENERATED_CLIENT discovers opaque scope before bounded agenda',
@@ -718,6 +934,42 @@ void main() {
     );
     expect(calls.every((call) => call.method == 'GET'), isTrue);
   });
+
+  test(
+    'agenda failures retain bounded stage/status/code without private response details',
+    () async {
+      final diagnostics = <String>[];
+      final service = client(
+        (request) async => request.url.path.endsWith('/events')
+            ? json({
+                'code': 'calendar-provider-unavailable',
+                'private': 'SECRET-PAYLOAD',
+              }, 503)
+            : null,
+        diagnostic: diagnostics.add,
+      );
+      await expectLater(
+        service.listEvents(),
+        throwsA(
+          isA<CalendarFailure>()
+              .having(
+                (failure) => failure.stage,
+                'stage',
+                CalendarOperationStage.agenda,
+              )
+              .having((failure) => failure.httpStatus, 'httpStatus', 503)
+              .having(
+                (failure) => failure.apiCode,
+                'apiCode',
+                'calendar-provider-unavailable',
+              ),
+        ),
+      );
+      expect(diagnostics.single, contains('stage=agenda'));
+      expect(diagnostics.single, isNot(contains('SECRET-PAYLOAD')));
+      expect(diagnostics.single, isNot(contains('https://')));
+    },
+  );
 
   test('invalid IANA profile zone fails without an agenda request', () async {
     final service = client((_) async => null, zone: 'CET invented zone');

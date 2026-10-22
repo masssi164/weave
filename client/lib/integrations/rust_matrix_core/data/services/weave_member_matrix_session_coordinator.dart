@@ -1,3 +1,4 @@
+import 'chat_operation_diagnostics.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -127,6 +128,7 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
     required bool synchronize,
     _MemberAdmissionBinding? expectedBinding,
   }) async {
+    ChatOperationDiagnostics.mark(ChatStage.admission);
     final configuration = await _serverConfigurationRepository
         .loadConfiguration();
     if (configuration == null || !configuration.hasCompleteAuthConfiguration) {
@@ -186,6 +188,7 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
       throw const ChatFailure.sessionRequired('M_WEAVE_MATRIX_SESSION_CHANGED');
     }
     final binding = (identity: identity, organizationId: access.organizationId);
+    ChatOperationDiagnostics.mark(ChatStage.bindingStorage);
     final deviceId = await _matrixDeviceIdentityRepository.loadOrCreate();
     final userId = matrixUserIdForMember(
       authConfiguration.issuer,
@@ -256,6 +259,7 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
     if (active != null && _activeFingerprint == fingerprint) {
       if (synchronize) {
         try {
+          ChatOperationDiagnostics.mark(ChatStage.sync);
           await _bridge.syncClient(profileKey: profileKey);
         } on Object {
           await _dropActive();
@@ -266,6 +270,7 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
     }
     await _dropActive();
 
+    ChatOperationDiagnostics.mark(ChatStage.bindingStorage);
     final rawBinding = await _secureStore.read(bindingKey);
     if (rawBinding != null) {
       final Map<String, dynamic> saved;
@@ -333,6 +338,7 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
     await store.create(recursive: true);
     await revalidate();
     try {
+      ChatOperationDiagnostics.mark(ChatStage.nativeActivation);
       await _bridge.activateMemberSession(
         profileKey: profileKey,
         homeserverUrl: homeserver.toString(),
@@ -344,7 +350,11 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
         storePassphrase: passphrase,
       );
       await revalidate();
-      if (synchronize) await _bridge.syncClient(profileKey: profileKey);
+      if (synchronize) {
+        ChatOperationDiagnostics.mark(ChatStage.sync);
+        await _bridge.syncClient(profileKey: profileKey);
+      }
+      ChatOperationDiagnostics.mark(ChatStage.bindingStorage);
       await _secureStore.write(
         bindingKey,
         jsonEncode(<String, String>{
@@ -398,13 +408,17 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
     String subject,
     Uri issuer,
   ) async {
+    final previousStage = ChatOperationDiagnostics.current?.stage;
+    ChatOperationDiagnostics.mark(ChatStage.admission);
     try {
-      return await _matrixSessionAccess.authorize(
+      final access = await _matrixSessionAccess.authorize(
         userApiBaseUrl: apiBaseUrl,
         weaveAccessToken: token,
         expectedSubject: subject,
         expectedIssuer: issuer,
       );
+      if (previousStage != null) ChatOperationDiagnostics.mark(previousStage);
+      return access;
     } on Object {
       await _dropActive();
       rethrow;

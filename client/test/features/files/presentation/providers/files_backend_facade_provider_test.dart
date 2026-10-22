@@ -1,6 +1,7 @@
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -269,6 +270,321 @@ void main() {
           unavailable = false;
           expect((await files.listDirectory('/')).entries, isEmpty);
           expect(resourceCalls, 1);
+        },
+      );
+    }
+    test(
+      'captured stable parent rejects a rebound path before generated create POST',
+      () async {
+        const original = 'file:11111111-1111-1111-1111-111111111111';
+        const replacement = 'file:22222222-2222-2222-2222-222222222222';
+        var rebound = false;
+        var posts = 0;
+        final files = repository(
+          MockClient((request) async {
+            if (request.method == 'POST') {
+              posts++;
+              throw StateError('must not create');
+            }
+            final parent =
+                request.url.queryParameters['parentId'] ??
+                BackendFilesRepository.rootFileId;
+            final selected = rebound ? replacement : original;
+            return http.Response(
+              _listing(
+                parentId: parent,
+                items: parent == BackendFilesRepository.rootFileId
+                    ? [
+                        _item(
+                          id: selected,
+                          name: 'Reports',
+                          path: '/Reports',
+                          kind: 'folder',
+                          actions: ['listChildren'],
+                        ),
+                      ]
+                    : [],
+              ),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        );
+        final visible = await files.listDirectory('/Reports');
+        expect(visible.parentFileId, original);
+        rebound = true;
+        await expectLater(
+          files.createFolderInParent(
+            parentFileId: visible.parentFileId!,
+            ownerKey: visible.ownerKey!,
+            parentPath: '/Reports',
+            name: 'Plans',
+          ),
+          throwsA(
+            isA<FilesFailure>().having(
+              (failure) => failure.writeMayHaveCommitted,
+              'not sent',
+              false,
+            ),
+          ),
+        );
+        expect(posts, 0);
+      },
+    );
+
+    for (final boundary in ['account', 'organization', 'server']) {
+      test(
+        'captured root rejects changed $boundary before any create POST',
+        () async {
+          var subject = 'member-one';
+          var organization = 'org-one';
+          var posts = 0;
+          final files = repository(
+            MockClient((request) async {
+              if (request.method == 'POST') posts++;
+              return http.Response(
+                _listing(),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }),
+            subjectForToken: (_) => subject,
+            organizationForToken: (_) => organization,
+          );
+          final visible = await files.listDirectory('/');
+          expect(visible.parentFileId, BackendFilesRepository.rootFileId);
+          if (boundary == 'account') subject = 'other-member';
+          if (boundary == 'organization') organization = 'other-org';
+          if (boundary == 'server') {
+            configurationRepository.configuration = buildTestConfiguration(
+              backendApiBaseUrl: 'https://other.weave.test/api',
+            );
+          }
+          await expectLater(
+            files.createFolderInParent(
+              parentFileId: visible.parentFileId!,
+              ownerKey: visible.ownerKey!,
+              parentPath: '/',
+              name: 'Plans',
+            ),
+            throwsA(
+              isA<FilesFailure>()
+                  .having(
+                    (failure) => failure.type,
+                    'session',
+                    FilesFailureType.sessionRequired,
+                  )
+                  .having(
+                    (failure) => failure.writeMayHaveCommitted,
+                    'not sent',
+                    false,
+                  ),
+            ),
+          );
+          expect(posts, 0);
+        },
+      );
+    }
+
+    test(
+      'captured parent permits current-owner bearer refresh without changing destination',
+      () async {
+        final posts = <http.Request>[];
+        final files = repository(
+          MockClient((request) async {
+            if (request.method == 'POST') {
+              posts.add(request);
+              return http.Response(
+                jsonEncode(
+                  _item(kind: 'folder', name: 'Plans', path: '/Plans'),
+                ),
+                201,
+                headers: {'content-type': 'application/json'},
+              );
+            }
+            return http.Response(
+              _listing(),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        );
+        final visible = await files.listDirectory('/');
+        authSessionRepository.state = AuthState.authenticated(
+          buildTestAuthSession(accessToken: 'fresh-token'),
+        );
+        final result = await files.createFolderInParent(
+          parentFileId: visible.parentFileId!,
+          ownerKey: visible.ownerKey!,
+          parentPath: '/',
+          name: 'Plans',
+        );
+        expect(result.isDirectory, isTrue);
+        expect(posts, hasLength(1));
+        expect(posts.single.headers['authorization'], 'Bearer fresh-token');
+        expect(
+          (jsonDecode(posts.single.body) as Map)['parentFileId'],
+          visible.parentFileId,
+        );
+      },
+    );
+
+    for (final transport in ['client', 'socket', 'decode', 'real-http-400']) {
+      test(
+        'generated folder response loss preserves key while real 400 is definitive: $transport',
+        () async {
+          final keys = <String>[];
+          final bodies = <String>[];
+          final files = repository(
+            MockClient((request) async {
+              if (request.method == 'POST') {
+                keys.add(request.headers['idempotency-key']!);
+                bodies.add(request.body);
+                if (keys.length == 1) {
+                  if (transport == 'client') {
+                    throw http.ClientException('private-response-lost');
+                  }
+                  if (transport == 'socket') {
+                    throw const SocketException('private-response-lost');
+                  }
+                  if (transport == 'decode') {
+                    return http.Response(
+                      'invalid-json',
+                      201,
+                      headers: {'content-type': 'application/json'},
+                    );
+                  }
+                  return http.Response('{}', 400);
+                }
+                return http.Response(
+                  jsonEncode(
+                    _item(kind: 'folder', name: 'Created', path: '/Created'),
+                  ),
+                  201,
+                  headers: {'content-type': 'application/json'},
+                );
+              }
+              return http.Response(
+                _listing(),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }),
+          );
+          await expectLater(
+            files.createFolder(parentPath: '/', name: 'Created'),
+            throwsA(
+              isA<FilesFailure>()
+                  .having(
+                    (failure) => failure.writeMayHaveCommitted,
+                    'uncertain after actual POST',
+                    transport != 'real-http-400',
+                  )
+                  .having(
+                    (failure) => failure.cause,
+                    'real HTTP status only',
+                    transport == 'real-http-400'
+                        ? 400
+                        : transport == 'decode'
+                        ? isNot(isA<int>())
+                        : null,
+                  ),
+            ),
+          );
+          expect(
+            (await files.createFolder(
+              parentPath: '/',
+              name: 'Created',
+            )).isDirectory,
+            isTrue,
+          );
+          expect(keys, hasLength(2));
+          expect(
+            keys[1],
+            transport == 'real-http-400' ? isNot(keys[0]) : keys[0],
+          );
+          expect(bodies[1], bodies[0]);
+        },
+      );
+    }
+
+    test(
+      'invalid acknowledged folder response is uncertain and retains create identity',
+      () async {
+        final keys = <String>[];
+        final files = repository(
+          MockClient((request) async {
+            if (request.method == 'POST') {
+              keys.add(request.headers['idempotency-key']!);
+              return http.Response(
+                jsonEncode(_item(name: 'Created', path: '/Created')),
+                201,
+                headers: {'content-type': 'application/json'},
+              );
+            }
+            return http.Response(
+              _listing(),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        );
+        for (var i = 0; i < 2; i++) {
+          await expectLater(
+            files.createFolder(parentPath: '/', name: 'Created'),
+            throwsA(
+              isA<FilesFailure>().having(
+                (f) => f.writeMayHaveCommitted,
+                'uncertain acknowledgement',
+                true,
+              ),
+            ),
+          );
+        }
+        expect(keys, hasLength(2));
+        expect(keys.toSet(), hasLength(1));
+      },
+    );
+
+    for (final boundary in ['account', 'token']) {
+      test(
+        'folder returned identity survives delayed $boundary change',
+        () async {
+          final sent = Completer<void>();
+          final response = Completer<http.Response>();
+          final files = repository(
+            MockClient((request) async {
+              if (request.method == 'POST') {
+                sent.complete();
+                return response.future;
+              }
+              return http.Response(
+                _listing(),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }),
+          );
+          final operation = files.createFolder(
+            parentPath: '/',
+            name: 'Created',
+          );
+          await sent.future;
+          authSessionRepository.state = boundary == 'account'
+              ? const AuthState.signedOut()
+              : AuthState.authenticated(
+                  buildTestAuthSession(accessToken: 'fresh-token'),
+                );
+          response.complete(
+            http.Response(
+              jsonEncode(
+                _item(kind: 'folder', name: 'Created', path: '/Created'),
+              ),
+              201,
+              headers: {'content-type': 'application/json'},
+            ),
+          );
+          expect((await operation).name, 'Created');
         },
       );
     }
@@ -856,6 +1172,44 @@ void main() {
       );
       expect(calls, 1);
     });
+    test(
+      'uncertain folder response reuses its logical key and confirmed creation retires it',
+      () async {
+        final keys = <String?>[];
+        final files = repository(
+          MockClient((request) async {
+            if (request.method == 'GET') return http.Response(_listing(), 200);
+            keys.add(request.headers['idempotency-key']);
+            if (keys.length == 1) return http.Response('{}', 503);
+            return http.Response(
+              jsonEncode(
+                _item(name: 'Reports', path: '/Reports', kind: 'folder'),
+              ),
+              201,
+            );
+          }),
+        );
+        await expectLater(
+          files.createFolder(parentPath: '/', name: 'Reports'),
+          throwsA(
+            isA<FilesFailure>().having(
+              (failure) => failure.writeMayHaveCommitted,
+              'uncertain',
+              true,
+            ),
+          ),
+        );
+        final created = await files.createFolder(
+          parentPath: '/',
+          name: 'Reports',
+        );
+        expect(created.id, isNotEmpty);
+        expect(keys[1], keys[0]);
+        await files.createFolder(parentPath: '/', name: 'Reports');
+        expect(keys[2], isNot(keys[0]));
+      },
+    );
+
     test('folder retry preserves its original idempotency key', () async {
       authSessionRepository.refreshedState = AuthState.authenticated(
         buildTestAuthSession(accessToken: 'fresh-token'),

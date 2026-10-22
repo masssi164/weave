@@ -213,7 +213,7 @@
   "filesProductBoundaryBody": "Dateiaktionen laufen über die Weave-User-API. Der Dateispeicher bleibt hinter der Provider-Grenze des Servers; rohe Provider-Pfade und Zugangsdaten gehören nicht zur normalen Dateien-Oberfläche.",
   "filesRefreshButton": "Aktualisieren",
   "filesUpButton": "Nach oben",
-  "filesRootBreadcrumb": "Root",
+  "filesRootBreadcrumb": "Dateien",
   "filesOpenFolderSemantic": "Ordner öffnen: {name}",
   "filesCurrentFolderSemantic": "Aktueller Ordner: {name}",
   "filesDirectorySummary": "{folderCount, plural, =0{Keine Ordner} one{1 Ordner} other{{folderCount} Ordner}} • {fileCount, plural, =0{keine Dateien} one{1 Datei} other{{fileCount} Dateien}}",
@@ -1246,5 +1246,84 @@
   "chatDirectConversationLabel": "Direkte Unterhaltung",
   "chatDirectConversationHelp": "Wähle ein Organisationsmitglied. Es kann ohne Einladungsannahme lesen und antworten.",
   "chatRestrictedConversationHelp": "Geschützte Gruppe. Eingeladene Mitglieder müssen vor dem Lesen oder Antworten zustimmen.",
-  "chatDirectParticipantRequired": "Wähle genau ein anderes Mitglied für eine direkte Unterhaltung."
+  "chatDirectParticipantRequired": "Wähle genau ein anderes Mitglied für eine direkte Unterhaltung.",
+  "calendarSavedRefreshPending": "Gespeichert. Der Kalender konnte nicht aktualisiert werden. Aktualisiere die Ansicht, statt den Termin erneut anzulegen.",
+  "calendarWriteUncertain": "Wir konnten nicht bestätigen, ob der Termin gespeichert wurde. Wiederhole denselben Vorgang, um Duplikate zu vermeiden.",
+  "calendarSaving": "Wird gespeichert…",
+  "filesFolderSavedRefreshPending": "Ordner erstellt. Aktualisiere diesen Ort, um die Liste zu prüfen. Lege den Ordner nicht erneut an.",
+  "filesFolderWriteUncertain": "Die Ordnererstellung konnte nicht bestätigt werden. Wiederhole denselben Vorgang an diesem Ort.",
+  "filesFolderLocation": "Ort: {scope} · {path}",
+  "settingsPreferencesTitle": "Darstellung und Sprache",
+  "settingsPreferencesDescription": "Wähle das Design und deine bevorzugte Sprache.",
+  "settingsSupportLinkDescription": "Öffne technische Angaben, wenn du Unterstützung benötigst.",
+  "@filesFolderLocation": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "chatErrorTransportGuidance": "Chat konnte keine Verbindung zu Weave herstellen. Prüfe deine Verbindung und versuche es erneut.",
+  "chatErrorAccessDeniedGuidance": "Dein aktueller Workspace-Zugriff erlaubt diese Chat-Aktion nicht. Bitte eine Workspace-Adminperson, deinen Zugriff zu prüfen.",
+  "chatErrorStorageGuidance": "Chat konnte die geschützten Daten auf diesem Gerät nicht öffnen. Versuche es erneut und wende dich bei anhaltenden Problemen an den Support.",
+  "chatErrorProtocolGuidance": "Chat hat eine unerwartete Antwort erhalten. Versuche es erneut und wende dich bei anhaltenden Problemen an den Support.",
+  "chatErrorServiceGuidance": "Der Chat-Dienst ist derzeit nicht verfügbar. Versuche es erneut und wende dich bei anhaltenden Problemen an den Support.",
+  "chatErrorUnknownGuidance": "Chat konnte diese Aktion nicht abschließen. Versuche es erneut und wende dich bei anhaltenden Problemen an den Support.",
+  "chatErrorPeerDevicePendingGuidance": "Chat wartet auf das sichere Gerät eines Teilnehmenden. Versuche es in Kürze erneut.",
+  "calendarRefreshButton": "Kalender aktualisieren",
+  "settingsSupportAccountReference": "Kontoreferenz",
+  "settingsSupportOrganizationReference": "Organisationsreferenz",
+  "settingsSupportCopyIdentityReferences": "Identitätsreferenzen kopieren",
+  "calendarTimeZoneLoadFailure": "Deine Kalender-Zeitzone konnte nicht geladen werden.",
+  "calendarAgendaLoadFailure": "Deine Termine konnten nicht geladen werden.",
+  "calendarResponseLoadFailure": "Die Kalenderantwort konnte nicht gelesen werden.",
+  "calendarWriteReadbackUnavailable": "Der gespeicherte Kalenderstand konnte nicht bestätigt werden.",
+  "calendarLoadRetryGuidance": "Versuche erneut, den aktuellen Kalender zu laden. Dein Entwurf bleibt bei einem Speicherfehler im Editor.",
+  "filesPrivateEmptyMessage": "Deine privaten Dateien sind leer.",
+  "filesSharedEmptyMessage": "Dieser gemeinsame Ordner ist leer.",
+  "filesTopFolder": "Oberster Ordner",
+  "filesCurrentLocation": "{scope} · {path}",
+  "@filesCurrentLocation": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "filesPrivateEmptyGuidance": "Lade eine Datei hoch oder erstelle einen Ordner in deinen privaten Dateien.",
+  "filesSharedEmptyGuidance": "Lade hier eine Datei hoch oder erstelle einen Ordner. Der Zugriff richtet sich nach diesem gemeinsamen Space.",
+  "filesSpaceOrdinal": "{name} ({ordinal})",
+  "@filesSpaceOrdinal": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "ordinal": {
+        "type": "int"
+      }
+    }
+  },
+  "calendarUnavailableScopeName": "Nicht verfügbarer Kalender",
+  "calendarTeamScopeName": "{name} · Teamkalender",
+  "calendarChannelScopeName": "{name} · Kanalkalender",
+  "@calendarTeamScopeName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@calendarChannelScopeName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }

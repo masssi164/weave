@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal
 import com.massimotter.weave.backend.agentruntime.port.McpWorkloadAuthorizationException;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.*;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
+import com.massimotter.weave.backend.service.calendar.CalendarProviderBindingReadiness.Bound;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.*;
 import com.massimotter.weave.backend.exception.ApiErrorException;
@@ -34,7 +35,7 @@ import org.springframework.stereotype.Service;
 /** User operations over one current Calendar authority; no provider payload is persisted here. */
 @Service
 public class CalendarUserApiService {
-    public static final String CONFIGURATION_REF = "configuration:calendar:deployment";
+    public static final String CONFIGURATION_REF = CalendarProviderBindingReadiness.CONFIGURATION_REF;
     private static final String DOMAIN = "calendar";
     private final DeploymentOrganizationAdmission admission;
     private final OrganizationIdentityContextResolver identities;
@@ -43,7 +44,7 @@ public class CalendarUserApiService {
     private final SpaceAccessPort spaces;
     private final WorkspaceCapabilityService capabilities;
     private final ProviderBindingRepository bindings;
-    private final Map<String, CalendarProviderPort> providers;
+    private final CalendarProviderBindingReadiness calendarReadiness;
     private final AuditEventPublisher audit;
     private final McpWorkloadAuthorizationService mcpWorkloads;
     private final McpExchangedTokenPolicy mcpTokens;
@@ -56,9 +57,9 @@ public class CalendarUserApiService {
             WorkspaceCapabilityService capabilities, ProviderBindingRepository bindings,
             List<CalendarProviderPort> providers, AuditEventPublisher audit,
             ObjectProvider<McpWorkloadAuthorizationService> mcpWorkloads,
-            ObjectProvider<McpExchangedTokenPolicy> mcpTokens) {
+            ObjectProvider<McpExchangedTokenPolicy> mcpTokens, CalendarProviderBindingReadiness calendarReadiness) {
         this(admission, identities, context, authorization, spaces, capabilities, bindings, providers, audit,
-                mcpWorkloads.getIfAvailable(), mcpTokens.getIfAvailable());
+                mcpWorkloads.getIfAvailable(), mcpTokens.getIfAvailable(), calendarReadiness);
     }
 
     public CalendarUserApiService(DeploymentOrganizationAdmission admission, OrganizationIdentityContextResolver identities,
@@ -66,25 +67,21 @@ public class CalendarUserApiService {
             WorkspaceCapabilityService capabilities, ProviderBindingRepository bindings,
             List<CalendarProviderPort> providers, AuditEventPublisher audit) {
         this(admission, identities, context, authorization, spaces, capabilities, bindings, providers, audit,
-                (McpWorkloadAuthorizationService) null, (McpExchangedTokenPolicy) null);
+                (McpWorkloadAuthorizationService) null, (McpExchangedTokenPolicy) null,
+                new CalendarProviderBindingReadiness(bindings, providers));
     }
 
     private CalendarUserApiService(DeploymentOrganizationAdmission admission, OrganizationIdentityContextResolver identities,
             ContextAuthorizationProperties context, ContextAuthorizationPort authorization, SpaceAccessPort spaces,
             WorkspaceCapabilityService capabilities, ProviderBindingRepository bindings,
             List<CalendarProviderPort> providers, AuditEventPublisher audit,
-            McpWorkloadAuthorizationService mcpWorkloads, McpExchangedTokenPolicy mcpTokens) {
+            McpWorkloadAuthorizationService mcpWorkloads, McpExchangedTokenPolicy mcpTokens,
+            CalendarProviderBindingReadiness calendarReadiness) {
         this.admission = admission; this.identities = identities; this.context = context; this.authorization = authorization;
         this.spaces = spaces;
         this.capabilities = capabilities; this.bindings = bindings; this.audit = audit;
         this.mcpWorkloads = mcpWorkloads; this.mcpTokens = mcpTokens;
-        Map<String, CalendarProviderPort> keyed = new HashMap<>();
-        for (CalendarProviderPort provider : providers) {
-            if (keyed.putIfAbsent(provider.conformanceProfile().adapterKey(), provider) != null) {
-                throw new IllegalStateException("Duplicate Calendar adapter key");
-            }
-        }
-        this.providers = Map.copyOf(keyed);
+        this.calendarReadiness = calendarReadiness;
     }
 
     /** Existing isolated tests use the legacy policy port; Spring always injects durable Spaces. */
@@ -426,16 +423,11 @@ public class CalendarUserApiService {
     private String providerRef(Member member, CalendarScope scope, EventId id) { return calendarRef(member, scope) + "." + Base64.getUrlEncoder().withoutPadding().encodeToString(id.value().getBytes(StandardCharsets.UTF_8)); }
 
     private Bound bound(Member member) {
-        ProviderBinding binding = bindings.current(member.organization(), DOMAIN)
-                .filter(value -> value.state() == ProviderBinding.State.ACTIVE && member.organization().equals(value.organizationRef())
-                        && DOMAIN.equals(value.domain()) && CONFIGURATION_REF.equals(value.configurationRef())).orElseThrow(this::unavailable);
-        CalendarProviderPort provider = providers.get(binding.adapterKey());
-        if (provider == null || !provider.configured()) throw unavailable();
-        return new Bound(binding, provider);
+        return calendarReadiness.require(member.organization());
     }
 
     private void current(Member member, Bound bound) {
-        if (!bindings.current(member.organization(), DOMAIN).filter(bound.binding()::equals).isPresent()) throw unavailable();
+        calendarReadiness.requireUnchanged(member.organization(), bound);
     }
 
     private String identity(Member member, Bound bound, CalendarScope scope, EventId id, String requested) {
@@ -569,5 +561,4 @@ public class CalendarUserApiService {
             this(organization, principal, accountRef, mayEdit, null);
         }
     }
-    private record Bound(ProviderBinding binding, CalendarProviderPort provider) {}
 }

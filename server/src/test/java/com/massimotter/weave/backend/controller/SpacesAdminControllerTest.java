@@ -63,7 +63,7 @@ class SpacesAdminControllerTest {
                 new SpaceProvisionResponse("workspace-default", "CREATED"));
         mvc.perform(post("/api/admin/spaces").with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"spaceRef\":\"workspace-default\",\"memberAccountRefs\":[]}"))
+                        .content("{\"spaceRef\":\"workspace-default\",\"displayName\":\"Organization workspace\",\"memberAccountRefs\":[]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.spaceRef").value("workspace-default"))
                 .andExpect(jsonPath("$.result").value("CREATED"));

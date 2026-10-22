@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Offline negatives for the protected main promotion evidence gate."""
 
+from tools.dogfood_functional_smoke_test import FunctionalSmokeTest, receipt as functional_receipt
+
 import os
 import copy
 import io
@@ -275,11 +277,12 @@ class MainPromotionEvidenceTest(unittest.TestCase):
             self.assertFalse(owner_workspace_passed(broken, SHA, OTHER, "c" * 40))
 
     def test_preparation_requires_current_qualification_and_exact_installed_identity(self) -> None:
-        valid = {"schemaVersion": "weave.hil-preparation/v2", "candidateCommit": SHA,
+        valid = {"schemaVersion": "weave.hil-preparation/v3", "candidateCommit": SHA,
                  "sourceTree": OTHER, "specificationCommit": "c" * 40,
                  "qualificationRunId": 123, "qualificationRunAttempt": 1, "status": "passed", "install": "update_in_place",
                  "toolchain": {**TOOLCHAIN, "iosDeviceSdkVersion": "26.5"},
                  "ownerWorkspace": owner_workspace_proof(),
+                 "functionalSmoke": functional_receipt(),
                  "supportSafe": True, "containsSecretValues": False}
         self.assertTrue(preparation_passed(valid, SHA, OTHER, "c" * 40, 123, 1))
         self.assertFalse(preparation_passed(valid, SHA, OTHER, "c" * 40, 124, 1))
@@ -357,12 +360,13 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         with patch("tools.verify_main_promotion_evidence.paged", return_value=[run]):
             with self.assertRaisesRegex(ValueError, "start after"):
                 prepared_run("masssi164/weave", SHA, OTHER, "c" * 40, qualification, "fixture-token")
-        valid = {"schemaVersion": "weave.hil-preparation/v2", "candidateCommit": SHA,
+        valid = {"schemaVersion": "weave.hil-preparation/v3", "candidateCommit": SHA,
                  "sourceTree": OTHER, "specificationCommit": "c" * 40,
                  "qualificationRunId": 123, "qualificationRunAttempt": 1,
                  "status": "passed", "install": "update_in_place",
                  "toolchain": {**TOOLCHAIN, "iosDeviceSdkVersion": "26.5"},
                  "ownerWorkspace": owner_workspace_proof(),
+                 "functionalSmoke": functional_receipt(),
                  "supportSafe": True, "containsSecretValues": False}
         self.assertTrue(preparation_passed(valid, SHA, OTHER, "c" * 40, 123, 1))
         self.assertFalse(preparation_passed(valid, SHA, OTHER, "c" * 40, 123, 2))
@@ -401,8 +405,10 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         teardown = {"candidateCommit": SHA, "dryRun": False, "ownershipLabelsVerified": True,
                     "remainingOwnedResources": 0, "remainingContainerCount": 0,
                     "remainingNetworkCount": 0, "remainingVolumeCount": 0}
-        deployment = {"schemaVersion": "weave.dogfood-deployment/v1", "candidateCommit": SHA,
+        deployment = {"schemaVersion": "weave.dogfood-deployment/v2", "candidateCommit": SHA,
                       "sourceTree": tree, "specificationCommit": spec, "qualificationRunId": 123,
+                      "qualificationRunAttempt": 1,
+                      "functionalSmoke": functional_receipt(stage="deployment", tree=tree, spec=spec),
                       "status": "passed", "supportSafe": True, "containsSecretValues": False}
         def bundle(values: dict) -> bytes:
             result = io.BytesIO()

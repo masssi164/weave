@@ -109,3 +109,73 @@ Discover commands in the current repository and use the smallest meaningful chec
 - Relevant Flutter analysis, widget/integration regressions and native runner tests.
 - The protected exact-candidate gates after local validation.
 - Physical/human accessibility evidence from [the accessibility release gate](accessibility-release-gate.md).
+
+## Ordinary persisted Dogfood functional check
+
+The pinned delivery contract additionally requires the bounded phase in
+`tools/dogfood_functional_smoke.py`. It supplements full isolated Compose/macOS/
+two-iOS qualification. Deployment uses two owned simulators running normal
+`lib/main.dart` in debug mode; physical preparation uses the retained owner iPhone
+profile build and one owned normal-main peer simulator. Simulator profile builds
+are not claimed. The existing XCTest BrowserDriver performs ordinary controls,
+real system-browser PKCE sign-in and native document pickers. No integration
+entrypoint, actor file in the application, relay, database seed, owner session
+copy, Keychain read or account replacement is permitted.
+
+The private runner input is
+`~/.weave/dogfood/functional-smoke-identities.json`, or the explicit
+`--identity-file` CLI argument. Its parent must be owned/private (0700) and the
+regular, nonsymlink input owned/private (0600). It is not an artifact or a public
+environment variable. The closed JSON shape is:
+
+- `schemaVersion`: `weave.dogfood-functional-identities/v1`.
+- `organizationOrigin`: the reviewed public HTTPS organization origin.
+- `members`: exactly two distinct approved normal test members, each with only
+  `email`, `password` and `displayName`.
+- `ownerDisplayName`: the existing owner's visible display name, with no owner
+  password, bearer, session or setup authority.
+
+Use the existing normal administrator invitation and activation flow, then grant
+only current required Space access through normal authorized administration.
+These are persistent test accounts; a first-owner bootstrap record is not a
+normal administrator session. Never fabricate user-info or seed E2E memberships.
+If normal admin/browser authentication, passkey/MFA or physical owner sign-in
+cannot be completed, retain an **incomplete** result with its precise boundary.
+Finish independent diagnostics first. Do not publish credentials or invitation
+URLs in GitHub, and do not reset or replace an owner session to obtain proof.
+
+The producer creates namespaced run-owned content through UI, records hashed
+stable resource identities and verifies the same identities through the other
+normal member. It checks direct bidirectional Chat, reopening, shared folder and
+uploaded file preview, an actual native export whose bytes are read from the
+owned peer's Documents directory after removing the original upload source, and
+Calendar create/read/update/delete with fresh peer readback. Calendar absence
+requires completed fresh refresh and exact stable-ID absence; disappearance
+while loading is insufficient. Account and organization references come from
+current authenticated secondary diagnostics, not fixture names. Both members
+must be observed and distinct. Restart and same-candidate in-place reinstall
+then repeat Chat/Files readback and account/context checks. The iPhone retains
+its existing account and local stores, and starts without an onboarding URL.
+Installation/launch-requested evidence alone never establishes functional success.
+
+Only precisely identified run-owned folder/file/conversation fixtures are
+retained for continuity, reported as `retained-owned-content`. Calendar deletion
+and independent absence are required. Owned simulators, transient credential
+invocation files and raw XCTest results are removed. The approved persistent
+identity input and an owned-content ledger under
+`~/.weave/dogfood/functional-smoke-owned-content/` remain private for later bounded runs; unrelated owner data,
+secrets, TLS, signing and applications are untouched. No global cleanup or
+name-only deletion is used.
+
+`weave.dogfood-deployment/v2` and `weave.hil-preparation/v3` include a complete
+`weave.dogfood-functional-smoke/v1` receipt binding source tree, specification,
+deployed image/source, ordinary app build, direct reviewed routing and final
+qualification run **and attempt**. Fixed ordered observed operations, independent
+identity/resource digests, actual exported bytes, restart/update readback and
+cleanup must all pass. A missing, stale, discovery-only or incomplete result
+blocks ready handoff and Main. `--diagnostic-only` is always incomplete and
+cannot create acceptance evidence. Raw UI transcripts, xcresults and member
+content stay in a temporary private directory; only the allowlisted receipt is
+uploaded. Physical invocation files are delivered only to the separately signed
+existing XCTest runner sandbox, consumed there and removed with that run-owned
+runner; the owner application receives no actor or credential file. Automated results do not establish human VoiceOver or E2EE acceptance.

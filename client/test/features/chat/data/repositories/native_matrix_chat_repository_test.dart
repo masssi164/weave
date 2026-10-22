@@ -184,6 +184,90 @@ class _DiagnosticSendBridge extends FakeRustMatrixCoreBridge {
 
 void main() {
   test(
+    'initial load and every admission-opening action reports its first failure',
+    () async {
+      final original = debugPrint;
+      final records = <String>[];
+      debugPrint = (String? value, {int? wrapWidth}) =>
+          records.add(value ?? '');
+      addTearDown(() => debugPrint = original);
+      final session = _DiagnosticSessionPort(
+        const RustMatrixCoreBridgeException('M_WEAVE_E2EE_STORE'),
+        StackTrace.current,
+      );
+      final repository = NativeMatrixChatRepository(
+        matrixCryptoSessionCoordinator: session,
+      );
+      final actions = <String, Future<void> Function()>{
+        'conversations': () async {
+          await repository.loadConversations();
+        },
+        'invitation': () => repository.acceptInvitation('private room'),
+        'search': () async {
+          await repository.searchMembers('private member');
+        },
+        'create': () async {
+          await repository.createConversation(title: 'private title');
+        },
+        'timeline': () async {
+          await repository.loadRoomTimeline('private room');
+        },
+        'send': () => repository.sendMessage(
+          roomId: 'private room',
+          message: 'private body',
+        ),
+        'connect': repository.connect,
+      };
+      for (final action in actions.entries) {
+        await expectLater(
+          action.value(),
+          throwsA(
+            isA<ChatFailure>().having(
+              (value) => value.type,
+              'class',
+              ChatFailureType.storage,
+            ),
+          ),
+        );
+        expect(
+          records.last,
+          _diagnosticRecord(
+            'WEAVE_NATIVE_CHAT_FAILURE operation=${action.key} stage=open type=storage code=M_WEAVE_E2EE_STORE ',
+          ),
+        );
+      }
+      expect(records.length, actions.length);
+      expect(records.join(), isNot(contains('private')));
+      expect(session.endCalls, 0);
+      expect(session.removeCalls, 0);
+    },
+  );
+  test(
+    'room-list failure is captured after successful native admission',
+    () async {
+      final original = debugPrint;
+      final records = <String>[];
+      debugPrint = (String? value, {int? wrapWidth}) =>
+          records.add(value ?? '');
+      addTearDown(() => debugPrint = original);
+      final repository = NativeMatrixChatRepository(
+        matrixCryptoSessionCoordinator: FakeMatrixCryptoSessionPort(),
+        rustMatrixCoreBridge: _FailingRoomBridge(),
+      );
+      await expectLater(
+        repository.loadConversations(),
+        throwsA(isA<ChatFailure>()),
+      );
+      expect(
+        records.single,
+        _diagnosticRecord(
+          'WEAVE_NATIVE_CHAT_FAILURE operation=conversations stage=roomList type=protocol code=M_WEAVE_E2EE_SYNC ',
+        ),
+      );
+    },
+  );
+
+  test(
     'failure diagnostics preserve direct admission failure and stack without payloads',
     () async {
       final originalPrinter = debugPrint;
@@ -229,7 +313,9 @@ void main() {
           expect(observedStack.toString(), contains('owned-original-stack'));
           expect(
             records.last,
-            'WEAVE_NATIVE_CHAT_FAILURE operation=$operation stage=open type=sessionRequired code=${code == 'M_WEAVE_MATRIX_SESSION_CHANGED' ? code : 'unavailable'} supportSafe=true',
+            _diagnosticRecord(
+              'WEAVE_NATIVE_CHAT_FAILURE operation=$operation stage=open type=sessionRequired code=${code == 'M_WEAVE_MATRIX_SESSION_CHANGED' ? code : 'unavailable'} ',
+            ),
           );
         }
       }
@@ -262,7 +348,9 @@ void main() {
       );
       expect(
         records.single,
-        'WEAVE_NATIVE_CHAT_FAILURE operation=timeline stage=timeline type=bridge code=M_NOT_FOUND supportSafe=true',
+        _diagnosticRecord(
+          'WEAVE_NATIVE_CHAT_FAILURE operation=timeline stage=timeline type=sessionRequired code=M_NOT_FOUND ',
+        ),
       );
       for (final code in [
         'M_FORBIDDEN',
@@ -284,7 +372,7 @@ void main() {
                   (e) => e.type,
                   'type',
                   code == 'M_FORBIDDEN'
-                      ? ChatFailureType.sessionRequired
+                      ? ChatFailureType.accessDenied
                       : ChatFailureType.protocol,
                 )
                 .having(
@@ -296,7 +384,9 @@ void main() {
         );
         expect(
           records.last,
-          'WEAVE_NATIVE_CHAT_FAILURE operation=send stage=send type=bridge code=${{'M_FORBIDDEN', 'M_WEAVE_E2EE_SEND'}.contains(code) ? code : 'unavailable'} supportSafe=true',
+          _diagnosticRecord(
+            'WEAVE_NATIVE_CHAT_FAILURE operation=send stage=send type=${code == 'M_FORBIDDEN' ? 'accessDenied' : 'protocol'} code=${{'M_FORBIDDEN', 'M_WEAVE_E2EE_SEND'}.contains(code) ? code : 'unavailable'} ',
+          ),
         );
       }
       final opening = NativeMatrixChatRepository(
@@ -311,13 +401,15 @@ void main() {
           isA<ChatFailure>().having(
             (e) => e.type,
             'type',
-            ChatFailureType.protocol,
+            ChatFailureType.sessionRequired,
           ),
         ),
       );
       expect(
         records.last,
-        'WEAVE_NATIVE_CHAT_FAILURE operation=send stage=open type=bridge code=M_WEAVE_MATRIX_MEMBER_SESSION supportSafe=true',
+        _diagnosticRecord(
+          'WEAVE_NATIVE_CHAT_FAILURE operation=send stage=open type=sessionRequired code=M_WEAVE_MATRIX_MEMBER_SESSION ',
+        ),
       );
       expect(records.join(), isNot(contains('private')));
       expect(records.join(), isNot(contains('https:')));
@@ -329,7 +421,7 @@ void main() {
     debugPrint = debugPrintSynchronously;
     addTearDown(() => debugPrint = originalPrinter);
     final captured = <String>[];
-    const failure = ChatFailure.sessionRequired('M_WEAVE_MATRIX_ACCESS_DENIED');
+    const failure = ChatFailure.accessDenied('M_WEAVE_MATRIX_ACCESS_DENIED');
     final repository = NativeMatrixChatRepository(
       matrixCryptoSessionCoordinator: _DiagnosticSessionPort(
         failure,
@@ -411,9 +503,7 @@ void main() {
       debugPrint = (String? message, {int? wrapWidth}) =>
           throw StateError('private logging failure');
       addTearDown(() => debugPrint = originalPrinter);
-      const failure = ChatFailure.sessionRequired(
-        'M_WEAVE_MATRIX_ACCESS_DENIED',
-      );
+      const failure = ChatFailure.accessDenied('M_WEAVE_MATRIX_ACCESS_DENIED');
       final repository = NativeMatrixChatRepository(
         matrixCryptoSessionCoordinator: _DiagnosticSessionPort(
           failure,
@@ -451,7 +541,7 @@ void main() {
                 'type',
                 error == 'M_UNKNOWN_TOKEN'
                     ? ChatFailureType.sessionRequired
-                    : ChatFailureType.protocol,
+                    : ChatFailureType.accessDenied,
               ),
             ),
           );
@@ -952,7 +1042,9 @@ void main() {
                 .having(
                   (failure) => failure.type,
                   'type',
-                  ChatFailureType.sessionRequired,
+                  code == 'M_FORBIDDEN'
+                      ? ChatFailureType.accessDenied
+                      : ChatFailureType.sessionRequired,
                 )
                 .having(
                   (failure) => failure.message,
@@ -1019,3 +1111,12 @@ void main() {
     expect(conversations.single.previewText, isNull);
   });
 }
+
+Matcher _diagnosticRecord(String prefix) => allOf(
+  startsWith(prefix),
+  contains(
+    RegExp(
+      r'httpStatus=(unavailable|[1-5][0-9]{2}) correlation=[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12} candidate=(unavailable|[0-9a-f]{40}) supportSafe=true$',
+    ),
+  ),
+);

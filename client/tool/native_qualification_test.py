@@ -763,7 +763,14 @@ class NativeQualificationTest(unittest.TestCase):
         driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
         submitted = driver.split('phase=password-submitted', 1)[1]
         self.assertLess(submitted.index('guard waitForNativeWorkspace'), submitted.index('status=passed phase=form-submitted'))
-        self.assertIn('if Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath)', driver)
+        wait = driver.split('func waitForNativeWorkspace', 1)[1].split('func testNativeDocumentPicker', 1)[0]
+        self.assertIn('(fixture.ordinaryOrganizationOrigin == nil && Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath))', wait)
+        self.assertIn('(fixture.ordinaryOrganizationOrigin != nil && Self.ordinaryWorkspaceObserved(app))', wait)
+        ordinary = (Path(__file__).parent / 'ios_browser_driver/OrdinaryProductSmoke.swift').read_text()
+        workspace = ordinary.split('static func ordinaryWorkspaceObserved', 1)[1].split('struct OrdinaryScrollBudget', 1)[0]
+        for identifier in ('nav-chat', 'nav-files', 'nav-calendar', 'nav-settings'):
+            self.assertIn(identifier, workspace)
+        self.assertIn('app.buttons.matching(identifier: $0).count == 1', workspace)
         self.assertIn('phase=auth-completion-observed', driver)
         self.assertNotIn('app.activate()', driver.split('func waitForNativeWorkspace', 1)[1].split('func testNativeDocumentPicker', 1)[0])
 
