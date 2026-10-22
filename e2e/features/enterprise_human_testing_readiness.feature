@@ -65,6 +65,8 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
     When the normal application starts against direct reviewed Dogfood endpoints
     Then actual UI operations prove bidirectional Chat and conversation reopening
     And a created folder and uploaded file are read back by exact identity in their original scope
+    And a private folder retains its exact identity across scope switching tab return restart and in-place update
+    And fresh complete shared and peer private listings exclude that private folder
     And Calendar create read update delete have independent peer readback
     And restart and in-place update preserve the admitted identity and state
     And isolated actor injection test entrypoints and relays cannot satisfy this proof

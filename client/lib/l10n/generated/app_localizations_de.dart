@@ -3896,4 +3896,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String calendarChannelScopeName(String name) {
     return '$name · Kanalkalender';
   }
+
+  @override
+  String get filesListingEnd => 'Ende des Ordners';
 }

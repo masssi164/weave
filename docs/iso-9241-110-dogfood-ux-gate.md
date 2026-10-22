@@ -158,7 +158,17 @@ then repeat Chat/Files readback and account/context checks. The iPhone retains
 its existing account and local stores, and starts without an onboarding URL.
 Installation/launch-requested evidence alone never establishes functional success.
 
-Only precisely identified run-owned folder/file/conversation fixtures are
+Private Files proof creates and opens a separate run-owned private folder,
+changes to the shared root and back to the same private folder identity, and
+checks that another tab preserves the current private destination. The peer's
+private root must not contain that folder. Both negative reads require a newly
+completed successful listing and bounded ordinary scrolling to the actual end;
+stale, loading, failed or unscanned listings leave the result incomplete. Restart
+and in-place update must reopen the same private folder identity through the
+ordinary UI. Public receipts include only its digest and required scope, peer
+isolation and continuity flags; the private ledger keeps the owned fixture name.
+
+Only precisely identified run-owned private/shared folder/file/conversation fixtures are
 retained for continuity, reported as `retained-owned-content`. Calendar deletion
 and independent absence are required. Owned simulators, transient credential
 invocation files and raw XCTest results are removed. The approved persistent
@@ -168,7 +178,7 @@ secrets, TLS, signing and applications are untouched. No global cleanup or
 name-only deletion is used.
 
 `weave.dogfood-deployment/v2` and `weave.hil-preparation/v3` include a complete
-`weave.dogfood-functional-smoke/v1` receipt binding source tree, specification,
+`weave.dogfood-functional-smoke/v2` receipt binding source tree, specification,
 deployed image/source, ordinary app build, direct reviewed routing and final
 qualification run **and attempt**. Fixed ordered observed operations, independent
 identity/resource digests, actual exported bytes, restart/update readback and
