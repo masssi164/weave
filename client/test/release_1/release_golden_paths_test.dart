@@ -171,10 +171,7 @@ void main() {
         );
         expect(find.text('Organization access'), findsOneWidget);
 
-        await tester.enterText(
-          _textFieldWithLabel('Organization address or invitation'),
-          'https://weave.test',
-        );
+        await tester.enterText(find.byType(TextField), 'https://weave.test');
         await tester.tap(find.text('Continue to organization'));
         await tester.pumpAndSettle();
 

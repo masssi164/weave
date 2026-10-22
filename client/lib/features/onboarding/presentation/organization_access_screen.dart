@@ -65,10 +65,11 @@ class _OrganizationAccessScreenState extends State<OrganizationAccessScreen> {
                   Center(
                     child: WeaveLogo(
                       semanticLabel: l10n.semanticWeaveLogo,
-                      width: 144,
+                      width: 80,
+                      padding: const EdgeInsets.all(12),
                     ),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
                   Focus(
                     focusNode: _focusNode,
                     child: Semantics(
@@ -89,47 +90,37 @@ class _OrganizationAccessScreenState extends State<OrganizationAccessScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
-                  TextField(
-                    controller: _controller,
-                    keyboardType: TextInputType.url,
-                    textInputAction: TextInputAction.done,
-                    autofillHints: const [AutofillHints.url],
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.qr_code_2),
-                      labelText: l10n.setupOrganizationUriLabel,
-                      hintText: 'https://weave.example',
-                      helper: Text(l10n.setupOrganizationUriHelper),
-                      errorMaxLines: 4,
-                      errorText: _error,
+                  ExcludeSemantics(
+                    child: Text(
+                      l10n.setupOrganizationUriLabel,
+                      style: theme.textTheme.labelLarge,
                     ),
-                    onChanged: (_) {
-                      if (_error != null) setState(() => _error = null);
-                    },
-                    onSubmitted: (_) => _continue(),
+                  ),
+                  const SizedBox(height: 8),
+                  Semantics(
+                    label: l10n.setupOrganizationUriLabel,
+                    child: TextField(
+                      controller: _controller,
+                      keyboardType: TextInputType.url,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.url],
+                      decoration: InputDecoration(
+                        hintText: 'weave.example',
+                        helper: Text(l10n.setupOrganizationUriHelper),
+                        errorMaxLines: 4,
+                        errorText: _error,
+                      ),
+                      onChanged: (_) {
+                        if (_error != null) setState(() => _error = null);
+                      },
+                      onSubmitted: (_) => _continue(),
+                    ),
                   ),
                   const SizedBox(height: 24),
                   AccessibleButton(
                     onPressed: _continue,
                     semanticLabel: l10n.setupOrganizationContinueButton,
                     child: Text(l10n.setupOrganizationContinueButton),
-                  ),
-                  const SizedBox(height: 16),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: MergeSemantics(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(Icons.mail_outline),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(l10n.setupOrganizationAccessHelp),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                   ),
                 ],
               ),

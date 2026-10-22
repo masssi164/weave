@@ -149,7 +149,11 @@ public final class FreshProductFlow {
       assertGeneratedAdminControlPlane(adminSession.accessToken(), organizationId);
       new ForeignOrganizationJourney(environment, http).provision();
       GeneratedSpacesJourney spaces = new GeneratedSpacesJourney(environment);
-      spaces.provisionDefault(adminSession.accessToken(), ownerSession.accessToken());
+      spaces.verifyAbsent(ownerSession.accessToken());
+      String firstOwnerToken = ownerSession.accessToken();
+      browser.provisionDefaultSpaceThroughAdminConsole(ownerEmail, ownerPassword,
+          () -> spaces.verifyAbsent(firstOwnerToken));
+      spaces.confirmDefault(adminSession.accessToken(), ownerSession.accessToken());
       configureRequiredProviders(adminSession.accessToken());
       awaitChatReadiness(ownerSession.accessToken());
 

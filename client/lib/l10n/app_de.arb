@@ -534,6 +534,8 @@
   "settingsWorkspaceImpactLabel": "Member-Auswirkung",
   "settingsWorkspaceRecoveryLabel": "Wiederherstellung",
   "settingsWorkspaceRecoveryAvailable": "Verfügbar",
+  "settingsWorkspaceRecoveryNoAccessibleWorkspace": "Kein zugänglicher Workspace",
+  "settingsWorkspaceRecoveryNoAccessibleWorkspaceAction": "Bitte eine Workspace-Adminperson, die Einrichtung abzuschließen oder dir Zugriff zu geben.",
   "settingsWorkspaceRecoveryDisabledByPolicy": "Per Policy deaktiviert",
   "settingsWorkspaceRecoveryNotConfigured": "Admin-Einrichtung nötig",
   "settingsWorkspaceRecoveryDegraded": "Eingeschränkt",
@@ -1083,7 +1085,7 @@
   "@setupMemberHandoffTitle": {
     "description": "Title for the normal member handoff-first setup screen"
   },
-  "setupMemberHandoffDescription": "Melde dich mit der Weave-Adresse deiner Organisation oder deiner Einladung im Arbeitsbereich an.",
+  "setupMemberHandoffDescription": "Melde dich bei deiner Organisation an.",
   "@setupMemberHandoffDescription": {
     "description": "Description for the normal member handoff-first setup screen"
   },
@@ -1091,7 +1093,7 @@
   "@setupOrganizationUriLabel": {
     "description": "Eingabefeld für den Organisationszugang"
   },
-  "setupOrganizationUriHelper": "Gib die Weave-Adresse deiner Organisation ein oder füge den Einladungslink aus deiner E-Mail oder dem QR-Code ein.",
+  "setupOrganizationUriHelper": "Prüfe im nächsten Schritt deine Organisation und wähle Anmelden.",
   "@setupOrganizationUriHelper": {
     "description": "Hilfe zum Organisationszugang"
   },

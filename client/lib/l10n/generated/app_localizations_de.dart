@@ -1834,6 +1834,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsWorkspaceRecoveryAvailable => 'Verfügbar';
 
   @override
+  String get settingsWorkspaceRecoveryNoAccessibleWorkspace =>
+      'Kein zugänglicher Workspace';
+
+  @override
+  String get settingsWorkspaceRecoveryNoAccessibleWorkspaceAction =>
+      'Bitte eine Workspace-Adminperson, die Einrichtung abzuschließen oder dir Zugriff zu geben.';
+
+  @override
   String get settingsWorkspaceRecoveryDisabledByPolicy =>
       'Per Policy deaktiviert';
 
@@ -3560,14 +3568,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get setupMemberHandoffDescription =>
-      'Melde dich mit der Weave-Adresse deiner Organisation oder deiner Einladung im Arbeitsbereich an.';
+      'Melde dich bei deiner Organisation an.';
 
   @override
   String get setupOrganizationUriLabel => 'Organisationsadresse oder Einladung';
 
   @override
   String get setupOrganizationUriHelper =>
-      'Gib die Weave-Adresse deiner Organisation ein oder füge den Einladungslink aus deiner E-Mail oder dem QR-Code ein.';
+      'Prüfe im nächsten Schritt deine Organisation und wähle Anmelden.';
 
   @override
   String get setupOrganizationUriError =>

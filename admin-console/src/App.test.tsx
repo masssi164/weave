@@ -983,3 +983,28 @@ describe("Admin Console MVP", () => {
     );
   });
 });
+
+describe("default Space setup access boundary", () => {
+  it.each(["member", "operator"] as const)("hides provisioning for the %s presentation", async (viewerRole) => {
+    render(<App api={mockApi()} viewerRole={viewerRole} />);
+    await screen.findByText(/backend control-plane data loaded/i);
+    expect(screen.queryByRole("button", { name: /create or confirm default space/i })).not.toBeInTheDocument();
+  });
+  it("does not offer setup before a live control-plane response or after authentication failure", async () => {
+    const api = mockApi({ getControlPlane: vi.fn().mockResolvedValue(sampleControlPlane) });
+    render(<App api={api} authenticationError="Sign-in failed" />);
+    await screen.findByText(/backend control-plane data loaded/i);
+    expect(screen.queryByRole("button", { name: /create or confirm default space/i })).not.toBeInTheDocument();
+  });
+  it("shows an unverified explicit setup action after live owner load without provisioning", async () => {
+    const provisionDefaultSpace = vi.fn();
+    render(<App api={mockApi({ provisionDefaultSpace })} viewerRole="owner" />);
+    expect(await screen.findByRole("button", { name: /create or confirm default space/i })).toBeEnabled();
+    expect(provisionDefaultSpace).not.toHaveBeenCalled();
+  });
+  it("never offers setup for offline sample state", async () => {
+    render(<App api={mockApi({ getControlPlane: vi.fn().mockRejectedValue(new Error("Unavailable")) })} />);
+    await screen.findByText(/offline\/demo sample state/i);
+    expect(screen.queryByRole("button", { name: /create or confirm default space/i })).not.toBeInTheDocument();
+  });
+});
