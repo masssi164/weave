@@ -15,8 +15,26 @@ The preparation sequence is:
 2. start the dogfood stack through `./gradlew dogfoodUp`;
 3. start it a second time and prove that the CA and leaf certificate fingerprints did not change;
 4. optionally create or resend the first-owner invitation and leave its activation link only in private Mailpit at the reviewed `WEAVE_MAILPIT_URL` (`https://mail.weave.test` in the standard-port Dogfood example);
-5. build the exact commit with development signing in the interactive user session, install it
+5. explicitly establish or verify the durable default Space and the activated owner's current
+   administration, Files and Calendar access; remove temporary setup authority before proceeding;
+6. build the exact commit with development signing in the interactive user session, install it
    over the existing app, and launch the handoff on the paired iPhone.
+
+The Space prerequisite uses `compose.sh dogfood bootstrap-space --evidence-file <private-path>`
+from the clean exact candidate. It is separate from invitation bootstrap and ordinary startup.
+Server selects the configured organization's unique enabled owner from live identity authority,
+applies current policy, and creates only a never-existing `workspace-default`. Existing Spaces
+and grants are verified without modification. Missing or revoked owner access, suspended Space
+state, ambiguous owners or unavailable readiness fail closed; preparation never silently
+regrants access. The dedicated temporary credential, mount and deployment override are removed
+on success and failure, and the normal route must return not found afterward.
+
+After an empty-session invitation, the owner must first complete normal Keycloak activation.
+An invitation alone cannot establish owner Space access. If activation is still pending,
+preparation stops at that explicit boundary; complete activation privately, then repeat with
+`bootstrap_owner=false`. Creating a Space manually is not a human-test prerequisite.
+Successful physical evidence uses `weave.hil-preparation/v2`, includes support-safe owner Space
+verification, and binds it to the exact candidate and final qualification run and attempt.
 
 The only private workflow value required for the device is `WEAVE_IOS_DEVICE_ID`. The first-owner path additionally uses the existing dogfood member email secret and display-name variable. Apple distribution and App Store Connect secrets are not part of development dogfood.
 
@@ -54,7 +72,9 @@ Preparation evidence is accepted only when the workflow producer itself has that
 
 ## What the tester must actually verify
 
-Installation is preparation, not a human-test result. The tester opens the invitation in Mailpit, activates the account in the system browser, and then verifies on the physical iPhone:
+Installation is preparation, not a human-test result. The activated owner uses the normal app
+sign-in and then verifies on the physical iPhone. Files and Calendar must be available immediately
+under the prepared Space access:
 
 - app launch and Authorization Code with PKCE;
 - normal session, refresh, logout, and login again;

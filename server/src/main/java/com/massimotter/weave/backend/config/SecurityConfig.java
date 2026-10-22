@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.controller.BootstrapOwnerInvitationController;
+import com.massimotter.weave.backend.controller.DefaultSpaceBootstrapController;
 import com.massimotter.weave.backend.controller.IdentitySessionController;
 import com.massimotter.weave.backend.security.NativeOrganizationClaims;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
@@ -78,7 +79,7 @@ public class SecurityConfig {
                                 "/_matrix/client/v3/login", "/_matrix/client/r0/login").permitAll()
                         .requestMatchers(ChatE2eProofSecurityConfiguration.PATH).permitAll()
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
-                        .requestMatchers(BootstrapOwnerInvitationController.PATH).permitAll()
+                        .requestMatchers(BootstrapOwnerInvitationController.PATH, DefaultSpaceBootstrapController.PATH).permitAll()
                         .requestMatchers(HttpMethod.POST, IdentitySessionController.PATH)
                                 .access((authentication, context) -> new AuthorizationDecision(
                                         authentication.get() instanceof JwtAuthenticationToken token

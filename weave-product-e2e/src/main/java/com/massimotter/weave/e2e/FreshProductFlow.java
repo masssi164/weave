@@ -97,13 +97,7 @@ public final class FreshProductFlow {
     List<CollaborationJourney.PassProof> collaborationPasses = new java.util.ArrayList<>();
 
     try (OidcBrowserJourney browser = new OidcBrowserJourney(environment, http)) {
-      MemberInvitationResponse ownerInvitation = bootstrapOwner(ownerEmail);
-      String organizationId = ownerInvitation.getOrganizationId();
-      if (organizationId == null || organizationId.isBlank()
-          || !"owner".equals(ownerInvitation.getRequestedRole())
-          || !ownerEmail.equalsIgnoreCase(ownerInvitation.getEmail())) {
-        throw new ProductFlowException("Owner bootstrap returned an invalid invitation projection");
-      }
+      String organizationId = bootstrapOwner(ownerEmail);
       MailpitActivationInbox ownerInbox =
           new MailpitActivationInbox(
               http,
@@ -150,11 +144,17 @@ public final class FreshProductFlow {
       new ForeignOrganizationJourney(environment, http).provision();
       GeneratedSpacesJourney spaces = new GeneratedSpacesJourney(environment);
       spaces.verifyAbsent(ownerSession.accessToken());
-      String firstOwnerToken = ownerSession.accessToken();
-      browser.provisionDefaultSpaceThroughAdminConsole(ownerEmail, ownerPassword,
-          () -> spaces.verifyAbsent(firstOwnerToken));
-      spaces.confirmDefault(adminSession.accessToken(), ownerSession.accessToken());
       configureRequiredProviders(adminSession.accessToken());
+      DefaultSpacePreparationJourney spacePreparation =
+          new DefaultSpacePreparationJourney(environment, http);
+      spacePreparation.prepare("CREATED");
+      spaces.confirmDefault(adminSession.accessToken(), ownerSession.accessToken());
+      spacePreparation.prepare("VERIFIED");
+      String firstOwnerToken = ownerSession.accessToken();
+      String firstAdminToken = adminSession.accessToken();
+      browser.provisionDefaultSpaceThroughAdminConsole(ownerEmail, ownerPassword,
+          () -> spaces.confirmDefault(firstAdminToken, firstOwnerToken));
+      spaces.confirmDefault(adminSession.accessToken(), ownerSession.accessToken());
       awaitChatReadiness(ownerSession.accessToken());
 
       Instant memberInvitedAt = Instant.now();
@@ -805,9 +805,9 @@ public final class FreshProductFlow {
     }
   }
 
-  private MemberInvitationResponse bootstrapOwner(String email) {
-    return new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate())
-        .bootstrapOwner(readBootstrapToken(), "test-app-owner-" + runHash(), email);
+  private String bootstrapOwner(String email) {
+    return new DefaultSpacePreparationJourney(environment, http)
+        .inviteOwner(email, "test-app-owner-" + runHash());
   }
 
   private void requireNativeDenial(String category, String path, String field, String code,
@@ -1788,6 +1788,8 @@ public final class FreshProductFlow {
     evidence.put("sameHumanSubjectAfterRegrant", sameHumanSubjectAfterRegrant);
     evidence.put("samePersonRefAfterRegrant", samePersonRefAfterRegrant);
     evidence.put("spaceRevocationRestored", spaceRevocationRestored);
+    evidence.put("defaultSpacePreparedBeforeMemberTesting", true);
+    evidence.put("defaultSpacePreparationRetryPreservedAccess", true);
     evidence.put("foreignOrganizationDenied", foreignOrganizationDenied);
     evidence.put("administratorSessionRevocationDenied", true);
     evidence.put("reauthenticationAfterSessionRevocation", true);
@@ -1880,25 +1882,6 @@ public final class FreshProductFlow {
         // The incomplete file contains support-safe hashes only.
       }
       throw new ProductFlowException("testApp evidence could not be persisted", failure);
-    }
-  }
-
-  private String readBootstrapToken() {
-    Path path = environment.bootstrapOwnerToken();
-    try {
-      if (Files.isSymbolicLink(path)
-          || !Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
-        throw new ProductFlowException("owner bootstrap SecretRef is unavailable");
-      }
-      requirePrivatePermissions(path);
-      String token = Files.readString(path, StandardCharsets.UTF_8).strip();
-      if (token.getBytes(StandardCharsets.UTF_8).length < 32
-          || token.getBytes(StandardCharsets.UTF_8).length > 512) {
-        throw new ProductFlowException("owner bootstrap SecretRef has an invalid size");
-      }
-      return token;
-    } catch (IOException failure) {
-      throw new ProductFlowException("owner bootstrap SecretRef could not be read", failure);
     }
   }
 

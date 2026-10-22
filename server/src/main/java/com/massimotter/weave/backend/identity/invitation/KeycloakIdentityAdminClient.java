@@ -241,6 +241,28 @@ public class KeycloakIdentityAdminClient {
         "Keycloak organization-member inventory exceeded the administration bound");
   }
 
+  /** Live selected-organization authority for explicit setup; never a credential or session. */
+  public MemberAuthorization memberAuthorization(String organizationId, String subject) {
+    JsonNode user = currentMemberUser(organizationId, subject);
+    if (isServiceAccount(user) || !user.path("enabled").isBoolean()
+        || !user.path("emailVerified").isBoolean() || !user.path("requiredActions").isArray()) {
+      throw new IllegalStateException("The live member authorization is invalid");
+    }
+    boolean activated = user.path("emailVerified").asBoolean(false) && user.path("requiredActions").isEmpty();
+    Set<String> groups = organizationMemberGroupPaths(organizationId, subject);
+    List<String> roles = ROLE_GROUP_PATHS.entrySet().stream()
+        .filter(entry -> groups.contains(entry.getValue())).map(Map.Entry::getKey).sorted().toList();
+    return new MemberAuthorization(requiredUser(user, "id"), user.path("enabled").asBoolean(false), activated,
+        roles, groups.stream().sorted().toList());
+  }
+
+  public record MemberAuthorization(String subject, boolean enabled, boolean activated, List<String> roles, List<String> groups) {
+    public MemberAuthorization {
+      roles = List.copyOf(roles);
+      groups = List.copyOf(groups);
+    }
+  }
+
   public ProviderMember requireMember(String organizationId, String subject) {
     return toMember(organizationId, currentMemberUser(organizationId, subject));
   }

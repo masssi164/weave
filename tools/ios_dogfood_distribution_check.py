@@ -108,6 +108,7 @@ def check_discovery_evidence() -> None:
 PUBLIC_PREPARATION_FILES = (
     "weave/build/evidence/prepare-human-test/preparation-result.json",
     "weave/build/evidence/prepare-human-test/tls-persistence.json",
+    "weave/build/evidence/prepare-human-test/owner-space.json",
 )
 
 
@@ -116,7 +117,7 @@ def check_public_preparation_upload(workflow: str) -> None:
     uploads = [step for step in steps if "uses: actions/upload-artifact@" in step]
     require(len(uploads) == 1, "physical preparation must have exactly one bounded public upload")
     expected = "          path: |\n" + "".join(f"            {path}\n" for path in PUBLIC_PREPARATION_FILES)
-    require(expected in uploads[0], "physical public upload must contain only the two safe literal files")
+    require(expected in uploads[0], "physical public upload must contain only the safe literal files")
     require(len(re.findall(r"(?m)^          path:", uploads[0])) == 1,
             "physical public upload must have exactly one path selection")
     paths = re.search(r"(?m)^          path:[^\n]*(?:\n            [^\n]*)*", uploads[0])
@@ -127,16 +128,32 @@ def check_public_preparation_upload(workflow: str) -> None:
     initialization = next(step for step in steps if step.startswith("name: Initialize private physical diagnostics"))
     for guard in ("umask 077", "path.is_symlink()", "directory.stat().st_uid != os.getuid()", "directory.chmod(0o700)"):
         require(guard in initialization, "private physical directory ownership/mode guard missing")
-    for name in ("Create first owner invitation in private Mailpit", "Build, sign, install in place, and launch on physical iPhone"):
-        step = next(step for step in steps if step.startswith("name: " + name))
+    for name in ("Create first owner invitation in private Mailpit", "Establish and verify current owner default Space access", "Build, sign, install in place, and launch on physical iPhone"):
+        step = next((step for step in steps if step.startswith("name: " + name)), None)
+        require(step is not None, "required physical preparation producer is missing")
         require("        run: |\n          umask 077\n" in step,
                 "raw physical diagnostic producer must use a private creation mask")
+    setup = next(step for step in steps if step.startswith(
+        "name: Establish and verify current owner default Space access"))
+    require("infra/weave-workspace/compose.sh dogfood bootstrap-space" in setup
+            and "        if:" not in setup,
+            "owner Space access must be an unconditional preparation prerequisite")
+    require(workflow.index("name: Establish and verify current owner default Space access")
+            < workflow.index("name: Build, sign, install in place, and launch on physical iPhone"),
+            "current owner Space access must be established before installation")
+    require('"schemaVersion": "weave.hil-preparation/v2"' in workflow
+            and '"ownerWorkspace": workspace' in workflow
+            and "owner_workspace_passed(workspace, sha, tree, spec)" in workflow,
+            "physical evidence must validate and bind owner Space access to the exact candidate")
 
 
 def check_public_preparation_upload_regressions(workflow: str) -> None:
     check_public_preparation_upload(workflow)
     literal = "          path: |\n" + "".join(f"            {path}\n" for path in PUBLIC_PREPARATION_FILES)
     variants = [
+        workflow.replace("Establish and verify current owner default Space access", "Optional workspace setup"),
+        workflow.replace("infra/weave-workspace/compose.sh dogfood bootstrap-space", "echo skipped setup"),
+        workflow.replace('"ownerWorkspace": workspace', '"ownerWorkspace": {}'),
         workflow.replace(literal, "          path: weave/build/evidence/prepare-human-test\n"),
         workflow.replace(PUBLIC_PREPARATION_FILES[1], "weave/build/evidence/prepare-human-test/*"),
         workflow.replace(PUBLIC_PREPARATION_FILES[1], "weave/build/evidence/prepare-human-test/ios-app-preferences.txt"),

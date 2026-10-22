@@ -7329,6 +7329,12 @@
         "in": "header",
         "name": "X-Weave-Bootstrap-Token",
         "type": "apiKey"
+      },
+      "space-bootstrap-token": {
+        "description": "Dedicated short-lived SecretRef for explicit development default-Space preparation.",
+        "in": "header",
+        "name": "X-Weave-Space-Bootstrap-Token",
+        "type": "apiKey"
       }
     }
   },

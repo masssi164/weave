@@ -2,11 +2,18 @@ package com.massimotter.weave.backend.spaces.adapter;
 
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort.Permission;
 import com.massimotter.weave.backend.spaces.port.SpaceProvisioningPort;
+import com.massimotter.weave.backend.spaces.port.DefaultSpacePreparationPort;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Instant;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.Set;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -22,6 +29,203 @@ class JpaSpaceAccessAdapterPostgresTest {
     @Container private static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine");
     private static final Instant NOW = Instant.parse("2026-10-07T12:00:00Z");
+
+    @Test
+    void concurrentAdminAndBootstrapCreationCannotMixMembershipIntent() throws Exception {
+        var source = migratedSource();
+        var spaces = JpaTestDatabase.repository(source, SpaceJpaRepository.class);
+        var members = JpaTestDatabase.repository(source, SpaceMembershipJpaRepository.class);
+        var adapter = JpaTestDatabase.transactional(source, new JpaSpaceProvisioningAdapter(spaces, members));
+        var transactions = new TransactionTemplate(JpaTestDatabase.transactionManager(source));
+        for (boolean bootstrapWins : new boolean[] {false, true}) {
+            String organization = "org:creation-race-" + bootstrapWins;
+            var winnerWritten = new CountDownLatch(1);
+            var releaseWinner = new CountDownLatch(1);
+            var loserStarted = new CountDownLatch(1);
+            try (var threads = Executors.newFixedThreadPool(2)) {
+                var winner = threads.submit(() -> transactions.execute(status -> {
+                    if (bootstrapWins) {
+                        assertThat(adapter.prepare(organization, "owner:a"))
+                                .isEqualTo(DefaultSpacePreparationPort.Result.CREATED);
+                    } else {
+                        assertThat(adapter.provision(organization, "workspace-default", "admin:b", Set.of("member:c")))
+                                .isEqualTo(SpaceProvisioningPort.Result.CREATED);
+                    }
+                    JpaTestDatabase.entityManager(source).flush();
+                    winnerWritten.countDown();
+                    await(releaseWinner);
+                    return true;
+                }));
+                assertThat(winnerWritten.await(10, TimeUnit.SECONDS)).isTrue();
+                var loser = threads.submit(() -> {
+                    loserStarted.countDown();
+                    if (bootstrapWins) {
+                        assertThatThrownBy(() -> adapter.provision(organization, "workspace-default", "admin:b", Set.of("member:c")))
+                                .isInstanceOf(SpaceProvisioningPort.Conflict.class);
+                    } else {
+                        assertThatThrownBy(() -> adapter.prepare(organization, "owner:a"))
+                                .isInstanceOf(DefaultSpacePreparationPort.Conflict.class);
+                    }
+                    return true;
+                });
+                assertThat(loserStarted.await(10, TimeUnit.SECONDS)).isTrue();
+                try {
+                    assertThatThrownBy(() -> loser.get(300, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+                } finally {
+                    releaseWinner.countDown();
+                }
+                assertThat(winner.get(10, TimeUnit.SECONDS)).isTrue();
+                assertThat(loser.get(10, TimeUnit.SECONDS)).isTrue();
+            } finally {
+                releaseWinner.countDown();
+            }
+            Map<String, String> current = members.findByIdOrganizationRefAndIdSpaceRef(organization, "workspace-default")
+                    .stream().collect(java.util.stream.Collectors.toMap(
+                            SpaceMembershipJpaEntity::accountRef, SpaceMembershipJpaEntity::permissionSet));
+            assertThat(current).isEqualTo(bootstrapWins ? Map.of("owner:a", "VIEW,EDIT,ADMIN")
+                    : Map.of("admin:b", "VIEW,EDIT,ADMIN", "member:c", "VIEW"));
+            assertThat(members.findByIdOrganizationRefAndIdSpaceRef(organization, "workspace-default"))
+                    .allSatisfy(member -> assertThat(member.version()).isZero());
+        }
+    }
+
+    @Test
+    void preparationWaitsForCurrentRevocationAndSuspensionRatherThanVerifyingStaleAccess() throws Exception {
+        var source = migratedSource();
+        var spaces = JpaTestDatabase.repository(source, SpaceJpaRepository.class);
+        var members = JpaTestDatabase.repository(source, SpaceMembershipJpaRepository.class);
+        var adapter = JpaTestDatabase.transactional(source, new JpaSpaceProvisioningAdapter(spaces, members));
+        var administration = JpaTestDatabase.transactional(source, new JpaSpaceMembershipAdminAdapter(spaces, members));
+        var transactions = new TransactionTemplate(JpaTestDatabase.transactionManager(source));
+        for (boolean suspend : new boolean[] {false, true}) {
+            String organization = "org:access-race-" + suspend;
+            adapter.prepare(organization, "owner:a");
+            members.saveAndFlush(SpaceMembershipJpaEntity.active(
+                    organization, "workspace-default", "admin:b", "VIEW,EDIT,ADMIN", NOW));
+            String etag = administration.get(organization, "workspace-default", "admin:b", "owner:a").strongEtag();
+            var changeWritten = new CountDownLatch(1);
+            var releaseChange = new CountDownLatch(1);
+            var prepareStarted = new CountDownLatch(1);
+            try (var threads = Executors.newFixedThreadPool(2)) {
+                var change = threads.submit(() -> transactions.execute(status -> {
+                    if (suspend) {
+                        var root = spaces.lockById(new SpaceId(organization, "workspace-default")).orElseThrow();
+                        root.transition("SUSPENDED", NOW.plusSeconds(1));
+                        spaces.saveAndFlush(root);
+                    } else {
+                        administration.revoke(organization, "workspace-default", "admin:b", "owner:a", etag);
+                    }
+                    changeWritten.countDown();
+                    await(releaseChange);
+                    return true;
+                }));
+                assertThat(changeWritten.await(10, TimeUnit.SECONDS)).isTrue();
+                var preparation = threads.submit(() -> {
+                    prepareStarted.countDown();
+                    assertThatThrownBy(() -> adapter.prepare(organization, "owner:a"))
+                            .isInstanceOf(DefaultSpacePreparationPort.Conflict.class);
+                    return true;
+                });
+                assertThat(prepareStarted.await(10, TimeUnit.SECONDS)).isTrue();
+                try {
+                    assertThatThrownBy(() -> preparation.get(300, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+                } finally {
+                    releaseChange.countDown();
+                }
+                assertThat(change.get(10, TimeUnit.SECONDS)).isTrue();
+                assertThat(preparation.get(10, TimeUnit.SECONDS)).isTrue();
+            } finally {
+                releaseChange.countDown();
+            }
+            if (suspend) {
+                assertThat(spaces.findById(new SpaceId(organization, "workspace-default")).orElseThrow().active()).isFalse();
+            } else {
+                var owner = members.findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(
+                        organization, "workspace-default", "owner:a").orElseThrow();
+                assertThat(owner.active()).isFalse();
+                assertThat(owner.version()).isEqualTo(1);
+            }
+            assertThat(members.findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(
+                    organization, "workspace-default", "admin:b").orElseThrow().version()).isZero();
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                throw new AssertionError("Concurrent Space operation was not released");
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(interrupted);
+        }
+    }
+
+    private static DriverManagerDataSource migratedSource() {
+        var source = new DriverManagerDataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+        source.setDriverClassName(POSTGRES.getDriverClassName());
+        Flyway.configure().dataSource(source).locations("classpath:db/migration").load().migrate();
+        JpaTestDatabase.validateSchema(source);
+        return source;
+    }
+
+    @Test
+    void explicitDevelopmentPreparationCreatesOnceAndNeverChangesExistingMemberships() {
+        DriverManagerDataSource source = new DriverManagerDataSource();
+        source.setDriverClassName(POSTGRES.getDriverClassName());
+        source.setUrl(POSTGRES.getJdbcUrl());
+        source.setUsername(POSTGRES.getUsername());
+        source.setPassword(POSTGRES.getPassword());
+        Flyway.configure().dataSource(source).locations("classpath:db/migration").load().migrate();
+        JpaTestDatabase.validateSchema(source);
+        SpaceJpaRepository spaces = JpaTestDatabase.repository(source, SpaceJpaRepository.class);
+        SpaceMembershipJpaRepository members = JpaTestDatabase.repository(source, SpaceMembershipJpaRepository.class);
+        var prepare = JpaTestDatabase.transactional(source,
+                new JpaSpaceProvisioningAdapter(spaces, members, Clock.fixed(NOW, ZoneOffset.UTC)));
+        String owner = "acct_55555555555555555555555555555555";
+        String peer = "acct_66666666666666666666666666666666";
+        String organization = "org:physical-preparation";
+        assertThat(prepare.prepare(organization, owner)).isEqualTo(DefaultSpacePreparationPort.Result.CREATED);
+        var access = JpaTestDatabase.transactional(source, new JpaSpaceAccessAdapter(spaces, members));
+        assertThat(access.allows(organization, "workspace-default", owner, Permission.ADMIN)).isTrue();
+        long ownerVersion = members.findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(
+                organization, "workspace-default", owner).orElseThrow().version();
+        members.saveAndFlush(SpaceMembershipJpaEntity.active(organization, "workspace-default", peer, "VIEW", NOW));
+        assertThat(prepare.prepare(organization, owner)).isEqualTo(DefaultSpacePreparationPort.Result.VERIFIED);
+        var restarted = JpaTestDatabase.transactional(source,
+                new JpaSpaceProvisioningAdapter(spaces, members, Clock.fixed(NOW.plusSeconds(10), ZoneOffset.UTC)));
+        assertThat(restarted.prepare(organization, owner)).isEqualTo(DefaultSpacePreparationPort.Result.VERIFIED);
+        assertThat(members.findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(
+                organization, "workspace-default", owner).orElseThrow().version()).isEqualTo(ownerVersion);
+        assertThat(access.allows(organization, "workspace-default", peer, Permission.VIEW)).isTrue();
+        var revokedOwner = members.findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(
+                organization, "workspace-default", owner).orElseThrow();
+        revokedOwner.revoke(NOW.plusSeconds(20));
+        members.saveAndFlush(revokedOwner);
+        long revokedVersion = members.findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(
+                organization, "workspace-default", owner).orElseThrow().version();
+        assertThatThrownBy(() -> restarted.prepare(organization, owner))
+                .isInstanceOf(DefaultSpacePreparationPort.Conflict.class);
+        assertThat(members.findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(
+                organization, "workspace-default", owner).orElseThrow().version()).isEqualTo(revokedVersion);
+        assertThat(access.allows(organization, "workspace-default", owner, Permission.ADMIN)).isFalse();
+        assertThat(access.allows(organization, "workspace-default", peer, Permission.VIEW)).isTrue();
+
+        spaces.saveAndFlush(SpaceJpaEntity.active("org:no-owner-grant", "workspace-default", NOW));
+        assertThatThrownBy(() -> restarted.prepare("org:no-owner-grant", owner))
+                .isInstanceOf(DefaultSpacePreparationPort.Conflict.class);
+        assertThat(members.findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(
+                "org:no-owner-grant", "workspace-default", owner)).isEmpty();
+
+        restarted.prepare("org:suspended-preparation", owner);
+        var suspended = spaces.findById(new SpaceId("org:suspended-preparation", "workspace-default")).orElseThrow();
+        suspended.transition("SUSPENDED", NOW.plusSeconds(1));
+        spaces.saveAndFlush(suspended);
+        assertThatThrownBy(() -> restarted.prepare("org:suspended-preparation", owner))
+                .isInstanceOf(DefaultSpacePreparationPort.Conflict.class);
+        assertThat(spaces.findById(new SpaceId("org:suspended-preparation", "workspace-default"))
+                .orElseThrow().active()).isFalse();
+    }
 
     @Test
     void currentDurableMembershipControlsVisibilityAcrossTenantRevocationAndRestart() {

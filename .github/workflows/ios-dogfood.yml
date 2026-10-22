@@ -218,6 +218,14 @@ jobs:
           rm -f -- "$REQUEST_FILE"
           jq -e '.mailMessageMatched == true and .bootstrapAuthorityAbsent == true and .supportSafe == true and .tokenAbsent == true' "$EVIDENCE_FILE" >/dev/null
 
+      - name: Establish and verify current owner default Space access
+        working-directory: weave
+        run: |
+          umask 077
+          set -euo pipefail
+          infra/weave-workspace/compose.sh dogfood bootstrap-space \
+            --evidence-file "$WEAVE_DOGFOOD_EVIDENCE_DIR/owner-space.json"
+
       - name: Build, sign, install in place, and launch on physical iPhone
         working-directory: weave
         run: |
@@ -247,14 +255,19 @@ jobs:
               raise SystemExit("Physical preparation source mismatch")
           spec = json.loads(Path("specs/weave-specs.lock.json").read_text())["specCorpus"]["gitCommit"]
           tree = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], text=True).strip()
+          workspace = json.loads(Path("build/evidence/prepare-human-test/owner-space.json").read_text())
+          from tools.verify_main_promotion_evidence import owner_workspace_passed
+          if not owner_workspace_passed(workspace, sha, tree, spec):
+              raise SystemExit("Physical preparation lacks verified current owner Space access")
           output = Path("build/evidence/prepare-human-test/preparation-result.json")
           output.parent.mkdir(parents=True, exist_ok=True)
           output.write_text(json.dumps({
-              "schemaVersion": "weave.hil-preparation/v1", "candidateCommit": sha,
+              "schemaVersion": "weave.hil-preparation/v2", "candidateCommit": sha,
               "sourceTree": tree, "specificationCommit": spec,
               "qualificationRunId": int(os.environ["FULL_COMPOSE_E2E_RUN_ID"]),
               "qualificationRunAttempt": int(os.environ["FULL_COMPOSE_E2E_RUN_ATTEMPT"]),
               "toolchain": json.loads(os.environ["PHYSICAL_TOOLCHAIN_JSON"]),
+              "ownerWorkspace": workspace,
               "status": "passed", "install": "update_in_place",
               "supportSafe": True, "containsSecretValues": False,
           }, indent=2) + "\n")
@@ -277,6 +290,7 @@ jobs:
             echo
             echo "- Compose, macOS and iOS qualification: passed for ${DOGFOOD_COMMIT} (run ${FULL_COMPOSE_E2E_RUN_ID})"
             echo "- Dogfood Compose: running"
+            echo "- Default Space: current owner access verified; temporary setup authority removed"
             echo "- iPhone: updated in place with the development-signed build"
             echo "- Invitation inbox: ${mailpit_url}"
             echo "- Delivery path: direct development Compose and in-place signing"
@@ -295,5 +309,6 @@ jobs:
           path: |
             weave/build/evidence/prepare-human-test/preparation-result.json
             weave/build/evidence/prepare-human-test/tls-persistence.json
+            weave/build/evidence/prepare-human-test/owner-space.json
           if-no-files-found: error
           retention-days: 14

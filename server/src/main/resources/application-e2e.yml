@@ -50,8 +50,8 @@ weave:
   identity:
     invitations:
       bootstrap-owner:
-        enabled: true
-        token-file: /run/secrets/weave/bootstrap-owner-token
+        enabled: ${WEAVE_IDENTITY_BOOTSTRAP_OWNER_ENABLED:false}
+        token-file: ${WEAVE_IDENTITY_BOOTSTRAP_OWNER_TOKEN_FILE:}
       keycloak:
         base-url: http://keycloak:8080
         realm: weave

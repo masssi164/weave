@@ -4627,10 +4627,9 @@
       ],
       "testLevel": "live-e2e",
       "assertionFocus": [
-        "two non-destructive installs",
-        "OpenTofu idempotence",
-        "cached provider health",
-        "persistent state invariants"
+        "exact qualified source Compose deployment",
+        "identity readiness",
+        "persistent session invariants"
       ]
     },
     {
@@ -4645,10 +4644,10 @@
       ],
       "testLevel": "live-e2e",
       "assertionFocus": [
-        "exact-candidate TestFlight build",
-        "in-place upgrade",
-        "protected approval",
-        "blocked waiting state"
+        "exact-candidate development-signed build",
+        "in-place upgrade with stable identity",
+        "current owner Space access before installation",
+        "final qualification run and attempt binding"
       ]
     },
     {
@@ -4742,6 +4741,44 @@
         "honest Home version and unknown counts without operator instructions",
         "exact Admin policy/checks and opposite-audience denial",
         "member Home remains valid after service restart"
+      ]
+    },
+    {
+      "tag": "@human-ready-owner-space-preparation",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "operator",
+        "admin",
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "files",
+        "calendar",
+        "operator-release"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "never-existing default Space setup for the actual activated owner",
+        "verified retry preserves owner and memberships",
+        "temporary setup authority removed before member testing"
+      ]
+    },
+    {
+      "tag": "@human-ready-owner-space-access-preserved",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "operator",
+        "admin"
+      ],
+      "domains": [
+        "spaces",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "missing revoked suspended or ambiguous owner access blocks readiness",
+        "proof requires exact candidate and complete temporary authority cleanup"
       ]
     }
   ]

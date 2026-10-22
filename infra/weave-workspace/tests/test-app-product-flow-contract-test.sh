@@ -20,6 +20,7 @@ readonly GRADLE_TASKS="${REPOSITORY_ROOT}/gradle/tasks/architecture-lifecycle.gr
 readonly MODULE_BUILD="${REPOSITORY_ROOT}/weave-product-e2e/build.gradle"
 readonly MODULE_TASKS="${REPOSITORY_ROOT}/weave-product-e2e/gradle/tasks/product-flow.gradle"
 readonly FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java"
+readonly SPACE_PREPARATION="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/DefaultSpacePreparationJourney.java"
 readonly GENERATED_ADMIN="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedAdminApi.java"
 readonly GENERATED_USER="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/GeneratedUserApi.java"
 readonly BROWSER_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/OidcBrowserJourney.java"
@@ -209,7 +210,12 @@ contains "${DCR_CONTRACT_PROBE}" '"credentialsIncluded": False'
 
 contains "${MODULE_BUILD}" 'apply from: "${projectDir}/gradle/tasks/product-flow.gradle"'
 contains "${MODULE_TASKS}" "args 'install', '--with-deps', 'chromium'"
-contains "${FLOW}" '.bootstrapOwner(readBootstrapToken()'
+contains "${FLOW}" '.inviteOwner(email, "test-app-owner-" + runHash())'
+contains "${FLOW}" 'spacePreparation.prepare("CREATED")'
+contains "${FLOW}" 'spacePreparation.prepare("VERIFIED")'
+contains "${SPACE_PREPARATION}" '"bootstrap-owner"'
+contains "${SPACE_PREPARATION}" '"bootstrap-space"'
+absent "${E2E_COMPOSE_FILE}" '/run/secrets/weave/bootstrap-owner-token'
 contains "${GENERATED_ADMIN}" 'bootstrap.bootstrapOwnerInvitation('
 contains "${FLOW}" '.reconcileIdentitySession(session.accessToken())'
 contains "${GENERATED_USER}" 'identitySession.reconcileIdentitySession(headers(bearer))'

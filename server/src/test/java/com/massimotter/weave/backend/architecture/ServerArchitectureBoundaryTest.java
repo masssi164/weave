@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.architecture;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,6 +15,18 @@ class ServerArchitectureBoundaryTest {
 
     private static final String ENTERPRISE_TARGET_BOUNDARY_GATE = "ENTERPRISE_TARGET_BOUNDARY_GATE";
     private static final String BACKEND_PACKAGE = "com.massimotter.weave.backend.";
+    private static final Path SPACE_CREATION_FENCE_SOURCE = Path.of(
+            "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/spaces/adapter/SpacePersistence.java");
+    // WEAVE-DOMAIN-SPACES names this sole fixed statement under ADR 0023. The rest of its file remains guarded.
+    private static final String SPACE_CREATION_FENCE_DECLARATION =
+            "@Modifying(flushAutomatically = true) @Query(value = \"\"\" "
+                    + "insert into weave_spaces (organization_ref, space_ref, lifecycle_state, "
+                    + "created_at_utc, updated_at_utc, version) "
+                    + "values (:organizationRef, :spaceRef, 'ACTIVE', :now, :now, 0) "
+                    + "on conflict do nothing \"\"\", nativeQuery = true) "
+                    + "int insertIfAbsent(@Param(\"organizationRef\") String organizationRef, "
+                    + "@Param(\"spaceRef\") String spaceRef, @Param(\"now\") OffsetDateTime now);";
+
     private static final List<String> DOMAIN_FORBIDDEN_IMPORT_PREFIXES = List.of(
             BACKEND_PACKAGE + "controller.",
             BACKEND_PACKAGE + "model.",
@@ -489,14 +502,7 @@ class ServerArchitectureBoundaryTest {
                         .filter(source -> !nativeCollaborationSqlExceptions.contains(
                                 source.path().getFileName().toString()))
                         .toList())
-                .allSatisfy(source -> assertThat(source.text())
-                        .as(source.path().toString())
-                        .doesNotContain("createNativeQuery(")
-                        .doesNotContain("nativeQuery = true")
-                        .doesNotContain("nativeQuery=true")
-                        .doesNotContain("JdbcTemplate")
-                        .doesNotContain("NamedParameterJdbcTemplate")
-                        .doesNotContain("org.springframework.jdbc.core"));
+                .allSatisfy(ServerArchitectureBoundaryTest::assertNoUnreviewedNativeDataAccess);
         assertThat(dataAccessSources.stream()
                         .filter(source -> !nativeCollaborationSqlExceptions.contains(
                                 source.path().getFileName().toString()))
@@ -519,6 +525,78 @@ class ServerArchitectureBoundaryTest {
                         "SchemaCatalogFingerprint.java",
                         "MigrationCatalogReference.java",
                         "ServingSchemaAuthorityGuard.java");
+    }
+
+    @Test
+    void spaceCreationFenceGuardRejectsChangedSqlOrParameterSignature() throws IOException {
+        JavaSource source = spaceCreationFenceSource();
+        for (String changed : List.of(
+                source.text().replace("on conflict do nothing", "on conflict do update set lifecycle_state = 'ACTIVE'"),
+                source.text().replace(":organizationRef, :spaceRef", "'fixed-org', :spaceRef"),
+                source.text().replace("int insertIfAbsent(", "int executeArbitrarySql("))) {
+            assertThatThrownBy(() -> assertNoUnreviewedNativeDataAccess(withText(source, changed)))
+                    .isInstanceOf(AssertionError.class);
+        }
+    }
+
+    @Test
+    void spaceCreationFenceGuardRejectsAdditionalNativeQueriesAndJdbcInTheSameFile() throws IOException {
+        JavaSource source = spaceCreationFenceSource();
+        for (String added : List.of(
+                "@Query(value = \"select 1\", nativeQuery = true) int extraQuery();",
+                "@Query(value = \"select 1\", nativeQuery=   true) int extraQuery();",
+                "@Query(value = \"select 1\", nativeQuery = (true)) int extraQuery();",
+                "@NativeQuery(\"select 1\") int extraQuery();",
+                "@Query(value = \"select 1\", nativeQuery = false || true) int extraQuery();",
+                "@org.springframework.data.jpa.repository.NativeQuery(\"select 1\") int extraQuery();",
+                "entityManager.createNativeQuery(\"select 1\");",
+                "JdbcTemplate anotherExecutor;")) {
+            assertThatThrownBy(() -> assertNoUnreviewedNativeDataAccess(withText(source, source.text() + added)))
+                    .isInstanceOf(AssertionError.class);
+        }
+        assertThatThrownBy(() -> assertNoUnreviewedNativeDataAccess(
+                withText(source, source.text() + SPACE_CREATION_FENCE_DECLARATION)))
+                .isInstanceOf(AssertionError.class);
+    }
+
+    @Test
+    void spaceCreationFenceGuardCannotExemptAnotherSourceOrModule() throws IOException {
+        JavaSource source = spaceCreationFenceSource();
+        for (Path path : List.of(source.path().resolveSibling("AnotherSpacePersistence.java"),
+                Path.of("server/src/main/java/com/massimotter/weave/backend/spaces/adapter/SpacePersistence.java"))) {
+            JavaSource copied = new JavaSource(path, source.packageName(), source.imports(), source.text());
+            assertThatThrownBy(() -> assertNoUnreviewedNativeDataAccess(copied)).isInstanceOf(AssertionError.class);
+        }
+        JavaSource wrongPackage = new JavaSource(source.path(), BACKEND_PACKAGE + "other", source.imports(), source.text());
+        assertThatThrownBy(() -> assertNoUnreviewedNativeDataAccess(wrongPackage)).isInstanceOf(AssertionError.class);
+    }
+
+    private static JavaSource withText(JavaSource source, String text) {
+        return new JavaSource(source.path(), source.packageName(), source.imports(), text);
+    }
+
+    private static JavaSource spaceCreationFenceSource() throws IOException {
+        return persistenceSources().stream().filter(ServerArchitectureBoundaryTest::ownsSpaceCreationFence)
+                .findFirst().orElseThrow();
+    }
+
+    private static boolean ownsSpaceCreationFence(JavaSource source) {
+        return source.path().normalize().endsWith(SPACE_CREATION_FENCE_SOURCE)
+                && source.packageName().equals(BACKEND_PACKAGE + "spaces.adapter");
+    }
+
+    private static void assertNoUnreviewedNativeDataAccess(JavaSource source) {
+        String guarded = source.text().replaceAll("\\s+", " ").trim();
+        if (ownsSpaceCreationFence(source)) {
+            assertThat(guarded).as("exact reviewed Space creation-fence declaration")
+                    .containsOnlyOnce(SPACE_CREATION_FENCE_DECLARATION);
+            guarded = guarded.replace(SPACE_CREATION_FENCE_DECLARATION, "");
+        }
+        assertThat(guarded).as(source.path().toString())
+                .doesNotContainPattern("createNativeQuery\\s*\\(")
+                .doesNotContainPattern("nativeQuery\\s*=")
+                .doesNotContainPattern("\\b(?:NativeQuery|NamedNativeQuery|NamedNativeQueries)\\b")
+                .doesNotContain("JdbcTemplate", "NamedParameterJdbcTemplate", "org.springframework.jdbc.core");
     }
 
     @Test
