@@ -37,6 +37,9 @@ import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_failure.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_write_result.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
 import 'package:weave/features/onboarding/presentation/organization_access_screen.dart';
@@ -1167,14 +1170,7 @@ void main() {
               title: eventTitle,
               deadline: actionDeadline,
             );
-            await _calendarReadback(tester, eventTitle, true);
-            eventId = container
-                .read(calendarProvider)
-                .requireValue
-                .events
-                .where((event) => event.title == eventTitle)
-                .single
-                .id;
+            eventId = (await _calendarReadback(tester, eventTitle, true))!.id;
           case 'calendar-observe':
             expect(role, 'B');
             await tapNativeDualBack(tester, deadline: actionDeadline);
@@ -1182,14 +1178,7 @@ void main() {
               tester,
               Icons.calendar_month_outlined,
             );
-            await _calendarReadback(tester, eventTitle, true);
-            eventId = container
-                .read(calendarProvider)
-                .requireValue
-                .events
-                .where((event) => event.title == eventTitle)
-                .single
-                .id;
+            eventId = (await _calendarReadback(tester, eventTitle, true))!.id;
           case 'calendar-update':
             expect(role, 'A');
             await editNativeDualCalendarEvent(
@@ -1198,50 +1187,35 @@ void main() {
               title: updatedTitle,
               deadline: actionDeadline,
             );
-            await _calendarReadback(tester, updatedTitle, true);
             expect(
-              container
-                  .read(calendarProvider)
-                  .requireValue
-                  .events
-                  .where((event) => event.title == updatedTitle)
-                  .single
-                  .id,
+              (await _calendarReadback(tester, updatedTitle, true))!.id,
               eventId,
             );
           case 'calendar-observe-updated':
             expect(role, 'B');
-            await _calendarReadback(tester, updatedTitle, true);
-            expect(find.text(eventTitle), findsNothing);
             expect(
-              container
-                  .read(calendarProvider)
-                  .requireValue
-                  .events
-                  .where((event) => event.title == updatedTitle)
-                  .single
-                  .id,
+              (await _calendarReadback(tester, updatedTitle, true))!.id,
               eventId,
             );
+            expect(find.text(eventTitle), findsNothing);
           case 'calendar-delete':
             expect(role, 'A');
             await navigateNativeDualDestination(
               tester,
               Icons.calendar_month_outlined,
             );
-            await _calendarReadback(tester, updatedTitle, true);
+            final beforeCancellation = (await _calendarReadback(
+              tester,
+              updatedTitle,
+              true,
+            ))!;
+            expect(beforeCancellation.id, eventId);
             await _tap(
               tester,
               find.byTooltip(
                 _copy(tester).calendarDeleteEventTooltip(updatedTitle),
               ),
             );
-            final beforeCancellation = container
-                .read(calendarProvider)
-                .requireValue
-                .events
-                .where((event) => event.id == eventId)
-                .single;
             await _tap(
               tester,
               find.widgetWithText(
@@ -1249,15 +1223,8 @@ void main() {
                 _copy(tester).calendarCancelButton,
               ),
             );
-            await _calendarReadback(tester, updatedTitle, true);
             expect(
-              container
-                  .read(calendarProvider)
-                  .requireValue
-                  .events
-                  .where((event) => event.id == eventId)
-                  .single
-                  .etag,
+              (await _calendarReadback(tester, updatedTitle, true))!.etag,
               beforeCancellation.etag,
               reason:
                   'Cancelling deletion must preserve the shared event version.',
@@ -2600,11 +2567,14 @@ Future<void> editNativeDualCalendarEvent(
   required String tooltip,
   required String title,
   required DateTime deadline,
+  void Function(String)? emit,
+  DateTime Function()? now,
 }) async {
+  final clock = now ?? DateTime.now;
   final control = find.byWidgetPredicate(
     (widget) => widget is IconButton && widget.tooltip == tooltip,
   );
-  Duration remaining() => deadline.difference(DateTime.now());
+  Duration remaining() => deadline.difference(clock());
   await _wait(
     tester,
     () =>
@@ -2613,10 +2583,18 @@ Future<void> editNativeDualCalendarEvent(
         control.hitTestable().evaluate().length == 1,
     remaining(),
   );
-  if (!DateTime.now().isBefore(deadline)) {
+  if (!clock().isBefore(deadline)) {
     throw TestFailure('The real Calendar editor action deadline expired.');
   }
   final copy = AppLocalizations.of(tester.element(control));
+  final container = ProviderScope.containerOf(tester.element(control));
+  final expected = await _awaitNativeCalendarContext(
+    tester,
+    container,
+    deadline: deadline,
+    now: clock,
+    emit: emit,
+  );
   await _tap(tester, control);
   final field = find.descendant(
     of: find.byType(AlertDialog),
@@ -2633,12 +2611,12 @@ Future<void> editNativeDualCalendarEvent(
         tester.widget<TextField>(field).enabled != false,
     remaining(),
   );
-  if (!DateTime.now().isBefore(deadline)) {
+  if (!clock().isBefore(deadline)) {
     throw TestFailure('The real Calendar editor action deadline expired.');
   }
   expect(field, findsOneWidget);
   await tester.enterText(field, title);
-  if (!DateTime.now().isBefore(deadline)) {
+  if (!clock().isBefore(deadline)) {
     throw TestFailure('The real Calendar editor action deadline expired.');
   }
   await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
@@ -2646,6 +2624,14 @@ Future<void> editNativeDualCalendarEvent(
   await _tap(
     tester,
     find.widgetWithText(FilledButton, copy.calendarSaveButton),
+  );
+  await _waitNativeCalendarEditorClosed(
+    tester,
+    container: container,
+    expected: expected,
+    deadline: deadline,
+    emit: emit,
+    now: now,
   );
 }
 
@@ -2713,33 +2699,395 @@ Future<Finder> waitNativeDualCalendarRefresh(
   }
 }
 
-Future<void> _calendarReadback(
+class _NativeCalendarContext {
+  _NativeCalendarContext(this.owner, this.scope, this.selection, this.date);
+  final String owner;
+  final String scope;
+  final String selection;
+  final DateTime date;
+
+  factory _NativeCalendarContext.capture(ProviderContainer container) {
+    final state = container.read(calendarWorkspaceContextProvider);
+    final workspace = state.asData?.value;
+    if (state.isLoading || state.hasError || workspace?.selectedScope == null) {
+      _failNativeCalendar('context-unavailable', container);
+    }
+    return _NativeCalendarContext(
+      workspace!.ownerKey,
+      workspace.selectedScope!.id,
+      container.read(selectedCalendarScopeProvider).id,
+      container.read(calendarViewDateProvider),
+    );
+  }
+
+  void check(ProviderContainer container, void Function(String)? emit) {
+    final workspace = container.read(calendarWorkspaceContextProvider);
+    final current = workspace.asData?.value;
+    if (workspace.hasError && !workspace.isLoading) {
+      _failNativeCalendar('context-error', container, emit: emit);
+    }
+    if (container.read(calendarViewDateProvider) != date ||
+        container.read(selectedCalendarScopeProvider).id != selection ||
+        (current != null &&
+            (current.ownerKey != owner ||
+                current.selectedScope?.id != scope))) {
+      _failNativeCalendar('context-changed', container, emit: emit);
+    }
+  }
+}
+
+Future<_NativeCalendarContext> _awaitNativeCalendarContext(
+  WidgetTester tester,
+  ProviderContainer container, {
+  required DateTime deadline,
+  required DateTime Function() now,
+  void Function(String)? emit,
+}) async {
+  while (true) {
+    final state = container.read(calendarWorkspaceContextProvider);
+    if (state.hasError && !state.isLoading) {
+      _failNativeCalendar('context-error', container, emit: emit);
+    }
+    if (!now().isBefore(deadline)) {
+      _failNativeCalendar('context-readiness-deadline', container, emit: emit);
+    }
+    if (!state.isLoading && state.asData?.value.selectedScope != null) {
+      return _NativeCalendarContext.capture(container);
+    }
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
+Never _failNativeCalendar(
+  String reason,
+  ProviderContainer container, {
+  void Function(String)? emit,
+  int editorCount = 0,
+  bool saveEnabled = false,
+  bool visibleFailure = false,
+  int modelMatches = 0,
+  int rowMatches = 0,
+}) {
+  final state = container.read(calendarProvider);
+  final workspace = container.read(calendarWorkspaceContextProvider);
+  final error = state.error ?? workspace.error;
+  final failure = error is CalendarFailure ? error : null;
+  final status = failure?.httpStatus;
+  (emit ?? _stage)(
+    'calendar-validation-failed reason=$reason '
+    'editorCount=${editorCount.clamp(0, 99)} saveEnabled=$saveEnabled '
+    'visibleFailure=$visibleFailure loading=${state.isLoading} error=${state.hasError} '
+    'modelMatches=${modelMatches.clamp(0, 99)} rowMatches=${rowMatches.clamp(0, 99)} '
+    'failureKind=${failure?.kind.name ?? 'unavailable'} '
+    'failureStage=${failure?.stage.name ?? 'unavailable'} '
+    'httpStatus=${status != null && status >= 100 && status <= 599 ? status : 'unavailable'} '
+    'writeOutcome=${error is CalendarWriteFailure
+        ? error.outcome.name
+        : failure?.writeMayHaveCommitted == true
+        ? 'uncertain'
+        : 'unavailable'}',
+  );
+  throw TestFailure('Shared Calendar validation failed: $reason.');
+}
+
+Finder _nativeCalendarEditor() => find.ancestor(
+  of: find.byWidgetPredicate(
+    (widget) =>
+        widget is Semantics &&
+        widget.properties.identifier == 'calendar-event-title',
+  ),
+  matching: find.byType(AlertDialog),
+);
+
+Future<void> _waitNativeCalendarEditorClosed(
+  WidgetTester tester, {
+  required ProviderContainer container,
+  required _NativeCalendarContext expected,
+  required DateTime deadline,
+  DateTime Function()? now,
+  void Function(String)? emit,
+}) async {
+  final clock = now ?? DateTime.now;
+  while (true) {
+    expected.check(container, emit);
+    final editor = _nativeCalendarEditor();
+    final count = editor.evaluate().length;
+    if (count == 0) {
+      if (!clock().isBefore(deadline)) {
+        _failNativeCalendar('save-completion-deadline', container, emit: emit);
+      }
+      return;
+    }
+    if (count != 1) {
+      _failNativeCalendar(
+        'editor-not-unique',
+        container,
+        emit: emit,
+        editorCount: count,
+      );
+    }
+    final copy = AppLocalizations.of(tester.element(editor));
+    final failures = {
+      copy.calendarOperationFailure,
+      copy.calendarUnsupportedEdit,
+      copy.calendarVersionConflict,
+      copy.calendarWriteUncertain,
+      copy.calendarTitleRequired,
+    };
+    final visibleFailure = find
+        .descendant(
+          of: editor,
+          matching: find.byWidgetPredicate(
+            (widget) => widget is Text && failures.contains(widget.data),
+          ),
+        )
+        .evaluate()
+        .isNotEmpty;
+    final save = find.descendant(
+      of: find.descendant(
+        of: editor,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.identifier == 'calendar-save-event',
+        ),
+      ),
+      matching: find.byType(FilledButton),
+    );
+    final saveEnabled =
+        save.evaluate().length == 1 &&
+        tester.widget<FilledButton>(save).onPressed != null;
+    if (visibleFailure && saveEnabled) {
+      _failNativeCalendar(
+        find
+                .descendant(
+                  of: editor,
+                  matching: find.text(copy.calendarWriteUncertain),
+                )
+                .evaluate()
+                .isNotEmpty
+            ? 'save-uncertain'
+            : 'save-rejected',
+        container,
+        emit: emit,
+        editorCount: count,
+        visibleFailure: true,
+        saveEnabled: true,
+      );
+    }
+    if (!clock().isBefore(deadline)) {
+      _failNativeCalendar(
+        'save-pending-deadline',
+        container,
+        emit: emit,
+        editorCount: count,
+        visibleFailure: visibleFailure,
+        saveEnabled: saveEnabled,
+      );
+    }
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
+Future<CalendarEvent?> _calendarReadback(
   WidgetTester tester,
   String title,
   bool present,
-) async {
-  final deadline = DateTime.now().add(const Duration(seconds: 90));
-  final container = ProviderScope.containerOf(
-    tester.element(find.byType(WeaveApp)),
+) => readNativeDualCalendarEvent(
+  tester,
+  title,
+  present,
+  container: ProviderScope.containerOf(
+    tester.element(find.byType(CalendarScreen)),
+  ),
+  deadline: DateTime.now().add(const Duration(seconds: 90)),
+);
+
+/// Reads through the actual refresh control; editor contents never prove an event.
+Future<CalendarEvent?> readNativeDualCalendarEvent(
+  WidgetTester tester,
+  String title,
+  bool present, {
+  required ProviderContainer container,
+  required DateTime deadline,
+  DateTime Function()? now,
+  void Function(String)? emit,
+}) async {
+  final clock = now ?? DateTime.now;
+  await waitNativeDualCalendarRefresh(
+    tester,
+    screen: find.byType(CalendarScreen),
+    container: container,
+    deadline: deadline,
+    now: now,
+    emit: emit,
+  );
+  final expected = await _awaitNativeCalendarContext(
+    tester,
+    container,
+    deadline: deadline,
+    now: clock,
+    emit: emit,
+  );
+  await _waitNativeCalendarEditorClosed(
+    tester,
+    container: container,
+    expected: expected,
+    deadline: deadline,
+    now: now,
+    emit: emit,
   );
   while (true) {
-    final refresh = await waitNativeDualCalendarRefresh(
+    expected.check(container, emit);
+    await waitNativeDualCalendarRefresh(
       tester,
       screen: find.byType(CalendarScreen),
       container: container,
       deadline: deadline,
+      now: now,
+      emit: emit,
     );
-    await tester.drag(refresh, const Offset(0, 450));
-    await tester.pump(const Duration(seconds: 2));
-    final current = container.read(calendarProvider);
-    if (!current.isLoading &&
-        current.hasValue &&
-        !current.hasError &&
-        find.text(title).evaluate().length == (present ? 1 : 0)) {
-      return;
+    final screen = find.byType(CalendarScreen);
+    final copy = AppLocalizations.of(tester.element(screen));
+    final refresh = find.descendant(
+      of: screen,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is IconButton &&
+            widget.tooltip == copy.calendarRefreshButton,
+      ),
+    );
+    if (find.byType(AlertDialog).evaluate().isNotEmpty ||
+        refresh.evaluate().length != 1 ||
+        refresh.hitTestable().evaluate().length != 1) {
+      _failNativeCalendar('refresh-not-hittable', container, emit: emit);
     }
-    if (!DateTime.now().isBefore(deadline)) {
-      throw TestFailure('Shared Calendar UI readback did not converge.');
+    if (!clock().isBefore(deadline)) {
+      _failNativeCalendar('readback-deadline', container, emit: emit);
+    }
+    final before =
+        container.read(calendarProvider).asData?.value.readGeneration ?? 0;
+    await _tap(tester, refresh);
+    int? renderedGeneration;
+    while (true) {
+      expected.check(container, emit);
+      final current = container.read(calendarProvider);
+      if (!clock().isBefore(deadline)) {
+        _failNativeCalendar(
+          current.hasError ? 'readback-error' : 'readback-deadline',
+          container,
+          emit: emit,
+        );
+      }
+      final workspace = container.read(calendarWorkspaceContextProvider);
+      if (current.hasError && !current.isLoading) {
+        _failNativeCalendar('readback-error', container, emit: emit);
+      }
+      final value = current.asData?.value;
+      if (!current.isLoading &&
+          !workspace.isLoading &&
+          !workspace.hasError &&
+          value != null &&
+          value.readGeneration > 0 &&
+          value.readGeneration > before) {
+        if (renderedGeneration != value.readGeneration) {
+          // A completed provider request can precede its dependent widget frame.
+          renderedGeneration = value.readGeneration;
+          await tester.pump();
+          continue;
+        }
+        final matches = value.events
+            .where((event) => event.title == title)
+            .toList();
+        final titleRows = find.descendant(
+          of: screen,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Semantics &&
+                widget.properties.identifier?.startsWith('calendar-event-') ==
+                    true &&
+                find
+                    .descendant(
+                      of: find.byWidget(widget),
+                      matching: find.byWidgetPredicate(
+                        (child) => child is Text && child.data == title,
+                      ),
+                    )
+                    .evaluate()
+                    .isNotEmpty,
+          ),
+        );
+        final rowCount = titleRows.evaluate().length;
+        if (matches.length > 1 || rowCount > 1) {
+          _failNativeCalendar(
+            'event-not-unique',
+            container,
+            emit: emit,
+            modelMatches: matches.length,
+            rowMatches: rowCount,
+          );
+        }
+        if (!present && matches.isEmpty && rowCount == 0) {
+          expected.check(container, emit);
+          final after = container.read(calendarProvider);
+          final afterWorkspace = container.read(
+            calendarWorkspaceContextProvider,
+          );
+          if (!clock().isBefore(deadline)) {
+            _failNativeCalendar('readback-deadline', container, emit: emit);
+          }
+          if (!after.isLoading &&
+              !after.hasError &&
+              !afterWorkspace.isLoading &&
+              !afterWorkspace.hasError &&
+              after.asData?.value.readGeneration == value.readGeneration) {
+            return null;
+          }
+        }
+        if (present && matches.length == 1 && rowCount == 1) {
+          final event = matches.single;
+          final row = find.descendant(
+            of: screen,
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Semantics &&
+                  widget.properties.identifier == 'calendar-event-${event.id}',
+            ),
+          );
+          if (row.evaluate().length == 1) {
+            await tester.ensureVisible(row);
+            await tester.pump();
+            expected.check(container, emit);
+            final after = container.read(calendarProvider);
+            final afterWorkspace = container.read(
+              calendarWorkspaceContextProvider,
+            );
+            if (!clock().isBefore(deadline)) {
+              _failNativeCalendar('readback-deadline', container, emit: emit);
+            }
+            if (!after.isLoading &&
+                !afterWorkspace.isLoading &&
+                !afterWorkspace.hasError &&
+                !after.hasError &&
+                after.asData?.value.readGeneration == value.readGeneration &&
+                row.hitTestable().evaluate().length == 1) {
+              return event;
+            }
+          }
+        }
+        break; // Preserve peer eventual-read retries, always via another real refresh.
+      }
+      if (!clock().isBefore(deadline)) {
+        _failNativeCalendar(
+          current.hasError ? 'readback-error' : 'readback-deadline',
+          container,
+          emit: emit,
+        );
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    if (!clock().isBefore(deadline)) {
+      _failNativeCalendar('readback-deadline', container, emit: emit);
     }
   }
 }

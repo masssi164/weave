@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:weave/features/calendar/domain/entities/calendar_workspace_context.dart';
 import 'dart:convert';
 import 'dart:math';
@@ -36,8 +37,11 @@ class CalendarFacadeClient {
        _diagnostic = diagnostic ?? _logDiagnostic;
 
   final void Function(String) _diagnostic;
-  static void _logDiagnostic(String message) =>
-      developer.log(message, name: 'weave.calendar');
+  static void _logDiagnostic(String message) {
+    developer.log(message, name: 'weave.calendar');
+    debugPrint(message);
+  }
+
   void _report(CalendarFailure failure) {
     const candidate = String.fromEnvironment('WEAVE_CANDIDATE_COMMIT');
     final correlation = RegExp(r'^[0-9a-f]{40}$').hasMatch(candidate)
