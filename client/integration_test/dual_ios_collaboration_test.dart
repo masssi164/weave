@@ -2587,23 +2587,85 @@ Future<void> editNativeDualCalendarEvent(
 Finder _message(String value) =>
     find.byWidgetPredicate((widget) => widget is Text && widget.data == value);
 
+Future<Finder> waitNativeDualCalendarRefresh(
+  WidgetTester tester, {
+  required Finder screen,
+  required ProviderContainer container,
+  required DateTime deadline,
+  DateTime Function()? now,
+  void Function(String)? emit,
+}) async {
+  final clock = now ?? DateTime.now;
+  final refresh = find.descendant(
+    of: screen,
+    matching: find.byType(RefreshIndicator),
+  );
+  var admittedFramePumped = false;
+  while (true) {
+    final screenCount = screen.evaluate().length;
+    final refreshCount = refresh.evaluate().length;
+    final capability = container.read(workspaceCapabilitySnapshotProvider);
+    final calendar = capability.asData?.value.calendar;
+    Never fail(String reason) {
+      final state = capability.hasError
+          ? 'error'
+          : capability is AsyncLoading<WorkspaceCapabilitySnapshot>
+          ? 'loading'
+          : 'data';
+      (emit ?? _stage)(
+        'calendar-readiness-failed reason=$reason '
+        'screenCount=${screenCount.clamp(0, 99)} '
+        'refreshCount=${refreshCount.clamp(0, 99)} '
+        'capabilityState=$state '
+        'readiness=${calendar?.readiness.name ?? 'unavailable'} '
+        'policy=${calendar?.policyState.name ?? 'unavailable'} '
+        'spaceAccessUnavailable=${calendar?.memberSpaceAccessUnavailable ?? false}',
+      );
+      throw TestFailure('Shared Calendar UI readiness failed: $reason.');
+    }
+
+    if (screenCount != 1) fail('calendar-screen-not-unique');
+    if (refreshCount > 1) fail('calendar-refresh-not-unique');
+    if (capability.hasError) fail('capability-error');
+    if (!clock().isBefore(deadline)) fail('readiness-deadline');
+    if (capability is AsyncLoading<WorkspaceCapabilitySnapshot>) {
+      await tester.pump(const Duration(milliseconds: 250));
+      continue;
+    }
+    if (calendar?.isReady != true ||
+        calendar?.policyState != WorkspaceCapabilityPolicyState.allowed ||
+        calendar?.memberSpaceAccessUnavailable == true) {
+      fail('calendar-not-admitted');
+    }
+    if (refreshCount == 0 && !admittedFramePumped) {
+      // A completed capability future can precede its scheduled widget rebuild.
+      admittedFramePumped = true;
+      await tester.pump();
+      continue;
+    }
+    if (refreshCount != 1) fail('calendar-refresh-missing');
+    return refresh;
+  }
+}
+
 Future<void> _calendarReadback(
   WidgetTester tester,
   String title,
   bool present,
 ) async {
   final deadline = DateTime.now().add(const Duration(seconds: 90));
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(WeaveApp)),
+  );
   while (true) {
-    final refresh = find.descendant(
-      of: find.byType(CalendarScreen),
-      matching: find.byType(RefreshIndicator),
+    final refresh = await waitNativeDualCalendarRefresh(
+      tester,
+      screen: find.byType(CalendarScreen),
+      container: container,
+      deadline: deadline,
     );
-    expect(refresh, findsOneWidget);
     await tester.drag(refresh, const Offset(0, 450));
     await tester.pump(const Duration(seconds: 2));
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(WeaveApp)),
-    );
     final current = container.read(calendarProvider);
     if (!current.isLoading &&
         current.hasValue &&
