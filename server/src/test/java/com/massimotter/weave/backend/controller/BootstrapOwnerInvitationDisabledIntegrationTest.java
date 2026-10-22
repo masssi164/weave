@@ -24,6 +24,14 @@ class BootstrapOwnerInvitationDisabledIntegrationTest {
   @MockitoBean JwtDecoder jwtDecoder;
 
   @Test
+  void defaultSpaceBootstrapDoesNotExistDuringNormalStartup() throws Exception {
+    mockMvc.perform(post(DefaultSpaceBootstrapController.PATH)
+            .header(DefaultSpaceBootstrapController.CREDENTIAL_HEADER, "not-a-secret")
+            .contentType(MediaType.APPLICATION_JSON).content("{}"))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
   void bootstrapEndpointDoesNotExistWhenTheOneShotAuthorityIsDisabled() throws Exception {
     mockMvc
         .perform(

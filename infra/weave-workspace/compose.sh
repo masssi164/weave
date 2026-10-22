@@ -7,7 +7,7 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
 
 if [[ $# -lt 2 ]]; then
-  printf 'Usage: %s <dev|dogfood|prod|e2e> <secrets-init|render|configure|config|prepare|provider-prepare|keycloak-migration-apply|bootstrap-owner|up|down|reset|ps|logs|persistence-restart-proof|chat-provider-stop-proof|chat-provider-start-proof|collaboration-restart-proof> [args...]\n' "$0" >&2
+  printf 'Usage: %s <dev|dogfood|prod|e2e> <secrets-init|render|configure|config|prepare|provider-prepare|keycloak-migration-apply|bootstrap-owner|bootstrap-space|up|down|reset|ps|logs|persistence-restart-proof|chat-provider-stop-proof|chat-provider-start-proof|collaboration-restart-proof> [args...]\n' "$0" >&2
   exit 2
 fi
 
@@ -21,11 +21,11 @@ if [[ "$1" == "e2e" && "$2" == "foreign-organization-fixture" ]]; then
     --env-file "${WEAVE_ENV_FILE:?WEAVE_ENV_FILE is required for isolated E2E fixture}"
 fi
 
-if [[ "$1" == "dogfood" && "$2" == "bootstrap-owner" ]]; then
+if [[ "$1" == "dogfood" && ( "$2" == "bootstrap-owner" || "$2" == "bootstrap-space" ) ]]; then
   exec python3 "${ROOT_DIR}/scripts/dogfood_lifecycle.py" \
-    bootstrap-owner \
+    "$2" \
     --root "${ROOT_DIR}" \
-    --env-file "${WEAVE_ENV_FILE:?WEAVE_ENV_FILE is required for dogfood owner bootstrap}" \
+    --env-file "${WEAVE_ENV_FILE:?WEAVE_ENV_FILE is required for dogfood bootstrap}" \
     -- "${@:3}"
 fi
 

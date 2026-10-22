@@ -163,7 +163,15 @@ public class WorkspaceCapabilityService {
     }
 
     public WorkspaceCapabilitiesResponse snapshot(Jwt jwt) {
-        EffectivePolicy policy = effectivePolicy(jwt);
+        return snapshotForPolicy(effectivePolicy(jwt));
+    }
+
+    /** Uses an already verified live member context; does not authenticate or create a session. */
+    public WorkspaceCapabilitiesResponse snapshotForVerifiedMember(OrganizationIdentityContext identity) {
+        return snapshotForPolicy(effectivePolicy(java.util.Objects.requireNonNull(identity)));
+    }
+
+    private WorkspaceCapabilitiesResponse snapshotForPolicy(EffectivePolicy policy) {
         WorkspaceCapabilityReadiness shellAccessReadiness = shellAccessReadiness();
         return new WorkspaceCapabilitiesResponse(
                 status(
@@ -325,6 +333,17 @@ public class WorkspaceCapabilityService {
                         ? List.of()
                         : jwt.getClaimAsStringList("weave_capabilities"))
                 : effectivePolicy(jwt).capabilities();
+        requireGranted(grantedCapabilities, capability, module, operation);
+    }
+
+    /** Shares normal member policy with bounded setup after authoritative identity verification. */
+    public void requireCapabilityForVerifiedMember(OrganizationIdentityContext identity,
+            String capability, String module, String operation) {
+        requireGranted(effectivePolicy(java.util.Objects.requireNonNull(identity)).capabilities(),
+                capability, module, operation);
+    }
+
+    private void requireGranted(Set<String> grantedCapabilities, String capability, String module, String operation) {
         if (!grantedCapabilities.contains(capability)) {
             throw new ApiErrorException(
                     HttpStatus.FORBIDDEN,

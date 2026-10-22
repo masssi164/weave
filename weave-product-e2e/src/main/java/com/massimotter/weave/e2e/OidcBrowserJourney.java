@@ -275,7 +275,7 @@ final class OidcBrowserJourney implements AutoCloseable {
   }
 
   void provisionDefaultSpaceThroughAdminConsole(
-      String email, String password, Runnable verifyNoSpaceBeforeSetup) {
+      String email, String password, Runnable verifySpaceBeforeConfirmation) {
     URI console = environment.productOrigin().resolve("/admin-console/");
     try (BrowserContext context =
         browser.newContext(new Browser.NewContextOptions().setLocale("en-US"))) {
@@ -291,7 +291,7 @@ final class OidcBrowserJourney implements AutoCloseable {
       Locator setup = page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions()
           .setName("Create or confirm default Space").setExact(true));
       setup.waitFor();
-      verifyNoSpaceBeforeSetup.run();
+      verifySpaceBeforeConfirmation.run();
       Response response = page.waitForResponse(
           value -> value.url().equals(console.resolve("/api/admin/spaces").toString())
               && "POST".equals(value.request().method()),
@@ -302,8 +302,8 @@ final class OidcBrowserJourney implements AutoCloseable {
       }
       JsonNode created = new tools.jackson.databind.ObjectMapper().readTree(response.text());
       if (created == null || !"workspace-default".equals(created.path("spaceRef").asString())
-          || !"CREATED".equals(created.path("result").asString())) {
-        throw new ProductFlowException("First-owner Admin Console did not create the default Space");
+          || !"UNCHANGED".equals(created.path("result").asString())) {
+        throw new ProductFlowException("Admin Console did not preserve the prepared default Space");
       }
       page.getByText(java.util.regex.Pattern.compile(
           "^Default Space setup is confirmed for your account\\.")).waitFor();
