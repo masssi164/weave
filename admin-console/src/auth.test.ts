@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveAdminConsoleConfig } from "./api";
 import { BrowserOidcPkceClient, type BrowserOidcDependencies } from "./auth";
 
@@ -27,6 +27,8 @@ function browser(fetchImpl: typeof fetch = vi.fn() as unknown as typeof fetch) {
 }
 
 beforeEach(() => sessionStorage.clear());
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("BrowserOidcPkceClient", () => {
   it("creates only an Authorization Code + PKCE S256 browser request", async () => {
@@ -95,6 +97,28 @@ describe("BrowserOidcPkceClient", () => {
       "https://admin.example.invalid/admin-console/",
     );
     expect(JSON.stringify(calls)).not.toMatch(/\/admin\/realms\//i);
+  });
+
+  it("keeps the native browser fetch receiver during the default callback exchange", async () => {
+    const fetchImpl = vi.fn(function (this: unknown) {
+      if (this !== globalThis) throw new TypeError("Illegal invocation");
+      return Promise.resolve(new Response(
+        JSON.stringify({ access_token: "browser-token", token_type: "Bearer" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ));
+    });
+    vi.stubGlobal("fetch", fetchImpl);
+    const client = new BrowserOidcPkceClient(config);
+    const authorizationUrl = new URL(await client.createAuthorizationUrl());
+    globalThis.history.replaceState(null, "", `?${new URLSearchParams({
+      code: "one-time-code",
+      state: authorizationUrl.searchParams.get("state")!,
+    })}`);
+
+    await expect(client.completeAuthorizationCallback()).resolves.toBe(true);
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(client.token()).toBe("browser-token");
   });
 
   it("fails closed before token exchange when callback state does not match", async () => {
