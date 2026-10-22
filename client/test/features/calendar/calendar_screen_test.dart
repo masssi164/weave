@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
@@ -166,15 +167,21 @@ const _readySnapshot = WorkspaceCapabilitySnapshot(
   ),
 );
 
-WorkspaceCapabilitySnapshot _calendarUnavailableSnapshot() {
+WorkspaceCapabilitySnapshot _calendarUnavailableSnapshot({
+  bool policyBlocked = false,
+  bool memberSpaceAccessUnavailable = false,
+}) {
   return WorkspaceCapabilitySnapshot(
     shellAccess: _readySnapshot.shellAccess,
     chat: _readySnapshot.chat,
     files: _readySnapshot.files,
-    calendar: const WorkspaceCapabilityState(
+    calendar: WorkspaceCapabilityState(
       capability: WorkspaceCapability.calendar,
       readiness: WorkspaceCapabilityReadiness.unavailable,
-      policyState: WorkspaceCapabilityPolicyState.allowed,
+      policyState: policyBlocked
+          ? WorkspaceCapabilityPolicyState.policyBlocked
+          : WorkspaceCapabilityPolicyState.allowed,
+      memberSpaceAccessUnavailable: memberSpaceAccessUnavailable,
     ),
     boards: _readySnapshot.boards,
   );
@@ -192,6 +199,235 @@ class _CalendarCapabilityController
 }
 
 void main() {
+  for (final completeBeforeFrame in [false, true]) {
+    testWidgets(
+      'Calendar readiness handles pending capability, completed before frame: $completeBeforeFrame',
+      (tester) async {
+        final gate = Completer<WorkspaceCapabilitySnapshot>();
+        final capability = FutureProvider((ref) => gate.future);
+        await tester.pumpWidget(
+          createTestApp(
+            const CalendarScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWith(
+                (ref) => ref.watch(capability),
+              ),
+              calendarRepositoryProvider.overrideWithValue(
+                _FakeCalendarRepository(events: []),
+              ),
+              calendarEvaluationTimeZoneProvider.overrideWith(
+                (ref) async => 'Europe/Berlin',
+              ),
+            ],
+          ),
+        );
+        await tester.pump();
+        final refresh = find.descendant(
+          of: find.byType(CalendarScreen),
+          matching: find.byType(RefreshIndicator),
+        );
+        expect(refresh, findsNothing);
+        // Reproduce the premature assertion used by the protected UI readback.
+        expect(
+          () => expect(refresh, findsOneWidget),
+          throwsA(isA<TestFailure>()),
+        );
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(CalendarScreen)),
+        );
+        final started = tester.binding.clock.now();
+        if (completeBeforeFrame) {
+          gate.complete(_readySnapshot);
+          await container.read(capability.future);
+          expect(
+            container
+                .read(workspaceCapabilitySnapshotProvider)
+                .requireValue
+                .calendar
+                .isReady,
+            isTrue,
+          );
+          expect(refresh, findsNothing);
+        } else {
+          Timer(
+            const Duration(milliseconds: 500),
+            () => gate.complete(_readySnapshot),
+          );
+        }
+        final ready = await dual.waitNativeDualCalendarRefresh(
+          tester,
+          screen: find.byType(CalendarScreen),
+          container: container,
+          deadline: started.add(const Duration(seconds: 1)),
+          now: tester.binding.clock.now,
+        );
+        expect(
+          tester.binding.clock.now().difference(started),
+          completeBeforeFrame
+              ? Duration.zero
+              : const Duration(milliseconds: 500),
+        );
+        expect(ready, findsOneWidget);
+      },
+    );
+  }
+
+  for (final entry in <String, AsyncValue<WorkspaceCapabilitySnapshot>>{
+    'denied': AsyncData(_calendarUnavailableSnapshot()),
+    'policy-denied': AsyncData(
+      _calendarUnavailableSnapshot(policyBlocked: true),
+    ),
+    'space-denied': AsyncData(
+      _calendarUnavailableSnapshot(
+        policyBlocked: true,
+        memberSpaceAccessUnavailable: true,
+      ),
+    ),
+    'error': AsyncError(
+      const AppFailure.unknown('PRIVATE-DETAIL-MUST-NOT-APPEAR'),
+      StackTrace.current,
+    ),
+    'loading': const AsyncLoading(),
+  }.entries) {
+    testWidgets('native Calendar readiness rejects ${entry.key}', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(entry.value),
+          ],
+        ),
+      );
+      await tester.pump();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(CalendarScreen)),
+      );
+      final diagnostics = <String>[];
+      final started = tester.binding.clock.now();
+      await expectLater(
+        () => dual.waitNativeDualCalendarRefresh(
+          tester,
+          screen: find.byType(CalendarScreen),
+          container: container,
+          deadline: started.add(const Duration(seconds: 1)),
+          now: tester.binding.clock.now,
+          emit: diagnostics.add,
+        ),
+        throwsA(isA<TestFailure>()),
+      );
+      final reason = switch (entry.key) {
+        'loading' => 'readiness-deadline',
+        'error' => 'capability-error',
+        _ => 'calendar-not-admitted',
+      };
+      expect(diagnostics.single, contains('reason=$reason'));
+      if (entry.key == 'space-denied') {
+        expect(diagnostics.single, contains('spaceAccessUnavailable=true'));
+      }
+      if (entry.key == 'error') {
+        expect(diagnostics.single, contains('capabilityState=error'));
+      }
+      expect(diagnostics.single, isNot(contains('PRIVATE-DETAIL')));
+      expect(
+        tester.binding.clock.now().difference(started),
+        entry.key == 'loading' ? const Duration(seconds: 1) : Duration.zero,
+      );
+    });
+  }
+
+  for (final count in [0, 2]) {
+    testWidgets(
+      'native Calendar readiness rejects $count rendered refresh controls',
+      (tester) async {
+        const surface = Key('calendar-surface');
+        await tester.pumpWidget(
+          createTestApp(
+            Column(
+              key: surface,
+              children: [
+                for (var index = 0; index < count; index++)
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: () async {},
+                      child: ListView(
+                        children: const [Text('Calendar control fixture')],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWithValue(
+                const AsyncData(_readySnapshot),
+              ),
+            ],
+          ),
+        );
+        final container = ProviderScope.containerOf(
+          tester.element(find.byKey(surface)),
+        );
+        final diagnostics = <String>[];
+        await expectLater(
+          () => dual.waitNativeDualCalendarRefresh(
+            tester,
+            screen: find.byKey(surface),
+            container: container,
+            deadline: tester.binding.clock.now().add(
+              const Duration(seconds: 1),
+            ),
+            now: tester.binding.clock.now,
+            emit: diagnostics.add,
+          ),
+          throwsA(isA<TestFailure>()),
+        );
+        expect(
+          diagnostics.single,
+          contains(
+            'reason=calendar-refresh-${count == 0 ? 'missing' : 'not-unique'}',
+          ),
+        );
+        expect(diagnostics.single, contains('refreshCount=$count'));
+      },
+    );
+  }
+
+  testWidgets('native Calendar readiness rejects missing navigation', (
+    tester,
+  ) async {
+    const surface = Key('other-screen');
+    await tester.pumpWidget(
+      createTestApp(
+        const SizedBox(key: surface),
+        overrides: [
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            const AsyncData(_readySnapshot),
+          ),
+        ],
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byKey(surface)),
+    );
+    final diagnostics = <String>[];
+    await expectLater(
+      () => dual.waitNativeDualCalendarRefresh(
+        tester,
+        screen: find.byType(CalendarScreen),
+        container: container,
+        deadline: tester.binding.clock.now().add(const Duration(seconds: 1)),
+        now: tester.binding.clock.now,
+        emit: diagnostics.add,
+      ),
+      throwsA(isA<TestFailure>()),
+    );
+    expect(
+      diagnostics.single,
+      contains('reason=calendar-screen-not-unique screenCount=0'),
+    );
+  });
+
   group('CalendarScreen', () {
     testWidgets(
       'moves from a readable loading state to an actionable empty state',
