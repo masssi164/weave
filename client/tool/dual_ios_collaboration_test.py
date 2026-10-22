@@ -22,6 +22,43 @@ import run_ios_simulator_product_acceptance as ios
 
 
 class DualIosCollaborationTest(unittest.TestCase):
+    def test_initial_actor_browser_selects_only_the_production_journey(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            products = root / 'Build/Products'
+            products.mkdir(parents=True)
+            (products / 'owned.xctestrun').write_bytes(plistlib.dumps({'BrowserDriver': {'BlueprintName': 'BrowserDriver'}}))
+            (products / 'BrowserDriver.xctest').mkdir()
+            flutter, browser = mock.Mock(), mock.Mock()
+            commands = []
+            stopped = RuntimeError('bounded test stops before browser execution')
+            def launch(command, **kwargs):
+                commands.append(command)
+                if command[0] == 'xcodebuild':
+                    self.assertEqual([arg for arg in command if arg.startswith('-only-testing:')],
+                                     ['-only-testing:BrowserDriver/BrowserDriver/testProductionBrowser'])
+                    self.assertFalse(any(arg.startswith('-skip-testing:') for arg in command))
+                    self.assertNotIn('testOrdinaryOrganizationEntry', ' '.join(command))
+                    self.assertNotIn('testOrdinaryProductSmoke', ' '.join(command))
+                    return browser
+                return flutter
+            actor = {'role': 'A', 'email': 'owned@example.invalid', 'password': 'private-fixture', 'identityRef': 'owned-actor'}
+            with mock.patch.object(dual, 'prepare_actor_storage', return_value=(root, {})), \
+                 mock.patch.object(ios, 'run', return_value=ios.BUNDLE + ': 123'), \
+                 mock.patch.object(ios.simulator_vm, 'log_start_timestamp', return_value='owned-time'), \
+                 mock.patch.object(ios, 'discover_owned_vm_service', return_value='http://127.0.0.1:12345/owned/'), \
+                 mock.patch.object(ios, 'wait_for_flutter_shell'), \
+                 mock.patch.object(ios, 'simulator_driver_barrier', return_value=root / 'ready'), \
+                 mock.patch.object(ios, 'release_driver_barrier', side_effect=stopped), \
+                 mock.patch.object(dual.subprocess, 'Popen', side_effect=launch), \
+                 mock.patch.object(dual, 'track_process', side_effect=lambda p: p), \
+                 mock.patch.object(dual, 'stop_flutter_process_group'), contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(RuntimeError) as caught:
+                    dual.run_actor(actor, 'owned', root, products, root, root / 'app',
+                                   {'runId': 'owned-run'}, {}, 'a' * 64, None, None, None)
+            self.assertIs(caught.exception, stopped)
+            self.assertEqual(sum(command[0] == 'xcodebuild' for command in commands), 1)
+
     def test_logout_driver_attaches_before_flutter_and_requires_native_completion(self):
         with tempfile.TemporaryDirectory() as temporary:
             products = Path(temporary) / 'Build/Products'
