@@ -1357,8 +1357,8 @@ def _owner_bootstrap_smtp_preflight(context: ComposeContext) -> None:
         raise ContractError("owner bootstrap requires the rendered Keycloak realm baseline")
     realm = json.loads(realm_path.read_text(encoding="utf-8"))
     smtp = realm.get("smtpServer")
-    if smtp != {
-        "from": "noreply@weave.test",
+    if context.env.get("WEAVE_MAILPIT_REQUIRE_TLS", "").lower() != "true" or smtp != {
+        "from": f"noreply@{context.env['WEAVE_TENANT_DOMAIN']}",
         "fromDisplayName": "Weave",
         "host": "mailpit",
         "port": "1025",
@@ -1366,7 +1366,7 @@ def _owner_bootstrap_smtp_preflight(context: ComposeContext) -> None:
         "starttls": "false",
     }:
         raise ContractError(
-            "dogfood owner bootstrap requires the reviewed implicit-TLS Mailpit SMTP baseline"
+            f"{context.environment} owner bootstrap requires the reviewed implicit-TLS Mailpit SMTP baseline"
         )
 
 
