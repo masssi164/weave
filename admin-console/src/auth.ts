@@ -34,7 +34,7 @@ export class BrowserOidcPkceClient {
     private readonly config: AdminConsoleConfig,
     private readonly browser: BrowserOidcDependencies = {
       crypto: globalThis.crypto,
-      fetch: globalThis.fetch,
+      fetch: globalThis.fetch.bind(globalThis),
       storage: globalThis.sessionStorage,
       location: globalThis.location,
       history: globalThis.history,
