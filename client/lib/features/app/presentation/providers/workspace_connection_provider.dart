@@ -197,8 +197,10 @@ WorkspaceCapabilitySnapshot _applyMemberSpaceAccess(
       policyState: WorkspaceCapabilityPolicyState.policyBlocked,
       profileKey: capability.profileKey,
       memberImpact: capability.memberImpact,
-      supportRef: capability.supportRef,
+      supportRef:
+          'support:member-space-access:${capability.capability.name}:unavailable',
       grantedCapabilities: const <String>[],
+      memberSpaceAccessUnavailable: true,
     );
   }
 

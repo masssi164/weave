@@ -23,6 +23,7 @@ class StatePanel extends StatelessWidget {
     this.semanticLabel,
     this.outlinedAction = false,
     this.liveRegion = true,
+    this.secondaryAction,
   });
 
   /// State category. This controls default icon and container color.
@@ -54,6 +55,7 @@ class StatePanel extends StatelessWidget {
   /// update. Keep enabled for transient loading/error states, but disable for
   /// stable success states that remain on screen while the user explores them.
   final bool liveRegion;
+  final Widget? secondaryAction;
 
   @override
   Widget build(BuildContext context) {
@@ -129,6 +131,7 @@ class StatePanel extends StatelessWidget {
                         child: Text(actionLabel!),
                       ),
                     ],
+                    if (secondaryAction != null) secondaryAction!,
                   ],
                 ),
               ),

@@ -7,6 +7,7 @@ import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/app/presentation/workspace_capability_recovery_presenter.dart';
+import 'package:weave/features/app/presentation/workspace_setup_action.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_failure.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
@@ -851,6 +852,7 @@ class _CalendarCapabilityBody extends StatelessWidget {
           actionLabel: l10n.retryButton,
           onAction: onRetry,
           semanticLabel: recovery.semanticLabel(l10n, l10n.navCalendar),
+          secondaryAction: WorkspaceSetupAction(capability: capability),
         ),
       ),
     );

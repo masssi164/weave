@@ -38,6 +38,7 @@ import {
   ProviderSwitchApplyGates,
   sampleControlPlane,
 } from "./api";
+import DefaultSpaceSetup from "./DefaultSpaceSetup";
 import { AdminConsoleLocale, adminCopy } from "./copy";
 
 type ViewerRole = "owner" | "admin" | "operator" | "member";
@@ -594,6 +595,9 @@ export default function App({
                 <Alert severity="info" sx={{ mb: 2 }}>
                   {copy.setupAssistantDescription}
                 </Alert>
+                {canConfigure && loadState === "loaded" && !authenticationError ? (
+                  <DefaultSpaceSetup api={api} locale={locale} />
+                ) : null}
                 <List aria-label={copy.setupAssistantStepsLabel}>
                   {controlPlane.providerCategories.map((category) => (
                     <ListItem

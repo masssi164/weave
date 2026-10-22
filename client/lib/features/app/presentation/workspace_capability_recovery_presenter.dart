@@ -4,6 +4,7 @@ import 'package:weave/l10n/generated/app_localizations.dart';
 enum WorkspaceMemberRecoveryState {
   available,
   disabledByPolicy,
+  noAccessibleWorkspace,
   notConfigured,
   degraded,
   unavailable,
@@ -51,6 +52,9 @@ WorkspaceCapabilityRecoveryPresentation workspaceCapabilityRecoveryPresentation(
 WorkspaceMemberRecoveryState workspaceMemberRecoveryState(
   WorkspaceCapabilityState capability,
 ) {
+  if (capability.memberSpaceAccessUnavailable) {
+    return WorkspaceMemberRecoveryState.noAccessibleWorkspace;
+  }
   return switch ((capability.readiness, capability.policyState)) {
     (_, WorkspaceCapabilityPolicyState.policyBlocked) ||
     (
@@ -96,6 +100,8 @@ String _stateLabel(AppLocalizations l10n, WorkspaceMemberRecoveryState state) {
       l10n.settingsWorkspaceRecoveryAvailable,
     WorkspaceMemberRecoveryState.disabledByPolicy =>
       l10n.settingsWorkspaceRecoveryDisabledByPolicy,
+    WorkspaceMemberRecoveryState.noAccessibleWorkspace =>
+      l10n.settingsWorkspaceRecoveryNoAccessibleWorkspace,
     WorkspaceMemberRecoveryState.notConfigured =>
       l10n.settingsWorkspaceRecoveryNotConfigured,
     WorkspaceMemberRecoveryState.degraded =>
@@ -113,6 +119,8 @@ String _recovery(AppLocalizations l10n, WorkspaceMemberRecoveryState state) {
       l10n.settingsWorkspaceRecoveryAvailableAction,
     WorkspaceMemberRecoveryState.disabledByPolicy =>
       l10n.settingsWorkspaceRecoveryDisabledByPolicyAction,
+    WorkspaceMemberRecoveryState.noAccessibleWorkspace =>
+      l10n.settingsWorkspaceRecoveryNoAccessibleWorkspaceAction,
     WorkspaceMemberRecoveryState.notConfigured =>
       l10n.settingsWorkspaceRecoveryNotConfiguredAction,
     WorkspaceMemberRecoveryState.degraded =>

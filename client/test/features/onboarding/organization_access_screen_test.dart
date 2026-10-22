@@ -43,7 +43,7 @@ void main() {
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
-        await tester.pumpWidget(buildApp(locale: Locale(locale), scale: 1.6));
+        await tester.pumpWidget(buildApp(locale: Locale(locale), scale: 2));
         await tester.pumpAndSettle();
         final field = tester.widget<TextField>(find.byType(TextField));
         expect(field.decoration!.helper, isA<Text>());
@@ -56,7 +56,21 @@ void main() {
           reason: 'Essential organization guidance must remain fully visible.',
         );
         expect(field.decoration!.errorMaxLines, greaterThan(1));
-        expect(field.decoration!.labelText, isNot(contains('URI')));
+        expect(field.decoration!.labelText, isNull);
+        final label = locale == 'de'
+            ? 'Organisationsadresse oder Einladung'
+            : 'Organization address or invitation';
+        final labelWidget = tester.widget<Text>(find.text(label));
+        final labelParagraph = tester.renderObject<RenderParagraph>(
+          find.text(label),
+        );
+        expect(labelWidget.maxLines, isNull);
+        expect(labelWidget.overflow, isNot(TextOverflow.ellipsis));
+        expect(labelParagraph.didExceedMaxLines, isFalse);
+        expect(labelParagraph.size.height, greaterThan(30));
+        final semantics = tester.ensureSemantics();
+        expect(find.bySemanticsLabel(RegExp(label)), findsOneWidget);
+        semantics.dispose();
         expect(tester.takeException(), isNull);
       },
     );
@@ -72,7 +86,13 @@ void main() {
       expect(find.text('Organization address or invitation'), findsOneWidget);
       expect(find.text('Continue to organization'), findsOneWidget);
       expect(find.bySemanticsLabel('Weave logo'), findsOneWidget);
-      expect(find.textContaining('same Weave address'), findsOneWidget);
+      expect(find.text('Sign in with your organization.'), findsOneWidget);
+      expect(
+        find.text('Next, review your organization and choose Sign in.'),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.qr_code_2), findsNothing);
+      expect(find.byIcon(Icons.mail_outline), findsNothing);
       for (final leakedTerm in [
         'Operator',
         'OIDC Issuer URL',
@@ -147,6 +167,7 @@ void main() {
 
     await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
     await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    await expectLater(tester, meetsGuideline(textContrastGuideline));
   });
 
   testWidgets('keeps organization access usable at large text sizes', (

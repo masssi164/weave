@@ -1,5 +1,7 @@
 import {
   AdminControlPlaneApi as GeneratedAdminControlPlaneApi,
+  SpacesAdminApi as GeneratedSpacesAdminApi,
+  type SpaceProvisionResponse,
   Configuration as GeneratedConfiguration,
   OrganizationInvitationsApi as GeneratedOrganizationInvitationsApi,
   type AdminControlPlaneResponse as GeneratedControlPlaneResponse,
@@ -441,6 +443,7 @@ export class AdminApiError extends Error {
 
 export class AdminControlPlaneApi {
   private readonly generatedControlPlane: GeneratedAdminControlPlaneApi;
+  private readonly generatedSpaces: GeneratedSpacesAdminApi;
   private readonly generatedInvitations: GeneratedOrganizationInvitationsApi;
 
   constructor(
@@ -457,6 +460,7 @@ export class AdminControlPlaneApi {
       accessToken: () => tokenProvider() ?? "",
       headers: { Accept: "application/json" },
     });
+    this.generatedSpaces = new GeneratedSpacesAdminApi(generatedConfig);
     this.generatedControlPlane = new GeneratedAdminControlPlaneApi(generatedConfig);
     this.generatedInvitations = new GeneratedOrganizationInvitationsApi(generatedConfig);
   }
@@ -473,6 +477,15 @@ export class AdminControlPlaneApi {
       }
       throw error;
     }
+  }
+
+  async provisionDefaultSpace(): Promise<SpaceProvisionResponse> {
+    if (!this.tokenProvider()) {
+      throw new AdminApiError("Organization sign-in is required.", 401);
+    }
+    return this.generated(this.generatedSpaces.provisionSpace({
+      spaceProvisionRequest: { spaceRef: "workspace-default", memberAccountRefs: [] },
+    }));
   }
 
   async getControlPlane(): Promise<ControlPlaneResponse> {

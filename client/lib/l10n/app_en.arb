@@ -2177,6 +2177,10 @@
   "@settingsWorkspaceRecoveryAvailable": {
     "description": "Member capability recovery state when a capability is available"
   },
+  "workspaceSetupOpenAction": "Open workspace setup",
+  "workspaceSetupOpenFailed": "Workspace setup could not open. Try again.",
+  "settingsWorkspaceRecoveryNoAccessibleWorkspace": "No accessible workspace",
+  "settingsWorkspaceRecoveryNoAccessibleWorkspaceAction": "Ask a workspace admin to finish setup or grant you access.",
   "settingsWorkspaceRecoveryDisabledByPolicy": "Disabled by policy",
   "@settingsWorkspaceRecoveryDisabledByPolicy": {
     "description": "Member capability recovery state when policy disables a capability"
@@ -4333,7 +4337,7 @@
   "@setupMemberHandoffTitle": {
     "description": "Title for the normal member handoff-first setup screen"
   },
-  "setupMemberHandoffDescription": "Use your organization’s Weave address or invitation to sign in to your workspace.",
+  "setupMemberHandoffDescription": "Sign in with your organization.",
   "@setupMemberHandoffDescription": {
     "description": "Description for the normal member handoff-first setup screen"
   },
@@ -4341,7 +4345,7 @@
   "@setupOrganizationUriLabel": {
     "description": "Organization access input label"
   },
-  "setupOrganizationUriHelper": "Enter your organization’s Weave address, or paste the invitation link from your email or QR code.",
+  "setupOrganizationUriHelper": "Next, review your organization and choose Sign in.",
   "@setupOrganizationUriHelper": {
     "description": "Organization access input help"
   },

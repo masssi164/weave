@@ -7,6 +7,8 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.PlaywrightException;
+import com.microsoft.playwright.Response;
+import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.WaitUntilState;
 import tools.jackson.databind.JsonNode;
 import java.io.IOException;
@@ -270,6 +272,46 @@ final class OidcBrowserJourney implements AutoCloseable {
       throw new ProductFlowException("OIDC ID token nonce did not match");
     }
     return result;
+  }
+
+  void provisionDefaultSpaceThroughAdminConsole(
+      String email, String password, Runnable verifyNoSpaceBeforeSetup) {
+    URI console = environment.productOrigin().resolve("/admin-console/");
+    try (BrowserContext context =
+        browser.newContext(new Browser.NewContextOptions().setLocale("en-US"))) {
+      Page page = context.newPage();
+      AtomicReference<String> observedCallback = new AtomicReference<>();
+      navigate(page, console, "open packaged Admin Console for first-owner setup");
+      page.onRequest(request -> captureCallback(request.url(), console, observedCallback));
+      page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions()
+          .setName("Sign in with organization identity").setExact(true)).click();
+      page.waitForURL(value -> isIssuerPage(value, environment.issuer()));
+      authenticateAndAwaitCallback(page, console, observedCallback,
+          email, password, "first-owner-admin-console");
+      Locator setup = page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions()
+          .setName("Create or confirm default Space").setExact(true));
+      setup.waitFor();
+      verifyNoSpaceBeforeSetup.run();
+      Response response = page.waitForResponse(
+          value -> value.url().equals(console.resolve("/api/admin/spaces").toString())
+              && "POST".equals(value.request().method()),
+          setup::click);
+      if (response.status() != 200) {
+        throw new ProductFlowException("First-owner Admin Console setup returned HTTP "
+            + response.status());
+      }
+      JsonNode created = new tools.jackson.databind.ObjectMapper().readTree(response.text());
+      if (created == null || !"workspace-default".equals(created.path("spaceRef").asString())
+          || !"CREATED".equals(created.path("result").asString())) {
+        throw new ProductFlowException("First-owner Admin Console did not create the default Space");
+      }
+      page.getByText(java.util.regex.Pattern.compile(
+          "^Default Space setup is confirmed for your account\\.")).waitFor();
+    } catch (PlaywrightException failure) {
+      throw sanitized("First-owner Admin Console setup failed", failure);
+    } catch (tools.jackson.core.JacksonException failure) {
+      throw new ProductFlowException("First-owner Admin Console setup returned invalid JSON");
+    }
   }
 
   void awaitIssuerTransportAfterRestart() {
