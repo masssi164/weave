@@ -795,10 +795,17 @@ class DualIosCollaborationTest(unittest.TestCase):
         proof = {'role': 'B', 'identityDigest': 'a' * 64, 'matrixDeviceDigest': 'b' * 64, 'storageDigest': 'c' * 64,
                  'recovery': {key: True for key in ['network', 'background', 'processRestored', 'persistentReadback', 'expiryRefresh', 'logoutIndependent', 'grantRegrantReadback']}}
         proof['recovery'].update({'privateToken': 'must-not-export', 'organizationOrigin': 'private-unused'})
+        private_context = {'file': 'private-file-id', 'owner': 'private-owner-digest',
+                           'parent': 'private-parent-id', 'path': '/private/native/Documents/Owned',
+                           'scope': 'private-space-reference'}
+        proof['recovery']['filesContext'] = private_context
         times = ['2026-10-12T10:00:00+00:00', '2026-10-12T10:05:00+00:00', '2026-10-12T10:06:00+00:00', '2026-10-12T10:10:00+00:00']
         result = dual.recovery_actor_proof(proof, '123', '456', *times)
         self.assertEqual(result['restoredProcessId'], 456)
         self.assertNotIn('must-not-export', json.dumps(result))
+        self.assertNotIn('filesContext', result)
+        for private_value in private_context.values():
+            self.assertNotIn(private_value, json.dumps(result))
         for name in ['network', 'background', 'processRestored', 'persistentReadback', 'expiryRefresh', 'logoutIndependent', 'grantRegrantReadback']:
             for unavailable in [False, 1, None, 'true']:
                 proof['recovery'][name] = unavailable
