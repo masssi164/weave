@@ -245,7 +245,22 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - run: ./gradlew --no-daemon --stacktrace infraStatic
+      - name: Read immutable corpus pin
+        id: spec
+        run: |
+          commit="$(jq -er '.specCorpus.gitCommit | select(test("^[0-9a-f]{40}$"))' specs/weave-specs.lock.json)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec.outputs.commit }}
+          path: .spec-corpus
+          ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
+          persist-credentials: false
+      - name: Verify infrastructure with the pinned corpus
+        env:
+          WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/.spec-corpus
+        run: ./gradlew --no-daemon --stacktrace infraStatic
 
   docs_deterministic:
     name: Documentation verification
