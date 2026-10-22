@@ -4,8 +4,7 @@ import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.spaces.SpaceUserListResponse;
 import com.massimotter.weave.backend.model.spaces.SpaceUserResponse;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
-import com.massimotter.weave.backend.spaces.port.SpaceAccessPort.Permission;
+import com.massimotter.weave.backend.spaces.port.SpaceReadPort;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -16,11 +15,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class SpaceUserApiService {
     private final OrganizationIdentityContextResolver identities;
-    private final SpaceAccessPort spaces;
+    private final SpaceReadPort spaces;
 
     public SpaceUserApiService(
             OrganizationIdentityContextResolver identities,
-            SpaceAccessPort spaces) {
+            SpaceReadPort spaces) {
         this.identities = identities;
         this.spaces = spaces;
     }
@@ -31,19 +30,21 @@ public class SpaceUserApiService {
                 (afterSpaceRef.length() > 255 || afterSpaceRef.chars().anyMatch(Character::isISOControl)))) {
             throw error(HttpStatus.BAD_REQUEST, "space-query-invalid", "The Space page request is invalid.");
         }
-        List<String> refs = spaces.visibleSpaceRefs(
+        var refs = spaces.visibleSpaces(
                 member.organizationRef(), member.principalRef(), afterSpaceRef, limit);
-        List<SpaceUserResponse> values = refs.stream().map(SpaceUserResponse::new).toList();
-        return new SpaceUserListResponse(values, refs.size() == limit ? refs.getLast() : null);
+        List<SpaceUserResponse> values = refs.stream().map(space -> new SpaceUserResponse(space.spaceRef(), space.displayName())).toList();
+        return new SpaceUserListResponse(values, refs.size() == limit ? refs.getLast().spaceRef() : null);
     }
 
     public SpaceUserResponse inspect(Jwt jwt, String spaceRef) {
         Member member = member(jwt);
         if (spaceRef == null || spaceRef.isBlank() || spaceRef.length() > 255
-                || !spaces.allows(member.organizationRef(), spaceRef, member.principalRef(), Permission.VIEW)) {
+                ) {
             throw error(HttpStatus.NOT_FOUND, "space-not-found", "The Space was not found.");
         }
-        return new SpaceUserResponse(spaceRef);
+        return spaces.visibleSpace(member.organizationRef(), member.principalRef(), spaceRef)
+                .map(space -> new SpaceUserResponse(space.spaceRef(), space.displayName()))
+                .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "space-not-found", "The Space was not found."));
     }
 
     private Member member(Jwt jwt) {

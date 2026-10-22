@@ -298,7 +298,29 @@ void main() {
       expect(find.text('Edit profile'), findsNothing);
       expect(find.text('Save profile'), findsNothing);
       expect(find.text('Help and user handbook'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is Semantics && w.properties.identifier == 'settings-help',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Shell modules'), findsOneWidget);
+      final ordered = [
+        'Profile',
+        'Appearance',
+        'Language',
+        'Shell modules',
+        'Help and user handbook',
+      ];
+      for (var i = 1; i < ordered.length; i++) {
+        expect(
+          tester.getTopLeft(find.text(ordered[i])).dy,
+          greaterThan(tester.getTopLeft(find.text(ordered[i - 1])).dy),
+        );
+      }
+      expect(find.text('Support diagnostics'), findsNothing);
+      expect(find.text('Recent workspace activity'), findsNothing);
+
       expect(find.text('AI agent capability governance'), findsNothing);
       expect(
         find.textContaining('AI agent chats are not enabled'),
@@ -539,7 +561,7 @@ void main() {
           child: const MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: SettingsScreen()),
+            home: Scaffold(body: SettingsPreferencesScreen(section: 'modules')),
           ),
         ),
       );

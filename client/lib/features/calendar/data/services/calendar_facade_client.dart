@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+import 'package:weave/features/calendar/domain/entities/calendar_workspace_context.dart';
 import 'dart:convert';
 import 'dart:math';
 
@@ -26,10 +28,26 @@ class CalendarFacadeClient {
     required ServerConfigurationRepository serverConfigurationRepository,
     required AuthSessionRepository authSessionRepository,
     required Future<String> Function() evaluationTimeZone,
+    void Function(String)? diagnostic,
   }) : _http = httpClient,
        _configuration = serverConfigurationRepository,
        _auth = authSessionRepository,
-       _evaluationTimeZone = evaluationTimeZone;
+       _evaluationTimeZone = evaluationTimeZone,
+       _diagnostic = diagnostic ?? _logDiagnostic;
+
+  final void Function(String) _diagnostic;
+  static void _logDiagnostic(String message) =>
+      developer.log(message, name: 'weave.calendar');
+  void _report(CalendarFailure failure) {
+    const candidate = String.fromEnvironment('WEAVE_CANDIDATE_COMMIT');
+    final correlation = RegExp(r'^[0-9a-f]{40}$').hasMatch(candidate)
+        ? candidate
+        : 'unavailable';
+    _diagnostic(
+      'WEAVE_CALENDAR_FAILURE stage=${failure.stage.name} kind=${failure.kind.name} '
+      'httpStatus=${failure.httpStatus ?? 'unavailable'} apiCode=${failure.apiCode} candidate=$correlation supportSafe=true',
+    );
+  }
 
   final http.Client _http;
   final ServerConfigurationRepository _configuration;
@@ -41,15 +59,57 @@ class CalendarFacadeClient {
   String? _owner;
   final _pendingCreates = <String, String>{};
 
+  Future<String> _evaluationZone() async {
+    try {
+      return await _evaluationTimeZone();
+    } catch (_) {
+      const failure = CalendarFailure(
+        CalendarFailureKind.unavailable,
+        stage: CalendarOperationStage.profileTimeZone,
+      );
+      _report(failure);
+      throw failure;
+    }
+  }
+
+  Future<CalendarWorkspaceContext> workspaceContext(
+    CalendarScope selected,
+  ) async {
+    try {
+      final context = await _context();
+      final scopes = await _discover(context);
+      final zone = await _evaluationZone();
+      _location(zone);
+      await _assertCurrent(context);
+      return CalendarWorkspaceContext(
+        ownerKey: sha256.convert(utf8.encode(context.owner)).toString(),
+        scopes: scopes,
+        selectedScope: scopes.scopes.isEmpty
+            ? null
+            : _selected(scopes, selected),
+        evaluationTimeZone: zone,
+      );
+    } on CalendarFailure catch (failure) {
+      if (failure.stage == CalendarOperationStage.decode) _report(failure);
+      rethrow;
+    }
+  }
+
   Future<CalendarScopeList> listScopes() async {
-    final context = await _context();
-    return _discover(context);
+    try {
+      final context = await _context();
+      return _discover(context);
+    } on CalendarFailure catch (failure) {
+      if (failure.stage == CalendarOperationStage.decode) _report(failure);
+      rethrow;
+    }
   }
 
   Future<CalendarScopeList> _discover(_Context context) async {
     final result = await _invoke(
       context,
       (client) => client.listUserCalendars(),
+      stage: CalendarOperationStage.discovery,
     );
     if (result == null) {
       throw const CalendarFailure(CalendarFailureKind.unavailable);
@@ -71,212 +131,329 @@ class CalendarFacadeClient {
     DateTime? to,
     CalendarScope? selectedScope,
   }) async {
-    final context = await _context();
-    final evaluationZoneName = await _evaluationTimeZone();
-    final zone = _location(evaluationZoneName);
-    final scopes = await _discover(context);
-    if (scopes.scopes.isEmpty) return const CalendarEventList();
-    final scope = _selected(scopes, selectedScope);
-    final now = DateTime.now().toUtc();
-    final result = await _invoke(
-      context,
-      (client) => client.queryCalendarAgenda(
-        scope.id,
-        from ?? now.subtract(const Duration(days: 30)),
-        to ?? now.add(const Duration(days: 180)),
-        evaluationZoneName,
-      ),
-    );
-    if (result == null ||
-        result.calendarId != scope.id ||
-        result.evaluationTimeZone != evaluationZoneName) {
-      throw const CalendarFailure(CalendarFailureKind.unavailable);
-    }
-    final masters = <String, api.CalendarUserEvent>{};
-    for (final event in result.events) {
-      _remember(context, event, scope.id);
-      masters[event.id] = event;
-    }
-    _previews.clear();
-    final previewMasters = <String, api.CalendarUserEventPreview>{};
-    for (final preview in result.previews) {
-      _rememberPreview(context, preview, scope.id);
-      previewMasters[preview.handle] = preview;
-    }
-    final rows = <CalendarEvent>[];
-    for (final occurrence in result.occurrences) {
-      final event = masters[occurrence.eventId];
-      if (event == null) {
+    try {
+      final context = await _context();
+      final evaluationZoneName = await _evaluationZone();
+      final zone = _location(evaluationZoneName);
+      final scopes = await _discover(context);
+      if (scopes.scopes.isEmpty) return const CalendarEventList();
+      final scope = _selected(scopes, selectedScope);
+      final now = DateTime.now().toUtc();
+      final result = await _invoke(
+        context,
+        (client) => client.queryCalendarAgenda(
+          scope.id,
+          from ?? now.subtract(const Duration(days: 30)),
+          to ?? now.add(const Duration(days: 180)),
+          evaluationZoneName,
+        ),
+        stage: CalendarOperationStage.agenda,
+      );
+      if (result == null ||
+          result.calendarId != scope.id ||
+          result.evaluationTimeZone != evaluationZoneName) {
         throw const CalendarFailure(CalendarFailureKind.unavailable);
       }
-      rows.add(
-        _view(
-          event,
-          scope,
-          start: _wallClock(tz.TZDateTime.from(occurrence.startsAt, zone)),
-          end: _wallClock(tz.TZDateTime.from(occurrence.endsAt, zone)),
-          displayZone: evaluationZoneName,
-        ),
-      );
-    }
-    for (final occurrence in result.previewOccurrences) {
-      final preview = previewMasters[occurrence.previewHandle];
-      if (preview == null) {
-        throw const CalendarFailure(CalendarFailureKind.unavailable);
+      final masters = <String, api.CalendarUserEvent>{};
+      for (final event in result.events) {
+        _remember(context, event, scope.id);
+        masters[event.id] = event;
       }
-      rows.add(
-        _viewPreview(
-          preview,
-          scope,
-          start: _wallClock(tz.TZDateTime.from(occurrence.startsAt, zone)),
-          end: _wallClock(tz.TZDateTime.from(occurrence.endsAt, zone)),
-          displayZone: evaluationZoneName,
-        ),
-      );
+      _previews.clear();
+      final previewMasters = <String, api.CalendarUserEventPreview>{};
+      for (final preview in result.previews) {
+        _rememberPreview(context, preview, scope.id);
+        previewMasters[preview.handle] = preview;
+      }
+      final rows = <CalendarEvent>[];
+      for (final occurrence in result.occurrences) {
+        final event = masters[occurrence.eventId];
+        if (event == null) {
+          throw const CalendarFailure(CalendarFailureKind.unavailable);
+        }
+        rows.add(
+          _view(
+            event,
+            scope,
+            start: _wallClock(tz.TZDateTime.from(occurrence.startsAt, zone)),
+            end: _wallClock(tz.TZDateTime.from(occurrence.endsAt, zone)),
+            displayZone: evaluationZoneName,
+          ),
+        );
+      }
+      for (final occurrence in result.previewOccurrences) {
+        final preview = previewMasters[occurrence.previewHandle];
+        if (preview == null) {
+          throw const CalendarFailure(CalendarFailureKind.unavailable);
+        }
+        rows.add(
+          _viewPreview(
+            preview,
+            scope,
+            start: _wallClock(tz.TZDateTime.from(occurrence.startsAt, zone)),
+            end: _wallClock(tz.TZDateTime.from(occurrence.endsAt, zone)),
+            displayZone: evaluationZoneName,
+          ),
+        );
+      }
+      rows.sort((left, right) => left.startTime.compareTo(right.startTime));
+      return CalendarEventList(scope: scope, events: rows);
+    } on CalendarFailure catch (failure) {
+      if (failure.stage == CalendarOperationStage.decode) _report(failure);
+      rethrow;
     }
-    rows.sort((left, right) => left.startTime.compareTo(right.startTime));
-    return CalendarEventList(scope: scope, events: rows);
   }
 
   Future<CalendarEvent> readEvent(String id) async {
-    final context = await _context();
-    final pending = _previews[id];
-    if (pending != null) {
-      final preview = _previewSnapshot(context, id);
+    try {
+      final context = await _context();
+      final pending = _previews[id];
+      if (pending != null) {
+        final preview = _previewSnapshot(context, id);
+        final result = await _invoke(
+          context,
+          (client) => client.readCalendarEventPreview(preview.calendarId, id),
+          stage: CalendarOperationStage.read,
+        );
+        if (result == null || result.handle != id) {
+          throw const CalendarFailure(CalendarFailureKind.unavailable);
+        }
+        _rememberPreview(context, result, preview.calendarId);
+        return _viewPreview(result, _calendars[result.calendarId]!);
+      }
+      final previous = _snapshot(context, id);
       final result = await _invoke(
         context,
-        (client) => client.readCalendarEventPreview(preview.calendarId, id),
+        (client) => client.getCalendarEvent(previous.calendarId, id),
+        stage: CalendarOperationStage.read,
       );
-      if (result == null || result.handle != id) {
+      if (result == null || result.id != id) {
         throw const CalendarFailure(CalendarFailureKind.unavailable);
       }
-      _rememberPreview(context, result, preview.calendarId);
-      return _viewPreview(result, _calendars[result.calendarId]!);
+      _remember(context, result, previous.calendarId);
+      return _view(result, _calendars[result.calendarId]!);
+    } on CalendarFailure catch (failure) {
+      if (failure.stage == CalendarOperationStage.decode) _report(failure);
+      rethrow;
     }
-    final previous = _snapshot(context, id);
-    final result = await _invoke(
-      context,
-      (client) => client.getCalendarEvent(previous.calendarId, id),
-    );
-    if (result == null || result.id != id) {
-      throw const CalendarFailure(CalendarFailureKind.unavailable);
-    }
-    _remember(context, result, previous.calendarId);
-    return _view(result, _calendars[result.calendarId]!);
   }
 
-  Future<CalendarEvent> createEvent(CalendarEventDraft draft) async {
-    final context = await _context();
-    final scopes = await _discover(context);
-    final scope = _selected(scopes, draft.scope);
-    _allow(scope.capabilities, 'create');
-    final content = _content(draft);
-    // An uncertain network outcome must retain the same logical create identity
-    // when the member retries the unchanged draft in this session.
-    final fingerprint = sha256
-        .convert(utf8.encode(jsonEncode([context.owner, scope.id, content])))
-        .toString();
-    final key = _pendingCreates.putIfAbsent(fingerprint, () {
-      final random = Random.secure();
-      return base64UrlEncode(
-        List<int>.generate(24, (_) => random.nextInt(256)),
+  Future<CalendarEvent> createEvent(
+    CalendarEventDraft draft, {
+    CalendarWorkspaceContext? expectedWorkspace,
+  }) async {
+    try {
+      final context = await _context();
+      _requireExpectedWorkspace(context, expectedWorkspace);
+      final scopes = await _discover(context);
+      final scope = _selected(scopes, draft.scope);
+      _requireExpectedWorkspace(
+        context,
+        expectedWorkspace,
+        calendarId: scope.id,
       );
-    });
-    final result = await _invoke(
-      context,
-      (client) => client.createCalendarEvent(scope.id, key, content),
-      mutation: true,
-    );
-    if (result == null) {
-      throw const CalendarFailure(CalendarFailureKind.unavailable);
+      _allow(scope.capabilities, 'create');
+      final content = _content(draft);
+      // An uncertain network outcome must retain the same logical create identity
+      // when the member retries the unchanged draft in this session.
+      final fingerprint = sha256
+          .convert(utf8.encode(jsonEncode([context.owner, scope.id, content])))
+          .toString();
+      final key = _pendingCreates.putIfAbsent(fingerprint, () {
+        final random = Random.secure();
+        return base64UrlEncode(
+          List<int>.generate(24, (_) => random.nextInt(256)),
+        );
+      });
+      api.CalendarUserEvent? result;
+      try {
+        result = await _invoke(
+          context,
+          (client) => client.createCalendarEvent(scope.id, key, content),
+          mutation: true,
+        );
+      } on CalendarFailure catch (failure) {
+        if (!failure.writeMayHaveCommitted) _pendingCreates.remove(fingerprint);
+        rethrow;
+      }
+      if (result == null) {
+        throw const CalendarFailure(
+          CalendarFailureKind.unavailable,
+          writeMayHaveCommitted: true,
+        );
+      }
+      CalendarEvent view;
+      try {
+        _validateEvent(result, scope);
+        view = _view(result, scope);
+        if (await _sameOwnerCurrent(context)) {
+          _events[result.id] = _EventSnapshot(context.owner, result);
+        }
+      } on CalendarFailure catch (failure) {
+        throw CalendarFailure(
+          failure.kind,
+          writeMayHaveCommitted: true,
+          stage: CalendarOperationStage.decode,
+        );
+      }
+      _pendingCreates.remove(fingerprint);
+      return view;
+    } on CalendarFailure catch (failure) {
+      if (failure.stage == CalendarOperationStage.decode) _report(failure);
+      rethrow;
     }
-    _remember(context, result, scope.id);
-    _pendingCreates.remove(fingerprint);
-    return _view(result, scope);
   }
 
   Future<CalendarEvent> updateEvent({
     required String id,
     required CalendarEventDraft draft,
     String? version,
+    CalendarWorkspaceContext? expectedWorkspace,
   }) async {
-    final context = await _context();
-    final preview = _previews[id];
-    if (preview != null) {
-      final pending = _previewSnapshot(context, id);
-      _allow(pending.allowedActions, 'update');
-      if (_recurringContent(pending.content)) {
+    try {
+      final context = await _context();
+      _requireExpectedWorkspace(context, expectedWorkspace);
+      final preview = _previews[id];
+      if (preview != null) {
+        final pending = _previewSnapshot(context, id);
+        _requireExpectedWorkspace(
+          context,
+          expectedWorkspace,
+          calendarId: pending.calendarId,
+        );
+        _allow(pending.allowedActions, 'update');
+        if (_recurringContent(pending.content)) {
+          throw const CalendarFailure(CalendarFailureKind.unsupportedEdit);
+        }
+        if (version != null || draft.scope.id != pending.calendarId) {
+          throw const CalendarFailure(CalendarFailureKind.conflict);
+        }
+        _content(draft, original: pending.content);
+      }
+      final original = preview == null
+          ? _snapshot(context, id)
+          : await _materializePreview(context, preview.preview);
+      _requireExpectedWorkspace(
+        context,
+        expectedWorkspace,
+        calendarId: original.calendarId,
+      );
+      _allow(original.allowedActions, 'update');
+      if (_recurring(original)) {
         throw const CalendarFailure(CalendarFailureKind.unsupportedEdit);
       }
-      if (version != null || draft.scope.id != pending.calendarId) {
+      if ((preview == null &&
+              (version == null || version != original.version)) ||
+          draft.scope.id != original.calendarId) {
         throw const CalendarFailure(CalendarFailureKind.conflict);
       }
-      _content(draft, original: pending.content);
+      final content = _content(draft, original: original.content);
+      final originalScope = _calendars[original.calendarId]!;
+      final result = await _invoke(
+        context,
+        (client) => client.updateCalendarEvent(
+          original.calendarId,
+          original.id,
+          original.version,
+          content,
+        ),
+        mutation: true,
+      );
+      if (result == null || result.id != original.id) {
+        throw const CalendarFailure(
+          CalendarFailureKind.unavailable,
+          writeMayHaveCommitted: true,
+        );
+      }
+      try {
+        _validateEvent(result, originalScope);
+        final view = _view(result, originalScope);
+        if (await _sameOwnerCurrent(context)) {
+          _events[result.id] = _EventSnapshot(context.owner, result);
+          _previews.remove(id);
+        }
+        return view;
+      } on CalendarFailure catch (failure) {
+        throw CalendarFailure(failure.kind, writeMayHaveCommitted: true);
+      }
+    } on CalendarFailure catch (failure) {
+      if (failure.stage == CalendarOperationStage.decode) _report(failure);
+      rethrow;
     }
-    final original = preview == null
-        ? _snapshot(context, id)
-        : await _materializePreview(context, preview.preview);
-    _allow(original.allowedActions, 'update');
-    if (_recurring(original)) {
-      throw const CalendarFailure(CalendarFailureKind.unsupportedEdit);
-    }
-    if ((preview == null && (version == null || version != original.version)) ||
-        draft.scope.id != original.calendarId) {
-      throw const CalendarFailure(CalendarFailureKind.conflict);
-    }
-    final content = _content(draft, original: original.content);
-    final result = await _invoke(
-      context,
-      (client) => client.updateCalendarEvent(
-        original.calendarId,
-        original.id,
-        original.version,
-        content,
-      ),
-      mutation: true,
-    );
-    if (result == null || result.id != original.id) {
-      throw const CalendarFailure(CalendarFailureKind.unavailable);
-    }
-    _remember(context, result, original.calendarId);
-    _previews.remove(id);
-    return _view(result, _calendars[result.calendarId]!);
   }
 
-  Future<void> deleteEvent(String id, {String? version}) async {
-    final context = await _context();
-    final preview = _previews[id];
-    if (preview != null) {
-      final pending = _previewSnapshot(context, id);
-      _allow(pending.allowedActions, 'delete');
-      if (_recurringContent(pending.content)) {
+  Future<void> deleteEvent(
+    String id, {
+    String? version,
+    CalendarWorkspaceContext? expectedWorkspace,
+  }) async {
+    try {
+      final context = await _context();
+      _requireExpectedWorkspace(context, expectedWorkspace);
+      final preview = _previews[id];
+      if (preview != null) {
+        final pending = _previewSnapshot(context, id);
+        _requireExpectedWorkspace(
+          context,
+          expectedWorkspace,
+          calendarId: pending.calendarId,
+        );
+        _allow(pending.allowedActions, 'delete');
+        if (_recurringContent(pending.content)) {
+          throw const CalendarFailure(CalendarFailureKind.unsupportedEdit);
+        }
+        if (version != null) {
+          throw const CalendarFailure(CalendarFailureKind.conflict);
+        }
+      }
+      final original = preview == null
+          ? _snapshot(context, id)
+          : await _materializePreview(context, preview.preview);
+      _requireExpectedWorkspace(
+        context,
+        expectedWorkspace,
+        calendarId: original.calendarId,
+      );
+      _allow(original.allowedActions, 'delete');
+      if (_recurring(original)) {
         throw const CalendarFailure(CalendarFailureKind.unsupportedEdit);
       }
-      if (version != null) {
+      if (preview == null && (version == null || version != original.version)) {
         throw const CalendarFailure(CalendarFailureKind.conflict);
       }
+      await _invoke(
+        context,
+        (client) => client.deleteCalendarEvent(
+          original.calendarId,
+          original.id,
+          original.version,
+        ),
+        mutation: true,
+      );
+      if (await _sameOwnerCurrent(context)) {
+        _events.remove(original.id);
+        _previews.remove(id);
+      }
+    } on CalendarFailure catch (failure) {
+      if (failure.stage == CalendarOperationStage.decode) _report(failure);
+      rethrow;
     }
-    final original = preview == null
-        ? _snapshot(context, id)
-        : await _materializePreview(context, preview.preview);
-    _allow(original.allowedActions, 'delete');
-    if (_recurring(original)) {
-      throw const CalendarFailure(CalendarFailureKind.unsupportedEdit);
+  }
+
+  void _requireExpectedWorkspace(
+    _Context context,
+    CalendarWorkspaceContext? expected, {
+    String? calendarId,
+  }) {
+    if (expected == null) return;
+    if (expected.ownerKey !=
+        sha256.convert(utf8.encode(context.owner)).toString()) {
+      throw const CalendarFailure(CalendarFailureKind.session);
     }
-    if (preview == null && (version == null || version != original.version)) {
-      throw const CalendarFailure(CalendarFailureKind.conflict);
+    if (expected.selectedScope == null ||
+        (calendarId != null && expected.selectedScope!.id != calendarId)) {
+      throw const CalendarFailure(CalendarFailureKind.permission);
     }
-    await _invoke(
-      context,
-      (client) => client.deleteCalendarEvent(
-        original.calendarId,
-        original.id,
-        original.version,
-      ),
-      mutation: true,
-    );
-    _events.remove(original.id);
-    _previews.remove(id);
   }
 
   CalendarScope _selected(CalendarScopeList scopes, CalendarScope? selected) {
@@ -312,20 +489,48 @@ class CalendarFacadeClient {
     api.CalendarUserEvent event,
     String calendarId,
   ) {
-    _requireId(event.id, 'event');
-    if (event.calendarId != calendarId ||
-        !_calendars.containsKey(calendarId) ||
-        !RegExp(r'^"[^"\r\n]+"$').hasMatch(event.version)) {
+    final scope = _calendars[calendarId];
+    if (scope == null) {
       throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
-    final scope = _calendars[calendarId]!;
-    if (event.scope.spaceId != scope.contextId ||
+    _validateEvent(event, scope);
+    _events[event.id] = _EventSnapshot(context.owner, event);
+  }
+
+  void _validateEvent(api.CalendarUserEvent event, CalendarScope scope) {
+    _requireId(event.id, 'event');
+    if (event.calendarId != scope.id ||
+        !RegExp(r'^"[^"\r\n]+"$').hasMatch(event.version) ||
+        event.scope.spaceId != scope.contextId ||
         event.scope.type.value.toLowerCase() != scope.type ||
         event.scope.teamId != scope.teamId ||
         event.scope.channelId != scope.channelId) {
       throw const CalendarFailure(CalendarFailureKind.unavailable);
     }
-    _events[event.id] = _EventSnapshot(context.owner, event);
+  }
+
+  Future<bool> _sameOwnerCurrent(_Context original) async {
+    try {
+      final configuration = await _configuration.loadConfiguration();
+      final state = await _auth.restoreSession(original.auth);
+      if (configuration?.serviceEndpoints.backendApiBaseUrl != original.url ||
+          configuration?.oidcIssuerUrl != original.auth.issuer ||
+          configuration?.oidcClientRegistration.clientId.trim() !=
+              original.auth.clientId ||
+          !state.isAuthenticated ||
+          state.session?.matches(original.auth) != true) {
+        return false;
+      }
+      final active = _Context(
+        original.url,
+        original.auth,
+        state.session!.accessToken,
+      );
+      return await _identity(active) == original.identity &&
+          _owner == original.owner;
+    } catch (_) {
+      return false;
+    }
   }
 
   void _rememberPreview(
@@ -586,33 +791,51 @@ class CalendarFacadeClient {
   );
 
   Future<_Context> _context() async {
-    final configuration = await _configuration.loadConfiguration();
-    if (configuration == null) {
-      throw const CalendarFailure(CalendarFailureKind.session);
+    try {
+      final configuration = await _configuration.loadConfiguration();
+      if (configuration == null) {
+        throw const CalendarFailure(CalendarFailureKind.session);
+      }
+      final auth = AuthConfiguration(
+        issuer: configuration.oidcIssuerUrl,
+        clientId: configuration.oidcClientRegistration.clientId.trim(),
+      );
+      final state = await _auth.restoreSession(auth);
+      if (!state.isAuthenticated || state.session?.matches(auth) != true) {
+        throw const CalendarFailure(CalendarFailureKind.session);
+      }
+      final context = _Context(
+        configuration.serviceEndpoints.backendApiBaseUrl,
+        auth,
+        state.session!.accessToken,
+      );
+      context.identity = await _identity(context);
+      await _assertCurrent(context);
+      if (_owner != context.owner) {
+        _events.clear();
+        _previews.clear();
+        _calendars.clear();
+        _pendingCreates.clear();
+        _owner = context.owner;
+      }
+      return context;
+    } on CalendarFailure catch (failure) {
+      final contextual = CalendarFailure(
+        failure.kind,
+        stage: CalendarOperationStage.context,
+        httpStatus: failure.httpStatus,
+        apiCode: failure.apiCode,
+      );
+      _report(contextual);
+      throw contextual;
+    } catch (_) {
+      const failure = CalendarFailure(
+        CalendarFailureKind.session,
+        stage: CalendarOperationStage.context,
+      );
+      _report(failure);
+      throw failure;
     }
-    final auth = AuthConfiguration(
-      issuer: configuration.oidcIssuerUrl,
-      clientId: configuration.oidcClientRegistration.clientId.trim(),
-    );
-    final state = await _auth.restoreSession(auth);
-    if (!state.isAuthenticated || state.session?.matches(auth) != true) {
-      throw const CalendarFailure(CalendarFailureKind.session);
-    }
-    final context = _Context(
-      configuration.serviceEndpoints.backendApiBaseUrl,
-      auth,
-      state.session!.accessToken,
-    );
-    context.identity = await _identity(context);
-    await _assertCurrent(context);
-    if (_owner != context.owner) {
-      _events.clear();
-      _previews.clear();
-      _calendars.clear();
-      _pendingCreates.clear();
-      _owner = context.owner;
-    }
-    return context;
   }
 
   Future<String> _identity(_Context context) async {
@@ -647,9 +870,19 @@ class CalendarFacadeClient {
         configuration?.oidcClientRegistration.clientId.trim() !=
             context.auth.clientId ||
         !state.isAuthenticated ||
-        state.session?.matches(context.auth) != true ||
-        state.session?.accessToken != context.token) {
+        state.session?.matches(context.auth) != true) {
       throw const CalendarFailure(CalendarFailureKind.session);
+    }
+    if (state.session!.accessToken != context.token) {
+      final active = _Context(
+        context.url,
+        context.auth,
+        state.session!.accessToken,
+      );
+      if (await _identity(active) != context.identity) {
+        throw const CalendarFailure(CalendarFailureKind.session);
+      }
+      context.token = active.token;
     }
   }
 
@@ -657,7 +890,13 @@ class CalendarFacadeClient {
     _Context context,
     Future<T> Function(api.CalendarUserApi) request, {
     bool mutation = false,
+    CalendarOperationStage? stage,
   }) async {
+    final operationStage =
+        stage ??
+        (mutation
+            ? CalendarOperationStage.mutation
+            : CalendarOperationStage.read);
     Future<T> send() async {
       await _assertCurrent(context);
       if (mutation) {
@@ -669,52 +908,124 @@ class CalendarFacadeClient {
       final result = await request(
         api.CalendarUserApi(_client(context)),
       ).timeout(const Duration(seconds: 20));
-      await _assertCurrent(context);
+      if (!mutation) await _assertCurrent(context);
       return result;
     }
 
-    try {
-      return await send();
-    } on api.ApiException catch (error) {
-      if (error.code == 401) {
-        await _assertCurrent(context);
-        final state = await _auth.refreshSession(context.auth);
-        final session = state.session;
-        if (!state.isAuthenticated ||
-            session == null ||
-            !session.matches(context.auth) ||
-            session.accessToken == context.token) {
-          throw const CalendarFailure(CalendarFailureKind.session);
+    Future<T> invokeWithRefresh() async {
+      try {
+        return await send();
+      } on api.ApiException catch (error) {
+        if (error.innerException != null) {
+          throw _requestFailure(error, mutation: mutation);
         }
-        context.token = session.accessToken;
-        if (await _identity(context) != context.identity) {
-          throw const CalendarFailure(CalendarFailureKind.session);
+        if (error.code == 401) {
+          await _assertCurrent(context);
+          final state = await _auth.refreshSession(context.auth);
+          final session = state.session;
+          if (!state.isAuthenticated ||
+              session == null ||
+              !session.matches(context.auth) ||
+              session.accessToken == context.token) {
+            throw const CalendarFailure(CalendarFailureKind.session);
+          }
+          context.token = session.accessToken;
+          if (await _identity(context) != context.identity) {
+            throw const CalendarFailure(CalendarFailureKind.session);
+          }
+          try {
+            return await send();
+          } on api.ApiException catch (retry) {
+            throw _requestFailure(retry, mutation: mutation);
+          } on CalendarFailure {
+            rethrow;
+          } catch (_) {
+            throw CalendarFailure(
+              CalendarFailureKind.unavailable,
+              writeMayHaveCommitted: mutation,
+            );
+          }
         }
-        try {
-          return await send();
-        } on api.ApiException catch (retry) {
-          throw _failure(retry.code);
-        } on CalendarFailure {
-          rethrow;
-        } catch (_) {
-          throw const CalendarFailure(CalendarFailureKind.unavailable);
-        }
+        throw _requestFailure(error, mutation: mutation);
+      } on CalendarFailure {
+        rethrow;
+      } catch (_) {
+        throw CalendarFailure(
+          CalendarFailureKind.unavailable,
+          writeMayHaveCommitted: mutation,
+        );
       }
-      throw _failure(error.code);
-    } on CalendarFailure {
-      rethrow;
-    } catch (_) {
-      throw const CalendarFailure(CalendarFailureKind.unavailable);
+    }
+
+    try {
+      return await invokeWithRefresh();
+    } on CalendarFailure catch (failure) {
+      final contextual = CalendarFailure(
+        failure.kind,
+        writeMayHaveCommitted: failure.writeMayHaveCommitted,
+        stage: operationStage,
+        httpStatus: failure.httpStatus,
+        apiCode: failure.apiCode,
+      );
+      _report(contextual);
+      throw contextual;
     }
   }
 
-  CalendarFailure _failure(int status) => CalendarFailure(switch (status) {
-    401 => CalendarFailureKind.session,
-    403 => CalendarFailureKind.permission,
-    409 || 412 || 428 => CalendarFailureKind.conflict,
-    400 || 422 => CalendarFailureKind.unsupportedEdit,
-    _ => CalendarFailureKind.unavailable,
-  });
+  CalendarFailure _requestFailure(
+    api.ApiException error, {
+    required bool mutation,
+  }) {
+    // The generated client uses a synthetic 400 for transport/decode exceptions.
+    // It is not an HTTP rejection and cannot disprove a transmitted write.
+    if (error.innerException != null) {
+      return CalendarFailure(
+        CalendarFailureKind.unavailable,
+        writeMayHaveCommitted: mutation,
+      );
+    }
+    final failure = _failure(error.code, apiCode: _safeApiCode(error.message));
+    return CalendarFailure(
+      failure.kind,
+      httpStatus: failure.httpStatus,
+      apiCode: failure.apiCode,
+      writeMayHaveCommitted: mutation && error.code >= 500,
+    );
+  }
+
+  String _safeApiCode(String? body) {
+    const allowed = {
+      'calendar-audit-unavailable',
+      'calendar-create-conflict',
+      'calendar-event-not-found',
+      'calendar-forbidden',
+      'calendar-invalid-request',
+      'calendar-precondition-required',
+      'calendar-provider-unavailable',
+      'calendar-version-conflict',
+      'calendar-window-too-large',
+    };
+    try {
+      final decoded = jsonDecode(body ?? '');
+      final code = decoded is Map ? decoded['code'] : null;
+      return allowed.contains(code) ? code as String : 'unavailable';
+    } catch (_) {
+      return 'unavailable';
+    }
+  }
+
+  CalendarFailure _failure(int status, {String apiCode = 'unavailable'}) =>
+      CalendarFailure(
+        switch (status) {
+          401 => CalendarFailureKind.session,
+          403 => CalendarFailureKind.permission,
+          409 || 412 || 428 => CalendarFailureKind.conflict,
+          400 || 422 => CalendarFailureKind.unsupportedEdit,
+          _ => CalendarFailureKind.unavailable,
+        },
+        httpStatus: status >= 100 && status <= 599 ? status : null,
+        apiCode: apiCode,
+      );
 }
 
 class _Context {

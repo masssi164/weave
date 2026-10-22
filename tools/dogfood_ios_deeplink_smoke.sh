@@ -17,6 +17,12 @@ LOCAL_CA_TRUST_STATUS="${WEAVE_IOS_LOCAL_CA_TRUST_STATUS:-not_verified}"
 ORGANIZATION_ORIGIN="${WEAVE_DOGFOOD_ORGANIZATION_ORIGIN:-}"
 EXPECTED_VISIBLE_STATE="handoff_ready"
 EXPECTED_AUTH_STATE="ready_for_sso"
+ORDINARY_STARTUP=0
+if [[ "${1:-}" == "--ordinary-startup" && "$#" == "1" ]]; then
+  ORDINARY_STARTUP=1
+elif [[ "$#" != "0" ]]; then
+  echo "dogfood iOS smoke failed: unknown arguments" >&2; exit 1
+fi
 CANDIDATE_COMMIT="${WEAVE_CANDIDATE_COMMIT:-$(git -C "${ROOT_DIR}" rev-parse HEAD)}"
 BUILD_NUMBER="${WEAVE_IOS_BUILD_NUMBER:-$(git -C "${ROOT_DIR}" rev-list --count HEAD)}"
 CANDIDATE_EVIDENCE_REF="${WEAVE_CANDIDATE_EVIDENCE_REF:-local:${CANDIDATE_COMMIT}}"
@@ -27,7 +33,7 @@ fail() {
 }
 
 [[ -n "${DEVICE_ID}" ]] || fail "set WEAVE_IOS_DEVICE_ID to the paired iPhone device identifier"
-[[ -n "${DEEPLINK}" ]] || fail "set WEAVE_DOGFOOD_DEEPLINK to the current weave://join URL"
+[[ "${ORDINARY_STARTUP}" == "1" || -n "${DEEPLINK}" ]] || fail "set WEAVE_DOGFOOD_DEEPLINK to the current weave://join URL"
 [[ "${CANDIDATE_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || fail "WEAVE_CANDIDATE_COMMIT must be the exact lowercase source SHA"
 [[ "${BUILD_NUMBER}" =~ ^[1-9][0-9]*$ ]] || fail "WEAVE_IOS_BUILD_NUMBER must be a positive integer"
 [[ "${BUILD_MODE}" != "debug" ]] || fail "debug builds are invalid for installed iOS custom-scheme smoke; use profile or release"
@@ -57,12 +63,15 @@ fi
 
 [[ "$(git -C "${ROOT_DIR}" rev-parse HEAD)" == "${CANDIDATE_COMMIT}" ]] || fail "candidate does not match checked-out source"
 [[ -z "$(git -C "${ROOT_DIR}" status --porcelain --untracked-files=no)" ]] || fail "physical preparation requires unchanged tracked candidate source"
-PLATFORM_CONFIG_URL="$(PYTHONPATH="${ROOT_DIR}/tools" ORGANIZATION_ORIGIN="${ORGANIZATION_ORIGIN}" DEEPLINK="${DEEPLINK}" python3 - <<'PYTHON'
+if [[ "${ORDINARY_STARTUP}" == "1" && "${RESET_MODE}" != "update_in_place" ]]; then
+  fail "ordinary startup requires update_in_place; owner state must be preserved"
+fi
+PLATFORM_CONFIG_URL="$(ORDINARY_STARTUP="${ORDINARY_STARTUP}" PYTHONPATH="${ROOT_DIR}/tools" ORGANIZATION_ORIGIN="${ORGANIZATION_ORIGIN}" DEEPLINK="${DEEPLINK}" python3 - <<'PYTHON'
 import os
 from urllib.parse import urlencode
 from dogfood_handoff_bundle import canonical_origin
 origin = canonical_origin(os.environ["ORGANIZATION_ORIGIN"])
-if os.environ["DEEPLINK"] != "weave://join?" + urlencode({"organization_origin": origin}):
+if os.environ["ORDINARY_STARTUP"] != "1" and os.environ["DEEPLINK"] != "weave://join?" + urlencode({"organization_origin": origin}):
     raise SystemExit("physical preparation requires one canonical organization-origin link")
 print(origin + "api/platform/config")
 PYTHON
@@ -100,7 +109,7 @@ xcrun devicectl device info details \
 
 (
   cd "${CLIENT_DIR}"
-  "${FLUTTER_BIN}" build ios "--${BUILD_MODE}" \
+  "${FLUTTER_BIN}" build ios "--${BUILD_MODE}" --target=lib/main.dart \
     --build-number="${BUILD_NUMBER}" \
     --dart-define="WEAVE_CANDIDATE_COMMIT=${CANDIDATE_COMMIT}" \
     --dart-define="WEAVE_CANDIDATE_EVIDENCE_REF=${CANDIDATE_EVIDENCE_REF}" \
@@ -147,6 +156,9 @@ payload = {
     "developerCertificateTeamIdMatches": (authority_team_match.group(1) if authority_team_match else "") == expected_developer_cert_team_id,
     "profileApplicationIdentifierMatches": str(application_identifier).endswith(".com.massimotter.weave"),
 }
+if payload["bundleId"] != payload["expectedBundleId"] or not all(payload[key] for key in (
+    "teamIdMatches", "developerCertificateTeamIdMatches", "profileApplicationIdentifierMatches")):
+    raise SystemExit("Approved physical signing identity mismatch")
 output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
   if [[ "${RESET_MODE}" == "destructive_uninstall" ]]; then
@@ -155,8 +167,33 @@ PY
   xcrun devicectl device install app --device "${DEVICE_ID}" build/ios/iphoneos/Runner.app
   xcrun devicectl device info apps --device "${DEVICE_ID}" --bundle-id "${BUNDLE_ID}" --json-output "${EVIDENCE_DIR}/ios-installed-app.json" >/dev/null
   date -u +"%Y-%m-%dT%H:%M:%SZ" > "${EVIDENCE_DIR}/ios-launch-started-at.txt"
-  xcrun devicectl device process launch --device "${DEVICE_ID}" --terminate-existing --payload-url "${RUN_DEEPLINK}" "${BUNDLE_ID}"
+  if [[ "${ORDINARY_STARTUP}" == "1" ]]; then
+    xcrun devicectl device process launch --device "${DEVICE_ID}" --terminate-existing "${BUNDLE_ID}"
+  else
+    xcrun devicectl device process launch --device "${DEVICE_ID}" --terminate-existing --payload-url "${RUN_DEEPLINK}" "${BUNDLE_ID}"
+  fi
 )
+
+if [[ "${ORDINARY_STARTUP}" == "1" ]]; then
+  EVIDENCE_DIR="${EVIDENCE_DIR}" CANDIDATE_COMMIT="${CANDIDATE_COMMIT}" BUILD_NUMBER="${BUILD_NUMBER}" python3 - <<'PY'
+import json, os
+from pathlib import Path
+root = Path(os.environ["EVIDENCE_DIR"])
+installed = json.loads((root / "ios-installed-app.json").read_text())["result"]["apps"]
+matching = [app for app in installed if app.get("bundleIdentifier") == "com.massimotter.weave"]
+if len(matching) != 1 or str(matching[0].get("bundleVersion")) != os.environ["BUILD_NUMBER"]:
+    raise SystemExit("Installed ordinary build identity mismatch")
+(root / "ios-ordinary-startup.json").write_text(json.dumps({
+    "schemaVersion": "weave.dogfood.ios-ordinary-startup/v1",
+    "candidateCommit": os.environ["CANDIDATE_COMMIT"], "buildNumber": os.environ["BUILD_NUMBER"],
+    "status": "installed-launch-requested", "functionalProof": "pending",
+    "installResetMode": "update_in_place", "onboardingUrlLaunched": False,
+    "supportSafe": True, "containsSecretValues": False,
+}, indent=2) + "\n")
+PY
+  echo "DOGFOOD_ORDINARY_STARTUP_RESULT status=installed-launch-requested functionalProof=pending"
+  exit 0
+fi
 
 sleep "${WEAVE_IOS_HANDOFF_SETTLE_SECONDS:-15}"
 

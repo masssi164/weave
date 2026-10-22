@@ -475,6 +475,11 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
     await tester.ensureVisible(finder);
     await tester.pump();
   }
+  expect(
+    finder.hitTestable(),
+    findsOneWidget,
+    reason: 'The actual UI target must be hittable after scroll preparation.',
+  );
   await tester.tap(finder);
   await tester.pump(const Duration(milliseconds: 250));
 }
@@ -906,13 +911,7 @@ void main() {
           'files',
         ],
       };
-      await _tap(
-        tester,
-        find.descendant(
-          of: find.byType(NavigationBar),
-          matching: find.byIcon(Icons.chat_bubble_outline),
-        ),
-      );
+      await navigateNativeDualDestination(tester, Icons.chat_bubble_outline);
       final store = container.read(secureStoreProvider);
       String? device;
       await _wait(tester, () {
@@ -2028,7 +2027,7 @@ Future<void> _filePreview(
 }
 
 AppLocalizations _copy(WidgetTester tester) =>
-    AppLocalizations.of(tester.element(find.byType(NavigationBar)));
+    AppLocalizations.of(tester.element(_nativeDualNavigationRoot().first));
 
 Future<void> tapNativeDualBack(
   WidgetTester tester, {
@@ -2051,15 +2050,45 @@ Future<void> tapNativeDualBack(
   }
 }
 
+Finder _nativeDualNavigationId(String id, {bool skipOffstage = true}) =>
+    find.byWidgetPredicate(
+      (widget) =>
+          widget is Semantics && widget.properties.identifier == 'nav-$id',
+      skipOffstage: skipOffstage,
+    );
+
+Finder _nativeDualNavigationRoot({bool skipOffstage = true}) {
+  final semantic = _nativeDualNavigationId('home', skipOffstage: skipOffstage);
+  return semantic.evaluate().isNotEmpty
+      ? semantic
+      : find.byType(NavigationBar, skipOffstage: skipOffstage);
+}
+
 Future<void> navigateNativeDualDestination(WidgetTester tester, IconData icon) {
-  final copy = _copy(tester);
-  final label = switch (icon) {
-    Icons.home_outlined => copy.navHome,
-    Icons.chat_bubble_outline => copy.navChat,
-    Icons.folder_outlined => copy.navFiles,
-    Icons.calendar_month_outlined => copy.navCalendar,
-    Icons.settings_outlined => copy.navSettings,
+  final id = switch (icon) {
+    Icons.home_outlined => 'home',
+    Icons.chat_bubble_outline => 'chat',
+    Icons.folder_outlined => 'files',
+    Icons.calendar_month_outlined => 'calendar',
+    Icons.settings_outlined => 'settings',
     _ => throw TestFailure('Unsupported actual navigation destination.'),
+  };
+  final semantic = _nativeDualNavigationId(id);
+  if (semantic.evaluate().isNotEmpty) {
+    expect(
+      semantic,
+      findsOneWidget,
+      reason: 'Actual navigation destination must be unambiguous.',
+    );
+    return _tap(tester, semantic);
+  }
+  final copy = _copy(tester);
+  final label = switch (id) {
+    'home' => copy.navHome,
+    'chat' => copy.navChat,
+    'files' => copy.navFiles,
+    'calendar' => copy.navCalendar,
+    _ => copy.navSettings,
   };
   return _tap(
     tester,
@@ -2400,8 +2429,8 @@ String nativeDualChatSurfaceDiagnostic(
       'workspaceTabCount=${count(tabs)} workspaceTabIndex=${tabIndex?.clamp(0, 999) ?? 'unavailable'} '
       'shellVisible=${count(find.byType(AppShell))} '
       'shellMounted=${count(find.byType(AppShell, skipOffstage: false))} '
-      'navigationVisible=${count(find.byType(NavigationBar))} '
-      'navigationMounted=${count(find.byType(NavigationBar, skipOffstage: false))} '
+      'navigationVisible=${count(_nativeDualNavigationRoot())} '
+      'navigationMounted=${count(_nativeDualNavigationRoot(skipOffstage: false))} '
       'gateVisible=${count(find.byType(BootstrapGate))} '
       'chatAdmissionVisible=${count(find.byType(ChatAdmissionGate))} '
       'chatAdmissionMounted=${count(find.byType(ChatAdmissionGate, skipOffstage: false))} '
@@ -2507,7 +2536,32 @@ String nativeDualChatListDiagnostic(
 }) {
   int count(Finder finder) => finder.evaluate().length.clamp(0, 999);
   final navigation = find.byType(NavigationBar);
-  final selected = navigation.evaluate().length == 1
+  final selectedSemantic = <int>[
+    for (var i = 0; i < 5; i++)
+      if (_nativeDualNavigationId(
+                const ['home', 'chat', 'files', 'calendar', 'settings'][i],
+              ).evaluate().length ==
+              1 &&
+          tester
+                  .widget<Semantics>(
+                    _nativeDualNavigationId(
+                      const [
+                        'home',
+                        'chat',
+                        'files',
+                        'calendar',
+                        'settings',
+                      ][i],
+                    ),
+                  )
+                  .properties
+                  .selected ==
+              true)
+        i,
+  ];
+  final selected = selectedSemantic.length == 1
+      ? selectedSemantic.single
+      : navigation.evaluate().length == 1
       ? tester.widget<NavigationBar>(navigation).selectedIndex.clamp(0, 999)
       : null;
   final surface = nativeDualChatSurfaceDiagnostic(

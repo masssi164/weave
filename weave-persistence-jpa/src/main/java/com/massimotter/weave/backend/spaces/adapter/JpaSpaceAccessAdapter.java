@@ -2,6 +2,8 @@ package com.massimotter.weave.backend.spaces.adapter;
 
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.util.List;
+import java.util.Optional;
+import com.massimotter.weave.backend.spaces.port.SpaceReadPort;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** Reads only persisted active Space and membership state; bootstrap config is not an authority. */
 @Repository
 @Transactional(readOnly = true)
-public class JpaSpaceAccessAdapter implements SpaceAccessPort {
+public class JpaSpaceAccessAdapter implements SpaceAccessPort, SpaceReadPort {
     private final SpaceJpaRepository spaces;
     private final SpaceMembershipJpaRepository memberships;
 
@@ -43,6 +45,23 @@ public class JpaSpaceAccessAdapter implements SpaceAccessPort {
         return memberships.visibleSpaceRefs(
                 organizationRef, principalRef, afterSpaceRef == null ? "" : afterSpaceRef,
                 PageRequest.of(0, limit));
+    }
+
+    @Override
+    public List<SpaceSummary> visibleSpaces(String organizationRef, String principalRef,
+            String afterSpaceRef, int limit) {
+        if (organizationRef == null || organizationRef.isBlank() || principalRef == null || principalRef.isBlank()
+                || limit < 1 || limit > 100) {
+            throw new IllegalArgumentException("Space listing requires an organization, member and limit 1..100");
+        }
+        return memberships.visibleSpaces(organizationRef, principalRef, afterSpaceRef == null ? "" : afterSpaceRef,
+                PageRequest.of(0, limit));
+    }
+
+    @Override
+    public Optional<SpaceSummary> visibleSpace(String organizationRef, String principalRef, String spaceRef) {
+        if (organizationRef == null || principalRef == null || spaceRef == null) return Optional.empty();
+        return memberships.visibleSpace(organizationRef, principalRef, spaceRef);
     }
 
     private static boolean permits(String permissionSet, Permission permission) {

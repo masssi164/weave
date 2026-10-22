@@ -16,6 +16,7 @@ import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver
 import com.massimotter.weave.backend.service.OrganizationIdentityContext;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.spaces.port.SpaceProvisioningPort;
+import com.massimotter.weave.backend.spaces.port.SpaceDisplayName;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort;
 import java.time.Instant;
@@ -62,17 +63,22 @@ public class SpaceAdminApiService {
                         account == null || !account.matches("acct_[0-9a-f]{32}"))) {
             throw error(HttpStatus.BAD_REQUEST, "space-provision-invalid", "The Space setup request is invalid.");
         }
+        final String name;
+        try { name = SpaceDisplayName.normalize(request.displayName()); }
+        catch (IllegalArgumentException invalid) {
+            throw error(HttpStatus.BAD_REQUEST, "space-provision-invalid", "The Space name is invalid.");
+        }
         Set<String> members = new HashSet<>(request.memberAccountRefs());
         if (members.size() != request.memberAccountRefs().size()) {
             throw error(HttpStatus.BAD_REQUEST, "space-provision-invalid", "Duplicate member accounts are invalid.");
         }
         SpaceProvisioningPort.Result result;
         try {
-            result = spaces.provision(identity.organizationId(), request.spaceRef(),
+            result = spaces.provision(identity.organizationId(), request.spaceRef(), name,
                     identity.accountId(), members);
         } catch (SpaceProvisioningPort.Conflict conflict) {
             throw error(HttpStatus.CONFLICT, "space-provision-conflict",
-                    "The Space already has different membership intent.");
+                    "The Space already has different setup intent.");
         }
         audit.publish(new AuditEvent(identity.organizationId(), request.spaceRef(),
                 identity.accountId(), "admin-spaces", AuditAction.SPACE_PROVISIONED,

@@ -43,10 +43,10 @@ class SpaceAdminApiServiceTest {
     void ownerProvisionRequiresCurrentPolicyAndPublishesSupportSafeAudit() {
         Jwt owner = token("owner", "owner");
         when(admission.allows(owner)).thenReturn(true);
-        when(spaces.provision("tenant-default", "workspace-default", OWNER_ACCOUNT,
+        when(spaces.provision("tenant-default", "workspace-default", "Organization workspace", OWNER_ACCOUNT,
                 Set.of(MEMBER_ACCOUNT))).thenReturn(SpaceProvisioningPort.Result.CREATED);
         var response = service.provision(owner,
-                new SpaceProvisionRequest("workspace-default", List.of(MEMBER_ACCOUNT)));
+                new SpaceProvisionRequest("workspace-default", "Organization workspace", List.of(MEMBER_ACCOUNT)));
         assertThat(response.spaceRef()).isEqualTo("workspace-default");
         assertThat(response.result()).isEqualTo("CREATED");
         verify(capabilities).requireCapability(owner, "admin.policy.edit", "spaces", "provision");
@@ -58,21 +58,41 @@ class SpaceAdminApiServiceTest {
     }
 
     @Test
+    void readableNameValidationUsesUnicodeCodePointsAndNeverPublishesNameInAudit() {
+        Jwt owner = token("owner", "owner");
+        when(admission.allows(owner)).thenReturn(true);
+        for (String invalid : java.util.Arrays.asList(null, " ", "name\n", "\u0000name", "a".repeat(161))) {
+            assertThatThrownBy(() -> service.provision(owner,
+                    new SpaceProvisionRequest("space:team", invalid, List.of())))
+                    .isInstanceOfSatisfying(ApiErrorException.class,
+                            error -> assertThat(error.status()).isEqualTo(HttpStatus.BAD_REQUEST));
+        }
+        verifyNoInteractions(spaces, audit);
+        String unicode = "🚀".repeat(160);
+        when(spaces.provision("tenant-default", "space:team", unicode, OWNER_ACCOUNT, Set.of()))
+                .thenReturn(SpaceProvisioningPort.Result.CREATED);
+        service.provision(owner, new SpaceProvisionRequest("space:team", " " + unicode + " ", List.of()));
+        verify(spaces).provision("tenant-default", "space:team", unicode, OWNER_ACCOUNT, Set.of());
+        verify(audit).publish(org.mockito.ArgumentMatchers.argThat((AuditEvent event) ->
+                !event.payload().toString().contains("🚀")));
+    }
+
+    @Test
     void memberForeignOrganizationAndInvalidAccountsNeverProvision() {
         Jwt member = token("member", "member");
         when(admission.allows(member)).thenReturn(true);
         assertThatThrownBy(() -> service.provision(member,
-                new SpaceProvisionRequest("workspace-default", List.of())))
+                new SpaceProvisionRequest("workspace-default", "Organization workspace", List.of())))
                 .isInstanceOfSatisfying(ApiErrorException.class,
                         error -> assertThat(error.status()).isEqualTo(HttpStatus.FORBIDDEN));
         Jwt owner = token("owner", "owner");
         assertThatThrownBy(() -> service.provision(owner,
-                new SpaceProvisionRequest("workspace-default", List.of())))
+                new SpaceProvisionRequest("workspace-default", "Organization workspace", List.of())))
                 .isInstanceOfSatisfying(ApiErrorException.class,
                         error -> assertThat(error.status()).isEqualTo(HttpStatus.FORBIDDEN));
         when(admission.allows(owner)).thenReturn(true);
         assertThatThrownBy(() -> service.provision(owner,
-                new SpaceProvisionRequest("workspace-default", List.of("user:bare-subject"))))
+                new SpaceProvisionRequest("workspace-default", "Organization workspace", List.of("user:bare-subject"))))
                 .isInstanceOfSatisfying(ApiErrorException.class,
                         error -> assertThat(error.status()).isEqualTo(HttpStatus.BAD_REQUEST));
         verifyNoInteractions(spaces, audit);
@@ -82,10 +102,10 @@ class SpaceAdminApiServiceTest {
     void changedRequestConflictsWithoutAuditOrMembershipOverwrite() {
         Jwt owner = token("owner", "owner");
         when(admission.allows(owner)).thenReturn(true);
-        when(spaces.provision("tenant-default", "workspace-default", OWNER_ACCOUNT, Set.of()))
+        when(spaces.provision("tenant-default", "workspace-default", "Organization workspace", OWNER_ACCOUNT, Set.of()))
                 .thenThrow(new SpaceProvisioningPort.Conflict());
         assertThatThrownBy(() -> service.provision(owner,
-                new SpaceProvisionRequest("workspace-default", List.of())))
+                new SpaceProvisionRequest("workspace-default", "Organization workspace", List.of())))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
                     assertThat(error.status()).isEqualTo(HttpStatus.CONFLICT);
                     assertThat(error.code()).isEqualTo("space-provision-conflict");

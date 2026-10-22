@@ -16,6 +16,11 @@ from urllib.parse import urlencode
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
+try:
+    from tools.dogfood_functional_smoke import functional_smoke_passed
+except ModuleNotFoundError:
+    from dogfood_functional_smoke import functional_smoke_passed
+
 SHA = re.compile(r"^[0-9a-f]{40}$")
 COMMENT_HEADER = "Weave human test v1"
 REQUIRED_SURFACES = (
@@ -392,13 +397,15 @@ def owner_workspace_passed(value: dict, sha: str, tree: str, spec: str) -> bool:
 def preparation_passed(value: dict, sha: str, tree: str, spec: str, run_id: int, run_attempt: int) -> bool:
     if not isinstance(value, dict) or not owner_workspace_passed(value.get("ownerWorkspace"), sha, tree, spec):
         return False
+    if not functional_smoke_passed(value.get("functionalSmoke"), sha, tree, spec, run_id, run_attempt, "physical"):
+        return False
     toolchain = value.get("toolchain")
     if not native_toolchain_recorded(toolchain):
         return False
     if toolchain.get("iosDeviceSdkVersion") != toolchain["iosSimulatorSdkVersion"]:
         return False
     return all(value.get(key) == expected for key, expected in {
-        "schemaVersion": "weave.hil-preparation/v2", "candidateCommit": sha,
+        "schemaVersion": "weave.hil-preparation/v3", "candidateCommit": sha,
         "sourceTree": tree, "specificationCommit": spec,
         "qualificationRunId": run_id, "qualificationRunAttempt": run_attempt, "status": "passed", "install": "update_in_place",
         "supportSafe": True, "containsSecretValues": False,
@@ -477,13 +484,16 @@ def qualified_run(repository: str, sha: str, tree: str, spec: str, token: str) -
         raise ValueError("Qualification does not prove exact-run cleanup")
     deployment = artifact_json(download_artifact(repository, run["id"], attempt_artifact("dogfood-compose", sha, run), token),
                                "deployment-result.json")
-    expected = {"schemaVersion": "weave.dogfood-deployment/v1", "candidateCommit": sha,
+    expected = {"schemaVersion": "weave.dogfood-deployment/v2", "candidateCommit": sha,
                 "sourceTree": tree, "specificationCommit": spec,
-                "qualificationRunId": run["id"], "status": "passed"}
+                "qualificationRunId": run["id"], "qualificationRunAttempt": run["run_attempt"], "status": "passed"}
     if (any(deployment.get(key) != value for key, value in expected.items())
             or deployment.get("supportSafe") is not True
             or deployment.get("containsSecretValues") is not False):
         raise ValueError("Deployment evidence does not match exact qualification")
+    if not functional_smoke_passed(deployment.get("functionalSmoke"), sha, tree, spec,
+                                   run["id"], run["run_attempt"], "deployment"):
+        raise ValueError("Deployment lacks ordinary authenticated functional UI evidence")
     return run
 
 

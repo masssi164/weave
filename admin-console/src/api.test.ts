@@ -571,7 +571,7 @@ describe("default Space provisioning boundary", () => {
     const [url, request] = fetchImpl.mock.calls[0];
     expect(url).toBe("https://api.example.invalid/api/admin/spaces");
     expect(request?.method).toBe("POST");
-    expect(JSON.parse(String(request?.body))).toEqual({ spaceRef: "workspace-default", memberAccountRefs: [] });
+    expect(JSON.parse(String(request?.body))).toEqual({ spaceRef: "workspace-default", displayName: "Organization workspace", memberAccountRefs: [] });
     expect(new Headers(request?.headers).get("Authorization")).toBe("Bearer current-admin-session");
   });
 });

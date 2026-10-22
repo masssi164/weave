@@ -234,6 +234,16 @@ jobs:
           ./gradlew --no-daemon dogfoodUp
           echo "DOGFOOD_COMPOSE_DEPLOY_RESULT status=passed commit=${DOGFOOD_COMMIT}"
 
+      - name: Verify ordinary direct Dogfood functional behavior
+        working-directory: weave
+        run: |
+          umask 077
+          python3 tools/dogfood_functional_smoke.py --stage deployment \
+            --candidate "$DOGFOOD_COMMIT" \
+            --qualification-run-id "$GITHUB_RUN_ID" \
+            --qualification-run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --output build/evidence/dogfood-compose/functional-smoke.json
+
       - name: Record exact deployment identity
         working-directory: weave
         run: |
@@ -246,15 +256,19 @@ jobs:
           output = Path("build/evidence/dogfood-compose/deployment-result.json")
           output.parent.mkdir(parents=True, exist_ok=True)
           output.write_text(json.dumps({
-              "schemaVersion": "weave.dogfood-deployment/v1", "candidateCommit": sha,
+              "schemaVersion": "weave.dogfood-deployment/v2", "candidateCommit": sha,
               "sourceTree": subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], text=True).strip(),
               "specificationCommit": json.loads(Path("specs/weave-specs.lock.json").read_text())["specCorpus"]["gitCommit"],
-              "qualificationRunId": int(os.environ["GITHUB_RUN_ID"]), "status": "passed",
+              "qualificationRunId": int(os.environ["GITHUB_RUN_ID"]),
+              "qualificationRunAttempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "functionalSmoke": json.loads(Path("build/evidence/dogfood-compose/functional-smoke.json").read_text()),
+              "status": "passed",
               "supportSafe": True, "containsSecretValues": False,
           }, indent=2) + "\n")
           PY
 
       - name: Upload support-safe deployment result
+        if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dogfood-compose-${{ env.DOGFOOD_COMMIT }}-attempt-${{ github.run_attempt }}

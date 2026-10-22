@@ -31,6 +31,50 @@ class JpaSpaceAccessAdapterPostgresTest {
     private static final Instant NOW = Instant.parse("2026-10-07T12:00:00Z");
 
     @Test
+    void legacyNameMigrationPreservesReferencesGrantsAndMaterializedFileRelationships() {
+        String schema = "legacy_names_" + java.util.UUID.randomUUID().toString().replace("-", "");
+        String separator = POSTGRES.getJdbcUrl().contains("?") ? "&" : "?";
+        var source = new DriverManagerDataSource(POSTGRES.getJdbcUrl() + separator + "currentSchema=" + schema,
+                POSTGRES.getUsername(), POSTGRES.getPassword());
+        source.setDriverClassName(POSTGRES.getDriverClassName());
+        Flyway.configure().dataSource(source).schemas(schema).defaultSchema(schema).target("13")
+                .locations("classpath:db/migration").load().migrate();
+        var sql = new org.springframework.jdbc.core.JdbcTemplate(source);
+        for (String[] key : new String[][] {{"org:a", "workspace-default"}, {"org:a", "space:z"},
+                {"org:a", "space:a"}, {"org:b", "space:a"}}) {
+            sql.update("insert into weave_spaces (organization_ref, space_ref, lifecycle_state, created_at_utc, updated_at_utc, version) values (?, ?, 'ACTIVE', ?, ?, 7)",
+                    key[0], key[1], java.time.OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC), java.time.OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC));
+            sql.update("insert into weave_space_memberships (organization_ref, space_ref, person_ref, permission_set, lifecycle_state, created_at_utc, updated_at_utc, version) values (?, ?, 'owner', 'VIEW,EDIT,ADMIN', 'ACTIVE', ?, ?, 3)",
+                    key[0], key[1], java.time.OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC), java.time.OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC));
+        }
+        sql.update("insert into weave_files_user_resources (organization_ref, file_id, binding_revision, space_ref, parent_file_id, canonical_path, active_path_key, object_kind, owner_principal_ref, lifecycle_state, created_at_utc, modified_at_utc, version, visibility_scope) values ('org:a', 'file:kept', 1, 'space:a', 'root', '/kept.txt', '/kept.txt', 'FILE', 'owner', 'ACTIVE', ?, ?, 4, 'PRIVATE')",
+                java.time.OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC), java.time.OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC));
+        var rootsBefore = sql.queryForList("select organization_ref, space_ref, lifecycle_state, created_at_utc, updated_at_utc, version from weave_spaces order by organization_ref, space_ref");
+        var grantsBefore = sql.queryForList("select * from weave_space_memberships order by organization_ref, space_ref, person_ref");
+        var relationshipsBefore = sql.queryForList("select * from weave_files_user_resources");
+        var migrations = Flyway.configure().dataSource(source).schemas(schema).defaultSchema(schema)
+                .locations("classpath:db/migration").load();
+        migrations.migrate();
+        JpaTestDatabase.validateSchema(source);
+        assertThat(sql.queryForList("select display_name from weave_spaces where organization_ref = 'org:a' order by space_ref", String.class))
+                .containsExactly("Space 1", "Space 2", "Organization workspace");
+        assertThat(sql.queryForObject("select display_name from weave_spaces where organization_ref = 'org:b'", String.class)).isEqualTo("Space 1");
+        assertThat(sql.queryForList("select organization_ref, space_ref, lifecycle_state, created_at_utc, updated_at_utc, version from weave_spaces order by organization_ref, space_ref")).isEqualTo(rootsBefore);
+        assertThat(sql.queryForList("select * from weave_space_memberships order by organization_ref, space_ref, person_ref")).isEqualTo(grantsBefore);
+        assertThat(sql.queryForList("select * from weave_files_user_resources")).isEqualTo(relationshipsBefore);
+        sql.update("update weave_spaces set display_name = 'Existing reviewed name' where organization_ref = 'org:a' and space_ref = 'workspace-default'");
+        migrations.migrate();
+        var roots = JpaTestDatabase.repository(source, SpaceJpaRepository.class);
+        var members = JpaTestDatabase.repository(source, SpaceMembershipJpaRepository.class);
+        var prepare = JpaTestDatabase.transactional(source, new JpaSpaceProvisioningAdapter(roots, members));
+        assertThat(prepare.prepare("org:a", "owner")).isEqualTo(DefaultSpacePreparationPort.Result.VERIFIED);
+        assertThat(new JpaSpaceAccessAdapter(roots, members).visibleSpace("org:a", "owner", "workspace-default").orElseThrow().displayName())
+                .isEqualTo("Existing reviewed name");
+        assertThat(sql.queryForList("select * from weave_space_memberships order by organization_ref, space_ref, person_ref")).isEqualTo(grantsBefore);
+        assertThat(sql.queryForList("select * from weave_files_user_resources")).isEqualTo(relationshipsBefore);
+    }
+
+    @Test
     void concurrentAdminAndBootstrapCreationCannotMixMembershipIntent() throws Exception {
         var source = migratedSource();
         var spaces = JpaTestDatabase.repository(source, SpaceJpaRepository.class);
@@ -48,7 +92,7 @@ class JpaSpaceAccessAdapterPostgresTest {
                         assertThat(adapter.prepare(organization, "owner:a"))
                                 .isEqualTo(DefaultSpacePreparationPort.Result.CREATED);
                     } else {
-                        assertThat(adapter.provision(organization, "workspace-default", "admin:b", Set.of("member:c")))
+                        assertThat(adapter.provision(organization, "workspace-default", "Organization workspace", "admin:b", Set.of("member:c")))
                                 .isEqualTo(SpaceProvisioningPort.Result.CREATED);
                     }
                     JpaTestDatabase.entityManager(source).flush();
@@ -60,7 +104,7 @@ class JpaSpaceAccessAdapterPostgresTest {
                 var loser = threads.submit(() -> {
                     loserStarted.countDown();
                     if (bootstrapWins) {
-                        assertThatThrownBy(() -> adapter.provision(organization, "workspace-default", "admin:b", Set.of("member:c")))
+                        assertThatThrownBy(() -> adapter.provision(organization, "workspace-default", "Organization workspace", "admin:b", Set.of("member:c")))
                                 .isInstanceOf(SpaceProvisioningPort.Conflict.class);
                     } else {
                         assertThatThrownBy(() -> adapter.prepare(organization, "owner:a"))
@@ -294,15 +338,15 @@ class JpaSpaceAccessAdapterPostgresTest {
         String owner = "acct_11111111111111111111111111111111";
         String alice = "acct_22222222222222222222222222222222";
         String bob = "acct_33333333333333333333333333333333";
-        assertThat(provision.provision("org:setup", "workspace-default", owner, Set.of(alice)))
+        assertThat(provision.provision("org:setup", "workspace-default", "Organization workspace", owner, Set.of(alice)))
                 .isEqualTo(SpaceProvisioningPort.Result.CREATED);
-        assertThat(provision.provision("org:setup", "workspace-default", owner, Set.of(alice)))
+        assertThat(provision.provision("org:setup", "workspace-default", "Organization workspace", owner, Set.of(alice)))
                 .isEqualTo(SpaceProvisioningPort.Result.UNCHANGED);
         var access = JpaTestDatabase.transactional(source, new JpaSpaceAccessAdapter(spaces, members));
         assertThat(access.allows("org:setup", "workspace-default", owner, Permission.ADMIN)).isTrue();
         assertThat(access.allows("org:setup", "workspace-default", alice, Permission.VIEW)).isTrue();
         assertThat(access.allows("org:setup", "workspace-default", alice, Permission.EDIT)).isFalse();
-        assertThatThrownBy(() -> provision.provision("org:setup", "workspace-default", owner, Set.of(bob)))
+        assertThatThrownBy(() -> provision.provision("org:setup", "workspace-default", "Organization workspace", owner, Set.of(bob)))
                 .isInstanceOf(SpaceProvisioningPort.Conflict.class);
         assertThat(access.allows("org:setup", "workspace-default", alice, Permission.VIEW)).isTrue();
         assertThat(access.allows("org:setup", "workspace-default", bob, Permission.VIEW)).isFalse();
@@ -312,7 +356,7 @@ class JpaSpaceAccessAdapterPostgresTest {
             member.revoke(NOW.plusSeconds(1));
             members.saveAndFlush(member);
         });
-        assertThatThrownBy(() -> provision.provision("org:setup", "workspace-default", owner, Set.of(alice)))
+        assertThatThrownBy(() -> provision.provision("org:setup", "workspace-default", "Organization workspace", owner, Set.of(alice)))
                 .isInstanceOf(SpaceProvisioningPort.Conflict.class);
         assertThat(access.allows("org:setup", "workspace-default", alice, Permission.VIEW)).isFalse();
     }
@@ -333,7 +377,7 @@ class JpaSpaceAccessAdapterPostgresTest {
         String outsider = "acct_33333333333333333333333333333333";
         JpaTestDatabase.transactional(source,
                 new JpaSpaceProvisioningAdapter(spaces, members, Clock.fixed(NOW, ZoneOffset.UTC)))
-                .provision("org:membership", "workspace-default", owner, Set.of());
+                .provision("org:membership", "workspace-default", "Organization workspace", owner, Set.of());
         var admin = JpaTestDatabase.transactional(source,
                 new JpaSpaceMembershipAdminAdapter(spaces, members,
                         Clock.fixed(NOW.plusSeconds(1), ZoneOffset.UTC)));

@@ -1,6 +1,3 @@
-import 'dart:async';
-
-import 'package:flutter/foundation.dart';
 import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
@@ -8,6 +5,7 @@ import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/chat_operation_diagnostics.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
 class NativeMatrixChatRepository
@@ -26,17 +24,75 @@ class NativeMatrixChatRepository
   final Map<String, String> _latestEventByRoom = <String, String>{};
 
   @override
-  Future<void> acceptInvitation(String roomId) async {
+  Future<void> acceptInvitation(String roomId) => ChatOperationDiagnostics.run(
+    ChatOperation.invitation,
+    () => _acceptInvitation(roomId),
+  );
+  @override
+  Future<List<ChatConversation>> loadConversations() =>
+      ChatOperationDiagnostics.run(
+        ChatOperation.conversations,
+        _loadConversations,
+      );
+  @override
+  Future<List<ChatParticipant>> searchMembers(String query) =>
+      ChatOperationDiagnostics.run(
+        ChatOperation.search,
+        () => _searchMembers(query),
+      );
+  @override
+  Future<ChatRoomTimeline> loadRoomTimeline(String roomId) =>
+      ChatOperationDiagnostics.run(
+        ChatOperation.timeline,
+        () => _loadRoomTimeline(roomId),
+      );
+  @override
+  Future<void> sendMessage({required String roomId, required String message}) =>
+      ChatOperationDiagnostics.run(
+        ChatOperation.send,
+        () => _sendMessage(roomId: roomId, message: message),
+      );
+  @override
+  Future<void> markRoomRead(String roomId) => ChatOperationDiagnostics.run(
+    ChatOperation.read,
+    () => _markRoomRead(roomId),
+  );
+  @override
+  Future<void> connect() =>
+      ChatOperationDiagnostics.run(ChatOperation.connect, _connect);
+  @override
+  Future<void> signOut() =>
+      ChatOperationDiagnostics.run(ChatOperation.signOut, _signOut);
+  @override
+  Future<void> clearSession() =>
+      ChatOperationDiagnostics.run(ChatOperation.clearSession, _clearSession);
+
+  Future<ChatConversation> _createConversation({
+    required String title,
+    required List<ChatParticipant> participants,
+    bool isDirect = false,
+  }) => ChatOperationDiagnostics.run(
+    ChatOperation.create,
+    () => _createConversationInternal(
+      title: title,
+      participants: participants,
+      isDirect: isDirect,
+    ),
+  );
+
+  Future<void> _acceptInvitation(String roomId) async {
     try {
       final session = await _matrixCryptoSessionCoordinator.open();
+      ChatOperationDiagnostics.mark(ChatStage.invitation);
       await _rustMatrixCoreBridge.acceptRoomInvitation(
         profileKey: session.profileKey,
         roomId: roomId,
       );
     } on RustMatrixCoreBridgeException catch (error) {
       if (isMatrixSessionExpiredCode(error.code)) {
-        throw const ChatFailure.sessionRequired(
+        throw ChatFailure.sessionRequired(
           'Sign in again before accepting the invitation.',
+          cause: error,
         );
       }
       throw ChatFailure.protocol(
@@ -46,10 +102,10 @@ class NativeMatrixChatRepository
     }
   }
 
-  @override
-  Future<List<ChatConversation>> loadConversations() async {
+  Future<List<ChatConversation>> _loadConversations() async {
     try {
       final session = await _matrixCryptoSessionCoordinator.open();
+      ChatOperationDiagnostics.mark(ChatStage.roomList);
       final rooms = await _rustMatrixCoreBridge.loadRooms(
         profileKey: session.profileKey,
       );
@@ -91,14 +147,14 @@ class NativeMatrixChatRepository
     }
   }
 
-  @override
-  Future<List<ChatParticipant>> searchMembers(String query) async {
+  Future<List<ChatParticipant>> _searchMembers(String query) async {
     final normalized = query.trim();
     if (normalized.isEmpty || normalized.runes.length > 200) return [];
     try {
       final session = await _matrixCryptoSessionCoordinator.open(
         synchronize: false,
       );
+      ChatOperationDiagnostics.mark(ChatStage.search);
       final members = await _rustMatrixCoreBridge.searchMembers(
         profileKey: session.profileKey,
         query: normalized,
@@ -144,7 +200,7 @@ class NativeMatrixChatRepository
   Future<ChatConversation> createConversation({required String title}) =>
       _createConversation(title: title, participants: const []);
 
-  Future<ChatConversation> _createConversation({
+  Future<ChatConversation> _createConversationInternal({
     required String title,
     required List<ChatParticipant> participants,
     bool isDirect = false,
@@ -164,6 +220,7 @@ class NativeMatrixChatRepository
       final session = await _matrixCryptoSessionCoordinator.open(
         synchronize: false,
       );
+      ChatOperationDiagnostics.mark(ChatStage.create);
       final room = participants.isEmpty
           ? await _rustMatrixCoreBridge.createBusinessRoom(
               profileKey: session.profileKey,
@@ -209,16 +266,14 @@ class NativeMatrixChatRepository
     }
   }
 
-  @override
-  Future<ChatRoomTimeline> loadRoomTimeline(String roomId) async {
-    var stage = 'open';
+  Future<ChatRoomTimeline> _loadRoomTimeline(String roomId) async {
     try {
       // The native timeline read owns sync, to-device processing, cursor
       // acknowledgement, and message decryption as one receive transaction.
       final session = await _matrixCryptoSessionCoordinator.open(
         synchronize: false,
       );
-      stage = 'timeline';
+      ChatOperationDiagnostics.mark(ChatStage.timeline);
       final projection = await _rustMatrixCoreBridge.loadRoomMessages(
         profileKey: session.profileKey,
         roomId: roomId,
@@ -242,11 +297,9 @@ class NativeMatrixChatRepository
             )
             .toList(growable: false),
       );
-    } on ChatFailure catch (error) {
-      _reportFailure('timeline', stage, error.type.name, error.message);
+    } on ChatFailure {
       rethrow;
     } on RustMatrixCoreBridgeException catch (error) {
-      _reportFailure('timeline', stage, 'bridge', error.code);
       if (isMatrixSessionExpiredCode(error.code) ||
           error.code == 'M_FORBIDDEN' ||
           error.code == 'M_NOT_FOUND' ||
@@ -263,27 +316,23 @@ class NativeMatrixChatRepository
     }
   }
 
-  @override
-  Future<void> sendMessage({
+  Future<void> _sendMessage({
     required String roomId,
     required String message,
   }) async {
-    var stage = 'open';
     try {
       final session = await _matrixCryptoSessionCoordinator.open(
         synchronize: false,
       );
-      stage = 'send';
+      ChatOperationDiagnostics.mark(ChatStage.send);
       await _rustMatrixCoreBridge.sendText(
         profileKey: session.profileKey,
         roomId: roomId,
         body: message,
       );
-    } on ChatFailure catch (error) {
-      _reportFailure('send', stage, error.type.name, error.message);
+    } on ChatFailure {
       rethrow;
     } on RustMatrixCoreBridgeException catch (error) {
-      _reportFailure('send', stage, 'bridge', error.code);
       if (isMatrixSessionExpiredCode(error.code) ||
           error.code == 'M_FORBIDDEN') {
         throw ChatFailure.sessionRequired(
@@ -309,8 +358,7 @@ class NativeMatrixChatRepository
     }
   }
 
-  @override
-  Future<void> markRoomRead(String roomId) async {
+  Future<void> _markRoomRead(String roomId) async {
     final eventId = _latestEventByRoom[roomId];
     if (eventId == null) {
       return;
@@ -319,6 +367,7 @@ class NativeMatrixChatRepository
       final session = await _matrixCryptoSessionCoordinator.open(
         synchronize: false,
       );
+      ChatOperationDiagnostics.mark(ChatStage.read);
       await _rustMatrixCoreBridge.markRead(
         profileKey: session.profileKey,
         roomId: roomId,
@@ -335,70 +384,25 @@ class NativeMatrixChatRepository
     }
   }
 
-  @override
-  Future<void> connect() async {
+  Future<void> _connect() async {
     try {
       await _matrixCryptoSessionCoordinator.open(allowInteractiveSignIn: true);
     } on RustMatrixCoreBridgeException catch (error) {
-      throw ChatFailure.configuration(
-        'The Weave Matrix endpoint could not establish an encrypted client session.',
+      throw ChatFailure.protocol(
+        'The Weave Matrix endpoint could not establish a client session.',
         cause: error,
       );
     }
   }
 
-  @override
-  Future<void> signOut() async {
+  Future<void> _signOut() async {
+    ChatOperationDiagnostics.mark(ChatStage.cleanup);
     await _matrixCryptoSessionCoordinator.endSession();
   }
 
-  @override
-  Future<void> clearSession() async {
+  Future<void> _clearSession() async {
+    ChatOperationDiagnostics.mark(ChatStage.cleanup);
     await _matrixCryptoSessionCoordinator.disposePreservingCryptoState();
-  }
-
-  void _reportFailure(
-    String operation,
-    String stage,
-    String type,
-    String code,
-  ) {
-    const allowedCodes = {
-      'M_UNKNOWN_TOKEN',
-      'M_MISSING_TOKEN',
-      'M_WEAVE_MATRIX_SESSION_EXPIRED',
-      'M_FORBIDDEN',
-      'M_NOT_FOUND',
-      'M_WEAVE_CHAT_JOIN_REQUIRED',
-      'M_INVALID_PARAM',
-      'M_WEAVE_E2EE_PEER_DEVICE_PENDING',
-      'M_WEAVE_E2EE_SEND',
-      'M_WEAVE_MATRIX_MEMBER_SESSION',
-      'M_WEAVE_E2EE_TIMELINE',
-      'M_WEAVE_E2EE_SYNC',
-      'M_WEAVE_CHAT_SETUP_REQUIRED',
-      'M_WEAVE_MATRIX_MEMBER_SESSION_REQUIRED',
-      'M_WEAVE_MATRIX_ENDPOINT_UNCONFIRMED',
-      'M_WEAVE_MATRIX_SESSION_CHANGED',
-      'M_WEAVE_MATRIX_ACCESS_DENIED',
-      'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED',
-      'M_WEAVE_MATRIX_BINDING_INVALID',
-      'M_WEAVE_MATRIX_BINDING_MISMATCH',
-      'M_WEAVE_MATRIX_STORE_OWNER_MISMATCH',
-      'M_WEAVE_MATRIX_STORE_LOCKED',
-      'M_WEAVE_MATRIX_DEVICE_PROOF_INVALID',
-      'M_WEAVE_MATRIX_RETIRED_GRANT_CLEAR_FAILED',
-    };
-    try {
-      Zone.root.run(() {
-        debugPrint(
-          'WEAVE_NATIVE_CHAT_FAILURE operation=$operation stage=$stage type=$type '
-          'code=${allowedCodes.contains(code) ? code : 'unavailable'} supportSafe=true',
-        );
-      });
-    } catch (_) {
-      // Diagnostics cannot replace the original repository failure.
-    }
   }
 
   ChatMessage _messageFromProjection(

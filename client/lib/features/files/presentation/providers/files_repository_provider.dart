@@ -1,3 +1,5 @@
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
 import 'package:weave/features/files/data/repositories/backend_files_repository.dart';
@@ -10,6 +12,7 @@ import 'package:weave/integrations/weave_api/presentation/providers/weave_api_pr
 /// Direct provider clients may exist only in explicitly scoped admin/debug or
 /// legacy tests; normal member/release code must not instantiate them.
 final filesRepositoryProvider = Provider<FilesRepository>((ref) {
+  ref.watch(integrationInvalidationProvider(WorkspaceIntegration.weaveBackend));
   return BackendFilesRepository(
     httpClient: ref.watch(weaveApiHttpClientProvider),
     serverConfigurationRepository: ref.watch(

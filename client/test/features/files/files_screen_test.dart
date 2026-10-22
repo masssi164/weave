@@ -330,7 +330,201 @@ class _InterruptedFilesController extends _PostReplaceFilesController {
   }
 }
 
+class _NamedFilesRepository extends _FakeFilesRepository
+    implements FilesSpaceRepository {
+  _NamedFilesRepository()
+    : super(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://api.example/api'),
+          accountLabel: 'Weave files',
+        ),
+      );
+  String? createdIn;
+  FileEntry? created;
+  @override
+  Future<DirectoryListing> listDirectory(
+    String path, {
+    String? spaceRef,
+  }) async => DirectoryListing(
+    path: path,
+    parentFileId: 'root',
+    allowedActions: const {'listChildren', 'createFolder'},
+    entries: created == null ? [] : [created!],
+  );
+  @override
+  Future<void> uploadFile(
+    String directoryPath,
+    FileUploadRequest request, {
+    String? spaceRef,
+    FileUploadProgressCallback? onProgress,
+  }) async {}
+  @override
+  Future<FileEntry> createFolder({
+    required String parentPath,
+    required String name,
+    String? spaceRef,
+  }) async {
+    createdIn = spaceRef;
+    return created = FileEntry(
+      id: 'created-stable-folder',
+      name: name,
+      path: '/$name',
+      isDirectory: true,
+    );
+  }
+}
+
 void main() {
+  for (final locale in ['en', 'de']) {
+    for (final changedContext in [false, true]) {
+      testWidgets(
+        'named Space selection and captured destination remain truthful $locale changed=$changedContext',
+        (tester) async {
+          tester.view.physicalSize = const Size(390, 844);
+          tester.view.devicePixelRatio = 1;
+          tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+          tester.platformDispatcher.localesTestValue = [Locale(locale)];
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+          final semantics = tester.ensureSemantics();
+          try {
+            final repository = _NamedFilesRepository();
+            await tester.pumpWidget(
+              _filesTestApp(
+                const FilesScreen(),
+                overrides: [
+                  filesRepositoryProvider.overrideWithValue(repository),
+                  appStartDiscoveryClientProvider.overrideWith(
+                    (ref) => buildTestDiscoveryClient(
+                      ref.watch(serverConfigurationRepositoryProvider),
+                    ),
+                  ),
+                  serverConfigurationRepositoryProvider.overrideWith(
+                    (ref) => _FakeServerConfigurationRepository(
+                      buildTestConfiguration(),
+                    ),
+                  ),
+                  weaveApiMemberSpacesProvider.overrideWith(
+                    (ref) async => const MemberSpaceAccessSnapshot(
+                      visibleSpaceRefs: {'opaque-b', 'opaque-a'},
+                      displayNames: {
+                        'opaque-b': 'Research',
+                        'opaque-a': 'Research',
+                      },
+                      defaultSpaceReadable: false,
+                    ),
+                  ),
+                ],
+              ),
+            );
+            await tester.pumpAndSettle();
+            final selector = find.byKey(const Key('files-space-selector'));
+            await tester.ensureVisible(selector);
+            await tester.tap(selector);
+            await tester.pumpAndSettle();
+            final namedOption = find.byWidgetPredicate(
+              (w) =>
+                  w is Semantics &&
+                  w.properties.identifier == 'files-space-option-opaque-b',
+            );
+            expect(namedOption, findsOneWidget);
+            expect(namedOption.hitTestable(), findsOneWidget);
+            final optionData = tester
+                .getSemantics(namedOption)
+                .getSemanticsData();
+            expect(optionData.identifier, 'files-space-option-opaque-b');
+            expect(optionData.label, 'Research (2)');
+            await tester.tap(namedOption.hitTestable());
+            await tester.pumpAndSettle();
+            expect(namedOption, findsNothing);
+            await tester.tap(selector);
+            await tester.pumpAndSettle();
+            expect(namedOption, findsOneWidget);
+            expect(namedOption.hitTestable(), findsOneWidget);
+            expect(
+              tester.getSemantics(namedOption).getSemanticsData().label,
+              'Research (2)',
+            );
+            await tester.tap(namedOption.hitTestable());
+            await tester.pumpAndSettle();
+            final container = ProviderScope.containerOf(
+              tester.element(selector),
+            );
+            expect(
+              container.read(filesProvider).requireValue.rootSpaceRef,
+              'opaque-b',
+            );
+            expect(find.text('opaque-b'), findsNothing);
+            expect(find.text('opaque-a'), findsNothing);
+            final l10n = AppLocalizations.of(tester.element(selector));
+            final create = find.byWidgetPredicate(
+              (w) =>
+                  w is Semantics &&
+                  w.properties.identifier == 'files-create-folder',
+            );
+            await tester.ensureVisible(create);
+            await tester.pumpAndSettle();
+            await tester.tap(create);
+            await tester.pumpAndSettle();
+            final destination = l10n.filesCurrentLocation(
+              'Research (2)',
+              l10n.filesTopFolder,
+            );
+            expect(
+              find.descendant(
+                of: find.byType(AlertDialog),
+                matching: find.text(destination),
+              ),
+              findsOneWidget,
+            );
+            if (changedContext) {
+              await container
+                  .read(filesProvider.notifier)
+                  .selectRootSpace('opaque-a');
+              await tester.pumpAndSettle();
+              expect(
+                find.descendant(
+                  of: find.byType(AlertDialog),
+                  matching: find.text(destination),
+                ),
+                findsOneWidget,
+              );
+            }
+            await tester.enterText(find.byType(TextField), 'Named folder');
+            await tester.pump();
+            expect(
+              find.text(l10n.filesCreateFolderConfirmButton).hitTestable(),
+              findsOneWidget,
+            );
+            await tester.tap(find.text(l10n.filesCreateFolderConfirmButton));
+            await tester.pumpAndSettle();
+            expect(
+              repository.createdIn,
+              changedContext ? isNull : 'opaque-b',
+              reason:
+                  'phase=${container.read(filesProvider).asData?.value.entryActionStatus.phase} failure=${container.read(filesProvider).asData?.value.entryActionStatus.failure?.type} path=${container.read(filesProvider).asData?.value.currentPath}',
+            );
+            if (!changedContext) {
+              expect(
+                find.bySemanticsLabel(
+                  RegExp(
+                    r'Research \(2\).*' + RegExp.escape(l10n.filesTopFolder),
+                  ),
+                ),
+                findsWidgets,
+              );
+            }
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+
   for (final locale in ['en', 'de']) {
     testWidgets(
       'interrupted identity read offers an operable localized retry $locale',
@@ -519,67 +713,89 @@ void main() {
     testWidgets('Open uses actual download bytes; valid UTF8=$valid', (
       tester,
     ) async {
-      final repository = _FakeFilesRepository(
-        connectionState: FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://api.home.internal/api'),
-          accountLabel: 'alice',
-        ),
-        listings: const {
-          '/': DirectoryListing(
-            path: '/',
-            entries: [
-              FileEntry(
-                id: 'preview',
-                name: 'shared.txt',
-                path: '/shared.txt',
-                isDirectory: false,
+      final semantics = tester.ensureSemantics();
+      try {
+        final repository = _FakeFilesRepository(
+          connectionState: FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://api.home.internal/api'),
+            accountLabel: 'alice',
+          ),
+          listings: const {
+            '/': DirectoryListing(
+              path: '/',
+              entries: [
+                FileEntry(
+                  id: 'preview',
+                  name: 'shared.txt',
+                  path: '/shared.txt',
+                  isDirectory: false,
+                ),
+              ],
+            ),
+          },
+          download: FileDownload(
+            fileName: 'shared.txt',
+            mediaType: 'text/plain',
+            bytes: Uint8List.fromList(
+              valid
+                  ? utf8.encode('Actual shared document content')
+                  : [255, 254],
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          _filesTestApp(
+            const FilesScreen(),
+            overrides: [
+              filesRepositoryProvider.overrideWithValue(repository),
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+              ),
+              serverConfigurationRepositoryProvider.overrideWith(
+                (ref) => _FakeServerConfigurationRepository(
+                  buildTestConfiguration(),
+                ),
               ),
             ],
           ),
-        },
-        download: FileDownload(
-          fileName: 'shared.txt',
-          mediaType: 'text/plain',
-          bytes: Uint8List.fromList(
-            valid ? utf8.encode('Actual shared document content') : [255, 254],
-          ),
-        ),
-      );
-      await tester.pumpWidget(
-        _filesTestApp(
-          const FilesScreen(),
-          overrides: [
-            filesRepositoryProvider.overrideWithValue(repository),
-            appStartDiscoveryClientProvider.overrideWith(
-              (ref) => buildTestDiscoveryClient(
-                ref.watch(serverConfigurationRepositoryProvider),
-              ),
-            ),
-            serverConfigurationRepositoryProvider.overrideWith(
-              (ref) =>
-                  _FakeServerConfigurationRepository(buildTestConfiguration()),
-            ),
-          ],
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byKey(const Key('files-open-preview')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('files-open-preview')));
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const Key('files-preview-content')),
-        valid ? findsOneWidget : findsNothing,
-      );
-      expect(
-        find.text('Actual shared document content'),
-        valid ? findsOneWidget : findsNothing,
-      );
-      if (!valid) {
-        expect(
-          find.textContaining('This file cannot be viewed here'),
-          findsOneWidget,
         );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.byKey(const Key('files-open-preview')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('files-open-preview')));
+        await tester.pumpAndSettle();
+        if (valid) {
+          final exposed = find.byWidgetPredicate(
+            (w) =>
+                w is Semantics &&
+                w.properties.identifier == 'files-preview-content',
+          );
+          expect(exposed, findsOneWidget);
+          final data = tester.getSemantics(exposed).getSemanticsData();
+          expect(data.identifier, 'files-preview-content');
+          expect([
+            data.label,
+            data.value,
+          ], contains('Actual shared document content'));
+        }
+        expect(
+          find.byKey(const Key('files-preview-content')),
+          valid ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.text('Actual shared document content'),
+          valid ? findsOneWidget : findsNothing,
+        );
+        if (!valid) {
+          expect(
+            find.textContaining('This file cannot be viewed here'),
+            findsOneWidget,
+          );
+        }
+      } finally {
+        semantics.dispose();
       }
     });
   }
@@ -857,11 +1073,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('No files yet'), findsOneWidget);
+      expect(find.text('Your private Files are empty.'), findsOneWidget);
       expect(
-        find.text(
-          'Upload a file or create a folder when you are ready to add workspace files.',
-        ),
+        find.text('Upload a file or create a folder in your private Files.'),
         findsOneWidget,
       );
       expect(find.text('Refresh'), findsAtLeastNWidgets(1));
@@ -1023,7 +1237,10 @@ void main() {
       expect(find.text('Notes.txt'), findsOneWidget);
       expect(find.text('1 folder • 1 file'), findsOneWidget);
       expect(find.text('Up'), findsOneWidget);
-      expect(find.text('Root'), findsOneWidget);
+      expect(
+        find.widgetWithText(ActionChip, 'My private files'),
+        findsOneWidget,
+      );
     });
 
     testWidgets(
@@ -1177,9 +1394,12 @@ void main() {
       );
       expect(reportsChip.onPressed, isNull);
       expect(find.bySemanticsLabel('Current folder: Reports'), findsOneWidget);
-      expect(find.bySemanticsLabel('Open folder: Root'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Open folder: My private files'),
+        findsOneWidget,
+      );
 
-      await tester.tap(find.widgetWithText(ActionChip, 'Root'));
+      await tester.tap(find.widgetWithText(ActionChip, 'My private files'));
       await tester.pumpAndSettle();
 
       expect(repository.requestedPaths.last, '/');
@@ -1631,6 +1851,15 @@ void main() {
 
       await tester.tap(find.text('New folder'));
       await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('My private files · Top folder'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Root'), findsNothing);
+      expect(find.text('/'), findsNothing);
       await tester.enterText(find.byType(TextField), 'Plans');
       await tester.pumpAndSettle();
       await tester.tap(find.text('Create'));
@@ -1639,9 +1868,16 @@ void main() {
       expect(createdParentPath, '/');
       expect(createdFolderName, 'Plans');
       expect(find.text('Created folder Plans.'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Plans'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Plans'), findsAtLeastNWidgets(1));
       expect(
-        find.bySemanticsLabel('Created folder Plans.'),
+        find.bySemanticsLabel(
+          RegExp(r'Created folder Plans\..*My private files.*Top folder'),
+        ),
         findsAtLeastNWidgets(1),
       );
     });
@@ -1789,6 +2025,9 @@ void main() {
                     weaveApiMemberSpacesProvider.overrideWith(
                       (ref) async => const MemberSpaceAccessSnapshot(
                         visibleSpaceRefs: {'workspace-default'},
+                        displayNames: {
+                          'workspace-default': 'Organization workspace',
+                        },
                         defaultSpaceReadable: true,
                       ),
                     ),

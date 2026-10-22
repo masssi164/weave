@@ -34,6 +34,7 @@ import 'package:weave/features/app/presentation/providers/workspace_connection_p
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_workspace_context.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
@@ -420,6 +421,14 @@ void main() {
               connectionState: const FilesConnectionState.disconnected(),
             ),
           ),
+          calendarWorkspaceContextProvider.overrideWith(
+            (ref) async => const CalendarWorkspaceContext(
+              ownerKey: 'fixture-member',
+              scopes: CalendarScopeList(),
+              selectedScope: CalendarScope.workspace,
+              evaluationTimeZone: 'Europe/Berlin',
+            ),
+          ),
           calendarRepositoryProvider.overrideWithValue(
             _FakeCalendarRepository(),
           ),
@@ -439,6 +448,7 @@ void main() {
           weaveApiMemberSpacesProvider.overrideWith(
             (ref) async => const MemberSpaceAccessSnapshot(
               visibleSpaceRefs: {'workspace-default'},
+              displayNames: {'workspace-default': 'Organization workspace'},
               defaultSpaceReadable: true,
             ),
           ),

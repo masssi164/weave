@@ -21,7 +21,7 @@ class AppShell extends ConsumerWidget {
 
     return Scaffold(
       body: navigationShell,
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: _ResponsiveShellNavigation(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: (index) {
           if (index == 1 || index == 2 || index == 3) {
@@ -93,4 +93,113 @@ class AppShell extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Keeps full destination names readable without capping accessibility text size.
+class _ResponsiveShellNavigation extends StatelessWidget {
+  const _ResponsiveShellNavigation({
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+    required this.destinations,
+  });
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final List<NavigationDestination> destinations;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final style = Theme.of(context).textTheme.labelMedium!;
+      final scaler = MediaQuery.textScalerOf(context);
+      final widths = [
+        for (final destination in destinations)
+          (TextPainter(
+                text: TextSpan(text: destination.label, style: style),
+                textDirection: Directionality.of(context),
+                textScaler: scaler,
+              )..layout()).width +
+              26,
+      ];
+      final needsWrap =
+          widths.any(
+            (width) => width > constraints.maxWidth / destinations.length,
+          ) ||
+          scaler.scale(1) > 1;
+      if (!needsWrap) {
+        return NavigationBar(
+          selectedIndex: selectedIndex,
+          onDestinationSelected: onDestinationSelected,
+          destinations: [
+            for (var i = 0; i < destinations.length; i++)
+              Semantics(
+                identifier:
+                    'nav-${['home', 'chat', 'files', 'calendar', 'settings'][i]}',
+                child: destinations[i],
+              ),
+          ],
+        );
+      }
+      return Material(
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 4,
+              runSpacing: 4,
+              children: [
+                for (var index = 0; index < destinations.length; index++)
+                  SizedBox(
+                    width: widths[index]
+                        .clamp(72, constraints.maxWidth - 8)
+                        .toDouble(),
+                    child: Semantics(
+                      identifier:
+                          'nav-${const ['home', 'chat', 'files', 'calendar', 'settings'][index]}',
+                      button: true,
+                      selected: selectedIndex == index,
+                      label: destinations[index].label,
+                      excludeSemantics: true,
+                      child: InkWell(
+                        onTap: () => onDestinationSelected(index),
+                        borderRadius: BorderRadius.circular(16),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            minHeight: 64,
+                            minWidth: 48,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 8,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                selectedIndex == index
+                                    ? destinations[index].selectedIcon ??
+                                          destinations[index].icon
+                                    : destinations[index].icon,
+                                const SizedBox(height: 4),
+                                Text(
+                                  destinations[index].label,
+                                  style: style,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }

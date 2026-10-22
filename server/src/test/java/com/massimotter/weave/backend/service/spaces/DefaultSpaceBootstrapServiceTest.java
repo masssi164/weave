@@ -1,6 +1,14 @@
 package com.massimotter.weave.backend.service.spaces;
 
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
+import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
+import com.massimotter.weave.backend.service.calendar.CalendarProviderBindingReadiness;
+import java.time.Instant;
+import java.util.Optional;
+import java.util.Set;
 import com.massimotter.weave.backend.config.DeploymentOrganizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.IdentityReferences;
@@ -29,13 +37,22 @@ class DefaultSpaceBootstrapServiceTest {
     private final DefaultSpacePreparationPort spaces = mock(DefaultSpacePreparationPort.class);
     private final AuditEventPublisher audit = mock(AuditEventPublisher.class);
     private DefaultSpaceBootstrapService service;
+    private final ProviderBindingRepository calendarBindings = mock(ProviderBindingRepository.class);
+    private final CalendarProviderPort calendarProvider = mock(CalendarProviderPort.class);
     private static final String ISSUER = "https://auth.example.test/realms/weave";
 
     @BeforeEach void setUp() {
         var properties = new OAuth2ResourceServerProperties();
         properties.getJwt().setIssuerUri(ISSUER);
+        when(calendarProvider.conformanceProfile()).thenReturn(new ProviderConformanceProfile(
+                "calendar", "weave-native", Set.of(), Map.of(), true, true, true));
+        when(calendarProvider.configured()).thenReturn(true);
+        when(calendarBindings.current("org:configured", "calendar")).thenReturn(Optional.of(new ProviderBinding(
+                "org:configured", "calendar", 1, "weave-native", CalendarProviderBindingReadiness.CONFIGURATION_REF,
+                ProviderBinding.State.ACTIVE, Instant.EPOCH)));
         service = new DefaultSpaceBootstrapService(keycloak, identities, capabilities, spaces, audit, properties,
-                new DeploymentOrganizationProperties("provider-org", "weave"));
+                new DeploymentOrganizationProperties("provider-org", "weave"),
+                new CalendarProviderBindingReadiness(calendarBindings, List.of(calendarProvider)));
         when(keycloak.configuredOrganizationId()).thenReturn("provider-org");
         when(identities.configuredOrganizationId()).thenReturn("org:configured");
         when(keycloak.members("provider-org")).thenReturn(List.of(member("actual-owner", List.of("owner"), true)));
@@ -43,6 +60,23 @@ class DefaultSpaceBootstrapServiceTest {
                 new MemberAuthorization("actual-owner", true, true, List.of("owner"), List.of("/owners")));
         when(capabilities.snapshotForVerifiedMember(any())).thenReturn(snapshot(ready(), ready()));
         when(spaces.prepare(anyString(), anyString())).thenReturn(DefaultSpacePreparationPort.Result.CREATED);
+    }
+
+    @Test void missingCalendarBindingPreventsReadyHandoffDespiteHealthyEnabledCapabilitySnapshot() {
+        when(calendarBindings.current("org:configured", "calendar")).thenReturn(Optional.empty());
+        assertThatThrownBy(service::prepare).isInstanceOfSatisfying(ApiErrorException.class,
+                error -> assertThat(error.code()).isEqualTo("calendar-provider-unavailable"));
+        verifyNoInteractions(spaces, audit);
+        verify(calendarProvider, never()).query(any(), any(), any(), any());
+    }
+
+    @Test void bindingChangeDuringPreparationCannotPublishSuccessfulEvidence() {
+        var binding = new ProviderBinding("org:configured", "calendar", 1, "weave-native",
+                CalendarProviderBindingReadiness.CONFIGURATION_REF, ProviderBinding.State.ACTIVE, Instant.EPOCH);
+        when(calendarBindings.current("org:configured", "calendar")).thenReturn(Optional.of(binding), Optional.empty());
+        assertThatThrownBy(service::prepare).isInstanceOfSatisfying(ApiErrorException.class,
+                error -> assertThat(error.code()).isEqualTo("calendar-provider-unavailable"));
+        verify(audit, never()).publish(any());
     }
 
     @Test void actualOwnerContextIsVerifiedAndAuditedWithoutIdentityWrites() {

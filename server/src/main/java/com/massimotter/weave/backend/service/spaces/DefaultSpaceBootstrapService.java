@@ -15,6 +15,7 @@ import com.massimotter.weave.backend.model.spaces.DefaultSpaceBootstrapResponse;
 import com.massimotter.weave.backend.service.OrganizationIdentityContext;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.service.calendar.CalendarProviderBindingReadiness;
 import com.massimotter.weave.backend.spaces.port.DefaultSpacePreparationPort;
 import java.time.Instant;
 import java.util.List;
@@ -36,11 +37,13 @@ public class DefaultSpaceBootstrapService {
     private final AuditEventPublisher audit;
     private final OAuth2ResourceServerProperties resourceServer;
     private final DeploymentOrganizationProperties primaryOrganization;
+    private final CalendarProviderBindingReadiness calendarReadiness;
 
     public DefaultSpaceBootstrapService(KeycloakIdentityAdminClient keycloak,
             OrganizationIdentityContextResolver identities, WorkspaceCapabilityService capabilities,
             DefaultSpacePreparationPort spaces, AuditEventPublisher audit,
-            OAuth2ResourceServerProperties resourceServer, DeploymentOrganizationProperties primaryOrganization) {
+            OAuth2ResourceServerProperties resourceServer, DeploymentOrganizationProperties primaryOrganization,
+            CalendarProviderBindingReadiness calendarReadiness) {
         this.keycloak = keycloak;
         this.identities = identities;
         this.capabilities = capabilities;
@@ -48,6 +51,7 @@ public class DefaultSpaceBootstrapService {
         this.audit = audit;
         this.resourceServer = resourceServer;
         this.primaryOrganization = primaryOrganization;
+        this.calendarReadiness = calendarReadiness;
     }
 
     @Transactional
@@ -61,12 +65,15 @@ public class DefaultSpaceBootstrapService {
         if (!ready(snapshot.files()) || !ready(snapshot.calendar())) {
             throw error(HttpStatus.CONFLICT, "default-space-capabilities-not-ready");
         }
+        // Configuration/health alone cannot prove that the selected organization has a Calendar authority.
+        var calendarBinding = calendarReadiness.require(owner.organizationId());
         DefaultSpacePreparationPort.Result result;
         try {
             result = spaces.prepare(owner.organizationId(), owner.accountId());
         } catch (DefaultSpacePreparationPort.Conflict conflict) {
             throw error(HttpStatus.CONFLICT, "default-space-owner-access-conflict");
         }
+        calendarReadiness.requireUnchanged(owner.organizationId(), calendarBinding);
         audit.publish(new AuditEvent(owner.organizationId(), "workspace-default",
                 "operator:default-space-bootstrap", "default-space-bootstrap", AuditAction.SPACE_PROVISIONED,
                 Instant.now(), "default-space-bootstrap-" + UUID.randomUUID(), AuditRedactionLevel.SUPPORT_SAFE,

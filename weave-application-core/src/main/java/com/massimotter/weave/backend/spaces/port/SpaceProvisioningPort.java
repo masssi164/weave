@@ -4,7 +4,7 @@ import java.util.Set;
 
 /** Explicit organization setup. A repeat may only observe the same durable membership intent. */
 public interface SpaceProvisioningPort {
-    Result provision(String organizationRef, String spaceRef, String actorAccountRef,
+    Result provision(String organizationRef, String spaceRef, String displayName, String actorAccountRef,
             Set<String> memberAccountRefs);
 
     enum Result { CREATED, UNCHANGED }
@@ -13,7 +13,7 @@ public interface SpaceProvisioningPort {
         private static final long serialVersionUID = 1L;
 
         public Conflict() {
-            super("The Space already has different durable membership intent.");
+            super("The Space already has different durable setup intent.");
         }
     }
 }

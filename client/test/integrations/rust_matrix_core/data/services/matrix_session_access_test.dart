@@ -142,12 +142,22 @@ void main() {
               .having(
                 (failure) => failure.type,
                 'localized failure category',
-                ChatFailureType.sessionRequired,
+                name == 'unavailable Chat'
+                    ? ChatFailureType.serviceUnavailable
+                    : name == 'revoked Chat grant' ||
+                          name == 'blocked Chat policy'
+                    ? ChatFailureType.accessDenied
+                    : ChatFailureType.sessionRequired,
               )
               .having(
                 (failure) => failure.message,
                 'support-safe diagnostic code',
-                'M_WEAVE_MATRIX_ACCESS_DENIED',
+                name == 'unavailable Chat'
+                    ? 'M_WEAVE_MATRIX_ACCESS_UNCONFIRMED'
+                    : name == 'revoked Chat grant' ||
+                          name == 'blocked Chat policy'
+                    ? 'M_WEAVE_MATRIX_ACCESS_DENIED'
+                    : 'M_WEAVE_MATRIX_MEMBER_SESSION_REQUIRED',
               ),
         ),
       );
@@ -157,20 +167,20 @@ void main() {
   for (final path in ['/api/me', '/api/workspace/capabilities']) {
     for (final (name, status, error, expected) in [
       ('rejected session', 401, null, ChatFailureType.sessionRequired),
-      ('denied access', 403, null, ChatFailureType.sessionRequired),
+      ('denied access', 403, null, ChatFailureType.accessDenied),
       ('invalid response', 400, null, ChatFailureType.protocol),
-      ('unavailable service', 503, null, ChatFailureType.protocol),
+      ('unavailable service', 503, null, ChatFailureType.serviceUnavailable),
       (
         'connection failure',
         null,
         http.ClientException('Private transport detail'),
-        ChatFailureType.protocol,
+        ChatFailureType.transport,
       ),
       (
         'request timeout',
         null,
         TimeoutException('Private timeout detail'),
-        ChatFailureType.protocol,
+        ChatFailureType.transport,
       ),
     ]) {
       test(
@@ -211,8 +221,8 @@ void main() {
                   )
                   .having(
                     (failure) => failure.cause,
-                    'HTTP status only',
-                    status ?? 400,
+                    'typed cause or real HTTP status',
+                    error == null ? status : same(error),
                   ),
             ),
           );

@@ -16,6 +16,13 @@ import 'package:weave/features/files/domain/services/files_import_picker.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 
+enum FilesWriteOutcome {
+  notCommitted,
+  uncertain,
+  committed,
+  committedRefreshPending,
+}
+
 enum FilesUploadPhase { idle, picking, uploading, completed, failed }
 
 enum FilesEntryActionPhase {
@@ -68,6 +75,11 @@ class FilesEntryActionStatus {
     this.entryName,
     this.failure,
     this.destination,
+    this.writeOutcome,
+    this.createdEntry,
+    this.parentFileId,
+    this.parentPath,
+    this.rootSpaceRef,
   });
 
   const FilesEntryActionStatus.idle() : this(phase: FilesEntryActionPhase.idle);
@@ -76,6 +88,11 @@ class FilesEntryActionStatus {
   final String? entryName;
   final FilesFailure? failure;
   final String? destination;
+  final FilesWriteOutcome? writeOutcome;
+  final FileEntry? createdEntry;
+  final String? parentFileId;
+  final String? parentPath;
+  final String? rootSpaceRef;
 }
 
 class FilesViewState {
@@ -541,11 +558,11 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     }
   }
 
-  Future<void> createFolder(String rawName) async {
+  Future<FilesEntryActionStatus?> createFolder(String rawName) async {
     final current = _currentStateOrNull();
     final sequence = _directorySequence;
     if (current == null || current.isBusy) {
-      return;
+      return null;
     }
 
     final folderName = rawName.trim();
@@ -560,7 +577,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
           ),
         ),
       );
-      return;
+      return null;
     }
 
     final mutationRepository = _mutationRepositoryOrNull();
@@ -575,10 +592,18 @@ class FilesController extends AsyncNotifier<FilesViewState> {
           ),
         ),
       );
-      return;
+      return null;
     }
 
     final directoryPath = current.currentPath;
+    final rootSpace = _selectedRootSpaceRef;
+    final repository = _repository;
+    bool currentContext() =>
+        ref.mounted &&
+        sequence == _directorySequence &&
+        identical(_repository, repository) &&
+        _selectedRootSpaceRef == rootSpace;
+    FileEntry? created;
     state = AsyncData(
       current.copyWith(
         isBusy: true,
@@ -591,58 +616,210 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     );
 
     try {
-      if (mutationRepository is FilesSpaceRepository) {
-        await (mutationRepository as FilesSpaceRepository).createFolder(
-          parentPath: directoryPath,
-          name: folderName,
-          spaceRef: _selectedRootSpaceRef,
-        );
+      if (mutationRepository is FilesCapturedParentRepository) {
+        final parentFileId = current.directoryListing?.parentFileId;
+        final ownerKey = current.directoryListing?.ownerKey;
+        if (parentFileId == null || ownerKey == null) {
+          throw const FilesFailure.protocol(
+            'The folder identity is unavailable.',
+          );
+        }
+        created = await (mutationRepository as FilesCapturedParentRepository)
+            .createFolderInParent(
+              parentFileId: parentFileId,
+              ownerKey: ownerKey,
+              parentPath: directoryPath,
+              name: folderName,
+              spaceRef: rootSpace,
+            );
+      } else if (mutationRepository is FilesSpaceRepository) {
+        created = await (mutationRepository as FilesSpaceRepository)
+            .createFolder(
+              parentPath: directoryPath,
+              name: folderName,
+              spaceRef: rootSpace,
+            );
       } else {
         if (_selectedRootSpaceRef != null) {
           throw const FilesFailure.unsupportedPlatform(
             'Shared Files is not available.',
           );
         }
-        await mutationRepository.createFolder(
+        created = await mutationRepository.createFolder(
           parentPath: directoryPath,
           name: folderName,
         );
       }
-      if (sequence != _directorySequence || !ref.mounted) return;
-      final listing = await _listDirectory(directoryPath);
-      if (sequence != _directorySequence || !ref.mounted) return;
+      final acknowledgement = FilesEntryActionStatus(
+        phase: FilesEntryActionPhase.createdFolder,
+        entryName: folderName,
+        writeOutcome: FilesWriteOutcome.committedRefreshPending,
+        createdEntry: created,
+        parentFileId: current.directoryListing?.parentFileId,
+        parentPath: directoryPath,
+        rootSpaceRef: rootSpace,
+      );
+      if (!currentContext()) return acknowledgement;
+      DirectoryListing? listing;
+      FilesFailure? refreshFailure;
+      try {
+        listing = await _listDirectory(directoryPath);
+        if (listing.parentFileId != acknowledgement.parentFileId) {
+          listing = null;
+          throw const FilesFailure.protocol(
+            'The folder changed before refresh completed.',
+          );
+        }
+        if (!listing.entries.any((entry) => entry.id == created!.id)) {
+          refreshFailure = const FilesFailure.unknown(
+            'Created folder is not visible in the current listing yet.',
+          );
+        }
+      } on FilesFailure catch (failure) {
+        refreshFailure = failure;
+      } catch (error) {
+        refreshFailure = FilesFailure.unknown(
+          'Unable to refresh the folder.',
+          cause: error,
+        );
+      }
+      if (!currentContext()) return acknowledgement;
       final latest = _currentStateOrNull() ?? current;
       state = AsyncData(
         latest.copyWith(
           directoryListing: listing,
+          clearDirectoryListing:
+              refreshFailure?.type == FilesFailureType.invalidCredentials ||
+              refreshFailure?.type == FilesFailureType.permissionDenied,
           isBusy: false,
+          directoryFailure: refreshFailure,
+          clearDirectoryFailure: refreshFailure == null,
           entryActionStatus: FilesEntryActionStatus(
             phase: FilesEntryActionPhase.createdFolder,
             entryName: folderName,
+            writeOutcome: refreshFailure == null
+                ? FilesWriteOutcome.committed
+                : FilesWriteOutcome.committedRefreshPending,
+            createdEntry: created,
+            parentFileId: current.directoryListing?.parentFileId,
+            parentPath: directoryPath,
+            rootSpaceRef: rootSpace,
+            failure: refreshFailure,
           ),
-          clearDirectoryFailure: true,
         ),
       );
+      return state.asData?.value.entryActionStatus;
     } on FilesFailure catch (failure) {
-      if (sequence != _directorySequence || !ref.mounted) return;
+      if (!currentContext()) return null;
       final latest = _currentStateOrNull() ?? current;
       state = AsyncData(
         latest.copyWith(
-          connectionState: _connectionStateForFailure(
-            latest.connectionState,
-            failure,
+          isBusy: false,
+          clearDirectoryListing:
+              failure.type == FilesFailureType.invalidCredentials ||
+              failure.type == FilesFailureType.permissionDenied,
+          entryActionStatus: FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.failed,
+            entryName: folderName,
+            writeOutcome: failure.writeMayHaveCommitted
+                ? FilesWriteOutcome.uncertain
+                : FilesWriteOutcome.notCommitted,
+            parentFileId: current.directoryListing?.parentFileId,
+            parentPath: directoryPath,
+            rootSpaceRef: rootSpace,
+            failure: failure,
           ),
-          directoryFailure: failure.type == FilesFailureType.invalidCredentials
-              ? failure
-              : latest.directoryFailure,
+        ),
+      );
+    } catch (error) {
+      if (!currentContext()) return null;
+      state = AsyncData(
+        current.copyWith(
           isBusy: false,
           entryActionStatus: FilesEntryActionStatus(
             phase: FilesEntryActionPhase.failed,
             entryName: folderName,
-            failure: failure,
+            writeOutcome: FilesWriteOutcome.uncertain,
+            parentFileId: current.directoryListing?.parentFileId,
+            parentPath: directoryPath,
+            rootSpaceRef: rootSpace,
+            failure: FilesFailure.unknown(
+              'Folder creation could not be confirmed.',
+              cause: error,
+            ),
           ),
+        ),
+      );
+    }
+    return state.asData?.value.entryActionStatus;
+  }
+
+  Future<void> retryFolderReadback() async {
+    final current = _currentStateOrNull();
+    final operation = current?.entryActionStatus;
+    if (current == null ||
+        current.isBusy ||
+        operation?.createdEntry == null ||
+        operation?.parentPath != current.currentPath ||
+        operation?.rootSpaceRef != _selectedRootSpaceRef) {
+      return;
+    }
+    final sequence = _directorySequence;
+    final repository = _repository;
+    bool isCurrent() =>
+        ref.mounted &&
+        sequence == _directorySequence &&
+        identical(repository, _repository) &&
+        operation?.rootSpaceRef == _selectedRootSpaceRef;
+    state = AsyncData(current.copyWith(isBusy: true));
+    try {
+      final listing = await _listDirectory(operation!.parentPath!);
+      if (!isCurrent()) return;
+      if (listing.parentFileId != operation.parentFileId) {
+        throw const FilesFailure.protocol(
+          'The folder changed before refresh completed.',
+        );
+      }
+      final confirmed = listing.entries.any(
+        (entry) => entry.id == operation.createdEntry!.id,
+      );
+      state = AsyncData(
+        current.copyWith(
+          directoryListing: listing,
+          isBusy: false,
+          clearDirectoryFailure: confirmed,
+          entryActionStatus: FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.createdFolder,
+            entryName: operation.entryName,
+            createdEntry: operation.createdEntry,
+            parentFileId: operation.parentFileId,
+            parentPath: operation.parentPath,
+            rootSpaceRef: operation.rootSpaceRef,
+            writeOutcome: confirmed
+                ? FilesWriteOutcome.committed
+                : FilesWriteOutcome.committedRefreshPending,
+          ),
+        ),
+      );
+    } on FilesFailure catch (failure) {
+      if (!isCurrent()) return;
+      state = AsyncData(
+        current.copyWith(
+          isBusy: false,
+          directoryFailure: failure,
           clearDirectoryListing:
+              failure.type == FilesFailureType.permissionDenied ||
               failure.type == FilesFailureType.invalidCredentials,
+        ),
+      );
+    } catch (_) {
+      if (!isCurrent()) return;
+      state = AsyncData(
+        current.copyWith(
+          isBusy: false,
+          directoryFailure: const FilesFailure.unknown(
+            'Folder readback is unavailable.',
+          ),
         ),
       );
     }

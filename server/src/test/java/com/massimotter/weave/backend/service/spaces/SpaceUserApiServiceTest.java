@@ -8,8 +8,9 @@ import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
-import com.massimotter.weave.backend.spaces.port.SpaceAccessPort.Permission;
+import com.massimotter.weave.backend.spaces.port.SpaceReadPort;
+import com.massimotter.weave.backend.spaces.port.SpaceReadPort.SpaceSummary;
+import java.util.Optional;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 class SpaceUserApiServiceTest {
-    private final SpaceAccessPort access = mock(SpaceAccessPort.class);
+    private final SpaceReadPort access = mock(SpaceReadPort.class);
     private final ContextAuthorizationProperties context =
             new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
     private final SpaceUserApiService service = new SpaceUserApiService(
@@ -33,17 +34,25 @@ class SpaceUserApiServiceTest {
 
     @Test
     void listsOnlyDurableVisibleSpacesInBoundedKeysetOrder() {
-        when(access.visibleSpaceRefs("tenant-default", MEMBER_ACCOUNT, null, 2))
-                .thenReturn(List.of("space:a", "space:b"));
+        when(access.visibleSpaces("tenant-default", MEMBER_ACCOUNT, null, 2))
+                .thenReturn(List.of(new SpaceSummary("space:a", "Research"), new SpaceSummary("space:b", "Product")));
         var first = service.list(member, null, 2);
         assertThat(first.spaces()).extracting(space -> space.spaceRef())
                 .containsExactly("space:a", "space:b");
+        assertThat(first.spaces()).extracting(space -> space.displayName()).containsExactly("Research", "Product");
         assertThat(first.nextAfterSpaceRef()).isEqualTo("space:b");
-        when(access.visibleSpaceRefs("tenant-default", MEMBER_ACCOUNT, "space:b", 2))
-                .thenReturn(List.of("space:c"));
+        when(access.visibleSpaces("tenant-default", MEMBER_ACCOUNT, "space:b", 2))
+                .thenReturn(List.of(new SpaceSummary("space:c", "Release planning")));
         var second = service.list(member, first.nextAfterSpaceRef(), 2);
         assertThat(second.spaces()).extracting(space -> space.spaceRef()).containsExactly("space:c");
         assertThat(second.nextAfterSpaceRef()).isNull();
+    }
+
+    @Test
+    void singleReadReturnsCurrentAuthorizedDisplayName() {
+        when(access.visibleSpace("tenant-default", MEMBER_ACCOUNT, "space:team"))
+                .thenReturn(Optional.of(new SpaceSummary("space:team", "Current team")));
+        assertThat(service.inspect(member, "space:team").displayName()).isEqualTo("Current team");
     }
 
     @Test
@@ -55,8 +64,7 @@ class SpaceUserApiServiceTest {
                         assertThat(error.code()).isEqualTo("space-not-found");
                     });
         }
-        verify(access, times(3)).allows(eq("tenant-default"), anyString(),
-                eq(MEMBER_ACCOUNT), eq(Permission.VIEW));
+        verify(access, times(3)).visibleSpace(eq("tenant-default"), eq(MEMBER_ACCOUNT), anyString());
     }
 
     @Test

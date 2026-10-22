@@ -161,6 +161,20 @@ class HttpWeaveApiClient implements WeaveApiClient {
   }) async {
     final api = user_api.SpacesUserApi(_client(baseUrl, accessToken));
     final refs = <String>{};
+    final names = <String, String>{};
+    String validatedName(String value) {
+      if (value.trim().isEmpty ||
+          value.runes.length > 160 ||
+          value.runes.any(
+            (rune) => rune < 32 || (rune >= 127 && rune <= 159),
+          )) {
+        throw const AppFailure.unknown(
+          'The Weave backend returned an invalid Space name.',
+        );
+      }
+      return value.trim();
+    }
+
     String? cursor;
     // A malformed or cycling cursor must not turn a partial list into access.
     for (var page = 0; page < 100; page++) {
@@ -175,6 +189,14 @@ class HttpWeaveApiClient implements WeaveApiClient {
             'The Weave backend returned an invalid Space reference.',
           );
         }
+        final name = validatedName(space.displayName);
+        if (names.containsKey(space.spaceRef) &&
+            names[space.spaceRef] != name) {
+          throw const AppFailure.unknown(
+            'The Weave backend returned inconsistent Space names.',
+          );
+        }
+        names[space.spaceRef] = name;
         refs.add(space.spaceRef);
       }
       final next = response.nextAfterSpaceRef;
@@ -197,6 +219,9 @@ class HttpWeaveApiClient implements WeaveApiClient {
             .timeout(const Duration(seconds: 5));
         defaultReadable =
             response?.spaceRef == MemberSpaceAccessSnapshot.defaultSpaceRef;
+        if (defaultReadable) {
+          names[response!.spaceRef] = validatedName(response.displayName);
+        }
         if (!defaultReadable) {
           throw const AppFailure.unknown(
             'The Weave backend returned an invalid default Space.',
@@ -217,6 +242,7 @@ class HttpWeaveApiClient implements WeaveApiClient {
         }
         // A grant may be revoked between list and read.
         refs.remove(MemberSpaceAccessSnapshot.defaultSpaceRef);
+        names.remove(MemberSpaceAccessSnapshot.defaultSpaceRef);
       } on TimeoutException {
         throw const AppFailure.unknown(
           'Unable to reach the Weave backend right now.',
@@ -225,6 +251,7 @@ class HttpWeaveApiClient implements WeaveApiClient {
     }
     return MemberSpaceAccessSnapshot(
       visibleSpaceRefs: Set.unmodifiable(refs),
+      displayNames: Map.unmodifiable(names),
       defaultSpaceReadable: defaultReadable,
     );
   }

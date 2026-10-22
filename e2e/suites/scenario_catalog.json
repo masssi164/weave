@@ -4780,6 +4780,126 @@
         "missing revoked suspended or ambiguous owner access blocks readiness",
         "proof requires exact candidate and complete temporary authority cleanup"
       ]
+    },
+    {
+      "tag": "@human-ready-ordinary-functional",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "chat",
+        "files",
+        "calendar",
+        "operator-release"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "ordinary main entry and direct reviewed persisted Dogfood endpoints",
+        "real normal member UI writes with independent peer stable-identity readback",
+        "Chat exchange Files bytes Calendar CRUD restart and in-place update"
+      ]
+    },
+    {
+      "tag": "@human-ready-physical-functional",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "chat",
+        "files",
+        "calendar",
+        "operator-release"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "retained owner profile app and separately authenticated peer",
+        "exact installed candidate build and final qualification attempt",
+        "handoff discovery alone cannot establish readiness or human acceptance"
+      ]
+    },
+    {
+      "tag": "@human-ready-auth-incomplete",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "normal administrator and owner authentication boundary stays incomplete",
+        "no fabricated copied or replaced owner session",
+        "independent work precedes precise human authentication request"
+      ]
+    },
+    {
+      "tag": "@human-ready-write-readback",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "confirmed acknowledgement remains distinct from failed refresh",
+        "same-context readback retries preserve exact resource and destination",
+        "uncertain writes preserve idempotent operation identity"
+      ]
+    },
+    {
+      "tag": "@spaces-readable-name-identity",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "spaces",
+        "files",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "persisted readable Space names in current authorized generated list and read operations",
+        "opaque references remain internal operation identity",
+        "conflicting-name provisioning preserves names and grants"
+      ]
+    },
+    {
+      "tag": "@spaces-legacy-name-preservation",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "spaces",
+        "files",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "additive default and legacy Space naming without reset or manual owner setup",
+        "stable references memberships and relationships survive migration and restart",
+        "repeated startup preserves valid names and grants"
+      ]
     }
   ]
 }

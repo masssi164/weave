@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.spaces.adapter;
 
 import com.massimotter.weave.backend.spaces.port.SpaceProvisioningPort;
 import com.massimotter.weave.backend.spaces.port.DefaultSpacePreparationPort;
+import com.massimotter.weave.backend.spaces.port.SpaceDisplayName;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HashMap;
@@ -36,7 +37,7 @@ public class JpaSpaceProvisioningAdapter implements SpaceProvisioningPort, Defau
     public DefaultSpacePreparationPort.Result prepare(String organizationRef, String ownerAccountRef) {
         String spaceRef = "workspace-default";
         Instant now = Instant.now(clock);
-        boolean created = spaces.insertIfAbsent(organizationRef, spaceRef, SpaceJpaEntity.utc(now)) == 1;
+        boolean created = spaces.insertIfAbsent(organizationRef, spaceRef, SpaceDisplayName.DEFAULT_WORKSPACE, SpaceJpaEntity.utc(now)) == 1;
         var existing = spaces.lockById(new SpaceId(organizationRef, spaceRef))
                 .orElseThrow(DefaultSpacePreparationPort.Conflict::new);
         if (created) {
@@ -57,18 +58,19 @@ public class JpaSpaceProvisioningAdapter implements SpaceProvisioningPort, Defau
     @Override
     @Transactional
     public SpaceProvisioningPort.Result provision(String organizationRef, String spaceRef,
-            String actorAccountRef, Set<String> memberAccountRefs) {
+            String displayName, String actorAccountRef, Set<String> memberAccountRefs) {
+        String name = SpaceDisplayName.normalize(displayName);
         Map<String, String> expected = new HashMap<>();
         for (String accountRef : memberAccountRefs) {
             expected.put(accountRef, "VIEW");
         }
         expected.put(actorAccountRef, "VIEW,EDIT,ADMIN");
         Instant now = Instant.now(clock);
-        boolean created = spaces.insertIfAbsent(organizationRef, spaceRef, SpaceJpaEntity.utc(now)) == 1;
+        boolean created = spaces.insertIfAbsent(organizationRef, spaceRef, name, SpaceJpaEntity.utc(now)) == 1;
         var existing = spaces.lockById(new SpaceId(organizationRef, spaceRef))
                 .orElseThrow(SpaceProvisioningPort.Conflict::new);
         if (!created) {
-            if (!existing.active()) {
+            if (!existing.active() || !name.equals(existing.displayName())) {
                 throw new SpaceProvisioningPort.Conflict();
             }
             Map<String, String> current = new HashMap<>();

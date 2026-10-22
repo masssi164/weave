@@ -44,8 +44,12 @@ final class GeneratedSpacesJourney {
 
   void confirmDefault(String adminToken, String ownerToken) {
     try {
+      var current = user.getSpace(DEFAULT_SPACE, bearer(ownerToken));
+      if (current == null || current.getDisplayName() == null || current.getDisplayName().isBlank()) {
+        throw new ProductFlowException("Current default Space name is unavailable");
+      }
       SpaceProvisionResponse created = admin.provisionSpace(
-          new SpaceProvisionRequest().spaceRef(DEFAULT_SPACE).memberAccountRefs(List.of()),
+          new SpaceProvisionRequest().spaceRef(DEFAULT_SPACE).displayName(current.getDisplayName()).memberAccountRefs(List.of()),
           bearer(adminToken));
       if (created == null || !DEFAULT_SPACE.equals(created.getSpaceRef())
           || created.getResult() != SpaceProvisionResponse.ResultEnum.UNCHANGED) {
@@ -211,8 +215,13 @@ final class GeneratedSpacesJourney {
     if (visible != expected) {
       throw new ProductFlowException("Current Space visibility differs from the Admin grant");
     }
-    if (expected && !DEFAULT_SPACE.equals(user.getSpace(DEFAULT_SPACE, bearer(token)).getSpaceRef())) {
-      throw new ProductFlowException("Generated User Space read did not match its list reference");
+    if (expected) {
+      var listed = page.getSpaces().stream().filter(space -> DEFAULT_SPACE.equals(space.getSpaceRef())).findFirst().orElseThrow();
+      var read = user.getSpace(DEFAULT_SPACE, bearer(token));
+      if (!DEFAULT_SPACE.equals(read.getSpaceRef()) || listed.getDisplayName() == null
+          || listed.getDisplayName().isBlank() || !listed.getDisplayName().equals(read.getDisplayName())) {
+        throw new ProductFlowException("Generated User Space name/reference differs between list and read");
+      }
     }
   }
 

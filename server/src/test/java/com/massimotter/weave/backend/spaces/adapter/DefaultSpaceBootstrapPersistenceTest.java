@@ -15,9 +15,9 @@ class DefaultSpaceBootstrapPersistenceTest {
         var adapter = JpaTestDatabase.transactional(source, new JpaSpaceProvisioningAdapter(spaces, members));
         assertThat(adapter.prepare("org:h2-bootstrap", "owner")).isEqualTo(DefaultSpacePreparationPort.Result.CREATED);
         assertThat(adapter.prepare("org:h2-bootstrap", "owner")).isEqualTo(DefaultSpacePreparationPort.Result.VERIFIED);
-        assertThat(adapter.provision("org:h2-admin", "workspace-default", "admin", Set.of("peer")))
+        assertThat(adapter.provision("org:h2-admin", "workspace-default", "Organization workspace", "admin", Set.of("peer")))
                 .isEqualTo(SpaceProvisioningPort.Result.CREATED);
-        assertThat(adapter.provision("org:h2-admin", "workspace-default", "admin", Set.of("peer")))
+        assertThat(adapter.provision("org:h2-admin", "workspace-default", "Organization workspace", "admin", Set.of("peer")))
                 .isEqualTo(SpaceProvisioningPort.Result.UNCHANGED);
         assertThatThrownBy(() -> adapter.prepare("org:h2-admin", "owner"))
                 .isInstanceOf(DefaultSpacePreparationPort.Conflict.class);

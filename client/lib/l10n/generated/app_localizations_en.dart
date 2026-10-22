@@ -669,7 +669,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get filesUpButton => 'Up';
 
   @override
-  String get filesRootBreadcrumb => 'Root';
+  String get filesRootBreadcrumb => 'Files';
 
   @override
   String filesOpenFolderSemantic(String name) {
@@ -3707,4 +3707,139 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chatDirectParticipantRequired =>
       'Choose exactly one other member for a direct conversation.';
+
+  @override
+  String get calendarSavedRefreshPending =>
+      'Saved. The calendar could not refresh. Refresh to see the latest events; do not create the event again.';
+
+  @override
+  String get calendarWriteUncertain =>
+      'We could not confirm whether this event was saved. Retry the same event to avoid duplicates.';
+
+  @override
+  String get calendarSaving => 'Saving…';
+
+  @override
+  String get filesFolderSavedRefreshPending =>
+      'Folder created. Refresh this location to confirm the listing; do not create it again.';
+
+  @override
+  String get filesFolderWriteUncertain =>
+      'We could not confirm folder creation. Retry the same folder in this location.';
+
+  @override
+  String filesFolderLocation(String scope, String path) {
+    return 'Location: $scope · $path';
+  }
+
+  @override
+  String get settingsPreferencesTitle => 'Appearance and language';
+
+  @override
+  String get settingsPreferencesDescription =>
+      'Choose your theme and preferred language.';
+
+  @override
+  String get settingsSupportLinkDescription =>
+      'Open technical details when you need help.';
+
+  @override
+  String get chatErrorTransportGuidance =>
+      'Chat could not connect to Weave. Check your connection and try again.';
+
+  @override
+  String get chatErrorAccessDeniedGuidance =>
+      'Your current workspace access does not allow this Chat action. Ask a workspace administrator to review your access.';
+
+  @override
+  String get chatErrorStorageGuidance =>
+      'Chat could not open its protected data on this device. Retry, and contact support if this continues.';
+
+  @override
+  String get chatErrorProtocolGuidance =>
+      'Chat received an unexpected response. Retry, and contact support if this continues.';
+
+  @override
+  String get chatErrorServiceGuidance =>
+      'The Chat service is currently unavailable. Retry, and contact support if this continues.';
+
+  @override
+  String get chatErrorUnknownGuidance =>
+      'Chat could not complete this action. Retry, and contact support if this continues.';
+
+  @override
+  String get chatErrorPeerDevicePendingGuidance =>
+      'Chat is waiting for a participant’s secure device. Retry shortly.';
+
+  @override
+  String get calendarRefreshButton => 'Refresh calendar';
+
+  @override
+  String get settingsSupportAccountReference => 'Account reference';
+
+  @override
+  String get settingsSupportOrganizationReference => 'Organization reference';
+
+  @override
+  String get settingsSupportCopyIdentityReferences =>
+      'Copy identity references';
+
+  @override
+  String get calendarTimeZoneLoadFailure =>
+      'Your calendar time zone could not be loaded.';
+
+  @override
+  String get calendarAgendaLoadFailure => 'Your events could not be loaded.';
+
+  @override
+  String get calendarResponseLoadFailure =>
+      'The calendar response could not be read.';
+
+  @override
+  String get calendarWriteReadbackUnavailable =>
+      'The saved calendar state could not be confirmed.';
+
+  @override
+  String get calendarLoadRetryGuidance =>
+      'Retry to load the current calendar. Your draft stays in the editor if saving failed.';
+
+  @override
+  String get filesPrivateEmptyMessage => 'Your private Files are empty.';
+
+  @override
+  String get filesSharedEmptyMessage => 'This shared folder is empty.';
+
+  @override
+  String get filesTopFolder => 'Top folder';
+
+  @override
+  String filesCurrentLocation(String scope, String path) {
+    return '$scope · $path';
+  }
+
+  @override
+  String get filesPrivateEmptyGuidance =>
+      'Upload a file or create a folder in your private Files.';
+
+  @override
+  String get filesSharedEmptyGuidance =>
+      'Upload a file or create a folder here. Access follows this shared Space.';
+
+  @override
+  String filesSpaceOrdinal(String name, int ordinal) {
+    return '$name ($ordinal)';
+  }
+
+  @override
+  String get calendarUnavailableScopeName => 'Unavailable calendar';
+
+  @override
+  String calendarTeamScopeName(String name) {
+    return '$name · Team calendar';
+  }
+
+  @override
+  String calendarChannelScopeName(String name) {
+    return '$name · Channel calendar';
+  }
 }
