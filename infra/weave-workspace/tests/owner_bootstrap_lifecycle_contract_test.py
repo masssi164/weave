@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
 from contextlib import ExitStack
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -17,7 +19,95 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import compose_runtime  # noqa: E402
-from compose_env import ContractError  # noqa: E402
+from compose_env import ContractError, load_context  # noqa: E402
+from render_config import render_keycloak  # noqa: E402
+from realm_renderer import MACHINE_KEY_PROJECTIONS  # noqa: E402
+
+
+class OwnerBootstrapSmtpProfileTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.temporary = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.temporary.cleanup)
+        cls.contexts, cls.realms = {}, {}
+        temporary = Path(cls.temporary.name).resolve()
+        for profile, domain in (("e2e", "weave.localhost"), ("dogfood", "weave.test")):
+            selected = temporary / (profile + ".env")
+            value = (ROOT / f"environments/{profile}.env.example").read_text()
+            value = re.sub(r"sha256:replace-with-[a-zA-Z0-9.-]+", "sha256:" + "a" * 64, value)
+            value = value.replace("weave.test", domain)
+            selected.write_text(value)
+            selected.chmod(0o600)
+            with patch.dict(os.environ, {"WEAVE_E2E_STACK_SCOPE": "isolated" if profile == "e2e" else "persistent",
+                                         "WEAVE_E2E_RUN_ID": "owner-bootstrap-smtp-profile"}):
+                for key in ("WEAVE_E2E_RUN_NAMESPACE", "WEAVE_E2E_NAMESPACE"):
+                    os.environ.pop(key, None)
+                context = load_context(profile, ROOT, str(selected))
+            context = replace(context, env={**context.env,
+                "WEAVE_GENERATED_ROOT": str(temporary / profile / "generated"),
+                "WEAVE_SECRET_ROOT": str(temporary / profile / "secrets"),
+                "WEAVE_TLS_ROOT": str(temporary / profile / "tls"),
+            })
+            # SMTP qualification uses the real canonical realm renderer. Only
+            # its unrelated public signing-key input is a deterministic fixture.
+            for _, public_name in MACHINE_KEY_PROJECTIONS.values():
+                public = context.generated_root / "keycloak/public-jwks" / public_name
+                public.parent.mkdir(parents=True, exist_ok=True)
+                public.write_text(json.dumps({"keys": [{"alg": "PS256", "e": "AQAB", "key_ops": ["verify"],
+                    "kid": "smtp-public-fixture", "kty": "RSA", "n": "smtp-public-fixture-modulus", "use": "sig"}]}))
+                public.chmod(0o644)
+            render_keycloak(context)
+            cls.contexts[profile] = context
+            cls.realms[profile] = (context.generated_root / "keycloak/import/weave-realm.json").read_bytes()
+
+    def setUp(self) -> None:
+        for profile, context in self.contexts.items():
+            (context.generated_root / "keycloak/import/weave-realm.json").write_bytes(self.realms[profile])
+
+    def test_real_e2e_renderer_uses_configured_sender_with_required_implicit_tls(self) -> None:
+        context = self.contexts["e2e"]
+        realm = json.loads(self.realms["e2e"])
+        self.assertEqual(context.env["WEAVE_TENANT_DOMAIN"], "weave.localhost")
+        self.assertEqual(context.env["WEAVE_MAILPIT_REQUIRE_TLS"], "true")
+        self.assertEqual(realm["smtpServer"], {"from": "noreply@weave.localhost", "fromDisplayName": "Weave",
+            "host": "mailpit", "port": "1025", "ssl": "true", "starttls": "false"})
+        compose_runtime._owner_bootstrap_smtp_preflight(context)
+
+    def test_real_dogfood_renderer_preserves_reviewed_https_origin_and_sender(self) -> None:
+        context = self.contexts["dogfood"]
+        self.assertEqual(context.env["WEAVE_PUBLIC_URL"], "https://weave.test")
+        self.assertEqual(json.loads(self.realms["dogfood"])["smtpServer"]["from"], "noreply@weave.test")
+        compose_runtime._owner_bootstrap_smtp_preflight(context)
+
+    def test_each_profile_rejects_changed_sender_transport_or_extra_credentials(self) -> None:
+        mutations = ({"from": "wrong@example.test"}, {"fromDisplayName": "Unexpected"},
+                     {"host": "smtp.example.test"}, {"port": "465"}, {"ssl": "false"},
+                     {"starttls": "true"}, {"auth": "true"}, {"user": "private-fixture-user"},
+                     {"password": "private-fixture-password"})
+        for profile, context in self.contexts.items():
+            for mutation in mutations:
+                with self.subTest(profile=profile, changedField=next(iter(mutation))):
+                    realm = json.loads(self.realms[profile])
+                    realm["smtpServer"].update(mutation)
+                    (context.generated_root / "keycloak/import/weave-realm.json").write_text(json.dumps(realm))
+                    with self.assertRaisesRegex(ContractError, "implicit-TLS Mailpit SMTP baseline") as failure:
+                        compose_runtime._owner_bootstrap_smtp_preflight(context)
+                    self.assertNotIn("private-fixture", str(failure.exception))
+
+    def test_dogfood_rejects_the_e2e_sender(self) -> None:
+        context = self.contexts["dogfood"]
+        realm = json.loads(self.realms["dogfood"])
+        realm["smtpServer"]["from"] = "noreply@weave.localhost"
+        (context.generated_root / "keycloak/import/weave-realm.json").write_text(json.dumps(realm))
+        with self.assertRaises(ContractError):
+            compose_runtime._owner_bootstrap_smtp_preflight(context)
+
+    def test_stale_tls_render_cannot_override_invalid_effective_mail_profile(self) -> None:
+        for profile, context in self.contexts.items():
+            with self.subTest(profile=profile):
+                invalid = replace(context, env={**context.env, "WEAVE_MAILPIT_REQUIRE_TLS": "false"})
+                with self.assertRaisesRegex(ContractError, "implicit-TLS Mailpit SMTP baseline"):
+                    compose_runtime._owner_bootstrap_smtp_preflight(invalid)
 
 
 class OwnerBootstrapLifecycleContractTest(unittest.TestCase):
