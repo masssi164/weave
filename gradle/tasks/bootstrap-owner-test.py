@@ -9,6 +9,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -22,6 +23,14 @@ SPEC.loader.exec_module(bootstrap_owner)
 
 
 class BootstrapOwnerEvidenceTest(unittest.TestCase):
+    def test_internal_loopback_transport_requires_explicit_ca(self) -> None:
+        arguments = ["bootstrap-owner.py", "--api-base-url", "https://api.fixture.invalid:443",
+                     "--token-file", "/private/fixture-token", "--request-file", "/private/fixture-request",
+                     "--connect-loopback"]
+        with patch.object(bootstrap_owner.sys, "argv", arguments):
+            with self.assertRaisesRegex(ValueError, "configured CA"):
+                bootstrap_owner.main()
+
     def test_reads_only_a_private_exact_request_projection(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             request = Path(temporary) / "request.json"

@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import compose_runtime as runtime
 import default_space_bootstrap as bootstrap
+import bootstrap_https
 from compose_env import ContractError
 
 CANONICAL_BACKEND = runtime._canonical_backend
@@ -300,7 +301,7 @@ class DefaultSpaceBootstrapTest(unittest.TestCase):
 
     def test_request_does_not_follow_redirect_or_publish_error_body(self):
         self.stack.close()
-        self.assertIsNone(bootstrap._NoRedirect().redirect_request(None, None, 307, "redirect", {}, "https://other.test"))
+        self.assertIsNone(bootstrap_https.NoRedirect().redirect_request(None, None, 307, "redirect", {}, "https://other.test"))
         self.context.env["WEAVE_API_ORIGIN"] = "https://weave.test"
         error = bootstrap.urllib.error.HTTPError("https://weave.test", 409, "private-owner", {}, io.BytesIO(b"private-owner"))
         with patch.object(bootstrap, "_open", side_effect=error):

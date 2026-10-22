@@ -67,6 +67,7 @@ class OwnerBootstrapLifecycleContractTest(unittest.TestCase):
                 self.assertNotIn(token.read_text().strip(), json.dumps(payload))
             mock("_bootstrap_override_command", side_effect=override)
             def helper(context, command, **kwargs):
+                self.assertIn("--connect-loopback", command)
                 evidence = Path(command[command.index("--evidence") + 1])
                 evidence.write_text(json.dumps({"supportSafe": True, "requestedRole": "owner"}))
                 return SimpleNamespace(stderr="", stdout="")

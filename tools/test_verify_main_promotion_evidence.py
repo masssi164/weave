@@ -39,7 +39,8 @@ TOOLCHAIN = {
 
 def owner_workspace_proof():
     return {
-        "schemaVersion": "weave.default-space-preparation/v1", "candidateCommit": SHA,
+        "schemaVersion": "weave.default-space-preparation/v1", "environment": "dogfood",
+        "candidateCommit": SHA,
         "sourceTree": OTHER, "specificationCommit": "c" * 40,
         "status": "passed", "spaceRef": "workspace-default", "outcome": "CREATED",
         **{key: True for key in ("ownerAccessVerified", "filesReady", "calendarReady",
@@ -269,7 +270,8 @@ class MainPromotionEvidenceTest(unittest.TestCase):
                 self.assertFalse(owner_workspace_passed({**valid, key: int(valid[key])}, SHA, OTHER, "c" * 40), key)
         for broken in (None, [], {**valid, "candidateCommit": OTHER},
                        {**valid, "sourceTree": SHA}, {**valid, "specificationCommit": SHA},
-                       {**valid, "outcome": "REGRANTED"}, {**valid, "spaceRef": "another-space"}):
+                       {**valid, "outcome": "REGRANTED"}, {**valid, "environment": "e2e"},
+                       {**valid, "environment": "Dogfood"}, {**valid, "spaceRef": "another-space"}):
             self.assertFalse(owner_workspace_passed(broken, SHA, OTHER, "c" * 40))
 
     def test_preparation_requires_current_qualification_and_exact_installed_identity(self) -> None:

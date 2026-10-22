@@ -376,7 +376,7 @@ def owner_workspace_passed(value: dict, sha: str, tree: str, spec: str) -> bool:
     if not isinstance(value, dict):
         return False
     expected = {
-        "schemaVersion": "weave.default-space-preparation/v1",
+        "schemaVersion": "weave.default-space-preparation/v1", "environment": "dogfood",
         "candidateCommit": sha, "sourceTree": tree, "specificationCommit": spec,
         "status": "passed", "spaceRef": "workspace-default",
         "ownerAccessVerified": True, "filesReady": True, "calendarReady": True,

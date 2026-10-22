@@ -17,6 +17,9 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infra/weave-workspace/scripts"))
+from bootstrap_https import open_https  # noqa: E402
+
 BOOTSTRAP_PATH = "/api/bootstrap/owner-invitation"
 TOKEN_MINIMUM_BYTES = 32
 TOKEN_MAXIMUM_BYTES = 512
@@ -32,6 +35,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--request-file", type=Path, required=True)
     parser.add_argument("--ca-file", type=Path)
     parser.add_argument("--evidence", type=Path)
+    # Internal transport switch: the Compose lifecycle passes it only after
+    # proving ownership of the existing isolated E2E resources.
+    parser.add_argument("--connect-loopback", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args()
 
 
@@ -75,7 +81,8 @@ def endpoint(base_url: str) -> str:
     parsed = urllib.parse.urlsplit(base_url.rstrip("/"))
     if parsed.scheme != "https":
         raise ValueError("Owner bootstrap requires an HTTPS API base URL")
-    if not parsed.netloc or parsed.query or parsed.fragment:
+    if (not parsed.hostname or parsed.username is not None or parsed.password is not None
+            or parsed.query or parsed.fragment):
         raise ValueError("Owner bootstrap API base URL is invalid")
     return urllib.parse.urlunsplit(
         (parsed.scheme, parsed.netloc, parsed.path.rstrip("/") + BOOTSTRAP_PATH, "", "")
@@ -143,6 +150,8 @@ def write_evidence(path: Path, result: dict[str, object]) -> None:
 
 def main() -> int:
     args = parse_args()
+    if args.connect_loopback and args.ca_file is None:
+        raise ValueError("Isolated owner bootstrap requires its configured CA file")
     owner_request = read_private_request(args.request_file)
     email = owner_request["email"]
     display_name = owner_request["displayName"]
@@ -169,8 +178,8 @@ def main() -> int:
         },
     )
     try:
-        with urllib.request.urlopen(
-            request, context=ssl_context(args.ca_file), timeout=20
+        with open_https(
+            request, ssl_context(args.ca_file), connect_loopback=args.connect_loopback, timeout=20
         ) as response:
             if response.status not in (200, 201):
                 raise ValueError(

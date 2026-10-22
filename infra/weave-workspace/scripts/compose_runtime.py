@@ -35,6 +35,7 @@ from compose_env import (
 from keycloak_migration import migration_inputs, require_completed_migration
 from keycloak_migration_backup import create_backup_proof
 from dogfood_identity_readiness import verify as verify_dogfood_identity
+from bootstrap_https import open_https
 
 
 COMMANDS = (
@@ -1512,6 +1513,8 @@ def _canonical_backend(
 
 
 def _bootstrap_disabled(context: ComposeContext, *, deadline: float | None = None) -> bool:
+    if context.environment == "e2e" and context.isolated_namespace is None:
+        raise ContractError("owner bootstrap HTTPS requires the owned isolated E2E context")
     url = context.env["WEAVE_API_ORIGIN"].rstrip("/") + "/api/bootstrap/owner-invitation"
     request = urllib.request.Request(
         url,
@@ -1526,7 +1529,7 @@ def _bootstrap_disabled(context: ComposeContext, *, deadline: float | None = Non
     tls.verify_flags &= ~ssl.VERIFY_X509_STRICT
     try:
         with bootstrap_probe_deadline(deadline):
-            with urllib.request.urlopen(request, context=tls, timeout=10):
+            with open_https(request, tls, connect_loopback=context.environment == "e2e", timeout=10):
                 pass
     except urllib.error.HTTPError as error:
         disabled = error.code == 404
@@ -1805,6 +1808,7 @@ def _owner_bootstrap_locked(context: ComposeContext, extra: list[str]) -> None:
                     str(context.tls_root / "ca.pem"),
                     "--evidence",
                     str(temporary_evidence),
+                    *(["--connect-loopback"] if context.environment == "e2e" else []),
                 ],
                 capture=True,
             )

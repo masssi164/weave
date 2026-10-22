@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from compose_env import ComposeContext, ContractError
+from bootstrap_https import open_https
 
 ROUTE = "/api/bootstrap/default-space"
 HEADER = "X-Weave-Space-Bootstrap-Token"
@@ -63,17 +64,11 @@ def _tls(context: ComposeContext) -> ssl.SSLContext:
     return tls
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, request, response, code, message, headers, target):
-        return None
-
-
 def _open(context: ComposeContext, request: urllib.request.Request, timeout: int):
-    # A redirect must never forward this dedicated credential to another origin.
-    opener = urllib.request.build_opener(
-        urllib.request.HTTPSHandler(context=_tls(context)), _NoRedirect()
-    )
-    return opener.open(request, timeout=timeout)
+    if context.environment == "e2e" and context.isolated_namespace is None:
+        raise ContractError("Space bootstrap HTTPS requires the owned isolated E2E context")
+    return open_https(request, _tls(context),
+                      connect_loopback=context.environment == "e2e", timeout=timeout)
 
 
 def _request(context: ComposeContext, token: str) -> dict[str, Any]:
