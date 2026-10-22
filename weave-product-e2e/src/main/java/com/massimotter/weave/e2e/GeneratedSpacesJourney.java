@@ -42,14 +42,14 @@ final class GeneratedSpacesJourney {
     files = new FilesUserApi(userClient);
   }
 
-  void provisionDefault(String adminToken, String ownerToken) {
+  void confirmDefault(String adminToken, String ownerToken) {
     try {
       SpaceProvisionResponse created = admin.provisionSpace(
           new SpaceProvisionRequest().spaceRef(DEFAULT_SPACE).memberAccountRefs(List.of()),
           bearer(adminToken));
       if (created == null || !DEFAULT_SPACE.equals(created.getSpaceRef())
-          || created.getResult() != SpaceProvisionResponse.ResultEnum.CREATED) {
-        throw new ProductFlowException("Admin Space setup did not create the durable default Space");
+          || created.getResult() != SpaceProvisionResponse.ResultEnum.UNCHANGED) {
+        throw new ProductFlowException("Admin Space setup did not confirm the durable default Space");
       }
       assertVisible(ownerToken, true);
     } catch (com.massimotter.weave.adminapi.invoker.ApiException

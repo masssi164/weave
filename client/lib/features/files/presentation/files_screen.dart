@@ -10,6 +10,7 @@ import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/app/presentation/workspace_capability_recovery_presenter.dart';
+import 'package:weave/features/app/presentation/workspace_setup_action.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
@@ -397,6 +398,7 @@ class _FilesCapabilityBody extends StatelessWidget {
           actionLabel: l10n.retryButton,
           onAction: onRetry,
           semanticLabel: recovery.semanticLabel(l10n, l10n.navFiles),
+          secondaryAction: WorkspaceSetupAction(capability: capability),
         ),
       ),
     );

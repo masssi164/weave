@@ -3040,6 +3040,30 @@ abstract class AppLocalizations {
   /// **'Available'**
   String get settingsWorkspaceRecoveryAvailable;
 
+  /// No description provided for @workspaceSetupOpenAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Open workspace setup'**
+  String get workspaceSetupOpenAction;
+
+  /// No description provided for @workspaceSetupOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace setup could not open. Try again.'**
+  String get workspaceSetupOpenFailed;
+
+  /// No description provided for @settingsWorkspaceRecoveryNoAccessibleWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'No accessible workspace'**
+  String get settingsWorkspaceRecoveryNoAccessibleWorkspace;
+
+  /// No description provided for @settingsWorkspaceRecoveryNoAccessibleWorkspaceAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask a workspace admin to finish setup or grant you access.'**
+  String get settingsWorkspaceRecoveryNoAccessibleWorkspaceAction;
+
   /// Member capability recovery state when policy disables a capability
   ///
   /// In en, this message translates to:
@@ -5708,7 +5732,7 @@ abstract class AppLocalizations {
   /// Description for the normal member handoff-first setup screen
   ///
   /// In en, this message translates to:
-  /// **'Use your organization’s Weave address or invitation to sign in to your workspace.'**
+  /// **'Sign in with your organization.'**
   String get setupMemberHandoffDescription;
 
   /// Organization access input label
@@ -5720,7 +5744,7 @@ abstract class AppLocalizations {
   /// Organization access input help
   ///
   /// In en, this message translates to:
-  /// **'Enter your organization’s Weave address, or paste the invitation link from your email or QR code.'**
+  /// **'Next, review your organization and choose Sign in.'**
   String get setupOrganizationUriHelper;
 
   /// Invalid organization access input

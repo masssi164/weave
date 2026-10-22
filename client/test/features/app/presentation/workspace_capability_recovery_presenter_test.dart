@@ -6,7 +6,7 @@ import 'package:weave/l10n/generated/app_localizations_en.dart';
 void main() {
   final l10n = AppLocalizationsEn();
 
-  test('maps the six member capability recovery states to localized copy', () {
+  test('maps member capability recovery states to localized copy', () {
     final cases = <WorkspaceCapabilityState, WorkspaceMemberRecoveryState>{
       const WorkspaceCapabilityState(
         capability: WorkspaceCapability.chat,
@@ -21,6 +21,13 @@ void main() {
         policyState: WorkspaceCapabilityPolicyState.policyBlocked,
         memberImpact: 'RAW BACKEND POLICY MESSAGE',
       ): WorkspaceMemberRecoveryState.disabledByPolicy,
+      const WorkspaceCapabilityState(
+        capability: WorkspaceCapability.files,
+        readiness: WorkspaceCapabilityReadiness.blocked,
+        policyState: WorkspaceCapabilityPolicyState.policyBlocked,
+        memberSpaceAccessUnavailable: true,
+        supportRef: 'unrelated-opaque-support-reference',
+      ): WorkspaceMemberRecoveryState.noAccessibleWorkspace,
       const WorkspaceCapabilityState(
         capability: WorkspaceCapability.files,
         readiness: WorkspaceCapabilityReadiness.blocked,
@@ -54,6 +61,17 @@ void main() {
       );
 
       expect(presentation.state, entry.value);
+      if (entry.value == WorkspaceMemberRecoveryState.noAccessibleWorkspace) {
+        expect(presentation.stateLabel, 'No accessible workspace');
+        expect(
+          presentation.recovery,
+          'Ask a workspace admin to finish setup or grant you access.',
+        );
+        expect(
+          presentation.semanticLabel(l10n, 'Files'),
+          contains('No accessible workspace'),
+        );
+      }
       expect(presentation.stateLabel, isNot(contains('RAW BACKEND')));
       expect(presentation.recovery, isNot(contains('RAW BACKEND')));
       if (entry.key.supportRef == null) {

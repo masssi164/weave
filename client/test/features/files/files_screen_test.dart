@@ -585,6 +585,60 @@ void main() {
   }
 
   group('FilesScreen', () {
+    testWidgets('explains missing Space access with accessible recovery', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://api.weave.local/api'),
+          accountLabel: 'Weave files',
+        ),
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const FilesScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              AsyncData(
+                WorkspaceCapabilitySnapshot(
+                  shellAccess: _readyFilesSnapshot.shellAccess,
+                  chat: _readyFilesSnapshot.chat,
+                  files: const WorkspaceCapabilityState(
+                    capability: WorkspaceCapability.files,
+                    readiness: WorkspaceCapabilityReadiness.blocked,
+                    policyState: WorkspaceCapabilityPolicyState.policyBlocked,
+                    memberSpaceAccessUnavailable: true,
+                    supportRef: 'support:member-space-access:files:unavailable',
+                  ),
+                  calendar: _readyFilesSnapshot.calendar,
+                  boards: _readyFilesSnapshot.boards,
+                ),
+              ),
+            ),
+            filesRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Ask a workspace admin to finish setup or grant you access.'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel(
+          RegExp(
+            'Files.*State: No accessible workspace.*Recovery:.*finish setup or grant you access',
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel(RegExp('Disabled by policy')), findsNothing);
+      expect(repository.restoreConnectionCalls, 0);
+      expect(repository.requestedPaths, isEmpty);
+      semantics.dispose();
+    });
+
     testWidgets(
       'waits for member access, opens Files automatically, and hides revoked content',
       (tester) async {
