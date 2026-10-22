@@ -372,14 +372,33 @@ def native_qualification_passed(value: dict, sha: str, tree: str, spec: str) -> 
     )
 
 
+def owner_workspace_passed(value: dict, sha: str, tree: str, spec: str) -> bool:
+    if not isinstance(value, dict):
+        return False
+    expected = {
+        "schemaVersion": "weave.default-space-preparation/v1",
+        "candidateCommit": sha, "sourceTree": tree, "specificationCommit": spec,
+        "status": "passed", "spaceRef": "workspace-default",
+        "ownerAccessVerified": True, "filesReady": True, "calendarReady": True,
+        "bootstrapAuthorityAbsent": True, "bootstrapMountAbsent": True,
+        "tokenAbsent": True, "canonicalImageUnchanged": True,
+        "supportSafe": True, "containsSecretValues": False,
+    }
+    return (all(type(value.get(key)) is type(item) and value.get(key) == item
+                for key, item in expected.items())
+            and value.get("outcome") in ("CREATED", "VERIFIED"))
+
+
 def preparation_passed(value: dict, sha: str, tree: str, spec: str, run_id: int, run_attempt: int) -> bool:
+    if not isinstance(value, dict) or not owner_workspace_passed(value.get("ownerWorkspace"), sha, tree, spec):
+        return False
     toolchain = value.get("toolchain")
     if not native_toolchain_recorded(toolchain):
         return False
     if toolchain.get("iosDeviceSdkVersion") != toolchain["iosSimulatorSdkVersion"]:
         return False
     return all(value.get(key) == expected for key, expected in {
-        "schemaVersion": "weave.hil-preparation/v1", "candidateCommit": sha,
+        "schemaVersion": "weave.hil-preparation/v2", "candidateCommit": sha,
         "sourceTree": tree, "specificationCommit": spec,
         "qualificationRunId": run_id, "qualificationRunAttempt": run_attempt, "status": "passed", "install": "update_in_place",
         "supportSafe": True, "containsSecretValues": False,

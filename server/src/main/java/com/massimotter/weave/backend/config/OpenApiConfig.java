@@ -26,6 +26,12 @@ import org.springframework.context.annotation.Configuration;
         in = SecuritySchemeIn.HEADER,
         paramName = "X-Weave-Bootstrap-Token",
         description = "Rotatable SecretRef credential for the empty-realm owner invitation only.")
+@SecurityScheme(
+        name = "space-bootstrap-token",
+        type = SecuritySchemeType.APIKEY,
+        in = SecuritySchemeIn.HEADER,
+        paramName = "X-Weave-Space-Bootstrap-Token",
+        description = "Dedicated short-lived SecretRef for explicit development default-Space preparation.")
 public class OpenApiConfig {
 
     @Bean

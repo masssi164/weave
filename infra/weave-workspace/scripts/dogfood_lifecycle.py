@@ -139,7 +139,7 @@ def _build_application_images(repository: Path, commit: str) -> tuple[str, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("operation", choices=("up", "down", "reset", "bootstrap-owner"))
+    parser.add_argument("operation", choices=("up", "down", "reset", "bootstrap-owner", "bootstrap-space"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file", type=Path)
     args, operation_arguments = parser.parse_known_args()
@@ -170,7 +170,7 @@ def main() -> int:
     operation_arguments = list(operation_arguments)
     if operation_arguments[:1] == ["--"]:
         operation_arguments.pop(0)
-    if args.operation != "bootstrap-owner" and operation_arguments:
+    if args.operation not in {"bootstrap-owner", "bootstrap-space"} and operation_arguments:
         raise ContractError(f"dogfood {args.operation} does not accept operation arguments")
     execute(context, args.operation, operation_arguments)
     print(

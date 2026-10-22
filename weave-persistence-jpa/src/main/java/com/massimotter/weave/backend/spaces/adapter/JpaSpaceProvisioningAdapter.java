@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.spaces.adapter;
 
 import com.massimotter.weave.backend.spaces.port.SpaceProvisioningPort;
+import com.massimotter.weave.backend.spaces.port.DefaultSpacePreparationPort;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HashMap;
@@ -12,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Serializes explicit Space setup to the persisted aggregate and membership rows. */
 @Repository
-public class JpaSpaceProvisioningAdapter implements SpaceProvisioningPort {
+public class JpaSpaceProvisioningAdapter implements SpaceProvisioningPort, DefaultSpacePreparationPort {
     private final SpaceJpaRepository spaces;
     private final SpaceMembershipJpaRepository memberships;
     private final Clock clock;
@@ -32,37 +33,63 @@ public class JpaSpaceProvisioningAdapter implements SpaceProvisioningPort {
 
     @Override
     @Transactional
-    public Result provision(String organizationRef, String spaceRef,
+    public DefaultSpacePreparationPort.Result prepare(String organizationRef, String ownerAccountRef) {
+        String spaceRef = "workspace-default";
+        Instant now = Instant.now(clock);
+        boolean created = spaces.insertIfAbsent(organizationRef, spaceRef, SpaceJpaEntity.utc(now)) == 1;
+        var existing = spaces.lockById(new SpaceId(organizationRef, spaceRef))
+                .orElseThrow(DefaultSpacePreparationPort.Conflict::new);
+        if (created) {
+            membersFor(organizationRef, spaceRef, Map.of(ownerAccountRef, "VIEW,EDIT,ADMIN"), now);
+            return DefaultSpacePreparationPort.Result.CREATED;
+        }
+        boolean ownerAdmin = existing.active() && memberships
+                .findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef(organizationRef, spaceRef, ownerAccountRef)
+                .filter(SpaceMembershipJpaEntity::active)
+                .map(member -> "VIEW,EDIT,ADMIN".equals(member.permissionSet()))
+                .orElse(false);
+        if (!ownerAdmin) {
+            throw new DefaultSpacePreparationPort.Conflict();
+        }
+        return DefaultSpacePreparationPort.Result.VERIFIED;
+    }
+
+    @Override
+    @Transactional
+    public SpaceProvisioningPort.Result provision(String organizationRef, String spaceRef,
             String actorAccountRef, Set<String> memberAccountRefs) {
         Map<String, String> expected = new HashMap<>();
         for (String accountRef : memberAccountRefs) {
             expected.put(accountRef, "VIEW");
         }
         expected.put(actorAccountRef, "VIEW,EDIT,ADMIN");
-        SpaceId id = new SpaceId(organizationRef, spaceRef);
-        var existing = spaces.findById(id);
-        if (existing.isPresent()) {
-            if (!existing.get().active()) {
-                throw new Conflict();
+        Instant now = Instant.now(clock);
+        boolean created = spaces.insertIfAbsent(organizationRef, spaceRef, SpaceJpaEntity.utc(now)) == 1;
+        var existing = spaces.lockById(new SpaceId(organizationRef, spaceRef))
+                .orElseThrow(SpaceProvisioningPort.Conflict::new);
+        if (!created) {
+            if (!existing.active()) {
+                throw new SpaceProvisioningPort.Conflict();
             }
             Map<String, String> current = new HashMap<>();
-            for (var member : memberships.findByIdOrganizationRefAndIdSpaceRef(
-                    organizationRef, spaceRef)) {
+            for (var member : memberships.findByIdOrganizationRefAndIdSpaceRef(organizationRef, spaceRef)) {
                 if (member.active()) {
                     current.put(member.accountRef(), member.permissionSet());
                 }
             }
             if (!expected.equals(current)) {
-                throw new Conflict();
+                throw new SpaceProvisioningPort.Conflict();
             }
-            return Result.UNCHANGED;
+            return SpaceProvisioningPort.Result.UNCHANGED;
         }
-        Instant now = Instant.now(clock);
-        spaces.save(SpaceJpaEntity.active(organizationRef, spaceRef, now));
+        membersFor(organizationRef, spaceRef, expected, now);
+        return SpaceProvisioningPort.Result.CREATED;
+    }
+
+    private void membersFor(String organizationRef, String spaceRef, Map<String, String> expected, Instant now) {
         for (var entry : expected.entrySet()) {
             memberships.save(SpaceMembershipJpaEntity.active(
                     organizationRef, spaceRef, entry.getKey(), entry.getValue(), now));
         }
-        return Result.CREATED;
     }
 }

@@ -8,7 +8,10 @@ import os
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -18,6 +21,67 @@ from compose_env import ContractError  # noqa: E402
 
 
 class OwnerBootstrapLifecycleContractTest(unittest.TestCase):
+    def test_isolated_e2e_owner_operation_uses_existing_owned_resources_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            context = SimpleNamespace(environment="e2e", isolated_namespace="weave-e2e-owned",
+                                      generated_root=Path(temporary).resolve() / "generated")
+            with patch.object(compose_runtime, "resource_inventory", return_value={("volume", "owned")}), \
+                    patch.object(compose_runtime, "inspect_resource", return_value=(True, False)), \
+                    patch.object(compose_runtime, "_owner_bootstrap_locked") as operation:
+                with self.assertRaisesRegex(ContractError, "existing owned"):
+                    compose_runtime.owner_bootstrap(context, [])
+                operation.assert_not_called()
+
+    def test_isolated_e2e_first_invitation_has_temporary_authority_and_canonical_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, ExitStack() as stack:
+            root = Path(temporary).resolve()
+            context = SimpleNamespace(environment="e2e", isolated_namespace="weave-e2e-owned",
+                                      generated_root=root / "generated", secret_root=root / "secrets",
+                                      repository_root=root, tls_root=root / "tls",
+                                      env={"WEAVE_RUNTIME_UID": str(os.getuid()), "WEAVE_RUNTIME_GID": str(os.getgid()),
+                                           "WEAVE_API_ORIGIN": "https://weave.test"})
+            context.secret_root.mkdir(mode=0o700)
+            request = root / "request.json"
+            request.write_text(json.dumps({"displayName": "Owner", "email": "owner@example.test",
+                                           "idempotencyKey": "owner-e2e-bootstrap-0001"}))
+            request.chmod(0o600)
+            container = {"Image": "sha256:" + "a" * 64, "Config": {"Env": []}, "Mounts": []}
+            def mock(name, **kwargs):
+                return stack.enter_context(patch.object(compose_runtime, name, **kwargs))
+            mock("resource_inventory", return_value={("volume", "owned")})
+            mock("inspect_resource", return_value=(True, True))
+            mock("prepare")
+            mock("_owner_bootstrap_smtp_preflight")
+            mock("_await_healthy")
+            readiness = mock("verify_dogfood_identity")
+            mock("_service_container", return_value=container)
+            restore = mock("_canonical_backend", return_value=container)
+            disabled = mock("_bootstrap_disabled", return_value=True)
+            mock("compose_environment", return_value={})
+            mock("_mailpit_recipient_summaries", side_effect=[{}, {"private-message-id": "current-time"}])
+            def override(context, path, *arguments):
+                payload = json.loads(path.read_text())["services"]["backend"]
+                self.assertEqual(payload["environment"]["WEAVE_IDENTITY_BOOTSTRAP_OWNER_ENABLED"], "true")
+                self.assertEqual(payload["volumes"][0]["target"], "/run/secrets/weave/bootstrap-owner")
+                token = Path(payload["volumes"][0]["source"]) / "token"
+                self.assertNotIn(token.read_text().strip(), json.dumps(payload))
+            mock("_bootstrap_override_command", side_effect=override)
+            def helper(context, command, **kwargs):
+                evidence = Path(command[command.index("--evidence") + 1])
+                evidence.write_text(json.dumps({"supportSafe": True, "requestedRole": "owner"}))
+                return SimpleNamespace(stderr="", stdout="")
+            # Patch only the helper process; all Docker operations above are mocks.
+            mock("_bootstrap_process", side_effect=helper)
+            compose_runtime.owner_bootstrap(context, ["--request-file", str(request)])
+            readiness.assert_not_called()
+            restore.assert_called_once()
+            disabled.assert_called_once()
+            self.assertEqual(list(context.secret_root.iterdir()), [])
+            self.assertEqual(list((context.generated_root / "operations").glob("*.compose.json")), [])
+            evidence = json.loads((context.generated_root / "owner-bootstrap/evidence.json").read_text())
+            self.assertTrue(evidence["bootstrapAuthorityAbsent"])
+            self.assertTrue(evidence["tokenAbsent"])
+
     def test_private_request_is_exact_and_not_world_readable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "owner.json"
@@ -76,14 +140,15 @@ class OwnerBootstrapLifecycleContractTest(unittest.TestCase):
         lifecycle = source.split("def owner_bootstrap(", 1)[1].split(
             "\ndef _remove_exact_dogfood_resource(", 1
         )[0]
-        self.assertIn('context.environment != "dogfood"', lifecycle)
+        self.assertIn('context.environment == "dogfood" and context.isolated_namespace is None', lifecycle)
+        self.assertIn('context.environment == "e2e" and context.isolated_namespace is not None', lifecycle)
         self.assertIn('"--no-deps"', lifecycle)
         self.assertIn('"--force-recreate"', lifecycle)
         self.assertIn('"read_only": False', lifecycle)
         self.assertIn('"/run/secrets/weave/bootstrap-owner/token"', lifecycle)
         self.assertIn("finally:", lifecycle)
-        self.assertIn("_canonical_backend(context)", lifecycle)
-        self.assertIn("_bootstrap_disabled(context)", lifecycle)
+        self.assertIn("_canonical_backend(context, deadline=restoration_deadline)", lifecycle)
+        self.assertIn("_bootstrap_disabled(context, deadline=restoration_deadline)", lifecycle)
         self.assertLess(
             lifecycle.index("_private_json(\n                request_anchor_path"),
             lifecycle.index("_bootstrap_override_command("),

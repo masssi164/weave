@@ -11,6 +11,7 @@ import os
 import re
 import secrets
 import shutil
+import signal
 import ssl
 import stat
 import subprocess
@@ -50,6 +51,7 @@ COMMANDS = (
     "logs",
     "keycloak-migration-apply",
     "bootstrap-owner",
+    "bootstrap-space",
     "persistence-restart-proof",
     "chat-provider-stop-proof",
     "chat-provider-start-proof",
@@ -154,6 +156,7 @@ MCP_PROTECTED_SECRET_MARKERS = (
 COLLABORATION_CONTROL_BUDGET_SECONDS = 240
 COLLABORATION_SUBPROCESS_TIMEOUT_SECONDS = 30
 COLLABORATION_HEALTH_POLL_SECONDS = 2
+BOOTSTRAP_RESTORATION_BUDGET_SECONDS = 220
 RETIRED_DOGFOOD_CONTAINERS = (
     "weave-backend",
     "weave-db",
@@ -1434,21 +1437,47 @@ def _mailpit_recipient_summaries(
 def _bootstrap_boundary_present(container: dict[str, Any]) -> bool:
     environment = container.get("Config", {}).get("Env", []) or []
     mounts = container.get("Mounts", []) or []
+    for value in environment:
+        value = str(value)
+        if value.startswith(("WEAVE_IDENTITY_BOOTSTRAP_OWNER_", "WEAVE_SPACES_BOOTSTRAP_")):
+            return True
+        if value.startswith("SPRING_APPLICATION_JSON="):
+            try:
+                configuration = json.loads(value.partition("=")[2])
+                spaces = configuration.get("weave", {}).get("spaces", {})
+                if "bootstrap" in spaces or any(
+                    key.startswith("weave.spaces.bootstrap") for key in configuration
+                ):
+                    return True
+            except (ValueError, AttributeError, TypeError):
+                # Malformed JSON cannot prove that exceptional authority is absent.
+                return True
     return any(
-        str(value).startswith("WEAVE_IDENTITY_BOOTSTRAP_OWNER_")
-        for value in environment
-    ) or any(
-        str(mount.get("Destination", "")).startswith(
-            "/run/secrets/weave/bootstrap-owner"
-        )
+        str(mount.get("Destination", "")).startswith((
+            "/run/secrets/weave/bootstrap-owner", "/run/secrets/weave/bootstrap-space"
+        ))
         for mount in mounts
         if isinstance(mount, dict)
     )
 
 
-def _canonical_backend(context: ComposeContext) -> dict[str, Any]:
-    compose(
-        context,
+def bootstrap_restoration_deadline() -> float:
+    return time.monotonic() + BOOTSTRAP_RESTORATION_BUDGET_SECONDS
+
+
+def bootstrap_remaining(deadline: float, maximum: float) -> float:
+    remaining = min(maximum, deadline - time.monotonic())
+    if remaining <= 0:
+        raise ContractError("bootstrap restoration exceeded its absolute deadline")
+    return remaining
+
+
+def _canonical_backend(
+    context: ComposeContext, *, deadline: float | None = None
+) -> dict[str, Any]:
+    deadline = bootstrap_restoration_deadline() if deadline is None else deadline
+    _bootstrap_process(context, [
+        *context.compose_base_command,
         "up",
         "-d",
         "--no-deps",
@@ -1457,14 +1486,32 @@ def _canonical_backend(context: ComposeContext) -> dict[str, Any]:
         "--wait-timeout",
         "180",
         "backend",
+    ], deadline=deadline, timeout_seconds=190)
+    selected = _bootstrap_process(
+        context, [*context.compose_base_command, "ps", "-q", "backend"],
+        capture=True, deadline=deadline, timeout_seconds=10,
+    ).stdout.strip().splitlines()
+    if len(selected) != 1 or not re.fullmatch(r"[0-9a-f]{64}", selected[0]):
+        raise ContractError("canonical backend does not resolve to one running container")
+    inspected = _bootstrap_process(
+        context, ["docker", "container", "inspect", selected[0]],
+        capture=True, deadline=deadline, timeout_seconds=10,
     )
-    container = _service_container(context, "backend")
+    payload = json.loads(inspected.stdout)
+    if not isinstance(payload, list) or len(payload) != 1 or not isinstance(payload[0], dict):
+        raise ContractError("canonical backend inspection is ambiguous")
+    container = payload[0]
+    labels = container.get("Config", {}).get("Labels", {}) or {}
+    if (labels.get("com.docker.compose.project") != context.env["WEAVE_COMPOSE_PROJECT"]
+            or labels.get("com.docker.compose.service") != "backend"
+            or labels.get("com.massimotter.weave.namespace") != context.env["WEAVE_RESOURCE_PREFIX"]):
+        raise ContractError("canonical backend is outside the selected Compose namespace")
     if _bootstrap_boundary_present(container):
-        raise ContractError("canonical backend retained owner bootstrap authority")
+        raise ContractError("canonical backend retained bootstrap authority")
     return container
 
 
-def _bootstrap_disabled(context: ComposeContext) -> bool:
+def _bootstrap_disabled(context: ComposeContext, *, deadline: float | None = None) -> bool:
     url = context.env["WEAVE_API_ORIGIN"].rstrip("/") + "/api/bootstrap/owner-invitation"
     request = urllib.request.Request(
         url,
@@ -1478,9 +1525,13 @@ def _bootstrap_disabled(context: ComposeContext) -> bool:
     tls = ssl.create_default_context(cafile=str(context.tls_root / "ca.pem"))
     tls.verify_flags &= ~ssl.VERIFY_X509_STRICT
     try:
-        urllib.request.urlopen(request, context=tls, timeout=10)
+        with bootstrap_probe_deadline(deadline):
+            with urllib.request.urlopen(request, context=tls, timeout=10):
+                pass
     except urllib.error.HTTPError as error:
-        return error.code == 404
+        disabled = error.code == 404
+        error.close()
+        return disabled
     return False
 
 
@@ -1488,12 +1539,95 @@ def _bootstrap_override_command(
     context: ComposeContext, override: Path, *arguments: str
 ) -> subprocess.CompletedProcess[str]:
     command = [*context.compose_base_command, "--file", str(override), *arguments]
-    return run(command, context)
+    return _bootstrap_process(context, command)
+
+
+def _bootstrap_process(
+    context: ComposeContext, command: list[str], *, capture: bool = False,
+    deadline: float | None = None, timeout_seconds: float = 240,
+) -> subprocess.CompletedProcess[str]:
+    """Reap exceptional setup children before restoring canonical authority."""
+    deadline = min(deadline if deadline is not None else float("inf"),
+                   time.monotonic() + timeout_seconds)
+    remaining = bootstrap_remaining(deadline, timeout_seconds)
+    reap_reserve = min(4.0, remaining / 2)
+    process = subprocess.Popen(
+        command, cwd=context.root, env=compose_environment(context), text=True,
+        stdout=subprocess.PIPE if capture else None,
+        stderr=subprocess.PIPE if capture else None, start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=max(0, deadline - time.monotonic() - reap_reserve))
+    except BaseException as error:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            process.communicate(timeout=bootstrap_remaining(deadline, max(0.001, reap_reserve / 2)))
+        except BaseException:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            try:
+                process.communicate(timeout=max(0, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired:
+                raise ContractError("bootstrap subprocess could not be reaped within its deadline") from None
+        if isinstance(error, subprocess.TimeoutExpired):
+            raise ContractError("bootstrap subprocess exceeded its bounded execution budget") from None
+        raise
+    result = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+    result.check_returncode()
+    return result
+
+
+@contextmanager
+def bootstrap_probe_deadline(deadline: float | None) -> Iterator[None]:
+    """Bound the complete HTTP probe, including slowly received headers."""
+    deadline = time.monotonic() + 10 if deadline is None else deadline
+    remaining = bootstrap_remaining(deadline, 10)
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    previous_timer = signal.getitimer(signal.ITIMER_REAL)
+
+    def expired(signum: int, frame: Any) -> None:
+        raise ContractError("bootstrap endpoint absence probe exceeded its deadline")
+
+    signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, remaining)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        if previous_timer[0] > 0:
+            signal.setitimer(signal.ITIMER_REAL, *previous_timer)
+
+
+@contextmanager
+def bootstrap_termination_cleanup() -> Iterator[None]:
+    """Let a bounded caller's graceful termination enter authority cleanup."""
+    previous = signal.getsignal(signal.SIGTERM)
+
+    def interrupted(signum: int, frame: Any) -> None:
+        bootstrap_cleanup_started()
+        raise ContractError("bootstrap operation interrupted; restoring canonical authority")
+
+    signal.signal(signal.SIGTERM, interrupted)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
+def bootstrap_cleanup_started() -> None:
+    # The operation's outer context restores the previous handler after cleanup.
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
 
 @contextmanager
 def _dogfood_session_lock(context: ComposeContext) -> Iterator[None]:
-    """Serialize reset with the complete first-owner lifecycle and its evidence."""
+    """Serialize reset with complete owner and Space setup operations."""
 
     lock_root = context.generated_root / "operations"
     for path in (context.generated_root, lock_root):
@@ -1520,18 +1654,28 @@ def _dogfood_session_lock(context: ComposeContext) -> Iterator[None]:
         try:
             fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            raise ContractError("another dogfood owner bootstrap or reset operation is active") from None
+            raise ContractError("another dogfood bootstrap or reset operation is active") from None
         yield
     finally:
         os.close(lock_fd)
 
 
 def owner_bootstrap(context: ComposeContext, extra: list[str]) -> None:
-    if context.environment != "dogfood" or context.isolated_namespace is not None:
-        raise ContractError("bootstrap-owner is restricted to persistent dogfood")
-    with _dogfood_session_lock(context):
+    persistent_dogfood = context.environment == "dogfood" and context.isolated_namespace is None
+    isolated_e2e = context.environment == "e2e" and context.isolated_namespace is not None
+    if not (persistent_dogfood or isolated_e2e):
+        raise ContractError("bootstrap-owner requires persistent dogfood or owned isolated E2E")
+    with _dogfood_session_lock(context), bootstrap_termination_cleanup():
+        if isolated_e2e:
+            require_existing_owned_resources(context)
         _dogfood_owner_session_files(context)
         _owner_bootstrap_locked(context, extra)
+
+
+def require_existing_owned_resources(context: ComposeContext) -> None:
+    for kind, name in resource_inventory(context):
+        if inspect_resource(context, kind, name) != (True, True):
+            raise ContractError("bootstrap preparation requires existing owned isolated resources")
 
 
 def _owner_bootstrap_locked(context: ComposeContext, extra: list[str]) -> None:
@@ -1551,7 +1695,8 @@ def _owner_bootstrap_locked(context: ComposeContext, extra: list[str]) -> None:
     _owner_bootstrap_smtp_preflight(context)
     for service in ("keycloak", "mailpit", "backend"):
         _await_healthy(context, service)
-    verify_dogfood_identity(context)
+    if context.environment == "dogfood":
+        verify_dogfood_identity(context)
     lock_root = context.generated_root / "operations"
     operation_root: Path | None = None
     override: Path | None = None
@@ -1645,7 +1790,8 @@ def _owner_bootstrap_locked(context: ComposeContext, extra: list[str]) -> None:
         )
         temporary_evidence = lock_root / (operation_root.name + ".helper.json")
         try:
-            helper = subprocess.run(
+            helper = _bootstrap_process(
+                context,
                 [
                     "python3",
                     str(context.repository_root / "gradle/tasks/bootstrap-owner.py"),
@@ -1660,12 +1806,7 @@ def _owner_bootstrap_locked(context: ComposeContext, extra: list[str]) -> None:
                     "--evidence",
                     str(temporary_evidence),
                 ],
-                cwd=context.repository_root,
-                env=compose_environment(context),
-                check=True,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture=True,
             )
         except subprocess.CalledProcessError as error:
             diagnostic = (error.stderr or "").strip()
@@ -1691,23 +1832,31 @@ def _owner_bootstrap_locked(context: ComposeContext, extra: list[str]) -> None:
     except BaseException as error:
         primary_error = error
     finally:
+        bootstrap_cleanup_started()
+        restoration_deadline = bootstrap_restoration_deadline()
         restoration_error: BaseException | None = None
         try:
-            restored = _canonical_backend(context)
+            restored = _canonical_backend(context, deadline=restoration_deadline)
             if canonical_image and restored.get("Image") != canonical_image:
                 raise ContractError("owner bootstrap changed the canonical backend image")
-            if not _bootstrap_disabled(context):
+            if not _bootstrap_disabled(context, deadline=restoration_deadline):
                 raise ContractError("owner bootstrap endpoint remained available after cleanup")
         except BaseException as error:
             restoration_error = error
-        if operation_root is not None:
-            token = operation_root / "token"
-            if token.exists() or token.is_symlink():
-                token.unlink()
-            if operation_root.exists():
-                shutil.rmtree(operation_root)
-        if override is not None and (override.exists() or override.is_symlink()):
-            override.unlink()
+        try:
+            if operation_root is not None:
+                token = operation_root / "token"
+                if token.exists() or token.is_symlink():
+                    token.unlink()
+                if operation_root.exists():
+                    shutil.rmtree(operation_root)
+        except BaseException as error:
+            restoration_error = error
+        try:
+            if override is not None and (override.exists() or override.is_symlink()):
+                override.unlink()
+        except BaseException as error:
+            restoration_error = error
         if restoration_error is not None:
             raise ContractError("owner bootstrap could not restore the canonical backend boundary") from restoration_error
     if primary_error is not None:
@@ -1929,6 +2078,10 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         keycloak_migration_apply(context)
     elif command == "bootstrap-owner":
         owner_bootstrap(context, extra)
+    elif command == "bootstrap-space":
+        from default_space_bootstrap import execute as bootstrap_space
+
+        bootstrap_space(context, extra)
     elif command == "up":
         script(context, "init_secrets.py")
         script(context, "render_config.py")

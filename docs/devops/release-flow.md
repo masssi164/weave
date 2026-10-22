@@ -26,6 +26,7 @@ This release flow keeps `main` stable while giving Weave a practical integration
 - Run deterministic checks and review on the promotion PR; add missing acceptance scenarios/mappings before qualification.
 - The protected Dogfood merge commit becomes the candidate. Mandatory Full Compose, native macOS and native iOS Simulator integration must pass for that exact commit and pinned corpus revision.
 - Deploy that same qualified commit and prepare its physical iPhone build before HIL. Merging to Dogfood alone does not authorize human-test readiness.
+- Physical preparation establishes or verifies durable default-Space access for the actual activated owner before installation. Existing grants and policy denials remain authoritative; a pending invitation or installed app alone cannot establish usable owner access.
 - Record explicit human acceptance; automated suites never manufacture human outcomes.
 - Promote the unchanged qualified Dogfood tree to Main using existing automated, deployment, preparation and human evidence. Newer Dev work does not invalidate it; a changed candidate does.
 

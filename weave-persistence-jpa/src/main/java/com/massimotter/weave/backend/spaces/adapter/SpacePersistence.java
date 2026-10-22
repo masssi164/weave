@@ -20,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 
 /** Canonical Space aggregate root. */
@@ -110,6 +111,17 @@ class SpaceId implements Serializable {
 }
 
 interface SpaceJpaRepository extends JpaRepository<SpaceJpaEntity, SpaceId> {
+    /** Primary-key arbitration inserts once; a losing creator never merges into current state. */
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            insert into weave_spaces (organization_ref, space_ref, lifecycle_state,
+                    created_at_utc, updated_at_utc, version)
+            values (:organizationRef, :spaceRef, 'ACTIVE', :now, :now, 0)
+            on conflict do nothing
+            """, nativeQuery = true)
+    int insertIfAbsent(@Param("organizationRef") String organizationRef,
+            @Param("spaceRef") String spaceRef, @Param("now") OffsetDateTime now);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select space from SpaceJpaEntity space where space.id = :id")
     Optional<SpaceJpaEntity> lockById(@Param("id") SpaceId id);

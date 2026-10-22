@@ -40,6 +40,87 @@ class KeycloakIdentityAdminClientTest {
   }
 
   @Test
+  void readsCurrentMemberAuthorizationOnlyThroughLiveReadOperations() {
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/users/subject-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("{\"id\":\"subject-1\",\"enabled\":true,\"emailVerified\":true,\"requiredActions\":[]}", MediaType.APPLICATION_JSON));
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/organizations/organization-1/members/subject-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("{\"id\":\"subject-1\"}", MediaType.APPLICATION_JSON));
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/organizations/organization-1/members/subject-1/groups?briefRepresentation=true"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("[{\"path\":\"/owners\"},{\"path\":\"/capabilities/weaver\"}]", MediaType.APPLICATION_JSON));
+    var authority = client.memberAuthorization("organization-1", "subject-1");
+    assertThat(authority.subject()).isEqualTo("subject-1");
+    assertThat(authority.enabled()).isTrue();
+    assertThat(authority.activated()).isTrue();
+    assertThat(authority.roles()).containsExactly("owner");
+    assertThat(authority.groups()).containsExactly("/capabilities/weaver", "/owners");
+    provider.verify();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "{\"enabled\":true,\"emailVerified\":false,\"requiredActions\":[]}",
+      "{\"enabled\":true,\"emailVerified\":true,\"requiredActions\":[\"CONFIGURE_TOTP\"]}"
+  })
+  void currentPendingActivationIsNotAnActivatedOwner(String fields) {
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/users/subject-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("{\"id\":\"subject-1\"," + fields.substring(1), MediaType.APPLICATION_JSON));
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/organizations/organization-1/members/subject-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("{\"id\":\"subject-1\"}", MediaType.APPLICATION_JSON));
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/organizations/organization-1/members/subject-1/groups?briefRepresentation=true"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("[{\"path\":\"/owners\"}]", MediaType.APPLICATION_JSON));
+    assertThat(client.memberAuthorization("organization-1", "subject-1").activated()).isFalse();
+    provider.verify();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "{\"enabled\":true,\"requiredActions\":[]}",
+      "{\"enabled\":true,\"emailVerified\":\"true\",\"requiredActions\":[]}",
+      "{\"enabled\":true,\"emailVerified\":true}",
+      "{\"enabled\":true,\"emailVerified\":true,\"requiredActions\":\"none\"}"
+  })
+  void missingOrMalformedActivationMetadataFailsClosed(String fields) {
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/users/subject-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("{\"id\":\"subject-1\"," + fields.substring(1), MediaType.APPLICATION_JSON));
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/organizations/organization-1/members/subject-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("{\"id\":\"subject-1\"}", MediaType.APPLICATION_JSON));
+    assertThatThrownBy(() -> client.memberAuthorization("organization-1", "subject-1"))
+        .isInstanceOf(IllegalStateException.class);
+    provider.verify();
+  }
+
+  @Test
+  void memberAuthorizationRejectsServiceAccountsBeforeAnyGrant() {
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/users/subject-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("{\"id\":\"subject-1\",\"enabled\":true,\"serviceAccountClientId\":\"client\"}", MediaType.APPLICATION_JSON));
+    assertThatThrownBy(() -> client.memberAuthorization("organization-1", "subject-1"))
+        .isInstanceOf(KeycloakIdentityAdminClient.KeycloakAdminException.class);
+    provider.verify();
+  }
+
+  @Test
+  void memberAuthorizationRejectsIncompleteEnabledState() {
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/users/subject-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("{\"id\":\"subject-1\"}", MediaType.APPLICATION_JSON));
+    provider.expect(requestTo("https://identity.internal/admin/realms/weave/organizations/organization-1/members/subject-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("{\"id\":\"subject-1\"}", MediaType.APPLICATION_JSON));
+    assertThatThrownBy(() -> client.memberAuthorization("organization-1", "subject-1"))
+        .isInstanceOf(IllegalStateException.class);
+    provider.verify();
+  }
+
+  @Test
   void resolvesOrganizationByStableAliasOnce() {
     IdentityInvitationProperties properties = new IdentityInvitationProperties();
     properties.keycloak().setBaseUrl(URI.create("https://identity.internal"));

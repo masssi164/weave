@@ -57,10 +57,6 @@ services:
         mode: 0400
     volumes:
       - type: bind
-        source: ${WEAVE_SECRET_ROOT:-./.generated/e2e/secrets}/identity-bootstrap-owner-token
-        target: /run/secrets/weave/bootstrap-owner-token
-        read_only: true
-      - type: bind
         source: ${WEAVE_SECRET_ROOT:?isolated SecretRef root is required}/chat-e2e-proof-token
         target: /run/secrets/weave/chat-e2e-proof-token
         read_only: true
