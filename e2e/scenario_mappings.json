@@ -6191,6 +6191,64 @@
       ]
     },
     {
+      "tag": "@human-ready-dogfood-operator-preparation",
+      "scenario": "The reviewed Dogfood operator prepares normal test members without personal Admin sign-in",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/dogfood_prepare_test.py",
+      "evidenceMarkers": [
+        "test_operator_preparation_requires_two_native_proofs_current_grants_cleanup_and_private_owner_binding",
+        "test_operator_resume_preserves_passwords_plan_and_previous_receipt_nonce"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/dogfood/DogfoodPreparationContextPostgresTest.java",
+          "fragments": [
+            "exactMinimalCommandContextValidatesServingSchemaWithoutWebSchedulersOrProviderBootstraps"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/spaces/adapter/DogfoodSpacePreparationPersistenceTest.java",
+          "fragments": [
+            "createsOnlyTwoAbsentEditGrantsAndVerifiesExactGrantsWithoutChangingVersionsOrOwner"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@human-ready-dogfood-operator-guard",
+      "scenario": "Operator preparation cannot widen its target or undo access decisions",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/dogfood_prepare_test.py",
+      "evidenceMarkers": [
+        "test_operator_envelope_rejects_mixed_authority_stale_bindings_and_unknown_fields",
+        "test_operator_partial_grant_failure_retains_intent_references_and_never_publishes_fixture",
+        "test_operator_ledger_upgrades_only_unenacted_console_plan_without_changing_passwords",
+        "test_initial_activation_rejects_existing_user_action_token_without_checkpoint_or_browser",
+        "test_stale_durable_grant_version_blocks_publication_after_invitation_refresh",
+        "test_durable_grants_evidence_rejects_mixed_owner_intent_authority_and_changed_versions"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/dogfood/DogfoodPreparationProtocolTest.java",
+          "fragments": [
+            "preRefreshRequiresExplicitDogfoodCandidateExactConfigAndValidationOnly",
+            "unsafeDdlIsRejectedByInitializerBeforeAnyApplicationBeanCanRun",
+            "ordinaryWebContextCannotActivateOperatorGraphEvenWithAccidentalOperatorProfile"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/spaces/adapter/DogfoodSpacePreparationPersistenceTest.java",
+          "fragments": [
+            "secondTargetRevokedOrBroaderConflictLeavesFirstAbsentAndAllExistingStateUnchanged",
+            "identityOrAuditFailureRollsBackBothNewGrants",
+            "concurrentNormalRevocationWinsRootFenceAndLeavesOtherTargetAbsent"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@human-ready-preparation-resume",
       "scenario": "Preparation resumes without undoing current access decisions",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",

@@ -7,7 +7,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ProvisioningIntentJpaRepository
     extends JpaRepository<ProvisioningIntentJpaEntity, UUID> {
+  List<ProvisioningIntentJpaEntity>
+      findByTenantIdAndOrganizationIdAndInvitedByIssuerAndInvitedBySubjectAndAuditCorrelation(
+          String tenantId, String organizationId, String invitedByIssuer, String invitedBySubject,
+          String auditCorrelation);
+
   Optional<ProvisioningIntentJpaEntity> findByProviderInvitationId(String providerInvitationId);
+
+  List<ProvisioningIntentJpaEntity> findByTenantIdAndOrganizationIdAndInvitedEmailIgnoreCase(
+      String tenantId, String organizationId, String invitedEmail);
 
   List<ProvisioningIntentJpaEntity>
       findByTenantIdAndOrganizationIdAndInvitedEmailIgnoreCaseAndStatusOrderByCreatedAtDesc(

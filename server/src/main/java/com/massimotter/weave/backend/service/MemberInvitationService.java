@@ -118,6 +118,21 @@ public class MemberInvitationService {
         actor.subject());
   }
 
+  /** Fixed local operator authority; it cannot choose an arbitrary address, name, role or actor. */
+  public MemberInvitationResponse createDogfoodOperatorInvitation(
+      String tenantId, String organizationId, String planId, String slot, String organizationHost) {
+    if (!planId.matches("[0-9a-f]{32}") || !List.of("A", "B").contains(slot)
+        || !organizationHost.matches("[a-z0-9.-]+")
+        || !identityContexts.configuredOrganizationId().equals(tenantId)
+        || !keycloak.configuredOrganizationId().equals(organizationId)) {
+      throw new IllegalArgumentException("The operator invitation plan is invalid");
+    }
+    return create(tenantId, organizationId, new MemberInvitationRequest(
+        "weave-smoke-" + planId + "-" + slot.toLowerCase(Locale.ROOT) + "@" + organizationHost,
+        "Weave test member " + slot + " " + planId.substring(0, 8), "member"),
+        "dogfood-" + planId + "-" + slot, "urn:weave:dogfood-operator", "operator:dogfood-prepare:" + planId);
+  }
+
   /**
    * Creates the first owner invitation only while the target realm has no human identities.
    *

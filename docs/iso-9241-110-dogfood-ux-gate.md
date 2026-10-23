@@ -143,6 +143,11 @@ also verifies the packaged Console's admitted identity path before default-Space
 
 Missing input invokes the explicit `./gradlew --no-daemon dogfoodPrepare` path;
 the owner does not manufacture a credential file or manually create a Space.
+The protected ordinary functional producer's existing missing-input bridge explicitly
+selects that operator preparation stage after exact-candidate deployment. Merely
+selecting a Dogfood environment, ordinary startup or a readiness poll does not
+invoke or authorize it. The same reviewed host, candidate, private-plan and ledger
+guards apply to the bridge and the separate root command.
 This command uses the fixed reviewed Dogfood environment file and the shared
 exclusive session lock. It projects only the existing public CA into a local
 setup bundle and the two exact Dogfood-only gateway setup paths. It verifies
@@ -151,41 +156,64 @@ the CA remains an explicit OS-authenticated human action. It does not rebuild,
 restart or repair the stack, change TLS, or reset any owner state.
 
 Preparation builds two owned ordinary-main simulators before inviting anyone.
-The normal Admin Console receives a private, stable two-member plan with exact
-member/EDIT intent. The existing browser driver can review the plan, but cannot
-click its approval control. An actual current owner or administrator approves
-the displayed plan once; missing normal SSO, lost authorization or pending plan
-approval returns a precise incomplete boundary. The intended physical owner is
-selected from current enabled owners separately from the acting administrator;
-ambiguous selection and missing owner workspace authority block preparation.
-Only fresh normal invitation/member readbacks and conditional Space grants are
-used. A revoked or conflicting grant is never silently restored.
+The default `--authorization-mode operator` path uses the existing trusted Dogfood
+host authority for one fixed private two-member plan. It verifies the effective
+reviewed file, persistent-Dogfood container labels and exact image/source before
+invoking the fixed `dogfood-prepare-members` Server command. The command starts
+only its dedicated non-listening validation-only context, with the existing
+configuration and SecretRefs. It checks the explicit Dogfood release posture and
+serving candidate before mutation; production and ordinary startup cannot use it.
+No public API, service bearer, administrator account or new credential is added.
+
+The operator is separately identified in provisioning intents and audit records.
+It never acts through a fabricated human JWT or the owner's account. The selected
+physical owner must already be uniquely enabled, activated and authorized in the
+existing default Space. Missing, ambiguous, revoked or suspended owner/Space
+state blocks; this command does not repair that access. Exactly two plan-derived
+unprivileged test-member invitations are followed by ordinary member sign-in and
+canonical identity proof before absent-first default-Space VIEW/EDIT grants.
+Existing exact active grants are verified; broader, conflicting or revoked grants
+are never replaced or restored. The command cannot choose another account, role
+or Space. Exact provisioning-intent references and current versions govern resume.
+
+The optional `--authorization-mode console` path retains the existing normal
+Admin Console session and displayed-plan approval. The browser driver may review
+the plan but cannot click its approval control. Missing normal administrator SSO
+or approval is a precise incomplete boundary for that path; it is not a required
+step in the operator path. Full Admin Console usability acceptance remains separate
+from preparing the member application.
 
 Stock registration and any VERIFY_EMAIL link stay in the private recipient-matched
 Mailpit inbox and XCTest fixture. Each test member subsequently completes the
 ordinary application's independent system-browser PKCE and reconciliation. Its
-actual current account/organization digests must match the server-derived Admin
-projection before grants can be accepted. A registration ACK is not app sign-in.
+actual current account/organization digests must match the current canonical
+Server projection before grants can be accepted. A registration ACK is not app sign-in.
 These are persistent test accounts; a first-owner bootstrap record is not a
 normal administrator session. Never fabricate user-info or seed E2E memberships.
-If normal admin/browser authentication, passkey/MFA or physical owner sign-in
-cannot be completed, retain an **incomplete** result with its precise boundary.
+If the selected preparation authorization, normal test-member authentication,
+passkey/MFA or physical owner sign-in cannot be completed, retain an **incomplete**
+result with its precise boundary.
 Finish independent diagnostics first. Do not publish credentials or invitation
 URLs in GitHub, and do not reset or replace an owner session to obtain proof.
 
 The host atomically maintains a private
 `functional-smoke-identities.preparation-ledger.json` beside the input. Its
-`weave.dogfood-admin-preparation-ledger/v1` record contains the exact approved
-intent, stable invitation request keys, generated test-only passwords, bounded
-registration checkpoints, private current readback projections, candidate
-identity, fixture digest and issuer-bound selected-owner identity digests.
-It contains no owner bearer, browser cookies, Keychain material or raw session.
-Do not upload this ledger or the credentials. Resume preserves test passwords
-and verifies current state; lost/changed credentials cause an incomplete result
-rather than password reset or new accounts. Fresh invocation nonces reject old
-AX receipts. Credentials are published only after two own-app identity proofs,
-current grants readback, and owned-simulator cleanup. This completes preparation
-prerequisites, never functional, VoiceOver or human acceptance.
+authority-specific record retains the exact plan, authorization kind, stable
+invitation request keys and provisioning-intent references, generated test-only
+passwords, registration checkpoints, current readbacks, exact source metadata,
+fixture digest and issuer-bound selected-owner identity digests. Operator receipts
+identify the operator and real owner separately; they are never relabeled human
+administrator receipts. The owner's actual visible name stays in the private
+envelope and ledger, outside support-safe evidence.
+
+The ledger contains no owner bearer, browser cookies, Keychain material or raw
+session. Do not upload it or the credentials. Resume preserves test passwords and
+verifies current state; lost/changed credentials block rather than reset accounts.
+A legacy unexecuted plan may retain its generated names and passwords, but issued
+human-authority references cannot be converted to operator authority. Fresh
+invocation nonces reject stale output. Credentials publish only after both own-app
+identity proofs, current grant readback and owned-simulator cleanup. This completes
+preparation prerequisites, never functional, VoiceOver or human acceptance.
 
 Before physical product writes, the retained phone's observed account and
 organization must match that selected-owner binding. Deployment's two actors
