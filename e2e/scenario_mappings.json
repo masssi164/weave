@@ -6112,6 +6112,100 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@human-ready-local-trust",
+      "scenario": "Local trust setup covers the whole ordinary sign-in path",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "infra/weave-workspace/tests/dogfood_public_setup_test.py",
+      "evidenceMarkers": [
+        "test_public_bundle_fingerprint_closed_schema_no_secrets_and_idempotent",
+        "test_real_gateway_has_only_two_exact_read_only_resources_and_no_production_serve"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "tools/dogfood_prepare_test.py",
+          "fragments": [
+            "test_native_probe_reducer_requires_all_exact_origins_and_closed_results",
+            "test_only_untrusted_ca_requests_trust_and_other_failures_keep_their_boundaries"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@human-ready-live-admin",
+      "scenario": "An unauthenticated Admin Console does not look prepared",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "admin-console/src/App.test.tsx",
+      "evidenceMarkers": [
+        "does not offer setup before a live control-plane response or after authentication failure",
+        "fails closed on current organization mismatch rather than guessing owner authority"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@human-ready-preparation-inputs",
+      "scenario": "Approved administrator preparation produces its own ordinary test inputs",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/dogfood_prepare_test.py",
+      "evidenceMarkers": [
+        "test_success_requires_two_ordinary_member_proofs_fresh_grants_and_cleanup_before_publication",
+        "test_unapproved_plan_cleans_owned_simulators_without_publishing_fixture"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "admin-console/src/preparation.test.ts",
+          "fragments": [
+            "validates both independent proofs before conditional test grants and verifies exact final readback"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@human-ready-preparation-resume",
+      "scenario": "Preparation resumes without undoing current access decisions",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/dogfood_prepare_test.py",
+      "evidenceMarkers": [
+        "test_plan_is_reviewed_exact_and_private_ledger_retains_credentials_across_resume",
+        "test_receipt_requires_current_nonce_distinct_owner_and_exact_member_authority"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "admin-console/src/preparation.test.ts",
+          "fragments": [
+            "reuses matching activated members without creating duplicate invitations",
+            "stops revoked grants and changed administrator authority without restoration"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@admin-member-canonical-account-reference",
+      "scenario": "Authorized administration links a current member to canonical Space identity",
+      "feature": "e2e/features/admin_member_identity.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/OrganizationMemberAdministrationServiceTest.java",
+      "evidenceMarkers": [
+        "liveMemberAccountReferenceMatchesUserMeAndSpaceIdentityAcrossAttributeChanges"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/OrganizationMemberAdministrationControllerTest.java",
+          "fragments": [
+            "class OrganizationMemberAdministrationControllerTest"
+          ]
+        },
+        {
+          "path": "admin-console/src/preparation.test.ts",
+          "fragments": [
+            "validates both independent proofs before conditional test grants and verifies exact final readback"
+          ]
+        }
+      ]
     }
   ]
 }

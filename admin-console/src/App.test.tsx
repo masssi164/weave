@@ -10,13 +10,17 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
-import { AdminControlPlaneApi, sampleControlPlane } from "./api";
+import { AdminControlPlaneApi, AdminApiError, adminConsoleConfig, sampleControlPlane } from "./api";
 import { adminConsoleMessages } from "./copy";
+
+const identityFor = (role: string) => ({ accountId: "account-fixture", identityIssuer: adminConsoleConfig.oidcIssuerUrl, organizationId: sampleControlPlane.organization.id, roles: [role] });
 
 function mockApi(
   overrides: Partial<AdminControlPlaneApi> = {},
 ): AdminControlPlaneApi {
   return {
+    configuration: adminConsoleConfig,
+    getCurrentIdentity: vi.fn().mockResolvedValue(identityFor("owner")),
     getControlPlane: vi.fn().mockResolvedValue(sampleControlPlane),
     updateWhitelistPolicy: vi.fn().mockResolvedValue({
       ...sampleControlPlane.whitelistPolicy,
@@ -239,6 +243,7 @@ describe("Admin Console MVP", () => {
 
   it("renders organization, provider, policy, and audit sections from backend control-plane data", async () => {
     render(<App api={mockApi()} />);
+    await screen.findByRole("heading", { name: /organization overview/i });
 
     expect(
       await screen.findByRole("heading", {
@@ -836,7 +841,7 @@ describe("Admin Console MVP", () => {
     ).toBeInTheDocument();
     unmount();
 
-    render(<App api={mockApi()} viewerRole="member" />);
+    render(<App api={mockApi({ getCurrentIdentity: vi.fn().mockResolvedValue(identityFor("member")) })} />);
     const memberPreview = await screen.findByLabelText(
       /member-visible capability states/i,
     );
@@ -900,7 +905,7 @@ describe("Admin Console MVP", () => {
   });
 
   it("lets operators inspect diagnostics without mutating provider selection", async () => {
-    render(<App api={mockApi()} viewerRole="operator" />);
+    render(<App api={mockApi({ getCurrentIdentity: vi.fn().mockResolvedValue(identityFor("operator")) })} />);
 
     expect(
       await screen.findByRole("heading", {
@@ -943,8 +948,9 @@ describe("Admin Console MVP", () => {
   });
 
   it("renders German admin chrome without exposing provider setup to members", async () => {
-    render(<App api={mockApi()} viewerRole="member" locale="de" />);
+    render(<App api={mockApi({ getCurrentIdentity: vi.fn().mockResolvedValue(identityFor("member")) })} locale="de" />);
 
+    await screen.findByRole("heading", { name: /mitgliederfähigkeitsvorschau/i });
     expect(
       await screen.findByRole("heading", {
         name: /weave organisations-admin-konsole/i,
@@ -986,25 +992,85 @@ describe("Admin Console MVP", () => {
 
 describe("default Space setup access boundary", () => {
   it.each(["member", "operator"] as const)("hides provisioning for the %s presentation", async (viewerRole) => {
-    render(<App api={mockApi()} viewerRole={viewerRole} />);
+    render(<App api={mockApi({ getCurrentIdentity: vi.fn().mockResolvedValue(identityFor(viewerRole)) })} />);
     await screen.findByText(/backend control-plane data loaded/i);
     expect(screen.queryByRole("button", { name: /create or confirm default space/i })).not.toBeInTheDocument();
   });
   it("does not offer setup before a live control-plane response or after authentication failure", async () => {
     const api = mockApi({ getControlPlane: vi.fn().mockResolvedValue(sampleControlPlane) });
     render(<App api={api} authenticationError="Sign-in failed" />);
-    await screen.findByText(/backend control-plane data loaded/i);
+    await screen.findByText(/sign in with your organization account/i);
     expect(screen.queryByRole("button", { name: /create or confirm default space/i })).not.toBeInTheDocument();
   });
   it("shows an unverified explicit setup action after live owner load without provisioning", async () => {
     const provisionDefaultSpace = vi.fn();
-    render(<App api={mockApi({ provisionDefaultSpace })} viewerRole="owner" />);
+    render(<App api={mockApi({ provisionDefaultSpace })} />);
     expect(await screen.findByRole("button", { name: /create or confirm default space/i })).toBeEnabled();
     expect(provisionDefaultSpace).not.toHaveBeenCalled();
   });
   it("never offers setup for offline sample state", async () => {
     render(<App api={mockApi({ getControlPlane: vi.fn().mockRejectedValue(new Error("Unavailable")) })} />);
-    await screen.findByText(/offline\/demo sample state/i);
+    await screen.findByText(/could not verify current organization access/i);
     expect(screen.queryByRole("button", { name: /create or confirm default space/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("live administrator authentication boundary", () => {
+  it.each([401, 403, 500])("shows truthful access state for HTTP %s without sample setup", async (status) => {
+    const api = mockApi({ getCurrentIdentity: vi.fn().mockRejectedValue(new AdminApiError("private response", status)) });
+    const signIn = vi.fn();
+    render(<App api={api} onSignIn={signIn} />);
+    expect(await screen.findByRole("button", { name: /sign in with organization identity/i })).toBeEnabled();
+    expect(screen.queryByRole("heading", { name: /organization overview|guided setup|member invitations/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/sample state|Weave Dogfood|private response/)).not.toBeInTheDocument();
+    expect(api.getControlPlane).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: /sign in with organization identity/i }));
+    expect(signIn).toHaveBeenCalledOnce();
+  });
+  it("does not mount setup while current identity or live organization is pending", async () => {
+    const api = mockApi({ getControlPlane: vi.fn(() => new Promise<never>(() => {})) });
+    render(<App api={api} />);
+    await waitFor(() => expect(api.getControlPlane).toHaveBeenCalledOnce());
+    expect(screen.getByRole("status")).toHaveTextContent(/loading/i);
+    expect(screen.queryByRole("button", { name: /invite member|create or confirm/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Weave Dogfood")).not.toBeInTheDocument();
+  });
+  it("fails closed on current organization mismatch rather than guessing owner authority", async () => {
+    render(<App api={mockApi({ getCurrentIdentity: vi.fn().mockResolvedValue({ ...identityFor("owner"), organizationId: "other-organization" }) })} />);
+    await screen.findByText(/current session does not permit/i);
+    expect(screen.queryByRole("button", { name: /invite member|create or confirm/i })).not.toBeInTheDocument();
+  });
+});
+
+
+describe("live preparation initial-state regressions", () => {
+  it.each(["external_existing_provider", "managed_cloud_provider", "not_selected"])("preserves the backend choice model %s before any change", async (choiceModel) => {
+    const data = { ...sampleControlPlane, providerCategories: [{ ...sampleControlPlane.providerCategories[0], choiceModel }, ...sampleControlPlane.providerCategories.slice(1)] };
+    render(<App api={mockApi({ getControlPlane: vi.fn().mockResolvedValue(data) })} />);
+    const input = await screen.findByLabelText(/choice model/i);
+    expect(input).toHaveTextContent(choiceModel === "not_selected" ? /recommended self-hosted default/i
+      : choiceModel === "managed_cloud_provider" ? /managed cloud provider/i : /external/i);
+  });
+  it("shows an invitation failure and retries the read without claiming loading", async () => {
+    const list = vi.fn().mockRejectedValueOnce(new Error("private failure")).mockResolvedValueOnce([]);
+    render(<App api={mockApi({ listOrganizationInvitations: list })} />);
+    expect(await screen.findByText(/could not be loaded. Retry the invitation list/i)).toBeInTheDocument();
+    expect(screen.queryByText("private failure")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /retry invitation list/i }));
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(/no active invitations were returned by Keycloak/i)).toBeInTheDocument();
+  });
+  it("rejects the wrong live identity issuer before loading control-plane data", async () => {
+    const api = mockApi({ getCurrentIdentity: vi.fn().mockResolvedValue({ ...identityFor("owner"), identityIssuer: "https://other.example.invalid/realms/weave" }) });
+    render(<App api={api} />);
+    await screen.findByText(/current session does not permit/i);
+    expect(api.getControlPlane).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /invite member|create or confirm/i })).not.toBeInTheDocument();
+  });
+  it("uses the API configuration issuer when no explicit App configuration is supplied", async () => {
+    const configuration = { ...adminConsoleConfig, oidcIssuerUrl: "https://identity.example.invalid/realms/current" };
+    const api = mockApi({ configuration, getCurrentIdentity: vi.fn().mockResolvedValue({ ...identityFor("owner"), identityIssuer: configuration.oidcIssuerUrl }) });
+    render(<App api={api} />);
+    expect(await screen.findByRole("heading", { name: /organization overview/i })).toBeInTheDocument();
   });
 });

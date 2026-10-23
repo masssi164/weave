@@ -40,6 +40,14 @@ tasks.register('dogfoodUp', Exec) {
     outputs.upToDateWhen { false }
 }
 
+tasks.register('dogfoodPrepare', Exec) {
+    group = 'application'
+    description = 'Prepare reviewed Dogfood trust and approved test members through normal Admin and native sign-in without replacing owner state.'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'tools/dogfood_prepare.py'
+    outputs.upToDateWhen { false }
+}
+
 tasks.register('dogfoodDown', Exec) {
     group = 'application'
     description = 'Stop the dogfood Compose stack while preserving its three session volumes and external TLS files.'

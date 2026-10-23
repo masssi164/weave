@@ -220,7 +220,9 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.components.schemas.OrganizationMemberPageResponse.properties.nextCursor.type")
                         .value(hasItems("string", "null")))
                 .andExpect(jsonPath("$.components.schemas.OrganizationMemberResponse.required")
-                        .value(hasItems("capabilities", "enabled")))
+                        .value(hasItems("accountRef", "capabilities", "enabled")))
+                .andExpect(jsonPath("$.components.schemas.OrganizationMemberResponse.properties.accountRef.pattern")
+                        .value("acct_[0-9a-f]{32}"))
                 .andExpect(jsonPath("$.paths['" + members + "'].get.responses['401']").exists())
                 .andExpect(jsonPath("$.paths['" + members + "'].get.responses['403']").exists());
         mockMvc.perform(get("/v3/api-docs/admin"))

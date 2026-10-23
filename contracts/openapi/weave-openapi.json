@@ -4822,6 +4822,11 @@
       },
       "OrganizationMemberResponse": {
         "properties": {
+          "accountRef": {
+            "description": "Canonical Weave account reference for the current live member; not an access grant.",
+            "pattern": "acct_[0-9a-f]{32}",
+            "type": "string"
+          },
           "capabilities": {
             "items": {
               "type": "string"
@@ -4848,6 +4853,7 @@
           }
         },
         "required": [
+          "accountRef",
           "capabilities",
           "enabled"
         ],

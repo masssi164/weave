@@ -28,6 +28,7 @@ import {
 } from "@mui/material";
 import {
   AdminControlPlaneApi,
+  AdminApiError,
   adminConsoleConfig,
   CapabilityState,
   ControlPlaneResponse,
@@ -36,9 +37,10 @@ import {
   ProviderCategory,
   ProviderReplacementDryRunReport,
   ProviderSwitchApplyGates,
-  sampleControlPlane,
 } from "./api";
 import DefaultSpaceSetup from "./DefaultSpaceSetup";
+import LocalTrustSetup from "./LocalTrustSetup";
+import TestMemberPreparation from "./TestMemberPreparation";
 import { AdminConsoleLocale, adminCopy } from "./copy";
 
 type ViewerRole = "owner" | "admin" | "operator" | "member";
@@ -175,7 +177,6 @@ interface AppProps {
   adminConfig?: typeof adminConsoleConfig;
   authenticationError?: string | null;
   onSignIn?: () => void | Promise<void>;
-  viewerRole?: ViewerRole;
   locale?: AdminConsoleLocale;
 }
 
@@ -211,34 +212,24 @@ function dryRunEvidenceFailureLabel(
   return "Fresh current-session dry-run evidence";
 }
 
-export default function App({
-  api = new AdminControlPlaneApi(),
-  adminConfig = adminConsoleConfig,
-  authenticationError = null,
-  onSignIn,
-  viewerRole = "owner",
-  locale = "en",
-}: AppProps) {
+function LiveConsole({
+  api, adminConfig = adminConsoleConfig, onSignIn, locale = "en",
+  initialControlPlane, viewerRole,
+}: AppProps & { api: AdminControlPlaneApi; initialControlPlane: ControlPlaneResponse; viewerRole: ViewerRole }) {
+  const authenticationError = null;
   const copy = adminCopy(locale);
   const canConfigure = viewerRole === "owner" || viewerRole === "admin";
   const canInspectReadiness = canConfigure || viewerRole === "operator";
-  const [controlPlane, setControlPlane] =
-    useState<ControlPlaneResponse>(sampleControlPlane);
-  const [loadState, setLoadState] = useState<
-    "loading" | "loaded" | "offline-sample"
-  >("loading");
-  const [error, setError] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState(
-    sampleControlPlane.providerCategories[0]?.key ?? "",
-  );
-  const [providerDraft, setProviderDraft] = useState(
-    defaultProviderKey(sampleControlPlane.providerCategories[0]),
-  );
+  const [controlPlane, setControlPlane] = useState(initialControlPlane);
+  const [selectedCategory, setSelectedCategory] = useState(initialControlPlane.providerCategories[0]?.key ?? "");
+  const [providerDraft, setProviderDraft] = useState(defaultProviderKey(initialControlPlane.providerCategories[0]));
   const [choiceModelDraft, setChoiceModelDraft] = useState(
-    "recommended_self_hosted_default",
+    initialControlPlane.providerCategories[0]?.choiceModel === "not_selected"
+      ? "recommended_self_hosted_default"
+      : (initialControlPlane.providerCategories[0]?.choiceModel ?? "recommended_self_hosted_default"),
   );
   const [policyDraft, setPolicyDraft] = useState(
-    sampleControlPlane.whitelistPolicy.allowedCapabilities.join("\n"),
+    initialControlPlane.whitelistPolicy.allowedCapabilities.join("\n"),
   );
   const [dryRunReport, setDryRunReport] =
     useState<ProviderReplacementDryRunReport | null>(null);
@@ -246,7 +237,7 @@ export default function App({
     useState<ProviderSelectionDryRunEvidence | null>(null);
   const [consequenceConfirmed, setConsequenceConfirmed] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string>(
-    adminCopy(locale).loadingStatus,
+    adminCopy(locale).loadedStatus,
   );
   const [invitations, setInvitations] = useState<OrganizationInvitation[]>([]);
   const [invitationEmail, setInvitationEmail] = useState("");
@@ -255,56 +246,17 @@ export default function App({
     useState<OrganizationRole>("member");
   const [invitationBusy, setInvitationBusy] = useState(false);
   const [invitationError, setInvitationError] = useState<string | null>(null);
+  const [invitationListLoaded, setInvitationListLoaded] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    api
-      .getControlPlane()
-      .then((response) => {
-        if (!alive) return;
-        const firstCategory = response.providerCategories[0];
-        setControlPlane(response);
-        setPolicyDraft(response.whitelistPolicy.allowedCapabilities.join("\n"));
-        setSelectedCategory(firstCategory?.key ?? "");
-        setProviderDraft(defaultProviderKey(firstCategory));
-        setChoiceModelDraft(
-          firstCategory?.choiceModel === "not_selected"
-            ? "recommended_self_hosted_default"
-            : (firstCategory?.choiceModel ?? "recommended_self_hosted_default"),
-        );
-        setLoadState("loaded");
-        setStatusMessage(copy.loadedStatus);
-        if (canConfigure) {
-          void api
-            .listOrganizationInvitations(response.organization.id)
-            .then((items) => {
-              if (alive) setInvitations(items);
-            })
-            .catch((cause: unknown) => {
-              if (alive) {
-                setInvitationError(
-                  cause instanceof Error
-                    ? cause.message
-                    : "Invitation lifecycle is unavailable.",
-                );
-              }
-            });
-        }
-      })
-      .catch((cause: unknown) => {
-        if (!alive) return;
-        setLoadState("offline-sample");
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : copy.unavailableSampleError,
-        );
-        setStatusMessage(copy.offlineSampleStatus);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [api, canConfigure, copy.loadedStatus, copy.offlineSampleStatus, copy.unavailableSampleError]);
+    if (canConfigure) {
+      void api.listOrganizationInvitations(initialControlPlane.organization.id)
+        .then((items) => { if (alive) { setInvitations(items); setInvitationListLoaded(true); } })
+        .catch(() => { if (alive) setInvitationError(copy.invitationUnavailable); });
+    }
+    return () => { alive = false; };
+  }, [api, canConfigure, initialControlPlane.organization.id, copy.invitationUnavailable]);
 
   const selectedCategoryDetails = useMemo(
     () =>
@@ -438,6 +390,16 @@ export default function App({
       controlPlane.organization.id,
     );
     setInvitations(items);
+    setInvitationListLoaded(true);
+  }
+
+  async function retryInvitations() {
+    setInvitationBusy(true);
+    setInvitationError(null);
+    setInvitationListLoaded(false);
+    try { await refreshInvitations(); }
+    catch { setInvitationError(copy.invitationUnavailable); }
+    finally { setInvitationBusy(false); }
   }
 
   async function createInvitation() {
@@ -522,22 +484,8 @@ export default function App({
       </AppBar>
       <Container component="main" maxWidth="lg" sx={{ py: 4 }}>
         <Stack spacing={3}>
-          <Alert
-            severity={
-              loadState === "loaded"
-                ? "success"
-                : loadState === "loading"
-                  ? "info"
-                  : "warning"
-            }
-            role="status"
-          >
-            {statusMessage}
-          </Alert>
-          {error ? <Alert severity="warning">{error}</Alert> : null}
-          {loadState === "offline-sample" ? (
-            <Alert severity="warning">{copy.offlineSampleWarning}</Alert>
-          ) : null}
+          <Alert severity="success" role="status">{statusMessage}</Alert>
+          {canConfigure && <TestMemberPreparation api={api} locale={locale} />}
 
           <Card component="section" aria-labelledby="effective-policy-heading">
             <CardContent>
@@ -595,7 +543,7 @@ export default function App({
                 <Alert severity="info" sx={{ mb: 2 }}>
                   {copy.setupAssistantDescription}
                 </Alert>
-                {canConfigure && loadState === "loaded" && !authenticationError ? (
+                {canConfigure ? (
                   <DefaultSpaceSetup api={api} locale={locale} />
                 ) : null}
                 <List aria-label={copy.setupAssistantStepsLabel}>
@@ -734,6 +682,7 @@ export default function App({
                     {invitationError ? (
                       <Alert severity="error" sx={{ mb: 2 }}>
                         {invitationError}
+                        <Button onClick={() => void retryInvitations()} disabled={invitationBusy} sx={{ ml: 1 }}>{copy.invitationRetryButton}</Button>
                       </Alert>
                     ) : null}
                     <Stack spacing={2} component="form" onSubmit={(event) => {
@@ -787,7 +736,7 @@ export default function App({
                     <Typography variant="h3" sx={{ fontSize: "1.1rem" }}>
                       Current Keycloak invitations
                     </Typography>
-                    {invitations.length === 0 ? (
+                    {!invitationListLoaded ? (invitationError ? null : <Typography role="status">{copy.invitationLoading}</Typography>) : invitations.length === 0 ? (
                       <Typography sx={{ mt: 1 }}>
                         No active invitations were returned by Keycloak.
                       </Typography>
@@ -1879,4 +1828,57 @@ export default function App({
       </Container>
     </>
   );
+}
+
+
+type ConsoleState = { kind: "loading" | "sign-in" | "forbidden" | "unavailable" }
+  | { kind: "live"; role: ViewerRole; data: ControlPlaneResponse };
+
+export default function App(props: AppProps) {
+  const api = useMemo(() => props.api ?? new AdminControlPlaneApi(), [props.api]);
+  const adminConfig = props.adminConfig ?? api.configuration;
+  const copy = adminCopy(props.locale ?? "en");
+  const [state, setState] = useState<ConsoleState>({ kind: "loading" });
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setState({ kind: "loading" });
+    if (props.authenticationError) {
+      setState({ kind: "sign-in" });
+      return;
+    }
+    void (async () => {
+      try {
+        const identity = await api.getCurrentIdentity();
+        if (!identity.accountId || !identity.organizationId || identity.identityIssuer !== adminConfig.oidcIssuerUrl) throw new AdminApiError("Identity unavailable", 403);
+        const roles = identity.roles ?? [];
+        const role = (["owner", "admin", "operator", "member"] as const).find((value) => roles.includes(value));
+        if (!role) throw new AdminApiError("Current role unavailable", 403);
+        const data = await api.getControlPlane();
+        if (data.organization.id !== identity.organizationId) throw new AdminApiError("Organization mismatch", 403);
+        if (alive) setState({ kind: "live", role, data });
+      } catch (failure) {
+        if (alive) setState({ kind: failure instanceof AdminApiError && failure.status === 401 ? "sign-in"
+          : failure instanceof AdminApiError && failure.status === 403 ? "forbidden" : "unavailable" });
+      }
+    })();
+    return () => { alive = false; };
+  }, [api, adminConfig.oidcIssuerUrl, props.authenticationError, retry]);
+  return <>
+    {state.kind === "live" ? <LiveConsole {...props} api={api} adminConfig={adminConfig} viewerRole={state.role} initialControlPlane={state.data} /> : <>
+      <CssBaseline />
+      <Container component="main" maxWidth="sm" sx={{ py: 4 }}>
+        <Typography variant="h1" sx={{ fontSize: "1.7rem", mb: 2 }}>{copy.appTitle}</Typography>
+        <Alert role="status" severity={state.kind === "loading" ? "info" : "warning"}>
+          {state.kind === "loading" ? copy.loadingStatus : state.kind === "sign-in" ? copy.signInRequired
+            : state.kind === "forbidden" ? copy.accessForbidden : copy.serviceUnavailable}
+        </Alert>
+        {state.kind !== "loading" && <Stack spacing={2} sx={{ mt: 2 }}>
+          <Button variant="contained" disabled={!props.onSignIn} onClick={() => void props.onSignIn?.()}>{copy.adminSignInOpenBrokerButton}</Button>
+          <Button onClick={() => setRetry((value) => value + 1)}>{copy.retryConnection}</Button>
+        </Stack>}
+      </Container>
+    </>}
+    <LocalTrustSetup locale={props.locale ?? "en"} />
+  </>;
 }

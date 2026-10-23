@@ -3,6 +3,22 @@ import { AdminControlPlaneApi, sampleControlPlane } from "./api";
 
 // V01_ADMIN_CONSOLE_MVP: Admin Console may call only Weave backend admin APIs, not optional provider APIs.
 describe("AdminControlPlaneApi provider boundary", () => {
+  it("uses the generated current identity with its own bearer and retains unauthorized status", async () => {
+    const received: Array<{url: string; bearer: string | null}> = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      received.push({ url: String(input), bearer: new Headers(init?.headers).get("Authorization") });
+      return new Response(null, { status: 401 });
+    });
+    const api = new AdminControlPlaneApi({ apiBaseUrl: "https://api.example.invalid/api", oidcIssuerUrl: "https://identity.example.invalid", oidcClientId: "weave-admin-console" }, fetcher, () => "current-private-bearer");
+    await expect(api.getCurrentIdentity()).rejects.toMatchObject({ status: 401 });
+    expect(received).toEqual([{ url: "https://api.example.invalid/api/me", bearer: "Bearer current-private-bearer" }]);
+  });
+  it("never substitutes a Dogfood organization when the live response lacks identity", async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ categories: [] }), { status: 200 }));
+    const api = new AdminControlPlaneApi({ apiBaseUrl: "https://api.example.invalid/api", oidcIssuerUrl: "https://identity.example.invalid", oidcClientId: "weave-admin-console" }, fetcher);
+    await expect(api.getControlPlane()).rejects.toMatchObject({ status: 502 });
+  });
+
   it("uses the generated Admin selection model without inventing cutover evidence", async () => {
     let requestBody: Record<string, unknown> | undefined;
     const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -329,6 +345,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
       const body = String(input).includes("/audit/events")
         ? []
         : {
+            organizationId: "fixture-organization",
             categories: [],
             goLiveReadiness: {
               state: "admin-action-required",
@@ -573,5 +590,39 @@ describe("default Space provisioning boundary", () => {
     expect(request?.method).toBe("POST");
     expect(JSON.parse(String(request?.body))).toEqual({ spaceRef: "workspace-default", displayName: "Organization workspace", memberAccountRefs: [] });
     expect(new Headers(request?.headers).get("Authorization")).toBe("Bearer current-admin-session");
+  });
+});
+
+describe("conditional preparation API boundaries", () => {
+  const config = { apiBaseUrl: "https://api.example.invalid/api", oidcIssuerUrl: "https://identity.example.invalid/realms/weave", oidcClientId: "weave-admin-console" };
+  it("exhausts current member pages and rejects repeated cursors", async () => {
+    const calls: string[] = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input)); calls.push(url.searchParams.get("cursor") ?? "first");
+      return new Response(JSON.stringify({ items: [{ accountRef: calls.length === 1 ? "owner" : "member", capabilities: [], enabled: true }], nextCursor: calls.length === 1 ? "next" : null }), { status: 200 });
+    });
+    const api = new AdminControlPlaneApi(config, fetcher);
+    expect((await api.listAllOrganizationMembers("organization")).map((member) => member.accountRef)).toEqual(["owner", "member"]);
+    expect(calls).toEqual(["first", "next"]);
+    const looping = new AdminControlPlaneApi(config, vi.fn().mockImplementation(async () => new Response(JSON.stringify({ items: [], nextCursor: "same" }), { status: 200 })));
+    await expect(looping.listAllOrganizationMembers("organization")).rejects.toMatchObject({ status: 502 });
+  });
+  it("distinguishes missing membership from revoked or missing Space and uses only conditional EDIT creation", async () => {
+    const responses = [new Response(JSON.stringify({ code: "space-membership-absent" }), { status: 404 }),
+      new Response(JSON.stringify({ code: "space-membership-revoked" }), { status: 410 }),
+      new Response(JSON.stringify({ code: "space-not-found" }), { status: 404 }),
+      new Response(JSON.stringify({ accountRef: "account", permissions: ["VIEW", "EDIT"] }), { status: 200, headers: { ETag: '"grant-1"' } }),
+      new Response(JSON.stringify({ accountRef: "account", permissions: ["VIEW", "EDIT"] }), { status: 200 })];
+    const requests: RequestInit[] = [];
+    const api = new AdminControlPlaneApi(config, vi.fn(async (_input, init) => { requests.push(init ?? {}); return responses.shift()!; }), () => "private-session");
+    expect(await api.readPreparationGrant("workspace-default", "account")).toBeNull();
+    await expect(api.readPreparationGrant("workspace-default", "account")).rejects.toMatchObject({ status: 410 });
+    await expect(api.readPreparationGrant("workspace-default", "account")).rejects.toMatchObject({ status: 404 });
+    expect((await api.readPreparationGrant("workspace-default", "account"))?.version).toBe('"grant-1"');
+    await api.createPreparationGrant("workspace-default", "account");
+    const sent = requests.at(-1)!;
+    expect(new Headers(sent.headers).get("If-None-Match")).toBe("*");
+    expect(new Headers(sent.headers).get("If-Match")).toBeNull();
+    expect(JSON.parse(String(sent.body))).toEqual({ permissionLevel: "EDIT" });
   });
 });

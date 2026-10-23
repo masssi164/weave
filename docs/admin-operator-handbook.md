@@ -19,6 +19,45 @@ Admin/operator setup owns:
 
 The current product order remains: provider-neutral Weave suite first, admin portal/IDM/RBAC/readiness/whitelisting second, optional Agent Runtime Control with Weaver/OpenClaw as a runtime provider.
 
+## Explicit Dogfood test preparation
+
+Run `./gradlew --no-daemon dogfoodPrepare` from the exact reviewed candidate checkout
+in an exclusive host window. This explicit task uses
+`~/.weave/dogfood/reviewed-compose.env`; an ambient `WEAVE_ENV_FILE` does not select
+a different environment. It does not rebuild, start or reset the stack.
+
+Preparation first publishes a public-certificate-only local bundle and checks normal
+macOS HTTPS trust for the reviewed organization, API and issuer origins. The existing
+Dogfood Admin Console exposes only `/admin-console/setup/ca.pem` and
+`/admin-console/setup/trust.json` for this purpose. The descriptor contains the
+existing CA's SHA-256 fingerprint and reviewed HTTPS links. These download paths
+are absent in production. Compare the fingerprint before installing the CA; any
+operating-system authentication or trust decision belongs to the operator. Mac
+trust, iPhone HTTPS trust and application signing are separate checks.
+
+A current organization owner or administrator signs in through the normal trusted
+Admin Console. Unauthorized, forbidden or unavailable responses do not display
+sample readiness or inferred authority. There is no default administrator password.
+Preparation presents two named test members, their member roles and exact default
+Space grants for explicit approval. The intended physical tester is selected from
+current enabled owners and remains separate from the preparation administrator.
+Existing owner Space access is verified without restoring revoked or missing access.
+
+After approval, the existing invitation and stock activation flows create only the
+approved test identities. Two independent ordinary applications sign in with PKCE;
+their current identity proofs must match the authorized live member projection
+before conditional Space grants. Test credentials and resumable intent stay in
+owned private files. The operator does not copy owner sessions, browser cookies or
+Keychain state, assemble a credential fixture, or manually create a Space.
+
+A retry verifies current invitations, accounts and grants. Conflicting, revoked,
+suspended or ambiguous state stops preparation; it never resets passwords,
+recreates accounts or silently restores access. A human sign-in, passkey, MFA or
+plan approval boundary remains incomplete until actually completed. Preparation
+alone is not functional proof: the protected workflow must still complete ordinary
+app Chat, Files and Calendar operations with independent readback, retained-state
+restart/update checks and exact-candidate physical preparation.
+
 ## Identity and Keycloak default
 
 Keycloak is the fixed platform identity authority for the current Weave architecture. It owns human authentication, organizations, roles, groups, invitations, required actions, sessions, workload clients, and upstream federation/brokering. LDAP/AD user federation and Entra/Auth0/Authentik-style OIDC or SAML sources attach to Keycloak; they do not replace a runtime-selectable Weave identity provider.
