@@ -79,6 +79,9 @@
           "contractVersion": {
             "type": "string"
           },
+          "currentActor": {
+            "$ref": "#/components/schemas/AdminCurrentActorResponse"
+          },
           "denyByDefaultPolicy": {
             "type": "boolean"
           },
@@ -138,6 +141,36 @@
             "$ref": "#/components/schemas/CapabilityWhitelistResponse"
           }
         },
+        "required": [
+          "currentActor"
+        ],
+        "type": "object"
+      },
+      "AdminCurrentActorResponse": {
+        "properties": {
+          "accountRef": {
+            "pattern": "acct_[0-9a-f]{32}",
+            "type": "string"
+          },
+          "identityIssuer": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accountRef",
+          "identityIssuer",
+          "organizationId",
+          "roles"
+        ],
         "type": "object"
       },
       "ApiErrorResponse": {

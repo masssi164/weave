@@ -1,17 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import { AdminControlPlaneApi, sampleControlPlane } from "./api";
 
+const actorFor = (organizationId: string, identityIssuer = "https://auth.example.invalid") => ({ accountRef: "acct_" + "1".repeat(32), organizationId, identityIssuer, roles: ["owner"] });
+
 // V01_ADMIN_CONSOLE_MVP: Admin Console may call only Weave backend admin APIs, not optional provider APIs.
 describe("AdminControlPlaneApi provider boundary", () => {
-  it("uses the generated current identity with its own bearer and retains unauthorized status", async () => {
+  it("uses the generated Admin current actor with its own bearer and retains unauthorized status", async () => {
     const received: Array<{url: string; bearer: string | null}> = [];
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       received.push({ url: String(input), bearer: new Headers(init?.headers).get("Authorization") });
       return new Response(null, { status: 401 });
     });
     const api = new AdminControlPlaneApi({ apiBaseUrl: "https://api.example.invalid/api", oidcIssuerUrl: "https://identity.example.invalid", oidcClientId: "weave-admin-console" }, fetcher, () => "current-private-bearer");
-    await expect(api.getCurrentIdentity()).rejects.toMatchObject({ status: 401 });
-    expect(received).toEqual([{ url: "https://api.example.invalid/api/me", bearer: "Bearer current-private-bearer" }]);
+    await expect(api.getCurrentActor()).rejects.toMatchObject({ status: 401 });
+    expect(received).toEqual([{ url: "https://api.example.invalid/api/admin/control-plane", bearer: "Bearer current-private-bearer" }]);
   });
   it("never substitutes a Dogfood organization when the live response lacks identity", async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ categories: [] }), { status: 200 }));
@@ -345,7 +347,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
       const body = String(input).includes("/audit/events")
         ? []
         : {
-            organizationId: "fixture-organization",
+            organizationId: "fixture-organization", currentActor: actorFor("fixture-organization"),
             categories: [],
             goLiveReadiness: {
               state: "admin-action-required",
@@ -414,7 +416,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
       const body = path.includes("/audit/events")
         ? []
         : {
-            organizationId: "weave-dogfood",
+            organizationId: "weave-dogfood", currentActor: actorFor("weave-dogfood"),
             categories: [],
             whitelist: { denyByDefault: true },
             weaverRuntimeProjection: { unsafe: "obsolete" },
@@ -449,7 +451,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
       const body = path.includes("/audit/events")
         ? []
         : {
-            organizationId: "weave-dogfood",
+            organizationId: "weave-dogfood", currentActor: actorFor("weave-dogfood"),
             categories: [],
             whitelist: { denyByDefault: true },
           };
@@ -527,7 +529,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
       const body = path.includes("/audit/events")
         ? []
         : {
-            organizationId: "weave-dogfood",
+            organizationId: "weave-dogfood", currentActor: actorFor("weave-dogfood"),
             generatedAt: "2099-01-01T00:00:00Z",
             categories: [
               {
@@ -624,5 +626,41 @@ describe("conditional preparation API boundaries", () => {
     expect(new Headers(sent.headers).get("If-None-Match")).toBe("*");
     expect(new Headers(sent.headers).get("If-Match")).toBeNull();
     expect(JSON.parse(String(sent.body))).toEqual({ permissionLevel: "EDIT" });
+  });
+});
+
+
+describe("generated Admin current actor conformance", () => {
+  const config = { apiBaseUrl: "https://api.example.invalid/api", oidcIssuerUrl: "https://identity.example.invalid/realms/weave", oidcClientId: "weave-admin-console" };
+  it("never sends the Admin bearer to User me and revalidates fresh actor data on every read", async () => {
+    let accountRef = "acct_" + "2".repeat(32);
+    const paths: string[] = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input)).pathname; paths.push(path);
+      if (path === "/api/me") throw new Error("User endpoint must never receive the Admin bearer");
+      expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer current-admin-session");
+      if (path === "/api/admin/audit/events") return new Response("[]", { status: 200 });
+      expect(path).toBe("/api/admin/control-plane");
+      return new Response(JSON.stringify({ organizationId: "current-organization", currentActor: { accountRef, organizationId: "current-organization", identityIssuer: config.oidcIssuerUrl, roles: ["admin"] }, categories: [] }), { status: 200 });
+    });
+    const api = new AdminControlPlaneApi(config, fetcher, () => "current-admin-session");
+    expect((await api.getControlPlane()).currentActor.accountRef).toBe("acct_" + "2".repeat(32));
+    accountRef = "acct_" + "3".repeat(32);
+    expect((await api.getCurrentActor()).accountRef).toBe("acct_" + "3".repeat(32));
+    expect(paths.filter((path) => path === "/api/admin/control-plane")).toHaveLength(2);
+    expect(paths).not.toContain("/api/me");
+  });
+  it.each(["missing", "account", "malformed-account", "organization", "issuer", "roles", "mixed-roles", "unknown-role", "duplicate-roles"])("fails closed for %s actor data from the real generated transport", async (invalid) => {
+    const currentActor = { ...actorFor("current-organization", config.oidcIssuerUrl),
+      ...(invalid === "account" ? { accountRef: "" } : invalid === "malformed-account" ? { accountRef: "raw-provider-id" } : invalid === "organization" ? { organizationId: "another-organization" }
+        : invalid === "issuer" ? { identityIssuer: "https://another.example.invalid" } : invalid === "roles" ? { roles: [] } : invalid === "mixed-roles" ? { roles: ["owner", "member"] }
+          : invalid === "unknown-role" ? { roles: ["owner", "unknown"] } : invalid === "duplicate-roles" ? { roles: ["owner", "owner"] } : {}) };
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      if (new URL(String(input)).pathname === "/api/me") throw new Error("Forbidden User identity operation");
+      return new Response(JSON.stringify({ organizationId: "current-organization", ...(invalid === "missing" ? {} : { currentActor }) }), { status: 200 });
+    });
+    const api = new AdminControlPlaneApi(config, fetcher, () => "admin-session");
+    await expect(api.getCurrentActor()).rejects.toMatchObject({ status: 403 });
+    await expect(api.getControlPlane()).rejects.toMatchObject({ status: 403 });
   });
 });

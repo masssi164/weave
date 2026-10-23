@@ -41,6 +41,13 @@ import {
     SuiteDomainReadinessResponseToJSON,
     SuiteDomainReadinessResponseToJSONTyped,
 } from './SuiteDomainReadinessResponse';
+import type { AdminCurrentActorResponse } from './AdminCurrentActorResponse';
+import {
+    AdminCurrentActorResponseFromJSON,
+    AdminCurrentActorResponseFromJSONTyped,
+    AdminCurrentActorResponseToJSON,
+    AdminCurrentActorResponseToJSONTyped,
+} from './AdminCurrentActorResponse';
 import type { McpServerBindingResponse } from './McpServerBindingResponse';
 import {
     McpServerBindingResponseFromJSON,
@@ -106,6 +113,12 @@ export interface AdminControlPlaneResponse {
      * @memberof AdminControlPlaneResponse
      */
     contractVersion?: string;
+    /**
+     *
+     * @type {AdminCurrentActorResponse}
+     * @memberof AdminControlPlaneResponse
+     */
+    currentActor: AdminCurrentActorResponse;
     /**
      *
      * @type {boolean}
@@ -202,6 +215,7 @@ export interface AdminControlPlaneResponse {
  * Check if a given object implements the AdminControlPlaneResponse interface.
  */
 export function instanceOfAdminControlPlaneResponse(value: object): value is AdminControlPlaneResponse {
+    if (!('currentActor' in value) || value['currentActor'] === undefined) return false;
     return true;
 }
 
@@ -220,6 +234,7 @@ export function AdminControlPlaneResponseFromJSONTyped(json: any, ignoreDiscrimi
         'bootstrapDefaultsAreSuggestionsOnly': json['bootstrapDefaultsAreSuggestionsOnly'] == null ? undefined : json['bootstrapDefaultsAreSuggestionsOnly'],
         'categories': json['categories'] == null ? undefined : ((json['categories'] as Array<any>).map(ProviderCategoryStatusResponseFromJSON)),
         'contractVersion': json['contractVersion'] == null ? undefined : json['contractVersion'],
+        'currentActor': AdminCurrentActorResponseFromJSON(json['currentActor']),
         'denyByDefaultPolicy': json['denyByDefaultPolicy'] == null ? undefined : json['denyByDefaultPolicy'],
         'displayName': json['displayName'] == null ? undefined : json['displayName'],
         'generatedAt': json['generatedAt'] == null ? undefined : (new Date(json['generatedAt'])),
@@ -254,6 +269,7 @@ export function AdminControlPlaneResponseToJSONTyped(value?: AdminControlPlaneRe
         'bootstrapDefaultsAreSuggestionsOnly': value['bootstrapDefaultsAreSuggestionsOnly'],
         'categories': value['categories'] == null ? undefined : ((value['categories'] as Array<any>).map(ProviderCategoryStatusResponseToJSON)),
         'contractVersion': value['contractVersion'],
+        'currentActor': AdminCurrentActorResponseToJSON(value['currentActor']),
         'denyByDefaultPolicy': value['denyByDefaultPolicy'],
         'displayName': value['displayName'],
         'generatedAt': value['generatedAt'] == null ? value['generatedAt'] : value['generatedAt'].toISOString(),

@@ -27,8 +27,6 @@ import {
 import {
   Configuration as GeneratedUserConfiguration,
   PlatformApi as GeneratedPlatformApi,
-  IdentityApi as GeneratedIdentityApi,
-  type AuthenticatedUserResponse,
   ResponseError as GeneratedUserResponseError,
 } from "./generated/user-client";
 
@@ -353,6 +351,7 @@ export interface ProviderReplacementDryRunReport {
 }
 
 export interface ControlPlaneResponse {
+  currentActor: GeneratedControlPlaneResponse["currentActor"];
   organization: {
     id: string;
     displayName: string;
@@ -451,7 +450,6 @@ export class AdminControlPlaneApi {
   private readonly generatedControlPlane: GeneratedAdminControlPlaneApi;
   private readonly generatedSpaces: GeneratedSpacesAdminApi;
   private readonly generatedInvitations: GeneratedOrganizationInvitationsApi;
-  private readonly generatedIdentity: GeneratedIdentityApi;
   private readonly generatedMembers: GeneratedOrganizationMembersApi;
 
   constructor(
@@ -468,10 +466,6 @@ export class AdminControlPlaneApi {
       accessToken: () => tokenProvider() ?? "",
       headers: { Accept: "application/json" },
     });
-    this.generatedIdentity = new GeneratedIdentityApi(new GeneratedUserConfiguration({
-      basePath: config.apiBaseUrl.slice(0, -4), fetchApi: fetchImpl,
-      accessToken: () => tokenProvider() ?? "",
-    }));
     this.generatedSpaces = new GeneratedSpacesAdminApi(generatedConfig);
     this.generatedMembers = new GeneratedOrganizationMembersApi(generatedConfig);
     this.generatedControlPlane = new GeneratedAdminControlPlaneApi(generatedConfig);
@@ -537,8 +531,9 @@ export class AdminControlPlaneApi {
       ifNoneMatch: "*", spaceMemberChangeRequest: { permissionLevel: "EDIT" } }));
   }
 
-  async getCurrentIdentity(): Promise<AuthenticatedUserResponse> {
-    return this.generated(this.generatedIdentity.me());
+  async getCurrentActor(): Promise<GeneratedControlPlaneResponse["currentActor"]> {
+    const response = await this.generated(this.generatedControlPlane.getAdminControlPlane());
+    return requireCurrentActor(response, this.config.oidcIssuerUrl);
   }
 
   async provisionDefaultSpace(): Promise<SpaceProvisionResponse> {
@@ -752,6 +747,18 @@ function invitationIdempotencyKey(
   return `admin-invitation-${action}-${nonce}`;
 }
 
+function requireCurrentActor(response: GeneratedControlPlaneResponse, issuer: string): GeneratedControlPlaneResponse["currentActor"] {
+  const actor = response.currentActor;
+  if (!actor || typeof actor.accountRef !== "string" || !/^acct_[0-9a-f]{32}$/.test(actor.accountRef)
+    || typeof actor.organizationId !== "string" || !actor.organizationId.trim()
+    || actor.organizationId !== response.organizationId || actor.identityIssuer !== issuer
+    || !Array.isArray(actor.roles) || actor.roles.length !== 1
+    || !["owner", "admin", "member", "guest"].includes(actor.roles[0])) {
+    throw new AdminApiError("Current administrator identity is unavailable.", 403);
+  }
+  return actor;
+}
+
 function normalizeControlPlane(
   controlPlane: GeneratedControlPlaneResponse,
   auditEvents: AuditEvent[],
@@ -760,9 +767,11 @@ function normalizeControlPlane(
   if (!controlPlane.organizationId?.trim()) {
     throw new AdminApiError("Current organization is unavailable.", 502);
   }
+  const currentActor = requireCurrentActor(controlPlane, oidcIssuerUrl);
   const selections = controlPlane.selectedProviderMappings ?? [];
   const secretRefs = controlPlane.secretRefs ?? [];
   return {
+    currentActor,
     organization: {
       id: controlPlane.organizationId,
       displayName: controlPlane.displayName ?? "",
@@ -1633,6 +1642,7 @@ export const sampleMcpServerBindings: McpServerBinding[] = [
 ];
 
 export const sampleControlPlane: ControlPlaneResponse = {
+  currentActor: { accountRef: "acct_" + "0".repeat(32), organizationId: "weave-dogfood", identityIssuer: adminConsoleConfig.oidcIssuerUrl, roles: ["owner"] },
   organization: {
     id: "weave-dogfood",
     displayName: "Weave Dogfood",

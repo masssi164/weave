@@ -11,8 +11,8 @@ function apiFixture(ownerCount = 1) {
   const invitations: unknown[] = [];
   const api = {
     configuration: { apiBaseUrl: `${plan.apiOrigin}/api`, oidcIssuerUrl: plan.issuerUrl },
-    getCurrentIdentity: vi.fn().mockResolvedValue({ accountId: "administrator", organizationId: "organization", identityIssuer: plan.issuerUrl, roles: ["admin"] }),
-    listAllOrganizationMembers: vi.fn().mockResolvedValue(Array.from({ length: ownerCount }, (_, index) => ({ accountRef: `owner-${index}`, displayName: `Phone Owner ${index}`, enabled: true, role: "OWNER" }))),
+    getCurrentActor: vi.fn().mockResolvedValue({ accountRef: "acct_" + "1".repeat(32), organizationId: "organization", identityIssuer: plan.issuerUrl, roles: ["admin"] }),
+    listAllOrganizationMembers: vi.fn().mockResolvedValue(Array.from({ length: ownerCount }, (_, index) => ({ accountRef: `acct_${String(index + 2).repeat(32)}`, displayName: `Phone Owner ${index}`, enabled: true, role: "OWNER" }))),
     listOrganizationInvitations: vi.fn(async () => [...invitations]),
     readPreparationGrant: vi.fn(async (_space, accountRef) => ({ accountRef, permissions: ["VIEW", "EDIT", "ADMIN"], version: '"owner-1"' })),
     createOrganizationInvitation: vi.fn(async (_org, member, key) => { const result = { ...member, invitationHandle: key, requestedRole: "member", lifecycleStatus: "pending", provisioningStatus: "pending", expiresAt: new Date("2099-01-01") }; invitations.push(result); return result; }),
@@ -35,13 +35,13 @@ describe("ordinary operator preparation controls", () => {
     fireEvent.click(screen.getByText("Preparation receipt details"));
     const receipt = screen.getByLabelText("Dogfood preparation receipt") as HTMLTextAreaElement;
     expect(receipt).toHaveAttribute("readonly");
-    expect(JSON.parse(receipt.value)).toMatchObject({ administratorAccountRef: "administrator", intendedOwnerAccountRef: "owner-0", ownerDisplayName: "Phone Owner 0", stage: "invitations-ready" });
+    expect(JSON.parse(receipt.value)).toMatchObject({ administratorAccountRef: "acct_" + "1".repeat(32), intendedOwnerAccountRef: "acct_" + "2".repeat(32), ownerDisplayName: "Phone Owner 0", stage: "invitations-ready" });
     expect(receipt.value).not.toMatch(/password|token|activationUrl/);
-    const before = api.getCurrentIdentity.mock.calls.length;
+    const before = api.getCurrentActor.mock.calls.length;
     fireEvent.change(screen.getByLabelText("Preparation operation nonce"), { target: { value: "c".repeat(32) } });
     await userEvent.click(screen.getByRole("button", { name: "Refresh preparation status" }));
     await waitFor(() => expect((screen.getByLabelText("Dogfood preparation receipt") as HTMLTextAreaElement).value).toContain('"nonce":"' + "c".repeat(32)));
-    expect(api.getCurrentIdentity.mock.calls.length).toBeGreaterThan(before);
+    expect(api.getCurrentActor.mock.calls.length).toBeGreaterThan(before);
     expect(api.createOrganizationInvitation).toHaveBeenCalledTimes(2);
   });
   it.each([0, 2])("does not assume which owner to prepare when %s enabled owners exist", async (ownerCount) => {

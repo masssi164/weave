@@ -2,6 +2,7 @@
 /* eslint-disable */
 export * from './AdminAuditEventResponse';
 export * from './AdminControlPlaneResponse';
+export * from './AdminCurrentActorResponse';
 export * from './ApiErrorResponse';
 export * from './BaselineSnapshot';
 export * from './BootstrapOwnerInvitationRequest';

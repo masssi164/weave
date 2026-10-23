@@ -4936,6 +4936,23 @@
       ]
     },
     {
+      "tag": "@human-ready-admin-current-actor",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "operator-release"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "normal packaged Console PKCE and live admitted current actor",
+        "no Admin bearer sent to member identity operation",
+        "first-owner default workspace confirmation remains available"
+      ]
+    },
+    {
       "tag": "@human-ready-preparation-inputs",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
