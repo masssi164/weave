@@ -371,6 +371,74 @@ class PrepareTest(unittest.TestCase):
         self.assertEqual(result["boundary"], "owned-preparation-simulator-cleanup-required")
         self.assertFalse(result["preparationComplete"]); self.assertFalse(fixture.exists())
 
+    def test_preparation_canonicalizes_only_its_new_directory_under_os_temp_alias(self):
+        real_root = self.directory / "os-temp-real"; real_root.mkdir(mode=0o700)
+        alias = self.directory / "os-temp-alias"; alias.symlink_to(real_root, target_is_directory=True)
+        sentinel = real_root / "unrelated"; sentinel.write_text("preserve")
+        original_temporary_directory = tempfile.TemporaryDirectory
+        created = []; used = []; deleted = []
+        def temporary_directory(**kwargs):
+            temporary = original_temporary_directory(dir=alias, **kwargs)
+            path = Path(temporary.name)
+            self.assertIn(alias, path.parents)  # Do not resolve the reproduction away.
+            self.assertTrue(alias.is_symlink())
+            created.append(path)
+            return temporary
+        def runner(directory):
+            used.append(directory)
+            def run(command, **kwargs):
+                if command[:3] == ["xcrun", "simctl", "delete"]: deleted.append(command[-1])
+                if command[-1] == "HEAD": return "a" * 40
+                if command[-1].endswith("^{tree}"): return "b" * 40
+                return ""
+            return SimpleNamespace(directory=directory, run=run, deadline=0)
+        def build(runner, _context, _candidate, devices):
+            # The existing XCTest producer also receives this canonical root.
+            private = runner.directory / "private-xctest-input.json"
+            prepare.private_write(private, {"owned": True})
+            self.assertEqual(prepare.private_read(private), {"owned": True})
+            devices.extend(["owned-A", "owned-B"])
+            return {slot: {"slot": slot} for slot in ("A", "B")}
+        receipts = []
+        def native(command, **kwargs):
+            self.assertEqual(command[-1], "--dogfood-admin-preparation")
+            invocation = json.loads(kwargs["input"])
+            path = Path(invocation["receiptOutputPath"])
+            self.assertIn(real_root, path.parents)
+            self.assertNotIn(alias, path.parents)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            plan = invocation["plan"]
+            grants = invocation["operation"] == "grants"
+            receipt = self.receipt(plan, "grants-ready" if grants else "invitations-ready",
+                                   invocation["proof"]["nonce"] if grants else plan["nonce"])
+            prepare.private_write(path, receipt)
+            receipts.append(path)
+            return SimpleNamespace(returncode=0, stdout="DOGFOOD_ADMIN_PREPARATION_RESULT status=passed boundary=none supportSafe=true\n")
+        def member(_runner, actor, _context, plan, *args):
+            return self.proof(plan, self.receipt(plan, "grants-ready"))["members"][0 if actor["slot"] == "A" else 1]
+        backend = {"Image": "sha256:" + "c" * 64, "Config": {"Labels": {"org.opencontainers.image.revision": "a" * 40}}}
+        fixture = self.directory / "private/identities.json"
+        result = {"trust": self.descriptor(), "localTrustStatus": "passed", "status": "incomplete", "preparationComplete": False}
+        with patch.object(prepare.tempfile, "TemporaryDirectory", side_effect=temporary_directory), \
+                patch.object(smoke, "Runner", side_effect=runner), patch("compose_runtime.verify_dogfood_identity"), \
+                patch("compose_runtime._service_container", return_value=backend), patch.object(prepare, "build_actors", side_effect=build), \
+                patch.object(prepare, "member_proof", side_effect=member), patch.object(prepare.subprocess, "run", side_effect=native):
+            observed = prepare.prepare_members(self.context, result, fixture, prepare.ledger_for(fixture))
+        self.assertEqual(observed["boundary"], "ordinary-functional-smoke-required")
+        self.assertIs(observed["preparationComplete"], True)
+        self.assertEqual(used, [created[0].resolve()])
+        self.assertEqual(len(receipts), 2)
+        self.assertTrue(all(not path.exists() for path in [*created, *used, *receipts]))
+        self.assertEqual(deleted, ["owned-A", "owned-B"])
+        self.assertEqual(sentinel.read_text(), "preserve")
+        self.assertTrue(alias.is_symlink())
+        # Supplied paths receive no such normalization, including aliases that
+        # happen to target the exact same operator-owned private directory.
+        with self.assertRaises(ContractError): prepare.private_write(alias / "supplied.json", {})
+        with self.assertRaises(ContractError): effective_reviewed_env_file(alias / "reviewed-compose.env")
+        self.context.tls_root = alias
+        with self.assertRaises(ContractError): prepare.public_setup(self.context)
+
     def test_registration_requires_exact_single_ack_and_always_removes_private_transport(self):
         directory = prepare.private_directory(self.directory / "registration")
         products = prepare.private_directory(directory / "products")
