@@ -9,6 +9,7 @@ import java.util.Map;
 @Schema(description = "Organization/Admin Console control-plane snapshot served only by backend APIs.")
 public record AdminControlPlaneResponse(
         String contractVersion,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AdminCurrentActorResponse currentActor,
         String organizationId,
         String displayName,
         String recommendedIdentityBroker,

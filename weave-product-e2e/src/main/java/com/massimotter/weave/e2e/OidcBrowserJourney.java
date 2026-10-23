@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /** Real Chromium registration and Authorization Code + PKCE journey. */
@@ -277,21 +278,54 @@ final class OidcBrowserJourney implements AutoCloseable {
   void provisionDefaultSpaceThroughAdminConsole(
       String email, String password, Runnable verifySpaceBeforeConfirmation) {
     URI console = environment.productOrigin().resolve("/admin-console/");
+    String stage = "open-console";
+    AtomicInteger adminReadStatus = new AtomicInteger();
+    AtomicInteger userIdentityReadStatus = new AtomicInteger();
+    AtomicInteger userIdentityRequests = new AtomicInteger();
     try (BrowserContext context =
         browser.newContext(new Browser.NewContextOptions().setLocale("en-US"))) {
       Page page = context.newPage();
       AtomicReference<String> observedCallback = new AtomicReference<>();
+      page.onRequest(request -> {
+        if ("GET".equals(request.method())
+            && (request.url().equals(console.resolve("/api/me").toString())
+                || request.url().equals(environment.api("/api/me").toString()))) {
+          userIdentityRequests.incrementAndGet();
+        }
+      });
       navigate(page, console, "open packaged Admin Console for first-owner setup");
       page.onRequest(request -> captureCallback(request.url(), console, observedCallback));
+      stage = "begin-admin-pkce";
       page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions()
           .setName("Sign in with organization identity").setExact(true)).click();
       page.waitForURL(value -> isIssuerPage(value, environment.issuer()));
+      page.onResponse(response -> {
+        if (!"GET".equals(response.request().method())) return;
+        if (response.url().equals(console.resolve("/api/admin/control-plane").toString())
+            || response.url().equals(environment.api("/api/admin/control-plane").toString())) {
+          adminReadStatus.set(response.status());
+        } else if (response.url().equals(console.resolve("/api/me").toString())
+            || response.url().equals(environment.api("/api/me").toString())) {
+          userIdentityReadStatus.set(response.status());
+        }
+      });
+      stage = "authenticate-admin";
       authenticateAndAwaitCallback(page, console, observedCallback,
           email, password, "first-owner-admin-console");
+      stage = "admit-current-admin";
       Locator setup = page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions()
           .setName("Create or confirm default Space").setExact(true));
       setup.waitFor();
+      if (adminReadStatus.get() != 200 || userIdentityRequests.get() != 0) {
+        throw new ProductFlowException("Admin Console used an invalid identity boundary"
+            + " adminHttp=" + adminReadStatus.get()
+            + " userIdentityHttp=" + userIdentityReadStatus.get()
+            + " userIdentityRequests=" + userIdentityRequests.get());
+      }
+      System.out.println("WEAVE_ADMIN_CONSOLE_CURRENT_ACTOR_RESULT status=passed"
+          + " adminHttp=200 userIdentityRequests=0 supportSafe=true");
       verifySpaceBeforeConfirmation.run();
+      stage = "confirm-default-space";
       Response response = page.waitForResponse(
           value -> value.url().equals(console.resolve("/api/admin/spaces").toString())
               && "POST".equals(value.request().method()),
@@ -308,7 +342,10 @@ final class OidcBrowserJourney implements AutoCloseable {
       page.getByText(java.util.regex.Pattern.compile(
           "^Default Space setup is confirmed for your account\\.")).waitFor();
     } catch (PlaywrightException failure) {
-      throw sanitized("First-owner Admin Console setup failed", failure);
+      throw sanitized("First-owner Admin Console setup failed stage=" + stage
+          + " adminHttp=" + adminReadStatus.get()
+          + " userIdentityHttp=" + userIdentityReadStatus.get()
+          + " userIdentityRequests=" + userIdentityRequests.get(), failure);
     } catch (tools.jackson.core.JacksonException failure) {
       throw new ProductFlowException("First-owner Admin Console setup returned invalid JSON");
     }

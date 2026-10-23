@@ -100,18 +100,18 @@ export class PreparationSession {
   constructor(private readonly api: AdminControlPlaneApi, readonly plan: PreparationPlan,
     private readonly administratorAccountRef: string, private readonly organizationId: string) {}
   async current() {
-    const identity = await this.api.getCurrentIdentity();
+    const identity = await this.api.getCurrentActor();
     const config = this.api.configuration;
-    if (identity.accountId !== this.administratorAccountRef || identity.organizationId !== this.organizationId
+    if (identity.accountRef !== this.administratorAccountRef || identity.organizationId !== this.organizationId
       || identity.identityIssuer !== this.plan.issuerUrl || config.oidcIssuerUrl !== this.plan.issuerUrl
       || new URL(config.apiBaseUrl).origin !== this.plan.apiOrigin || window.location.origin !== this.plan.organizationOrigin
-      || !identity.roles?.some((role) => role === "owner" || role === "admin")) throw new PreparationFailure("administrator-session-unavailable");
+      || !(identity.roles?.length === 1 && ["owner", "admin"].includes(identity.roles[0]))) throw new PreparationFailure("administrator-session-unavailable");
     const members = await this.api.listAllOrganizationMembers(this.organizationId);
     const invitations = await this.api.listOrganizationInvitations(this.organizationId);
     // Detect stale authority again after paginated readback before any write.
-    const after = await this.api.getCurrentIdentity();
-    if (after.accountId !== identity.accountId || after.organizationId !== identity.organizationId || after.identityIssuer !== identity.identityIssuer
-      || !after.roles?.some((role) => role === "owner" || role === "admin")) throw new PreparationFailure("administrator-session-unavailable");
+    const after = await this.api.getCurrentActor();
+    if (after.accountRef !== identity.accountRef || after.organizationId !== identity.organizationId || after.identityIssuer !== identity.identityIssuer
+      || !(after.roles?.length === 1 && ["owner", "admin"].includes(after.roles[0]))) throw new PreparationFailure("administrator-session-unavailable");
     return { members, invitations };
   }
   async preflight() {

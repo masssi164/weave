@@ -135,6 +135,12 @@ environment variable. The closed JSON shape is:
 - `ownerDisplayName`: the existing owner's visible display name, with no owner
   password, bearer, session or setup authority.
 
+The Admin Console obtains its current actor from the generated Admin control-plane response,
+including the canonical account reference, organization, issuer and current roles. It validates
+that actor before exposing setup controls; an Admin bearer is never sent to User `/api/me`.
+The separate User and Admin authorized-party checks remain enforced. Isolated qualification
+also verifies the packaged Console's admitted identity path before default-Space confirmation.
+
 Missing input invokes the explicit `./gradlew --no-daemon dogfoodPrepare` path;
 the owner does not manufacture a credential file or manually create a Space.
 This command uses the fixed reviewed Dogfood environment file and the shared

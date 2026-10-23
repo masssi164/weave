@@ -1849,12 +1849,12 @@ export default function App(props: AppProps) {
     }
     void (async () => {
       try {
-        const identity = await api.getCurrentIdentity();
-        if (!identity.accountId || !identity.organizationId || identity.identityIssuer !== adminConfig.oidcIssuerUrl) throw new AdminApiError("Identity unavailable", 403);
-        const roles = identity.roles ?? [];
-        const role = (["owner", "admin", "operator", "member"] as const).find((value) => roles.includes(value));
-        if (!role) throw new AdminApiError("Current role unavailable", 403);
         const data = await api.getControlPlane();
+        const identity = data.currentActor;
+        if (!identity || !/^acct_[0-9a-f]{32}$/.test(identity.accountRef) || !identity.organizationId || identity.identityIssuer !== adminConfig.oidcIssuerUrl) throw new AdminApiError("Identity unavailable", 403);
+        const roles = identity.roles ?? [];
+        const role = roles.length === 1 ? (["owner", "admin", "member"] as const).find((value) => roles[0] === value) : undefined;
+        if (!role) throw new AdminApiError("Current role unavailable", 403);
         if (data.organization.id !== identity.organizationId) throw new AdminApiError("Organization mismatch", 403);
         if (alive) setState({ kind: "live", role, data });
       } catch (failure) {

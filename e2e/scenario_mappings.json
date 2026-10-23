@@ -6145,6 +6145,33 @@
       "evidenceMode": "offline-spec"
     },
     {
+      "tag": "@human-ready-admin-current-actor",
+      "scenario": "Administrator setup verifies the current signed-in actor",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/OidcBrowserJourney.java",
+      "evidenceMarkers": [
+        "WEAVE_ADMIN_CONSOLE_CURRENT_ACTOR_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/config/AdminUserHttpAdmissionTest.java",
+          "fragments": [
+            "adminSignedBearerReadsItsCurrentActorButCannotEnterUserMe",
+            "nativeSignedBearerReadsUserMeButCannotEnterAdminControlPlane",
+            "invalidSignedTokensNeverReachEitherProductProjection",
+            "foreignOrganizationAndNonAdministratorAreDeniedBeforeAdminProjection"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "fragments": [
+            "currentActorUsesTheCanonicalAdmittedIdentityWithoutProviderSubjectOrSessionFields"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@human-ready-preparation-inputs",
       "scenario": "Approved administrator preparation produces its own ordinary test inputs",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",

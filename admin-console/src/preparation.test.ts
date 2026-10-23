@@ -8,13 +8,13 @@ export const plan: PreparationPlan = {
   members: ["A", "B"].map((slot) => ({ slot, email: `test-${slot.toLowerCase()}@example.invalid`, displayName: `Approved Test ${slot}`, role: "member", spaceRole: "EDIT", invitationIdempotencyKey: `approved-invitation-${slot}` })) as PreparationPlan["members"],
 };
 export function fixture() {
-  const owner: PreparationInventoryMember = { accountRef: "intended-owner", memberHandle: "owner-handle", email: "owner@example.invalid", displayName: "Current Phone Owner", enabled: true, role: "OWNER", version: '"owner-1"' };
+  const owner: PreparationInventoryMember = { accountRef: "acct_" + "2".repeat(32), memberHandle: "owner-handle", email: "owner@example.invalid", displayName: "Current Phone Owner", enabled: true, role: "OWNER", version: '"owner-1"' };
   const inventory: PreparationInventoryMember[] = [owner];
   const invitations: OrganizationInvitation[] = [];
   const grants = new Map<string, { accountRef: string; permissions: string[]; version: string }>([[owner.accountRef, { accountRef: owner.accountRef, permissions: ["VIEW", "EDIT", "ADMIN"], version: '"owner-grant"' }]]);
   const api = {
     configuration: { apiBaseUrl: `${plan.apiOrigin}/api`, oidcIssuerUrl: plan.issuerUrl, oidcClientId: "weave-admin-console" },
-    getCurrentIdentity: vi.fn().mockResolvedValue({ accountId: "current-administrator", organizationId: "current-organization", identityIssuer: plan.issuerUrl, roles: ["admin"] }),
+    getCurrentActor: vi.fn().mockResolvedValue({ accountRef: "acct_" + "1".repeat(32), organizationId: "current-organization", identityIssuer: plan.issuerUrl, roles: ["admin"] }),
     listAllOrganizationMembers: vi.fn(async () => [...inventory]), listOrganizationInvitations: vi.fn(async () => [...invitations]),
     createOrganizationInvitation: vi.fn(async (_org, member, key) => {
       const result = { ...member, requestedRole: "member", invitationHandle: key, organizationId: "current-organization", lifecycleStatus: "pending", provisioningStatus: "pending", expiresAt: new Date("2099-01-01") } as OrganizationInvitation;
@@ -23,11 +23,11 @@ export function fixture() {
     readPreparationGrant: vi.fn(async (_space, account) => grants.get(account) ?? null),
     createPreparationGrant: vi.fn(async (_space, account) => { grants.set(account, { accountRef: account, permissions: ["VIEW", "EDIT"], version: '"grant-1"' }); }),
   };
-  const session = new PreparationSession(api as unknown as AdminControlPlaneApi, plan, "current-administrator", "current-organization");
+  const session = new PreparationSession(api as unknown as AdminControlPlaneApi, plan, "acct_" + "1".repeat(32), "current-organization");
   async function activate() {
-    for (const member of plan.members) inventory.push({ accountRef: `account-${member.slot}`, memberHandle: `member-${member.slot}`, email: member.email, displayName: member.displayName, role: "MEMBER", enabled: true, version: '"member-1"' });
+    for (const member of plan.members) inventory.push({ accountRef: `acct_${member.slot.toLowerCase().repeat(32)}`, memberHandle: `member-${member.slot}`, email: member.email, displayName: member.displayName, role: "MEMBER", enabled: true, version: '"member-1"' });
     invitations.splice(0);
-    return { schemaVersion: "weave.dogfood-admin-preparation-proof/v1" as const, planId: plan.planId, nonce: "c".repeat(32), members: await Promise.all(plan.members.map(async (member) => ({ slot: member.slot, accountDigest: await identityDigest("weave-account", plan.issuerUrl, `account-${member.slot}`), organizationDigest: await identityDigest("weave-organization", plan.issuerUrl, "current-organization") }))) };
+    return { schemaVersion: "weave.dogfood-admin-preparation-proof/v1" as const, planId: plan.planId, nonce: "c".repeat(32), members: await Promise.all(plan.members.map(async (member) => ({ slot: member.slot, accountDigest: await identityDigest("weave-account", plan.issuerUrl, `acct_${member.slot.toLowerCase().repeat(32)}`), organizationDigest: await identityDigest("weave-organization", plan.issuerUrl, "current-organization") }))) };
   }
   return { api, owner, inventory, invitations, grants, session, activate };
 }
@@ -52,7 +52,7 @@ describe("current administrator preparation", () => {
     const f = fixture(); await f.session.preflight();
     expect(f.api.createOrganizationInvitation).not.toHaveBeenCalled();
     const receipt = await f.session.invitations(f.owner.accountRef);
-    expect(receipt.administratorAccountRef).toBe("current-administrator");
+    expect(receipt.administratorAccountRef).toBe("acct_" + "1".repeat(32));
     expect(receipt.intendedOwnerAccountRef).toBe(f.owner.accountRef);
     expect(receipt.ownerDisplayName).toBe(f.owner.displayName);
     expect(f.api.createOrganizationInvitation.mock.calls.map((call) => call[2])).toEqual(plan.members.map((member) => member.invitationIdempotencyKey));
@@ -67,7 +67,7 @@ describe("current administrator preparation", () => {
     if (state === "suspended" || state === "ambiguous") { await f.activate(); if (state === "suspended") f.inventory[1].enabled = false; else f.inventory.push({ ...f.inventory[1] }); }
     if (state === "expired") f.invitations.push({ invitationHandle: "old", organizationId: "current-organization", email: plan.members[0].email, displayName: plan.members[0].displayName, requestedRole: "member", lifecycleStatus: "expired", provisioningStatus: "pending", expiresAt: new Date("2000-01-01") });
     if (state === "owner-access") f.grants.delete(f.owner.accountRef);
-    if (state === "wrong-issuer") f.api.getCurrentIdentity.mockResolvedValue({ accountId: "current-administrator", organizationId: "current-organization", identityIssuer: "https://wrong.example.invalid", roles: ["admin"] });
+    if (state === "wrong-issuer") f.api.getCurrentActor.mockResolvedValue({ accountRef: "acct_" + "1".repeat(32), organizationId: "current-organization", identityIssuer: "https://wrong.example.invalid", roles: ["admin"] });
     await expect(f.session.invitations(f.owner.accountRef)).rejects.toThrow();
     expect(f.api.createOrganizationInvitation).not.toHaveBeenCalled();
   });
@@ -82,14 +82,14 @@ describe("current administrator preparation", () => {
     await f.session.grants(proof, result); expect(f.api.createPreparationGrant).toHaveBeenCalledTimes(2);
     const fresh = await f.session.refresh(result, "e".repeat(32)); expect(fresh.nonce).toBe("e".repeat(32));
     await expect(f.session.refresh(fresh, fresh.nonce)).rejects.toThrow();
-    f.grants.delete("account-A"); await expect(f.session.refresh(fresh, "f".repeat(32))).rejects.toThrow();
+    f.grants.delete("acct_" + "a".repeat(32)); await expect(f.session.refresh(fresh, "f".repeat(32))).rejects.toThrow();
     expect(f.api.createPreparationGrant).toHaveBeenCalledTimes(2);
   });
   it("stops revoked grants and changed administrator authority without restoration", async () => {
     const f = fixture(); const receipt = await f.session.invitations(f.owner.accountRef); const proof = await f.activate();
-    f.api.readPreparationGrant.mockImplementation(async (_space, account) => { if (account === "account-A") throw new Error("revoked"); return f.grants.get(account) ?? null; });
+    f.api.readPreparationGrant.mockImplementation(async (_space, account) => { if (account === "acct_" + "a".repeat(32)) throw new Error("revoked"); return f.grants.get(account) ?? null; });
     await expect(f.session.grants(proof, receipt)).rejects.toThrow(); expect(f.api.createPreparationGrant).not.toHaveBeenCalled();
-    f.api.getCurrentIdentity.mockResolvedValue({ accountId: "other-administrator", organizationId: "current-organization", identityIssuer: plan.issuerUrl, roles: ["admin"] });
+    f.api.getCurrentActor.mockResolvedValue({ accountRef: "acct_" + "3".repeat(32), organizationId: "current-organization", identityIssuer: plan.issuerUrl, roles: ["admin"] });
     await expect(f.session.preflight()).rejects.toThrow();
   });
 });
