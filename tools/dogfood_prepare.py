@@ -653,6 +653,7 @@ def registration(runner, actor: dict, fixture: dict) -> str:
 
 def build_actors(runner, context, candidate: str, devices: list[str]) -> dict:
     from dogfood_functional_smoke import CLIENT, BUNDLE, select_runtime, build_info
+    runner.configure_native_toolchain()
     runtime, device_type = select_runtime()
     runner.run(["flutter", "build", "ios", "--simulator", "--debug", "--target=lib/main.dart",
                 "--dart-define=WEAVE_CANDIDATE_COMMIT=" + candidate,

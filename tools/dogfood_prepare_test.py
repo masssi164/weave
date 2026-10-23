@@ -47,6 +47,33 @@ class PrepareTest(unittest.TestCase):
         return [{"origin": self.context.env[key], "status": "passed", "category": "trusted", "nativeCode": 0, "httpStatus": 200}
                 for key in ("WEAVE_PUBLIC_URL", "WEAVE_API_ORIGIN", "WEAVE_AUTH_URL")]
 
+    def test_preparation_toolchain_failure_blocks_native_build_and_both_invitation_authorities(self):
+        for mode in ("operator", "console"):
+            with self.subTest(mode=mode):
+                fixture = self.directory / (mode + "/identities.json")
+                result = {"trust": self.descriptor(), "localTrustStatus": "passed"}
+                runner = smoke.Runner(self.directory)
+                def run(command, **kwargs):
+                    if command[-1] == "HEAD": return "a" * 40
+                    if command[-1].endswith("^{tree}"): return "b" * 40
+                    return ""
+                backend = {"Image": "sha256:" + "c" * 64,
+                           "Config": {"Labels": {"org.opencontainers.image.revision": "a" * 40}}}
+                with patch.object(smoke, "Runner", return_value=runner), patch.object(runner, "run", side_effect=run) as execute, \
+                        patch.object(smoke, "inspect_toolchain", side_effect=smoke.NativeFailure("infrastructure", "rust-toolchain", "private-detail")) as inspect, \
+                        patch.object(smoke, "select_runtime") as runtime, \
+                        patch("compose_runtime.verify_dogfood_identity"), patch("compose_runtime._service_container", return_value=backend), \
+                        patch.object(prepare, "operator_backend"), patch.object(prepare, "operator_driver") as operator, \
+                        patch.object(prepare, "admin_driver") as console:
+                    observed = prepare.prepare_members(self.context, result, fixture, prepare.ledger_for(fixture), authorization_mode=mode)
+                inspect.assert_called_once_with(); runtime.assert_not_called()
+                operator.assert_not_called(); console.assert_not_called()
+                self.assertTrue(all(call.args[0][0] == "git" for call in execute.call_args_list))
+                self.assertEqual(observed["boundary"], "pinned-native-toolchain-unavailable")
+                self.assertFalse(observed["preparationComplete"])
+                self.assertFalse(fixture.exists())
+                self.assertNotIn("private-detail", json.dumps(observed))
+
     def descriptor(self):
         return prepare.write_public_setup(self.context)
 
