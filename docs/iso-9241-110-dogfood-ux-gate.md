@@ -135,14 +135,57 @@ environment variable. The closed JSON shape is:
 - `ownerDisplayName`: the existing owner's visible display name, with no owner
   password, bearer, session or setup authority.
 
-Use the existing normal administrator invitation and activation flow, then grant
-only current required Space access through normal authorized administration.
+Missing input invokes the explicit `./gradlew --no-daemon dogfoodPrepare` path;
+the owner does not manufacture a credential file or manually create a Space.
+This command uses the fixed reviewed Dogfood environment file and the shared
+exclusive session lock. It projects only the existing public CA into a local
+setup bundle and the two exact Dogfood-only gateway setup paths. It verifies
+ordinary macOS trust independently for organization, API and issuer; trusting
+the CA remains an explicit OS-authenticated human action. It does not rebuild,
+restart or repair the stack, change TLS, or reset any owner state.
+
+Preparation builds two owned ordinary-main simulators before inviting anyone.
+The normal Admin Console receives a private, stable two-member plan with exact
+member/EDIT intent. The existing browser driver can review the plan, but cannot
+click its approval control. An actual current owner or administrator approves
+the displayed plan once; missing normal SSO, lost authorization or pending plan
+approval returns a precise incomplete boundary. The intended physical owner is
+selected from current enabled owners separately from the acting administrator;
+ambiguous selection and missing owner workspace authority block preparation.
+Only fresh normal invitation/member readbacks and conditional Space grants are
+used. A revoked or conflicting grant is never silently restored.
+
+Stock registration and any VERIFY_EMAIL link stay in the private recipient-matched
+Mailpit inbox and XCTest fixture. Each test member subsequently completes the
+ordinary application's independent system-browser PKCE and reconciliation. Its
+actual current account/organization digests must match the server-derived Admin
+projection before grants can be accepted. A registration ACK is not app sign-in.
 These are persistent test accounts; a first-owner bootstrap record is not a
 normal administrator session. Never fabricate user-info or seed E2E memberships.
 If normal admin/browser authentication, passkey/MFA or physical owner sign-in
 cannot be completed, retain an **incomplete** result with its precise boundary.
 Finish independent diagnostics first. Do not publish credentials or invitation
 URLs in GitHub, and do not reset or replace an owner session to obtain proof.
+
+The host atomically maintains a private
+`functional-smoke-identities.preparation-ledger.json` beside the input. Its
+`weave.dogfood-admin-preparation-ledger/v1` record contains the exact approved
+intent, stable invitation request keys, generated test-only passwords, bounded
+registration checkpoints, private current readback projections, candidate
+identity, fixture digest and issuer-bound selected-owner identity digests.
+It contains no owner bearer, browser cookies, Keychain material or raw session.
+Do not upload this ledger or the credentials. Resume preserves test passwords
+and verifies current state; lost/changed credentials cause an incomplete result
+rather than password reset or new accounts. Fresh invocation nonces reject old
+AX receipts. Credentials are published only after two own-app identity proofs,
+current grants readback, and owned-simulator cleanup. This completes preparation
+prerequisites, never functional, VoiceOver or human acceptance.
+
+Before physical product writes, the retained phone's observed account and
+organization must match that selected-owner binding. Deployment's two actors
+instead match the two independently authenticated approved test members. A
+fixture's display name or the acting administrator cannot substitute for this
+identity comparison.
 
 The producer creates namespaced run-owned content through UI, records hashed
 stable resource identities and verifies the same identities through the other

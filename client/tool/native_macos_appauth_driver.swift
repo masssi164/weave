@@ -265,6 +265,247 @@ if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--clear-stal
   exit(0)
 }
 
+// BEGIN ADMIN PREPARATION RECEIPT REDUCER
+func adminPreparationReceiptOrigin(importedHere: Bool, receiptNonce: String, requestedNonce: String) -> String {
+  if importedHere { return receiptNonce == requestedNonce ? "fresh" : "reject" }
+  return receiptNonce == requestedNonce ? "reject" : "refresh"
+}
+
+func adminPreparationReceiptMayComplete(operation: String, importedHere: Bool, refreshRequested: Bool,
+  proofImported: Bool, receiptNonce: String, requestedNonce: String, stage: String) -> Bool {
+  let fresh = refreshRequested || adminPreparationReceiptOrigin(importedHere: importedHere,
+    receiptNonce: receiptNonce, requestedNonce: requestedNonce) == "fresh"
+  guard fresh, receiptNonce == requestedNonce else { return false }
+  if operation == "invitations" { return ["invitations-ready", "grants-ready"].contains(stage) }
+  return operation == "grants" && proofImported && stage == "grants-ready"
+}
+// END ADMIN PREPARATION RECEIPT REDUCER
+
+// The explicit operator path drives only ordinary visible Admin Console controls.
+// Owner credentials, browser storage and tokens are never inspected.
+if CommandLine.arguments.count == 2 && CommandLine.arguments[1] == "--dogfood-admin-preparation" {
+  func result(_ status: String, _ boundary: String, _ code: Int32) -> Never {
+    print("DOGFOOD_ADMIN_PREPARATION_RESULT status=\(status) boundary=\(boundary) supportSafe=true")
+    exit(code)
+  }
+  let unavailable = "preparation-state-unverified"
+  let input = FileHandle.standardInput.readDataToEndOfFile()
+  guard input.count <= 65536,
+        let request = try? JSONSerialization.jsonObject(with: input) as? [String: Any],
+        let operation = request["operation"] as? String, ["invitations", "grants"].contains(operation),
+        Set(request.keys) == Set(operation == "grants"
+          ? ["schemaVersion", "operation", "organizationOrigin", "issuerUrl", "plan", "proof", "receiptOutputPath", "timeoutSeconds"]
+          : ["schemaVersion", "operation", "organizationOrigin", "issuerUrl", "plan", "receiptOutputPath", "timeoutSeconds"]),
+        request["schemaVersion"] as? String == "weave.dogfood-admin-driver-input/v1",
+        let origin = request["organizationOrigin"] as? String,
+        let organization = URLComponents(string: origin), organization.scheme == "https",
+        let authority = organization.host, organization.user == nil, organization.password == nil,
+        organization.path.isEmpty, organization.query == nil, organization.fragment == nil,
+        let issuer = request["issuerUrl"] as? String,
+        let issuerURL = URLComponents(string: issuer), issuerURL.scheme == "https", issuerURL.host != nil,
+        issuerURL.user == nil, issuerURL.password == nil, issuerURL.query == nil, issuerURL.fragment == nil,
+        let plan = request["plan"] as? [String: Any],
+        plan["organizationOrigin"] as? String == origin, plan["issuerUrl"] as? String == issuer,
+        let planID = plan["planId"] as? String, planID.range(of: #"\A[a-f0-9]{32}\z"#, options: .regularExpression) != nil,
+        let nonce = (operation == "grants" ? (request["proof"] as? [String: Any])?["nonce"] : plan["nonce"]) as? String,
+        nonce.range(of: #"\A[a-f0-9]{32}\z"#, options: .regularExpression) != nil,
+        let output = request["receiptOutputPath"] as? String, output.hasPrefix("/"), output.utf8.count <= 4096,
+        let seconds = request["timeoutSeconds"] as? Int, (1...180).contains(seconds),
+        let planData = try? JSONSerialization.data(withJSONObject: plan, options: [.sortedKeys]), planData.count <= 16384,
+        let planText = String(data: planData, encoding: .utf8) else { result("failed", unavailable, 1) }
+  guard Set(plan.keys) == Set(["schemaVersion", "planId", "nonce", "organizationOrigin", "apiOrigin", "issuerUrl", "spaceRef", "members"]),
+        plan["schemaVersion"] as? String == "weave.dogfood-admin-preparation-plan/v1", plan["spaceRef"] as? String == "workspace-default",
+        let plannedMembers = plan["members"] as? [[String: Any]], plannedMembers.count == 2,
+        Set(plannedMembers.compactMap { $0["slot"] as? String }) == Set(["A", "B"]),
+        Set(plannedMembers.compactMap { ($0["email"] as? String)?.lowercased() }).count == 2,
+        plannedMembers.allSatisfy({ member in
+          Set(member.keys) == Set(["slot", "email", "displayName", "role", "spaceRole", "invitationIdempotencyKey"])
+            && member["role"] as? String == "member" && member["spaceRole"] as? String == "EDIT"
+            && member.values.allSatisfy { value in
+              guard let text = value as? String else { return false }
+              return !text.isEmpty && text.utf8.count <= 1024 && !text.unicodeScalars.contains { CharacterSet.controlCharacters.contains($0) }
+            }
+        }) else { result("failed", unavailable, 1) }
+  if operation == "grants" {
+    guard let proof = request["proof"] as? [String: Any],
+          Set(proof.keys) == Set(["schemaVersion", "planId", "nonce", "members"]),
+          proof["schemaVersion"] as? String == "weave.dogfood-admin-preparation-proof/v1", proof["planId"] as? String == planID,
+          let members = proof["members"] as? [[String: Any]], members.count == 2,
+          Set(members.compactMap { $0["slot"] as? String }) == Set(["A", "B"]),
+          members.allSatisfy({ member in
+            Set(member.keys) == Set(["slot", "accountDigest", "organizationDigest"])
+              && ["accountDigest", "organizationDigest"].allSatisfy { key in
+                (member[key] as? String)?.range(of: #"\A[a-f0-9]{64}\z"#, options: .regularExpression) != nil
+              }
+          }) else { result("failed", unavailable, 1) }
+  }
+  guard AXIsProcessTrusted() else { result("incomplete", "preparation-ui-unavailable", 2) }
+  let deadline = Date().addingTimeInterval(Double(seconds))
+  func matching(_ elements: [AXUIElement], _ labels: [String], role: String) -> [AXUIElement] {
+    elements.filter { attribute($0, kAXRoleAttribute) as? String == role && !Set(textValues($0)).isDisjoint(with: labels) }
+  }
+  func surface() -> [AXUIElement]? {
+    var matches = [[AXUIElement]]()
+    for app in NSWorkspace.shared.runningApplications where app.bundleIdentifier == "com.apple.Safari" {
+      let root = AXUIElementCreateApplication(app.processIdentifier)
+      for window in attribute(root, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
+        let elements = descendants(window, limit: 1600)
+        let valid = elements.contains { element in
+          guard attribute(element, kAXRoleAttribute) as? String == "AXWebArea",
+                let value = attribute(element, kAXURLAttribute),
+                let url = URLComponents(string: String(describing: value)) else { return false }
+          return url.scheme == "https" && url.host == authority && url.port == organization.port
+            && url.user == nil && url.password == nil && url.path == "/admin-console/" && url.query == nil && url.fragment == nil
+        }
+        if valid { matches.append(elements) }
+      }
+    }
+    return matches.count == 1 ? matches[0] : nil
+  }
+  func press(_ elements: [AXUIElement], _ labels: [String]) -> Bool {
+    let buttons = matching(elements, labels, role: kAXButtonRole) + matching(elements, labels, role: "AXDisclosureTriangle")
+    return buttons.count == 1 && attribute(buttons[0], kAXEnabledAttribute) as? Bool == true
+      && AXUIElementPerformAction(buttons[0], kAXPressAction as CFString) == .success
+  }
+  func setText(_ elements: [AXUIElement], _ labels: [String], _ value: String) -> Bool {
+    let fields = matching(elements, labels, role: kAXTextAreaRole) + matching(elements, labels, role: kAXTextFieldRole)
+    guard fields.count == 1, attribute(fields[0], kAXEnabledAttribute) as? Bool == true else { return false }
+    var pid: pid_t = 0
+    guard AXUIElementGetPid(fields[0], &pid) == .success,
+          let safari = NSRunningApplication(processIdentifier: pid), safari.bundleIdentifier == "com.apple.Safari",
+          safari.activate(options: [.activateIgnoringOtherApps]),
+          AXUIElementSetAttributeValue(fields[0], kAXFocusedAttribute as CFString, kCFBooleanTrue) == .success,
+          let down = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
+          let up = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false) else { return false }
+    down.flags = .maskCommand; up.flags = .maskCommand
+    down.postToPid(pid); up.postToPid(pid)
+    guard postKey(to: pid, code: 51), typeTargeted(value, to: pid) else { return false }
+    let inputDeadline = min(deadline, Date().addingTimeInterval(10))
+    while Date() < inputDeadline {
+      if attribute(fields[0], kAXValueAttribute) as? String == value { return true }
+      _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+    }
+    return false
+  }
+  func writePrivate(_ data: Data) -> Bool {
+    let components = output.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+    guard components.count > 1, !components.contains("."), !components.contains(".."),
+          "/" + components.joined(separator: "/") == output else { return false }
+    var directory = open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+    guard directory >= 0 else { return false }
+    defer { close(directory) }
+    for component in components.dropLast() {
+      let child = openat(directory, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+      guard child >= 0 else { return false }
+      close(directory); directory = child
+    }
+    var parentInfo = stat()
+    guard fstat(directory, &parentInfo) == 0, parentInfo.st_uid == getuid(), parentInfo.st_mode & 0o777 == 0o700 else { return false }
+    let file = openat(directory, components.last!, O_WRONLY | O_NOFOLLOW)
+    guard file >= 0 else { return false }
+    defer { close(file) }
+    var info = stat()
+    guard fstat(file, &info) == 0, info.st_uid == getuid(), info.st_mode & 0o777 == 0o600,
+          info.st_mode & S_IFMT == S_IFREG, info.st_nlink == 1, ftruncate(file, 0) == 0 else { return false }
+    do { try FileHandle(fileDescriptor: file, closeOnDealloc: false).write(contentsOf: data); return fsync(file) == 0 }
+    catch { return false }
+  }
+  var imported = false
+  var importedHere = false
+  var proofImported = false
+  var reviewed = false
+  var refreshRequested = false
+  while Date() < deadline {
+    guard let elements = surface() else {
+      _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.25)); continue
+    }
+    let labels = elements.flatMap(textValues)
+    if labels.contains(where: { $0.contains("Sign in with your organization account") || $0.contains("Melden Sie sich mit Ihrem Organisationskonto") }) {
+      result("incomplete", "normal-administrator-authentication-required", 2)
+    }
+    if labels.contains(where: { $0.contains("The administrator session is no longer authorized") || $0.contains("Die Administrationssitzung ist nicht mehr berechtigt") }) {
+      result("incomplete", "administrator-session-unavailable", 2)
+    }
+    if labels.contains(where: { $0.contains("current session does not permit") || $0.contains("could not verify current organization access")
+      || $0.contains("Ihre aktuelle Sitzung erlaubt keinen Zugriff") || $0.contains("Organisationszugriff konnte nicht geprüft") }) {
+      result("incomplete", "administrator-session-unavailable", 2)
+    }
+    let planFields = matching(elements, ["Preparation plan JSON", "Vorbereitungsplan als JSON"], role: kAXTextAreaRole)
+    if planFields.count == 1, let current = attribute(planFields[0], kAXValueAttribute) as? String, !current.isEmpty,
+       let parsed = try? JSONSerialization.jsonObject(with: Data(current.utf8)) as? [String: Any] {
+      var oldIntent = parsed; oldIntent.removeValue(forKey: "nonce")
+      var newIntent = plan; newIntent.removeValue(forKey: "nonce")
+      if !(oldIntent as NSDictionary).isEqual(to: newIntent) { result("failed", unavailable, 1) }
+      imported = true; reviewed = true
+    }
+    let receiptFields = matching(elements, ["Dogfood preparation receipt", "Dogfood-Vorbereitungsbeleg"], role: kAXTextAreaRole)
+    if !refreshRequested && !importedHere && receiptFields.count == 1 {
+      guard let text = attribute(receiptFields[0], kAXValueAttribute) as? String,
+            let current = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
+            current["planId"] as? String == planID,
+            let previousNonce = current["nonce"] as? String,
+            adminPreparationReceiptOrigin(importedHere: importedHere, receiptNonce: previousNonce, requestedNonce: nonce) == "refresh",
+            setText(elements, ["Preparation operation nonce", "Nonce des Vorbereitungsschritts"], nonce),
+            press(elements, ["Refresh preparation status", "Vorbereitungsstatus aktualisieren"]) else {
+        result("failed", unavailable, 1)
+      }
+      refreshRequested = true
+      _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.25)); continue
+    }
+    if receiptFields.count == 1, let text = attribute(receiptFields[0], kAXValueAttribute) as? String,
+       text.utf8.count <= 16384, let receipt = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
+       Set(receipt.keys) == Set(["schemaVersion", "planId", "nonce", "stage", "organizationId", "administratorAccountRef", "intendedOwnerAccountRef", "ownerDisplayName", "members", "supportSafe", "containsSecretValues"]),
+       receipt["schemaVersion"] as? String == "weave.dogfood-admin-preparation-receipt/v1",
+       receipt["planId"] as? String == planID, receipt["nonce"] as? String == nonce,
+       adminPreparationReceiptMayComplete(operation: operation, importedHere: importedHere, refreshRequested: refreshRequested,
+         proofImported: proofImported, receiptNonce: receipt["nonce"] as? String ?? "", requestedNonce: nonce, stage: receipt["stage"] as? String ?? ""),
+       receipt["supportSafe"] as? Bool == true, receipt["containsSecretValues"] as? Bool == false {
+      guard let members = receipt["members"] as? [[String: Any]], members.count == 2,
+            Set(members.compactMap { $0["slot"] as? String }) == Set(["A", "B"]),
+            members.allSatisfy({ member in
+              Set(member.keys).isSubset(of: Set(["slot", "email", "displayName", "memberHandle", "invitationHandle", "accountRef", "grantVersion"]))
+                && ["slot", "email", "displayName"].allSatisfy { member[$0] is String }
+                && member.values.allSatisfy { value in
+                  guard let string = value as? String else { return false }
+                  return !string.isEmpty && string.utf8.count <= 1024 && !string.contains("\n") && !string.contains("\r")
+                }
+            }) else { result("failed", unavailable, 1) }
+
+      guard Date() < deadline, imported, writePrivate(Data(text.utf8)), Date() < deadline else { result("failed", unavailable, 1) }
+      result("passed", "none", 0)
+    }
+    if !imported {
+      guard operation == "invitations", setText(elements, ["Preparation plan JSON", "Vorbereitungsplan als JSON"], planText),
+            press(elements, ["Review preparation plan", "Vorbereitungsplan prüfen"]) else { result("incomplete", "preparation-ui-unavailable", 2) }
+      imported = true; importedHere = true; reviewed = true
+    } else if operation == "grants" && refreshRequested && !proofImported {
+      guard receiptFields.count == 1, let currentText = attribute(receiptFields[0], kAXValueAttribute) as? String,
+            let current = try? JSONSerialization.jsonObject(with: Data(currentText.utf8)) as? [String: Any],
+            current["planId"] as? String == planID, current["nonce"] as? String == nonce else {
+        _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.25)); continue
+      }
+
+      guard let proof = request["proof"] as? [String: Any], let data = try? JSONSerialization.data(withJSONObject: proof), data.count <= 16384,
+            let text = String(data: data, encoding: .utf8),
+            setText(elements, ["Independent member proof JSON", "Unabhängiger Mitgliedsnachweis als JSON"], text),
+            press(elements, ["Verify member proof and grants", "Mitgliedsnachweis und Rechte prüfen"]) else {
+        result("incomplete", "reviewed-test-member-plan-approval-required", 2)
+      }
+      proofImported = true
+    }
+    // A collapsed secondary receipt is an ordinary read-only detail, not consent.
+    if receiptFields.isEmpty { _ = press(elements, ["Preparation receipt details", "Details zum Vorbereitungsbeleg"]) }
+    if labels.contains(where: { $0.contains("Preparation could not verify the current state") || $0.contains("Der aktuelle Zustand konnte nicht geprüft werden") }) {
+      result("failed", unavailable, 1)
+    }
+    if reviewed && !matching(elements, ["Approve preparation", "Vorbereitung genehmigen"], role: kAXButtonRole).isEmpty {
+      result("incomplete", "reviewed-test-member-plan-approval-required", 2)
+    }
+    _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.25))
+  }
+  result("incomplete", "preparation-ui-unavailable", 2)
+}
+
 guard CommandLine.arguments.count == 2,
       let data = try? FileHandle(forReadingFrom: URL(fileURLWithPath: CommandLine.arguments[1])).readToEnd(),
       let fixture = try? JSONDecoder().decode(Fixture.self, from: data),

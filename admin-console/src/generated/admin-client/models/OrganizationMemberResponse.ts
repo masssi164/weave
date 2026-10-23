@@ -20,6 +20,12 @@ import { mapValues } from '../runtime';
  */
 export interface OrganizationMemberResponse {
     /**
+     * Canonical Weave account reference for the current live member; not an access grant.
+     * @type {string}
+     * @memberof OrganizationMemberResponse
+     */
+    accountRef: string;
+    /**
      *
      * @type {Array<string>}
      * @memberof OrganizationMemberResponse
@@ -67,6 +73,7 @@ export interface OrganizationMemberResponse {
  * Check if a given object implements the OrganizationMemberResponse interface.
  */
 export function instanceOfOrganizationMemberResponse(value: object): value is OrganizationMemberResponse {
+    if (!('accountRef' in value) || value['accountRef'] === undefined) return false;
     if (!('capabilities' in value) || value['capabilities'] === undefined) return false;
     if (!('enabled' in value) || value['enabled'] === undefined) return false;
     return true;
@@ -82,6 +89,7 @@ export function OrganizationMemberResponseFromJSONTyped(json: any, ignoreDiscrim
     }
     return {
 
+        'accountRef': json['accountRef'],
         'capabilities': json['capabilities'],
         'displayName': json['displayName'] == null ? undefined : json['displayName'],
         'email': json['email'] == null ? undefined : json['email'],
@@ -103,6 +111,7 @@ export function OrganizationMemberResponseToJSONTyped(value?: OrganizationMember
 
     return {
 
+        'accountRef': value['accountRef'],
         'capabilities': value['capabilities'],
         'displayName': value['displayName'],
         'email': value['email'],

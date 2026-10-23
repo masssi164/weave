@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.IdentityAdminOperationStore;
 import com.massimotter.weave.backend.identity.IdentityOpaqueReferenceCodec;
+import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.ProviderMember;
 import com.massimotter.weave.backend.model.identity.MemberLifecycleOperationResponse;
@@ -179,7 +180,7 @@ public class OrganizationMemberAdministrationService {
         operations.claim(
             organizationId, idempotencyKey, "member-access-update", requestHash);
     if (replay.isPresent()) {
-      return read(replay.get(), OrganizationMemberResponse.class);
+      return replayMemberResponse(replay.get(), current);
     }
 
     ProviderMember updated =
@@ -225,7 +226,7 @@ public class OrganizationMemberAdministrationService {
         operations.claim(
             organizationId, idempotencyKey, "weaver-entitlement-update", requestHash);
     if (replay.isPresent()) {
-      return read(replay.get(), OrganizationMemberResponse.class);
+      return replayMemberResponse(replay.get(), current);
     }
 
     ProviderMember updated =
@@ -393,6 +394,7 @@ public class OrganizationMemberAdministrationService {
     String role = member.roles().size() == 1 ? member.roles().getFirst() : "invalid";
     return new OrganizationMemberResponse(
         references.member(organizationId, member.subject()),
+        IdentityReferences.accountId(trustedIssuer, member.subject()),
         member.email(),
         member.displayName(),
         role,
@@ -489,6 +491,21 @@ public class OrganizationMemberAdministrationService {
             idempotencyKey,
             AuditRedactionLevel.SUPPORT_SAFE,
             Map.copyOf(supportSafePayload)));
+  }
+
+  private OrganizationMemberResponse replayMemberResponse(String receipt, ProviderMember current) {
+    OrganizationMemberResponse snapshot = read(receipt, OrganizationMemberResponse.class);
+    // Historical receipts predate accountRef. Preserve their operation snapshot while
+    // projecting this non-authorizing reference from the already resolved live identity.
+    return new OrganizationMemberResponse(
+        snapshot.memberHandle(),
+        IdentityReferences.accountId(trustedIssuer, current.subject()),
+        snapshot.email(),
+        snapshot.displayName(),
+        snapshot.role(),
+        snapshot.capabilities(),
+        snapshot.enabled(),
+        snapshot.version());
   }
 
   private String write(Object value) {

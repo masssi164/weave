@@ -15,6 +15,7 @@ if str(KEYCLOAK_MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(KEYCLOAK_MODULE_ROOT))
 
 from compose_env import ComposeContext, ContractError, load_context
+from dogfood_public_setup import write_public_setup
 from realm_renderer import RealmProjectionError
 from rendering.gateway import render_caddy
 from rendering.io import read_secret, runtime_directory, write
@@ -189,6 +190,8 @@ def render(context: ComposeContext) -> None:
 
     keycloak = render_keycloak(context)
     _render_provider_secrets(context, runtime_owner)
+    if context.environment == "dogfood":
+        write_public_setup(context)
     write(generated / "caddy/Caddyfile", render_caddy(context), private=False)
 
     if context.env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse":

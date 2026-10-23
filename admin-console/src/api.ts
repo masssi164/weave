@@ -1,6 +1,9 @@
 import {
   AdminControlPlaneApi as GeneratedAdminControlPlaneApi,
   SpacesAdminApi as GeneratedSpacesAdminApi,
+  OrganizationMembersApi as GeneratedOrganizationMembersApi,
+  type OrganizationMemberResponse,
+  ApiErrorResponseFromJSON,
   type SpaceProvisionResponse,
   Configuration as GeneratedConfiguration,
   OrganizationInvitationsApi as GeneratedOrganizationInvitationsApi,
@@ -24,6 +27,9 @@ import {
 import {
   Configuration as GeneratedUserConfiguration,
   PlatformApi as GeneratedPlatformApi,
+  IdentityApi as GeneratedIdentityApi,
+  type AuthenticatedUserResponse,
+  ResponseError as GeneratedUserResponseError,
 } from "./generated/user-client";
 
 export type CapabilityState =
@@ -445,6 +451,8 @@ export class AdminControlPlaneApi {
   private readonly generatedControlPlane: GeneratedAdminControlPlaneApi;
   private readonly generatedSpaces: GeneratedSpacesAdminApi;
   private readonly generatedInvitations: GeneratedOrganizationInvitationsApi;
+  private readonly generatedIdentity: GeneratedIdentityApi;
+  private readonly generatedMembers: GeneratedOrganizationMembersApi;
 
   constructor(
     private readonly config: AdminConsoleConfig = adminConsoleConfig,
@@ -460,7 +468,12 @@ export class AdminControlPlaneApi {
       accessToken: () => tokenProvider() ?? "",
       headers: { Accept: "application/json" },
     });
+    this.generatedIdentity = new GeneratedIdentityApi(new GeneratedUserConfiguration({
+      basePath: config.apiBaseUrl.slice(0, -4), fetchApi: fetchImpl,
+      accessToken: () => tokenProvider() ?? "",
+    }));
     this.generatedSpaces = new GeneratedSpacesAdminApi(generatedConfig);
+    this.generatedMembers = new GeneratedOrganizationMembersApi(generatedConfig);
     this.generatedControlPlane = new GeneratedAdminControlPlaneApi(generatedConfig);
     this.generatedInvitations = new GeneratedOrganizationInvitationsApi(generatedConfig);
   }
@@ -469,7 +482,7 @@ export class AdminControlPlaneApi {
     try {
       return await operation;
     } catch (error) {
-      if (error instanceof GeneratedResponseError) {
+      if (error instanceof GeneratedResponseError || error instanceof GeneratedUserResponseError) {
         throw new AdminApiError(
           `Admin API request failed with HTTP ${error.response.status}`,
           error.response.status,
@@ -477,6 +490,55 @@ export class AdminControlPlaneApi {
       }
       throw error;
     }
+  }
+
+  get configuration(): Readonly<AdminConsoleConfig> {
+    return this.config;
+  }
+
+  async listAllOrganizationMembers(organizationId: string): Promise<OrganizationMemberResponse[]> {
+    const members: OrganizationMemberResponse[] = [];
+    const cursors = new Set<string>();
+    let cursor: string | undefined;
+    do {
+      const page = await this.generated(this.generatedMembers.listOrganizationMembers({ organizationId, cursor, size: 100 }));
+      members.push(...page.items);
+      cursor = page.nextCursor ?? undefined;
+      if (cursor) {
+        if (cursors.has(cursor) || cursors.size >= 100) throw new AdminApiError("Member inventory is incomplete.", 502);
+        cursors.add(cursor);
+      }
+    } while (cursor);
+    if (new Set(members.map((member) => member.accountRef)).size !== members.length) throw new AdminApiError("Member inventory is ambiguous.", 502);
+    return members;
+  }
+
+  async readPreparationGrant(spaceRef: string, accountRef: string): Promise<{ accountRef: string; permissions: string[]; version: string } | null> {
+    try {
+      const response = await this.generatedSpaces.getSpaceMemberRaw({ spaceRef, accountRef });
+      const grant = await response.value();
+      const version = response.raw.headers.get("ETag");
+      if (!version || !/^"[^"\r\n]+"$/.test(version)) throw new AdminApiError("Grant version is unavailable.", 502);
+      return { ...grant, version };
+    } catch (failure) {
+      if (failure instanceof GeneratedResponseError) {
+        if (failure.response.status === 404) {
+          const error = ApiErrorResponseFromJSON(await failure.response.json());
+          if (error.code === "space-membership-absent") return null;
+        }
+        throw new AdminApiError("Current Space access is unavailable.", failure.response.status);
+      }
+      throw failure;
+    }
+  }
+
+  async createPreparationGrant(spaceRef: string, accountRef: string): Promise<void> {
+    await this.generated(this.generatedSpaces.putSpaceMember({ spaceRef, accountRef,
+      ifNoneMatch: "*", spaceMemberChangeRequest: { permissionLevel: "EDIT" } }));
+  }
+
+  async getCurrentIdentity(): Promise<AuthenticatedUserResponse> {
+    return this.generated(this.generatedIdentity.me());
   }
 
   async provisionDefaultSpace(): Promise<SpaceProvisionResponse> {
@@ -639,11 +701,12 @@ export class AdminControlPlaneApi {
   async createOrganizationInvitation(
     organizationId: string,
     invitation: CreateOrganizationInvitationRequest,
+    idempotencyKey = invitationIdempotencyKey("create"),
   ): Promise<OrganizationInvitation> {
     return this.generated(
       this.generatedInvitations.createOrganizationInvitation({
         organizationId,
-        idempotencyKey: invitationIdempotencyKey("create"),
+        idempotencyKey,
         memberInvitationRequest: invitation,
       }),
     ) as Promise<OrganizationInvitation>;
@@ -694,12 +757,15 @@ function normalizeControlPlane(
   auditEvents: AuditEvent[],
   oidcIssuerUrl: string,
 ): ControlPlaneResponse {
+  if (!controlPlane.organizationId?.trim()) {
+    throw new AdminApiError("Current organization is unavailable.", 502);
+  }
   const selections = controlPlane.selectedProviderMappings ?? [];
   const secretRefs = controlPlane.secretRefs ?? [];
   return {
     organization: {
-      id: controlPlane.organizationId ?? "weave-dogfood",
-      displayName: controlPlane.displayName ?? "Weave Dogfood",
+      id: controlPlane.organizationId,
+      displayName: controlPlane.displayName ?? "",
       manifestUrl: "/api/platform/config",
       authIssuerUrl: oidcIssuerUrl,
     },
