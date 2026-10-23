@@ -703,6 +703,11 @@ Future<void> nativeLocalInspectionMain() async {
   });
 }
 
+// Expiry includes the real bearer lifetime and validator clock skew before
+// the required fresh-session product readback. Match the coordinator window.
+DateTime nativeDualActionDeadline(String action, DateTime startedAt) =>
+    startedAt.add(Duration(seconds: action == 'expiry-refresh' ? 420 : 180));
+
 void main() {
   if (const bool.fromEnvironment('WEAVE_NATIVE_LOCAL_INSPECTION')) {
     unawaited(nativeLocalInspectionMain());
@@ -1004,7 +1009,7 @@ void main() {
         final action = command['action'] as String;
         final next = command['sequence'] as int;
         expect(next, greaterThan(sequence));
-        final actionDeadline = DateTime.now().add(const Duration(seconds: 180));
+        final actionDeadline = nativeDualActionDeadline(action, DateTime.now());
         switch (action) {
           case 'chat-create-send':
             expect(role, 'A');
