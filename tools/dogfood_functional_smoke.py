@@ -286,7 +286,8 @@ def verify_discovered_routing(runner: Runner, actor: dict, context) -> None:
             or canonical_origin(configuration['organizationOrigin']) != canonical_origin(context.env['WEAVE_PUBLIC_URL'])
             or canonical_origin(manifest['organizationOrigin']) != canonical_origin(context.env['WEAVE_PUBLIC_URL'])
             or manifest['userApiBaseUrl'].rstrip('/') != context.env['WEAVE_API_URL'].rstrip('/')
-            or canonical_origin(manifest['protocols']['matrixClientServerBaseUrl']) != canonical_origin(context.env['WEAVE_MATRIX_URL'])
+            # Compose advertises the Weave facade at the API origin; the Matrix provider stays southbound.
+            or canonical_origin(manifest['protocols']['matrixClientServerBaseUrl']) != canonical_origin(context.env['WEAVE_API_ORIGIN'])
             or issuer.scheme != 'https' or issuer.netloc != urlsplit(context.env['WEAVE_AUTH_URL']).netloc
             or issuer.username is not None or issuer.password is not None or issuer.query or issuer.fragment):
         raise SmokeError('observed-application-routing-differs-from-reviewed-direct-context')

@@ -11,6 +11,7 @@ from unittest.mock import patch
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -42,6 +43,100 @@ def receipt(stage='physical', sha='a' * 40, tree='b' * 40, spec='c' * 40, run_id
 class FunctionalSmokeTest(unittest.TestCase):
     def valid(self, value):
         return smoke.functional_smoke_passed(value, 'a' * 40, 'b' * 40, 'c' * 40, 123, 1, 'physical')
+
+    def routing_configuration(self):
+        return {
+            'schemaVersion': 3,
+            'organizationOrigin': 'https://org.fixture.invalid/',
+            'validatedManifest': {
+                'organizationOrigin': 'https://org.fixture.invalid/',
+                'userApiBaseUrl': 'https://api.fixture.invalid/api',
+                'protocols': {'matrixClientServerBaseUrl': 'https://api.fixture.invalid'},
+                'oidc': {'issuer': 'https://auth.fixture.invalid/realms/weave'},
+            },
+        }
+
+    def verify_saved_routing(self, configuration, physical):
+        context = SimpleNamespace(env={
+            'WEAVE_PUBLIC_URL': 'https://org.fixture.invalid/',
+            'WEAVE_API_ORIGIN': 'https://api.fixture.invalid',
+            'WEAVE_API_URL': 'https://api.fixture.invalid/api',
+            'WEAVE_AUTH_URL': 'https://auth.fixture.invalid',
+            'WEAVE_MATRIX_URL': 'https://matrix-provider.fixture.invalid',
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            container = root / 'app-data'
+            preference = container / 'Library/Preferences' / (smoke.BUNDLE + '.plist')
+            preference.parent.mkdir(parents=True)
+            payload = plistlib.dumps({'server_configuration_v1': json.dumps(configuration)})
+            preference.write_bytes(payload)
+            runner = smoke.Runner(root)
+            actor = {'physical': physical, 'id': 'owned-device'}
+
+            def read_preferences(command):
+                if physical:
+                    self.assertEqual(command[:5], ['xcrun', 'devicectl', 'device', 'copy', 'from'])
+                    self.assertEqual(command[command.index('--domain-type') + 1], 'appDataContainer')
+                    self.assertEqual(command[command.index('--domain-identifier') + 1], smoke.BUNDLE)
+                    self.assertEqual(command[command.index('--source') + 1], 'Library/Preferences/' + smoke.BUNDLE + '.plist')
+                    Path(command[command.index('--destination') + 1]).write_bytes(payload)
+                    return ''
+                self.assertEqual(command, ['xcrun', 'simctl', 'get_app_container', 'owned-device', smoke.BUNDLE, 'data'])
+                return str(container)
+
+            with patch.object(runner, 'run', side_effect=read_preferences) as execute:
+                try:
+                    smoke.verify_discovered_routing(runner, actor, context)
+                finally:
+                    self.assertEqual(execute.call_count, 1)
+
+    def test_saved_routing_accepts_northbound_facade_distinct_from_provider_on_both_devices(self):
+        for physical in (False, True):
+            for facade in ('https://api.fixture.invalid', 'https://api.fixture.invalid/'):
+                with self.subTest(physical=physical, facade=facade):
+                    configuration = self.routing_configuration()
+                    configuration['validatedManifest']['protocols']['matrixClientServerBaseUrl'] = facade
+                    self.verify_saved_routing(configuration, physical)
+
+    def test_saved_routing_rejects_provider_or_other_facade_on_both_devices(self):
+        for physical in (False, True):
+            for facade in ('https://matrix-provider.fixture.invalid', 'https://other-api.fixture.invalid',
+                           'https://org.fixture.invalid', 'https://api.fixture.invalid:8443'):
+                with self.subTest(physical=physical, facade=facade):
+                    configuration = self.routing_configuration()
+                    configuration['validatedManifest']['protocols']['matrixClientServerBaseUrl'] = facade
+                    with self.assertRaisesRegex(smoke.SmokeError, 'observed-application-routing-differs-from-reviewed-direct-context'):
+                        self.verify_saved_routing(configuration, physical)
+
+    def test_saved_routing_preserves_context_issuer_and_https_guards_on_both_devices(self):
+        changes = (
+            (('schemaVersion',), 2),
+            (('organizationOrigin',), 'https://foreign.fixture.invalid'),
+            (('validatedManifest', 'organizationOrigin'), 'https://foreign.fixture.invalid'),
+            (('validatedManifest', 'userApiBaseUrl'), 'https://other-api.fixture.invalid/api'),
+            (('validatedManifest', 'userApiBaseUrl'), 'https://api.fixture.invalid/other-api'),
+            (('validatedManifest', 'oidc', 'issuer'), 'https://other-auth.fixture.invalid/realms/weave'),
+            (('validatedManifest', 'oidc', 'issuer'), 'http://auth.fixture.invalid/realms/weave'),
+            (('validatedManifest', 'oidc', 'issuer'), 'https://user:private@auth.fixture.invalid/realms/weave'),
+            (('validatedManifest', 'oidc', 'issuer'), 'https://auth.fixture.invalid/realms/weave?unexpected=1'),
+            (('validatedManifest', 'oidc', 'issuer'), 'https://auth.fixture.invalid/realms/weave#unexpected'),
+            (('validatedManifest', 'protocols', 'matrixClientServerBaseUrl'), 'http://api.fixture.invalid'),
+            (('validatedManifest', 'protocols', 'matrixClientServerBaseUrl'), 'https://user:private@api.fixture.invalid'),
+            (('validatedManifest', 'protocols', 'matrixClientServerBaseUrl'), 'https://api.fixture.invalid/provider'),
+            (('validatedManifest', 'protocols', 'matrixClientServerBaseUrl'), 'https://api.fixture.invalid?unexpected=1'),
+            (('validatedManifest', 'protocols', 'matrixClientServerBaseUrl'), 'https://api.fixture.invalid#unexpected'),
+        )
+        for physical in (False, True):
+            for keys, value in changes:
+                with self.subTest(physical=physical, keys=keys, value=value):
+                    configuration = self.routing_configuration()
+                    target = configuration
+                    for key in keys[:-1]:
+                        target = target[key]
+                    target[keys[-1]] = value
+                    with self.assertRaises((smoke.SmokeError, ValueError)):
+                        self.verify_saved_routing(configuration, physical)
 
     def test_only_complete_ordinary_producer_receipt_passes(self):
         value = receipt()
