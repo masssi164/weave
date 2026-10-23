@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -934,6 +935,58 @@ void main() {
     );
     expect(calls.every((call) => call.method == 'GET'), isTrue);
   });
+
+  for (final allowedCode in [true, false]) {
+    test(
+      'default console diagnostic redacts generated HTTP failure allowedCode=$allowedCode',
+      () async {
+        final console = <String>[];
+        final previous = debugPrint;
+        debugPrint = (String? message, {int? wrapWidth}) {
+          if (message != null) console.add(message);
+        };
+        try {
+          final service = client(
+            (request) async => request.method == 'POST'
+                ? json({
+                    'code': allowedCode
+                        ? 'calendar-invalid-request'
+                        : 'PRIVATE-CODE',
+                    'detail':
+                        'SECRET-PAYLOAD https://private.example.test/callback?token=SECRET-TOKEN',
+                  }, 400)
+                : null,
+          );
+          await expectLater(
+            service.createEvent(draft()),
+            throwsA(isA<CalendarFailure>()),
+          );
+          expect(console, hasLength(1));
+          expect(
+            console.single,
+            matches(
+              RegExp(
+                r'^WEAVE_CALENDAR_FAILURE stage=mutation kind=unsupportedEdit httpStatus=400 apiCode=' +
+                    (allowedCode ? 'calendar-invalid-request' : 'unavailable') +
+                    r' candidate=(?:[0-9a-f]{40}|unavailable) supportSafe=true$',
+              ),
+            ),
+          );
+          for (final privateValue in [
+            'SECRET',
+            'PRIVATE',
+            'https://',
+            'callback',
+            'token=',
+          ]) {
+            expect(console.single, isNot(contains(privateValue)));
+          }
+        } finally {
+          debugPrint = previous;
+        }
+      },
+    );
+  }
 
   test(
     'agenda failures retain bounded stage/status/code without private response details',

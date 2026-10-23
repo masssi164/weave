@@ -147,6 +147,96 @@ class _FakeCalendarRepository implements CalendarRepository {
   }
 }
 
+class _NativeHarnessCalendarRepository extends _FakeCalendarRepository
+    implements CalendarWorkspaceRepository {
+  _NativeHarnessCalendarRepository({super.events = const []});
+  Completer<void>? writeGate;
+  Completer<void>? refreshGate;
+  Completer<void>? contextGate;
+  CalendarFailure? writeFailure;
+  String owner = 'fixture-owner';
+  int writeStarts = 0;
+  @override
+  Future<CalendarWorkspaceContext> loadWorkspaceContext(
+    CalendarScope selected,
+  ) async {
+    if (contextGate != null) await contextGate!.future;
+    final scopes = await loadScopes();
+    return CalendarWorkspaceContext(
+      ownerKey: owner,
+      scopes: scopes,
+      selectedScope: scopes.scopes.firstWhere(
+        (scope) => scope.id == selected.id,
+      ),
+      evaluationTimeZone: 'Europe/Berlin',
+    );
+  }
+
+  @override
+  Future<CalendarEvent> createEvent(CalendarEventDraft draft) async {
+    writeStarts++;
+    if (writeGate != null) await writeGate!.future;
+    if (writeFailure != null) throw writeFailure!;
+    return super.createEvent(draft);
+  }
+
+  @override
+  Future<CalendarEventList> loadEvents({
+    CalendarScope? scope,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    if (refreshGate != null) await refreshGate!.future;
+    return super.loadEvents(scope: scope, from: from, to: to);
+  }
+}
+
+class _FixedGenerationCalendarNotifier extends CalendarNotifier {
+  _FixedGenerationCalendarNotifier(this.event, this.generation);
+  final CalendarEvent event;
+  final int generation;
+  @override
+  Future<CalendarEventList> build() async =>
+      CalendarEventList(events: [event], readGeneration: generation);
+}
+
+Future<ProviderContainer> _pumpNativeCalendarHarness(
+  WidgetTester tester,
+  _NativeHarnessCalendarRepository repository, {
+  CalendarNotifier Function()? notifier,
+}) async {
+  await tester.pumpWidget(
+    createTestApp(
+      const CalendarScreen(),
+      overrides: [
+        weaveApiMemberSpacesProvider.overrideWith(
+          (ref) async => const MemberSpaceAccessSnapshot(
+            visibleSpaceRefs: {'workspace-default'},
+            displayNames: {'workspace-default': 'Organization workspace'},
+            defaultSpaceReadable: true,
+          ),
+        ),
+        weaveAuthenticatedSessionProvider.overrideWith(
+          (ref) async => WeaveAuthenticatedSession(
+            apiBaseUrl: Uri.parse('https://api.example.test/api'),
+            accessToken: 'fixture-token',
+          ),
+        ),
+        workspaceCapabilitySnapshotProvider.overrideWithValue(
+          const AsyncData(_readySnapshot),
+        ),
+        calendarRepositoryProvider.overrideWithValue(repository),
+        calendarEvaluationTimeZoneProvider.overrideWith(
+          (ref) async => 'Europe/Berlin',
+        ),
+        if (notifier != null) calendarProvider.overrideWith(notifier),
+      ],
+    ),
+  );
+  await tester.pumpAndSettle();
+  return ProviderScope.containerOf(tester.element(find.byType(CalendarScreen)));
+}
+
 const _readySnapshot = WorkspaceCapabilitySnapshot(
   shellAccess: WorkspaceCapabilityState(
     capability: WorkspaceCapability.shellAccess,
@@ -207,6 +297,325 @@ class _CalendarCapabilityController
 }
 
 void main() {
+  group('native Calendar save and readback proof', () {
+    for (final outcome in [
+      'delayed-success',
+      'definite',
+      'uncertain',
+      'pending',
+      'owner-change',
+    ]) {
+      testWidgets(
+        'actual editor save $outcome cannot be proved by retained draft text',
+        (tester) async {
+          final repository = _NativeHarnessCalendarRepository();
+          final container = await _pumpNativeCalendarHarness(
+            tester,
+            repository,
+          );
+          final diagnostics = <String>[];
+          final gate = Completer<void>();
+          repository.writeGate = gate;
+          repository.writeFailure = switch (outcome) {
+            'definite' => const CalendarFailure(
+              CalendarFailureKind.unsupportedEdit,
+              stage: CalendarOperationStage.mutation,
+              httpStatus: 400,
+            ),
+            'uncertain' => const CalendarFailure(
+              CalendarFailureKind.unavailable,
+              stage: CalendarOperationStage.mutation,
+              writeMayHaveCommitted: true,
+            ),
+            _ => null,
+          };
+          Timer? release;
+          if (outcome != 'pending') {
+            release = Timer(const Duration(milliseconds: 750), () {
+              if (outcome == 'owner-change') {
+                repository.owner = 'different-fixture-owner';
+                container.invalidate(calendarWorkspaceContextProvider);
+              } else {
+                gate.complete();
+              }
+            });
+          }
+          Object? failure;
+          try {
+            await dual.editNativeDualCalendarEvent(
+              tester,
+              tooltip: 'Create event',
+              title: 'PRIVATE-DRAFT-TITLE',
+              deadline: tester.binding.clock.now().add(
+                const Duration(seconds: 3),
+              ),
+              now: tester.binding.clock.now,
+              emit: diagnostics.add,
+            );
+          } catch (error) {
+            failure = error;
+          } finally {
+            release?.cancel();
+          }
+          expect(repository.writeStarts, 1);
+          if (outcome == 'delayed-success') {
+            expect(failure, isNull);
+            expect(find.byType(AlertDialog), findsNothing);
+            expect(
+              container.read(calendarProvider).requireValue.events.single.title,
+              'PRIVATE-DRAFT-TITLE',
+            );
+          } else {
+            expect(failure, isA<TestFailure>());
+            final reason = outcome == 'pending'
+                ? 'save-pending-deadline'
+                : outcome == 'owner-change'
+                ? 'context-changed'
+                : outcome == 'uncertain'
+                ? 'save-uncertain'
+                : 'save-rejected';
+            expect(diagnostics.single, contains('reason=$reason'));
+            expect(find.byType(AlertDialog), findsOneWidget);
+            expect(find.text('PRIVATE-DRAFT-TITLE'), findsOneWidget);
+            if (outcome == 'definite') {
+              final previous = container.read(calendarProvider);
+              expect(previous.isLoading, isFalse);
+              expect(previous.hasError, isFalse);
+              expect(previous.requireValue.events, isEmpty);
+              // This is exactly the old title-only false-positive predicate.
+              expect(find.text('PRIVATE-DRAFT-TITLE').evaluate().length, 1);
+              final readDiagnostic = <String>[];
+              await expectLater(
+                dual.readNativeDualCalendarEvent(
+                  tester,
+                  'PRIVATE-DRAFT-TITLE',
+                  true,
+                  container: container,
+                  deadline: tester.binding.clock.now().add(
+                    const Duration(seconds: 3),
+                  ),
+                  now: tester.binding.clock.now,
+                  emit: readDiagnostic.add,
+                ),
+                throwsA(isA<TestFailure>()),
+              );
+              expect(readDiagnostic.single, contains('reason=save-rejected'));
+            }
+            if (outcome == 'uncertain') {
+              expect(diagnostics.single, contains('failureStage=mutation'));
+              expect(diagnostics.single, contains('writeOutcome=uncertain'));
+            }
+            expect(diagnostics.join(), isNot(contains('PRIVATE')));
+            expect(diagnostics.join(), isNot(contains('fixture-owner')));
+            if (!gate.isCompleted) gate.complete();
+            await tester.pumpAndSettle();
+          }
+        },
+      );
+    }
+
+    for (final scenario in [
+      'delayed',
+      'delayed-context',
+      'absent',
+      'absence-acceptance-expired',
+      'error',
+      'loading-with-previous',
+      'duplicate',
+      'owner',
+      'scope',
+      'date',
+      'obstructed',
+      'unchanged-generation',
+      'zero-generation',
+    ]) {
+      testWidgets(
+        'actual Calendar refresh requires current readback: $scenario',
+        (tester) async {
+          final start = DateTime.now().add(const Duration(hours: 1));
+          final event = CalendarEvent(
+            id: 'fixture-event',
+            title: 'PRIVATE-EVENT-TITLE',
+            startTime: start,
+            endTime: start.add(const Duration(hours: 1)),
+            allowedActions: const ['update', 'delete'],
+          );
+          final repository = _NativeHarnessCalendarRepository(events: [event]);
+          final container = await _pumpNativeCalendarHarness(
+            tester,
+            repository,
+            notifier: scenario.endsWith('generation')
+                ? () => _FixedGenerationCalendarNotifier(
+                    event,
+                    scenario == 'zero-generation' ? 0 : 42,
+                  )
+                : null,
+          );
+          final before = container
+              .read(calendarProvider)
+              .requireValue
+              .readGeneration;
+          final diagnostics = <String>[];
+          final gate = Completer<void>();
+          if ([
+            'delayed',
+            'loading-with-previous',
+            'owner',
+            'scope',
+            'date',
+          ].contains(scenario)) {
+            repository.refreshGate = gate;
+          }
+          if (scenario == 'delayed-context') {
+            repository.contextGate = gate;
+            container.invalidate(calendarWorkspaceContextProvider);
+          }
+          if (scenario == 'error') {
+            repository.eventFailure = const CalendarFailure(
+              CalendarFailureKind.unavailable,
+              stage: CalendarOperationStage.agenda,
+              httpStatus: 503,
+            );
+          }
+          if (scenario == 'absent' ||
+              scenario == 'absence-acceptance-expired') {
+            repository.events.clear();
+          }
+          if (scenario == 'duplicate') {
+            repository.events.add(
+              CalendarEvent(
+                id: 'second-fixture-event',
+                title: event.title,
+                startTime: event.startTime,
+                endTime: event.endTime,
+              ),
+            );
+          }
+          if (scenario == 'obstructed') {
+            unawaited(
+              showDialog<void>(
+                context: tester.element(find.byType(CalendarScreen)),
+                builder: (_) =>
+                    const AlertDialog(content: Text('Unrelated modal')),
+              ),
+            );
+            await tester.pumpAndSettle();
+          }
+          Timer? release;
+          if ([
+            'delayed',
+            'delayed-context',
+            'owner',
+            'scope',
+            'date',
+          ].contains(scenario)) {
+            release = Timer(const Duration(milliseconds: 750), () {
+              if (scenario == 'owner') {
+                repository.owner = 'different-fixture-owner';
+                container.invalidate(calendarWorkspaceContextProvider);
+              } else if (scenario == 'scope') {
+                container
+                    .read(selectedCalendarScopeProvider.notifier)
+                    .select(
+                      const CalendarScope(
+                        id: 'team-engineering',
+                        type: 'team',
+                        label: 'Fixture team',
+                      ),
+                    );
+              } else if (scenario == 'date') {
+                container
+                    .read(calendarViewDateProvider.notifier)
+                    .select(start.add(const Duration(days: 2)));
+              } else {
+                gate.complete();
+              }
+            });
+          }
+          final readsBefore = repository.eventLoads;
+          final deadline = tester.binding.clock.now().add(
+            const Duration(seconds: 3),
+          );
+          var freshAbsentClockChecks = 0;
+          DateTime now() {
+            final current = container.read(calendarProvider);
+            if (scenario == 'absence-acceptance-expired' &&
+                !current.isLoading &&
+                !current.hasError &&
+                current.asData?.value.events.isEmpty == true &&
+                (current.asData?.value.readGeneration ?? 0) > before &&
+                ++freshAbsentClockChecks >= 3) {
+              // Expire only after the fresh data and dependent widget frame,
+              // at the final absence acceptance check after finder traversal.
+              return deadline;
+            }
+            return tester.binding.clock.now();
+          }
+
+          CalendarEvent? result;
+          Object? failure;
+          try {
+            result = await dual.readNativeDualCalendarEvent(
+              tester,
+              event.title,
+              scenario != 'absent' && scenario != 'absence-acceptance-expired',
+              container: container,
+              deadline: deadline,
+              now: now,
+              emit: diagnostics.add,
+            );
+          } catch (error) {
+            failure = error;
+          } finally {
+            release?.cancel();
+          }
+          if (scenario == 'absence-acceptance-expired') {
+            expect(freshAbsentClockChecks, 3);
+          }
+          if (['delayed', 'delayed-context', 'absent'].contains(scenario)) {
+            expect(failure, isNull);
+            expect(result?.id, scenario == 'absent' ? null : event.id);
+            expect(
+              container.read(calendarProvider).requireValue.readGeneration,
+              greaterThan(before),
+            );
+            expect(diagnostics, isEmpty);
+          } else {
+            expect(failure, isA<TestFailure>());
+            final reason = switch (scenario) {
+              'error' => 'readback-error',
+              'duplicate' => 'event-not-unique',
+              'owner' || 'scope' || 'date' => 'context-changed',
+              'obstructed' => 'refresh-not-hittable',
+              _ => 'readback-deadline',
+            };
+            expect(diagnostics.single, contains('reason=$reason'));
+            if (scenario == 'error') {
+              expect(diagnostics.single, contains('failureStage=agenda'));
+              expect(diagnostics.single, contains('httpStatus=503'));
+            }
+            if (scenario == 'loading-with-previous') {
+              expect(diagnostics.single, contains('loading=true'));
+              expect(container.read(calendarProvider).hasValue, isTrue);
+            }
+            if (scenario == 'obstructed') {
+              expect(repository.eventLoads, readsBefore);
+            }
+            expect(diagnostics.join(), isNot(contains('PRIVATE')));
+            expect(diagnostics.join(), isNot(contains('fixture-event')));
+            expect(diagnostics.join(), isNot(contains('https://')));
+          }
+          if (!gate.isCompleted) gate.complete();
+          if (scenario == 'error') {
+            repository.eventFailure = null;
+            container.invalidate(calendarProvider);
+          }
+          await tester.pumpAndSettle();
+        },
+      );
+    }
+  });
+
   for (final stage in [
     CalendarOperationStage.discovery,
     CalendarOperationStage.profileTimeZone,
