@@ -14,6 +14,7 @@ import plistlib
 import queue
 import re
 import signal
+import secrets
 import subprocess
 import tempfile
 import threading
@@ -172,20 +173,29 @@ def verify_signed_app(team: str, bundle_id: str) -> None:
     info = plistlib.loads((APP / "Contents/Info.plist").read_bytes())
     if info.get("CFBundleIdentifier") != bundle_id:
         raise RuntimeError("native app bundle identifier does not match signing profile")
+    integrity = subprocess.run(
+        ["codesign", "--verify", "--deep", "--strict", str(APP)],
+        capture_output=True, text=True, timeout=15,
+    )
+    if integrity.returncode:
+        raise RuntimeError("native app signature integrity verification failed")
     result = subprocess.run(
         ["codesign", "-dv", "--verbose=2", str(APP)],
         capture_output=True, text=True, timeout=15,
     )
-    if result.returncode or f"TeamIdentifier={team}" not in result.stderr:
+    if result.returncode or re.findall(r"^TeamIdentifier=(.*)$", result.stderr, re.MULTILINE) != [team] or re.findall(
+        r"^Identifier=(.*)$", result.stderr, re.MULTILINE
+    ) != [bundle_id]:
         raise RuntimeError("native app has no matching development signature")
     entitlements = subprocess.run(
         ["codesign", "-d", "--entitlements", ":-", str(APP)],
         capture_output=True, timeout=15,
     )
-    if entitlements.returncode or "keychain-access-groups" not in plistlib.loads(
-        entitlements.stdout
-    ):
-        raise RuntimeError("native app lacks the Keychain entitlement")
+    if entitlements.returncode:
+        raise RuntimeError("native app entitlements are unavailable")
+    rights = plistlib.loads(entitlements.stdout)
+    if "keychain-access-groups" not in rights or rights.get("com.apple.security.app-sandbox") is not True:
+        raise RuntimeError("native app lacks its sandbox or Keychain entitlement")
     print("NATIVE_SIGNING_RESULT status=passed keychain=true", flush=True)
 
 
@@ -328,19 +338,121 @@ def restart_disposable_services(env: dict[str, str]) -> None:
           "keycloak=healthy postgres=healthy supportSafe=true", flush=True)
 
 
-def clear_owned_preferences(bundle: str, run_id: str) -> None:
+def clear_owned_preferences(bundle: str, run_id: str, *, team: str, env: dict[str, str]) -> None:
+    """Ask only the signed test app to remove and read back its own run keys."""
     if bundle != "com.masssi164.weave.nativeacceptance" or re.fullmatch(
         r"[A-Za-z0-9][A-Za-z0-9._-]{0,39}", run_id
-    ) is None:
+    ) is None or re.fullmatch(r"[A-Z0-9]{10}", team) is None:
         raise RuntimeError("native owned preference cleanup input is invalid")
-    result = subprocess.run(
-        ["swift", str(DRIVER), "--clear-owned-preferences", bundle, run_id],
-        cwd=CLIENT, capture_output=True, text=True, timeout=30,
+    verify_signed_app(team, bundle)
+    stop_checkout_app()
+    nonce = secrets.token_hex(16)
+    marker = ("NATIVE_PREFERENCES_CLEANUP_RESULT status=passed scope=owned-run "
+              "readback=absent invocation=" + nonce)
+    cleanup_env = env.copy()
+    cleanup_env.pop("WEAVE_NATIVE_MEMBER_EMAIL", None)
+    cleanup_env.pop("WEAVE_NATIVE_MEMBER_PASSWORD", None)
+    private_dir = CLIENT / "build/private-native-acceptance"
+    private_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if private_dir.is_symlink():
+        raise RuntimeError("native private diagnostic directory is a symlink")
+    private_dir.chmod(0o700)
+    process = None
+    diagnostic = tempfile.NamedTemporaryFile(
+        mode="w+", encoding="utf-8", prefix="preferences-cleanup-", suffix=".log",
+        dir=private_dir, delete=False,
     )
-    marker = "NATIVE_PREFERENCES_CLEANUP_RESULT status=passed scope=owned-run"
-    if result.returncode or result.stdout.strip() != marker:
-        raise RuntimeError("native owned preference cleanup failed")
-    print(marker, flush=True)
+    try:
+        try:
+            process = subprocess.Popen(
+                ["flutter", "test", "integration_test/system_browser_auth_e2e_test.dart",
+                 "-d", "macos", "--reporter", "expanded",
+                 "--plain-name", "native acceptance clears only owned preferences",
+                 "--dart-define=WEAVE_NATIVE_PREFERENCES_CLEANUP=true",
+                 "--dart-define=WEAVE_NATIVE_TEST_RUN_ID=" + run_id,
+                 "--dart-define=WEAVE_NATIVE_CLEANUP_NONCE=" + nonce],
+                cwd=CLIENT, env=cleanup_env, stdout=diagnostic, stderr=subprocess.STDOUT,
+                text=True, start_new_session=True,
+            )
+            try:
+                process.communicate(timeout=180)
+            except subprocess.TimeoutExpired as failure:
+                # Direct file capture retains output even on timeout. Some
+                # subprocess adapters also supply partial output explicitly.
+                for partial in (failure.output, failure.stderr):
+                    if partial:
+                        diagnostic.write(partial.decode("utf-8", errors="replace")
+                                         if isinstance(partial, bytes) else partial)
+                raise
+            verify_signed_app(team, bundle)
+            diagnostic.flush()
+            diagnostic.seek(0)
+            lines = [line.removeprefix("flutter: ").strip() for line in diagnostic]
+            if process.returncode or lines.count(marker) != 1:
+                raise RuntimeError("native owned preference cleanup readback failed")
+        finally:
+            try:
+                if process is not None:
+                    stop_flutter_process_group(process)
+            finally:
+                stop_checkout_app()
+    except BaseException:
+        diagnostic.close()
+        print("NATIVE_PREFERENCES_CLEANUP_DIAGNOSTIC status=retainedPrivate supportSafe=true", flush=True)
+        raise
+    else:
+        diagnostic.close()
+        Path(diagnostic.name).unlink()
+    print("NATIVE_PREFERENCES_CLEANUP_RESULT status=passed scope=owned-run readback=absent", flush=True)
+
+
+def finalize_native_run(*, accepted: bool, bundle: str, run_id: str, team: str,
+                        env: dict[str, str], logout_consent, driver, flutter,
+                        reader, diagnostics) -> None:
+    """Attempt every owned cleanup; never replace an existing product failure."""
+    failures = []
+
+    def attempt(stage, action):
+        try:
+            action()
+        except Exception as failure:
+            failures.append(stage)
+            category = "timeout" if isinstance(failure, subprocess.TimeoutExpired) else "verification"
+            print("NATIVE_FINAL_CLEANUP_RESULT status=failed stage=" + stage +
+                  " category=" + category + " supportSafe=true", flush=True)
+
+    def stop_driver(process):
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=10)
+                raise
+
+    attempt("logout-driver", lambda: stop_driver(logout_consent))
+    attempt("browser-driver", lambda: stop_driver(driver))
+    if flutter is not None:
+        attempt("flutter-process", lambda: stop_flutter_process_group(flutter))
+    if reader is not None:
+        def finish_reader():
+            reader.join(timeout=10)
+            if reader.is_alive():
+                raise RuntimeError("native diagnostic reader did not finish")
+        attempt("diagnostic-reader", finish_reader)
+    attempt("checkout-app", stop_checkout_app)
+    attempt("app-owned-preferences", lambda: clear_owned_preferences(
+        bundle, run_id, team=team, env=env))
+    for diagnostic in diagnostics:
+        if reader is None or not reader.is_alive():
+            attempt("diagnostic-close", diagnostic.close)
+        if accepted and not failures:
+            attempt("diagnostic-removal", lambda: Path(diagnostic.name).unlink())
+    if diagnostics and (not accepted or failures):
+        print("NATIVE_FLUTTER_DIAGNOSTIC status=retainedPrivate", flush=True)
+    if accepted and failures:
+        raise RuntimeError("native final owned cleanup failed") from None
 
 
 def main() -> int:
@@ -590,32 +702,13 @@ def main() -> int:
             print("NATIVE_FLUTTER_ACCEPTANCE_RESULT status=passed", flush=True)
             accepted = True
         finally:
-            if logout_consent is not None and logout_consent.poll() is None:
-                logout_consent.terminate()
-                logout_consent.wait(timeout=10)
-            if driver is not None and driver.poll() is None:
-                driver.terminate()
-                driver.wait(timeout=10)
-            if flutter is not None:
-                stop_flutter_process_group(flutter)
-            if reader is not None:
-                reader.join(timeout=10)
-            for diagnostic in diagnostics:
-                # A live reader owns its stream until EOF. Retain the private
-                # stream on failure rather than raising a secondary close race.
-                if reader is None or not reader.is_alive():
-                    diagnostic.close()
-                if accepted:
-                    Path(diagnostic.name).unlink()
-            if diagnostics and not accepted:
-                print("NATIVE_FLUTTER_DIAGNOSTIC status=retainedPrivate", flush=True)
-            stop_checkout_app()
-            try:
-                clear_owned_preferences(signing_bundle, run_id)
-            except Exception:
-                print("NATIVE_PREFERENCES_CLEANUP_RESULT status=failed scope=owned-run", flush=True)
-                if accepted:
-                    raise RuntimeError("native owned preference cleanup failed") from None
+            finalize_native_run(
+                accepted=accepted, bundle=signing_bundle, run_id=run_id,
+                team=signing_team, env=env, logout_consent=logout_consent,
+                driver=driver, flutter=flutter, reader=reader,
+                diagnostics=diagnostics,
+            )
+
     return 0
 
 

@@ -45,5 +45,8 @@ class NativeAcceptancePreferencesStore implements PreferencesStore {
     for (final key in await _keys()) {
       if (key.startsWith(_prefix)) await _delegate.remove(key);
     }
+    if ((await _keys()).any((key) => key.startsWith(_prefix))) {
+      throw StateError('Owned native preference cleanup readback failed.');
+    }
   }
 }
