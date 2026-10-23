@@ -15,11 +15,21 @@ public class InMemoryProvisioningIntentRepository implements ProvisioningIntentR
     @Override public Optional<ProvisioningIntent> findByProviderInvitationId(String id) {
         return intents.values().stream().filter(i -> id.equals(i.providerInvitationId())).findFirst();
     }
+    @Override public List<ProvisioningIntent> findByEmail(String tenant, String org, String email) {
+        return intents.values().stream().filter(i -> i.tenantId().equals(tenant) && i.organizationId().equals(org)
+                && i.invitedEmail().equalsIgnoreCase(email)).toList();
+    }
     @Override public List<ProvisioningIntent> findPendingByEmail(String tenant, String organization, String email) {
         return intents.values().stream()
                 .filter(i -> i.tenantId().equals(tenant) && i.organizationId().equals(organization))
                 .filter(i -> i.invitedEmail().equalsIgnoreCase(email) && i.status() == ProvisioningIntentStatus.PENDING)
                 .sorted(Comparator.comparing(ProvisioningIntent::createdAt).reversed()).toList();
+    }
+    @Override public List<ProvisioningIntent> findByActorAndCorrelation(
+            String tenant, String org, String issuer, String subject, String correlation) {
+        return intents.values().stream().filter(i -> i.tenantId().equals(tenant) && i.organizationId().equals(org)
+                && i.invitedByIssuer().equals(issuer) && i.invitedBySubject().equals(subject)
+                && i.auditCorrelation().equals(correlation)).toList();
     }
     @Override public List<ProvisioningIntent> findPendingByActor(
             String tenant, String organization, String invitedByIssuer, String invitedBySubject) {

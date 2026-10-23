@@ -40,7 +40,8 @@ class PrepareTest(unittest.TestCase):
         self.context = SimpleNamespace(environment="dogfood", isolated_namespace=None,
             generated_root=self.directory / "generated", tls_root=tls, secret_root=self.directory / "secrets",
             env={"WEAVE_PUBLIC_URL": "https://org.fixture.invalid", "WEAVE_API_ORIGIN": "https://api.fixture.invalid",
-                 "WEAVE_AUTH_URL": "https://auth.fixture.invalid"})
+                 "WEAVE_AUTH_URL": "https://auth.fixture.invalid", "WEAVE_API_URL": "https://api.fixture.invalid/api",
+                 "WEAVE_COMPOSE_PROJECT": "weave-dogfood-fixture", "WEAVE_RESOURCE_PREFIX": "weave-dogfood-fixture"})
 
     def checks(self):
         return [{"origin": self.context.env[key], "status": "passed", "category": "trusted", "nativeCode": 0, "httpStatus": 200}
@@ -132,7 +133,7 @@ class PrepareTest(unittest.TestCase):
                 patch.dict(os.environ, {"WEAVE_ENV_FILE": "/unreviewed/foreign.env"}), \
                 patch.object(prepare, "load_context", return_value=self.context) as load, \
                 patch.object(prepare, "preflight", return_value={"boundary": "administrator-preparation-required", "stage": "local-trust", "status": "incomplete"}), \
-                patch.object(prepare, "prepare_members", side_effect=lambda _c, result, *_p: result), \
+                patch.object(prepare, "prepare_members", side_effect=lambda _c, result, *_p, **_k: result), \
                 patch.object(prepare, "_private_json") as write, patch("sys.stdout", new_callable=io.StringIO):
             self.assertEqual(prepare.main(), 2)
         self.assertEqual(load.call_args.args[2], str(self.directory / ".weave/dogfood/reviewed-compose.env"))
@@ -307,7 +308,7 @@ class PrepareTest(unittest.TestCase):
         with patch.object(smoke, "Runner", return_value=fake_runner), patch("compose_runtime.verify_dogfood_identity"), \
                 patch("compose_runtime._service_container", return_value=backend), patch.object(prepare, "build_actors", side_effect=build), \
                 patch.object(prepare, "admin_driver", side_effect=ContractError("reviewed-test-member-plan-approval-required")):
-            observed = prepare.prepare_members(self.context, result, fixture, prepare.ledger_for(fixture))
+            observed = prepare.prepare_members(self.context, result, fixture, prepare.ledger_for(fixture), authorization_mode="console")
         self.assertEqual(observed["boundary"], "reviewed-test-member-plan-approval-required")
         self.assertFalse(observed["preparationComplete"])
         self.assertFalse(fixture.exists())
@@ -345,7 +346,7 @@ class PrepareTest(unittest.TestCase):
         with patch.object(smoke, "Runner", return_value=runner), patch("compose_runtime.verify_dogfood_identity"), \
                 patch("compose_runtime._service_container", return_value=backend), patch.object(prepare, "build_actors", side_effect=build), \
                 patch.object(prepare, "admin_driver", side_effect=admin), patch.object(prepare, "member_proof", side_effect=member):
-            observed = prepare.prepare_members(self.context, result, fixture, prepare.ledger_for(fixture))
+            observed = prepare.prepare_members(self.context, result, fixture, prepare.ledger_for(fixture), authorization_mode="console")
         self.assertEqual(signal.getsignal(signal.SIGTERM), before)
         return observed, fixture, calls
 
@@ -370,6 +371,74 @@ class PrepareTest(unittest.TestCase):
         result, fixture, _calls = self.execute_preparation(cleanup_failure=True)
         self.assertEqual(result["boundary"], "owned-preparation-simulator-cleanup-required")
         self.assertFalse(result["preparationComplete"]); self.assertFalse(fixture.exists())
+
+    def test_preparation_canonicalizes_only_its_new_directory_under_os_temp_alias(self):
+        real_root = self.directory / "os-temp-real"; real_root.mkdir(mode=0o700)
+        alias = self.directory / "os-temp-alias"; alias.symlink_to(real_root, target_is_directory=True)
+        sentinel = real_root / "unrelated"; sentinel.write_text("preserve")
+        original_temporary_directory = tempfile.TemporaryDirectory
+        created = []; used = []; deleted = []
+        def temporary_directory(**kwargs):
+            temporary = original_temporary_directory(dir=alias, **kwargs)
+            path = Path(temporary.name)
+            self.assertIn(alias, path.parents)  # Do not resolve the reproduction away.
+            self.assertTrue(alias.is_symlink())
+            created.append(path)
+            return temporary
+        def runner(directory):
+            used.append(directory)
+            def run(command, **kwargs):
+                if command[:3] == ["xcrun", "simctl", "delete"]: deleted.append(command[-1])
+                if command[-1] == "HEAD": return "a" * 40
+                if command[-1].endswith("^{tree}"): return "b" * 40
+                return ""
+            return SimpleNamespace(directory=directory, run=run, deadline=0)
+        def build(runner, _context, _candidate, devices):
+            # The existing XCTest producer also receives this canonical root.
+            private = runner.directory / "private-xctest-input.json"
+            prepare.private_write(private, {"owned": True})
+            self.assertEqual(prepare.private_read(private), {"owned": True})
+            devices.extend(["owned-A", "owned-B"])
+            return {slot: {"slot": slot} for slot in ("A", "B")}
+        receipts = []
+        def native(command, **kwargs):
+            self.assertEqual(command[-1], "--dogfood-admin-preparation")
+            invocation = json.loads(kwargs["input"])
+            path = Path(invocation["receiptOutputPath"])
+            self.assertIn(real_root, path.parents)
+            self.assertNotIn(alias, path.parents)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            plan = invocation["plan"]
+            grants = invocation["operation"] == "grants"
+            receipt = self.receipt(plan, "grants-ready" if grants else "invitations-ready",
+                                   invocation["proof"]["nonce"] if grants else plan["nonce"])
+            prepare.private_write(path, receipt)
+            receipts.append(path)
+            return SimpleNamespace(returncode=0, stdout="DOGFOOD_ADMIN_PREPARATION_RESULT status=passed boundary=none supportSafe=true\n")
+        def member(_runner, actor, _context, plan, *args):
+            return self.proof(plan, self.receipt(plan, "grants-ready"))["members"][0 if actor["slot"] == "A" else 1]
+        backend = {"Image": "sha256:" + "c" * 64, "Config": {"Labels": {"org.opencontainers.image.revision": "a" * 40}}}
+        fixture = self.directory / "private/identities.json"
+        result = {"trust": self.descriptor(), "localTrustStatus": "passed", "status": "incomplete", "preparationComplete": False}
+        with patch.object(prepare.tempfile, "TemporaryDirectory", side_effect=temporary_directory), \
+                patch.object(smoke, "Runner", side_effect=runner), patch("compose_runtime.verify_dogfood_identity"), \
+                patch("compose_runtime._service_container", return_value=backend), patch.object(prepare, "build_actors", side_effect=build), \
+                patch.object(prepare, "member_proof", side_effect=member), patch.object(prepare.subprocess, "run", side_effect=native):
+            observed = prepare.prepare_members(self.context, result, fixture, prepare.ledger_for(fixture), authorization_mode="console")
+        self.assertEqual(observed["boundary"], "ordinary-functional-smoke-required")
+        self.assertIs(observed["preparationComplete"], True)
+        self.assertEqual(used, [created[0].resolve()])
+        self.assertEqual(len(receipts), 2)
+        self.assertTrue(all(not path.exists() for path in [*created, *used, *receipts]))
+        self.assertEqual(deleted, ["owned-A", "owned-B"])
+        self.assertEqual(sentinel.read_text(), "preserve")
+        self.assertTrue(alias.is_symlink())
+        # Supplied paths receive no such normalization, including aliases that
+        # happen to target the exact same operator-owned private directory.
+        with self.assertRaises(ContractError): prepare.private_write(alias / "supplied.json", {})
+        with self.assertRaises(ContractError): effective_reviewed_env_file(alias / "reviewed-compose.env")
+        self.context.tls_root = alias
+        with self.assertRaises(ContractError): prepare.public_setup(self.context)
 
     def test_registration_requires_exact_single_ack_and_always_removes_private_transport(self):
         directory = prepare.private_directory(self.directory / "registration")
@@ -461,6 +530,396 @@ class PrepareTest(unittest.TestCase):
         with patch.object(prepare, "await_mail_link", return_value="private-link"), patch.object(prepare, "registration", side_effect=browser):
             with self.assertRaisesRegex(ContractError, "^normal-test-member-registration-required$"):
                 prepare.member_proof(None, None, self.context, plan, member, "unchanged-password", {}, record_registration=events.append)
+
+    def operator_candidate(self):
+        return {"candidateCommit": "a" * 40, "sourceTree": "b" * 40,
+                "specificationCommit": json.loads((prepare.ROOT / "specs/weave-specs.lock.json").read_text())["specCorpus"]["gitCommit"]}
+
+    def operator_backend(self):
+        return {"Id": "a" * 64, "Image": "sha256:" + "b" * 64, "State": {"Running": True},
+                "Config": {"Env": ["WEAVE_RELEASE_POSTURE=dogfood"], "Labels": {
+                    "org.opencontainers.image.revision": "a" * 40, "com.massimotter.weave.module": "server",
+                    "com.massimotter.weave.spec-digest": "sha256:" + hashlib.sha256((prepare.ROOT / "specs/weave-specs.lock.json").read_bytes()).hexdigest(),
+                    "com.docker.compose.project": self.context.env["WEAVE_COMPOSE_PROJECT"], "com.docker.compose.service": "backend",
+                    "com.massimotter.weave.namespace": self.context.env["WEAVE_RESOURCE_PREFIX"]}}}
+
+    def operator_envelope(self, request, *, boundary=None):
+        plan = request["plan"]; grants = request["operation"] == "grants"
+        receipt = {"schemaVersion": "weave.dogfood-operator-preparation-receipt/v1", "authorizationKind": "dogfood-operator",
+            "actorKind": "dogfood-operator", "actorRef": "operator:dogfood-prepare:" + plan["planId"],
+            **{key: request[key] for key in ("operation", "nonce", "environment", "candidateCommit", "sourceTree", "specificationCommit", "apiBaseUrl")},
+            "status": "passed", "stage": "grants-ready" if grants else "invitations-ready", "boundary": "none", "outcome": "VERIFIED",
+            **{key: plan[key] for key in ("planId", "organizationOrigin", "issuerUrl", "spaceRef")}, "organizationId": "tenant-fixture",
+            "intendedOwnerAccountRef": "acct_" + "3" * 32, "intendedOwnerMemberHandle": "mem_" + "O" * 32,
+            "members": [{"slot": slot, "intentRef": "00000000-0000-0000-0000-00000000000" + str(index),
+                         "invitationHandle": "inv_" + slot * 32, "memberHandle": "mem_" + slot * 32 if grants else None,
+                         "accountRef": "acct_" + str(index) * 32 if grants else None,
+                         "grantVersion": '"sm-1"' if grants else None, "intentState": "APPLIED" if grants else "PENDING",
+                         "grantOutcome": "VERIFIED" if grants else "NOT_REQUESTED"} for index, slot in enumerate(("A", "B"), 1)],
+            "supportSafe": True, "containsSecretValues": False}
+        if boundary:
+            receipt.update(status="blocked", stage="incomplete", outcome="PARTIAL", boundary=boundary)
+            if grants:
+                for member in receipt["members"]: member.update(grantVersion=None, grantOutcome="BLOCKED")
+        return {"schemaVersion": "weave.dogfood-operator-preparation-envelope/v1", "receipt": receipt,
+                "privateData": {"ownerDisplayName": "Actual private owner"}}
+
+    def test_operator_request_accepts_only_deterministic_plan_and_bound_nonce(self):
+        plan = prepare.new_plan(self.context); candidate = self.operator_candidate()
+        request = prepare.operator_request(self.context, plan, candidate, "invitations", None, None)
+        self.assertEqual(request["nonce"], request["plan"]["nonce"])
+        self.assertIsNone(request["proof"]); self.assertIsNone(request["previousReceipt"])
+        for key, wrong in (("email", "arbitrary@org.fixture.invalid"), ("displayName", "Another name"),
+                           ("invitationIdempotencyKey", "another-key"), ("role", "owner"), ("spaceRole", "ADMIN")):
+            broken = copy.deepcopy(plan); broken["members"][0][key] = wrong
+            with self.subTest(key=key), self.assertRaises(ContractError): prepare.operator_request(self.context, broken, candidate, "invitations", None, None)
+        with self.assertRaises(ContractError): prepare.operator_request(self.context, {**plan, "members": plan["members"][::-1]}, candidate, "invitations", None, None)
+        with self.assertRaises(ContractError): prepare.operator_request(self.context, plan, candidate, "grants", None, {"nonce": "f" * 32})
+        with self.assertRaises(ContractError): prepare.operator_request(self.context, plan, candidate, "invitations", self.receipt(plan), None)
+        old = self.operator_envelope(request)["receipt"]; before = copy.deepcopy(old)
+        current_plan = {**plan, "nonce": "f" * 32}; current_candidate = {**candidate, "candidateCommit": "c" * 40}
+        current_request = prepare.operator_request(self.context, current_plan, current_candidate, "invitations", old, None)
+        self.assertEqual(current_request["previousReceipt"], before)
+        self.assertEqual(current_request["previousReceipt"]["nonce"], plan["nonce"])
+        prepare.validate_operator_envelope(self.operator_envelope(current_request), current_request, old)
+
+    def test_operator_envelope_rejects_mixed_authority_stale_bindings_and_unknown_fields(self):
+        plan = prepare.new_plan(self.context)
+        request = prepare.operator_request(self.context, plan, self.operator_candidate(), "invitations", None, None)
+        value = self.operator_envelope(request); prepare.validate_operator_envelope(value, request)
+        for mutation in ("authority", "actor", "admin", "nonce", "source", "tree", "spec", "plan", "api", "owner", "unknown-member", "duplicate-ref", "unknown-private", "private-control", "name-too-long", "false-safe"):
+            broken = copy.deepcopy(value); receipt = broken["receipt"]
+            if mutation == "authority": receipt["authorizationKind"] = "human-administrator"
+            if mutation == "actor": receipt["actorRef"] = receipt["intendedOwnerAccountRef"]
+            if mutation == "admin": receipt["administratorAccountRef"] = "human-admin"
+            if mutation == "nonce": receipt["nonce"] = "f" * 32
+            if mutation == "source": receipt["candidateCommit"] = "c" * 40
+            if mutation == "tree": receipt["sourceTree"] = "d" * 40
+            if mutation == "spec": receipt["specificationCommit"] = "e" * 40
+            if mutation == "plan": receipt["planId"] = "e" * 32
+            if mutation == "api": receipt["apiBaseUrl"] = "https://foreign.invalid/api"
+            if mutation == "owner": receipt["intendedOwnerAccountRef"] = "provider-subject"
+            if mutation == "unknown-member": receipt["members"][0]["password"] = "private"
+            if mutation == "duplicate-ref": receipt["members"][1]["intentRef"] = receipt["members"][0]["intentRef"]
+            if mutation == "unknown-private": broken["privateData"]["session"] = "private"
+            if mutation == "private-control": broken["privateData"]["ownerDisplayName"] = "Owner\u0085name"
+            if mutation == "name-too-long": broken["privateData"]["ownerDisplayName"] = "x" * 201
+            if mutation == "false-safe": receipt["containsSecretValues"] = True
+            with self.subTest(mutation=mutation), self.assertRaises(ContractError): prepare.validate_operator_envelope(broken, request)
+
+    def test_operator_failure_keeps_typed_partial_references_without_claiming_success(self):
+        request = prepare.operator_request(self.context, prepare.new_plan(self.context), self.operator_candidate(), "invitations", None, None)
+        partial = self.operator_envelope(request, boundary="invitation-outcome-uncertain")
+        self.assertEqual(prepare.validate_operator_envelope(partial, request)["receipt"]["status"], "blocked")
+        old = partial["receipt"]
+        current = copy.deepcopy(partial); current["receipt"]["members"][0]["intentRef"] = "00000000-0000-0000-0000-000000000003"
+        with self.assertRaises(ContractError): prepare.validate_operator_envelope(current, request, old)
+        current = copy.deepcopy(partial); current["receipt"]["boundary"] = "reset-and-retry"
+        with self.assertRaises(ContractError): prepare.validate_operator_envelope(current, request)
+
+    def test_operator_backend_requires_exact_running_candidate_labels_posture_and_namespace(self):
+        runner = SimpleNamespace(run=lambda *a, **k: "b" * 40)
+        backend = self.operator_backend(); candidate = self.operator_candidate()
+        prepare.operator_backend(self.context, candidate, backend, runner)
+        for key in backend["Config"]["Labels"]:
+            changed = copy.deepcopy(backend); changed["Config"]["Labels"][key] = "wrong"
+            with self.subTest(label=key), self.assertRaises(ContractError): prepare.operator_backend(self.context, candidate, changed, runner)
+        for mutation in ("posture", "duplicate-posture", "stopped", "container", "image", "bootstrap"):
+            changed = copy.deepcopy(backend)
+            if mutation == "posture": changed["Config"]["Env"] = ["WEAVE_RELEASE_POSTURE=stable"]
+            if mutation == "duplicate-posture": changed["Config"]["Env"] *= 2
+            if mutation == "stopped": changed["State"]["Running"] = False
+            if mutation == "container": changed["Id"] = "backend"
+            if mutation == "image": changed["Image"] = "backend:latest"
+            if mutation == "bootstrap": changed["Config"]["Env"].append("WEAVE_IDENTITY_BOOTSTRAP_OWNER_ENABLED=true")
+            with self.subTest(mutation=mutation), self.assertRaises(ContractError): prepare.operator_backend(self.context, candidate, changed, runner)
+        with self.assertRaises(ContractError): prepare.operator_backend(self.context, candidate, backend, SimpleNamespace(run=lambda *a, **k: "c" * 40))
+        self.context.environment = "prod"
+        with self.assertRaises(ContractError): prepare.operator_backend(self.context, candidate, backend, runner)
+
+    def test_operator_invalid_context_or_foreign_container_blocks_before_build_or_command(self):
+        descriptor = self.descriptor()
+        for mutation in ("production", "isolated", "foreign-project", "wrong-spec", "wrong-posture"):
+            context = copy.copy(self.context); backend = self.operator_backend()
+            if mutation == "production": context.environment = "prod"
+            if mutation == "isolated": context.isolated_namespace = "owned-e2e"
+            if mutation == "foreign-project": backend["Config"]["Labels"]["com.docker.compose.project"] = "foreign"
+            if mutation == "wrong-spec": backend["Config"]["Labels"]["com.massimotter.weave.spec-digest"] = "sha256:" + "0" * 64
+            if mutation == "wrong-posture": backend["Config"]["Env"] = ["WEAVE_RELEASE_POSTURE=stable"]
+            runner = SimpleNamespace(run=lambda command, **kwargs: "a" * 40 if command[-1] == "HEAD" else "b" * 40 if command[-1].endswith("^{tree}") else "")
+            fixture = self.directory / (mutation + "/identities.json")
+            result = {"trust": descriptor, "localTrustStatus": "passed", "status": "incomplete", "preparationComplete": False}
+            with self.subTest(mutation=mutation), patch.object(smoke, "Runner", return_value=runner), \
+                    patch("compose_runtime.verify_dogfood_identity"), patch("compose_runtime._service_container", return_value=backend), \
+                    patch.object(prepare, "build_actors") as build, patch.object(prepare, "operator_driver") as command:
+                result = prepare.prepare_members(context, result, fixture, prepare.ledger_for(fixture))
+            self.assertFalse(result["preparationComplete"])
+            build.assert_not_called(); command.assert_not_called()
+            self.assertFalse(fixture.exists()); self.assertFalse(prepare.ledger_for(fixture).exists())
+
+    def test_operator_authority_is_absent_from_ordinary_startup_and_readiness(self):
+        scripts = prepare.ROOT / "infra/weave-workspace/scripts"
+        for name in ("dogfood_lifecycle.py", "compose_runtime.py", "dogfood_identity_readiness.py"):
+            source = (scripts / name).read_text()
+            for operation in ("dogfood-prepare-members", "operator_driver(", "dogfood_prepare.prepare_members"):
+                with self.subTest(file=name, operation=operation): self.assertNotIn(operation, source)
+        tasks = (prepare.ROOT / "gradle/tasks/architecture-lifecycle.gradle").read_text()
+        up = tasks.split("tasks.register('dogfoodUp', Exec)", 1)[1].split("\n}\n", 1)[0]
+        self.assertNotIn("dogfoodPrepare", up); self.assertNotIn("dogfood_prepare.py", up)
+
+    def test_operator_transport_uses_fixed_stdin_private_envelope_and_exit_agreement(self):
+        directory = prepare.private_directory(self.directory / "driver")
+        plan = prepare.new_plan(self.context); backend = self.operator_backend(); candidate = self.operator_candidate()
+        request = prepare.operator_request(self.context, plan, candidate, "invitations", None, None)
+        value = self.operator_envelope(request)
+        def execute(command, **kwargs):
+            self.assertEqual(command, ["docker", "exec", "-i", backend["Id"], "java", "-jar", "/app/app.jar", "dogfood-prepare-members"])
+            self.assertNotIn("https", " ".join(command)); self.assertNotIn("-e", command)
+            self.assertEqual(json.loads(kwargs["input"]), request)
+            self.assertEqual(kwargs["timeout"], 210)
+            self.assertEqual(os.fstat(kwargs["stdout"].fileno()).st_mode & 0o777, 0o600)
+            kwargs["stdout"].write(("private framework diagnostics\nWEAVE_DOGFOOD_OPERATOR_PREPARATION_RESULT " + json.dumps(value) + "\n").encode())
+            return SimpleNamespace(returncode=0)
+        with patch.object(prepare.subprocess, "run", side_effect=execute):
+            self.assertEqual(prepare.operator_driver(self.context, backend, plan, candidate, directory, "invitations"), value)
+        self.assertEqual(list(directory.iterdir()), [])
+        blocked = self.operator_envelope(request, boundary="invitation-outcome-uncertain")
+        def blocked_result(command, **kwargs):
+            kwargs["stdout"].write(("WEAVE_DOGFOOD_OPERATOR_PREPARATION_RESULT " + json.dumps(blocked) + "\n").encode())
+            return SimpleNamespace(returncode=2)
+        with patch.object(prepare.subprocess, "run", side_effect=blocked_result):
+            self.assertEqual(prepare.operator_driver(self.context, backend, plan, candidate, directory, "invitations"), blocked)
+        for mutation in ("zero-blocked", "nonzero-passed", "missing", "duplicate", "duplicate-json-key", "unknown-json-key", "oversize", "timeout"):
+            def invalid(command, **kwargs):
+                if mutation == "timeout": raise subprocess.TimeoutExpired(command, 210)
+                envelope = self.operator_envelope(request, boundary="owner-unavailable") if mutation == "zero-blocked" else copy.deepcopy(value)
+                if mutation == "unknown-json-key": envelope["extra"] = "private"
+                encoded = json.dumps(envelope)
+                if mutation == "duplicate-json-key": encoded = encoded.replace('"authorizationKind": "dogfood-operator"', '"authorizationKind": "human", "authorizationKind": "dogfood-operator"')
+                if mutation == "oversize": encoded += " " * 16384
+                marker = "WEAVE_DOGFOOD_OPERATOR_PREPARATION_RESULT " + encoded + "\n"
+                kwargs["stdout"].write(("missing" if mutation == "missing" else marker * (2 if mutation == "duplicate" else 1)).encode())
+                return SimpleNamespace(returncode=1 if mutation == "nonzero-passed" else 0)
+            with self.subTest(mutation=mutation), patch.object(prepare.subprocess, "run", side_effect=invalid), self.assertRaises(ContractError):
+                prepare.operator_driver(self.context, backend, plan, candidate, directory, "invitations")
+            self.assertEqual(list(directory.iterdir()), [])
+
+    def test_operator_ledger_upgrades_only_unenacted_console_plan_without_changing_passwords(self):
+        path = self.directory / "private/ledger.json"; fixture = path.with_name("identities.json")
+        original = prepare.preparation_ledger(self.context, path, "fingerprint")
+        upgraded = prepare.operator_ledger(self.context, path, "fingerprint", fixture)
+        self.assertEqual(upgraded["schemaVersion"], "weave.dogfood-operator-preparation-ledger/v1")
+        self.assertEqual(upgraded["authorizationKind"], "dogfood-operator")
+        self.assertEqual(upgraded["plan"], original["plan"]); self.assertEqual(upgraded["passwords"], original["passwords"])
+        self.assertEqual(prepare.operator_ledger(self.context, path, "fingerprint", fixture), upgraded)
+        for mutation in ("issued", "owner", "fixture", "activated", "arbitrary-plan"):
+            broken = copy.deepcopy(original)
+            if mutation == "issued": broken["invitationReceipt"] = self.receipt(original["plan"])
+            if mutation == "owner": broken["ownerBinding"] = {"accountDigest": "a" * 64}
+            if mutation == "activated": broken["registrationState"]["A"] = "activation-started"
+            if mutation == "arbitrary-plan": broken["plan"]["members"][0]["email"] = "someone@org.fixture.invalid"
+            if mutation == "fixture": prepare.private_write(fixture, {"existing": "do not adopt"})
+            prepare.private_write(path, broken)
+            with self.subTest(mutation=mutation), self.assertRaises(ContractError): prepare.operator_ledger(self.context, path, "fingerprint", fixture)
+            self.assertEqual(prepare.private_read(path), broken)
+            fixture.unlink(missing_ok=True)
+
+    def execute_operator_preparation(self, *, boundary=None, bad_proof=False, cleanup_failure=False,
+                                     interrupt_after_invitations=False, stale_version=False, calls=None):
+        result = {"trust": self.descriptor(), "localTrustStatus": "passed", "status": "incomplete", "preparationComplete": False}
+        fixture = self.directory / "private/operator-identities.json"; ledger_path = prepare.ledger_for(fixture)
+        backend = self.operator_backend(); calls = calls if calls is not None else []
+        def run(command, **kwargs):
+            if command[:3] == ["xcrun", "simctl", "delete"]:
+                calls.append(["delete", command[-1]])
+                if cleanup_failure: raise smoke.SmokeError("native-command-failed")
+            if command[-1] == "HEAD": return "a" * 40
+            if command[-1].endswith("^{tree}"): return "b" * 40
+            return ""
+        def build(_runner, _context, _candidate, devices):
+            calls.append(["build"]); devices.extend(["owned-A", "owned-B"])
+            return {slot: {"slot": slot} for slot in ("A", "B")}
+        def invoke(context, actual_backend, plan, candidate, directory, operation, previous=None, proof=None):
+            self.assertEqual(actual_backend["Id"], backend["Id"])
+            request = prepare.operator_request(context, plan, candidate, operation, previous, proof)
+            if operation == "grants":
+                self.assertEqual(request["nonce"], request["plan"]["nonce"])
+                self.assertEqual(request["nonce"], request["proof"]["nonce"])
+                self.assertNotEqual(previous["nonce"], request["nonce"])
+            calls.append([operation, copy.deepcopy(previous)])
+            if stale_version and operation == "grants":
+                self.assertEqual(previous["stage"], "grants-ready")
+                self.assertTrue(all(m["grantVersion"] == '"sm-1"' for m in previous["members"]))
+            envelope = self.operator_envelope(request, boundary=("space-version-conflict" if stale_version else boundary) if operation == "grants" else None)
+            if operation == "invitations" and previous:
+                for old, current in zip(previous["members"], envelope["receipt"]["members"]):
+                    if old["accountRef"]:
+                        current.update(accountRef=old["accountRef"], memberHandle=old["memberHandle"], intentState="APPLIED")
+            return prepare.validate_operator_envelope(envelope, request, previous)
+        def member(_runner, actor, context, plan, planned, password, invitation, state, record):
+            calls.append(["identity", actor["slot"]])
+            if interrupt_after_invitations:
+                raise smoke.SmokeError("native-command-failed")
+            self.assertEqual(prepare.private_read(ledger_path, 65536)["passwords"][actor["slot"]], password)
+            record("registration-complete")
+            return {"slot": actor["slot"], "accountDigest": "0" * 64 if bad_proof else prepare.identity_digest("weave-account", plan["issuerUrl"], "acct_" + ("1" if actor["slot"] == "A" else "2") * 32),
+                    "organizationDigest": prepare.identity_digest("weave-organization", plan["issuerUrl"], "tenant-fixture")}
+        def runner(directory): return SimpleNamespace(directory=directory, run=run, deadline=0)
+        with patch.object(smoke, "Runner", side_effect=runner), patch("compose_runtime.verify_dogfood_identity"), \
+                patch("compose_runtime._service_container", return_value=backend), patch.object(prepare, "build_actors", side_effect=build), \
+                patch.object(prepare, "operator_driver", side_effect=invoke), patch.object(prepare, "member_proof", side_effect=member), \
+                patch.object(prepare, "admin_driver") as admin:
+            result = prepare.prepare_members(self.context, result, fixture, ledger_path)
+        admin.assert_not_called()
+        return result, fixture, ledger_path, calls
+
+    def test_operator_preparation_requires_two_native_proofs_current_grants_cleanup_and_private_owner_binding(self):
+        result, fixture, ledger_path, calls = self.execute_operator_preparation()
+        self.assertTrue(result["preparationComplete"])
+        self.assertEqual(result["authorizationKind"], "dogfood-operator")
+        self.assertEqual([row[0] for row in calls], ["build", "invitations", "identity", "identity", "grants", "delete", "delete"])
+        ledger = prepare.private_read(ledger_path, 65536)
+        self.assertNotIn("administratorAccountRef", json.dumps(ledger))
+        self.assertEqual(ledger["schemaVersion"], "weave.dogfood-operator-preparation-ledger/v1")
+        self.assertNotIn("Actual private owner", json.dumps(result))
+        self.assertNotIn("operatorEnvelope", result)
+        binding = smoke.approved_identity_binding(self.context, fixture, prepare.private_read(fixture))
+        self.assertNotEqual(binding["owner"]["accountDigest"], binding["members"]["A"]["accountDigest"])
+        for mutation in ("human-authority", "mixed-receipt", "revoked", "password", "owner"):
+            broken = copy.deepcopy(ledger)
+            if mutation == "human-authority": broken["authorizationKind"] = "human-administrator"
+            if mutation == "mixed-receipt": broken["invitationReceipt"] = self.receipt(ledger["plan"])
+            if mutation == "revoked": broken["operatorEnvelope"]["receipt"].update(status="blocked", stage="incomplete", outcome="BLOCKED", boundary="space-access-conflict")
+            if mutation == "password": broken["passwords"]["A"] = "changed-long-enough-private-password"
+            if mutation == "owner": broken["operatorEnvelope"]["receipt"]["intendedOwnerAccountRef"] = "acct_" + "4" * 32
+            prepare.private_write(ledger_path, broken)
+            with self.subTest(mutation=mutation), self.assertRaises(ContractError): prepare.fixture_binding(self.context, fixture, prepare.private_read(fixture))
+        prepare.private_write(ledger_path, ledger)
+
+    def test_operator_partial_grant_failure_retains_intent_references_and_never_publishes_fixture(self):
+        result, fixture, ledger_path, calls = self.execute_operator_preparation(boundary="space-access-conflict")
+        self.assertFalse(result["preparationComplete"]); self.assertFalse(fixture.exists())
+        self.assertEqual(result["boundary"], "dogfood-operator-space-access-conflict")
+        receipt = prepare.private_read(ledger_path, 65536)["operatorEnvelope"]["receipt"]
+        self.assertEqual(receipt["status"], "blocked")
+        self.assertTrue(all(m["intentRef"] and m["invitationHandle"] for m in receipt["members"]))
+        self.assertEqual(calls[-2:], [["delete", "owned-A"], ["delete", "owned-B"]])
+
+    def test_operator_resume_preserves_passwords_plan_and_previous_receipt_nonce(self):
+        _result, fixture, ledger_path, _calls = self.execute_operator_preparation()
+        before = prepare.private_read(ledger_path, 65536)
+        result, _, _, calls = self.execute_operator_preparation()
+        after = prepare.private_read(ledger_path, 65536)
+        self.assertTrue(result["preparationComplete"])
+        self.assertEqual(before["passwords"], after["passwords"]); self.assertEqual(before["plan"], after["plan"])
+        self.assertEqual(calls[1][1], before["operatorEnvelope"]["receipt"])
+        self.assertNotEqual(before["operatorEnvelope"]["receipt"]["nonce"], after["operatorEnvelope"]["receipt"]["nonce"])
+        self.assertEqual(before["operatorEnvelope"]["receipt"]["members"], after["operatorEnvelope"]["receipt"]["members"])
+
+    def test_durable_grants_survive_invitation_refresh_interruption_reload_and_reach_resumed_grants(self):
+        _result, fixture, ledger_path, _calls = self.execute_operator_preparation()
+        original = prepare.private_read(ledger_path, 65536)
+        durable = copy.deepcopy(original["lastGrantsEnvelope"])
+        content = fixture.read_bytes()
+        result, _, _, _ = self.execute_operator_preparation(interrupt_after_invitations=True)
+        self.assertFalse(result["preparationComplete"])
+        interrupted = prepare.private_read(ledger_path, 65536)
+        self.assertEqual(interrupted["operatorEnvelope"]["receipt"]["stage"], "invitations-ready")
+        self.assertTrue(all(m["grantVersion"] is None for m in interrupted["operatorEnvelope"]["receipt"]["members"]))
+        self.assertEqual(interrupted["lastGrantsEnvelope"], durable)
+        reloaded = prepare.operator_ledger(self.context, ledger_path, self.descriptor()["caSha256Fingerprint"], fixture)
+        self.assertEqual(reloaded["lastGrantsEnvelope"], durable)
+        result, _, _, calls = self.execute_operator_preparation()
+        self.assertTrue(result["preparationComplete"])
+        grants_call, = [row for row in calls if row[0] == "grants"]
+        self.assertEqual(grants_call[1], durable["receipt"])
+        self.assertEqual(fixture.read_bytes(), content)
+        self.assertEqual(prepare.private_read(ledger_path, 65536)["passwords"], original["passwords"])
+
+    def test_stale_durable_grant_version_blocks_publication_after_invitation_refresh(self):
+        _result, fixture, ledger_path, _calls = self.execute_operator_preparation()
+        durable = copy.deepcopy(prepare.private_read(ledger_path, 65536)["lastGrantsEnvelope"])
+        original = fixture.read_bytes()
+        self.execute_operator_preparation(interrupt_after_invitations=True)
+        with patch.object(prepare, "publish_fixture", wraps=prepare.publish_fixture) as publish:
+            result, _, _, _ = self.execute_operator_preparation(stale_version=True)
+        self.assertFalse(result["preparationComplete"])
+        self.assertEqual(result["boundary"], "dogfood-operator-space-version-conflict")
+        publish.assert_not_called()
+        ledger = prepare.private_read(ledger_path, 65536)
+        self.assertEqual(ledger["lastGrantsEnvelope"], durable)
+        self.assertEqual(ledger["operatorEnvelope"]["receipt"]["boundary"], "space-version-conflict")
+        self.assertEqual(fixture.read_bytes(), original)
+        with self.assertRaises(smoke.SmokeError):
+            smoke.approved_identity_binding(self.context, fixture, prepare.private_read(fixture))
+
+    def test_durable_grants_evidence_rejects_mixed_owner_intent_authority_and_changed_versions(self):
+        _result, fixture, ledger_path, _calls = self.execute_operator_preparation()
+        original = prepare.private_read(ledger_path, 65536)
+        for mutation in ("authority", "owner", "intent", "version", "phase", "orphan", "organization", "api", "issuer", "space"):
+            broken = copy.deepcopy(original); receipt = broken["lastGrantsEnvelope"]["receipt"]
+            if mutation == "authority": receipt["authorizationKind"] = "human-administrator"
+            if mutation == "owner": receipt["intendedOwnerAccountRef"] = "acct_" + "4" * 32
+            if mutation == "intent": receipt["members"][0]["intentRef"] = "00000000-0000-0000-0000-000000000003"
+            if mutation == "version": receipt["members"][0]["grantVersion"] = '"sm-2"'
+            if mutation == "phase": receipt["stage"] = "invitations-ready"
+            if mutation == "orphan": del broken["operatorEnvelope"]
+            if mutation == "organization": receipt["organizationOrigin"] = "https://foreign.fixture.invalid"
+            if mutation == "api": receipt["apiBaseUrl"] = "https://foreign-api.fixture.invalid/api"
+            if mutation == "issuer": receipt["issuerUrl"] = "https://foreign-auth.fixture.invalid/realms/weave"
+            if mutation == "space": receipt["spaceRef"] = "foreign-space"
+            prepare.private_write(ledger_path, broken)
+            with self.subTest(mutation=mutation), self.assertRaises(ContractError):
+                prepare.operator_ledger(self.context, ledger_path, self.descriptor()["caSha256Fingerprint"], fixture)
+        prepare.private_write(ledger_path, original)
+
+    def test_legacy_operator_ledger_recovers_only_exact_existing_grants_and_blocks_lost_evidence(self):
+        _result, fixture, ledger_path, _calls = self.execute_operator_preparation()
+        original = prepare.private_read(ledger_path, 65536)
+        legacy = copy.deepcopy(original); del legacy["lastGrantsEnvelope"]
+        prepare.private_write(ledger_path, legacy)
+        restored = prepare.operator_ledger(self.context, ledger_path, self.descriptor()["caSha256Fingerprint"], fixture)
+        self.assertEqual(restored["lastGrantsEnvelope"], original["operatorEnvelope"])
+        self.execute_operator_preparation(interrupt_after_invitations=True)
+        lost = prepare.private_read(ledger_path, 65536); del lost["lastGrantsEnvelope"]
+        prepare.private_write(ledger_path, lost)
+        with self.assertRaisesRegex(ContractError, "^dogfood-operator-grant-evidence-required$"):
+            prepare.operator_ledger(self.context, ledger_path, self.descriptor()["caSha256Fingerprint"], fixture)
+        self.assertEqual(prepare.private_read(ledger_path, 65536), lost)
+
+    def test_operator_invalid_native_proof_or_cleanup_failure_cannot_publish_fixture(self):
+        result, fixture, _, _ = self.execute_operator_preparation(bad_proof=True)
+        self.assertFalse(result["preparationComplete"]); self.assertFalse(fixture.exists())
+        self.assertEqual(result["boundary"], "normal-test-member-identity-proof-conflict")
+        result, fixture, _, _ = self.execute_operator_preparation(cleanup_failure=True)
+        self.assertFalse(result["preparationComplete"]); self.assertFalse(fixture.exists())
+        self.assertEqual(result["boundary"], "owned-preparation-simulator-cleanup-required")
+
+    def test_initial_activation_rejects_existing_user_action_token_without_checkpoint_or_browser(self):
+        self.context.env["WEAVE_MAILPIT_WEB_HOST_PORT"] = "8025"
+        plan = prepare.new_plan(self.context); member = plan["members"][0]
+        action = plan["issuerUrl"] + "/login-actions/action-token?client_id=account&key=private-existing-user-invitation"
+        self.assertEqual(prepare.action_links({"HTML": action}, plan["issuerUrl"], False), set())
+        class Response:
+            status = 200
+            def __init__(self, value): self.value = value
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def read(self, maximum): return json.dumps(self.value).encode()
+        def fetch(url, **kwargs):
+            return Response({"messages": [{"ID": "private-mail", "To": [{"Address": member["email"]}]}], "total": 1}
+                            if "/messages?" in url else {"To": [{"Address": member["email"]}], "HTML": action})
+        clock = 0
+        def now():
+            nonlocal clock
+            clock += 31; return clock
+        with patch.object(prepare.urllib.request, "build_opener", return_value=SimpleNamespace(open=fetch)), \
+                patch.object(prepare.time, "monotonic", side_effect=now), patch.object(prepare, "registration") as browser, \
+                patch.object(smoke, "restart") as restart:
+            states = []
+            with self.assertRaisesRegex(ContractError, "^test-member-activation-mail-required$"):
+                prepare.member_proof(None, None, self.context, plan, member, "private-generated-password", {"invitationHandle": "inv_" + "A" * 32}, record_registration=states.append)
+        self.assertEqual(states, []); browser.assert_not_called(); restart.assert_not_called()
 
 
 if __name__ == "__main__":

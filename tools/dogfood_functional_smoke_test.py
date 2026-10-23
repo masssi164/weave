@@ -2,6 +2,7 @@
 """Offline negative tests for real UI producer/receipt boundaries, never live proof."""
 import ast
 import copy
+import io
 import json
 import os
 from pathlib import Path
@@ -47,11 +48,13 @@ class FunctionalSmokeTest(unittest.TestCase):
             path = Path(directory) / 'identities.json'
             context = SimpleNamespace()
             with patch.object(prepare, 'preflight', return_value={'status': 'incomplete'}) as preflight, \
-                    patch.object(prepare, 'prepare_members', return_value={'preparationComplete': False, 'boundary': 'reviewed-test-member-plan-approval-required'}) as members, \
-                    patch.object(smoke, '_dogfood_session_lock') as lock:
-                with self.assertRaisesRegex(smoke.SmokeError, '^reviewed-test-member-plan-approval-required$'):
+                    patch.object(prepare, 'prepare_members', return_value={'preparationComplete': False, 'boundary': 'dogfood-operator-owner-space-access-conflict'}) as members, \
+                    patch.object(smoke, '_dogfood_session_lock') as lock, patch('sys.stdout', new_callable=io.StringIO) as output:
+                with self.assertRaisesRegex(smoke.SmokeError, '^dogfood-operator-owner-space-access-conflict$'):
                     smoke.ensure_prepared_identities(context, path)
             preflight.assert_called_once(); members.assert_called_once(); lock.assert_not_called()
+            self.assertEqual(members.call_args.kwargs, {'authorization_mode': 'operator'})
+            self.assertIn('stage=explicit-test-member-preparation', output.getvalue())
             path.write_text('existing')
             with patch.object(prepare, 'preflight') as preflight:
                 smoke.ensure_prepared_identities(context, path)

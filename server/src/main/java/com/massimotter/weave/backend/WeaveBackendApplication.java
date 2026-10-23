@@ -72,6 +72,10 @@ public class WeaveBackendApplication {
                 RuntimeStateWrappingKeyCli.main(operatorArguments);
                 return;
             }
+            if ("dogfood-prepare-members".equals(args[0])) {
+                com.massimotter.weave.backend.dogfood.DogfoodPreparationCli.main(operatorArguments);
+                return;
+            }
             if ("schema-init".equals(args[0])) {
                 SchemaAuthorityInitializer.main(operatorArguments);
                 return;
