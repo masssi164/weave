@@ -21,6 +21,33 @@ import run_native_product_acceptance as macos
 
 
 class NativeQualificationTest(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('swiftc'), 'Swift compiler is unavailable for the no-AX receipt reducer')
+    def test_admin_receipt_fresh_approval_and_resume_execute_actual_swift_reducer(self):
+        source = (Path(__file__).parent / 'native_macos_appauth_driver.swift').read_text()
+        reducer = source.split('// BEGIN ADMIN PREPARATION RECEIPT REDUCER\n', 1)[1].split('// END ADMIN PREPARATION RECEIPT REDUCER', 1)[0]
+        checks = r'''
+assert(adminPreparationReceiptOrigin(importedHere: true, receiptNonce: "new", requestedNonce: "new") == "fresh")
+assert(adminPreparationReceiptOrigin(importedHere: false, receiptNonce: "new", requestedNonce: "new") == "reject")
+assert(adminPreparationReceiptOrigin(importedHere: false, receiptNonce: "old", requestedNonce: "new") == "refresh")
+assert(adminPreparationReceiptOrigin(importedHere: true, receiptNonce: "old", requestedNonce: "new") == "reject")
+assert(adminPreparationReceiptMayComplete(operation: "invitations", importedHere: true, refreshRequested: false, proofImported: false, receiptNonce: "new", requestedNonce: "new", stage: "invitations-ready"))
+assert(!adminPreparationReceiptMayComplete(operation: "invitations", importedHere: false, refreshRequested: false, proofImported: false, receiptNonce: "new", requestedNonce: "new", stage: "invitations-ready"))
+assert(adminPreparationReceiptMayComplete(operation: "invitations", importedHere: false, refreshRequested: true, proofImported: false, receiptNonce: "new", requestedNonce: "new", stage: "grants-ready"))
+assert(!adminPreparationReceiptMayComplete(operation: "grants", importedHere: false, refreshRequested: true, proofImported: false, receiptNonce: "new", requestedNonce: "new", stage: "grants-ready"))
+assert(adminPreparationReceiptMayComplete(operation: "grants", importedHere: false, refreshRequested: true, proofImported: true, receiptNonce: "new", requestedNonce: "new", stage: "grants-ready"))
+assert(!adminPreparationReceiptMayComplete(operation: "grants", importedHere: false, refreshRequested: true, proofImported: true, receiptNonce: "old", requestedNonce: "new", stage: "grants-ready"))
+assert(!adminPreparationReceiptMayComplete(operation: "grants", importedHere: false, refreshRequested: true, proofImported: true, receiptNonce: "new", requestedNonce: "new", stage: "invitations-ready"))
+print("receipt-reducer-passed")
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            swift = Path(directory) / 'main.swift'; swift.write_text(reducer + checks)
+            executable = Path(directory) / 'receipt-reducer'
+            compiled = subprocess.run(['swiftc', str(swift), '-o', str(executable)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            result = subprocess.run([str(executable)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), 'receipt-reducer-passed')
+
     def test_macos_origin_reuses_strict_private_handoff_and_rejects_run_path(self):
         with tempfile.TemporaryDirectory() as directory:
             client = Path(directory)

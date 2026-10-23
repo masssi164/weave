@@ -91,6 +91,38 @@ def identities(path: Path, origin: str, physical: bool) -> dict:
     return value
 
 
+def ensure_prepared_identities(context, path: Path) -> None:
+    """Missing inputs invoke the explicit preparation, outside the smoke lock."""
+    if path.exists() or path.is_symlink():
+        return
+    from dogfood_prepare import preflight, prepare_members, ledger_for
+    from compose_env import ContractError
+    try:
+        result = preflight(context, Path.home() / '.weave/dogfood/public-setup')
+        result = prepare_members(context, result, path, ledger_for(path))
+        if result.get('preparationComplete') is not True:
+            raise SmokeError(result['boundary'])
+    except ContractError:
+        raise SmokeError('approved-test-member-preparation-required') from None
+
+
+def approved_identity_binding(context, path: Path, approved: dict) -> dict:
+    from dogfood_prepare import fixture_binding
+    from compose_env import ContractError
+    try:
+        return fixture_binding(context, path, approved)
+    except (ContractError, KeyError, TypeError, ValueError):
+        raise SmokeError('approved-test-member-preparation-binding-required') from None
+
+
+def verify_actor_binding(binding: dict, resources: dict, stage: str, role: str) -> None:
+    expected = binding['owner'] if stage == 'physical' and role == 'A' else binding['members'][role]
+    account = resources.get('account' if role == 'A' else 'peerAccount')
+    if account != expected['accountDigest'] or resources.get('organization') != expected['organizationDigest']:
+        raise SmokeError('retained-owner-identity-mismatch' if stage == 'physical' and role == 'A'
+                         else 'approved-current-test-member-identity-mismatch')
+
+
 def parse_ui_result(output: str, fixture: dict) -> dict:
     results = []
     for line in output.splitlines():
@@ -354,6 +386,8 @@ def main() -> int:
             canonical_origin(value)
         receipt.update(sourceTree=tree, specificationCommit=spec, qualificationRunId=args.qualification_run_id,
                        qualificationRunAttempt=args.qualification_run_attempt)
+        if not args.diagnostic_only:
+            ensure_prepared_identities(context, args.identity_file)
         with _dogfood_session_lock(context), tempfile.TemporaryDirectory(prefix='weave-functional-') as temporary:
             directory = Path(temporary); directory.chmod(0o700)
             runner = Runner(directory)
@@ -405,6 +439,7 @@ def main() -> int:
                 if args.diagnostic_only:
                     raise SmokeError('diagnostic-only-not-functional-acceptance')
             approved = identities(args.identity_file, origin, args.stage == 'physical')
+            binding = approved_identity_binding(context, args.identity_file, approved)
             runtime, device_type = select_runtime()
             runner.run(['flutter', 'build', 'ios', '--simulator', '--debug', '--target=lib/main.dart',
                         '--dart-define=WEAVE_CANDIDATE_COMMIT=' + args.candidate,
@@ -444,7 +479,8 @@ def main() -> int:
                 receipt['boundaryOperation'] = role + ':' + (evidence_name or operation)
                 restart(runner, actors[role])
                 fixture = {**base, 'nonce': secrets.token_hex(16), 'operation': operation,
-                           'participant': approved['members'][1]['displayName'] if role == 'A' else approved['ownerDisplayName'],
+                           'participant': approved['members'][1]['displayName'] if role == 'A' else
+                                          approved['ownerDisplayName'] if args.stage == 'physical' else approved['members'][0]['displayName'],
                            'expected': {**resources, **expected}}
                 result = runner.ui(actors[role], fixture)
                 for key, value in result['resources'].items():
@@ -476,7 +512,9 @@ def main() -> int:
                                'cleanupStatus': 'retained-owned-content'}, stream)
 
             phase('A', 'identity', 'identity-before')
+            verify_actor_binding(binding, resources, args.stage, 'A')
             phase('B', 'identity')
+            verify_actor_binding(binding, resources, args.stage, 'B')
             if resources['account'] == resources['peerAccount']:
                 raise SmokeError('independent-current-test-member-identities-required')
             phase('A', 'chat-create'); phase('B', 'chat-peer'); phase('A', 'chat-readback')

@@ -41,6 +41,39 @@ def receipt(stage='physical', sha='a' * 40, tree='b' * 40, spec='c' * 40, run_id
 
 
 class FunctionalSmokeTest(unittest.TestCase):
+    def test_missing_input_invokes_explicit_preparation_without_taking_smoke_lock(self):
+        import dogfood_prepare as prepare
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'identities.json'
+            context = SimpleNamespace()
+            with patch.object(prepare, 'preflight', return_value={'status': 'incomplete'}) as preflight, \
+                    patch.object(prepare, 'prepare_members', return_value={'preparationComplete': False, 'boundary': 'reviewed-test-member-plan-approval-required'}) as members, \
+                    patch.object(smoke, '_dogfood_session_lock') as lock:
+                with self.assertRaisesRegex(smoke.SmokeError, '^reviewed-test-member-plan-approval-required$'):
+                    smoke.ensure_prepared_identities(context, path)
+            preflight.assert_called_once(); members.assert_called_once(); lock.assert_not_called()
+            path.write_text('existing')
+            with patch.object(prepare, 'preflight') as preflight:
+                smoke.ensure_prepared_identities(context, path)
+            preflight.assert_not_called()
+
+    def test_retained_owner_binding_precedes_writes_and_separates_administrator_and_test_members(self):
+        binding = {'owner': {'accountDigest': 'a' * 64, 'organizationDigest': 'c' * 64},
+                   'members': {'A': {'accountDigest': 'd' * 64, 'organizationDigest': 'c' * 64},
+                               'B': {'accountDigest': 'b' * 64, 'organizationDigest': 'c' * 64}}}
+        values = {'account': 'a' * 64, 'peerAccount': 'b' * 64, 'organization': 'c' * 64}
+        smoke.verify_actor_binding(binding, values, 'physical', 'A')
+        smoke.verify_actor_binding(binding, values, 'physical', 'B')
+        with self.assertRaisesRegex(smoke.SmokeError, '^approved-current-test-member-identity-mismatch$'):
+            smoke.verify_actor_binding(binding, values, 'deployment', 'A')
+        for key in ('account', 'organization'):
+            invalid = {**values, key: 'e' * 64}
+            with self.assertRaisesRegex(smoke.SmokeError, '^retained-owner-identity-mismatch$'):
+                smoke.verify_actor_binding(binding, invalid, 'physical', 'A')
+        source = Path(smoke.__file__).read_text()
+        self.assertLess(source.index("verify_actor_binding(binding, resources, args.stage, 'A')"), source.index("phase('A', 'chat-create')"))
+        self.assertLess(source.index('ensure_prepared_identities(context, args.identity_file)'), source.index('with _dogfood_session_lock(context),'))
+
     def valid(self, value):
         return smoke.functional_smoke_passed(value, 'a' * 40, 'b' * 40, 'c' * 40, 123, 1, 'physical')
 

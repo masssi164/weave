@@ -17,6 +17,7 @@ import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.IdentityAdminOperationStore;
 import com.massimotter.weave.backend.identity.IdentityOpaqueReferenceCodec;
+import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.ProviderMember;
 import com.massimotter.weave.backend.model.identity.OrganizationMemberResponse;
@@ -100,6 +101,71 @@ class OrganizationMemberAdministrationServiceTest {
         .isEqualTo(references.cursor(ORGANIZATION_ID, "subject-alice"))
         .doesNotContain("subject-alice", KEYCLOAK_ORGANIZATION_ID);
     assertThat(page.toString()).doesNotContain("subject-alice", "kc-org-42");
+  }
+
+  @Test
+  void liveMemberAccountReferenceMatchesUserMeAndSpaceIdentityAcrossAttributeChanges() {
+    ProviderMember target = member("subject-alice", "alice@example.test", "Alice", "member", true);
+    when(keycloak.members(KEYCLOAK_ORGANIZATION_ID)).thenReturn(List.of(target));
+    String handle = references.member(ORGANIZATION_ID, target.subject());
+    var projection = service.get(ORGANIZATION_ID, handle, jwt("owner"));
+    Jwt targetSession = Jwt.withTokenValue("member-own-session")
+        .header("alg", "none")
+        .issuer("https://auth.example.test/realms/weave")
+        .subject(target.subject())
+        .claim("weave_tenant_id", ORGANIZATION_ID)
+        .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
+        .build();
+    var profile = new ProductProfileService(
+        org.mockito.Mockito.mock(ProductProfileOverrideRepository.class));
+    String userAccount = profile.authenticatedUser(targetSession).accountId();
+    assertThat(projection.accountRef()).isEqualTo(userAccount)
+        .isEqualTo(OrganizationIdentityContextResolver.defaults().resolve(targetSession).accountId())
+        .isEqualTo(IdentityReferences.accountId(targetSession.getIssuer().toString(), target.subject()))
+        .matches("acct_[0-9a-f]{32}");
+    assertThat(service.list(ORGANIZATION_ID, null, 10, jwt("admin")).items())
+        .singleElement().extracting(OrganizationMemberResponse::accountRef).isEqualTo(userAccount);
+
+    when(keycloak.members(KEYCLOAK_ORGANIZATION_ID)).thenReturn(List.of(
+        member(target.subject(), "renamed@example.test", "Renamed", "member", true)));
+    var renamed = service.get(ORGANIZATION_ID, handle, jwt("owner"));
+    assertThat(renamed.accountRef()).isEqualTo(userAccount);
+    assertThat(renamed.email()).isEqualTo("renamed@example.test");
+    assertThat(renamed.displayName()).isEqualTo("Renamed");
+    assertThat(renamed.toString()).doesNotContain(target.subject(), KEYCLOAK_ORGANIZATION_ID);
+    assertThat(audit.events()).isEmpty();
+  }
+
+  @Test
+  void disabledOrAmbiguousRoleProjectionRetainsReferenceWithoutGrantingAuthority() {
+    var target = new ProviderMember("subject-disabled", "disabled@example.test", "Disabled",
+        List.of("member", "admin"), List.of(), false);
+    when(keycloak.members(KEYCLOAK_ORGANIZATION_ID)).thenReturn(List.of(target));
+    var response = service.get(ORGANIZATION_ID,
+        references.member(ORGANIZATION_ID, target.subject()), jwt("owner"));
+    assertThat(response.accountRef()).isEqualTo(IdentityReferences.accountId(
+        "https://auth.example.test/realms/weave", target.subject()));
+    assertThat(response.enabled()).isFalse();
+    assertThat(response.role()).isEqualTo("invalid");
+    assertThat(response.capabilities()).isEmpty();
+    verify(keycloak, never()).updateMember(anyString(), anyString(), anyString(),
+        org.mockito.ArgumentMatchers.anyBoolean());
+    org.mockito.Mockito.verifyNoInteractions(operations, memberCutoffs);
+    assertThat(audit.events()).isEmpty();
+  }
+
+  @Test
+  void foreignOrganizationIsDeniedBeforeLiveMemberInventoryOrProjection() {
+    for (boolean list : List.of(false, true)) {
+      assertThatThrownBy(() -> {
+        if (list) service.list("foreign-org", null, 10, jwt("owner"));
+        else service.get("foreign-org", "mem_unavailable", jwt("owner"));
+      }).isInstanceOfSatisfying(ApiErrorException.class, failure -> {
+        assertThat(failure.status().value()).isEqualTo(403);
+        assertThat(failure.code()).isEqualTo("organization-context-mismatch");
+      });
+    }
+    org.mockito.Mockito.verifyNoInteractions(keycloak, operations, memberCutoffs);
   }
 
   @Test
@@ -257,6 +323,50 @@ class OrganizationMemberAdministrationServiceTest {
             org.mockito.ArgumentMatchers.eq(ORGANIZATION_ID),
             org.mockito.ArgumentMatchers.eq("idempotency-weaver-update-0001"),
             org.mockito.ArgumentMatchers.contains("agent-runtime.entitled"));
+  }
+
+  @Test
+  void legacyAccessUpdateReceiptProjectsCurrentAccountWithoutChangingItsSnapshotOrLedger() {
+    assertLegacyMemberReceiptReplay(false);
+  }
+
+  @Test
+  void legacyEntitlementReceiptProjectsCurrentAccountWithoutChangingItsSnapshotOrLedger() {
+    assertLegacyMemberReceiptReplay(true);
+  }
+
+  private void assertLegacyMemberReceiptReplay(boolean entitlement) {
+    ProviderMember target = member("subject-member", "renamed@example.test", "Renamed", "member", true);
+    when(keycloak.members(KEYCLOAK_ORGANIZATION_ID)).thenReturn(List.of(target));
+    String handle = references.member(ORGANIZATION_ID, target.subject());
+    String currentVersion = service.get(ORGANIZATION_ID, handle, jwt("owner")).version();
+    String operation = entitlement ? "weaver-entitlement-update" : "member-access-update";
+    String key = "legacy-" + operation + "-0001";
+    String legacyReceipt = "{\"memberHandle\":\"" + handle + "\","
+        + "\"email\":\"historical@example.test\",\"displayName\":\"Historical name\","
+        + "\"role\":\"admin\",\"capabilities\":[\"agent-runtime.entitled\"],"
+        + "\"enabled\":false,\"version\":\"historical-version\"}";
+    when(operations.claim(org.mockito.ArgumentMatchers.eq(ORGANIZATION_ID),
+        org.mockito.ArgumentMatchers.eq(key), org.mockito.ArgumentMatchers.eq(operation),
+        anyString())).thenReturn(Optional.of(legacyReceipt));
+
+    OrganizationMemberResponse replay = entitlement
+        ? service.updateWeaverEntitlement(ORGANIZATION_ID, handle,
+            new WeaverEntitlementUpdateRequest(true), currentVersion, key, jwt("owner"))
+        : service.update(ORGANIZATION_ID, handle,
+            new OrganizationMemberUpdateRequest("admin", false), currentVersion, key, jwt("owner"));
+
+    assertThat(replay).isEqualTo(new OrganizationMemberResponse(handle,
+        IdentityReferences.accountId("https://auth.example.test/realms/weave", target.subject()),
+        "historical@example.test", "Historical name", "admin", List.of("agent-runtime.entitled"),
+        false, "historical-version"));
+    verify(keycloak, never()).updateMember(anyString(), anyString(), anyString(),
+        org.mockito.ArgumentMatchers.anyBoolean());
+    verify(keycloak, never()).setWeaverEntitlement(anyString(), anyString(),
+        org.mockito.ArgumentMatchers.anyBoolean());
+    verify(operations, never()).complete(anyString(), anyString(), anyString());
+    org.mockito.Mockito.verifyNoInteractions(memberCutoffs);
+    assertThat(audit.events()).isEmpty();
   }
 
   @Test

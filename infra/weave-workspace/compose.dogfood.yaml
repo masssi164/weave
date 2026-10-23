@@ -10,6 +10,8 @@ services:
   caddy:
     volumes: !override
       - ${WEAVE_GENERATED_ROOT:-./.generated/dogfood}/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dogfood}/public-setup/ca.pem:/weave-public-setup/ca.pem:ro
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dogfood}/public-setup/trust.json:/weave-public-setup/trust.json:ro
       - ${WEAVE_TLS_ROOT:?reviewed external TLS root required}/ca.pem:/certs/ca.pem:ro
       - ${WEAVE_TLS_ROOT:?reviewed external TLS root required}/cert.pem:/certs/cert.pem:ro
       - ${WEAVE_TLS_ROOT:?reviewed external TLS root required}/key.pem:/certs/key.pem:ro

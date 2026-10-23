@@ -17,6 +17,13 @@ from compose_runtime import execute
 DOGFOOD_APPLICATION_PLATFORM = "linux/amd64"
 
 
+def effective_reviewed_env_file(value: Path | None = None) -> Path:
+    selected = (value if value is not None else Path.home() / ".weave/dogfood/reviewed-compose.env").expanduser()
+    if any(path.is_symlink() for path in (selected, *selected.parents)):
+        raise ContractError("reviewed Dogfood environment path must not contain symlinks")
+    return selected
+
+
 def _run(command: list[str], *, cwd: Path, capture: bool = False) -> str:
     completed = subprocess.run(
         command,
@@ -145,11 +152,7 @@ def main() -> int:
     args, operation_arguments = parser.parse_known_args()
     root = args.root.resolve()
     repository = root.parents[1]
-    env_file = (
-        args.env_file.expanduser().resolve()
-        if args.env_file
-        else Path.home() / ".weave/dogfood/reviewed-compose.env"
-    )
+    env_file = effective_reviewed_env_file(args.env_file)
     os.environ["WEAVE_ENV_FILE"] = str(env_file)
     context = load_context("dogfood", root, str(env_file))
 

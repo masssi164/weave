@@ -4900,6 +4900,91 @@
         "stable references memberships and relationships survive migration and restart",
         "repeated startup preserves valid names and grants"
       ]
+    },
+    {
+      "tag": "@human-ready-local-trust",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "existing public CA and exact reviewed organization API issuer origins",
+        "normal OS trust without browser exceptions or private key exposure"
+      ]
+    },
+    {
+      "tag": "@human-ready-live-admin",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "real unauthorized forbidden and unavailable states never show sample authority",
+        "live issuer organization and current role before preparation"
+      ]
+    },
+    {
+      "tag": "@human-ready-preparation-inputs",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "explicit named two-member plan approval and independent normal PKCE identity proof",
+        "private owned test inputs without owner-session export or manual Space setup"
+      ]
+    },
+    {
+      "tag": "@human-ready-preparation-resume",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "fresh readback and invocation nonce reject stale receipts",
+        "matching state reuse never restores revoked access or resets credentials"
+      ]
+    },
+    {
+      "tag": "@admin-member-canonical-account-reference",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "authorized current member account reference equals User identity across attribute changes",
+        "wrong organization and ordinary members remain denied; independent proof precedes grant"
+      ]
     }
   ]
 }

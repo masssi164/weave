@@ -95,3 +95,42 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
     Then the interface preserves the confirmed write and original destination
     And recovery retries readback without silently creating another resource
     And an uncertain write retains its exact idempotent operation until resolved
+
+  @human-ready-local-trust
+  Scenario: Local trust setup covers the whole ordinary sign-in path
+    Given Dogfood uses the existing persisted local development CA
+    When explicit administrator preparation checks local trust
+    Then a public-certificate-only setup bundle names the reviewed organization API and issuer origins
+    And local setup exposes the public CA download and matching SHA-256 fingerprint
+    And private keys secrets invitations and sessions are never downloadable
+    And operating-system trust authentication is an explicit human step
+    And one hostname's browser exception cannot count as trust for the other required origins
+    And direct HTTPS is verified separately from physical-device and application-signing trust
+
+  @human-ready-live-admin
+  Scenario: An unauthenticated Admin Console does not look prepared
+    Given the real Admin API returns unauthorized forbidden or a transport failure
+    When the owner opens the Admin Console
+    Then sign-in or a precise unavailable state is the first actionable destination
+    And sample readiness guessed owner roles and sample mutation controls are absent
+    And preparation cannot proceed until current live administrator authority is verified
+
+  @human-ready-preparation-inputs
+  Scenario: Approved administrator preparation produces its own ordinary test inputs
+    Given a current owner or administrator has authenticated normally
+    And the administrator approved a plan naming two test members and their exact member Space grants
+    When explicit Dogfood preparation runs
+    Then existing Admin invitation and conditional grant operations prepare only those members
+    And stock activation registration PKCE and reconciliation establish independent sessions
+    And generated test credentials remain in the private owned fixture and ledger
+    And no owner token browser cookie Keychain state credential or session is copied or replaced
+    And testing does not require the owner to assemble a credential file or create a Space
+
+  @human-ready-preparation-resume
+  Scenario: Preparation resumes without undoing current access decisions
+    Given a preparation ledger identifies previously approved test members
+    When preparation resumes after an interruption
+    Then matching current invitations activated identities and grants are verified and reused
+    And revoked suspended conflicting ambiguous or unauthorized state blocks further mutation
+    And no retry duplicates an invitation resets a password recreates an account or restores access
+    And completing required human trust or authentication resumes bounded preparation

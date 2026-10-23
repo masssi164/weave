@@ -62,6 +62,7 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 
 | Gradle task | Purpose |
 | --- | --- |
+| `dogfoodPrepare` | Explicit reviewed local-trust and approved test-member preparation; preserves owner state and does not replace qualification or physical functional proof. |
 | `doctor` | Checks required tools and pinned dependency files with actionable failures. |
 | `acceptanceContract` | Gherkin mapping and acceptance contract guard. |
 | `clientCi` | Flutter generated-code, format, analysis, tests, screenshot drift, and offline contract path. |

@@ -43,6 +43,23 @@ def render_caddy(context: ComposeContext) -> str:
         files_handler = 'respond `{"error":"nextcloud provider disabled"}` 404'
 
     mailpit_block = ""
+    setup_handlers = ""
+    if context.environment == "dogfood":
+        for name, content_type in (("ca.pem", "application/x-pem-file"), ("trust.json", "application/json")):
+            setup_handlers += f"""  @setup_{name.replace('.', '_')} {{
+    path /admin-console/setup/{name}
+    method GET HEAD
+  }}
+  handle @setup_{name.replace('.', '_')} {{
+    root * /weave-public-setup
+    rewrite * /{name}
+    header Content-Type {content_type}
+    header Cache-Control no-store
+    file_server
+  }}
+"""
+    # The fallback also prevents SPA fallback from making setup resources appear present in production.
+    setup_handlers += '  handle /admin-console/setup/* {\n    respond 404\n  }\n'
     if "dev-tools" in context.active_profiles or context.profile in {"dogfood", "e2e"}:
         mailpit_url = env.get("WEAVE_MAILPIT_URL")
         if not mailpit_url:
@@ -78,6 +95,7 @@ def render_caddy(context: ComposeContext) -> str:
 {redirects}
 {public_site} {{
   tls /certs/cert.pem /certs/key.pem
+{setup_handlers}
   @internal path /api/internal/* /actuator/*
   handle @internal {{
     respond 404
