@@ -39,20 +39,149 @@ class NativeQualificationTest(unittest.TestCase):
                 with self.assertRaises(ios.NativeFailure): macos.native_organization_origin('owned-run')
                 with self.assertRaises(RuntimeError): macos.native_organization_origin('../foreign')
 
-    def test_macos_owned_cleanup_is_fixed_bounded_and_fail_closed(self):
-        marker = 'NATIVE_PREFERENCES_CLEANUP_RESULT status=passed scope=owned-run'
-        with patch.object(macos.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, marker + '\n', '')) as command:
-            with redirect_stdout(io.StringIO()):
-                macos.clear_owned_preferences('com.masssi164.weave.nativeacceptance', 'owned-run')
-            self.assertEqual(command.call_args.kwargs['timeout'], 30)
-            self.assertTrue(command.call_args.kwargs['capture_output'])
-            for bundle, run in [('com.example.operator', 'owned-run'), ('com.masssi164.weave.nativeacceptance', '../foreign')]:
-                with self.assertRaises(RuntimeError): macos.clear_owned_preferences(bundle, run)
-            self.assertEqual(command.call_count, 1)
-        with patch.object(macos.subprocess, 'run', side_effect=subprocess.TimeoutExpired('private-payload', 30)):
-            with self.assertRaises(subprocess.TimeoutExpired):
-                macos.clear_owned_preferences('com.masssi164.weave.nativeacceptance', 'owned-run')
+    def test_macos_owned_cleanup_is_app_owned_fresh_bounded_and_fail_closed(self):
+        nonce = 'a' * 32
+        marker = ('NATIVE_PREFERENCES_CLEANUP_RESULT status=passed scope=owned-run '
+                  'readback=absent invocation=' + nonce)
+        for outcome in ('passed', 'missing', 'duplicate', 'stale', 'failed', 'timeout', 'unreaped'):
+            with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as directory:
+                process = unittest.mock.Mock()
+                process.returncode = 1 if outcome == 'failed' else 0
+                output = {'missing': '', 'duplicate': marker + '\n' + marker,
+                          'stale': marker.replace(nonce, 'b' * 32)}.get(outcome, 'flutter: ' + marker + '\n')
+                process.communicate.return_value = (None, None)
+                if outcome == 'timeout':
+                    process.communicate.side_effect = subprocess.TimeoutExpired('private', 180, output=b'private-timeout-partial', stderr='private-timeout-error')
+                def launch(*args, **kwargs):
+                    kwargs['stdout'].write(output + '\nprivate-cleanup-output\n')
+                    kwargs['stdout'].flush()
+                    return process
+                with patch.object(macos, 'CLIENT', Path(directory)), \
+                     patch.object(macos, 'verify_signed_app') as verify, \
+                     patch.object(macos, 'stop_checkout_app') as stop, \
+                     patch.object(macos, 'stop_flutter_process_group', side_effect=RuntimeError('private-unreaped') if outcome == 'unreaped' else None) as group, \
+                     patch.object(macos.secrets, 'token_hex', return_value=nonce), \
+                     patch.object(macos.subprocess, 'Popen', side_effect=launch) as command, \
+                     redirect_stdout(io.StringIO()) as public:
+                    if outcome == 'passed':
+                        macos.clear_owned_preferences('com.masssi164.weave.nativeacceptance', 'owned-run', team='A123456789', env={'signed': 'fixture', 'WEAVE_NATIVE_MEMBER_PASSWORD': 'private-fixture'})
+                        self.assertEqual(verify.call_count, 2)
+                        self.assertIn('readback=absent', public.getvalue())
+                        self.assertNotIn(nonce, public.getvalue())
+                    else:
+                        with self.assertRaises(subprocess.TimeoutExpired if outcome == 'timeout' else RuntimeError):
+                            macos.clear_owned_preferences('com.masssi164.weave.nativeacceptance', 'owned-run', team='A123456789', env={})
+                    self.assertEqual(process.communicate.call_args.kwargs['timeout'], 180)
+                    args = command.call_args.args[0]
+                    self.assertEqual(args[:3], ['flutter', 'test', 'integration_test/system_browser_auth_e2e_test.dart'])
+                    self.assertIn('--dart-define=WEAVE_NATIVE_TEST_RUN_ID=owned-run', args)
+                    self.assertIn('--dart-define=WEAVE_NATIVE_CLEANUP_NONCE=' + nonce, args)
+                    self.assertTrue(command.call_args.kwargs['start_new_session'])
+                    self.assertNotIn('WEAVE_NATIVE_MEMBER_PASSWORD', command.call_args.kwargs['env'])
+                    group.assert_called_once_with(process)
+                    self.assertEqual(stop.call_count, 2)
+                    retained = list(Path(directory).glob('build/private-native-acceptance/preferences-cleanup-*.log'))
+                    if outcome == 'passed':
+                        self.assertEqual(retained, [])
+                    else:
+                        self.assertEqual(len(retained), 1)
+                        self.assertEqual(retained[0].stat().st_mode & 0o777, 0o600)
+                        self.assertIn('private-cleanup-output', retained[0].read_text())
+                        if outcome == 'timeout':
+                            self.assertIn('private-timeout-partial', retained[0].read_text())
+                            self.assertIn('private-timeout-error', retained[0].read_text())
+                        self.assertIn('status=retainedPrivate', public.getvalue())
+                    self.assertNotIn('private-cleanup-output', public.getvalue())
+                    self.assertNotIn('private-timeout', public.getvalue())
+        with patch.object(macos, 'verify_signed_app') as verify:
+            for bundle, run, team in [('com.example.operator', 'owned-run', 'A123456789'),
+                                      ('com.masssi164.weave.nativeacceptance', '../foreign', 'A123456789'),
+                                      ('com.masssi164.weave.nativeacceptance', 'owned-run', 'invalid')]:
+                with self.assertRaises(RuntimeError):
+                    macos.clear_owned_preferences(bundle, run, team=team, env={})
+            verify.assert_not_called()
 
+    def test_macos_owned_cleanup_requires_signed_sandbox_and_stops_on_verification_failure(self):
+        with patch.object(macos, 'verify_signed_app', side_effect=RuntimeError('denied')), \
+             patch.object(macos.subprocess, 'Popen') as command:
+            with self.assertRaises(RuntimeError):
+                macos.clear_owned_preferences('com.masssi164.weave.nativeacceptance', 'owned-run', team='A123456789', env={})
+            command.assert_not_called()
+
+
+    def test_macos_signing_verification_requires_integrity_exact_identity_and_sandbox(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory)
+            (app / 'Contents').mkdir()
+            bundle = 'com.masssi164.weave.nativeacceptance'
+            (app / 'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier': bundle}))
+            for outcome in ('passed', 'invalid-signature', 'wrong-identifier', 'wrong-team', 'team-prefix', 'duplicate-team', 'unsandboxed', 'missing-sandbox'):
+                with self.subTest(outcome=outcome):
+                    rights = {'keychain-access-groups': []}
+                    if outcome != 'missing-sandbox':
+                        rights['com.apple.security.app-sandbox'] = outcome != 'unsandboxed'
+                    identifier = 'com.example.operator' if outcome == 'wrong-identifier' else bundle
+                    team = {'wrong-team': 'B123456789', 'team-prefix': 'A123456789EXTRA'}.get(outcome, 'A123456789')
+                    metadata = f'Identifier={identifier}\nTeamIdentifier={team}\n'
+                    if outcome == 'duplicate-team':
+                        metadata += 'TeamIdentifier=A123456789\n'
+                    responses = [subprocess.CompletedProcess([], 1 if outcome == 'invalid-signature' else 0, '', ''),
+                                 subprocess.CompletedProcess([], 0, '', metadata),
+                                 subprocess.CompletedProcess([], 0, plistlib.dumps(rights), b'')]
+                    with patch.object(macos, 'APP', app), patch.object(macos.subprocess, 'run', side_effect=responses) as command, redirect_stdout(io.StringIO()):
+                        if outcome == 'passed':
+                            macos.verify_signed_app('A123456789', bundle)
+                        else:
+                            with self.assertRaises(RuntimeError):
+                                macos.verify_signed_app('A123456789', bundle)
+                        self.assertEqual(command.call_args_list[0].args[0][:4], ['codesign', '--verify', '--deep', '--strict'])
+                        self.assertEqual(command.call_args_list[0].kwargs['timeout'], 15)
+
+    def test_macos_finalization_attempts_all_cleanup_and_preserves_primary_failure(self):
+        for accepted in (False, True):
+            for failed in (None, 'browser', 'flutter', 'reader', 'app', 'preferences'):
+                with self.subTest(accepted=accepted, failed=failed), tempfile.TemporaryDirectory() as directory:
+                    diagnostic = tempfile.NamedTemporaryFile(mode='w', dir=directory, delete=False)
+                    diagnostic.write('private-original-diagnostic'); diagnostic.flush()
+                    retained = Path(diagnostic.name)
+                    browser = unittest.mock.Mock(); browser.poll.return_value = None
+                    browser.wait.return_value = 0
+                    if failed == 'browser':
+                        browser.wait.side_effect = [subprocess.TimeoutExpired('private-driver-error', 10), 0]
+                    reader = unittest.mock.Mock(); reader.is_alive.return_value = failed == 'reader'
+                    original = ValueError('private-original-product-failure')
+                    flutter = unittest.mock.Mock()
+                    with patch.object(macos, 'stop_flutter_process_group', side_effect=RuntimeError('private-flutter-error') if failed == 'flutter' else None) as stop_group, \
+                         patch.object(macos, 'stop_checkout_app', side_effect=RuntimeError('private-app-error') if failed == 'app' else None) as stop_app, \
+                         patch.object(macos, 'clear_owned_preferences', side_effect=RuntimeError('private-preferences-error') if failed == 'preferences' else None) as preferences, \
+                         redirect_stdout(io.StringIO()) as public:
+                        def finish():
+                            macos.finalize_native_run(accepted=accepted, bundle='com.masssi164.weave.nativeacceptance', run_id='owned-run', team='A123456789', env={}, logout_consent=None, driver=browser, flutter=flutter, reader=reader, diagnostics=[diagnostic])
+                        if not accepted:
+                            try:
+                                try:
+                                    raise original
+                                finally:
+                                    finish()
+                            except ValueError as observed:
+                                self.assertIs(observed, original)
+                        elif failed:
+                            with self.assertRaisesRegex(RuntimeError, 'native final owned cleanup failed'):
+                                finish()
+                        else:
+                            finish()
+                        preferences.assert_called_once()
+                        stop_group.assert_called_once_with(flutter)
+                        stop_app.assert_called_once()
+                        reader.join.assert_called_once_with(timeout=10)
+                        if failed == 'browser':
+                            browser.kill.assert_called_once()
+                            self.assertEqual(browser.wait.call_count, 2)
+                        self.assertEqual(retained.exists(), not accepted or failed is not None)
+                        self.assertNotIn('private-', public.getvalue())
+                        if failed:
+                            self.assertIn('NATIVE_FINAL_CLEANUP_RESULT status=failed', public.getvalue())
+                    diagnostic.close()
 
     def test_onboarding_diagnostics_are_exact_bounded_and_classify_executed_ui_failure(self):
         record = ('NATIVE_PRODUCT_STAGE phase=onboarding-failed actor=A authState=ready_for_sso '

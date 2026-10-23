@@ -299,6 +299,26 @@ void main() {
   // controls instead of being dropped by the widget test binding.
   binding.shouldPropagateDevicePointerEvents = true;
 
+  // This isolated maintenance journey never constructs the member app or session.
+  const cleanupOnly = bool.fromEnvironment('WEAVE_NATIVE_PREFERENCES_CLEANUP');
+  if (cleanupOnly) {
+    const runId = String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID');
+    const nonce = String.fromEnvironment('WEAVE_NATIVE_CLEANUP_NONCE');
+    testWidgets('native acceptance clears only owned preferences', (
+      tester,
+    ) async {
+      if (!Platform.isMacOS || !RegExp(r'^[a-f0-9]{32}$').hasMatch(nonce)) {
+        throw StateError('Owned native cleanup invocation is invalid.');
+      }
+      await NativeAcceptancePreferencesStore.production(runId).clearOwnedKeys();
+      debugPrint(
+        'NATIVE_PREFERENCES_CLEANUP_RESULT status=passed scope=owned-run '
+        'readback=absent invocation=$nonce',
+      );
+    });
+    return;
+  }
+
   const enabled = bool.fromEnvironment('WEAVE_SYSTEM_BROWSER_AUTH_E2E');
   const matrixEnabled = bool.fromEnvironment('WEAVE_MEMBER_MATRIX_E2E');
   const productEnabled = bool.fromEnvironment(

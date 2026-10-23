@@ -108,6 +108,48 @@ void main() {
     },
   );
 
+  test('cleanup fails if the adapter leaves an owned key behind', () async {
+    final backing = _Store();
+    final initial = NativeAcceptancePreferencesStore(
+      runId: 'run-a',
+      delegate: backing,
+      keys: () async => backing.values.keys.toSet(),
+    );
+    await initial.setString('profile', 'private fixture');
+    final keys = backing.values.keys.toSet();
+    var reads = 0;
+    final noReadback = NativeAcceptancePreferencesStore(
+      runId: 'run-a',
+      delegate: backing,
+      keys: () async {
+        reads++;
+        return keys;
+      },
+    );
+    await expectLater(noReadback.clearOwnedKeys(), throwsStateError);
+    expect(reads, 2);
+  });
+
+  test('cleanup detects an owned key written during removal', () async {
+    final backing = _Store();
+    var reads = 0;
+    final owned = NativeAcceptancePreferencesStore(
+      runId: 'run-a',
+      delegate: backing,
+      keys: () async {
+        reads++;
+        if (reads == 2) {
+          await backing.setString(
+            'weave.native-acceptance.5:run-a.late',
+            'private',
+          );
+        }
+        return backing.values.keys.toSet();
+      },
+    );
+    await expectLater(owned.clearOwnedKeys(), throwsStateError);
+  });
+
   test('unsafe run IDs cannot acquire a preference namespace', () {
     for (final run in ['', '../other', 'run with spaces', 'a/b', 'run\n']) {
       expect(
