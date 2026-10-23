@@ -483,7 +483,9 @@ def prepare_members(context, result: dict, fixture_path: Path, ledger_path: Path
     signal.signal(signal.SIGTERM, terminate)
     try:
         with _dogfood_session_lock(context), tempfile.TemporaryDirectory(prefix="weave-dogfood-preparation-") as temporary:
-            directory = Path(temporary); directory.chmod(0o700)
+            # Canonicalize only this newly created operation-owned directory:
+            # macOS's default OS temp root may use the /var -> /private/var alias.
+            directory = Path(temporary).resolve(strict=True); directory.chmod(0o700)
             runner = Runner(directory)
             try:
                 candidate = {"candidateCommit": runner.run(["git", "rev-parse", "HEAD"]).strip(),
