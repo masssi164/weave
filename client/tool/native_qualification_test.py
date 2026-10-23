@@ -42,7 +42,9 @@ print("receipt-reducer-passed")
         with tempfile.TemporaryDirectory() as directory:
             swift = Path(directory) / 'main.swift'; swift.write_text(reducer + checks)
             executable = Path(directory) / 'receipt-reducer'
-            compiled = subprocess.run(['swiftc', str(swift), '-o', str(executable)], capture_output=True, text=True, timeout=30)
+            # Hosted runners may initialize the Swift module cache on first use.
+            # Keep the compiler bounded separately from the reducer execution.
+            compiled = subprocess.run(['swiftc', str(swift), '-o', str(executable)], capture_output=True, text=True, timeout=120)
             self.assertEqual(compiled.returncode, 0, compiled.stderr)
             result = subprocess.run([str(executable)], capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
