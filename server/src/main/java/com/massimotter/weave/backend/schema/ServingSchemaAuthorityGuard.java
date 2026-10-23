@@ -11,13 +11,13 @@ import org.springframework.stereotype.Component;
 
 /** Non-mutating readiness boundary for exact catalog authority and DML-only serving roles. */
 @Component
-final class ServingSchemaAuthorityGuard implements SmartInitializingSingleton {
-  private static final Set<String> PROFILES = Set.of("test", "dogfood", "prod", "e2e");
+public final class ServingSchemaAuthorityGuard implements SmartInitializingSingleton {
+  private static final Set<String> PROFILES = Set.of("test", "dogfood", "prod", "e2e", "dogfood-operator-cli");
   private final DataSource dataSource;
   private final SchemaAuthorityJpaRepository markers;
   private final Environment environment;
 
-  ServingSchemaAuthorityGuard(DataSource dataSource, SchemaAuthorityJpaRepository markers,
+  public ServingSchemaAuthorityGuard(DataSource dataSource, SchemaAuthorityJpaRepository markers,
       Environment environment) {
     this.dataSource = dataSource;
     this.markers = markers;

@@ -1,6 +1,8 @@
 package com.massimotter.weave.backend.audit;
 
 public enum AuditAction {
+    DOGFOOD_PREPARATION_VERIFIED("dogfood.preparation.verified"),
+    DOGFOOD_PREPARATION_AUTHORIZED("dogfood.preparation.authorized"),
     CONNECTOR_WRITE_ATTEMPTED("connector.write.attempted"),
     ASSISTANT_WRITE_ATTEMPTED("assistant.write.attempted"),
     CHAT_MESSAGE_SENT("chat.message.sent"),

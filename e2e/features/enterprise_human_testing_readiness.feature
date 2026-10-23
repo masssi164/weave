@@ -113,7 +113,7 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
     When the owner opens the Admin Console
     Then sign-in or a precise unavailable state is the first actionable destination
     And sample readiness guessed owner roles and sample mutation controls are absent
-    And preparation cannot proceed until current live administrator authority is verified
+    And Console preparation cannot proceed until current live administrator authority is verified
 
   @human-ready-admin-current-actor
   Scenario: Administrator setup verifies the current signed-in actor
@@ -133,6 +133,25 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
     And generated test credentials remain in the private owned fixture and ledger
     And no owner token browser cookie Keychain state credential or session is copied or replaced
     And testing does not require the owner to assemble a credential file or create a Space
+
+  @human-ready-dogfood-operator-preparation
+  Scenario: The reviewed Dogfood operator prepares normal test members without personal Admin sign-in
+    Given one exact serving Dogfood candidate and a private named two-member preparation plan
+    And the existing unique enabled owner has current durable default-Space administration
+    When the explicit host command executes the non-listening Server preparation
+    Then normal member invitations use a distinct audited operator identity
+    And both test members complete stock registration and their own ordinary application PKCE
+    And their actual identity digests match current canonical member identities before conditional EDIT grants
+    And no human session administrator account owner data or credential is fabricated or replaced
+    And the resulting private inputs do not establish authenticated functional or human acceptance
+
+  @human-ready-dogfood-operator-guard
+  Scenario: Operator preparation cannot widen its target or undo access decisions
+    Given an explicit operator preparation request
+    When the environment posture candidate plan identity owner or current grant is invalid or conflicting
+    Then preparation fails closed before any invitation or grant mutation
+    And production ordinary startup foreign targets broader permissions and revoked access remain unchanged
+    And retries verify the exact recorded invitation intents and current grants without recreating or restoring them
 
   @human-ready-preparation-resume
   Scenario: Preparation resumes without undoing current access decisions

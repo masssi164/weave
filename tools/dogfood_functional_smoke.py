@@ -92,14 +92,15 @@ def identities(path: Path, origin: str, physical: bool) -> dict:
 
 
 def ensure_prepared_identities(context, path: Path) -> None:
-    """Missing inputs invoke the explicit preparation, outside the smoke lock."""
+    """Authorized protected delivery enters the named operator stage, outside its smoke lock."""
     if path.exists() or path.is_symlink():
         return
     from dogfood_prepare import preflight, prepare_members, ledger_for
     from compose_env import ContractError
     try:
+        print('DOGFOOD_PREPARATION_STAGE authorizationKind=dogfood-operator stage=explicit-test-member-preparation supportSafe=true')
         result = preflight(context, Path.home() / '.weave/dogfood/public-setup')
-        result = prepare_members(context, result, path, ledger_for(path))
+        result = prepare_members(context, result, path, ledger_for(path), authorization_mode='operator')
         if result.get('preparationComplete') is not True:
             raise SmokeError(result['boundary'])
     except ContractError:
@@ -107,6 +108,7 @@ def ensure_prepared_identities(context, path: Path) -> None:
 
 
 def approved_identity_binding(context, path: Path, approved: dict) -> dict:
+    """Validate the distinct Console or operator ledger before actual UI identity comparison."""
     from dogfood_prepare import fixture_binding
     from compose_env import ContractError
     try:

@@ -4970,6 +4970,42 @@
       ]
     },
     {
+      "tag": "@human-ready-dogfood-operator-preparation",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "operator-release",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "distinct operator authority without personal administrator sign-in",
+        "normal native proof and conditional grants with private owner binding"
+      ]
+    },
+    {
+      "tag": "@human-ready-dogfood-operator-guard",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "operator-release",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "strict source configuration authority and identity boundaries",
+        "no foreign-account adoption credential reset or access restoration"
+      ]
+    },
+    {
       "tag": "@human-ready-preparation-resume",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [

@@ -41,6 +41,13 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
 
     @Override
     @Transactional(readOnly = true)
+    public List<ProvisioningIntent> findByEmail(String tenant, String org, String email) {
+        return intents.findByTenantIdAndOrganizationIdAndInvitedEmailIgnoreCase(tenant, org, email)
+                .stream().map(this::toDomain).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<ProvisioningIntent> findPendingByEmail(String tenant, String org, String email) {
         return intents
                 .findByTenantIdAndOrganizationIdAndInvitedEmailIgnoreCaseAndStatusOrderByCreatedAtDesc(
@@ -48,6 +55,14 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
                 .stream()
                 .map(this::toDomain)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProvisioningIntent> findByActorAndCorrelation(String tenant, String org, String issuer,
+            String subject, String correlation) {
+        return intents.findByTenantIdAndOrganizationIdAndInvitedByIssuerAndInvitedBySubjectAndAuditCorrelation(
+                tenant, org, issuer, subject, correlation).stream().map(this::toDomain).toList();
     }
 
     @Override
