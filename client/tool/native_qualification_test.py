@@ -1202,6 +1202,42 @@ else:
                 self.assertEqual(call_count, 1 if build_failed else 3)
                 discovery.assert_not_called()
 
+    def test_actual_dual_expiry_wait_leaves_bounded_product_readback_time(self):
+        dart = shutil.which('dart')
+        if dart is None:
+            self.skipTest('Dart SDK unavailable')
+        source = (Path(__file__).resolve().parents[1] / 'integration_test/dual_ios_collaboration_test.dart').read_text()
+        helper = 'DateTime nativeDualActionDeadline(' + source.split('DateTime nativeDualActionDeadline(', 1)[1].split('\nvoid main()', 1)[0]
+        with tempfile.TemporaryDirectory() as name:
+            probe = Path(name) / 'expiry_readback.dart'
+            probe.write_text(helper + '''
+void main() {
+  final started = DateTime.utc(2026, 10, 24);
+  void requireReadbackWindow(String action, int elapsedSeconds, bool expected) {
+    final deadline = nativeDualActionDeadline(action, started);
+    final afterRealExpiryWait = started.add(Duration(seconds: elapsedSeconds));
+    // This is the same strict boundary used before the actual Files UI action.
+    if (afterRealExpiryWait.isBefore(deadline) != expected) {
+      throw StateError('Product readback window incorrectly admitted or expired');
+    }
+  }
+  // Real expiry plus validator skew may legitimately exceed 180 seconds.
+  // The expiry helper permits up to six minutes before fresh-token/401 proofs.
+  requireReadbackWindow('expiry-refresh', 185, true);
+  requireReadbackWindow('expiry-refresh', 359, true);
+  requireReadbackWindow('expiry-refresh', 419, true);
+  requireReadbackWindow('expiry-refresh', 420, false);
+  requireReadbackWindow('expiry-refresh', 421, false);
+  for (final action in ['restore-readback', 'files-open', 'logout', 'unknown']) {
+    requireReadbackWindow(action, 179, true);
+    requireReadbackWindow(action, 180, false);
+    requireReadbackWindow(action, 185, false);
+  }
+}
+''')
+            result = subprocess.run([dart, 'run', str(probe)], cwd=name, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_actual_dart_phase_selection_keeps_non_simulator_journeys(self):
         dart = shutil.which('dart')
         if dart is None:
