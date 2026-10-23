@@ -198,6 +198,20 @@ class OpenApiDocumentationTest {
     }
 
     @Test
+    void adminControlPlaneRequiresTheMinimalCurrentActorProjection() throws Exception {
+        mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.AdminControlPlaneResponse.required")
+                        .value(hasItems("currentActor")))
+                .andExpect(jsonPath("$.components.schemas.AdminControlPlaneResponse.properties.currentActor['$ref']")
+                        .value("#/components/schemas/AdminCurrentActorResponse"))
+                .andExpect(jsonPath("$.components.schemas.AdminCurrentActorResponse.required")
+                        .value(hasItems("accountRef", "organizationId", "identityIssuer", "roles")))
+                .andExpect(jsonPath("$.components.schemas.AdminCurrentActorResponse.properties.subject").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.AdminCurrentActorResponse.properties.accessToken").doesNotExist());
+    }
+
+    @Test
     void adminMemberOperationsExportTheirActualTypedSuccessResponses() throws Exception {
         String members = "/api/admin/organizations/{organizationId}/members";
         String member = members + "/{memberHandle}";

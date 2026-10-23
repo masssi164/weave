@@ -444,6 +444,31 @@ class AdminControlPlaneServiceTest {
     }
 
     @Test
+    void currentActorUsesTheCanonicalAdmittedIdentityWithoutProviderSubjectOrSessionFields() throws Exception {
+        var capabilities = workspaceCapabilityService();
+        var selections = new InMemoryProviderSelectionRepository();
+        var service = new AdminControlPlaneService(
+                new ProviderRegistry(List.of(), capabilities, selections), capabilities, selections,
+                new InMemoryOrganizationBootstrapRepository(), new InMemoryAuditEventPublisher(),
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
+                mock(ProductProfileOverrideRepository.class), new InMemoryMigrationRunEvidenceRepository());
+        for (String role : List.of("owner", "admin")) {
+            Jwt admitted = jwt(role);
+            var expected = OrganizationIdentityContextResolver.defaults().resolve(admitted);
+            var response = service.overview(admitted);
+            assertThat(response.currentActor().accountRef()).isEqualTo(expected.accountId());
+            assertThat(response.currentActor().organizationId()).isEqualTo(expected.organizationId())
+                    .isEqualTo(response.organizationId());
+            assertThat(response.currentActor().identityIssuer()).isEqualTo(expected.issuer());
+            assertThat(response.currentActor().roles()).containsExactly(role);
+            JsonNode serialized = new ObjectMapper().valueToTree(response.currentActor());
+            assertThat(serialized.properties()).extracting(Map.Entry::getKey)
+                    .containsExactlyInAnyOrder("accountRef", "organizationId", "identityIssuer", "roles");
+            assertThat(serialized.toString()).doesNotContain(expected.subject(), "access_token", "refresh_token");
+        }
+    }
+
+    @Test
     void overviewIncludesSprint16SuiteGoLiveAndWeaverProjectionContracts() throws Exception {
         WorkspaceCapabilityService workspaceCapabilityService = workspaceCapabilityService();
         InMemoryProviderSelectionRepository selectionRepository = new InMemoryProviderSelectionRepository();

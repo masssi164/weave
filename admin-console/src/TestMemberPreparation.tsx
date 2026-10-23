@@ -52,9 +52,9 @@ export default function TestMemberPreparation({ api, locale }: { api: AdminContr
     setSession(null); setReceipt(null); setApproved(false); setOwners([]); setOwner(""); setStatus("pending");
     try {
       const plan = parsePreparationPlan(input);
-      const identity = await api.getCurrentIdentity();
-      if (!identity.accountId || !identity.organizationId) throw new Error("Unavailable identity");
-      const next = new PreparationSession(api, plan, identity.accountId, identity.organizationId);
+      const identity = await api.getCurrentActor();
+      if (!identity.accountRef || !identity.organizationId) throw new Error("Unavailable identity");
+      const next = new PreparationSession(api, plan, identity.accountRef, identity.organizationId);
       const snapshot = await next.preflight();
       const choices = intendedOwners(snapshot.members);
       setSession(next); setOwners(choices); setOwner(choices.length === 1 ? choices[0].accountRef : ""); setStatus("reviewed");

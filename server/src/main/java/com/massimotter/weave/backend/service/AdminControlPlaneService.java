@@ -8,6 +8,7 @@ import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.admin.AdminAuditEventResponse;
 import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
+import com.massimotter.weave.backend.model.admin.AdminCurrentActorResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
@@ -201,12 +202,14 @@ public class AdminControlPlaneService {
 
     public AdminControlPlaneResponse overview(Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "overview");
+        OrganizationIdentityContext actor = identityContexts.resolve(jwt);
         ProviderRegistryResponse registry = providerRegistry.status();
         PlatformIdentityReadinessResponse identityReadiness = platformIdentityReadiness(registry, jwt);
         List<SuiteDomainReadinessResponse> suiteReadiness = suiteDomainReadiness(registry);
         return new AdminControlPlaneResponse(
                 "admin-control-plane-v1",
-                organizationId(jwt),
+                new AdminCurrentActorResponse(actor.accountId(), actor.organizationId(), actor.issuer(), actor.roles()),
+                actor.organizationId(),
                 organizationName(jwt),
                 "Keycloak platform security",
                 registry.providerConfigSource(),

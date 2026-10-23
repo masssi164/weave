@@ -115,6 +115,14 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
     And sample readiness guessed owner roles and sample mutation controls are absent
     And preparation cannot proceed until current live administrator authority is verified
 
+  @human-ready-admin-current-actor
+  Scenario: Administrator setup verifies the current signed-in actor
+    Given the owner completes normal administrator sign-in
+    When the packaged Console opens first-owner setup
+    Then it verifies the current account organization issuer and role through its administration boundary
+    And setup uses no member session or guessed authority
+    And default workspace confirmation remains available to the admitted owner
+
   @human-ready-preparation-inputs
   Scenario: Approved administrator preparation produces its own ordinary test inputs
     Given a current owner or administrator has authenticated normally
