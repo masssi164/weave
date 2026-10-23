@@ -13,6 +13,8 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/files/data/services/file_picker_files_import_picker.dart';
+import 'package:weave/features/files/data/services/file_picker_files_export_saver.dart';
+import 'package:weave/features/files/domain/services/files_export_saver.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_download.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
@@ -32,7 +34,11 @@ import 'package:weave/integrations/weave_api/presentation/providers/weave_api_pr
 import '../../helpers/server_config_test_data.dart';
 import '../../helpers/test_app.dart';
 import '../../../integration_test/dual_ios_collaboration_test.dart'
-    show selectNativeDualFilesScope;
+    show
+        selectNativeDualFilesScope,
+        NativeDualFilesContext,
+        NativeDualFilesAction,
+        tapNativeDualFilesAction;
 
 const _readyFilesSnapshot = WorkspaceCapabilitySnapshot(
   shellAccess: WorkspaceCapabilityState(
@@ -376,7 +382,530 @@ class _NamedFilesRepository extends _FakeFilesRepository
   }
 }
 
+class _ActionExportSaver implements FilesExportSaver {
+  @override
+  Future<FilesExportResult?> save(FileDownload download) async =>
+      FilesExportResult(
+        fileName: download.fileName,
+        destination: '/private/fixture/Documents/${download.fileName}',
+      );
+}
+
+class _ActionCapability
+    extends Notifier<AsyncValue<WorkspaceCapabilitySnapshot>> {
+  @override
+  AsyncValue<WorkspaceCapabilitySnapshot> build() =>
+      const AsyncData(_readyFilesSnapshot);
+  void show(AsyncValue<WorkspaceCapabilitySnapshot> value) => state = value;
+}
+
+final _actionCapabilityProvider =
+    NotifierProvider<
+      _ActionCapability,
+      AsyncValue<WorkspaceCapabilitySnapshot>
+    >(_ActionCapability.new);
+
+class _ActionRepository extends Notifier<FilesRepository> {
+  @override
+  FilesRepository build() => _FakeFilesRepository(
+    connectionState: FilesConnectionState.connected(
+      baseUrl: Uri.parse('https://private.example.test/api'),
+      accountLabel: 'fixture',
+    ),
+    download: FileDownload(
+      fileName: 'Owned quarterly update and meeting notes.txt',
+      mediaType: 'text/plain',
+      bytes: Uint8List.fromList(utf8.encode('Owned exported document bytes.')),
+    ),
+  );
+  void renew() => state = build();
+}
+
+final _actionRepositoryProvider =
+    NotifierProvider<_ActionRepository, FilesRepository>(_ActionRepository.new);
+
+class _ActionFilesController extends FilesController {
+  _ActionFilesController({this.rows = 9});
+  final int rows;
+  int replacements = 0;
+  Completer<void>? loadingGate;
+  static const owned = 'PRIVATE-OWNED-ID';
+  @override
+  Future<FilesViewState> build() async {
+    if (loadingGate != null) await loadingGate!.future;
+    return FilesViewState(
+      rootSpaceRef: 'workspace-default',
+      successfulReadGeneration: 1,
+      connectionState: FilesConnectionState.connected(
+        baseUrl: Uri.parse('https://private.example.test/api'),
+        accountLabel: 'fixture',
+      ),
+      directoryListing: DirectoryListing(
+        path: '/',
+        ownerKey: 'PRIVATE-OWNER',
+        parentFileId: 'PRIVATE-PARENT',
+        entries: List.generate(
+          rows,
+          (index) => FileEntry(
+            id: index == rows - 1 ? owned : 'other-$index',
+            name: index == rows - 1
+                ? 'Owned quarterly update and meeting notes.txt'
+                : 'Earlier document $index.txt',
+            path: '/PRIVATE-PATH',
+            isDirectory: false,
+            revision: 'PRIVATE-REVISION',
+            allowedActions: const {'download', 'updateContent'},
+          ),
+        ),
+      ),
+      uploadStatus: const FilesUploadStatus(
+        phase: FilesUploadPhase.completed,
+        fileName: 'Owned quarterly update and meeting notes.txt',
+        uploadedBytes: 48,
+        totalBytes: 48,
+      ),
+    );
+  }
+
+  @override
+  Future<void> pickAndReplace(FileEntry entry) async {
+    replacements++;
+  }
+
+  void show(FilesViewState value) => state = AsyncData(value);
+  void showLoading() {
+    loadingGate = Completer<void>();
+    ref.invalidateSelf();
+  }
+
+  void showError() => state = const AsyncError(
+    FilesFailure.unknown('PRIVATE-ERROR'),
+    StackTrace.empty,
+  );
+}
+
+Future<ProviderContainer> _pumpFilesActionHarness(
+  WidgetTester tester,
+  _ActionFilesController controller,
+) async {
+  await tester.pumpWidget(
+    createTestApp(
+      const FilesScreen(),
+      overrides: [
+        filesProvider.overrideWith(() => controller),
+        workspaceCapabilitySnapshotProvider.overrideWith(
+          (ref) => ref.watch(_actionCapabilityProvider),
+        ),
+        weaveApiMemberSpacesProvider.overrideWith(
+          (ref) async => const MemberSpaceAccessSnapshot(
+            visibleSpaceRefs: {'workspace-default'},
+            displayNames: {'workspace-default': 'Organization workspace'},
+            defaultSpaceReadable: true,
+          ),
+        ),
+        filesRepositoryProvider.overrideWith(
+          (ref) => ref.watch(_actionRepositoryProvider),
+        ),
+        filesExportSaverProvider.overrideWithValue(_ActionExportSaver()),
+      ],
+    ),
+  );
+  await tester.pumpAndSettle();
+  return ProviderScope.containerOf(tester.element(find.byType(FilesScreen)));
+}
+
 void main() {
+  for (final locale in ['en', 'de']) {
+    testWidgets(
+      'owned Files action scrolls actual post-export layout before picker publication $locale',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.localesTestValue = [Locale(locale)];
+        tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final controller = _ActionFilesController();
+        final container = await _pumpFilesActionHarness(tester, controller);
+        final expected = NativeDualFilesContext.capture(
+          container,
+          _ActionFilesController.owned,
+          spaceRef: 'workspace-default',
+        );
+        final entry = container
+            .read(filesProvider)
+            .requireValue
+            .directoryListing!
+            .entries
+            .last;
+        await controller.exportEntry(entry);
+        await tester.pumpAndSettle();
+        expect(
+          container.read(filesProvider).requireValue.entryActionStatus.phase,
+          FilesEntryActionPhase.exportedEntry,
+        );
+        expect(
+          container.read(filesProvider).requireValue.successfulReadGeneration,
+          0,
+        );
+        final update = find.byKey(
+          const Key('files-update-${_ActionFilesController.owned}'),
+        );
+        expect(
+          update,
+          findsNothing,
+          reason:
+              'The real lazy row is unmounted below the export status layout.',
+        );
+        var published = false;
+        final recovered = <String>[];
+        await tapNativeDualFilesAction(
+          tester,
+          container,
+          expected,
+          NativeDualFilesAction.replace,
+          deadline: tester.binding.clock.now().add(const Duration(seconds: 5)),
+          now: tester.binding.clock.now,
+          emit: recovered.add,
+          publishPickerRequest: () async {
+            expect(update.hitTestable(), findsOneWidget);
+            expect(controller.replacements, 0);
+            published = true;
+          },
+        );
+        expect(published, isTrue);
+        expect(controller.replacements, 1);
+        expect(
+          recovered.single,
+          contains(
+            'files-action-visibility-recovered action=replace initialControlCount=0',
+          ),
+        );
+        expect(recovered.single, contains('hittable=true'));
+        expect(recovered.single, matches(RegExp(r'scrollCount=[1-8] ')));
+        expect(recovered.single, isNot(contains('PRIVATE')));
+
+        final previousRepository = container.read(filesRepositoryProvider);
+        container.read(_actionRepositoryProvider.notifier).renew();
+        await tester.pump();
+        expect(
+          identical(
+            container.read(filesRepositoryProvider),
+            previousRepository,
+          ),
+          isFalse,
+        );
+        final restored = NativeDualFilesContext.restore(
+          expected.toPrivateJson(),
+        );
+        final diagnostics = <String>[];
+        await tapNativeDualFilesAction(
+          tester,
+          container,
+          restored,
+          NativeDualFilesAction.replace,
+          deadline: tester.binding.clock.now().add(const Duration(seconds: 5)),
+          now: tester.binding.clock.now,
+          emit: diagnostics.add,
+        );
+        expect(controller.replacements, 2);
+        expect(diagnostics, isEmpty);
+        await tapNativeDualFilesAction(
+          tester,
+          container,
+          restored,
+          NativeDualFilesAction.open,
+          deadline: tester.binding.clock.now().add(const Duration(seconds: 5)),
+          now: tester.binding.clock.now,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<SelectableText>(
+                find.byKey(const Key('files-preview-content')),
+              )
+              .data,
+          'Owned exported document bytes.',
+        );
+        await tester.tap(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.byType(TextButton),
+          ),
+        );
+        await tester.pumpAndSettle();
+        var exports = 0;
+        await tapNativeDualFilesAction(
+          tester,
+          container,
+          restored,
+          NativeDualFilesAction.export,
+          deadline: tester.binding.clock.now().add(const Duration(seconds: 5)),
+          now: tester.binding.clock.now,
+          publishPickerRequest: () async {
+            exports++;
+          },
+        );
+        await tester.pumpAndSettle();
+        expect(exports, 1);
+        expect(
+          container.read(filesProvider).requireValue.entryActionStatus.phase,
+          FilesEntryActionPhase.exportedEntry,
+        );
+        expect(container.read(filesProvider).requireValue.isBusy, isFalse);
+      },
+    );
+  }
+
+  for (final scenario in [
+    'owner',
+    'scope',
+    'parent',
+    'path',
+    'permission',
+    'directory',
+    'missing',
+    'duplicate',
+    'loading-previous',
+    'error',
+    'listing-error',
+    'capability-denied',
+    'capability-loading',
+    'obstructed',
+    'deadline',
+    'after-publication',
+    'after-publication-permission',
+    'expired-at-final-action',
+    'bounded-search',
+  ]) {
+    testWidgets(
+      'owned Files action refuses $scenario without wrong picker or replacement',
+      (tester) async {
+        final controller = _ActionFilesController(
+          rows: scenario == 'bounded-search' ? 100 : 9,
+        );
+        final container = await _pumpFilesActionHarness(tester, controller);
+        final expected = NativeDualFilesContext.capture(
+          container,
+          _ActionFilesController.owned,
+          spaceRef: 'workspace-default',
+        );
+        final original = container.read(filesProvider).requireValue;
+        final listing = original.directoryListing!;
+        final owned = listing.entries.last;
+        DirectoryListing changed({
+          String? owner,
+          String? parent,
+          String? path,
+          List<FileEntry>? entries,
+        }) => DirectoryListing(
+          path: path ?? listing.path,
+          parentFileId: parent ?? listing.parentFileId,
+          ownerKey: owner ?? listing.ownerKey,
+          entries: entries ?? listing.entries,
+        );
+        if (scenario == 'owner') {
+          controller.show(
+            original.copyWith(
+              directoryListing: changed(owner: 'OTHER-PRIVATE-OWNER'),
+            ),
+          );
+        }
+        if (scenario == 'scope') {
+          controller.show(
+            original.copyWith(rootSpaceRef: 'other-private-space'),
+          );
+        }
+        if (scenario == 'parent') {
+          controller.show(
+            original.copyWith(
+              directoryListing: changed(parent: 'OTHER-PRIVATE-PARENT'),
+            ),
+          );
+        }
+        if (scenario == 'path') {
+          controller.show(
+            original.copyWith(
+              directoryListing: changed(path: '/OTHER-PRIVATE-PATH'),
+            ),
+          );
+        }
+        if (scenario == 'permission' || scenario == 'directory') {
+          controller.show(
+            original.copyWith(
+              directoryListing: changed(
+                entries: [
+                  FileEntry(
+                    id: owned.id,
+                    name: owned.name,
+                    path: owned.path,
+                    isDirectory: scenario == 'directory',
+                    allowedActions: scenario == 'permission'
+                        ? const {'download'}
+                        : const {'download', 'updateContent'},
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        if (scenario == 'missing') {
+          controller.show(
+            original.copyWith(directoryListing: changed(entries: [])),
+          );
+        }
+        if (scenario == 'duplicate') {
+          controller.show(
+            original.copyWith(
+              directoryListing: changed(entries: [owned, owned]),
+            ),
+          );
+        }
+        if (scenario == 'loading-previous') controller.showLoading();
+        if (scenario == 'error') controller.showError();
+        if (scenario == 'listing-error') {
+          controller.show(
+            original.copyWith(
+              directoryFailure: const FilesFailure.permissionDenied(
+                'PRIVATE-DENIAL',
+              ),
+            ),
+          );
+        }
+        if (scenario == 'capability-denied') {
+          container
+              .read(_actionCapabilityProvider.notifier)
+              .show(AsyncData(_blockedFilesSnapshot()));
+        }
+        if (scenario == 'capability-loading') {
+          container
+              .read(_actionCapabilityProvider.notifier)
+              .show(const AsyncLoading<WorkspaceCapabilitySnapshot>());
+        }
+        await tester.pump();
+        if (scenario == 'obstructed') {
+          unawaited(
+            showDialog<void>(
+              context: tester.element(find.byType(FilesScreen)),
+              builder: (_) =>
+                  const AlertDialog(content: Text('Existing modal')),
+            ),
+          );
+          await tester.pumpAndSettle();
+        }
+        var published = false;
+        var publications = 0;
+        var afterPublicationChecks = 0;
+        final deadline = tester.binding.clock.now().add(
+          Duration(seconds: scenario == 'deadline' ? 0 : 5),
+        );
+        DateTime now() {
+          if (scenario == 'expired-at-final-action' &&
+              published &&
+              ++afterPublicationChecks == 2) {
+            return deadline;
+          }
+          return tester.binding.clock.now();
+        }
+
+        final diagnostics = <String>[];
+        Object? error;
+        try {
+          await tapNativeDualFilesAction(
+            tester,
+            container,
+            expected,
+            NativeDualFilesAction.replace,
+            deadline: deadline,
+            now: now,
+            emit: diagnostics.add,
+            publishPickerRequest: () async {
+              published = true;
+              publications++;
+              await Future<void>.value();
+              if (scenario == 'after-publication-permission') {
+                controller.show(
+                  original.copyWith(
+                    directoryListing: changed(
+                      entries: [
+                        FileEntry(
+                          id: owned.id,
+                          name: owned.name,
+                          path: owned.path,
+                          isDirectory: false,
+                          allowedActions: const {'download'},
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              if (scenario == 'after-publication') {
+                controller.show(
+                  original.copyWith(
+                    directoryListing: changed(owner: 'OTHER-PRIVATE-OWNER'),
+                  ),
+                );
+              }
+            },
+          );
+        } catch (failure) {
+          error = failure;
+        }
+        expect(error, isA<TestFailure>());
+        expect(controller.replacements, 0);
+        final afterPublication = [
+          'after-publication',
+          'after-publication-permission',
+          'expired-at-final-action',
+        ].contains(scenario);
+        expect(published, afterPublication);
+        expect(publications, afterPublication ? 1 : 0);
+        if (scenario == 'expired-at-final-action') {
+          expect(afterPublicationChecks, 2);
+        }
+        expect(diagnostics, hasLength(1));
+        final reason = switch (scenario) {
+          'owner' ||
+          'scope' ||
+          'parent' ||
+          'path' ||
+          'after-publication' => 'context-changed',
+          'permission' ||
+          'after-publication-permission' => 'action-not-allowed',
+          'directory' => 'entry-is-directory',
+          'missing' || 'duplicate' => 'entry-not-unique',
+          'error' => 'state-error',
+          'listing-error' => 'listing-error',
+          'capability-denied' => 'not-admitted',
+          'obstructed' => 'modal-obstructed',
+          'bounded-search' => 'control-not-found-bounded',
+          _ => 'deadline',
+        };
+        expect(diagnostics.single, contains('reason=$reason'));
+        if (scenario == 'bounded-search') {
+          expect(diagnostics.single, contains('scrolls=8'));
+        }
+        for (final privateValue in [
+          'PRIVATE',
+          'quarterly',
+          'https://',
+          'Documents',
+          'REVISION',
+        ]) {
+          expect(diagnostics.single, isNot(contains(privateValue)));
+        }
+        if (controller.loadingGate?.isCompleted == false) {
+          controller.loadingGate!.complete();
+        }
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      },
+    );
+  }
+
   testWidgets(
     'successful Files read markers change only on current completed reads',
     (tester) async {
