@@ -1,5 +1,101 @@
 import XCTest
 
+// BEGIN REGISTRATION AUTHORITY VALIDATION
+// Browser chrome must expose an explicit URL; a collapsed host is not HTTPS proof.
+func registrationIssuerAddressMatches(_ value: String, issuerUrl: String) -> Bool {
+  guard let expected = URLComponents(string: issuerUrl),
+        expected.scheme == "https", let expectedHost = expected.host,
+        expected.user == nil, expected.password == nil,
+        expected.query == nil, expected.fragment == nil,
+        let current = URLComponents(string: value), current.scheme == "https",
+        current.host?.lowercased() == expectedHost.lowercased(),
+        (current.port ?? 443) == (expected.port ?? 443),
+        current.user == nil, current.password == nil, current.fragment == nil else { return false }
+  // Prefix comparison alone must not admit traversal, encoded separators or
+  // double-encoded path reinterpretation across the trusted realm boundary.
+  func canonicalSegments(_ path: String) -> Bool {
+    path.split(separator: "/", omittingEmptySubsequences: false).allSatisfy { segment in
+      guard let decoded = String(segment).removingPercentEncoding else { return false }
+      return decoded != "." && decoded != ".." &&
+        !decoded.contains("/") && !decoded.contains("\\") && !decoded.contains("%") &&
+        !decoded.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
+    }
+  }
+  let realm = expected.percentEncodedPath.hasSuffix("/")
+    ? String(expected.percentEncodedPath.dropLast()) : expected.percentEncodedPath
+  return !realm.isEmpty && canonicalSegments(realm) && canonicalSegments(current.percentEncodedPath) &&
+    current.percentEncodedPath.hasPrefix(realm + "/")
+}
+
+func registrationStockActionMatches(_ value: String, issuerUrl: String) -> Bool {
+  guard registrationIssuerAddressMatches(value, issuerUrl: issuerUrl),
+        let expected = URLComponents(string: issuerUrl), let current = URLComponents(string: value) else { return false }
+  let registration = current.path == expected.path + "/protocol/openid-connect/registrations"
+  let verification = current.path == expected.path + "/login-actions/action-token"
+  guard registration || verification else { return false }
+  let items = current.queryItems ?? []
+  func exact(_ key: String, _ expected: String? = nil) -> Bool {
+    let matching = items.filter { $0.name == key }
+    guard matching.count == 1, let value = matching[0].value, !value.isEmpty else { return false }
+    return expected == nil || value == expected
+  }
+  return exact("client_id", "account") &&
+    (registration ? exact("response_type", "code") && exact("token") : exact("key"))
+}
+
+func registrationAddressDecision(chromeCount: Int, fullAddresses: [String], collapsedCount: Int,
+                                 collapsedType: String, revealedTypes: Set<String> = [], issuerUrl: String) -> String {
+  guard chromeCount <= 1, fullAddresses.count <= 1, collapsedCount <= 1 else { return "ambiguous" }
+  guard chromeCount == 1 else { return "wait" }
+  if collapsedCount == 1 && !["textField", "other"].contains(collapsedType) { return "ambiguous" }
+  if let address = fullAddresses.first {
+    return registrationIssuerAddressMatches(address, issuerUrl: issuerUrl) ? "verified" : "wrong-authority"
+  }
+  if collapsedCount == 1 {
+    guard ["textField", "other"].contains(collapsedType) else { return "ambiguous" }
+    return revealedTypes.contains(collapsedType) ? "wait" : "reveal"
+  }
+  return "wait"
+}
+// Stock registration may defer password setup until email verification.
+// Counts describe only one issuer-verified leaf form, never page-wide first matches.
+func registrationFormStep(registerCount: Int, usernameCount: Int, passwordCount: Int,
+                          confirmationCount: Int, newPasswordCount: Int, submitCount: Int,
+                          registrationSubmitted: Bool, passwordSubmitted: Bool) -> String {
+  guard [registerCount, usernameCount, passwordCount, confirmationCount, newPasswordCount, submitCount]
+    .allSatisfy({ $0 >= 0 && $0 <= 1 }) else { return "ambiguous" }
+  if registerCount == 1 {
+    guard newPasswordCount == 0 else { return "ambiguous" }
+    if registrationSubmitted { return "wait" }
+    if passwordCount == 0 && confirmationCount == 0 { return "profile-deferred-password" }
+    if passwordCount == 1 && confirmationCount == 1 { return "profile-with-password" }
+    return "ambiguous"
+  }
+  if newPasswordCount > 0 || confirmationCount > 0 {
+    guard newPasswordCount == 1 && confirmationCount == 1 && passwordCount == 0 && submitCount == 1 else { return "ambiguous" }
+    return passwordSubmitted ? "wait" : "update-password"
+  }
+  return "wait"
+}
+// The native AutoFill suggestion is not a provider form or a password-save alert.
+func registrationStrongPasswordDecision(viewCount: Int, headingCount: Int, generateCount: Int, closeCount: Int) -> String {
+  guard viewCount <= 1, headingCount <= 1, generateCount <= 1, closeCount <= 1 else { return "ambiguous" }
+  if viewCount == 0 { return "none" }
+  return headingCount == 1 && generateCount == 1 && closeCount == 1 ? "decline" : "wait"
+}
+// Page observation never infers acceptance from a Submit tap or vanished form.
+func registrationProviderOutcome(expiredCount: Int, failureCount: Int, verificationCount: Int,
+                                 completionCount: Int, activeForm: Bool) -> String {
+  guard [expiredCount, failureCount, verificationCount, completionCount].allSatisfy({ $0 >= 0 && $0 <= 1 }),
+        expiredCount + failureCount + verificationCount + completionCount <= 1 else { return "ambiguous" }
+  if expiredCount == 1 { return "expired" }
+  if failureCount == 1 { return "provider-failure" }
+  if verificationCount == 1 { return "verification" }
+  if completionCount == 1 && !activeForm { return "complete" }
+  return "wait"
+}
+// END REGISTRATION AUTHORITY VALIDATION
+
 final class BrowserDriver: XCTestCase {
   // Exact supported product labels; the owned simulator can inherit either locale.
   static let signInLabels = ["Sign In", "Anmelden"]
@@ -760,6 +856,7 @@ final class BrowserDriver: XCTestCase {
           activation.scheme == "https", activation.host == issuer.host, activation.port == issuer.port,
           activation.user == nil, activation.password == nil, activation.fragment == nil,
           activation.path.hasPrefix(issuer.path + "/"),
+          registrationStockActionMatches(activationText, issuerUrl: issuerText),
           let email = value["email"] as? String, email.contains("@"), email.utf8.count <= 256,
           let name = value["displayName"] as? String, !name.isEmpty, name.count <= 160,
           let password = value["password"] as? String, !password.isEmpty, password.utf8.count <= 1024,
@@ -768,7 +865,7 @@ final class BrowserDriver: XCTestCase {
   }
 
   func testRegistrationFixtureRejectsWrongAuthorityAndOwnerSessionMaterial() {
-    let base: [String: Any] = ["schemaVersion": "weave.dogfood-test-registration/v1", "phase": "ordinary-registration", "planId": String(repeating: "a", count: 32), "nonce": String(repeating: "b", count: 32), "slot": "A", "organizationOrigin": "https://organization.example.invalid", "issuerUrl": "https://identity.example.invalid/realms/weave", "activationUrl": "https://identity.example.invalid/realms/weave/organization-invitation?key=private", "email": "test@example.invalid", "displayName": "Approved Test", "password": "private-fixture", "appBundleIdentifier": "com.massimotter.weave"]
+    let base: [String: Any] = ["schemaVersion": "weave.dogfood-test-registration/v1", "phase": "ordinary-registration", "planId": String(repeating: "a", count: 32), "nonce": String(repeating: "b", count: 32), "slot": "A", "organizationOrigin": "https://organization.example.invalid", "issuerUrl": "https://identity.example.invalid/realms/weave", "activationUrl": "https://identity.example.invalid/realms/weave/protocol/openid-connect/registrations?client_id=account&response_type=code&token=nonsecret", "email": "test@example.invalid", "displayName": "Approved Test", "password": "private-fixture", "appBundleIdentifier": "com.massimotter.weave"]
     XCTAssertTrue(Self.validRegistrationFixture(base))
     for change: [String: Any] in [["activationUrl": "http://identity.example.invalid/realms/weave/action"], ["activationUrl": "https://other.example.invalid/realms/weave/action"], ["activationUrl": "https://identity.example.invalid/realms/other/action"], ["token": "forbidden"], ["password": ""], ["appBundleIdentifier": "com.example.owner"], ["phase": "initial"], ["nonce": "invalid"]] {
       XCTAssertFalse(Self.validRegistrationFixture(base.merging(change) { _, new in new }))
@@ -784,24 +881,121 @@ final class BrowserDriver: XCTestCase {
     let email = raw["email"] as! String
     let password = raw["password"] as! String
     let name = (raw["displayName"] as! String).split(separator: " ", maxSplits: 1).map(String.init)
-    let issuer = URLComponents(string: raw["issuerUrl"] as! String)!
+    #if !targetEnvironment(simulator)
+    XCTFail("Approved test-member registration requires an owned simulator"); return
+    #endif
     let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
-    guard #available(iOS 16.4, *) else { XCTFail("Approved registration requires supported Safari URL opening"); return }
-    safari.open(try XCTUnwrap(URL(string: raw["activationUrl"] as! String)))
     let deadline = Date().addingTimeInterval(180)
+    // Open only the validated private stock action through the OS default app.
+    // Unlike XCUIApplication.open, this needs no pre-existing Safari AX surface.
+    XCUIDevice.shared.system.open(try XCTUnwrap(URL(string: raw["activationUrl"] as! String)))
+    safari.activate()
+    guard safari.wait(for: .runningForeground, timeout: min(15, max(0, deadline.timeIntervalSinceNow))),
+          safari.windows.firstMatch.waitForExistence(timeout: min(15, max(0, deadline.timeIntervalSinceNow))),
+          Date() < deadline else {
+      XCTFail("Registration Safari attachment is unavailable"); return
+    }
+    guard safari.wait(for: .runningForeground, timeout: min(15, max(0, deadline.timeIntervalSinceNow))),
+          safari.webViews.firstMatch.waitForExistence(timeout: min(45, max(0, deadline.timeIntervalSinceNow))),
+          Date() < deadline else {
+      XCTFail("Registration Safari page is unavailable"); return
+    }
     var registrationSubmitted = false
+    var passwordSubmitted = false
     var invitationAccepted = false
+    func declineStrongPasswordSuggestion() -> Bool {
+      let promptDeadline = min(deadline, Date().addingTimeInterval(5))
+      var declined = false
+      while Date() < promptDeadline {
+        let views = safari.otherElements.matching(identifier: "SFAutoFillInputView")
+        guard views.count <= 1 else { XCTFail("Registration strong-password suggestion is ambiguous"); return false }
+        if views.count == 0 { return true }
+        let heading = views.element.staticTexts.matching(NSPredicate(format: "label IN %@", ["Starkes Passwort verwenden?", "Use Strong Password?"]))
+        let generate = views.element.buttons.matching(identifier: "GenerateStrongPasswordButton")
+        let close = views.element.buttons.matching(identifier: "xmark")
+        let decision = registrationStrongPasswordDecision(viewCount: views.count, headingCount: heading.count,
+          generateCount: generate.count, closeCount: close.count)
+        if decision == "ambiguous" { XCTFail("Registration strong-password controls are ambiguous"); return false }
+        if decision == "decline" && !declined && close.element.isEnabled && close.element.isHittable {
+          // Close this exact native suggestion only. Never generate/save a credential.
+          close.element.tap(); declined = true
+        }
+        Thread.sleep(forTimeInterval: 0.1)
+      }
+      XCTFail("Registration strong-password suggestion could not be declined"); return false
+    }
+    func requireIssuerAddress() -> Bool {
+      let addressDeadline = min(deadline, Date().addingTimeInterval(10))
+      var revealedTypes = Set<String>()
+      while Date() < addressDeadline {
+        guard declineStrongPasswordSuggestion() else { return false }
+        // Scope to actual browser chrome. Never accept an address-looking page field.
+        let chrome = safari.otherElements.matching(NSPredicate(format: "identifier BEGINSWITH %@", "CapsuleNavigationBar?"))
+        guard chrome.count <= 1 else { XCTFail("Registration browser chrome is ambiguous"); return false }
+        if chrome.count == 0 { Thread.sleep(forTimeInterval: 0.1); continue }
+        let full = chrome.element.textFields.matching(identifier: "URL")
+        let collapsed = chrome.element.descendants(matching: .any).matching(identifier: "TabBarItemTitle")
+        let values = full.allElementsBoundByIndex.map { $0.value as? String ?? "" }
+        let collapsedType = collapsed.count == 1 ? (collapsed.element.elementType == .textField ? "textField" :
+          collapsed.element.elementType == .other ? "other" : "unsupported") : "unavailable"
+        let decision = registrationAddressDecision(chromeCount: chrome.count, fullAddresses: values,
+          collapsedCount: collapsed.count, collapsedType: collapsedType, revealedTypes: revealedTypes,
+          issuerUrl: raw["issuerUrl"] as! String)
+        if decision == "verified" {
+          let close = safari.buttons.matching(identifier: "CancelBarItemButton")
+          guard close.count == 1, close.element.isEnabled, close.element.isHittable else {
+            XCTFail("Registration verified address cannot be dismissed safely"); return false
+          }
+          // Cancel only exits address editing; it does not navigate or submit.
+          close.element.tap()
+          while Date() < addressDeadline {
+            if chrome.count == 1 && chrome.element.textFields.matching(identifier: "URL").count == 0 &&
+                chrome.element.descendants(matching: .any).matching(identifier: "TabBarItemTitle").count == 1 { return true }
+            Thread.sleep(forTimeInterval: 0.1)
+          }
+          XCTFail("Registration address editing did not close"); return false
+        }
+        if decision == "wrong-authority" || decision == "ambiguous" {
+          XCTFail("Registration issuer address is changed or ambiguous"); return false
+        }
+        if decision == "reveal" {
+          guard collapsed.element.isEnabled, collapsed.element.isHittable else {
+            Thread.sleep(forTimeInterval: 0.1); continue
+          }
+          // Keyboard pill -> collapsed field -> full URL are distinct observed
+          // states. Tap each supported type once; never retry an unchanged state.
+          collapsed.element.tap(); revealedTypes.insert(collapsedType)
+        }
+        Thread.sleep(forTimeInterval: 0.1)
+      }
+      XCTFail("Registration issuer address is unavailable"); return false
+    }
     func fields(_ scope: XCUIElement, _ labels: [String], secure: Bool = false) -> XCUIElementQuery {
       let query = secure ? scope.secureTextFields : scope.textFields
       return query.matching(NSPredicate(format: "label IN %@ OR identifier IN %@", labels, labels))
     }
     func fill(_ scope: XCUIElement, _ labels: [String], _ text: String, secure: Bool = false) -> Bool {
+      guard requireIssuerAddress() else { return false }
       let query = fields(scope, labels, secure: secure)
       guard query.count == 1, query.element.isHittable else { return false }
       if !secure && query.element.value as? String == text { return true }
       query.element.tap()
+      if secure {
+        // AutoFill can appear just after focus, before the first typed character.
+        _ = safari.otherElements.matching(identifier: "SFAutoFillInputView").firstMatch
+          .waitForExistence(timeout: min(1, max(0, deadline.timeIntervalSinceNow)))
+        guard declineStrongPasswordSuggestion(), Date() < deadline else { return false }
+      }
       query.element.typeText(text)
       return secure || query.element.value as? String == text
+    }
+    func providerOutcome(_ page: XCUIElement) -> String {
+      registrationProviderOutcome(
+        expiredCount: page.staticTexts.matching(NSPredicate(format: "label == %@", "Your login attempt timed out. Login will start from the beginning.")).count,
+        failureCount: page.staticTexts.matching(NSPredicate(format: "label IN %@", ["Your connection is not private", "This Connection Is Not Private", "Diese Verbindung ist nicht privat", "Invalid username or password.", "Ungültiger Benutzername oder Passwort."])).count,
+        verificationCount: page.staticTexts.matching(NSPredicate(format: "label IN %@", ["Verify your email", "Email verification", "E-Mail verifizieren", "E-Mail verifizieren lassen"])).count,
+        completionCount: page.staticTexts.matching(NSPredicate(format: "label IN %@", ["Your account has been updated.", "Your email address has been verified.", "Ihr Benutzerkonto wurde aktualisiert.", "Ihre E-Mail-Adresse wurde verifiziert."])).count,
+        activeForm: page.secureTextFields.count > 0 || page.buttons.matching(NSPredicate(format: "label IN %@ OR identifier IN %@", ["Register", "Registrieren"], ["kc-register"])).count > 0)
     }
     while Date() < deadline {
       let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
@@ -820,39 +1014,79 @@ final class BrowserDriver: XCTestCase {
       let roots = web.allElementsBoundByIndex.filter { $0.webViews.count == 0 }
       if roots.count != 1 { Thread.sleep(forTimeInterval: 0.25); continue }
       let page = roots[0]
-      // Only the expected HTTPS issuer may receive the approved test credentials.
-      let address = safari.textFields.matching(NSPredicate(format: "identifier == 'URL' OR label IN %@", ["Address", "Address and Search", "Adresse und Suche", "Website suchen oder eingeben"]))
-      guard address.count == 1, let addressValue = address.element.value as? String,
-            let current = URLComponents(string: addressValue.hasPrefix("https://") ? addressValue : "https://" + addressValue),
-            current.host == issuer.host, current.port == issuer.port else {
-        XCTFail("Registration issuer address is unavailable or changed"); return
-      }
-      if page.staticTexts.matching(NSPredicate(format: "label IN %@", ["Your connection is not private", "This Connection Is Not Private", "Diese Verbindung ist nicht privat", "Invalid username or password.", "Ungültiger Benutzername oder Passwort."])).count > 0 {
-        XCTFail("Registration trust or provider validation failed"); return
-      }
-      if page.staticTexts.matching(NSPredicate(format: "label IN %@", ["Verify your email", "Email verification", "E-Mail verifizieren", "E-Mail verifizieren lassen"])).count > 0 {
-        print("NATIVE_IOS_REGISTRATION_RESULT status=incomplete stage=email-verification-required supportSafe=true"); return
-      }
-      if page.staticTexts.matching(NSPredicate(format: "label IN %@", ["Your account has been updated.", "Your email address has been verified.", "Ihr Benutzerkonto wurde aktualisiert.", "Ihre E-Mail-Adresse wurde verifiziert."])).count == 1 {
-        print("NATIVE_IOS_REGISTRATION_RESULT status=passed stage=registration-complete supportSafe=true"); return
+      // Passive observations do not repeatedly enter Safari's address editor.
+      // Fresh authority is required before every mutation and terminal result.
+      let outcome = providerOutcome(page)
+      if outcome == "ambiguous" { XCTFail("Registration provider state is ambiguous"); return }
+      if outcome != "wait" {
+        guard requireIssuerAddress() else { return }
+        let currentWeb = safari.webViews
+        let currentRoots = currentWeb.allElementsBoundByIndex.filter { $0.webViews.count == 0 }
+        guard Date() < deadline else { break }
+        if currentRoots.count != 1 || providerOutcome(currentRoots[0]) != outcome { continue }
+        if outcome == "expired" {
+          print("NATIVE_IOS_REGISTRATION_RESULT status=incomplete stage=authentication-session-expired supportSafe=true"); return
+        }
+        if outcome == "provider-failure" { XCTFail("Registration trust or provider validation failed"); return }
+        if outcome == "verification" {
+          print("NATIVE_IOS_REGISTRATION_RESULT status=incomplete stage=email-verification-required supportSafe=true"); return
+        }
+        if outcome == "complete" {
+          print("NATIVE_IOS_REGISTRATION_RESULT status=passed stage=registration-complete supportSafe=true"); return
+        }
       }
       let register = page.buttons.matching(NSPredicate(format: "label IN %@ OR identifier IN %@", ["Register", "Registrieren"], ["kc-register"]))
-      if register.count == 1 && !registrationSubmitted {
+      let usernames = fields(page, ["Username", "Benutzername", "username"])
+      let passwords = fields(page, ["Password", "Passwort", "password"], secure: true)
+      let confirmations = fields(page, ["Confirm password", "Passwort bestätigen", "password-confirm"], secure: true)
+      let newPasswords = fields(page, ["New password", "New Password", "Neues Passwort", "password-new"], secure: true)
+      let updateSubmit = page.buttons.matching(NSPredicate(format: "label IN %@", ["Submit", "Absenden"]))
+      let step = registrationFormStep(registerCount: register.count, usernameCount: usernames.count,
+        passwordCount: passwords.count, confirmationCount: confirmations.count, newPasswordCount: newPasswords.count,
+        submitCount: updateSubmit.count, registrationSubmitted: registrationSubmitted, passwordSubmitted: passwordSubmitted)
+      if step == "ambiguous" { XCTFail("Registration required-action form is incomplete or ambiguous"); return }
+      if step == "profile-deferred-password" || step == "profile-with-password" {
+        if usernames.count == 1 && !fill(page, ["Username", "Benutzername", "username"], email) {
+          XCTFail("Registration username field is unavailable"); return
+        }
         guard fill(page, ["First name", "Vorname", "firstName"], name[0]),
               fill(page, ["Last name", "Nachname", "lastName"], name.count > 1 ? name[1] : ""),
               fields(page, ["Email", "E-Mail", "email"]).count == 1,
-              (fields(page, ["Email", "E-Mail", "email"]).element.value as? String) == email,
-              fill(page, ["Password", "Passwort", "password"], password, secure: true),
-              fill(page, ["Confirm password", "Passwort bestätigen", "password-confirm"], password, secure: true),
-              register.element.isHittable else { XCTFail("Registration form is unavailable or ambiguous"); return }
+              (fields(page, ["Email", "E-Mail", "email"]).element.value as? String) == email else {
+          XCTFail("Registration profile form is unavailable or ambiguous"); return
+        }
+        if step == "profile-with-password" {
+          guard fill(page, ["Password", "Passwort", "password"], password, secure: true),
+                fill(page, ["Confirm password", "Passwort bestätigen", "password-confirm"], password, secure: true) else {
+            XCTFail("Registration password pair is unavailable"); return
+          }
+        }
+        guard requireIssuerAddress() else { return }
+        guard register.count == 1, register.element.isEnabled, register.element.isHittable else {
+          XCTFail("Registration submit is unavailable or ambiguous"); return
+        }
         register.element.tap(); registrationSubmitted = true
+      } else if step == "update-password" {
+        guard fill(page, ["New password", "New Password", "Neues Passwort", "password-new"], password, secure: true),
+              fill(page, ["Confirm password", "Passwort bestätigen", "password-confirm"], password, secure: true),
+              requireIssuerAddress() else {
+          XCTFail("Registration update-password action is unavailable"); return
+        }
+        guard updateSubmit.count == 1, updateSubmit.element.isEnabled, updateSubmit.element.isHittable else {
+          XCTFail("Registration update-password submit is unavailable or ambiguous"); return
+        }
+        updateSubmit.element.tap(); passwordSubmitted = true
       } else if !invitationAccepted {
         let accept = page.buttons.matching(NSPredicate(format: "label IN %@", ["Accept", "Annehmen"]))
-        if accept.count == 1 && accept.element.isHittable { accept.element.tap(); invitationAccepted = true }
+        if accept.count == 1 && accept.element.isHittable {
+          guard requireIssuerAddress() else { return }
+          accept.element.tap(); invitationAccepted = true
+        }
       }
       Thread.sleep(forTimeInterval: 0.25)
     }
-    XCTFail("Approved test-member registration did not reach a verified completion state")
+    XCTFail(passwordSubmitted ? "Registration password was submitted but completion is unverified" :
+      "Approved test-member registration did not reach a verified completion state")
   }
 
   func testProductionBrowser() throws {

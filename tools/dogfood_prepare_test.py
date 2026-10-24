@@ -467,22 +467,94 @@ class PrepareTest(unittest.TestCase):
         self.context.tls_root = alias
         with self.assertRaises(ContractError): prepare.public_setup(self.context)
 
+    def test_registration_validates_owned_simulator_and_keeps_link_and_password_out_of_all_command_arguments(self):
+        directory = prepare.private_directory(self.directory / "open-registration")
+        products = prepare.private_directory(directory / "products")
+        (products / "driver.xctestrun").write_bytes(b"fixture")
+        identifier = "11111111-2222-3333-4444-555555555555"
+        actor = {"products": products, "physical": False, "id": identifier,
+                 "destination": "platform=iOS Simulator,id=" + identifier}
+        issuer = "https://auth.fixture.invalid/realms/weave"
+        link = issuer + "/protocol/openid-connect/registrations?client_id=account&response_type=code&token=PRIVATE"
+        fixture = {"schemaVersion": "weave.dogfood-test-registration/v1", "phase": "ordinary-registration",
+                   "appBundleIdentifier": "com.massimotter.weave", "issuerUrl": issuer,
+                   "activationUrl": link, "password": "PRIVATE"}
+        calls = []
+        def run(arguments, **kwargs):
+            calls.append((arguments, kwargs))
+            return "" if arguments[0] == "xcrun" else "NATIVE_IOS_REGISTRATION_RESULT status=passed stage=registration-complete supportSafe=true\n"
+        runner = SimpleNamespace(sequence=1, directory=directory, run=run)
+        private = products / "private-member.json"
+        def transport(_products, value): prepare.private_write(private, value); return private
+        public = io.StringIO()
+        with patch.object(smoke, "prepare_browser_fixture", side_effect=transport), patch("sys.stdout", public):
+            self.assertEqual(prepare.registration(runner, actor, fixture), "complete")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0][0], "xcodebuild")
+        for arguments, _kwargs in calls:
+            self.assertNotIn(link, json.dumps(arguments))
+            self.assertNotIn(fixture["password"], json.dumps(arguments))
+        self.assertNotIn(link, public.getvalue()); self.assertNotIn("PRIVATE", public.getvalue())
+        self.assertFalse(private.exists())
+        invalid = [({**actor, "physical": True}, fixture), ({**actor, "id": "physical-device"}, fixture),
+                   ({**actor, "destination": "platform=iOS,id=" + identifier}, fixture),
+                   ({**actor, "destination": "platform=iOS Simulator,id=other"}, fixture)]
+        for changed in [link.replace("https://", "http://"), link.replace("auth.fixture", "foreign.fixture"),
+                        link.replace("https://auth", "https://user:password@auth"),
+                        link.replace("auth.fixture.invalid", "auth.fixture.invalid:444"),
+                        link.replace("/realms/weave", "/realms/other"),
+                        link.replace("/realms/weave/", "/realms/weave/../other/"),
+                        link.replace("/realms/weave/", "/realms/weave/%2e%2e/other/"), "not-a-url"]:
+            invalid.append((actor, {**fixture, "activationUrl": changed}))
+        invalid.append((actor, {**fixture, "issuerUrl": "http://auth.fixture.invalid/realms/weave"}))
+        invalid.append((actor, {**fixture, "issuerUrl": "https://@auth.fixture.invalid/realms/weave",
+                               "activationUrl": link.replace("https://", "https://@")}))
+        invalid.append((actor, {**fixture, "issuerUrl": "\n" + issuer}))
+        for port in ("0", "65536", "invalid"):
+            invalid.append((actor, {**fixture, "issuerUrl": issuer.replace(".invalid/", ".invalid:" + port + "/"),
+                                   "activationUrl": link.replace(".invalid/", ".invalid:" + port + "/")}))
+        for bad_actor, bad_fixture in invalid:
+            calls.clear()
+            with patch.object(smoke, "prepare_browser_fixture") as transfer, self.assertRaisesRegex(ContractError, "^normal-test-member-registration-required$"):
+                prepare.registration(runner, bad_actor, bad_fixture)
+            transfer.assert_not_called(); self.assertEqual(calls, [])
+        # A native invocation failure still removes the private transport.
+        runner.run = lambda *a, **k: (_ for _ in ()).throw(smoke.SmokeError("private URL detail"))
+        with patch.object(smoke, "prepare_browser_fixture", side_effect=transport), self.assertRaisesRegex(ContractError, "^normal-test-member-registration-required$"):
+            prepare.registration(runner, actor, fixture)
+        self.assertFalse(private.exists())
+
     def test_registration_requires_exact_single_ack_and_always_removes_private_transport(self):
         directory = prepare.private_directory(self.directory / "registration")
         products = prepare.private_directory(directory / "products")
         (products / "driver.xctestrun").write_bytes(b"fixture")
-        fixture = {"password": "PRIVATE", "activationUrl": "PRIVATE"}
+        issuer = "https://auth.fixture.invalid/realms/weave"
+        fixture = {"schemaVersion": "weave.dogfood-test-registration/v1", "phase": "ordinary-registration",
+                   "appBundleIdentifier": "com.massimotter.weave", "issuerUrl": issuer,
+                   "password": "PRIVATE", "activationUrl": issuer + "/protocol/openid-connect/registrations?client_id=account&response_type=code&token=PRIVATE"}
+        identifier = "11111111-2222-3333-4444-555555555555"
+        actor = {"products": products, "physical": False, "id": identifier,
+                 "destination": "platform=iOS Simulator,id=" + identifier}
         for status, result in (("status=incomplete stage=email-verification-required", "verification"),
                                ("status=passed stage=registration-complete", "complete")):
             runner = SimpleNamespace(sequence=1, directory=directory, run=lambda *a, **k: "NATIVE_IOS_REGISTRATION_RESULT " + status + " supportSafe=true\n")
             private = products / "private-member.json"
             def transport(_products, value): prepare.private_write(private, value); return private
             with patch.object(smoke, "prepare_browser_fixture", side_effect=transport):
-                self.assertEqual(prepare.registration(runner, {"products": products, "destination": "owned"}, fixture), result)
+                self.assertEqual(prepare.registration(runner, actor, fixture), result)
             self.assertFalse(private.exists())
         runner.run = lambda *a, **k: "NATIVE_IOS_REGISTRATION_RESULT status=passed stage=registration-complete supportSafe=true\n" * 2
         with patch.object(smoke, "prepare_browser_fixture", side_effect=transport), self.assertRaises(ContractError):
-            prepare.registration(runner, {"products": products, "destination": "owned"}, fixture)
+            prepare.registration(runner, actor, fixture)
+        self.assertFalse(private.exists())
+        expired = "NATIVE_IOS_REGISTRATION_RESULT status=incomplete stage=authentication-session-expired supportSafe=true\n"
+        runner.run = lambda *a, **k: expired
+        with patch.object(smoke, "prepare_browser_fixture", side_effect=transport), self.assertRaisesRegex(ContractError, "^normal-test-member-authentication-session-expired$"):
+            prepare.registration(runner, actor, fixture)
+        self.assertFalse(private.exists())
+        runner.run = lambda *a, **k: expired * 2
+        with patch.object(smoke, "prepare_browser_fixture", side_effect=transport), self.assertRaisesRegex(ContractError, "^normal-test-member-registration-required$"):
+            prepare.registration(runner, actor, fixture)
         self.assertFalse(private.exists())
 
     def test_already_registered_member_resume_never_redeems_invitation_or_changes_password(self):

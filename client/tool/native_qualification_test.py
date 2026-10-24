@@ -21,6 +21,131 @@ import run_native_product_acceptance as macos
 
 
 class NativeQualificationTest(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('swiftc'), 'Swift compiler unavailable for no-AX authority validation')
+    def test_registration_chrome_reveals_explicit_exact_https_issuer_before_input(self):
+        source = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
+        helper = source.split('// BEGIN REGISTRATION AUTHORITY VALIDATION\n', 1)[1].split('// END REGISTRATION AUTHORITY VALIDATION', 1)[0]
+        checks = r'''
+let issuer = "https://identity.example.invalid/realms/weave"
+let valid = "https://identity.example.invalid/realms/weave/protocol/openid-connect/registrations?fixture=nonsecret"
+assert(registrationIssuerAddressMatches(valid, issuerUrl: issuer))
+assert(registrationIssuerAddressMatches(valid.replacingOccurrences(of: ".invalid/", with: ".invalid:443/"), issuerUrl: issuer))
+for wrong in [
+  "identity.example.invalid", "\u{200E}identity.example.invalid", "//identity.example.invalid/realms/weave/action",
+  "http://identity.example.invalid/realms/weave/action", "https://identity.example.invalid.attacker.invalid/realms/weave/action",
+  "https://attacker.invalid/?next=" + valid, "https://identity.example.invalid:444/realms/weave/action",
+  "https://user:password@identity.example.invalid/realms/weave/action", "https://identity.example.invalid/realms/weave-other/action",
+  "https://identity.example.invalid/realms/other/action", "https://identity.example.invalid/realms/weave%2Faction",
+  "https://identity.example.invalid/realms/weave/action#fragment", "not a URL",
+  "https://identity.example.invalid/realms/weave/../other/action",
+  "https://identity.example.invalid/realms/weave/./action",
+  "https://identity.example.invalid/realms/weave/%2e%2e/other/action",
+  "https://identity.example.invalid/realms/weave/.%2E/other/action",
+  "https://identity.example.invalid/realms/weave/%252e%252e/other/action",
+  "https://identity.example.invalid/realms/weave/%2f../other/action",
+  "https://identity.example.invalid/realms/weave/%5c../other/action",
+  "https://identity.example.invalid/realms/weave%2fother/action",
+  "https://identity.example.invalid/realms/weave/%00/action"
+] { assert(!registrationIssuerAddressMatches(wrong, issuerUrl: issuer)) }
+// Private stock actions are validated before system opening, independently of page chrome.
+let stock = "https://identity.example.invalid/realms/weave/protocol/openid-connect/registrations?client_id=account&response_type=code&token=nonsecret"
+let verify = "https://identity.example.invalid/realms/weave/login-actions/action-token?client_id=account&key=nonsecret"
+assert(registrationStockActionMatches(stock, issuerUrl: issuer))
+assert(registrationStockActionMatches(verify, issuerUrl: issuer))
+for bad in [valid, stock.replacingOccurrences(of: "https://", with: "http://"),
+            stock.replacingOccurrences(of: "identity.example.invalid", with: "foreign.example.invalid"),
+            stock.replacingOccurrences(of: "client_id=account", with: "client_id=admin-console"),
+            stock.replacingOccurrences(of: "/realms/weave/", with: "/realms/weave/../other/"),
+            stock + "&token=duplicate", verify + "&key=duplicate"] {
+  assert(!registrationStockActionMatches(bad, issuerUrl: issuer))
+}
+// Actual Safari transition: missing chrome -> collapsed title -> expanded explicit URL.
+// No collapsed or unavailable observation authorizes credential input.
+assert(registrationAddressDecision(chromeCount: 0, fullAddresses: [], collapsedCount: 0, collapsedType: "textField", issuerUrl: issuer) == "wait")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [], collapsedCount: 1, collapsedType: "textField", issuerUrl: issuer) == "reveal")
+// The same exact scoped title is Other while the form keyboard is active.
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [], collapsedCount: 1, collapsedType: "other", issuerUrl: issuer) == "reveal")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [], collapsedCount: 1, collapsedType: "button", issuerUrl: issuer) == "ambiguous")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [], collapsedCount: 2, collapsedType: "other", issuerUrl: issuer) == "ambiguous")
+
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [valid], collapsedCount: 0, collapsedType: "textField", issuerUrl: issuer) == "verified")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: ["identity.example.invalid"], collapsedCount: 0, collapsedType: "textField", issuerUrl: issuer) == "wrong-authority")
+assert(registrationAddressDecision(chromeCount: 2, fullAddresses: [valid], collapsedCount: 0, collapsedType: "textField", issuerUrl: issuer) == "ambiguous")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [valid, valid], collapsedCount: 0, collapsedType: "textField", issuerUrl: issuer) == "ambiguous")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [], collapsedCount: 2, collapsedType: "textField", issuerUrl: issuer) == "ambiguous")
+// Actual keyboard-state progression requires two distinct, bounded actions.
+var revealedTypes = Set<String>()
+func observe(_ kind: String, _ full: [String] = []) -> String {
+  registrationAddressDecision(chromeCount: 1, fullAddresses: full, collapsedCount: full.isEmpty ? 1 : 0,
+    collapsedType: kind, revealedTypes: revealedTypes, issuerUrl: issuer)
+}
+assert(observe("other") == "reveal")
+revealedTypes.insert("other")
+assert(observe("other") == "wait") // No repeated pill taps while AX transitions.
+assert(observe("textField") == "reveal")
+revealedTypes.insert("textField")
+assert(observe("textField") == "wait") // No blind double tap of the same field.
+assert(observe("unavailable", [valid]) == "verified")
+assert(observe("button") == "ambiguous")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [valid], collapsedCount: 1, collapsedType: "button", issuerUrl: issuer) == "ambiguous")
+// A fresh later check must reject changed authority even after an earlier valid URL.
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: ["https://attacker.invalid/realms/weave/action"], collapsedCount: 0, collapsedType: "textField", issuerUrl: issuer) == "wrong-authority")
+// Real stock stages: profile without password, separate verification invocation,
+// then the unique required-action password pair. No missing/partial pair is skipped.
+func step(register: Int = 0, username: Int = 0, password: Int = 0, confirmation: Int = 0,
+          newPassword: Int = 0, submit: Int = 0, profileSent: Bool = false, passwordSent: Bool = false) -> String {
+  registrationFormStep(registerCount: register, usernameCount: username, passwordCount: password,
+    confirmationCount: confirmation, newPasswordCount: newPassword, submitCount: submit,
+    registrationSubmitted: profileSent, passwordSubmitted: passwordSent)
+}
+assert(step(register: 1, username: 1) == "profile-deferred-password")
+assert(step(register: 1) == "profile-deferred-password")
+assert(step(register: 1, username: 1, profileSent: true) == "wait")
+assert(step() == "wait") // Verification waiting alone never authorizes a mutation.
+assert(step(confirmation: 1, newPassword: 1, submit: 1) == "update-password")
+assert(step(confirmation: 1, newPassword: 1, submit: 1, passwordSent: true) == "wait")
+assert(step(register: 1, username: 1, password: 1, confirmation: 1) == "profile-with-password")
+for bad in [step(register: 2), step(register: 1, username: 2), step(register: 1, password: 1),
+            step(register: 1, confirmation: 1), step(newPassword: 1),
+            step(confirmation: 1, newPassword: 1), step(confirmation: 1, newPassword: 1, submit: 2),
+            step(password: 1, confirmation: 1, newPassword: 1, submit: 1),
+            step(register: 1, confirmation: 1, newPassword: 1)] { assert(bad == "ambiguous") }
+// Decline only the identified native suggestion with every unique guard present.
+assert(registrationStrongPasswordDecision(viewCount: 0, headingCount: 0, generateCount: 0, closeCount: 0) == "none")
+assert(registrationStrongPasswordDecision(viewCount: 1, headingCount: 1, generateCount: 1, closeCount: 1) == "decline")
+assert(registrationStrongPasswordDecision(viewCount: 1, headingCount: 0, generateCount: 1, closeCount: 1) == "wait")
+assert(registrationStrongPasswordDecision(viewCount: 1, headingCount: 1, generateCount: 0, closeCount: 1) == "wait")
+assert(registrationStrongPasswordDecision(viewCount: 1, headingCount: 1, generateCount: 1, closeCount: 0) == "wait")
+for counts in [[2, 1, 1, 1], [1, 2, 1, 1], [1, 1, 2, 1], [1, 1, 1, 2]] {
+  assert(registrationStrongPasswordDecision(viewCount: counts[0], headingCount: counts[1], generateCount: counts[2], closeCount: counts[3]) == "ambiguous")
+}
+// Post-submit absence or retained form is unverified, never a completion ACK.
+func observed(expired: Int = 0, failure: Int = 0, verification: Int = 0, completion: Int = 0, form: Bool = false) -> String {
+  registrationProviderOutcome(expiredCount: expired, failureCount: failure, verificationCount: verification,
+    completionCount: completion, activeForm: form)
+}
+assert(observed(form: true) == "wait")
+assert(observed() == "wait")
+assert(observed(expired: 1, form: true) == "expired")
+assert(observed(verification: 1) == "verification")
+assert(observed(completion: 1, form: true) == "wait") // Email info beside required password is insufficient.
+assert(observed(completion: 1) == "complete")
+assert(observed(failure: 1) == "provider-failure")
+assert(observed(expired: 2) == "ambiguous")
+assert(observed(expired: 1, completion: 1) == "ambiguous")
+assert(observed(verification: 1, completion: 1) == "ambiguous")
+print("registration-authority-passed")
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            swift = Path(directory) / 'main.swift'
+            swift.write_text('import Foundation\n' + helper + checks)
+            executable = Path(directory) / 'authority'
+            compiled = subprocess.run(['swiftc', str(swift), '-o', str(executable)], capture_output=True, text=True, timeout=120)
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            result = subprocess.run([str(executable)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), 'registration-authority-passed')
+
     @unittest.skipUnless(shutil.which('swiftc'), 'Swift compiler is unavailable for the no-AX receipt reducer')
     def test_admin_receipt_fresh_approval_and_resume_execute_actual_swift_reducer(self):
         source = (Path(__file__).parent / 'native_macos_appauth_driver.swift').read_text()

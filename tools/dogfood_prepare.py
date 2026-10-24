@@ -556,9 +556,37 @@ def fixture_binding(context, fixture_path: Path, fixture: dict) -> dict:
         "organizationDigest": owner["organizationDigest"]} for member in grants["members"]}}
 
 
+def stock_action_link(candidate: str, issuer: str, verification: bool) -> bool:
+    """Exact stock issuer action only; never infer HTTPS or a realm from display text."""
+    try:
+        if (not isinstance(candidate, str) or not isinstance(issuer, str)
+                or not 1 <= len(candidate) <= 8192 or not 1 <= len(issuer) <= 2048
+                or any(character.isspace() or ord(character) < 32 for character in issuer)):
+            return False
+        expected, parsed = urlsplit(issuer), urlsplit(candidate)
+        if (expected.scheme != "https" or not expected.hostname or expected.username is not None or expected.password is not None
+                or expected.query or expected.fragment or not expected.path.startswith("/realms/")
+                or any(part in ("", ".", "..") for part in expected.path.split("/")[2:])
+                or "%" in expected.path or "\\" in expected.path):
+            return False
+        # Accessing .port also rejects malformed/out-of-range explicit ports.
+        if not 1 <= (443 if expected.port is None else expected.port) <= 65535 or not 1 <= (443 if parsed.port is None else parsed.port) <= 65535:
+            return False
+        path = expected.path + ("/login-actions/action-token" if verification else "/protocol/openid-connect/registrations")
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        return (parsed.scheme == "https" and parsed.netloc == expected.netloc and parsed.path == path
+                and parsed.username is None and parsed.password is None and not parsed.fragment
+                and not any(character.isspace() or ord(character) < 32 for character in candidate)
+                and query.get("client_id") == ["account"]
+                and (verification or query.get("response_type") == ["code"])
+                and len(query.get("key" if verification else "token", [])) == 1
+                and bool(query["key" if verification else "token"][0]))
+    except (ValueError, TypeError, AttributeError):
+        return False
+
+
 def action_links(message: dict, issuer: str, verification: bool) -> set[str]:
     """Select only stock, exact-issuer actions; URLs remain private in memory."""
-    path = urlsplit(issuer).path + ("/login-actions/action-token" if verification else "/protocol/openid-connect/registrations")
     strings = []
     def collect(value):
         if isinstance(value, str): strings.append(value)
@@ -572,14 +600,7 @@ def action_links(message: dict, issuer: str, verification: bool) -> set[str]:
         decoded = html.unescape(raw.replace("=\r\n", "").replace("=\n", ""))
         decoded = re.sub("=3d", "=", decoded, flags=re.I)
         for candidate in re.findall(r"https://[^\s\"'<>]+", decoded):
-            parsed = urlsplit(candidate)
-            query = parse_qs(parsed.query, keep_blank_values=True)
-            if (parsed.scheme == "https" and parsed.netloc == urlsplit(issuer).netloc and parsed.path == path
-                    and not parsed.username and not parsed.password and not parsed.fragment
-                    and query.get("client_id") == ["account"]
-                    and (verification or query.get("response_type") == ["code"])
-                    and len(query.get("key" if verification else "token", [])) == 1
-                    and query["key" if verification else "token"][0]):
+            if stock_action_link(candidate, issuer, verification):
                 found.add(candidate)
     return found
 
@@ -631,8 +652,21 @@ def await_mail_link(context, email: str, issuer: str, verification: bool, *, tim
 
 def registration(runner, actor: dict, fixture: dict) -> str:
     from dogfood_functional_smoke import prepare_browser_fixture, SmokeError
+    identifier = actor.get("id")
+    activation, issuer = fixture.get("activationUrl"), fixture.get("issuerUrl")
+    if (actor.get("physical") is not False or not isinstance(identifier, str)
+            or not re.fullmatch(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", identifier)
+            or actor.get("destination") != "platform=iOS Simulator,id=" + identifier
+            or fixture.get("schemaVersion") != "weave.dogfood-test-registration/v1"
+            or fixture.get("phase") != "ordinary-registration"
+            or fixture.get("appBundleIdentifier") != "com.massimotter.weave"
+            or not isinstance(activation, str) or not isinstance(issuer, str)
+            or not any(stock_action_link(activation, issuer, verification) for verification in (False, True))):
+        raise ContractError("normal-test-member-registration-required")
     private = prepare_browser_fixture(actor["products"], fixture)
     try:
+        # The stock link is delivered only in the private fixture. XCTest opens
+        # it through XCUISystem; invitation URLs must never enter process argv.
         plan, = actor["products"].glob("*.xctestrun")
         output = runner.run(["xcodebuild", "test-without-building", "-xctestrun", str(plan),
             "-destination", actor["destination"], "-parallel-testing-enabled", "NO",
@@ -644,6 +678,8 @@ def registration(runner, actor: dict, fixture: dict) -> str:
         pending = prefix + "status=incomplete stage=email-verification-required supportSafe=true"
         if markers == [complete]: return "complete"
         if markers == [pending]: return "verification"
+        expired = prefix + "status=incomplete stage=authentication-session-expired supportSafe=true"
+        if markers == [expired]: raise ContractError("normal-test-member-authentication-session-expired")
         raise ContractError("normal-test-member-registration-required")
     except SmokeError:
         raise ContractError("normal-test-member-registration-required") from None
