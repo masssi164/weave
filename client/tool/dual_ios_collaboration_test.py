@@ -19,6 +19,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run_dual_ios_collaboration as dual
 import run_ios_simulator_product_acceptance as ios
+import artifact_consumers
 
 
 def with_member_scenario(data):
@@ -997,6 +998,18 @@ class DualIosCollaborationTest(unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 client = Path(directory) / 'client'
                 client.mkdir()
+                app = Path(directory) / 'hosted/collaboration/Runner.app'
+                app.mkdir(parents=True)
+                products = Path(directory) / 'hosted/driver/Products'
+                products.mkdir(parents=True)
+                (products / 'owned.xctestrun').write_bytes(plistlib.dumps({
+                    'BrowserDriver': {'TestBundlePath': '__TESTROOT__/BrowserDriver.xctest'}}))
+                (products / 'BrowserDriver.xctest').mkdir()
+                manifest = {
+                    'component': 'ios-simulator', 'sourceCommit': 'a' * 40,
+                    'sourceTree': 'b' * 40, 'inputDigest': 'sha256:' + 'c' * 64,
+                    'target': 'aarch64-apple-ios-sim', 'buildMode': 'debug',
+                    'buildNumber': '12', 'payload': {'sha256': 'sha256:' + 'd' * 64}}
                 output = Path(directory) / 'failed-result.json'
                 failure = ios.NativeFailure('integration', 'initial-product', 'owned-test-failure')
                 actors = [{'role': 'A'}, {'role': 'B'}]
@@ -1006,13 +1019,14 @@ class DualIosCollaborationTest(unittest.TestCase):
                         snapshot_markers.append(args[0])
                         raise BrokenPipeError('private-output-error-must-not-replace-failure')
                 with mock.patch.object(ios, 'CLIENT', client), \
+                     mock.patch.object(artifact_consumers, 'native_bundle', return_value=(manifest, app, products)) as artifact, \
+                     mock.patch.object(artifact_consumers, 'copy_driver_products', wraps=artifact_consumers.copy_driver_products) as driver_copy, \
                      mock.patch.object(dual, 'private_input', return_value={'runId': 'owned-test', 'actors': actors}), \
                      mock.patch.object(ios, 'select_runtime', return_value=('runtime', 'device')), \
-                     mock.patch.object(ios, 'run', return_value='11111111-1111-1111-1111-111111111111'), \
-                     mock.patch.object(dual, 'app_build_digest', return_value='a' * 64), \
+                     mock.patch.object(ios, 'run', return_value='11111111-1111-1111-1111-111111111111') as native_command, \
+                     mock.patch.object(dual, 'app_build_digest', return_value='a' * 64) as build_digest, \
                      mock.patch.object(dual, 'proxy_authorities', return_value={'owned.invalid:443'}), \
                      mock.patch.object(dual, 'actor_runtime_copy'), \
-                     mock.patch.object(dual.shutil, 'copytree'), \
                      mock.patch.object(dual, 'run_actor', side_effect=failure), \
                      mock.patch.object(dual, 'retain_failure_room_reference', side_effect=transfer_failure), \
                      mock.patch('builtins.print', side_effect=fail_diagnostic_output), \
@@ -1022,6 +1036,14 @@ class DualIosCollaborationTest(unittest.TestCase):
                         dual.qualify(Path('unused-private-input'), output,
                                      {'WEAVE_E2E_RUN_ID': 'owned-test', 'WEAVE_NATIVE_CA': 'owned-ca'})
                     self.assertIs(caught.exception, failure)
+                artifact.assert_called_once_with(variant='collaboration')
+                driver_copy.assert_called_once()
+                self.assertEqual(driver_copy.call_args.args[0], products)
+                build_digest.assert_called_once_with(app)
+                commands = [call.args[0] for call in native_command.call_args_list]
+                self.assertIn(['flutter', 'pub', 'get', '--enforce-lockfile'], commands)
+                self.assertFalse(any(command[:2] in (['flutter', 'build'], ['xcodebuild', 'build-for-testing'])
+                                     for command in commands))
                 self.assertEqual(snapshot_markers, [
                     f'NATIVE_IOS_CHAT_FAILURE_SNAPSHOT status=unavailable stage={expected_stage} supportSafe=true'])
                 self.assertNotIn('private-token', ''.join(snapshot_markers))
