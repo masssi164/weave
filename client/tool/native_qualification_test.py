@@ -256,13 +256,103 @@ print("registration-authority-passed")
 '''
         with tempfile.TemporaryDirectory() as directory:
             swift = Path(directory) / 'main.swift'
-            swift.write_text('import Foundation\nimport CoreGraphics\n' + helper + checks)
+            swift.write_text('import Foundation\n#if canImport(CoreGraphics)\nimport CoreGraphics\n#endif\n' + helper + checks)
             executable = Path(directory) / 'authority'
             compiled = subprocess.run(['swiftc', str(swift), '-o', str(executable)], capture_output=True, text=True, timeout=120)
             self.assertEqual(compiled.returncode, 0, compiled.stderr)
             result = subprocess.run([str(executable)], capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), 'registration-authority-passed')
+
+    @unittest.skipUnless(shutil.which('swiftc'), 'Swift compiler unavailable for no-AX scroll decision validation')
+    def test_ordinary_scroll_invalid_target_geometry_uses_explicit_search_direction_and_bounded_budget(self):
+        source = (Path(__file__).parent / 'ios_browser_driver/OrdinaryProductSmoke.swift').read_text()
+        helper = source.split('// BEGIN ORDINARY SCROLL DECISION\n', 1)[1].split('// END ORDINARY SCROLL DECISION', 1)[0]
+        checks = r'''
+let upper: CGFloat = 200
+func direction(_ frame: CGRect?, _ fallback: Bool = false) -> Bool {
+  BrowserDriver.ordinaryScrollTowardTop(targetFrame: frame, upperEdge: upper, fallbackTowardTop: fallback)
+}
+// AX keeps offscreen nodes but may supply zero geometry. It is not evidence of an above-viewport node.
+for frame: CGRect? in [nil, .zero, CGRect(x: 0, y: 0, width: 100, height: 0),
+                      CGRect(x: 0, y: 0, width: 0, height: 48),
+                      CGRect(x: CGFloat.nan, y: 0, width: 100, height: 48),
+                      CGRect(x: 0, y: CGFloat.nan, width: 100, height: 48),
+                      CGRect(x: 0, y: 0, width: CGFloat.infinity, height: 48),
+                      CGRect(x: 0, y: -CGFloat.infinity, width: 100, height: 48)] {
+  assert(!direction(frame))
+  assert(direction(frame, true))
+}
+assert(direction(CGRect(x: 0, y: 30, width: 100, height: 48)))
+assert(!direction(CGRect(x: 0, y: 900, width: 100, height: 48)))
+// Real geometry determines the direction; explicit search direction supplies only missing geometry.
+assert(direction(CGRect(x: 0, y: 30, width: 100, height: 48), false))
+assert(!direction(CGRect(x: 0, y: 900, width: 100, height: 48), true))
+var budget = BrowserDriver.OrdinaryScrollBudget()
+let start = Date(timeIntervalSince1970: 100)
+for index in 0..<8 {
+  assert(budget.request(now: start.addingTimeInterval(Double(index))))
+  assert(!budget.request(now: start.addingTimeInterval(Double(index) + 0.25)))
+}
+assert(budget.remaining == 0)
+assert(!budget.request(now: start.addingTimeInterval(1000)))
+print("ordinary-scroll-decision-passed")
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            swift = Path(directory) / 'main.swift'
+            swift.write_text('import Foundation\n#if canImport(CoreGraphics)\nimport CoreGraphics\n#endif\nenum BrowserDriver {\n' + helper + '\n}\n' + checks)
+            executable = Path(directory) / 'scroll'
+            compiled = subprocess.run(['swiftc', str(swift), '-o', str(executable)], capture_output=True, text=True, timeout=120)
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            result = subprocess.run([str(executable)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), 'ordinary-scroll-decision-passed')
+
+    @unittest.skipUnless(shutil.which('swiftc'), 'Swift compiler unavailable for no-AX identity readiness validation')
+    def test_ordinary_identity_waits_for_both_current_exact_references_with_fixed_deadline(self):
+        source = (Path(__file__).parent / 'ios_browser_driver/OrdinaryProductSmoke.swift').read_text()
+        helper = source.split('// BEGIN ORDINARY IDENTITY READINESS\n', 1)[1].split('// END ORDINARY IDENTITY READINESS', 1)[0]
+        checks = r'''
+let start = Date(timeIntervalSince1970: 100)
+let deadline = start.addingTimeInterval(40)
+let account = "Account reference: sha256:" + String(repeating: "a", count: 64)
+let organization = "Organization reference: sha256:" + String(repeating: "b", count: 64)
+var readiness = BrowserDriver.OrdinaryIdentityReadiness()
+func observe(_ labels: [String: [String]], at seconds: Double = 0, current: Bool = true) -> String {
+  readiness.observe(labels: labels, contextCurrent: current, now: start.addingTimeInterval(seconds), deadline: deadline)
+}
+assert(observe(["account": ["Account reference: Loading"], "organization": ["Organization reference: Loading"]]) == "wait")
+assert(readiness.observed.isEmpty)
+assert(observe(["account": [account], "organization": ["Organization reference: Loading"]], at: 1) == "wait")
+assert(observe(["account": [account], "organization": [organization]], at: 2) == "ready")
+assert(observe(["account": ["Account reference: Loading"], "organization": [organization]], at: 2.25) == "wait")
+assert(readiness.observed == ["account": String(repeating: "a", count: 64), "organization": String(repeating: "b", count: 64)])
+assert(observe(["account": ["Account reference: sha256:" + String(repeating: "c", count: 64)], "organization": [organization]], at: 3) == "context-changed")
+for invalid in [String(repeating: "a", count: 63), String(repeating: "a", count: 65), String(repeating: "A", count: 64),
+                String(repeating: "a", count: 64) + " other", String(repeating: "a", count: 64) + " sha256:" + String(repeating: "b", count: 64)] {
+  readiness = BrowserDriver.OrdinaryIdentityReadiness()
+  assert(observe(["account": ["Account reference: sha256:" + invalid], "organization": [organization]]) == "malformed")
+}
+readiness = BrowserDriver.OrdinaryIdentityReadiness()
+assert(observe(["account": [account, account], "organization": [organization]]) == "ambiguous")
+assert(observe(["account": [account], "organization": [organization]], current: false) == "context-changed")
+assert(readiness.observed.isEmpty)
+assert(observe(["account": [account], "organization": [organization]], at: 40) == "timeout")
+assert(readiness.observed.isEmpty)
+assert(observe(["account": ["Account reference: Loading"]], at: 39.75) == "wait")
+assert(observe(["account": [account], "organization": [organization]], at: 41) == "timeout")
+assert(readiness.observed.isEmpty)
+print("ordinary-identity-readiness-passed")
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            swift = Path(directory) / 'main.swift'
+            swift.write_text('import Foundation\nenum BrowserDriver {\n' + helper + '\n}\n' + checks)
+            executable = Path(directory) / 'identity'
+            compiled = subprocess.run(['swiftc', str(swift), '-o', str(executable)], capture_output=True, text=True, timeout=120)
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            result = subprocess.run([str(executable)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), 'ordinary-identity-readiness-passed')
 
     @unittest.skipUnless(shutil.which('swiftc'), 'Swift compiler is unavailable for the no-AX receipt reducer')
     def test_admin_receipt_fresh_approval_and_resume_execute_actual_swift_reducer(self):
