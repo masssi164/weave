@@ -51,8 +51,16 @@ class Docker:
         if arguments[:2] == ["image", "rm"]:
             if arguments[-1] in self.fail_removal:
                 raise storage.RuntimeStorageError("runtime-image-docker-command-failed")
-            self.removed.append(arguments[-1])
-            del self.images[arguments[-1]]
+            target = arguments[-1]
+            self.removed.append(target)
+            if target in self.images:
+                del self.images[target]
+            else:
+                image = next(image for image, value in self.images.items() if target in value["RepoDigests"])
+                value = self.images[image]
+                value["RepoDigests"].remove(target)
+                if not value["RepoTags"] and not value["RepoDigests"]:
+                    del self.images[image]
             return ""
         raise AssertionError(arguments)
 
@@ -73,6 +81,18 @@ class RuntimeStorageTest(unittest.TestCase):
 
     def read(self):
         return json.loads(self.ledger.read_text())
+
+    def record_registry(self, number: int, images: dict | None = None):
+        manifest, original = fixture(number)
+        images = images if images is not None else original
+        references = {component: storage.NAMES[component] + "@" + digest(number * 100 + index)
+                      for index, component in enumerate(images)}
+        self.docker.add(images)
+        for component, image in images.items():
+            self.docker.images[image]["RepoDigests"].append(references[component])
+        result = storage.record_verified_runtime(manifest, images, registry_references=references,
+                                                 ledger=self.ledger, docker=self.docker)
+        return result, references
 
     def test_retains_current_and_one_previous_set_only(self):
         self.record(1)
@@ -132,6 +152,89 @@ class RuntimeStorageTest(unittest.TestCase):
         self.assertNotIn(first["backend"], self.docker.removed)
         self.assertNotIn(first["mcp"], self.docker.removed)
         self.assertFalse(any(command[:2] == ["image", "tag"] for command in self.docker.commands))
+
+    def test_registry_pulled_images_are_bounded_and_owned_digests_are_removed(self):
+        _, first_references = self.record_registry(1)
+        self.record_registry(2)
+        result, _ = self.record_registry(3)
+        self.assertEqual(set(self.docker.removed), set(first_references.values()))
+        self.assertEqual(result["removedImageCount"], 4)
+        self.assertEqual(result["pendingImageCount"], 0)
+        self.assertEqual(len(self.docker.images), 8)
+        self.assertTrue(set(self.read()["ownedRegistryReferences"]).isdisjoint(fixture(1)[1].values()))
+        self.assertTrue(all(command[:3] == ["image", "rm", "--no-prune"] and len(command) == 4
+                            for command in self.docker.commands if "rm" in command))
+
+    def test_owned_registry_images_still_preserve_operator_and_in_use_references(self):
+        _, first_references = self.record_registry(1)
+        first = fixture(1)[1]
+        self.docker.images[first["backend"]]["RepoTags"] = ["operator-owned:stable"]
+        self.docker.images[first["mcp"]]["RepoDigests"].append("other-registry/example@" + digest(9000))
+        self.docker.containers = {"a" * 64: first["keycloak"]}
+        self.record_registry(2)
+        result, _ = self.record_registry(3)
+        self.assertEqual(result["removedImageCount"], 1)
+        self.assertEqual(result["taggedImageCount"], 2)
+        self.assertEqual(result["inUseImageCount"], 1)
+        self.assertEqual(self.docker.removed, [first_references["runtimeState"]])
+        self.assertEqual(set(self.read()["pendingImageIds"]), {first["backend"], first["mcp"], first["keycloak"]})
+        self.docker.containers.clear()
+        self.docker.images[first["backend"]]["RepoTags"] = []
+        self.docker.images[first["mcp"]]["RepoDigests"] = [first_references["mcp"]]
+        result = storage.prune_runtime_storage(ledger=self.ledger, docker=self.docker)
+        self.assertEqual(result["removedImageCount"], 3)
+        self.assertEqual(result["pendingImageCount"], 0)
+
+    def test_all_verified_aliases_of_the_same_retired_image_are_removed(self):
+        shared = fixture(1)[1]
+        _, first_references = self.record_registry(1)
+        _, second_references = self.record_registry(2, shared)
+        self.record_registry(3)
+        result, _ = self.record_registry(4)
+        self.assertEqual(result["removedImageCount"], 4)
+        self.assertEqual(set(self.docker.removed), set(first_references.values()) | set(second_references.values()))
+        self.assertEqual(result["pendingImageCount"], 0)
+
+    def test_legacy_ledger_migration_never_claims_existing_registry_references(self):
+        self.record(1)
+        first = fixture(1)[1]
+        # Even a familiar package name is not proof of consumer ownership.
+        self.docker.images[first["backend"]]["RepoDigests"] = [storage.NAMES["backend"] + "@" + digest(9021)]
+        legacy = self.read()
+        legacy["schemaVersion"] = storage.LEGACY_SCHEMA
+        del legacy["ownedRegistryReferences"]
+        self.ledger.write_text(json.dumps(legacy))
+        self.record_registry(2)
+        result, _ = self.record_registry(3)
+        self.assertEqual(self.read()["schemaVersion"], storage.SCHEMA)
+        self.assertEqual(result["taggedImageCount"], 1)
+        self.assertNotIn(first["backend"], self.docker.removed)
+        self.assertNotIn(first["backend"], self.read()["ownedRegistryReferences"])
+
+    def test_failed_registry_removal_retains_ownership_for_safe_retry(self):
+        _, references = self.record_registry(1)
+        failed = references["backend"]
+        self.docker.fail_removal.add(failed)
+        self.record_registry(2)
+        result, _ = self.record_registry(3)
+        self.assertEqual(result["deferredImageCount"], 1)
+        self.assertEqual(self.read()["pendingImageIds"], [fixture(1)[1]["backend"]])
+        self.assertEqual(self.read()["ownedRegistryReferences"][fixture(1)[1]["backend"]], [failed])
+        self.docker.fail_removal.clear()
+        self.assertEqual(storage.prune_runtime_storage(ledger=self.ledger, docker=self.docker)["removedImageCount"], 1)
+
+    def test_unverified_registry_reference_is_rejected_before_recording_authority(self):
+        manifest, images = fixture(1)
+        invalid = {component: storage.NAMES[component] + "@" + digest(101) for component in images}
+        for component, reference in (("backend", "ghcr.io/another/repository@" + digest(1)),
+                                     ("backend", storage.NAMES["backend"] + ":latest")):
+            with self.subTest(reference=reference):
+                references = {**invalid, component: reference}
+                with self.assertRaisesRegex(storage.RuntimeStorageError, "registry-ownership-invalid"):
+                    storage.record_verified_runtime(manifest, images, registry_references=references,
+                                                    ledger=self.ledger, docker=self.docker)
+        self.assertFalse(self.ledger.exists())
+        self.assertFalse(self.docker.commands)
 
     def test_unrecorded_untagged_images_are_never_pruned(self):
         unrelated = digest(9999)

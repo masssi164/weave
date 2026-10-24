@@ -10,13 +10,14 @@ import plistlib
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 
-from build_artifacts import ArtifactError, candidate_identity, verify_component
+from build_artifacts import ArtifactError, candidate_identity, digest_file, verify_component
 from artifact_runtime_storage import RuntimeStorageError, record_verified_runtime
+from runtime_image_registry import validate_receipt
 
 ROOT = Path(__file__).resolve().parents[1]
-IMAGE = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 def component(name: str, candidate: str = "HEAD") -> tuple[dict, Path]:
@@ -85,20 +86,15 @@ def copy_driver_products(products: Path, destination: Path) -> Path:
 def runtime_definition(candidate: str = "HEAD") -> tuple[dict, dict, Path]:
     manifest, payload = component("runtime-linux-amd64", candidate)
     value = json.loads((payload / "images.json").read_text())
-    images = value.get("images", {})
-    if (value.get("schemaVersion") != "weave.runtime-images/v1"
-            or value.get("sourceCommit") != manifest["sourceCommit"]
-            or value.get("platform") != "linux/amd64"
-            or not IMAGE.fullmatch(value.get("specDigest", ""))
-            or set(images) != {"backend", "mcp", "keycloak", "runtimeState"}
-            or any(not isinstance(image, str) or not IMAGE.fullmatch(image) for image in images.values())):
-        raise ArtifactError("runtime-artifact-image-mapping-invalid")
+    validate_receipt(value, manifest["sourceCommit"], value.get("specDigest"))
+    if value["specDigest"] != digest_file(ROOT / "specs/weave-specs.lock.json"):
+        raise ArtifactError("runtime-artifact-spec-digest-mismatch")
     return manifest, value, payload
 
 
 def verify_runtime_container(container: dict, candidate: str = "HEAD") -> dict:
     manifest, definition, _ = runtime_definition(candidate)
-    image_id = definition["images"]["backend"]
+    image_id = definition["images"]["backend"]["imageId"]
     if container.get("Image") != image_id:
         raise ArtifactError("running-server-artifact-mismatch")
     # Compose correctly labels the runtime with the current candidate/specification.
@@ -164,26 +160,45 @@ def fetch_composition(candidate: str, run_id: int, run_attempt: int, output: Pat
     output.write_text(json.dumps(value, indent=2) + "\n")
 
 
+def _registry_docker_config() -> Path:
+    selected = os.environ.get("WEAVE_RUNTIME_DOCKER_CONFIG", "")
+    directory = Path(selected)
+    if (not selected or not directory.is_absolute() or not directory.is_dir()
+            or directory.is_symlink() or directory.stat().st_uid != os.getuid()
+            or stat.S_IMODE(directory.stat().st_mode) != 0o700):
+        raise ArtifactError("run-scoped-registry-auth-required")
+    credentials = directory / "config.json"
+    if (credentials.is_symlink() or not credentials.is_file()
+            or credentials.stat().st_uid != os.getuid()
+            or stat.S_IMODE(credentials.stat().st_mode) != 0o600):
+        raise ArtifactError("run-scoped-registry-auth-invalid")
+    return directory
+
+
 def load_runtime_images(candidate: str = "HEAD") -> dict[str, str]:
     manifest, definition, payload = runtime_definition(candidate)
-    images = definition["images"]
-    def installed(image: str) -> bool:
-        return subprocess.run(["docker", "image", "inspect", image], cwd=ROOT,
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
-    if not all(installed(image) for image in images.values()):
-        subprocess.run(["docker", "load", "--input", str(payload / "images.tar")], cwd=ROOT,
-                       check=True, stdout=subprocess.DEVNULL)
-    for key, image in images.items():
-        values = json.loads(subprocess.check_output(["docker", "image", "inspect", image], cwd=ROOT))
-        if len(values) != 1 or values[0].get("Id") != image or values[0].get("Os") != "linux" or values[0].get("Architecture") != "amd64":
-            raise ArtifactError("loaded-runtime-image-mismatch")
+    images = {key: item["imageId"] for key, item in definition["images"].items()}
+    configuration = _registry_docker_config()
+    for key, entry in definition["images"].items():
+        reference = entry["reference"]
+        try:
+            subprocess.run(["docker", "--config", str(configuration), "pull", "--platform", "linux/amd64",
+                            reference], cwd=ROOT, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            values = json.loads(subprocess.check_output(["docker", "image", "inspect", reference], cwd=ROOT))
+        except (OSError, subprocess.CalledProcessError, ValueError):
+            raise ArtifactError("runtime-registry-image-unavailable") from None
+        if (len(values) != 1 or values[0].get("Id") != entry["imageId"]
+                or values[0].get("Os") != "linux" or values[0].get("Architecture") != "amd64"
+                or reference not in (values[0].get("RepoDigests") or [])):
+            raise ArtifactError("pulled-runtime-image-mismatch")
         if key in {"backend", "mcp"}:
             labels = values[0].get("Config", {}).get("Labels", {}) or {}
             if (labels.get("org.opencontainers.image.revision") != manifest["sourceCommit"]
                     or labels.get("com.massimotter.weave.spec-digest") != definition["specDigest"]):
-                raise ArtifactError("loaded-runtime-provenance-mismatch")
+                raise ArtifactError("pulled-runtime-provenance-mismatch")
     try:
-        record_verified_runtime(manifest, images)
+        record_verified_runtime(manifest, images, registry_references={
+            key: entry["reference"] for key, entry in definition["images"].items()})
     except RuntimeStorageError as failure:
         raise ArtifactError(str(failure)) from None
     except (OSError, ValueError):

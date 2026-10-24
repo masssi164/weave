@@ -20,12 +20,15 @@ import tempfile
 import time
 from typing import Callable
 
+from runtime_image_registry import NAMES
+
 
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 CONTAINER = re.compile(r"[0-9a-f]{64}\Z")
 COMPONENTS = {"backend", "mcp", "keycloak", "runtimeState"}
-SCHEMA = "weave.runtime-image-ledger/v1"
+LEGACY_SCHEMA = "weave.runtime-image-ledger/v1"
+SCHEMA = "weave.runtime-image-ledger/v2"
 MAX_LEDGER_BYTES = 256 * 1024
 MAX_PENDING_IMAGES = 2048
 Docker = Callable[[list[str]], str]
@@ -114,9 +117,30 @@ def _validate_set(value: object) -> None:
         raise RuntimeStorageError("runtime-image-ledger-set-invalid")
 
 
+def _valid_registry_reference(reference: object, component: str | None = None) -> bool:
+    names = [NAMES[component]] if component else NAMES.values()
+    return isinstance(reference, str) and any(
+        reference.startswith(name + "@") and DIGEST.fullmatch(reference.removeprefix(name + "@"))
+        for name in names)
+
+
+def _verified_registry_references(images: dict, references: dict | None) -> dict[str, list[str]]:
+    if references is None:
+        return {}
+    if (not isinstance(references, dict) or set(references) != COMPONENTS
+            or not all(_valid_registry_reference(reference, component)
+                       for component, reference in references.items())):
+        raise RuntimeStorageError("runtime-image-registry-ownership-invalid")
+    result: dict[str, list[str]] = {}
+    for component, reference in references.items():
+        result.setdefault(images[component], []).append(reference)
+    return {image: sorted(set(owned)) for image, owned in result.items()}
+
+
 def _read(path: Path) -> dict:
     if not path.exists():
-        return {"schemaVersion": SCHEMA, "ownerUid": os.getuid(), "retainedSets": [], "pendingImageIds": []}
+        return {"schemaVersion": SCHEMA, "ownerUid": os.getuid(), "retainedSets": [],
+                "pendingImageIds": [], "ownedRegistryReferences": {}}
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
         info = os.fstat(stream.fileno())
@@ -127,8 +151,13 @@ def _read(path: Path) -> dict:
             value = json.load(stream)
         except (ValueError, UnicodeError):
             raise RuntimeStorageError("runtime-image-ledger-invalid") from None
+    # Legacy receipts grant only image-ID ownership. Never infer authority over
+    # existing registry references merely from their names during migration.
+    if (isinstance(value, dict) and value.get("schemaVersion") == LEGACY_SCHEMA
+            and set(value) == {"schemaVersion", "ownerUid", "retainedSets", "pendingImageIds"}):
+        value = {**value, "schemaVersion": SCHEMA, "ownedRegistryReferences": {}}
     if (not isinstance(value, dict)
-            or set(value) != {"schemaVersion", "ownerUid", "retainedSets", "pendingImageIds"}
+            or set(value) != {"schemaVersion", "ownerUid", "retainedSets", "pendingImageIds", "ownedRegistryReferences"}
             or value["schemaVersion"] != SCHEMA or type(value["ownerUid"]) is not int
             or value["ownerUid"] != os.getuid()
             or not isinstance(value["retainedSets"], list) or len(value["retainedSets"]) > 2
@@ -139,6 +168,14 @@ def _read(path: Path) -> dict:
         raise RuntimeStorageError("runtime-image-ledger-invalid")
     for item in value["retainedSets"]:
         _validate_set(item)
+    tracked = set(value["pendingImageIds"]) | {
+        image for item in value["retainedSets"] for image in item["images"].values()}
+    references = value["ownedRegistryReferences"]
+    if (not isinstance(references, dict) or not set(references).issubset(tracked)
+            or any(not isinstance(owned, list) or not owned or len(owned) > 32
+                   or not all(_valid_registry_reference(reference) for reference in owned)
+                   or len(set(owned)) != len(owned) for owned in references.values())):
+        raise RuntimeStorageError("runtime-image-registry-ownership-invalid")
     return value
 
 
@@ -206,30 +243,43 @@ def _prune(path: Path, value: dict, docker: Docker) -> dict:
                 or any(records[0].get(key) is not None and not isinstance(records[0][key], list)
                        for key in ("RepoTags", "RepoDigests"))):
             raise RuntimeStorageError("runtime-image-inventory-invalid")
-        # Never remove or take ownership of an operator's tag or registry reference.
-        if records[0].get("RepoTags") or records[0].get("RepoDigests"):
+        actual_references = records[0].get("RepoDigests") or []
+        owned_references = value["ownedRegistryReferences"].get(image, [])
+        if not all(isinstance(reference, str) for reference in actual_references):
+            raise RuntimeStorageError("runtime-image-inventory-invalid")
+        # Preserve every operator tag and unowned registry reference. Only
+        # digest references passed by the authenticated consumer are ours.
+        if records[0].get("RepoTags") or set(actual_references) - set(owned_references):
             deferred.append(image)
             result["taggedImageCount"] += 1
             continue
         try:
             # Docker protects concurrent container references. Do not force
             # removal or implicitly delete unrecorded untagged parent images.
-            docker(["image", "rm", "--no-prune", image])
+            # Removing the last owned digest also removes its otherwise-unused
+            # image. Removing by ID alone cannot clear multiple digest aliases.
+            for target in sorted(actual_references) or [image]:
+                docker(["image", "rm", "--no-prune", target])
         except RuntimeStorageError:
             deferred.append(image)
             result["deferredImageCount"] += 1
         else:
             result["removedImageCount"] += 1
     value["pendingImageIds"] = deferred
+    tracked = retained | set(deferred)
+    value["ownedRegistryReferences"] = {
+        image: references for image, references in value["ownedRegistryReferences"].items() if image in tracked}
     _write(path, value)
     result["pendingImageCount"] = len(deferred)
     return result
 
 
-def record_verified_runtime(manifest: dict, images: dict, *, ledger: Path | None = None,
+def record_verified_runtime(manifest: dict, images: dict, *, registry_references: dict | None = None,
+                            ledger: Path | None = None,
                             docker: Docker = _docker) -> dict:
     """Record a fully verified loaded set and retain this set plus its predecessor."""
     current = _verified_set(manifest, images)
+    verified_references = _verified_registry_references(images, registry_references)
     path = ledger if ledger is not None else default_ledger()
     with _locked(path):
         value = _read(path)
@@ -238,6 +288,11 @@ def record_verified_runtime(manifest: dict, images: dict, *, ledger: Path | None
         retained = {image for item in value["retainedSets"] for image in item["images"].values()}
         old = {image for item in previous for image in item["images"].values()}
         value["pendingImageIds"] = sorted((set(value["pendingImageIds"]) | old) - retained)
+        references = value["ownedRegistryReferences"]
+        for image, verified in verified_references.items():
+            references[image] = sorted(set(references.get(image, [])) | set(verified))
+            if len(references[image]) > 32:
+                raise RuntimeStorageError("runtime-image-registry-ownership-limit")
         # Persist ownership before destructive operations. A crash after rm is
         # harmless: the next pass sees that exact recorded ID is already absent.
         _write(path, value)

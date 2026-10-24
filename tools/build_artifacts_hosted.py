@@ -15,6 +15,7 @@ import tempfile
 
 from build_artifacts import (ArtifactError, ROOT, component_configuration, digest_file,
                              git, publish_manifest, require_clean_source)
+from runtime_image_registry import publish as publish_runtime_images
 
 
 def run(root: Path, arguments: list[str], *, capture: bool = False, env: dict | None = None) -> str:
@@ -195,12 +196,13 @@ def runtime(root: Path, payload: Path, source: str) -> None:
                                     "--root", str(root), "--candidate-commit", source,
                                     "--output", str(payload / "keycloak-build-evidence.json")], capture=True).splitlines()[-1]
     images["runtimeState"] = run(root, ["bash", "infra/weave-workspace/scripts/build_runtime_state_image.sh"], capture=True).splitlines()[-1]
-    run(root, ["docker", "save", "--output", str(payload / "images.tar"), *images.values()])
-    (payload / "images.json").write_text(json.dumps({"schemaVersion": "weave.runtime-images/v1",
-        "sourceCommit": source, "specDigest": spec_digest, "platform": "linux/amd64", "images": images}, indent=2) + "\n")
     evidence = json.loads((payload / "keycloak-build-evidence.json").read_text())
     if evidence.get("supportSafe") is not True or evidence.get("containsSecretValues") is not False:
         raise ArtifactError("keycloak-build-evidence-not-support-safe")
+    # The immutable registry receipt replaces a large Docker-save archive.
+    # The Mac runner pulls these *same* image IDs by the recorded registry digests.
+    (payload / "images.json").write_text(json.dumps(
+        publish_runtime_images(images, source, spec_digest), indent=2) + "\n")
 
 
 def apple(root: Path, component: str, payload: Path, source: str, *, configuration_only: bool = False) -> None:

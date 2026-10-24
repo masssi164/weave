@@ -17,6 +17,7 @@ on:
 permissions:
   actions: read
   contents: read
+  packages: read
 
 concurrency:
   group: weave-live-mac-mini-exclusive
@@ -67,6 +68,12 @@ jobs:
           path: weave
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Authenticate private candidate registry for this run
+        working-directory: weave
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: python3 tools/runtime_registry_auth.py setup
 
       - name: Initialize private physical diagnostics
         working-directory: weave
@@ -276,6 +283,11 @@ jobs:
         if: always() && steps.exact_source.outcome == 'success'
         working-directory: weave
         run: python3 tools/artifact_runtime_storage.py prune
+
+      - name: Remove run-scoped registry credentials
+        if: always() && steps.exact_source.outcome == 'success'
+        working-directory: weave
+        run: python3 tools/runtime_registry_auth.py cleanup
 
       - name: Upload support-safe preparation evidence
         if: always()

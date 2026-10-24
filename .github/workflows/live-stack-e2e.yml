@@ -8,11 +8,16 @@ on:
 permissions:
   actions: read
   contents: read
+  packages: read
 
 jobs:
   hosted-artifacts:
     name: Hosted build artifacts
     uses: ./.github/workflows/build-artifacts.yml
+    permissions:
+      actions: read
+      contents: read
+      packages: write # Reusable hosted runtime builder publishes private candidates.
     with:
       candidate: ${{ github.sha }}
 
@@ -62,6 +67,12 @@ jobs:
           path: weave
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Authenticate private candidate registry for this run
+        working-directory: weave
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: python3 tools/runtime_registry_auth.py setup
 
       - name: Release retired verified runtime images before capacity check
         working-directory: weave
@@ -155,6 +166,11 @@ jobs:
         working-directory: weave
         run: python3 tools/artifact_runtime_storage.py prune
 
+      - name: Remove run-scoped registry credentials
+        if: always() && steps.exact_source.outcome == 'success'
+        working-directory: weave
+        run: python3 tools/runtime_registry_auth.py cleanup
+
       - name: Verify support-safe E2E diagnostics
         if: always()
         id: evidence_safety
@@ -215,6 +231,12 @@ jobs:
           path: weave
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Authenticate private candidate registry for this run
+        working-directory: weave
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: python3 tools/runtime_registry_auth.py setup
 
       - name: Verify protected dogfood ancestry
         working-directory: weave
@@ -328,6 +350,11 @@ jobs:
         if: always() && steps.exact_source.outcome == 'success'
         working-directory: weave
         run: python3 tools/artifact_runtime_storage.py prune
+
+      - name: Remove run-scoped registry credentials
+        if: always() && steps.exact_source.outcome == 'success'
+        working-directory: weave
+        run: python3 tools/runtime_registry_auth.py cleanup
 
       - name: Upload support-safe deployment result
         if: always()

@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import artifact_consumers as consumers
 from build_artifacts import ArtifactError
+from runtime_image_registry import NAMES
 
 
 class ArtifactConsumers(unittest.TestCase):
@@ -91,35 +92,55 @@ class ArtifactConsumers(unittest.TestCase):
 
     def runtime(self):
         manifest = {**self.manifest, "component": "runtime-linux-amd64", "target": "linux/amd64", "buildMode": "release"}
-        definition = {"schemaVersion": "weave.runtime-images/v1", "sourceCommit": manifest["sourceCommit"],
+        definition = {"schemaVersion": "weave.runtime-images/v2", "sourceCommit": manifest["sourceCommit"],
                       "specDigest": "sha256:" + "e" * 64, "platform": "linux/amd64",
-                      "images": {key: "sha256:" + str(index) * 64 for index, key in enumerate(("backend", "mcp", "keycloak", "runtimeState"), 1)}}
+                      "images": {key: {"imageId": "sha256:" + str(index) * 64,
+                                       "reference": name + "@sha256:" + str(index) * 64}
+                                 for index, (key, name) in enumerate(NAMES.items(), 1)}}
         return manifest, definition, self.root
 
-    def image(self, reference, manifest, definition):
-        return {"Id": reference, "Os": "linux", "Architecture": "amd64", "Config": {"Labels": {
+    def image(self, reference, manifest, definition, *, component="backend"):
+        return {"Id": definition["images"][component]["imageId"], "RepoDigests": [reference],
+            "Os": "linux", "Architecture": "amd64", "Config": {"Labels": {
             "org.opencontainers.image.revision": manifest["sourceCommit"],
             "com.massimotter.weave.spec-digest": definition["specDigest"], "com.massimotter.weave.module": "server"}}}
 
     def test_runtime_loads_verified_images_and_never_builds(self):
         manifest, definition, payload = self.runtime()
         def inspect(command, **_):
-            return json.dumps([self.image(command[-1], manifest, definition)]).encode()
+            component = next(component for component, entry in definition["images"].items()
+                             if entry["reference"] == command[-1])
+            return json.dumps([self.image(command[-1], manifest, definition, component=component)]).encode()
+        config = self.root / "docker-config"
+        config.mkdir(mode=0o700)
+        (config / "config.json").write_text("{}")
+        (config / "config.json").chmod(0o600)
         with patch.object(consumers, "runtime_definition", return_value=(manifest, definition, payload)), \
-                patch.object(consumers.subprocess, "run", return_value=SimpleNamespace(returncode=1)) as command, \
+                patch.dict(os.environ, {"WEAVE_RUNTIME_DOCKER_CONFIG": str(config)}), \
+                patch.object(consumers.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as command, \
                 patch.object(consumers.subprocess, "check_output", side_effect=inspect), \
                 patch.object(consumers, "record_verified_runtime") as storage:
             environment = consumers.load_runtime_images()
-        storage.assert_called_once_with(manifest, definition["images"])
-        self.assertEqual(environment["WEAVE_TEST_APP_SERVER_IMAGE"], definition["images"]["backend"])
+        storage.assert_called_once_with(manifest, {key: value["imageId"] for key, value in definition["images"].items()},
+                                        registry_references={key: value["reference"] for key, value in definition["images"].items()})
+        self.assertEqual(environment["WEAVE_TEST_APP_SERVER_IMAGE"], definition["images"]["backend"]["imageId"])
         self.assertEqual(environment["WEAVE_IMAGE_SOURCE_COMMIT"], manifest["sourceCommit"])
         invocations = [call.args[0] for call in command.call_args_list]
-        self.assertIn(["docker", "load", "--input", str(payload / "images.tar")], invocations)
+        self.assertIn(["docker", "--config", str(config), "pull", "--platform", "linux/amd64",
+                       definition["images"]["backend"]["reference"]], invocations)
+        self.assertFalse(any("load" in invocation for invocation in invocations))
         self.assertFalse(any("build" in invocation for invocation in invocations))
+
+    def test_runtime_without_scoped_registry_auth_fails_closed(self):
+        manifest, definition, payload = self.runtime()
+        with patch.object(consumers, "runtime_definition", return_value=(manifest, definition, payload)), \
+                patch.dict(os.environ, {"WEAVE_RUNTIME_DOCKER_CONFIG": ""}), \
+                self.assertRaisesRegex(ArtifactError, "run-scoped-registry-auth-required"):
+            consumers.load_runtime_images()
 
     def test_running_server_must_match_image_id_and_original_producer_labels(self):
         manifest, definition, payload = self.runtime()
-        reference = definition["images"]["backend"]
+        reference = definition["images"]["backend"]["imageId"]
         value = self.image(reference, manifest, definition)
         with patch.object(consumers, "runtime_definition", return_value=(manifest, definition, payload)), \
                 patch.object(consumers.subprocess, "check_output", return_value=json.dumps([value]).encode()):

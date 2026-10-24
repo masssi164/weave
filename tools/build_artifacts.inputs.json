@@ -64,6 +64,8 @@
         "weave-product-e2e/build.gradle",
         "weave-product-e2e/gradle/**",
         "tools/build_artifacts_driver.gradle",
+        "tools/runtime_image_registry.py",
+        "specs/weave-specs.lock.json",
         ".cargo/**",
         "weave-application-core/gradle/**",
         "weave-files-core/gradle/**",

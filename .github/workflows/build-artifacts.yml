@@ -59,6 +59,10 @@ jobs:
     name: Build component (${{ matrix.component }})
     needs: plan
     if: needs.plan.outputs.needs-build == 'true'
+    permissions:
+      contents: read
+      actions: read
+      packages: write # Candidate-only GHCR publication; no production tags or releases.
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
@@ -100,6 +104,7 @@ jobs:
       - name: Build portable component
         env:
           COMPONENT: ${{ matrix.component }}
+          GHCR_TOKEN: ${{ matrix.component == 'runtime-linux-amd64' && github.token || '' }}
         run: python3 tools/build_artifacts_hosted.py --component "$COMPONENT" --output build/hosted-component
       - name: Publish immutable component artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

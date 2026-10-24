@@ -78,12 +78,17 @@ class Repository(unittest.TestCase):
                 "jobName": "Build component (ios-simulator)"}}
         return manifest, archive
 
-    def test_docs_and_corpus_revision_do_not_rebuild_unchanged_binaries(self):
+    def test_docs_do_not_rebuild_but_spec_lock_rebuilds_runtime_with_embedded_digest(self):
         before = self.inputs()
         self.write("docs/example.md", "Changed explanatory prose\n")
-        self.write("specs/weave-specs.lock.json", json.dumps({"specCorpus": {"gitCommit": "b" * 40}}))
         self.commit()
         self.assertEqual(before, self.inputs())
+        self.write("specs/weave-specs.lock.json", json.dumps({"specCorpus": {"gitCommit": "b" * 40}}))
+        self.commit()
+        after = self.inputs()
+        self.assertNotEqual(before["runtime-linux-amd64"], after["runtime-linux-amd64"])
+        self.assertEqual(before["ios-simulator"], after["ios-simulator"])
+        self.assertEqual(before["ios-device"], after["ios-device"])
 
     def test_client_change_does_not_rebuild_server(self):
         before = self.inputs()
