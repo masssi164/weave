@@ -12,6 +12,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Real Admin setup and member admission through the generated, separate HTTP clients. */
 final class GeneratedSpacesJourney {
@@ -89,6 +90,27 @@ final class GeneratedSpacesJourney {
     } catch (com.massimotter.weave.userapi.invoker.ApiException failure) {
       throw new ProductFlowException("Generated denied Space listing failed with HTTP "
           + failure.getCode());
+    }
+  }
+
+  Map<String, Object> currentEditorBinding(String adminToken, String memberToken,
+      String slot, String organizationId, String identityRef, String accountRef) {
+    try {
+      var response = admin.getSpaceMemberWithHttpInfo(DEFAULT_SPACE, accountRef, bearer(adminToken));
+      var member = response.getData();
+      if (member == null || !accountRef.equals(member.getAccountRef())
+          || member.getPermissions() == null
+          || !Set.copyOf(member.getPermissions()).equals(Set.of(
+              SpaceMemberResponse.PermissionsEnum.VIEW, SpaceMemberResponse.PermissionsEnum.EDIT))) {
+        throw new ProductFlowException("Shared member requires current editor rights without administrator access");
+      }
+      assertVisible(memberToken, true);
+      return Map.of("slot", slot, "organizationId", organizationId, "identityRef", identityRef,
+          "accountRef", accountRef, "organizationRole", "member", "spaceRef", DEFAULT_SPACE,
+          "spacePermissions", List.of("VIEW", "EDIT"), "grantVersion", etag(response.getHeaders()));
+    } catch (com.massimotter.weave.adminapi.invoker.ApiException
+             | com.massimotter.weave.userapi.invoker.ApiException failure) {
+      throw new ProductFlowException("Current shared member binding could not be read back", failure);
     }
   }
 

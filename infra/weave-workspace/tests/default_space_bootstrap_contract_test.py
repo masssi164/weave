@@ -98,6 +98,32 @@ class DefaultSpaceBootstrapTest(unittest.TestCase):
         self.assertEqual(self.request.call_args.args[0], self.context)
         self.assert_cleanup()
 
+    def test_reused_artifact_preserves_producer_identity_but_binds_current_runtime(self):
+        artifact = types.ModuleType("artifact_consumers")
+        artifact.ArtifactError = type("ArtifactError", (ValueError,), {})
+        artifact.verify_runtime_container = Mock(return_value={"sourceCommit": "f" * 40})
+        self.context.env.update(WEAVE_RESOURCE_PREFIX="weave-dogfood-owned", WEAVE_COMPOSE_PROJECT="weave-dogfood-owned")
+        self.container["Config"]["Labels"].update({"org.opencontainers.image.revision": "f" * 40,
+            "com.massimotter.weave.candidate-commit": "b" * 40, "com.massimotter.weave.namespace": "weave-dogfood-owned",
+            "com.docker.compose.project": "weave-dogfood-owned", "com.docker.compose.service": "backend"})
+        with patch.dict(sys.modules, {"artifact_consumers": artifact}), patch.dict(os.environ, {"WEAVE_BUILD_ARTIFACT_ROOT": "/owned/artifacts"}):
+            self.run_operation()
+        artifact.verify_runtime_container.assert_called_once_with(self.container, "b" * 40)
+        self.assertEqual(self.context.env["WEAVE_BACKEND_IMAGE"], self.image)
+        self.assert_cleanup()
+
+    def test_wrong_artifact_blocks_before_any_bootstrap_authority_is_created(self):
+        artifact = types.ModuleType("artifact_consumers")
+        artifact.ArtifactError = type("ArtifactError", (ValueError,), {})
+        artifact.verify_runtime_container = Mock(side_effect=artifact.ArtifactError("wrong-artifact"))
+        with patch.dict(sys.modules, {"artifact_consumers": artifact}), patch.dict(os.environ, {"WEAVE_BUILD_ARTIFACT_ROOT": "/owned/artifacts"}):
+            with self.assertRaisesRegex(ContractError, "artifact differs from the candidate composition"):
+                self.run_operation()
+        self.override.assert_not_called()
+        self.request.assert_not_called()
+        self.assertEqual(list(self.context.secret_root.iterdir()), [])
+        self.assertFalse(self.evidence.exists())
+
     def test_existing_space_is_verified_without_new_identity_or_membership_inputs(self):
         self.result["outcome"] = "VERIFIED"
         self.run_operation()
@@ -318,6 +344,30 @@ class DefaultSpaceBootstrapTest(unittest.TestCase):
         with patch.object(bootstrap, "_git", side_effect=["b" * 40, "d" * 40, " M modified.py"]):
             with self.assertRaisesRegex(ContractError, "clean exact"):
                 bootstrap._identity(self.context)
+
+    def test_identity_accepts_reused_producer_only_in_current_verified_composition(self):
+        self.stack.close()
+        specs = self.context.repository_root / "specs"
+        specs.mkdir()
+        (specs / "weave-specs.lock.json").write_text(json.dumps({"specCorpus": {"gitCommit": "e" * 40}}))
+        self.context.env.update(WEAVE_CANDIDATE_COMMIT="b" * 40, WEAVE_SPEC_COMMIT="e" * 40,
+                                WEAVE_IMAGE_SOURCE_COMMIT="f" * 40)
+        artifact = types.ModuleType("artifact_consumers")
+        artifact.ArtifactError = type("ArtifactError", (ValueError,), {})
+        artifact.candidate_composition = Mock(return_value={"components": {"runtime-linux-amd64": {"sourceCommit": "f" * 40}}})
+        with patch.dict(sys.modules, {"artifact_consumers": artifact}), \
+                patch.dict(os.environ, {"WEAVE_BUILD_ARTIFACT_ROOT": "/owned/artifacts"}), \
+                patch.object(bootstrap, "_git", side_effect=["b" * 40, "d" * 40, ""]) as git:
+            self.assertEqual(bootstrap._identity(self.context),
+                             {"candidateCommit": "b" * 40, "sourceTree": "d" * 40, "specificationCommit": "e" * 40})
+        self.assertEqual(git.call_count, 3)
+        artifact.candidate_composition.assert_called_once_with("b" * 40)
+        artifact.candidate_composition.return_value["components"]["runtime-linux-amd64"]["sourceCommit"] = "a" * 40
+        with patch.dict(sys.modules, {"artifact_consumers": artifact}), \
+                patch.dict(os.environ, {"WEAVE_BUILD_ARTIFACT_ROOT": "/owned/artifacts"}), \
+                patch.object(bootstrap, "_git", side_effect=["b" * 40, "d" * 40, ""]), \
+                self.assertRaisesRegex(ContractError, "source differs from the candidate composition"):
+            bootstrap._identity(self.context)
         with patch.object(bootstrap, "_git", side_effect=["b" * 40, "d" * 40, "", "f" * 40]):
             with self.assertRaisesRegex(ContractError, "source differs"):
                 bootstrap._identity(self.context)

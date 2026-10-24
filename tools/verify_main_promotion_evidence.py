@@ -18,11 +18,13 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 try:
     from tools.dogfood_functional_smoke import functional_smoke_passed
+    from tools.artifact_evidence import composition_passed, component_matches
 except ModuleNotFoundError:
     from dogfood_functional_smoke import functional_smoke_passed
+    from artifact_evidence import composition_passed, component_matches
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
-COMMENT_HEADER = "Weave human test v1"
+COMMENT_HEADER = "Weave human test v2"
 REQUIRED_SURFACES = (
     "sign-in",
     "chat",
@@ -48,8 +50,9 @@ def parse_human_comment(body: str, dogfood_sha: str) -> bool:
         fields[key.strip()] = value.strip()
     return (
         fields.get("dogfood") == dogfood_sha
-        and {"dogfood", *REQUIRED_SURFACES} <= set(fields)
-        and set(fields) <= {"dogfood", *REQUIRED_SURFACES, "notes"}
+        and fields.get("actor-role") in {"owner", "admin", "member"}
+        and {"dogfood", "actor-role", *REQUIRED_SURFACES} <= set(fields)
+        and set(fields) <= {"dogfood", "actor-role", *REQUIRED_SURFACES, "notes"}
         and all(fields[surface] == "passed" for surface in REQUIRED_SURFACES)
     )
 
@@ -75,6 +78,45 @@ def required_jobs_passed(jobs: list[dict]) -> bool:
         if len(matching) != 1 or matching[0].get("conclusion") != "success":
             return False
     return True
+
+
+def successful_job_attempt(jobs: list[dict], name: str, latest_attempt: int,
+                           history: list[dict] | None = None) -> int:
+    """Resolve copied retry successes to the attempt that executed their steps."""
+    matching = [job for job in jobs if job.get("name") == name]
+    if (len(matching) != 1 or matching[0].get("conclusion") != "success"
+            or type(matching[0].get("run_attempt")) is not int
+            or not 1 <= matching[0]["run_attempt"] <= latest_attempt):
+        raise ValueError("Successful job attempt is missing or invalid: " + name)
+    effective = matching[0]
+    if effective["run_attempt"] == 1:
+        return 1
+    # GitHub copies successful jobs into a failed-job retry with NEW job IDs and
+    # run_attempt, but unchanged execution timestamps/steps. Only an identical
+    # successful execution in authenticated history can identify its producer.
+    def execution(job: dict) -> tuple:
+        start, end = job.get("started_at"), job.get("completed_at")
+        steps = job.get("steps")
+        if not isinstance(start, str) or not isinstance(end, str) or not isinstance(steps, list) or not steps:
+            raise ValueError("Job execution identity is incomplete: " + name)
+        first, last = (datetime.fromisoformat(value.replace("Z", "+00:00")) for value in (start, end))
+        if first.tzinfo is None or last.tzinfo is None or last < first:
+            raise ValueError("Job execution timestamps are invalid: " + name)
+        fields = ("name", "number", "status", "conclusion", "started_at", "completed_at")
+        if any(not isinstance(step, dict) or any(key not in step for key in fields) for step in steps):
+            raise ValueError("Job step execution identity is incomplete: " + name)
+        return start, end, tuple(tuple(step[key] for key in fields) for step in steps)
+    expected = execution(effective)
+    attempts = []
+    for previous in history or []:
+        attempt = previous.get("run_attempt")
+        if (previous.get("name") == name and previous.get("conclusion") == "success"
+                and type(attempt) is int and 1 <= attempt <= effective["run_attempt"]
+                and execution(previous) == expected):
+            attempts.append(attempt)
+    if not attempts:
+        raise ValueError("Successful job execution is absent from authenticated attempt history: " + name)
+    return min(attempts)
 
 
 def matches_promotion_pr(pr: dict, repository: str, candidate_sha: str) -> bool:
@@ -361,13 +403,25 @@ def native_qualification_passed(value: dict, sha: str, tree: str, spec: str) -> 
     if not isinstance(value, dict) or any(not isinstance(value.get(platform), dict)
                                           for platform in ("macos", "iosSimulator")):
         return False
+    composition = value.get("artifactComposition")
+    scenario = value.get("scenarioSha256")
+    if (not isinstance(scenario, str) or not re.fullmatch(r"[0-9a-f]{64}", scenario)
+            or not composition_passed(composition, sha, tree, spec, scenario)
+            or not component_matches(value.get("buildArtifact"), composition, "ios-simulator")):
+        return False
+    collaboration = value.get("iosSimulator", {}).get("collaboration", {})
+    if (not dual_ios_collaboration_passed(collaboration)
+            or any(actor.get("organizationRole") != "member" or actor.get("memberScenarioSha256") != scenario
+                   for actor in collaboration["actors"])):
+        return False
     return (
-        value.get("schemaVersion") == "weave.native-qualification/v2"
+        value.get("schemaVersion") == "weave.native-qualification/v3"
+        and value.get("qualificationProfile") == "iphone-member-collaboration/v1"
         and value.get("candidateCommit") == sha
         and value.get("sourceTree") == tree
         and value.get("specificationCommit") == spec
         and native_toolchain_recorded(value.get("toolchain"))
-        and value.get("macos", {}).get("status") == "passed"
+        and value.get("macos", {}).get("status") == "manual-only"
         and value.get("iosSimulator", {}).get("status") == "passed"
         and value.get("iosSimulator", {}).get("rustTarget") == "aarch64-apple-ios-sim"
         and dual_ios_collaboration_passed(value.get("iosSimulator", {}).get("collaboration"))
@@ -397,18 +451,32 @@ def owner_workspace_passed(value: dict, sha: str, tree: str, spec: str) -> bool:
 def preparation_passed(value: dict, sha: str, tree: str, spec: str, run_id: int, run_attempt: int) -> bool:
     if not isinstance(value, dict) or not owner_workspace_passed(value.get("ownerWorkspace"), sha, tree, spec):
         return False
-    if not functional_smoke_passed(value.get("functionalSmoke"), sha, tree, spec, run_id, run_attempt, "physical"):
+    composition = value.get("artifactComposition")
+    if (not composition_passed(composition, sha, tree, spec)
+            or not component_matches(value.get("deviceBuildArtifact"), composition, "ios-device")
+            or not component_matches(value.get("runtimeBuildArtifact"), composition, "runtime-linux-amd64")):
         return False
-    toolchain = value.get("toolchain")
-    if not native_toolchain_recorded(toolchain):
-        return False
-    if toolchain.get("iosDeviceSdkVersion") != toolchain["iosSimulatorSdkVersion"]:
+    startup = value.get("ordinaryStartup")
+    signing = value.get("signing")
+    device = composition["components"]["ios-device"]
+    if (not isinstance(startup, dict) or startup.get("schemaVersion") != "weave.iphone-startup-ui/v1"
+            or startup.get("status") != "passed" or startup.get("visibleState") not in {"retained-workspace", "normal-sign-in"}
+            or startup.get("ownerSessionReplaced") is not False
+            or any(startup.get(key) is not True for key in ("organizationContextVerified", "installedBuildVerified", "driverCleanupComplete"))
+            or not re.fullmatch(r"human-test-[1-9][0-9]*-[1-9][0-9]*", str(startup.get("runId", "")))
+            or not re.fullmatch(r"[0-9a-f]{32}", str(startup.get("nonce", "")))
+            or not isinstance(signing, dict) or signing.get("schemaVersion") != "weave.signed-iphone-artifact/v1"
+            or signing.get("candidateCommit") != sha or signing.get("sourceCommit") != device["sourceCommit"]
+            or signing.get("inputDigest") != device["inputDigest"] or signing.get("unsignedPayloadSha256") != device["payloadSha256"]
+            or signing.get("buildNumber") != device["buildNumber"] or signing.get("status") != "passed"
+            or signing.get("supportSafe") is not True or signing.get("containsSecretValues") is not False
+            or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(signing.get("signedPayloadTreeDigest", "")))):
         return False
     return all(value.get(key) == expected for key, expected in {
-        "schemaVersion": "weave.hil-preparation/v3", "candidateCommit": sha,
+        "schemaVersion": "weave.hil-preparation/v4", "candidateCommit": sha,
         "sourceTree": tree, "specificationCommit": spec,
         "qualificationRunId": run_id, "qualificationRunAttempt": run_attempt, "status": "passed", "install": "update_in_place",
-        "supportSafe": True, "containsSecretValues": False,
+        "supportSafe": True, "containsSecretValues": False, "ownerHIL": "pending",
     }.items()) and value.get("supportSafe") is True and value.get("containsSecretValues") is False and type(value.get("qualificationRunId")) is int and type(value.get("qualificationRunAttempt")) is int
 
 
@@ -464,6 +532,29 @@ def candidate_identity(repository: str, sha: str, token: str) -> tuple[str, str]
     return tree, spec
 
 
+def qualification_evidence(repository: str, sha: str, tree: str, spec: str, run: dict, token: str,
+                           jobs: list[dict] | None = None, history: list[dict] | None = None) -> tuple[int, dict]:
+    if (run.get("head_sha") != sha or run.get("head_branch") != "dogfood"
+            or run.get("event") != "push" or run.get("path") != ".github/workflows/live-stack-e2e.yml"
+            or type(run.get("run_attempt")) is not int or run["run_attempt"] < 1):
+        raise ValueError("Untrusted qualification producer")
+    jobs = jobs if jobs is not None else paged(f"/repos/{repository}/actions/runs/{run['id']}/jobs?filter=latest", token, "jobs")
+    if history is None and run["run_attempt"] > 1:
+        history = paged(f"/repos/{repository}/actions/runs/{run['id']}/jobs?filter=all", token, "jobs")
+    attempt = successful_job_attempt(jobs, "Full Compose E2E", run["run_attempt"], history)
+    archive = download_artifact(repository, run["id"], attempt_artifact("full-compose-e2e", sha, {"run_attempt": attempt}), token)
+    native = artifact_json(archive, "native-qualification.json")
+    if not native_qualification_passed(native, sha, tree, spec):
+        raise ValueError("Mandatory native qualification does not match the candidate")
+    teardown = artifact_json(archive, "teardown-evidence.json")
+    if (teardown.get("candidateCommit") != sha or teardown.get("dryRun") is not False
+            or teardown.get("ownershipLabelsVerified") is not True
+            or any(type(teardown.get(key)) is not int or teardown[key] != 0 for key in (
+                "remainingOwnedResources", "remainingContainerCount", "remainingNetworkCount", "remainingVolumeCount"))):
+        raise ValueError("Qualification does not prove exact-run cleanup")
+    return attempt, native["artifactComposition"]
+
+
 def qualified_run(repository: str, sha: str, tree: str, spec: str, token: str) -> dict:
     query = urlencode({"branch": "dogfood", "head_sha": sha, "event": "push"})
     response = api(f"/repos/{repository}/actions/workflows/live-stack-e2e.yml/runs?{query}&per_page=100", token)
@@ -473,28 +564,25 @@ def qualified_run(repository: str, sha: str, tree: str, spec: str, token: str) -
     jobs = paged(f"/repos/{repository}/actions/runs/{run['id']}/jobs?filter=latest", token, "jobs")
     if not required_jobs_passed(jobs):
         raise ValueError("Exact qualification or deployment job did not pass")
-    archive = download_artifact(repository, run["id"], attempt_artifact("full-compose-e2e", sha, run), token)
-    if not native_qualification_passed(artifact_json(archive, "native-qualification.json"), sha, tree, spec):
-        raise ValueError("Mandatory native qualification does not match the candidate")
-    teardown = artifact_json(archive, "teardown-evidence.json")
-    if (teardown.get("candidateCommit") != sha or teardown.get("dryRun") is not False
-            or teardown.get("ownershipLabelsVerified") is not True
-            or any(type(teardown.get(key)) is not int or teardown[key] != 0 for key in (
-                "remainingOwnedResources", "remainingContainerCount", "remainingNetworkCount", "remainingVolumeCount"))):
-        raise ValueError("Qualification does not prove exact-run cleanup")
-    deployment = artifact_json(download_artifact(repository, run["id"], attempt_artifact("dogfood-compose", sha, run), token),
+    history = (paged(f"/repos/{repository}/actions/runs/{run['id']}/jobs?filter=all", token, "jobs")
+               if run["run_attempt"] > 1 else None)
+    qualification_attempt, composition = qualification_evidence(repository, sha, tree, spec, run, token, jobs, history)
+    deployment_attempt = successful_job_attempt(jobs, "Deploy dogfood with Compose", run["run_attempt"], history)
+    deployment = artifact_json(download_artifact(repository, run["id"], attempt_artifact("dogfood-compose", sha, {"run_attempt": deployment_attempt}), token),
                                "deployment-result.json")
-    expected = {"schemaVersion": "weave.dogfood-deployment/v2", "candidateCommit": sha,
+    expected = {"schemaVersion": "weave.dogfood-deployment/v3", "candidateCommit": sha,
                 "sourceTree": tree, "specificationCommit": spec,
-                "qualificationRunId": run["id"], "qualificationRunAttempt": run["run_attempt"], "status": "passed"}
+                "qualificationRunId": run["id"], "qualificationRunAttempt": qualification_attempt, "status": "passed"}
     if (any(deployment.get(key) != value for key, value in expected.items())
             or deployment.get("supportSafe") is not True
-            or deployment.get("containsSecretValues") is not False):
+            or deployment.get("containsSecretValues") is not False
+            or deployment.get("artifactComposition") != composition
+            or deployment.get("functionalSmoke", {}).get("artifactComposition") != composition):
         raise ValueError("Deployment evidence does not match exact qualification")
     if not functional_smoke_passed(deployment.get("functionalSmoke"), sha, tree, spec,
-                                   run["id"], run["run_attempt"], "deployment"):
+                                   run["id"], qualification_attempt, "deployment"):
         raise ValueError("Deployment lacks ordinary authenticated functional UI evidence")
-    return run
+    return {**run, "qualification_attempt": qualification_attempt, "artifactComposition": composition}
 
 
 def prepared_run(repository: str, sha: str, tree: str, spec: str, qualification: dict, token: str) -> dict:
@@ -514,7 +602,10 @@ def prepared_run(repository: str, sha: str, tree: str, spec: str, qualification:
     if not qualification.get("updated_at") or not run.get("run_started_at") or run["run_started_at"] <= qualification["updated_at"]:
         raise ValueError("Physical preparation must start after current qualification/deployment")
     archive = download_artifact(repository, run["id"], attempt_artifact("prepare-human-test", sha, run), token)
-    if not preparation_passed(artifact_json(archive, "preparation-result.json"), sha, tree, spec, qualification["id"], qualification["run_attempt"]):
+    receipt = artifact_json(archive, "preparation-result.json")
+    if (not preparation_passed(receipt, sha, tree, spec, qualification["id"], qualification.get("qualification_attempt", qualification["run_attempt"]))
+            or receipt.get("ordinaryStartup", {}).get("runId") != f"human-test-{run['id']}-{run['run_attempt']}"
+            or ("artifactComposition" in qualification and receipt.get("artifactComposition") != qualification["artifactComposition"])):
         raise ValueError("Physical preparation does not match current qualification")
     return run
 
@@ -539,7 +630,7 @@ def main() -> int:
     if args.qualification_only:
         tree, spec = candidate_identity(args.repository, args.candidate_sha, token)
         run = qualified_run(args.repository, args.candidate_sha, tree, spec, token)
-        print(f"{run['id']} {run['run_attempt']}")
+        print(f"{run['id']} {run['qualification_attempt']}")
         return 0
     if not args.owner or not SHA.fullmatch(args.dogfood_sha or "") or not args.pr_number or args.pr_number < 1:
         parser.error("A GitHub token, exact candidate/dogfood SHAs and promotion PR number are required")
@@ -559,7 +650,7 @@ def main() -> int:
     if not owner_human_pass(comments, args.owner, args.dogfood_sha, preparation["updated_at"]):
         print("Owner human result for exact deployed dogfood commit is absent or incomplete", file=sys.stderr)
         return 1
-    print(f"Exact dogfood {args.dogfood_sha}: Compose, macOS, iOS, deployment, physical preparation and owner human result passed")
+    print(f"Exact dogfood {args.dogfood_sha}: two-member iOS collaboration, deployment, physical preparation and owner human result passed")
     return 0
 
 

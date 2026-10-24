@@ -19,6 +19,20 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run_dual_ios_collaboration as dual
 import run_ios_simulator_product_acceptance as ios
+import artifact_consumers
+
+
+def with_member_scenario(data):
+    data.setdefault('organizationId', 'canonical-tenant')
+    data['sharedSpaceRef'] = 'workspace-default'
+    data['memberScenario'] = dual.resolve_scenario(data['runId'])
+    data['memberBindings'] = [
+        {'slot': actor['role'], 'organizationId': data['organizationId'],
+         'identityRef': actor.get('identityRef', 'owned-actor' if actor['role'] == 'A' else 'owned-peer'),
+         'accountRef': 'account-' + actor['role'], 'organizationRole': 'member',
+         'spaceRef': 'workspace-default', 'spacePermissions': ['VIEW', 'EDIT'],
+         'grantVersion': '"version-' + actor['role'] + '"'} for actor in data['actors']]
+    return data
 
 
 class DualIosCollaborationTest(unittest.TestCase):
@@ -555,6 +569,7 @@ class DualIosCollaborationTest(unittest.TestCase):
                     'sharedSpaceRef': 'workspace-default', 'actors': [
                         {'role': 'A', 'displayName': 'Owned author'},
                         {'role': 'B', 'displayName': 'Owned peer'}]}
+            with_member_scenario(data)
             with mock.patch.object(ios, 'run', side_effect=command), \
                  mock.patch.object(ios.simulator_vm, 'log_start_timestamp', return_value='owned-time'):
                 with self.assertRaises(ios.NativeFailure) as caught:
@@ -572,6 +587,7 @@ class DualIosCollaborationTest(unittest.TestCase):
             actor = {'role': 'A', 'entryUri': 'https://owned.invalid', 'identityRef': 'owned-actor'}
             data = {'runId': 'owned-test', 'publicOrigin': 'https://owned.invalid', 'nativeOrganizationId': 'owned-org',
                     'sharedSpaceRef': 'workspace-default', 'actors': [{'role': 'A', 'displayName': 'Author'}, {'role': 'B', 'displayName': 'Peer'}]}
+            with_member_scenario(data)
             with mock.patch.object(ios, 'run', side_effect=['', str(container)]):
                 support, _ = dual.prepare_actor_storage(actor, udid, root / 'app', data,
                     {'WEAVE_NATIVE_ISSUER': 'https://issuer.test', 'WEAVE_NATIVE_LOCAL_INSPECTION': 'true'})
@@ -982,6 +998,18 @@ class DualIosCollaborationTest(unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 client = Path(directory) / 'client'
                 client.mkdir()
+                app = Path(directory) / 'hosted/collaboration/Runner.app'
+                app.mkdir(parents=True)
+                products = Path(directory) / 'hosted/driver/Products'
+                products.mkdir(parents=True)
+                (products / 'owned.xctestrun').write_bytes(plistlib.dumps({
+                    'BrowserDriver': {'TestBundlePath': '__TESTROOT__/BrowserDriver.xctest'}}))
+                (products / 'BrowserDriver.xctest').mkdir()
+                manifest = {
+                    'component': 'ios-simulator', 'sourceCommit': 'a' * 40,
+                    'sourceTree': 'b' * 40, 'inputDigest': 'sha256:' + 'c' * 64,
+                    'target': 'aarch64-apple-ios-sim', 'buildMode': 'debug',
+                    'buildNumber': '12', 'payload': {'sha256': 'sha256:' + 'd' * 64}}
                 output = Path(directory) / 'failed-result.json'
                 failure = ios.NativeFailure('integration', 'initial-product', 'owned-test-failure')
                 actors = [{'role': 'A'}, {'role': 'B'}]
@@ -991,13 +1019,14 @@ class DualIosCollaborationTest(unittest.TestCase):
                         snapshot_markers.append(args[0])
                         raise BrokenPipeError('private-output-error-must-not-replace-failure')
                 with mock.patch.object(ios, 'CLIENT', client), \
+                     mock.patch.object(artifact_consumers, 'native_bundle', return_value=(manifest, app, products)) as artifact, \
+                     mock.patch.object(artifact_consumers, 'copy_driver_products', wraps=artifact_consumers.copy_driver_products) as driver_copy, \
                      mock.patch.object(dual, 'private_input', return_value={'runId': 'owned-test', 'actors': actors}), \
                      mock.patch.object(ios, 'select_runtime', return_value=('runtime', 'device')), \
-                     mock.patch.object(ios, 'run', return_value='11111111-1111-1111-1111-111111111111'), \
-                     mock.patch.object(dual, 'app_build_digest', return_value='a' * 64), \
+                     mock.patch.object(ios, 'run', return_value='11111111-1111-1111-1111-111111111111') as native_command, \
+                     mock.patch.object(dual, 'app_build_digest', return_value='a' * 64) as build_digest, \
                      mock.patch.object(dual, 'proxy_authorities', return_value={'owned.invalid:443'}), \
                      mock.patch.object(dual, 'actor_runtime_copy'), \
-                     mock.patch.object(dual.shutil, 'copytree'), \
                      mock.patch.object(dual, 'run_actor', side_effect=failure), \
                      mock.patch.object(dual, 'retain_failure_room_reference', side_effect=transfer_failure), \
                      mock.patch('builtins.print', side_effect=fail_diagnostic_output), \
@@ -1007,6 +1036,14 @@ class DualIosCollaborationTest(unittest.TestCase):
                         dual.qualify(Path('unused-private-input'), output,
                                      {'WEAVE_E2E_RUN_ID': 'owned-test', 'WEAVE_NATIVE_CA': 'owned-ca'})
                     self.assertIs(caught.exception, failure)
+                artifact.assert_called_once_with(variant='collaboration')
+                driver_copy.assert_called_once()
+                self.assertEqual(driver_copy.call_args.args[0], products)
+                build_digest.assert_called_once_with(app)
+                commands = [call.args[0] for call in native_command.call_args_list]
+                self.assertIn(['flutter', 'pub', 'get', '--enforce-lockfile'], commands)
+                self.assertFalse(any(command[:2] in (['flutter', 'build'], ['xcodebuild', 'build-for-testing'])
+                                     for command in commands))
                 self.assertEqual(snapshot_markers, [
                     f'NATIVE_IOS_CHAT_FAILURE_SNAPSHOT status=unavailable stage={expected_stage} supportSafe=true'])
                 self.assertNotIn('private-token', ''.join(snapshot_markers))
@@ -1107,6 +1144,7 @@ class DualIosCollaborationTest(unittest.TestCase):
                      'publicOrigin': 'https://weave.localhost', 'actors': [
                          {'role': 'A', 'email': 'a@example.invalid', 'password': 'private-a', 'identityRef': 'a', 'displayName': 'Current owner', 'entryUri': 'weave.localhost'},
                          {'role': 'B', 'email': 'b@example.invalid', 'password': 'private-b', 'identityRef': 'b', 'displayName': 'Current peer', 'entryUri': 'weave://join?organization_origin=https%3A%2F%2Fweave.localhost'}]}
+            with_member_scenario(value)
             def write():
                 path.write_text(json.dumps(value));path.chmod(0o600)
             write()
@@ -1120,7 +1158,7 @@ class DualIosCollaborationTest(unittest.TestCase):
             for invalid in [None, '', ' ']:
                 value['organizationId'] = invalid; write()
                 with self.assertRaises(ios.NativeFailure): dual.private_input(path, 'owned-run')
-            value['organizationId'] = 'owned-org'; write()
+            value['organizationId'] = 'canonical-tenant'; write()
             value['actors'][1]['entryUri'] += '%2F';write()
             self.assertEqual(dual.private_input(path, 'owned-run'), value)
             value['actors'][1]['entryUri'] = value['actors'][1]['entryUri'][:-3]
@@ -1139,10 +1177,37 @@ class DualIosCollaborationTest(unittest.TestCase):
             alias = parent / 'alias';alias.symlink_to(path)
             with self.assertRaises(ios.NativeFailure): dual.private_input(alias, 'owned-run')
 
+    def test_prepared_member_entry_uses_normal_server_login_and_rejects_role_or_recipe_drift(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory); parent.chmod(0o700)
+            path = parent / 'fixture.json'
+            value = {'schemaVersion': 'weave.dual-ios-input/v1', 'runId': 'owned-run',
+                     'organizationId': 'canonical-tenant', 'nativeOrganizationId': 'owned-org',
+                     'publicOrigin': 'https://weave.localhost', 'entryMode': 'prepared-members',
+                     'actors': [{'role': slot, 'email': slot + '@example.invalid', 'password': 'private-' + slot,
+                                 'identityRef': slot, 'displayName': 'Member ' + slot, 'entryUri': 'weave.localhost'}
+                                for slot in ('A', 'B')]}
+            with_member_scenario(value)
+            def write():
+                path.write_text(json.dumps(value)); path.chmod(0o600)
+            write()
+            self.assertEqual(value, dual.private_input(path, 'owned-run'))
+            value['memberBindings'][0]['organizationRole'] = 'owner'; write()
+            with self.assertRaises(ios.NativeFailure): dual.private_input(path, 'owned-run')
+            value['memberBindings'][0]['organizationRole'] = 'member'
+            value['memberScenario']['content']['event'] = 'local fixture drift'; write()
+            with self.assertRaises(ios.NativeFailure): dual.private_input(path, 'owned-run')
+            value['memberScenario'] = dual.resolve_scenario('owned-run')
+            for mode, entry in [('prepared-members', 'foreign.example'), ('unreviewed-mode', 'weave.localhost'),
+                                ('full-onboarding', 'weave.localhost')]:
+                value['entryMode'] = mode; value['actors'][1]['entryUri'] = entry; write()
+                with self.assertRaises(ios.NativeFailure): dual.private_input(path, 'owned-run')
+
     def test_actual_actor_proof_rejects_partial_api_only_cross_identity_and_plaintext(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'result.json'
-            value = {'role': 'A', 'identityDigest': hashlib.sha256(b'actual-subject').hexdigest(),
+            value = {'role': 'A', 'organizationRole': 'member', 'memberScenarioSha256': dual.scenario_sha256(),
+                     'identityDigest': hashlib.sha256(b'actual-subject').hexdigest(),
                      'storageDigest': 'a' * 64, 'matrixDeviceDigest': 'b' * 64,
                      'scenarios': {scenario: {'status': 'passed', 'evidence': 'server-denial' if scenario == 'authorization' else 'flutter-ui'} for scenario in dual.SCENARIOS},
                      'encryption': {'policyRequired': True, 'status': 'passed', 'plaintextFallback': False}}

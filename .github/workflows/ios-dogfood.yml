@@ -11,7 +11,7 @@ on:
       bootstrap_owner:
         description: Create or resend the first owner invitation in the empty dogfood realm
         required: true
-        default: true
+        default: false
         type: boolean
 
 permissions:
@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   prepare-human-test:
-    name: Deploy, invite, and update physical iPhone
+    name: Install qualified artifact and prepare physical iPhone
     runs-on: [self-hosted, macOS, ARM64, weave-live]
     timeout-minutes: 90
     env:
@@ -36,7 +36,6 @@ jobs:
       WEAVE_DOGFOOD_OWNER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
       WEAVE_DOGFOOD_OWNER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
       WEAVE_CANDIDATE_COMMIT: ${{ inputs.candidate_sha }}
-      WEAVE_IOS_BUILD_NUMBER: ${{ github.run_number }}
       WEAVE_CANDIDATE_EVIDENCE_REF: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       WEAVE_IOS_RESET_MODE: update_in_place
       WEAVE_IOS_INSTALL_TRANSPORT: wifi
@@ -52,12 +51,22 @@ jobs:
           [[ "${WEAVE_ENV_FILE:-}" == /* && -f "$WEAVE_ENV_FILE" && ! -L "$WEAVE_ENV_FILE" ]]
           : "${WEAVE_IOS_DEVICE_ID:?Configure the paired physical iPhone device identifier}"
 
+      - name: Initialize hosted artifact paths
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_TEMP:-}" == /* && -d "$RUNNER_TEMP" && ! -L "$RUNNER_TEMP" ]]
+          [[ "${GITHUB_RUN_ID:-}" =~ ^[1-9][0-9]*$ && "${GITHUB_RUN_ATTEMPT:-}" =~ ^[1-9][0-9]*$ ]]
+          printf 'WEAVE_BUILD_ARTIFACT_ROOT=%s/weave-physical-artifacts-%s-%s\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          printf 'WEAVE_CANDIDATE_COMPOSITION=%s/weave-physical-composition-%s-%s.json\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+
       - name: Check out exact dogfood commit
+        id: exact_source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ env.DOGFOOD_COMMIT }}
           path: weave
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Initialize private physical diagnostics
         working-directory: weave
@@ -97,6 +106,29 @@ jobs:
           echo "FULL_COMPOSE_E2E_RUN_ATTEMPT=$e2e_run_attempt" >> "$GITHUB_ENV"
           echo "FULL_COMPOSE_E2E_RUN_ID=$e2e_run_id" >> "$GITHUB_ENV"
 
+      - name: Release retired verified runtime images before capacity check
+        working-directory: weave
+        run: python3 tools/artifact_runtime_storage.py prune
+
+      - name: Verify capacity before artifact consumption
+        working-directory: weave
+        run: >-
+          python3 tools/runner_capacity_preflight.py
+          --path .
+          --minimum-free-gib 20
+          --require-docker
+
+      - name: Consume the qualified runtime and iPhone artifacts
+        working-directory: weave
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/artifact_consumers.py fetch-composition \
+            --qualified --candidate "$DOGFOOD_COMMIT" --run-id "$FULL_COMPOSE_E2E_RUN_ID" \
+            --run-attempt "$FULL_COMPOSE_E2E_RUN_ATTEMPT" --output "$WEAVE_CANDIDATE_COMPOSITION"
+          python3 tools/build_artifacts.py consume --composition "$WEAVE_CANDIDATE_COMPOSITION" \
+            --components runtime-linux-amd64,ios-device --directory "$WEAVE_BUILD_ARTIFACT_ROOT"
+
       - name: Resolve pinned specification corpus
         id: spec
         working-directory: weave
@@ -113,53 +145,6 @@ jobs:
           path: weave-specs
           ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
           persist-credentials: false
-
-      - name: Verify capacity and Compose runtime
-        working-directory: weave
-        run: >-
-          python3 tools/runner_capacity_preflight.py
-          --path .
-          --minimum-free-gib 20
-          --require-docker
-
-      - name: Verify physical preparation toolchain
-        working-directory: weave
-        run: |
-          set -euo pipefail
-          FLUTTER_BIN="${FLUTTER_BIN:-${HOME}/flutter/bin/flutter}"
-          [[ -x "$FLUTTER_BIN" ]] || FLUTTER_BIN="$(command -v flutter || true)"
-          [[ -n "$FLUTTER_BIN" && -x "$FLUTTER_BIN" ]]
-          export FLUTTER_BIN
-          flutter_directory="$(dirname "$FLUTTER_BIN")"
-          PATH="$flutter_directory:$PATH"
-          export PATH
-          python3 - <<'PY'
-          import json, os, shutil, sys
-          from pathlib import Path
-          sys.path.insert(0, str(Path("client/tool").resolve()))
-          from run_ios_simulator_product_acceptance import inspect_toolchain, run
-          if Path(shutil.which("flutter") or "").resolve() != Path(os.environ["FLUTTER_BIN"]).resolve():
-              raise SystemExit("Toolchain inspection must use the selected physical Flutter executable")
-          metadata = inspect_toolchain()
-          sdk = run(["xcrun", "--sdk", "iphoneos", "--show-sdk-version"]).strip()
-          if sdk != metadata["iosSimulatorSdkVersion"]:
-              raise SystemExit("Unsupported physical iPhone SDK for the pinned Xcode toolchain")
-          metadata["iosDeviceSdkVersion"] = sdk
-          rustup_directory = str(Path(shutil.which("rustup")).resolve().parent)
-          with Path(os.environ["GITHUB_PATH"]).open("a") as output:
-              output.write(rustup_directory + "\n")
-          with Path(os.environ["GITHUB_ENV"]).open("a") as output:
-              output.write("PHYSICAL_TOOLCHAIN_JSON=" + json.dumps(metadata, separators=(",", ":")) + "\n")
-              output.write("FLUTTER_BIN=" + os.environ["FLUTTER_BIN"] + "\n")
-              output.write("RUSTUP_TOOLCHAIN=" + metadata["rustToolchain"] + "\n")
-          PY
-
-      - name: Set up Node 24
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: weave/admin-console/package-lock.json
 
       - name: Set up Java 21
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
@@ -226,67 +211,38 @@ jobs:
           infra/weave-workspace/compose.sh dogfood bootstrap-space \
             --evidence-file "$WEAVE_DOGFOOD_EVIDENCE_DIR/owner-space.json"
 
-      - name: Build, sign, install in place, and launch on physical iPhone
+      - name: Sign the hosted artifact, install in place, and observe ordinary startup
         working-directory: weave
         run: |
           umask 077
           set -euo pipefail
           git fetch --no-tags origin '+refs/heads/dogfood:refs/remotes/origin/dogfood'
           [[ "$(git rev-parse origin/dogfood)" == "$DOGFOOD_COMMIT" ]]
-          tools/dogfood_iphone_entry.sh \
-            --run --ordinary-startup \
-            --device-id "$WEAVE_IOS_DEVICE_ID" \
-            --build-mode profile \
-            --reset-mode update_in_place \
-            --transport wifi \
-            --local-ca-trust trusted \
-            --run-id "human-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            --handoff-ref "dogfood-${DOGFOOD_COMMIT}" \
-            --evidence-dir "$WEAVE_DOGFOOD_EVIDENCE_DIR"
-
-      - name: Verify retained owner and independent peer functional behavior
-        working-directory: weave
-        run: |
-          umask 077
-          python3 tools/dogfood_functional_smoke.py --stage physical \
+          python3 tools/prepare_iphone_artifact.py \
             --candidate "$DOGFOOD_COMMIT" --device-id "$WEAVE_IOS_DEVICE_ID" \
             --qualification-run-id "$FULL_COMPOSE_E2E_RUN_ID" \
             --qualification-run-attempt "$FULL_COMPOSE_E2E_RUN_ATTEMPT" \
-            --output build/evidence/prepare-human-test/functional-smoke.json
+            --output "$WEAVE_DOGFOOD_EVIDENCE_DIR/preparation-result.json"
 
-      - name: Record exact physical preparation
+      - name: Bind the prepared owner Space to the installed artifact
         working-directory: weave
         run: |
-          python3 - <<'PY'
-          import json, os, subprocess
+          python3 - <<'PYRECORD'
+          import json, os
           from pathlib import Path
-          sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-          if sha != os.environ["DOGFOOD_COMMIT"]:
-              raise SystemExit("Physical preparation source mismatch")
-          spec = json.loads(Path("specs/weave-specs.lock.json").read_text())["specCorpus"]["gitCommit"]
-          tree = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], text=True).strip()
-          workspace = json.loads(Path("build/evidence/prepare-human-test/owner-space.json").read_text())
-          from tools.verify_main_promotion_evidence import owner_workspace_passed
-          from tools.dogfood_functional_smoke import functional_smoke_passed
-          functional = json.loads(Path("build/evidence/prepare-human-test/functional-smoke.json").read_text())
-          if not functional_smoke_passed(functional, sha, tree, spec,
-                  int(os.environ["FULL_COMPOSE_E2E_RUN_ID"]), int(os.environ["FULL_COMPOSE_E2E_RUN_ATTEMPT"]), "physical"):
-              raise SystemExit("Physical preparation requires actual ordinary authenticated functional UI proof")
-          if not owner_workspace_passed(workspace, sha, tree, spec):
-              raise SystemExit("Physical preparation lacks verified current owner Space access")
+          from tools.verify_main_promotion_evidence import owner_workspace_passed, preparation_passed
           output = Path("build/evidence/prepare-human-test/preparation-result.json")
-          output.parent.mkdir(parents=True, exist_ok=True)
-          output.write_text(json.dumps({
-              "schemaVersion": "weave.hil-preparation/v3", "candidateCommit": sha,
-              "sourceTree": tree, "specificationCommit": spec,
-              "qualificationRunId": int(os.environ["FULL_COMPOSE_E2E_RUN_ID"]),
-              "qualificationRunAttempt": int(os.environ["FULL_COMPOSE_E2E_RUN_ATTEMPT"]),
-              "toolchain": json.loads(os.environ["PHYSICAL_TOOLCHAIN_JSON"]),
-              "ownerWorkspace": workspace, "functionalSmoke": functional,
-              "status": "passed", "install": "update_in_place",
-              "supportSafe": True, "containsSecretValues": False,
-          }, indent=2) + "\n")
-          PY
+          receipt = json.loads(output.read_text())
+          workspace = json.loads(Path("build/evidence/prepare-human-test/owner-space.json").read_text())
+          sha, tree, spec = (receipt[key] for key in ("candidateCommit", "sourceTree", "specificationCommit"))
+          if not owner_workspace_passed(workspace, sha, tree, spec):
+              raise SystemExit("Physical preparation requires current owner Space access")
+          receipt["ownerWorkspace"] = workspace
+          if not preparation_passed(receipt, sha, tree, spec,
+                  int(os.environ["FULL_COMPOSE_E2E_RUN_ID"]), int(os.environ["FULL_COMPOSE_E2E_RUN_ATTEMPT"])):
+              raise SystemExit("Installed artifact and ordinary startup do not match the qualified candidate")
+          output.write_text(json.dumps(receipt, indent=2) + "\n")
+          PYRECORD
 
       - name: Summarize tester handoff
         working-directory: weave
@@ -303,18 +259,23 @@ jobs:
           {
             echo "## Human test is ready"
             echo
-            echo "- Compose, macOS and iOS qualification: passed for ${DOGFOOD_COMMIT} (run ${FULL_COMPOSE_E2E_RUN_ID})"
+            echo "- Two ordinary iOS members: collaboration passed for ${DOGFOOD_COMMIT} (run ${FULL_COMPOSE_E2E_RUN_ID})"
             echo "- Dogfood Compose: running"
             echo "- Default Space: current owner access verified; temporary setup authority removed"
-            echo "- iPhone: updated in place with the development-signed build"
+            echo "- iPhone: hosted artifact signed locally, updated in place, ordinary startup observed"
             echo "- Invitation inbox: ${mailpit_url}"
-            echo "- Delivery path: direct development Compose and in-place signing"
+            echo "- Your test: normal sign-in if needed, then Chat, Files, Calendar and VoiceOver; owner acceptance is pending"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "PREPARE_HUMAN_TEST_RESULT status=passed commit=${DOGFOOD_COMMIT} install=update_in_place"
 
       - name: Remove private owner request after failure
         if: always()
         run: rm -f -- "${RUNNER_TEMP}/dogfood-owner-bootstrap-request.json"
+
+      - name: Release retired verified runtime images after preparation
+        if: always() && steps.exact_source.outcome == 'success'
+        working-directory: weave
+        run: python3 tools/artifact_runtime_storage.py prune
 
       - name: Upload support-safe preparation evidence
         if: always()
@@ -325,6 +286,5 @@ jobs:
             weave/build/evidence/prepare-human-test/preparation-result.json
             weave/build/evidence/prepare-human-test/tls-persistence.json
             weave/build/evidence/prepare-human-test/owner-space.json
-            weave/build/evidence/prepare-human-test/functional-smoke.json
           if-no-files-found: error
           retention-days: 14

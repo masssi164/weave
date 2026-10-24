@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""Build and operate the resettable local dogfood Compose stack."""
+"""Operate the resettable Dogfood stack from verified hosted artifacts."""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
-from build_keycloak_image import STOCK_KEYCLOAK_REFERENCE
-from compose_env import ContractError, LOCAL_IMAGE_ID_RE, PUBLISHED_DIGEST_IMAGE_RE, load_context
+from compose_env import ContractError, load_context
 from compose_runtime import execute
-
-DOGFOOD_APPLICATION_PLATFORM = "linux/amd64"
 
 
 def effective_reviewed_env_file(value: Path | None = None) -> Path:
@@ -49,101 +46,6 @@ def _exact_checkout(repository: Path) -> str:
     return commit
 
 
-def _image_id(reference: str, repository: Path) -> str:
-    image = _run(
-        ["docker", "image", "inspect", reference, "--format", "{{.Id}}"],
-        cwd=repository,
-        capture=True,
-    )
-    if not LOCAL_IMAGE_ID_RE.fullmatch(image):
-        raise ContractError(f"Docker did not resolve an exact local image ID for {reference}")
-    return image
-
-
-def _resolve_keycloak(reference: str, repository: Path) -> str:
-    if PUBLISHED_DIGEST_IMAGE_RE.fullmatch(reference):
-        _run(["docker", "pull", reference], cwd=repository)
-        return _image_id(reference, repository)
-    if LOCAL_IMAGE_ID_RE.fullmatch(reference):
-        available = subprocess.run(
-            ["docker", "image", "inspect", reference],
-            cwd=repository,
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        if available.returncode == 0:
-            return reference
-        # A local image ID may disappear after an OrbStack reset. Weaver is
-        # opt-in, so the immutable stock 26.7.1 runtime is the correct native
-        # dogfood fallback and needs no downstream registration executor.
-        _run(["docker", "pull", STOCK_KEYCLOAK_REFERENCE], cwd=repository)
-        return _image_id(STOCK_KEYCLOAK_REFERENCE, repository)
-    raise ContractError("dogfood Keycloak must use a registry digest or exact local image ID")
-
-
-def _build_application_images(repository: Path, commit: str) -> tuple[str, str]:
-    lock = repository / "specs/weave-specs.lock.json"
-    spec_digest = "sha256:" + hashlib.sha256(lock.read_bytes()).hexdigest()
-    # Use immutable source metadata so repeated dogfoodUp calls resolve the
-    # same image ID instead of recreating healthy containers for a wall-clock
-    # label change.
-    created = _run(
-        ["git", "show", "-s", "--format=%cI", commit],
-        cwd=repository,
-        capture=True,
-    )
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}", created):
-        raise ContractError("dogfood requires one exact Git commit timestamp")
-    common = [
-        "--build-arg",
-        f"WEAVE_IMAGE_CREATED={created}",
-        "--build-arg",
-        f"WEAVE_IMAGE_REVISION={commit}",
-        "--build-arg",
-        f"WEAVE_IMAGE_VERSION=dogfood-{commit[:12]}",
-        "--build-arg",
-        f"WEAVE_SPEC_DIGEST={spec_digest}",
-        "--build-arg",
-        "WEAVE_SBOM_REFERENCE=local-dogfood-not-published",
-        "--build-arg",
-        "WEAVE_PROVENANCE_REFERENCE=local-dogfood-not-published",
-    ]
-    server_tag = f"weave-backend:dogfood-{commit[:12]}"
-    mcp_tag = f"weave-mcp-server:dogfood-{commit[:12]}"
-    _run(
-        [
-            "docker",
-            "build",
-            "--platform",
-            DOGFOOD_APPLICATION_PLATFORM,
-            *common,
-            "--tag",
-            server_tag,
-            "--file",
-            str(repository / "server/Dockerfile"),
-            str(repository),
-        ],
-        cwd=repository,
-    )
-    _run(
-        [
-            "docker",
-            "build",
-            "--platform",
-            DOGFOOD_APPLICATION_PLATFORM,
-            *common,
-            "--tag",
-            mcp_tag,
-            "--file",
-            str(repository / "weave-mcp-server/Dockerfile"),
-            str(repository),
-        ],
-        cwd=repository,
-    )
-    return _image_id(server_tag, repository), _image_id(mcp_tag, repository)
-
-
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("operation", choices=("up", "down", "reset", "bootstrap-owner", "bootstrap-space"))
@@ -164,11 +66,11 @@ def main() -> int:
         return 0
 
     commit = _exact_checkout(repository)
-    keycloak_image = _resolve_keycloak(context.env["WEAVE_KEYCLOAK_IMAGE"], repository)
-    backend_image, mcp_image = _build_application_images(repository, commit)
-    os.environ["WEAVE_KEYCLOAK_IMAGE"] = keycloak_image
-    os.environ["WEAVE_BACKEND_IMAGE"] = backend_image
-    os.environ["WEAVE_MCP_IMAGE"] = mcp_image
+    sys.path.insert(0, str(repository / "tools"))
+    from artifact_consumers import load_runtime_images
+    # Deployment consumes immutable hosted output. A missing package is a
+    # preparation failure, never an implicit build on the single UI runner.
+    os.environ.update(load_runtime_images(commit))
     context = load_context("dogfood", root, str(env_file))
     operation_arguments = list(operation_arguments)
     if operation_arguments[:1] == ["--"]:

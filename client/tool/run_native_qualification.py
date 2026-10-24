@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Qualify both real native clients within the existing isolated testApp run."""
+"""Qualify two real iOS clients before physical user testing; desktop is manual."""
 from __future__ import annotations
 
 import json
@@ -13,6 +13,9 @@ from pathlib import Path
 from run_ios_simulator_product_acceptance import inspect_toolchain
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'tools'))
+from artifact_consumers import component, component_evidence, candidate_composition
+from member_test_scenario import scenario_sha256
 
 
 def interrupt_native_process(process, *, graceful_seconds=60, reap_seconds=10) -> bool:
@@ -54,12 +57,17 @@ def main() -> int:
     native_env = os.environ.copy()
     native_env['RUSTUP_TOOLCHAIN'] = toolchain['rustToolchain']
     native_env['PATH'] = str(Path(rustup).parent) + os.pathsep + native_env['PATH']
+    simulator_artifact, _ = component('ios-simulator', commit)
     evidence = {
-        'schemaVersion': 'weave.native-qualification/v2',
+        'schemaVersion': 'weave.native-qualification/v3',
+        'qualificationProfile': 'iphone-member-collaboration/v1',
+        'scenarioSha256': scenario_sha256(),
+        'buildArtifact': component_evidence(simulator_artifact),
+        'artifactComposition': candidate_composition(commit),
         'candidateCommit': commit,
         'sourceTree': subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], cwd=ROOT, text=True).strip(),
         'specificationCommit': identity['specCorpus']['gitCommit'],
-        'macos': {'status': 'not-run'},
+        'macos': {'status': 'manual-only'},
         'iosSimulator': {'status': 'not-run', 'rustTarget': 'aarch64-apple-ios-sim',
                          'collaboration': {'status': 'not-run', 'cleanupComplete': False}},
         'cleanupComplete': False,
@@ -69,7 +77,7 @@ def main() -> int:
     }
     collaboration_path = ROOT / 'client/build/private-ios-qualification' / ('dual-ios-result-' + os.environ['WEAVE_E2E_RUN_ID'] + '.json')
     try:
-        for platform, script in [('macos', 'run_native_product_acceptance.py'), ('iosSimulator', 'run_dual_ios_collaboration.py')]:
+        for platform, script in [('iosSimulator', 'run_dual_ios_collaboration.py')]:
             arguments = ['python3', str(ROOT / 'client/tool' / script)]
             if platform == 'iosSimulator':
                 if collaboration_path.is_symlink() or collaboration_path.exists():

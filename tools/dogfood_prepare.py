@@ -37,7 +37,7 @@ OPERATOR_BOUNDARIES = frozenset({"invalid-request", "dogfood-posture-required", 
     "operator-reference-conflict", "invitation-conflict", "invitation-expired", "invitation-revoked", "invitation-outcome-uncertain",
     "identity-unavailable", "test-member-state-conflict", "test-member-not-activated", "member-proof-required", "member-proof-conflict",
     "space-access-conflict", "space-version-conflict", "identity-provider-unavailable", "persistence-unavailable", "audit-unavailable",
-    "operation-incomplete"})
+    "operation-incomplete", "managed-test-identity-conflict", "managed-test-credential-conflict"})
 
 
 def strict_json(raw: str) -> dict:
@@ -155,11 +155,15 @@ def operator_plan(plan: dict, context) -> dict:
     return plan
 
 
-def operator_request(context, plan: dict, candidate: dict, operation: str, previous: dict | None, proof: dict | None) -> dict:
-    if context.environment != "dogfood" or context.isolated_namespace is not None:
+def operator_request(context, plan: dict, candidate: dict, operation: str, previous: dict | None, proof: dict | None,
+                     initial_credentials: dict | None = None) -> dict:
+    managed = operation == "provision-members"
+    persistent = context.environment == "dogfood" and context.isolated_namespace is None
+    isolated = managed and context.environment == "e2e" and context.isolated_namespace is not None
+    if not (persistent or isolated):
         raise ContractError("dogfood-operator-posture-required")
     operator_plan(plan, context)
-    if (operation not in {"invitations", "grants"} or set(candidate) != {"candidateCommit", "sourceTree", "specificationCommit"}
+    if (operation not in {"invitations", "grants", "provision-members"} or set(candidate) != {"candidateCommit", "sourceTree", "specificationCommit"}
             or any(not isinstance(value, str) or not COMMIT.fullmatch(value) for value in candidate.values())
             or (operation == "invitations" and proof is not None)
             or (operation == "grants" and (previous is None or not isinstance(proof, dict) or proof.get("nonce") != plan["nonce"]))):
@@ -183,9 +187,18 @@ def operator_request(context, plan: dict, candidate: dict, operation: str, previ
     if (https_origin(parsed.scheme + "://" + parsed.netloc) != plan["apiOrigin"]
             or parsed.username or parsed.password or parsed.query or parsed.fragment):
         raise ContractError("dogfood-operator-configuration-mismatch")
-    return {"schemaVersion": "weave.dogfood-operator-preparation-request/v1", "operation": operation,
-            "environment": "dogfood", "nonce": plan["nonce"], **candidate, "apiBaseUrl": api,
+    request = {"schemaVersion": "weave.dogfood-operator-preparation-request/v2" if managed else "weave.dogfood-operator-preparation-request/v1",
+            "operation": operation, "environment": "dogfood", "nonce": plan["nonce"], **candidate, "apiBaseUrl": api,
             "plan": plan, "previousReceipt": previous, "proof": proof}
+    if managed:
+        if (proof is not None or not isinstance(initial_credentials, dict) or set(initial_credentials) != {"A", "B"}
+                or any(not text(password, 128) or len(password) < 24 for password in initial_credentials.values())
+                or initial_credentials["A"] == initial_credentials["B"]):
+            raise ContractError("dogfood-operator-request-invalid")
+        request["initialCredentials"] = [{"slot": slot, "password": initial_credentials[slot]} for slot in ("A", "B")]
+    elif initial_credentials is not None:
+        raise ContractError("dogfood-operator-request-invalid")
+    return request
 
 
 def validate_operator_envelope(value: dict, request: dict | None = None, previous: dict | None = None) -> dict:
@@ -193,7 +206,7 @@ def validate_operator_envelope(value: dict, request: dict | None = None, previou
     try:
         if (not isinstance(value, dict) or set(value) != {"schemaVersion", "receipt", "privateData"}
                 or value["schemaVersion"] != "weave.dogfood-operator-preparation-envelope/v1"
-                or not isinstance(value["privateData"], dict) or set(value["privateData"]) != {"ownerDisplayName"}):
+                or not isinstance(value["privateData"], dict) or set(value["privateData"]) not in ({"ownerDisplayName"}, {"ownerDisplayName", "members"})):
             raise ValueError()
         receipt = value["receipt"]
         keys = {"schemaVersion", "authorizationKind", "actorKind", "actorRef", "operation", "status", "stage", "boundary", "outcome",
@@ -215,7 +228,7 @@ def validate_operator_envelope(value: dict, request: dict | None = None, previou
         if receipt["actorRef"] != ("operator:dogfood-prepare:" + plan_id if plan_id else None): raise ValueError()
         for key, literal in (("environment", "dogfood"), ("spaceRef", "workspace-default")):
             if receipt[key] != literal and (passed or receipt[key] is not None): raise ValueError()
-        if receipt["operation"] not in {"invitations", "grants"} and (passed or receipt["operation"] is not None): raise ValueError()
+        if receipt["operation"] not in {"invitations", "grants", "provision-members"} and (passed or receipt["operation"] is not None): raise ValueError()
         for key in ("organizationOrigin", "apiBaseUrl", "issuerUrl", "organizationId"):
             if receipt[key] is not None and not text(receipt[key], 2048): raise ValueError()
             if passed and receipt[key] is None: raise ValueError()
@@ -227,7 +240,7 @@ def validate_operator_envelope(value: dict, request: dict | None = None, previou
             if key == "organizationOrigin" and https_origin(receipt[key]) != receipt[key]: raise ValueError()
         if passed:
             if (receipt["boundary"] != "none" or receipt["outcome"] not in {"CREATED", "VERIFIED"}
-                    or receipt["stage"] != ("invitations-ready" if receipt["operation"] == "invitations" else "grants-ready")):
+                    or receipt["stage"] != receipt["operation"] + "-ready"):
                 raise ValueError()
         elif (receipt["stage"] != "incomplete" or receipt["outcome"] not in {"BLOCKED", "PARTIAL"}
               or receipt["boundary"] not in OPERATOR_BOUNDARIES): raise ValueError()
@@ -248,7 +261,7 @@ def validate_operator_envelope(value: dict, request: dict | None = None, previou
             if (member["intentState"] not in {"NOT_ISSUED", "PENDING", "APPLIED", "FAILED", "EXPIRED", "UNAVAILABLE"}
                     or member["grantOutcome"] not in {"NOT_REQUESTED", "CREATED", "VERIFIED", "BLOCKED"}): raise ValueError()
             if passed:
-                if not member["intentRef"] or not member["invitationHandle"]: raise ValueError()
+                if not member["intentRef"] or (receipt["operation"] != "provision-members" and not member["invitationHandle"]): raise ValueError()
                 if receipt["operation"] == "invitations":
                     if (member["intentState"] not in {"PENDING", "APPLIED"} or member["grantVersion"] is not None
                             or member["grantOutcome"] != "NOT_REQUESTED"): raise ValueError()
@@ -256,6 +269,14 @@ def validate_operator_envelope(value: dict, request: dict | None = None, previou
                       or not all(member[k] for k in ("accountRef", "memberHandle", "grantVersion"))): raise ValueError()
                 if member["intentState"] == "APPLIED" and not all(member[k] for k in ("accountRef", "memberHandle")): raise ValueError()
                 if member["intentState"] == "PENDING" and any(member[k] is not None for k in ("accountRef", "memberHandle")): raise ValueError()
+        subjects = value["privateData"].get("members")
+        if passed and receipt["operation"] == "provision-members":
+            if (not isinstance(subjects, list) or len(subjects) != 2
+                    or any(not isinstance(item, dict) or set(item) != {"slot", "identityRef"} or item["slot"] != slot
+                           or not text(item["identityRef"], 512) for slot, item in zip(("A", "B"), subjects))
+                    or subjects[0]["identityRef"] == subjects[1]["identityRef"]): raise ValueError()
+        elif subjects is not None:
+            raise ValueError()
         accounts = [m["accountRef"] for m in members if m["accountRef"]]
         if len(set(accounts + ([receipt["intendedOwnerAccountRef"]] if receipt["intendedOwnerAccountRef"] else []))) != len(accounts) + bool(receipt["intendedOwnerAccountRef"]): raise ValueError()
         for key in ("intentRef", "invitationHandle", "memberHandle"):
@@ -350,16 +371,19 @@ def admin_driver(plan: dict, directory: Path, operation: str, proof: dict | None
         path.unlink(missing_ok=True)
 
 
-def operator_backend(context, candidate: dict, backend: dict, runner) -> None:
+def operator_backend(context, candidate: dict, backend: dict, runner, *, allow_isolated: bool = False) -> None:
     from compose_runtime import _bootstrap_boundary_present
-    if context.environment != "dogfood" or context.isolated_namespace is not None:
+    if not ((context.environment == "dogfood" and context.isolated_namespace is None)
+            or (allow_isolated and context.environment == "e2e" and context.isolated_namespace is not None)):
         raise ContractError("dogfood-operator-posture-required")
     if (not isinstance(backend, dict) or not isinstance(backend.get("Config"), dict)
             or not isinstance(backend["Config"].get("Labels"), dict) or not isinstance(backend["Config"].get("Env"), list)
             or any(not isinstance(item, str) for item in backend["Config"]["Env"]) or not isinstance(backend.get("State"), dict)):
         raise ContractError("dogfood-operator-candidate-mismatch")
     labels = backend.get("Config", {}).get("Labels", {})
-    expected = {"org.opencontainers.image.revision": candidate["candidateCommit"], "com.massimotter.weave.module": "server",
+    expected = {"com.massimotter.weave.module": "server",
+                "com.massimotter.weave.candidate-commit": candidate["candidateCommit"],
+                "com.massimotter.weave.spec-commit": candidate["specificationCommit"],
                 "com.massimotter.weave.spec-digest": "sha256:" + hashlib.sha256((ROOT / "specs/weave-specs.lock.json").read_bytes()).hexdigest(),
                 "com.docker.compose.project": context.env["WEAVE_COMPOSE_PROJECT"], "com.docker.compose.service": "backend",
                 "com.massimotter.weave.namespace": context.env["WEAVE_RESOURCE_PREFIX"]}
@@ -369,13 +393,17 @@ def operator_backend(context, candidate: dict, backend: dict, runner) -> None:
             or backend.get("State", {}).get("Running") is not True or posture != ["dogfood"]
             or any(labels.get(key) != value for key, value in expected.items()) or _bootstrap_boundary_present(backend)):
         raise ContractError("dogfood-operator-candidate-mismatch")
-    if runner.run(["git", "rev-parse", labels["org.opencontainers.image.revision"] + "^{tree}"]).strip() != candidate["sourceTree"]:
-        raise ContractError("dogfood-operator-candidate-mismatch")
+    from artifact_consumers import ArtifactError, verify_runtime_container
+    try:
+        verify_runtime_container(backend, candidate["candidateCommit"])
+    except ArtifactError:
+        raise ContractError("dogfood-operator-candidate-mismatch") from None
 
 
 def operator_driver(context, backend: dict, plan: dict, candidate: dict, directory: Path,
-                    operation: str, previous: dict | None = None, proof: dict | None = None) -> dict:
-    request = operator_request(context, plan, candidate, operation, previous, proof)
+                    operation: str, previous: dict | None = None, proof: dict | None = None,
+                    initial_credentials: dict | None = None) -> dict:
+    request = operator_request(context, plan, candidate, operation, previous, proof, initial_credentials)
     encoded = json.dumps(request, ensure_ascii=False, separators=(",", ":")).encode()
     if len(encoded) > 65536:
         raise ContractError("dogfood-operator-request-invalid")
@@ -461,23 +489,23 @@ def operator_grant_evidence(ledger: dict) -> dict | None:
         raise ContractError("dogfood-preparation-authority-conflict")
     if evidence is None and current:
         receipt = current["receipt"]
-        if receipt["status"] == "passed" and receipt["stage"] == "grants-ready":
+        if receipt["status"] == "passed" and receipt["stage"] in {"grants-ready", "provision-members-ready"}:
             evidence = current  # Recover only the exact existing typed proof.
     if evidence is None:
         return None
     receipt = validate_operator_envelope(evidence)["receipt"]
     expected = {key: ledger["plan"][key] for key in ("planId", "organizationOrigin", "issuerUrl", "spaceRef")}
     api = urlsplit(receipt["apiBaseUrl"])
-    if (receipt["status"] != "passed" or receipt["stage"] != "grants-ready"
+    if (receipt["status"] != "passed" or receipt["stage"] not in {"grants-ready", "provision-members-ready"}
             or any(receipt[key] != item for key, item in expected.items())
             or https_origin(api.scheme + "://" + api.netloc) != ledger["plan"]["apiOrigin"]):
         raise ContractError("dogfood-preparation-authority-conflict")
     if current:
         observed = validate_operator_envelope(current, previous=receipt)["receipt"]
         if (current["privateData"]["ownerDisplayName"] is not None
-                and current["privateData"] != evidence["privateData"]):
+                and current["privateData"]["ownerDisplayName"] != evidence["privateData"]["ownerDisplayName"]):
             raise ContractError("dogfood-operator-owner-binding-conflict")
-        if observed["status"] == "passed" and observed["stage"] == "grants-ready":
+        if observed["status"] == "passed" and observed["stage"] in {"grants-ready", "provision-members-ready"}:
             if any(old["grantVersion"] != new["grantVersion"] for old, new in zip(receipt["members"], observed["members"])):
                 raise ContractError("dogfood-operator-space-version-conflict")
     return evidence
@@ -525,7 +553,7 @@ def fixture_binding(context, fixture_path: Path, fixture: dict) -> dict:
         envelope = validate_operator_envelope(ledger["operatorEnvelope"])
         operator_grant_evidence(ledger)
         grants = envelope["receipt"]
-        if (grants["planId"] != plan["planId"] or grants["status"] != "passed" or grants["stage"] != "grants-ready"
+        if (grants["planId"] != plan["planId"] or grants["status"] != "passed" or grants["stage"] not in {"grants-ready", "provision-members-ready"}
                 or any(grants[key] != plan[key] for key in ("organizationOrigin", "issuerUrl", "spaceRef"))
                 or grants["apiBaseUrl"] != context.env["WEAVE_API_URL"]):
             raise ContractError("approved-test-member-preparation-binding-required")
@@ -691,13 +719,13 @@ def registration(runner, actor: dict, fixture: dict) -> str:
 
 def build_actors(runner, context, candidate: str, devices: list[str]) -> dict:
     from dogfood_functional_smoke import CLIENT, BUNDLE, select_runtime, build_info
-    runner.configure_native_toolchain()
+    from artifact_consumers import ArtifactError, native_bundle, copy_driver_products
+    try:
+        manifest, app, products = native_bundle("ios-simulator", "ordinary", candidate)
+    except ArtifactError:
+        raise ContractError("verified-hosted-simulator-artifact-required") from None
+    build_info(app, manifest["buildMode"])
     runtime, device_type = select_runtime()
-    runner.run(["flutter", "build", "ios", "--simulator", "--debug", "--target=lib/main.dart",
-                "--dart-define=WEAVE_CANDIDATE_COMMIT=" + candidate,
-                "--dart-define=WEAVE_BUILD_CHANNEL=development-dogfood"], cwd=CLIENT, timeout=1200)
-    app = CLIENT / "build/ios/iphonesimulator/Runner.app"
-    build_info(app, "debug")
     actors = {}
     for slot in ("A", "B"):
         udid = runner.run(["xcrun", "simctl", "create", "weave-prepare-" + secrets.token_hex(8) + "-" + slot, device_type, runtime]).strip()
@@ -709,11 +737,9 @@ def build_actors(runner, context, candidate: str, devices: list[str]) -> dict:
         runner.run(["xcrun", "simctl", "keychain", udid, "add-root-cert", str(context.tls_root / "ca.pem")])
         runner.run(["xcrun", "simctl", "install", udid, str(app)])
         derived = runner.directory / ("driver-" + slot)
-        runner.run(["xcodebuild", "build-for-testing", "-project", str(CLIENT / "tool/ios_browser_driver/BrowserDriver.xcodeproj"),
-                    "-scheme", "BrowserDriver", "-destination", "platform=iOS Simulator,id=" + udid,
-                    "-derivedDataPath", str(derived), "CODE_SIGNING_ALLOWED=NO"], timeout=600)
+        copied_products = copy_driver_products(products, derived / "Build/Products")
         actors[slot] = {"id": udid, "physical": False, "destination": "platform=iOS Simulator,id=" + udid,
-                        "products": derived / "Build/Products", "app": app}
+                        "products": copied_products, "app": app}
     return actors
 
 
@@ -815,7 +841,7 @@ def publish_fixture(path: Path, ledger_path: Path, ledger: dict, grants: dict, p
     if operator:
         envelope = validate_operator_envelope(grants)
         grants = envelope["receipt"]
-        if (ledger.get("authorizationKind") != "dogfood-operator" or grants["status"] != "passed" or grants["stage"] != "grants-ready"
+        if (ledger.get("authorizationKind") != "dogfood-operator" or grants["status"] != "passed" or grants["stage"] not in {"grants-ready", "provision-members-ready"}
                 or grants["nonce"] != proof["nonce"] or grants["planId"] != plan["planId"]
                 or any(grants[key] != candidate[key] for key in candidate)):
             raise ContractError("dogfood-preparation-authority-conflict")
@@ -871,7 +897,7 @@ def operator_phases(context, backend: dict, candidate: dict, ledger_path: Path, 
             # never clear them or relabel them as human administrator work.
             ledger["operatorEnvelope"] = envelope
             private_write(ledger_path, ledger)
-            if receipt["status"] == "passed" and receipt["stage"] == "grants-ready":
+            if receipt["status"] == "passed" and receipt["stage"] in {"grants-ready", "provision-members-ready"}:
                 operator_grant_evidence(ledger)
                 ledger["lastGrantsEnvelope"] = envelope
                 private_write(ledger_path, ledger)
@@ -935,6 +961,17 @@ def operator_phases(context, backend: dict, candidate: dict, ledger_path: Path, 
 
 
 def prepare_members(context, result: dict, fixture_path: Path, ledger_path: Path, authorization_mode: str = "operator") -> dict:
+    if authorization_mode == "console":
+        return prepare_members_onboarding(context, result, fixture_path, ledger_path, authorization_mode)
+    if authorization_mode != "operator" or ledger_path != ledger_for(fixture_path):
+        raise ContractError("dogfood-preparation-authorization-invalid")
+    from prepare_member_scenario import prepare_context
+    result.update(prepare_context(context, fixture_path))
+    return result
+
+
+def prepare_members_onboarding(context, result: dict, fixture_path: Path, ledger_path: Path, authorization_mode: str = "operator") -> dict:
+    """Explicit onboarding diagnostic; prepared collaboration does not invoke this browser setup."""
     from compose_runtime import _service_container, verify_dogfood_identity
     from dogfood_functional_smoke import Runner, SmokeError
     if result.get("localTrustStatus") != "passed": return result
@@ -965,9 +1002,8 @@ def prepare_members(context, result: dict, fixture_path: Path, ledger_path: Path
                     raise ContractError("clean-exact-candidate-required")
                 verify_dogfood_identity(context)
                 before = _service_container(context, "backend", deadline=time.monotonic() + 30)
-                deployed = before.get("Config", {}).get("Labels", {}).get("org.opencontainers.image.revision", "")
-                if not re.fullmatch(r"[0-9a-f]{40}", deployed) or runner.run(["git", "rev-parse", deployed + "^{tree}"]).strip() != candidate["sourceTree"]:
-                    raise ContractError("deployed-source-tree-mismatch")
+                from artifact_consumers import verify_runtime_container
+                verify_runtime_container(before, candidate["candidateCommit"])
                 if authorization_mode == "operator":
                     operator_backend(context, candidate, before, runner)
                     ledger = operator_ledger(context, ledger_path, result["trust"]["caSha256Fingerprint"], fixture_path)
@@ -1105,10 +1141,12 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--identity-file", type=Path, default=Path.home() / ".weave/dogfood/functional-smoke-identities.json")
     parser.add_argument("--authorization-mode", choices=("operator", "console"), default="operator")
+    parser.add_argument("--onboarding-diagnostic", action="store_true")
     args = parser.parse_args()
     context = load_context("dogfood", ROOT / "infra/weave-workspace", str(effective_reviewed_env_file(args.env_file)))
     result = preflight(context, Path.home() / ".weave/dogfood/public-setup")
-    result = prepare_members(context, result, args.identity_file, ledger_for(args.identity_file), authorization_mode=args.authorization_mode)
+    preparation = prepare_members_onboarding if args.onboarding_diagnostic else prepare_members
+    result = preparation(context, result, args.identity_file, ledger_for(args.identity_file), authorization_mode=args.authorization_mode)
     output = args.output or context.generated_root / "preparation/trust-result.json"
     _no_symlink(output)
     _private_json(output, result)

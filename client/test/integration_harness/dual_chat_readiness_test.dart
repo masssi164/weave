@@ -53,6 +53,7 @@ import '../../integration_test/dual_ios_collaboration_test.dart'
         openNativeDualChatConversation,
         readNativeDualChatHistory,
         writeNativeDualPrivateJson,
+        requireNativeDualRuntimeFixture,
         nativeDualSessionIdentityDigests,
         nativeDualChatReceiveDiagnostic;
 
@@ -145,6 +146,105 @@ class _ReceiveDiagnosticBridge extends RustMatrixCoreBridge {
 }
 
 void main() {
+  Map<String, dynamic> runtimeFixture(String runId) {
+    final compiler = Process.runSync('python3', [
+      '../tools/member_test_scenario.py',
+      '--run-id',
+      runId,
+    ]);
+    expect(compiler.exitCode, 0);
+    final scenario =
+        jsonDecode(compiler.stdout as String) as Map<String, dynamic>;
+    final content = scenario['content'] as Map<String, dynamic>;
+    return {
+      'runId': runId,
+      'role': 'A',
+      'organizationRole': 'member',
+      'sharedSpaceRef': scenario['sharedSpaceRef'],
+      'memberScenario': scenario,
+      for (final key in [
+        'initialFileName',
+        'replacementFileName',
+        'initialContent',
+        'replacementContent',
+      ])
+        key: content[key],
+    };
+  }
+
+  test('one native binary accepts distinct current scenario executions', () {
+    for (final runId in ['native-runtime-one', 'native-runtime-two']) {
+      expect(requireNativeDualRuntimeFixture(runtimeFixture(runId)), runId);
+    }
+  });
+
+  test('native runtime fixture rejects elevated actors and recipe drift', () {
+    for (final mutation in <void Function(Map<String, dynamic>)>[
+      (fixture) => fixture['organizationRole'] = 'owner',
+      (fixture) => fixture['runId'] = 'another-run',
+      (fixture) => fixture['initialContent'] = 'unrelated private content',
+      (fixture) =>
+          ((fixture['memberScenario'] as Map)['actors'] as List)
+              .first['spacePermissions'] = [
+            'VIEW',
+            'EDIT',
+            'ADMIN',
+          ],
+      (fixture) => (fixture['memberScenario'] as Map)['requiredDomains'] = [
+        'chat',
+        'files',
+      ],
+    ]) {
+      final fixture = runtimeFixture('native-runtime-one');
+      mutation(fixture);
+      expect(
+        () => requireNativeDualRuntimeFixture(fixture),
+        throwsA(isA<TestFailure>()),
+      );
+    }
+  });
+
+  test(
+    'actual native actor must hold only the prepared organization member role',
+    () {
+      for (final roles in [
+        ['member'],
+        ['owner'],
+        ['admin'],
+        ['member', 'owner'],
+        ['member', 'agent-runtime.entitled'],
+        <String>[],
+      ]) {
+        final claims = <String, dynamic>{
+          'sub': 'prepared-member',
+          'iss': 'https://issuer.test',
+          'organization': {
+            'owned-alias': {
+              'id': 'owned-org',
+              'resource_access': {
+                'weave-app': {'roles': roles},
+              },
+            },
+          },
+        };
+        Map<String, String> readIdentity() => nativeDualSessionIdentityDigests(
+          claims,
+          expectedSubjectDigest: sha256
+              .convert(utf8.encode('prepared-member'))
+              .toString(),
+          expectedIssuer: 'https://issuer.test',
+          expectedNativeOrganizationId: 'owned-org',
+          expectedOrganizationRole: 'member',
+        );
+        if (roles.length == 1 && roles.single == 'member') {
+          expect(readIdentity()['identityDigest'], isNotEmpty);
+        } else {
+          expect(readIdentity, throwsA(isA<TestFailure>()));
+        }
+      }
+    },
+  );
+
   for (final changed in [false, true]) {
     test(
       'cached receive diagnostic rejects changed binding=$changed',

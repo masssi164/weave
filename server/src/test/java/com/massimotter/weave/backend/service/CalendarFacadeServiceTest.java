@@ -145,7 +145,7 @@ class CalendarFacadeServiceTest {
     }
 
     @Test
-    void createReadAndDeletePreserveTeamScopeFacadeIds() {
+    void ordinaryMemberCanCreateReadAndDeleteWithinAuthorizedTeamScope() {
         AtomicReference<EventId> readId = new AtomicReference<>();
         AtomicReference<EventId> deletedId = new AtomicReference<>();
         AtomicReference<CalendarScope> writeScope = new AtomicReference<>();
@@ -167,7 +167,7 @@ class CalendarFacadeServiceTest {
                 deletedId.set(id);
             }
         };
-        authenticate();
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwtWithRole("member"), null));
 
         var created = service(adapter).create(request(CalendarScopeResponse.team(
                 "engineering", "Engineering team calendar")));
@@ -391,19 +391,21 @@ class CalendarFacadeServiceTest {
     }
 
     @Test
-    void createRequiresEditPermissionBeforeCallingProvider() {
+    void ordinaryMemberWithViewAccessStillRequiresEditBeforeCallingProvider() {
         AtomicReference<ContextAuthorizationRequest> captured = new AtomicReference<>();
-        authenticate();
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwtWithRole("member"), null));
+        var facade = service(new StubCalendarProvider(), request -> {
+            captured.set(request);
+            return request.permission() == ContextPermission.VIEW
+                    ? ContextAuthorizationDecision.allow("view allowed")
+                    : ContextAuthorizationDecision.deny("edit denied");
+        });
+        assertThat(facade.scopes().scopes()).isNotEmpty();
 
-        assertThatThrownBy(() -> service(
-                        new StubCalendarProvider(),
-                        request -> {
-                            captured.set(request);
-                            return ContextAuthorizationDecision.deny("edit denied");
-                        })
-                .create(request(CalendarScopeResponse.team("engineering", "Engineering team calendar"))))
+        assertThatThrownBy(() -> facade.create(request(CalendarScopeResponse.team("engineering", "Engineering team calendar"))))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
                     assertThat(error.status().value()).isEqualTo(403);
+                    assertThat(error.code()).isEqualTo("calendar-forbidden");
                     assertThat(error.details()).containsEntry("permission", "edit");
                 });
         assertThat(captured.get().tenantId()).isEqualTo("tenant-default");
@@ -413,7 +415,7 @@ class CalendarFacadeServiceTest {
     }
 
     @Test
-    void memberJwtWithoutCalendarEditorCapabilityIsDeniedBeforeRebacAndProviderWrite() {
+    void guestJwtWithoutCalendarEditorCapabilityIsDeniedBeforeRebacAndProviderWrite() {
         AtomicBoolean contextChecked = new AtomicBoolean();
         AtomicBoolean providerCalled = new AtomicBoolean();
         CalendarProviderPort adapter = new StubCalendarProvider() {
@@ -424,7 +426,7 @@ class CalendarFacadeServiceTest {
             }
         };
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(
-                memberJwtWithoutCalendarManagement(), null));
+                jwtWithRole("guest"), null));
 
         assertThatThrownBy(() -> service(adapter, request -> {
                     contextChecked.set(true);
@@ -660,14 +662,14 @@ class CalendarFacadeServiceTest {
                 .build();
     }
 
-    private Jwt memberJwtWithoutCalendarManagement() {
+    private Jwt jwtWithRole(String role) {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .issuer("https://auth.weave.test/realms/weave")
                 .subject("user-123")
                 .claim("preferred_username", "massimo")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole(role))
                 .build();
     }
 

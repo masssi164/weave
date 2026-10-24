@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -14,10 +15,13 @@ jobs:
   invite-owner:
     name: Create first owner invitation
     runs-on: [self-hosted, macOS, ARM64, weave-live]
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
+      DOGFOOD_COMMIT: ${{ github.sha }}
+      WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
       WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
+      WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/weave-specs
       WEAVE_DOGFOOD_OWNER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
       WEAVE_DOGFOOD_OWNER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
 
@@ -31,17 +35,78 @@ jobs:
           : "${WEAVE_DOGFOOD_OWNER_EMAIL:?Configure the dogfood owner email}"
           : "${WEAVE_DOGFOOD_OWNER_DISPLAY_NAME:?Configure the dogfood owner display name}"
 
-      - name: Check out dogfood
+      - name: Initialize hosted artifact paths
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_TEMP:-}" == /* && -d "$RUNNER_TEMP" && ! -L "$RUNNER_TEMP" ]]
+          [[ "${GITHUB_RUN_ID:-}" =~ ^[1-9][0-9]*$ && "${GITHUB_RUN_ATTEMPT:-}" =~ ^[1-9][0-9]*$ ]]
+          printf 'WEAVE_BUILD_ARTIFACT_ROOT=%s/weave-owner-bootstrap-artifacts-%s-%s\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          printf 'WEAVE_CANDIDATE_COMPOSITION=%s/weave-owner-bootstrap-composition-%s-%s.json\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+
+      - name: Check out exact dogfood commit
+        id: exact_source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ env.DOGFOOD_COMMIT }}
+          path: weave
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify current protected dogfood candidate
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin '+refs/heads/dogfood:refs/remotes/origin/dogfood'
+          [[ "$(git rev-parse HEAD)" == "$DOGFOOD_COMMIT" ]]
+          [[ "$(git rev-parse origin/dogfood)" == "$DOGFOOD_COMMIT" ]]
+
+      - name: Release retired verified runtime images before capacity check
+        working-directory: weave
+        run: python3 tools/artifact_runtime_storage.py prune
 
       - name: Verify capacity and Compose runtime
+        working-directory: weave
         run: >-
           python3 tools/runner_capacity_preflight.py
           --path .
           --minimum-free-gib 20
           --require-docker
 
+      - name: Consume the existing trusted hosted runtime artifact
+        working-directory: weave
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 tools/build_artifacts.py resolve \
+            --candidate "$DOGFOOD_COMMIT" --components runtime-linux-amd64 \
+            --scenario fixtures/member-client-baseline/v1.json \
+            --output "$WEAVE_CANDIDATE_COMPOSITION"
+          python3 tools/build_artifacts.py consume \
+            --candidate "$DOGFOOD_COMMIT" --components runtime-linux-amd64 \
+            --composition "$WEAVE_CANDIDATE_COMPOSITION" \
+            --directory "$WEAVE_BUILD_ARTIFACT_ROOT"
+
+      - name: Resolve pinned specification corpus
+        id: spec
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          commit="$(jq -er '.specCorpus.gitCommit | select(test("^[0-9a-f]{40}$"))' specs/weave-specs.lock.json)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Check out pinned Weave Specification Corpus
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec.outputs.commit }}
+          path: weave-specs
+          ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
+          persist-credentials: false
+
       - name: Create private first-owner request
+        working-directory: weave
         env:
           REQUEST_FILE: ${{ runner.temp }}/dogfood-owner-bootstrap-request.json
           EVIDENCE_FILE: ${{ runner.temp }}/dogfood-owner-bootstrap-evidence.json
@@ -73,6 +138,11 @@ jobs:
       - name: Remove private request
         if: always()
         run: rm -f -- "${RUNNER_TEMP}/dogfood-owner-bootstrap-request.json"
+
+      - name: Release retired verified runtime images after owner preparation
+        if: always() && steps.exact_source.outcome == 'success'
+        working-directory: weave
+        run: python3 tools/artifact_runtime_storage.py prune
 
       - name: Upload support-safe invitation evidence
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

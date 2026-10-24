@@ -32,6 +32,8 @@ def ordered(document: str, fragments: tuple[str, ...], label: str) -> None:
 def main() -> int:
     e2e = read(".github/workflows/live-stack-e2e.yml")
     prepare = read(".github/workflows/ios-dogfood.yml")
+    hosted = read(".github/workflows/build-artifacts.yml")
+    desktop = read(".github/workflows/macos-manual.yml")
     owner = read(".github/workflows/dogfood-owner-bootstrap.yml")
     capacity = read("tools/runner_capacity_preflight.py")
     test_app = read("gradle/tasks/test-app.sh")
@@ -49,7 +51,7 @@ def main() -> int:
             and "  merge_group:" not in e2e and "  workflow_dispatch:" not in e2e, "integrated E2E must qualify protected Dogfood only")
     require("run_native_qualification.py" in e2e, "mandatory independent native qualification is missing")
     require("--qualification-only" in prepare and "verify_main_promotion_evidence.py" in prepare,
-            "physical preparation must verify exact deployment and both native results")
+            "physical preparation must verify exact deployment and two-member iOS collaboration")
     verifier = read("tools/verify_main_promotion_evidence.py")
     for marker in ("native-qualification.json", "aarch64-apple-ios-sim", "teardown-evidence.json",
                    "preparation-result.json", "specificationCommit", "sourceTree"):
@@ -67,16 +69,24 @@ def main() -> int:
     )
     node_setup = "actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444"
     require(
-        e2e.count(node_setup) == 2 and prepare.count(node_setup) == 1,
-        "every exact-source Server build must install the pinned Node runtime",
+        node_setup in hosted and node_setup not in e2e and node_setup not in prepare,
+        "Server compilation and its pinned Node runtime must stay in hosted artifact production",
     )
+    require("uses: ./.github/workflows/build-artifacts.yml" in e2e
+            and "needs: hosted-artifacts" in e2e
+            and "WEAVE_TEST_APP_MODE: member-collaboration" in e2e,
+            "fresh member collaboration must consume the hosted candidate composition")
+    require("workflow_dispatch:" in desktop and "  push:" not in desktop
+            and "  pull_request:" not in desktop and "components: macos-desktop" in desktop,
+            "desktop builds must remain independently and manually dispatched")
     ordered(
         e2e,
         (
             "Verify bounded runner",
-            "Verify capacity and Compose runtime",
+            "Verify capacity before artifact consumption",
+            "Consume verified hosted runtime and iOS Simulator artifacts",
             "Resolve pinned specification corpus",
-            "Run full isolated product flow",
+            "Run fresh collaboration between two ordinary iOS members",
             "./gradlew --no-daemon specCorpusConformance testApp",
             "Upload support-safe E2E evidence",
         ),
@@ -89,16 +99,20 @@ def main() -> int:
     require("github.ref == 'refs/heads/dogfood'" in e2e, "automatic deployment is not dogfood-only")
     require("./gradlew --no-daemon dogfoodUp" in e2e, "dogfood is not started through the root Compose lifecycle")
     require("deployment_mode" not in e2e and "Fresh Start" not in e2e, "retired Fresh Start mode remains active")
-    require("candidate-manifest" not in e2e and "Candidate Cut" not in e2e, "delivery still consumes candidate artifacts")
+    require("candidate-manifest" not in e2e and "Candidate Cut" not in e2e, "delivery still uses retired candidate-cut artifacts")
+    ordered(e2e, ("Consume the qualified hosted components", "Start Dogfood from the qualified runtime artifact",
+                  "Prepare and verify the two managed ordinary members", "Verify ordinary direct Dogfood functional behavior"),
+            "Dogfood artifact deployment")
 
     ordered(
         prepare,
         (
             "Verify successful Full Compose E2E for the exact commit",
-            "Verify capacity and Compose runtime",
+            "Verify capacity before artifact consumption",
+            "Consume the qualified runtime and iPhone artifacts",
             "Start dogfood twice and prove TLS identity is stable",
             "Create first owner invitation in private Mailpit",
-            "Build, sign, install in place, and launch on physical iPhone",
+            "Sign the hosted artifact, install in place, and observe ordinary startup",
         ),
         "Prepare Human Test",
     )
@@ -108,7 +122,7 @@ def main() -> int:
         "WEAVE_IOS_INSTALL_TRANSPORT: wifi",
         "secrets.WEAVE_IOS_DEVICE_ID",
         "tools/dogfood_cert_persistence_smoke.py",
-        "tools/dogfood_iphone_entry.sh",
+        "tools/prepare_iphone_artifact.py",
         "./gradlew --no-daemon dogfoodUp",
         "load_context('dogfood'",
         "env['WEAVE_MAILPIT_URL']",
@@ -117,7 +131,7 @@ def main() -> int:
     for step_name in (
         "Verify current protected dogfood candidate",
         "Start dogfood twice and prove TLS identity is stable",
-        "Build, sign, install in place, and launch on physical iPhone",
+        "Sign the hosted artifact, install in place, and observe ordinary startup",
     ):
         step = prepare.split(f"      - name: {step_name}\n", 1)[1].split("      - name:", 1)[0]
         require('[[ "$(git rev-parse origin/dogfood)" == "$DOGFOOD_COMMIT" ]]' in step,
@@ -136,8 +150,13 @@ def main() -> int:
         "runner capacity preflight must remain shared and read-only",
     )
     require("tools/runner_capacity_preflight.py" in test_app, "testApp bypasses the shared capacity preflight")
+    for workflow in (e2e, prepare):
+        require("--qualified --candidate" in workflow and "--composition" in workflow,
+                "deployment and physical preparation must bind exact qualified component bytes")
+        for command in ("flutter build", "build-for-testing", ":server:bootJar", "docker build"):
+            require(command not in workflow, "protected Mac workflow must consume artifacts without compilation")
 
-    print("candidate-pipeline-check: passed delivery=direct-compose qualification=compose-macos-ios hil=explicit")
+    print("candidate-pipeline-check: passed delivery=hosted-artifacts qualification=two-ios-members macos=manual hil=explicit")
     return 0
 
 

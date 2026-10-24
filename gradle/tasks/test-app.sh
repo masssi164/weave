@@ -123,6 +123,15 @@ image_source_commit="${WEAVE_IMAGE_SOURCE_COMMIT:-${candidate_commit}}"
   fail "the image source commit must be an exact lowercase Git object ID"
 [[ -z "$(git -C "${REPOSITORY_ROOT}" status --porcelain=v1 --untracked-files=all)" ]] ||
   fail "testApp requires a clean worktree so every runtime artifact identifies exact source"
+if [[ -n "${WEAVE_BUILD_ARTIFACT_ROOT:-}" ]]; then
+  eval "$(python3 "${REPOSITORY_ROOT}/tools/artifact_consumers.py" runtime-env --candidate "${candidate_commit}")"
+  SERVER_IMAGE="${WEAVE_TEST_APP_SERVER_IMAGE}"
+  MCP_IMAGE="${WEAVE_TEST_APP_MCP_IMAGE}"
+  KEYCLOAK_IMAGE="${WEAVE_TEST_APP_KEYCLOAK_IMAGE}"
+  image_source_commit="${WEAVE_IMAGE_SOURCE_COMMIT}"
+elif [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  fail "protected collaboration must consume verified hosted artifacts"
+fi
 
 if [[ -z "${RUN_ID}" ]]; then
   RUN_ID="testapp-$(date -u +%Y%m%d%H%M%S)-$$"
@@ -156,9 +165,12 @@ spec_lock="${REPOSITORY_ROOT}/specs/weave-specs.lock.json"
 specification_commit="$(
   jq -er '.specCorpus.gitCommit | select(test("^[0-9a-f]{40}$"))' "${spec_lock}"
 )" || fail "the pinned specification commit is invalid"
-spec_digest="sha256:$(shasum -a 256 "${spec_lock}" | awk '{print $1}')"
+spec_digest="${WEAVE_ARTIFACT_SPEC_DIGEST:-sha256:$(shasum -a 256 "${spec_lock}" | awk '{print $1}')}"
 candidate_manifest_path="${WEAVE_TEST_APP_CANDIDATE_MANIFEST:-}"
-if [[ -n "${candidate_manifest_path}" ]]; then
+if [[ -n "${WEAVE_BUILD_ARTIFACT_ROOT:-}" ]]; then
+  [[ -z "$candidate_manifest_path" ]] || fail "hosted composition and legacy candidate manifest cannot be mixed"
+  candidate_manifest_digest="$(PYTHONPATH="$REPOSITORY_ROOT/tools" python3 -c 'from artifact_consumers import candidate_composition; print(candidate_composition()["compositionDigest"])')"
+elif [[ -n "${candidate_manifest_path}" ]]; then
   [[ "${candidate_manifest_path}" == /* ]] ||
     fail "WEAVE_TEST_APP_CANDIDATE_MANIFEST must be absolute"
   [[ -f "${candidate_manifest_path}" && ! -L "${candidate_manifest_path}" ]] ||
@@ -224,6 +236,8 @@ if [[ -z "${SERVER_IMAGE}" && -z "${MCP_IMAGE}" ]]; then
     --tag "${MCP_IMAGE}" \
     --file "${REPOSITORY_ROOT}/weave-mcp-server/Dockerfile" \
     "${REPOSITORY_ROOT}"
+elif [[ -n "${WEAVE_BUILD_ARTIFACT_ROOT:-}" && "${SERVER_IMAGE}" =~ ^sha256:[0-9a-f]{64}$ && "${MCP_IMAGE}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  log "Using verified hosted Server/MCP image artifacts."
 elif [[ -n "${SERVER_IMAGE}" && -n "${MCP_IMAGE}" ]]; then
   [[ "${SERVER_IMAGE}" =~ @sha256:[0-9a-f]{64}$ ]] ||
     fail "WEAVE_TEST_APP_SERVER_IMAGE must be digest-pinned"
@@ -240,7 +254,9 @@ validate_runtime_image \
   "Weave MCP Server" \
   "java21-spring-boot-4.1-spring-ai-2.0"
 
-if [[ -z "${KEYCLOAK_IMAGE}" ]]; then
+if [[ -n "${WEAVE_BUILD_ARTIFACT_ROOT:-}" && "${KEYCLOAK_IMAGE}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  log "Using the verified hosted Keycloak runtime image."
+elif [[ -z "${KEYCLOAK_IMAGE}" ]]; then
   KEYCLOAK_IMAGE="$(
     python3 "${WORKSPACE_ROOT}/scripts/build_keycloak_image.py" \
       --root "${REPOSITORY_ROOT}" \
@@ -261,9 +277,9 @@ validate_runtime_image \
 # exact local image ID to the isolated Compose project. This does not mutate
 # any persistent dogfood deployment or publish a runtime image.
 export WEAVE_RUNTIME_STATE_IMAGE
-WEAVE_RUNTIME_STATE_IMAGE="$(
-  bash "${WORKSPACE_ROOT}/scripts/build_runtime_state_image.sh"
-)"
+if [[ -z "${WEAVE_BUILD_ARTIFACT_ROOT:-}" ]]; then
+  WEAVE_RUNTIME_STATE_IMAGE="$(bash "${WORKSPACE_ROOT}/scripts/build_runtime_state_image.sh")"
+fi
 
 if [[ -n "${candidate_manifest_path}" ]]; then
   jq -e \
@@ -309,7 +325,7 @@ export WEAVE_E2E_EMPTY_NAMESPACE_PROOF="${empty_namespace_proof}"
 
 if [[ -n "${WEAVE_TEST_APP_NATIVE_RUNNER:-}" ]]; then
   [[ "${WEAVE_TEST_APP_PUBLIC_DOMAIN:-}" == "weave.localhost" ]] ||
-    fail "native macOS acceptance requires the weave.localhost disposable profile"
+    fail "native iOS acceptance requires the weave.localhost disposable profile"
   [[ -n "${WEAVE_TEST_APP_NATIVE_CA_ROOT:-}" ]] ||
     fail "WEAVE_TEST_APP_NATIVE_CA_ROOT is required for trusted native HTTPS"
   python3 "${NATIVE_TLS_PREPARER}" \
@@ -391,10 +407,17 @@ for required in \
   [[ -f "${required}" && ! -L "${required}" ]] ||
     fail "an exact TLS or bootstrap SecretRef input is unavailable"
 done
-log "Running invitation, real Chromium activation, PKCE, generated User Files/Calendar, and MCP profile=${RELEASE_MCP}."
-"${REPOSITORY_ROOT}/gradlew" \
-  --no-daemon \
-  --max-workers=2 \
+product_flow_command=("${REPOSITORY_ROOT}/gradlew" --no-daemon --max-workers=2)
+product_flow_target=(:weave-product-e2e:productFlow)
+if [[ -n "${WEAVE_BUILD_ARTIFACT_ROOT:-}" ]]; then
+  [[ -n "${WEAVE_TEST_APP_DRIVER_CLASSPATH:-}" ]] || fail "hosted integration driver is missing"
+  java -cp "${WEAVE_TEST_APP_DRIVER_CLASSPATH}" com.microsoft.playwright.CLI install chromium
+  product_flow_command=(java -cp "${WEAVE_TEST_APP_DRIVER_CLASSPATH}")
+  product_flow_target=(com.massimotter.weave.e2e.FreshProductFlow)
+fi
+log "Running the prepared member collaboration profile with real independent sessions."
+"${product_flow_command[@]}" \
+  "-Dweave.e2e.mode=${WEAVE_TEST_APP_MODE:-full}" \
   "-Dweave.e2e.run-id=${RUN_ID}" \
   "-Dweave.e2e.candidate-commit=${candidate_commit}" \
   "-Dweave.e2e.source-candidate-commit=${image_source_commit}" \
@@ -426,8 +449,30 @@ log "Running invitation, real Chromium activation, PKCE, generated User Files/Ca
   "-Dweave.e2e.persistence-restart-evidence=${WEAVE_TEST_APP_RESTART_EVIDENCE_PATH}" \
   "-Dweave.e2e.candidate-manifest-digest=${candidate_manifest_digest}" \
   "-Dweave.e2e.convergence-timeout=${WEAVE_TEST_APP_CONVERGENCE_TIMEOUT:-PT3M}" \
-  :weave-product-e2e:productFlow
+  "${product_flow_target[@]}"
 
+if [[ "${WEAVE_TEST_APP_MODE:-full}" == "member-collaboration" ]]; then
+  scenario_sha256="$(python3 tools/member_test_scenario.py --run-id "$WEAVE_TEST_APP_RUN_ID" | jq -er .scenarioSha256)"
+  jq -e \
+    --arg candidate "$candidate_commit" --arg source "$image_source_commit" \
+    --arg spec "$specification_commit" --arg manifest "$candidate_manifest_digest" \
+    --arg project "$WEAVE_E2E_RUN_NAMESPACE" --arg scenario "$scenario_sha256" '
+    .schemaVersion == "weave.test-app-product-flow/v4-members" and
+    .mode == "member-collaboration" and
+    .candidateCommit == $candidate and .sourceCandidateCommit == $source and
+    .specificationCommit == $spec and .candidateManifestDigest == $manifest and
+    .composeProject == $project and .memberScenarioSha256 == $scenario and
+    (.runIdSha256 | test("^[0-9a-f]{64}$")) and
+    (.actorAIdentitySha256 | test("^[0-9a-f]{64}$")) and
+    (.actorBIdentitySha256 | test("^[0-9a-f]{64}$")) and
+    .actorAIdentitySha256 != .actorBIdentitySha256 and
+    .humanOAuth == "authorization_code_pkce_s256" and
+    .preparation == "bounded-prepared-members" and
+    .ordinaryMemberRolesVerified == true and .currentSpaceEditorGrantsVerified == true and
+    .nativeCollaborationPassed == true and .supportSafe == true and
+    .credentialsIncluded == false and .actionLinksIncluded == false
+  ' "$WEAVE_TEST_APP_EVIDENCE_PATH" >/dev/null || fail "ordinary-member collaboration evidence is incomplete"
+else
 jq -e \
   --arg candidate_commit "${candidate_commit}" \
   --arg source_candidate_commit "${image_source_commit}" \
@@ -540,6 +585,8 @@ jq -e \
 ' "${WEAVE_TEST_APP_RESTART_EVIDENCE_PATH}" >/dev/null ||
   fail "the persistence-restart evidence is incomplete"
 
+fi
+
 jq -e \
   --arg candidate_commit "${candidate_commit}" \
   --arg source_candidate_commit "${image_source_commit}" \
@@ -583,6 +630,10 @@ fi
 for evidence in \
   "${WEAVE_TEST_APP_RESTART_EVIDENCE_PATH}" \
   "${WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH}"; do
+  [[ -f "$evidence" ]] || {
+    [[ "${WEAVE_TEST_APP_MODE:-full}" == "member-collaboration" && "$evidence" == "$WEAVE_TEST_APP_RESTART_EVIDENCE_PATH" ]] && continue
+    fail "required support-safe evidence is missing"
+  }
   ! grep -Eqi \
     'authorization:|bearer |registration_access_token|access_token|refresh_token|client_assertion|private[_-]?key|BEGIN [A-Z ]+PRIVATE KEY' \
     "${evidence}" ||

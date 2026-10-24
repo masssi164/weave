@@ -18,6 +18,7 @@ import socket
 import select
 import signal
 import subprocess
+import sys
 import time
 import queue
 import threading
@@ -26,6 +27,11 @@ from datetime import datetime, timezone
 
 import run_ios_simulator_product_acceptance as ios
 from run_native_product_acceptance import stop_flutter_process_group
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+from member_test_scenario import (
+    ScenarioError, resolve_scenario, scenario_sha256, validate_member_bindings, validate_resolved_scenario,
+)
 
 SCENARIOS = ('authentication', 'chat', 'calendar', 'files', 'authorization', 'recovery', 'accessibility')
 UUID = re.compile(r'[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}')
@@ -263,16 +269,33 @@ def private_input(path: Path, run_id: str) -> dict:
             or actors[0]['displayName'] == actors[1]['displayName']
             or actors[0]['identityRef'] == actors[1]['identityRef']):
         raise ios.NativeFailure('infrastructure', 'dual-fixture', 'independent-actors-required')
-    # B must originate from the real public completion page, not an invented
-    # provider callback or inferred activation outcome.
-    if not actors[1].get('entryUri'):
-        raise ios.NativeFailure('infrastructure', 'dual-fixture', 'invitation-completion-link-missing')
+    try:
+        scenario = validate_resolved_scenario(data.get('memberScenario'), run_id)
+        bindings = validate_member_bindings(data.get('memberBindings'), data['organizationId'], data.get('sharedSpaceRef'))
+        if (data.get('sharedSpaceRef') != scenario['sharedSpaceRef']
+                or any(actor['role'] != binding['slot'] or actor['identityRef'] != binding['identityRef']
+                       for actor, binding in zip(actors, bindings))):
+            raise ScenarioError('member-scenario-actor-binding-mismatch')
+    except ScenarioError as failure:
+        raise ios.NativeFailure('infrastructure', 'dual-fixture', str(failure)) from failure
     origin = data.get('publicOrigin')
     from urllib.parse import urlsplit, parse_qsl
     parsed = urlsplit(origin or '')
     if (parsed.scheme != 'https' or parsed.hostname != 'weave.localhost' or parsed.path not in ('', '/')
             or parsed.username is not None or parsed.query or parsed.fragment):
         raise ios.NativeFailure('infrastructure', 'dual-fixture', 'disposable-public-origin-required')
+    entry_mode = data.get('entryMode', 'full-onboarding')
+    if entry_mode == 'prepared-members':
+        # These members completed bounded setup before acceptance. Both use the
+        # ordinary server entry and real PKCE; registration remains a separate journey.
+        if any(actor.get('entryUri') != parsed.netloc for actor in actors):
+            raise ios.NativeFailure('infrastructure', 'dual-fixture', 'prepared-member-entry-invalid')
+        return data
+    if entry_mode != 'full-onboarding':
+        raise ios.NativeFailure('infrastructure', 'dual-fixture', 'member-entry-mode-invalid')
+    # Explicit full onboarding still requires B's actual public completion page.
+    if not actors[1].get('entryUri'):
+        raise ios.NativeFailure('infrastructure', 'dual-fixture', 'invitation-completion-link-missing')
     entry = urlsplit(actors[1]['entryUri'])
     fields = parse_qsl(entry.query, keep_blank_values=True)
     joined = urlsplit(fields[0][1]) if len(fields) == 1 and fields[0][0] == 'organization_origin' else None
@@ -294,6 +317,9 @@ def actor_result(path: Path, role: str, expected_identity: str, storage_digest: 
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 8192:
         raise ios.NativeFailure('integration', 'dual-result', 'actor-proof-missing')
     data = json.loads(path.read_text())
+    if (data.get('memberScenarioSha256') != scenario_sha256()
+            or data.get('organizationRole') != 'member'):
+        raise ios.NativeFailure('integration', 'dual-result', 'ordinary-member-scenario-proof-missing')
     if data.get('role') != role or data.get('identityDigest') != hashlib.sha256(expected_identity.encode()).hexdigest():
         raise ios.NativeFailure('integration', 'dual-result', 'actor-identity-mismatch')
     if data.get('storageDigest') != storage_digest or not DIGEST.fullmatch(data.get('matrixDeviceDigest', '')):
@@ -366,6 +392,12 @@ def actor_runtime_copy(client: Path, destination: Path) -> None:
 
 def prepare_actor_storage(actor: dict, udid: str, app: Path, input_data: dict, env: dict) -> tuple[Path, dict]:
     role = actor['role']
+    scenario = validate_resolved_scenario(input_data['memberScenario'], input_data['runId'])
+    bindings = validate_member_bindings(input_data['memberBindings'], input_data['organizationId'], input_data['sharedSpaceRef'])
+    binding = next(item for item in bindings if item['slot'] == role)
+    if binding['identityRef'] != actor['identityRef']:
+        raise ios.NativeFailure('infrastructure', 'dual-fixture', 'member-scenario-actor-binding-mismatch')
+    content = scenario['content']
     ios.run(['xcrun', 'simctl', 'install', udid, str(app)], env=env)
     container = Path(ios.run(['xcrun', 'simctl', 'get_app_container', udid, ios.BUNDLE, 'data'], env=env).strip()).resolve(strict=True)
     if f'/CoreSimulator/Devices/{udid}/' not in str(container):
@@ -379,16 +411,17 @@ def prepare_actor_storage(actor: dict, udid: str, app: Path, input_data: dict, e
     documents.mkdir(exist_ok=True)
     if documents.is_symlink():
         raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-documents-path')
-    initial_name = 'weave-dual-initial-' + input_data['runId'] + '.txt'
-    replacement_name = 'weave-dual-replacement-' + input_data['runId'] + '.txt'
-    initial_content = 'Weave actual UI initial ' + input_data['runId'] + '\n'
-    replacement_content = 'Weave actual UI replacement ' + input_data['runId'] + '\n'
+    initial_name = content['initialFileName']
+    replacement_name = content['replacementFileName']
+    initial_content = content['initialContent']
+    replacement_content = content['replacementContent']
     if role == 'A':
-        for name, content in ((initial_name, initial_content), (replacement_name, replacement_content)):
-            (documents / name).write_text(content)
+        for name, payload in ((initial_name, initial_content), (replacement_name, replacement_content)):
+            (documents / name).write_text(payload)
     else:
         (documents / '.weave-owned-fixture').write_text('Owned disposable document directory\n')
     runtime_fixture = {'role': role, 'entryUri': actor['entryUri'], 'runId': input_data['runId'],
+                       'memberScenario': scenario, 'organizationRole': binding['organizationRole'],
                        'organizationOrigin': input_data['publicOrigin'], 'nativeOrganizationId': input_data['nativeOrganizationId'],
                        'identityIssuer': env['WEAVE_NATIVE_ISSUER'],
                        'identityDigestExpected': hashlib.sha256(actor['identityRef'].encode()).hexdigest(),
@@ -497,6 +530,7 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
             recovery = recovery_actor_proof(proof, old_pid, pid, initial_started, initial_ended, started, ended)
             succeeded = True
             return {'role': role, 'simulatorId': udid, 'processId': int(old_pid), 'identityDigest': proof['identityDigest'],
+                    'organizationRole': proof['organizationRole'], 'memberScenarioSha256': proof['memberScenarioSha256'],
                     'matrixDeviceDigest': proof['matrixDeviceDigest'], 'storageDigest': storage_digest,
                     'startedAt': initial_started, 'endedAt': initial_ended, 'scenarios': proof['scenarios'], 'encryption': proof['encryption'],
                     'recovery': recovery}
@@ -709,11 +743,12 @@ def run_ui_commands(scopes: dict, tasks: list, env: dict, input_data: dict, phas
         if action in {'files-export', 'files-export-updated'}:
             # Remove only our own source/export fixture, with exact byte proof;
             # otherwise an existing local file could fake a successful download.
-            destination = support.parent.parent / 'Documents' / ('weave-dual-initial-' + input_data['runId'] + '.txt')
+            content = resolve_scenario(input_data['runId'])['content']
+            destination = support.parent.parent / 'Documents' / content['initialFileName']
             if destination.is_symlink():
                 raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-export-path')
             if destination.exists():
-                expected = 'Weave actual UI initial ' + input_data['runId'] + '\n'
+                expected = content['initialContent']
                 if destination.read_text() != expected:
                     raise ios.NativeFailure('integration', 'dual-files', 'prior-owned-document-mismatch')
                 destination.unlink()
@@ -782,7 +817,8 @@ def require_picker_request(request: dict, sequence: int, action: str, run_id: st
     if action not in {'files-upload', 'files-replace', 'files-export-cancel', 'files-export', 'files-export-updated'}:
         raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-native-picker-request')
     mode = 'export-cancel' if action == 'files-export-cancel' else ('export' if action in {'files-export', 'files-export-updated'} else 'import')
-    name = ('weave-dual-replacement-' if action == 'files-replace' else 'weave-dual-initial-') + run_id + '.txt'
+    content = resolve_scenario(run_id)['content']
+    name = content['replacementFileName' if action == 'files-replace' else 'initialFileName']
     if request != {'sequence': sequence, 'mode': mode, 'fileName': name}:
         raise ios.NativeFailure('infrastructure', 'dual-files', 'unsafe-native-picker-request')
     return mode, name
@@ -1107,7 +1143,8 @@ def inspect_local_apps(input_data, env, temporary, devices, app, native_assets, 
                         record['distinctProcessObserved'] = True
                     elif action.startswith('picker-'):
                         mode = 'export' if action == 'picker-export' else 'import'
-                        name = ('weave-dual-replacement-' if action == 'picker-replacement' else 'weave-dual-initial-') + input_data['runId'] + '.txt'
+                        content = resolve_scenario(input_data['runId'])['content']
+                        name = content['replacementFileName' if action == 'picker-replacement' else 'initialFileName']
                         perform_owned_picker(item['udid'], item['pid'], item['products'], item['env'], mode, name,
                                              result_path=item['scope'] / ('picker-' + str(sequence) + '.xcresult'))
                         record['status'] = 'native-picker-command-passed'
@@ -1199,21 +1236,29 @@ def qualify(input_path: Path, output_path: Path, env: dict) -> int:
                 devices.append(udid)
                 ios.run(['xcrun', 'simctl', 'boot', udid]); ios.run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], timeout=180)
                 ios.run(['xcrun', 'simctl', 'keychain', udid, 'add-root-cert', env['WEAVE_NATIVE_CA']])
-            defines = temporary / 'defines.json'
-            defines.write_text(json.dumps({'WEAVE_NATIVE_EXPECT_SIMULATOR': True, 'WEAVE_DEVICE_DISPOSABLE_STACK': True,
-                                          'WEAVE_NATIVE_TEST_RUN_ID': input_data['runId'],
-                                          **({'WEAVE_NATIVE_LOCAL_INSPECTION': True} if inspection else {})})); defines.chmod(0o600)
+            # Resolve host-side driver packages without rebuilding either native app.
             ios.run(['flutter', 'pub', 'get', '--enforce-lockfile'], env=env)
-            ios.run(['flutter', 'build', 'ios', '--simulator', '--debug', '--target=integration_test/dual_ios_collaboration_test.dart',
-                     '--dart-define-from-file=' + str(defines)], env=env, timeout=1800)
-            app = ios.CLIENT / 'build/ios/iphonesimulator/Runner.app'; evidence['appBuildSha256'] = app_build_digest(app)
             if inspection:
+                defines = temporary / 'defines.json'
+                defines.write_text(json.dumps({'WEAVE_NATIVE_EXPECT_SIMULATOR': True, 'WEAVE_DEVICE_DISPOSABLE_STACK': True,
+                                              'WEAVE_NATIVE_LOCAL_INSPECTION': True})); defines.chmod(0o600)
+                ios.run(['flutter', 'build', 'ios', '--simulator', '--debug', '--target=integration_test/dual_ios_collaboration_test.dart',
+                         '--dart-define-from-file=' + str(defines)], env=env, timeout=1800)
+                app = ios.CLIENT / 'build/ios/iphonesimulator/Runner.app'
                 native_assets = initial_build_native_assets(ios.CLIENT)
                 evidence['nativeAssetsSha256'] = hashlib.sha256(native_assets.read_bytes()).hexdigest()
-            derived = temporary / 'derived'
-            ios.run(['xcodebuild', 'build-for-testing', '-project', str(ios.CLIENT / 'tool/ios_browser_driver/BrowserDriver.xcodeproj'),
-                     '-scheme', 'BrowserDriver', '-destination', 'platform=iOS Simulator,id=' + devices[0],
-                     '-derivedDataPath', str(derived), 'CODE_SIGNING_ALLOWED=NO'], env=env)
+                derived = temporary / 'derived'
+                ios.run(['xcodebuild', 'build-for-testing', '-project', str(ios.CLIENT / 'tool/ios_browser_driver/BrowserDriver.xcodeproj'),
+                         '-scheme', 'BrowserDriver', '-destination', 'platform=iOS Simulator,id=' + devices[0],
+                         '-derivedDataPath', str(derived), 'CODE_SIGNING_ALLOWED=NO'], env=env)
+            else:
+                sys.path.insert(0, str(ios.CLIENT.parent / 'tools'))
+                from artifact_consumers import native_bundle, copy_driver_products, component_evidence
+                manifest, app, products = native_bundle(variant='collaboration')
+                evidence['buildArtifact'] = component_evidence(manifest)
+                derived = temporary / 'derived'
+                copy_driver_products(products, derived / 'Build/Products')
+            evidence['appBuildSha256'] = app_build_digest(app)
             authorities = proxy_authorities(input_data, env)
             for role in ('A', 'B'):
                 relays[role] = OwnedFaultRelay(authorities)

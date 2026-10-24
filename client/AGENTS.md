@@ -24,6 +24,7 @@ App-config alignment:
 - app redirect URIs are `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout`
 - user-facing Files and Calendar operations consume the generated Weave User API; selected providers and their endpoints remain behind server adapters
 - Member onboarding and release qualification require validated HTTPS origins and preserved CA trust. HTTP protocol fixtures remain test-only and must not relax the product bootstrap contract.
+- iPhone delivery requires two concurrent real iOS apps using the shared member scenario with two ordinary members and current shared-Space grants. Runtime fixtures carry the current run identity; do not compile per-run credentials or identities into reusable artifacts. macOS desktop checks remain manual-only. Physical preparation preserves the owner's app/session and observes a retained workspace or normal sign-in; owner HIL remains pending until the human reports it.
 
 Accessibility is mandatory:
 - interactive controls must provide at least `48x48` logical touch targets

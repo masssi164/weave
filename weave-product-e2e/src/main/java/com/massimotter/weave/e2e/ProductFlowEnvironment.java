@@ -179,6 +179,13 @@ record ProductFlowEnvironment(
     return actorEmail("outsider");
   }
 
+  String collaborationMemberEmail(String logicalId) {
+    if (!Set.of("member-a", "member-b").contains(logicalId)) {
+      throw new IllegalArgumentException("Unknown ordinary collaboration actor");
+    }
+    return actorEmail(logicalId);
+  }
+
   Path foreignOrganizationIdentity() {
     return requirePrivateInput(
         Path.of(required("foreign-organization-identity")),

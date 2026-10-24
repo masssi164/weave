@@ -92,19 +92,10 @@ def identities(path: Path, origin: str, physical: bool) -> dict:
 
 
 def ensure_prepared_identities(context, path: Path) -> None:
-    """Authorized protected delivery enters the named operator stage, outside its smoke lock."""
+    """Client acceptance consumes prepared identities; it never starts onboarding."""
     if path.exists() or path.is_symlink():
         return
-    from dogfood_prepare import preflight, prepare_members, ledger_for
-    from compose_env import ContractError
-    try:
-        print('DOGFOOD_PREPARATION_STAGE authorizationKind=dogfood-operator stage=explicit-test-member-preparation supportSafe=true')
-        result = preflight(context, Path.home() / '.weave/dogfood/public-setup')
-        result = prepare_members(context, result, path, ledger_for(path), authorization_mode='operator')
-        if result.get('preparationComplete') is not True:
-            raise SmokeError(result['boundary'])
-    except ContractError:
-        raise SmokeError('approved-test-member-preparation-required') from None
+    raise SmokeError('prepared-member-scenario-required')
 
 
 def approved_identity_binding(context, path: Path, approved: dict) -> dict:
@@ -152,7 +143,7 @@ def functional_smoke_passed(value: dict, sha: str, tree: str, spec: str,
     if not isinstance(value, dict):
         return False
     expected = {
-        'schemaVersion': 'weave.dogfood-functional-smoke/v2', 'candidateCommit': sha,
+        'schemaVersion': 'weave.dogfood-functional-smoke/v3', 'candidateCommit': sha,
         'sourceTree': tree, 'specificationCommit': spec, 'qualificationRunId': run_id,
         'qualificationRunAttempt': attempt, 'stage': stage, 'status': 'passed',
         'entrypoint': 'lib/main.dart', 'routing': 'reviewed-direct',
@@ -162,9 +153,25 @@ def functional_smoke_passed(value: dict, sha: str, tree: str, spec: str,
         'retainedStateRestartVerified': True, 'retainedStateUpdateVerified': True,
         'calendarPeerAbsenceVerified': True, 'independentPeerReadbackVerified': True,
         'privateFilesScopeIsolationVerified': True, 'privateFilesPeerIsolationVerified': True,
-        'privateFilesContinuityVerified': True, 'deployedSourceTree': tree,
+        'privateFilesContinuityVerified': True,
     }
     if any(value.get(key) != item or type(value.get(key)) is not type(item) for key, item in expected.items()):
+        return False
+    from member_test_scenario import scenario_sha256
+    if value.get('scenarioSha256') != scenario_sha256():
+        return False
+    if value.get('actorProfile') != ('retained-owner-and-member' if stage == 'physical' else 'two-ordinary-members'):
+        return False
+    from artifact_evidence import composition_passed, component_matches
+    composition = value.get('artifactComposition')
+    if not composition_passed(composition, sha, tree, spec, value['scenarioSha256']):
+        return False
+    runtime = value.get('runtimeBuildArtifact')
+    native = value.get('simulatorBuildArtifact')
+    for artifact, component in ((runtime, 'runtime-linux-amd64'), (native, 'ios-simulator')):
+        if not component_matches(artifact, composition, component):
+            return False
+    if value.get('deployedSourceTree') != runtime['sourceTree']:
         return False
     if value.get('operations') != list(OPERATIONS):
         return False
@@ -251,7 +258,7 @@ class Runner:
             stream.seek(0)
             return stream.read()
 
-    def ui(self, actor: dict, fixture: dict, method: str = 'testOrdinaryProductSmoke') -> dict:
+    def ui(self, actor: dict, fixture: dict, method: str = 'testOrdinaryProductSmoke', *, result_parser=None) -> dict:
         private = prepare_browser_fixture(actor['products'], fixture)
         try:
             plan, = actor['products'].glob('*.xctestrun')
@@ -269,6 +276,8 @@ class Runner:
                                '-destination', actor['destination'], '-parallel-testing-enabled', 'NO',
                                '-only-testing:BrowserDriver/BrowserDriver/' + method,
                                '-resultBundlePath', str(self.directory / f'result-{self.sequence + 1}')], timeout=480)
+            if result_parser is not None:
+                return result_parser(output, fixture)
             return parse_ui_result(output, fixture) if method == 'testOrdinaryProductSmoke' else {}
         except SmokeError as error:
             if method == 'testProductionBrowser':
@@ -370,7 +379,7 @@ def main() -> int:
     parser.add_argument('--device-id')
     parser.add_argument('--diagnostic-only', action='store_true', help='Observe retained owner entry; always incomplete, never a readiness pass')
     args = parser.parse_args()
-    receipt = {'schemaVersion': 'weave.dogfood-functional-smoke/v2', 'status': 'incomplete',
+    receipt = {'schemaVersion': 'weave.dogfood-functional-smoke/v3', 'status': 'incomplete',
                'stage': args.stage, 'candidateCommit': args.candidate,
                'supportSafe': True, 'containsSecretValues': False}
     previous_term = signal.getsignal(signal.SIGTERM)
@@ -411,28 +420,28 @@ def main() -> int:
             runner.configure_native_toolchain()
             verify_dogfood_identity(context)
             before = _service_container(context, 'backend', deadline=time.monotonic() + 30)
-            labels = before.get('Config', {}).get('Labels', {})
-            deployed_source = labels.get('org.opencontainers.image.revision', '')
-            if not SHA.fullmatch(deployed_source) or runner.run(['git', 'rev-parse', deployed_source + '^{tree}']).strip() != tree:
-                raise SmokeError('deployed-source-tree-mismatch')
+            from artifact_consumers import verify_runtime_container, native_bundle, copy_driver_products, component_evidence, candidate_composition
+            runtime_artifact = verify_runtime_container(before, args.candidate)
+            receipt['artifactComposition'] = candidate_composition(args.candidate)
             run_id = f"functional-{os.environ.get('GITHUB_RUN_ID', '')}-{os.environ.get('GITHUB_RUN_ATTEMPT', '')}-{args.stage}"
             if not re.fullmatch(r'functional-[1-9][0-9]*-[1-9][0-9]*-(deployment|physical)', run_id):
                 raise SmokeError('protected-run-identity-required')
             # Diagnostic path runs before peer fixture loading and cannot pass.
-            physical_app = CLIENT / 'build/ios/iphoneos/Runner.app'
             actors = {}
             if args.stage == 'physical':
-                if not physical_app.is_dir():
-                    raise SmokeError('qualified-ordinary-profile-bundle-required')
+                from sign_iphone_artifact import verify_signed
+                signed_root = Path(os.environ.get('WEAVE_SIGNED_IPHONE_ARTIFACT', ''))
+                if not signed_root.is_absolute() or not signed_root.is_dir():
+                    raise SmokeError('verified-signed-iphone-artifact-required')
+                verify_signed(ROOT, Path(os.environ['WEAVE_BUILD_ARTIFACT_ROOT']) / 'ios-device', signed_root, args.candidate)
+                physical_app = signed_root / 'ordinary/Runner.app'
                 build = build_info(physical_app, 'profile')
-                provision = plistlib.loads(runner.run(['security', 'cms', '-D', '-i', str(physical_app / 'embedded.mobileprovision')]).encode())
-                team, = provision['TeamIdentifier']
                 derived = directory / 'physical-driver'
-                runner.run(['xcodebuild', 'build-for-testing', '-project', str(CLIENT / 'tool/ios_browser_driver/BrowserDriver.xcodeproj'),
-                            '-scheme', 'BrowserDriver', '-destination', 'platform=iOS,id=' + args.device_id,
-                            '-derivedDataPath', str(derived), 'CODE_SIGNING_ALLOWED=YES', 'DEVELOPMENT_TEAM=' + team,
-                            'CODE_SIGN_STYLE=Automatic', '-allowProvisioningUpdates'], timeout=600)
-                driver_app = derived / 'Build/Products/Debug-iphoneos/BrowserDriver-Runner.app'
+                copy_driver_products(signed_root / 'driver/Products', derived / 'Build/Products')
+                driver_apps = list((derived / 'Build/Products').glob('**/*-Runner.app'))
+                if len(driver_apps) != 1:
+                    raise SmokeError('physical-test-runner-identity-mismatch')
+                driver_app = driver_apps[0]
                 driver_bundle = plistlib.loads((driver_app / 'Info.plist').read_bytes())['CFBundleIdentifier']
                 if driver_bundle != 'com.massimotter.weave.integration.browser.xctrunner':
                     raise SmokeError('physical-test-runner-identity-mismatch')
@@ -447,8 +456,8 @@ def main() -> int:
                                'products': derived / 'Build/Products', 'app': physical_app, 'driverBundle': driver_bundle}
                 diagnostic = {'schemaVersion': 'weave.ordinary-product-ui/v1', 'runId': run_id, 'nonce': secrets.token_hex(16),
                               'operation': 'discover', 'organizationOrigin': origin, 'conversation': '', 'participant': '',
-                              'folder': 'weave-smoke-diagnostic', 'privateFolder': 'weave-smoke-private-diagnostic', 'filename': 'weave-dual-smoke-diagnostic.txt',
-                              'filePayload': '', 'event': '', 'expected': {}}
+                              'folder': 'weave-smoke-diagnostic', 'privateFolder': 'weave-smoke-private-diagnostic', 'filename': 'weave-dual-initial-diagnostic.txt',
+                              'filePayload': '', 'event': '', 'updatedEvent': '', 'messageA': '', 'messageB': '', 'expected': {}}
                 verify_installed_build(runner, actors['A'])
                 restart(runner, actors['A'])
                 runner.ui(actors['A'], diagnostic)
@@ -459,10 +468,7 @@ def main() -> int:
             approved = identities(args.identity_file, origin, args.stage == 'physical')
             binding = approved_identity_binding(context, args.identity_file, approved)
             runtime, device_type = select_runtime()
-            runner.run(['flutter', 'build', 'ios', '--simulator', '--debug', '--target=lib/main.dart',
-                        '--dart-define=WEAVE_CANDIDATE_COMMIT=' + args.candidate,
-                        '--dart-define=WEAVE_BUILD_CHANNEL=development-dogfood'], cwd=CLIENT, timeout=1200)
-            simulator_app = CLIENT / 'build/ios/iphonesimulator/Runner.app'
+            simulator_manifest, simulator_app, simulator_products = native_bundle(candidate=args.candidate)
             simulator_build = build_info(simulator_app, 'debug')
             for role in (('B',) if args.stage == 'physical' else ('A', 'B')):
                 udid = runner.run(['xcrun', 'simctl', 'create', run_id + '-' + role, device_type, runtime]).strip()
@@ -474,9 +480,7 @@ def main() -> int:
                 runner.run(['xcrun', 'simctl', 'keychain', udid, 'add-root-cert', str(context.tls_root / 'ca.pem')])
                 runner.run(['xcrun', 'simctl', 'install', udid, str(simulator_app)])
                 derived = directory / ('driver-' + role)
-                runner.run(['xcodebuild', 'build-for-testing', '-project', str(CLIENT / 'tool/ios_browser_driver/BrowserDriver.xcodeproj'),
-                            '-scheme', 'BrowserDriver', '-destination', 'platform=iOS Simulator,id=' + udid,
-                            '-derivedDataPath', str(derived), 'CODE_SIGNING_ALLOWED=NO'], timeout=600)
+                copy_driver_products(simulator_products, derived / 'Build/Products')
                 actor = {'id': udid, 'physical': False, 'destination': 'platform=iOS Simulator,id=' + udid,
                          'products': derived / 'Build/Products', 'app': simulator_app}
                 actors[role] = actor
@@ -488,11 +492,19 @@ def main() -> int:
                                  'ordinaryOrganizationOrigin': origin}, 'testProductionBrowser')
             resources = {}
             operations = []
-            nonce = secrets.token_hex(8)
+            from member_test_scenario import resolve_scenario
+            scenario = resolve_scenario(run_id)
+            content = scenario['content']
+            receipt.update(scenarioSha256=scenario['scenarioSha256'],
+                           actorProfile='retained-owner-and-member' if args.stage == 'physical' else 'two-ordinary-members',
+                           runtimeBuildArtifact=runtime_artifact,
+                           simulatorBuildArtifact=component_evidence(simulator_manifest))
             base = {'schemaVersion': 'weave.ordinary-product-ui/v1', 'runId': run_id,
-                    'organizationOrigin': origin, 'conversation': 'weave-smoke-' + nonce,
-                    'folder': 'weave-smoke-' + nonce, 'privateFolder': 'weave-smoke-private-' + nonce, 'filename': 'weave-dual-smoke-' + nonce + '.txt',
-                    'filePayload': 'Weave ordinary file bytes ' + nonce, 'event': 'weave-smoke-' + nonce}
+                    'organizationOrigin': origin, 'conversation': content['conversation'],
+                    'messageA': content['messageA'], 'messageB': content['messageB'],
+                    'folder': content['folder'], 'privateFolder': content['privateFolder'], 'filename': content['initialFileName'],
+                    'filePayload': content['initialContent'], 'event': content['event'],
+                    'updatedEvent': content['updatedEvent']}
             def phase(role: str, operation: str, evidence_name: str | None = None, **expected):
                 receipt['boundaryOperation'] = role + ':' + (evidence_name or operation)
                 restart(runner, actors[role])
@@ -572,7 +584,7 @@ def main() -> int:
                            cleanupStatus='retained-owned-content', retainedStateRestartVerified=True,
                            retainedStateUpdateVerified=True, calendarPeerAbsenceVerified=True, independentPeerReadbackVerified=True,
                            privateFilesScopeIsolationVerified=True, privateFilesPeerIsolationVerified=True, privateFilesContinuityVerified=True,
-                           deployedSourceTree=tree, deployedImage=before['Image'], appBuildSha256=before_build,
+                           deployedSourceTree=runtime_artifact['sourceTree'], deployedImage=before['Image'], appBuildSha256=before_build,
                            peerAppBuildSha256=app_digest(simulator_app), exportedFileSha256=exported_digest,
                            build=build if args.stage == 'physical' else simulator_build,
                            deviceIdentitySha256=digest(actors['A']['id'].encode()),

@@ -9,6 +9,8 @@ Gherkin in this directory is the Weave product contract.
 - Do not add aspirational scenarios without executable mappings; use roadmap docs or issues for future intent.
 - Live-stack evidence must be sparse, sanitized, and deterministic.
 - Never write tokens, cookies, private keys, raw provider errors, room IDs, event IDs, filenames, usernames, or display names into evidence artifacts.
+- The versioned member scenario is the common semantic input for integration, simulator and Dogfood adapters. Resolve private identities and current access independently in each environment; never share mutable databases or treat logical fixture IDs as authority.
+- Mandatory iPhone qualification executes two ordinary members in independent real iOS apps through the Weave User API and Matrix facade. Administrator setup/probes stay separate. Broad onboarding and MCP journeys are separately selectable; macOS desktop is manual-only. Physical ordinary-startup evidence leaves human acceptance pending and cannot satisfy the human-result gate.
 
 ## Global Weave agent baseline
 
