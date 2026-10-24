@@ -181,14 +181,12 @@ export const adminConsoleMessages = {
     replacementEmpty:
       'Run a replacement dry-run to review support-safe evidence before applying provider changes.',
     replacementStatusSuccess: 'Replacement dry-run completed',
-    policyWhitelistHeading: 'Policy and whitelist',
+    policyWhitelistHeading: 'Role capabilities for your admin session',
     policyWhitelistDescription:
-      'Policy is deny-by-default. Add one canonical Weave capability per line only after the organization has approved it.',
-    allowedCapabilitiesLabel: 'Allowed capabilities',
-    allowedCapabilitiesHelper:
-      'Example: files.read. Do not paste secrets, provider tokens, raw diagnostics, or provider-specific payloads here.',
-    saveWhitelistPolicyButton: 'Save whitelist policy',
-    blockedExamplesLabel: 'Blocked examples',
+      'Read-only. These capabilities come from your current organization role and assigned entitlements. Domain availability and Space or resource permissions are checked separately. Profile policy cannot be edited in this console.',
+    roleCapabilitiesLabel: 'Current role capabilities',
+    roleCapabilitiesUnavailable: 'Role capabilities could not be read. Reload this console to try again.',
+    roleCapabilitiesEmpty: 'No role capabilities were returned for this session.',
     secretRefInventoryHeading: 'SecretRef inventory',
     secretRefInventoryLabel: 'Support-safe SecretRef handles',
     auditTrailHeading: 'Audit trail',
@@ -379,14 +377,12 @@ export const adminConsoleMessages = {
     replacementEmpty:
       'Führe einen Ersatz-Dry-Run aus, um support-sichere Evidenz vor Provider-Änderungen zu prüfen.',
     replacementStatusSuccess: 'Ersatz-Dry-Run abgeschlossen',
-    policyWhitelistHeading: 'Richtlinie und Whitelist',
+    policyWhitelistHeading: 'Fähigkeiten deiner Admin-Rolle',
     policyWhitelistDescription:
-      'Richtlinie ist deny-by-default. Pro Zeile nur eine kanonische Weave-Fähigkeit hinzufügen, nachdem die Organisation sie freigegeben hat.',
-    allowedCapabilitiesLabel: 'Erlaubte Fähigkeiten',
-    allowedCapabilitiesHelper:
-      'Beispiel: files.read. Keine Secrets, Provider-Tokens, Rohdiagnosen oder provider-spezifischen Payloads einfügen.',
-    saveWhitelistPolicyButton: 'Whitelist-Richtlinie speichern',
-    blockedExamplesLabel: 'Blockierte Beispiele',
+      'Schreibgeschützt. Diese Fähigkeiten ergeben sich aus deiner aktuellen Organisationsrolle und den zugewiesenen Berechtigungen. Ob ein Modul verfügbar ist und welche Space- oder Ressourcenrechte du hast, wird gesondert geprüft. Die Profilrichtlinie kann in dieser Konsole nicht geändert werden.',
+    roleCapabilitiesLabel: 'Aktuelle Rollenfähigkeiten',
+    roleCapabilitiesUnavailable: 'Die Rollenfähigkeiten konnten nicht geladen werden. Lade diese Konsole erneut, um es noch einmal zu versuchen.',
+    roleCapabilitiesEmpty: 'Für diese Sitzung wurden keine Rollenfähigkeiten zurückgegeben.',
     secretRefInventoryHeading: 'SecretRef-Inventar',
     secretRefInventoryLabel: 'Support-sichere SecretRef-Handles',
     auditTrailHeading: 'Audit-Trail',

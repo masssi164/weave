@@ -291,8 +291,16 @@ class OpenApiDocumentationTest {
                                             + " exported an untyped success response " + response.getKey());
                         }
                     }
-                    assertTrue(hasSuccess, group + " " + method.getKey() + " " + path.getKey()
-                            + " omitted its success response");
+                    if ("admin".equals(group) && "patch".equals(method.getKey())
+                            && "/api/admin/policies/capability-whitelist".equals(path.getKey())) {
+                        assertFalse(hasSuccess, "Read-only capability profiles must not promise a successful edit");
+                        assertEquals("#/components/schemas/ApiErrorResponse", method.getValue()
+                                .path("responses").path("409").path("content")
+                                .path("application/json").path("schema").path("$ref").asText());
+                    } else {
+                        assertTrue(hasSuccess, group + " " + method.getKey() + " " + path.getKey()
+                                + " omitted its success response");
+                    }
                 }
             }
         }
@@ -521,6 +529,9 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/admin/control-plane'].get.operationId").value("getAdminControlPlane"))
                 .andExpect(jsonPath("$.paths['/api/admin/policies/capability-whitelist'].get.operationId").value("getCapabilityWhitelist"))
                 .andExpect(jsonPath("$.paths['/api/admin/policies/capability-whitelist'].patch.operationId").value("updateCapabilityWhitelist"))
+                .andExpect(jsonPath("$.paths['/api/admin/policies/capability-whitelist'].patch.responses['200']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/admin/policies/capability-whitelist'].patch.responses['409'].description")
+                        .value(org.hamcrest.Matchers.containsString("capability-whitelist-read-only")))
                 .andExpect(jsonPath("$.paths['/api/admin/providers/readiness-tests'].post.operationId").value("testProviderReadiness"))
                 .andExpect(jsonPath("$.paths['/api/admin/provider-capability-health'].get.operationId")
                         .value("getProviderCapabilityHealth"))

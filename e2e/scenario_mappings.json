@@ -634,6 +634,7 @@
             "adminControlPlaneRejectsMembers",
             "adminControlPlaneOverviewIsSupportSafeAndProviderNeutral",
             "adminReadinessTestsAndPolicyUpdatesAreAuditedAndRedacted",
+            "readOnlyWhitelistRejectsValidEditsWithoutChangingPolicyOrAudit",
             "secretRefs",
             "rawSecretExposed"
           ]
@@ -654,6 +655,26 @@
             "secretref://weave/provider/",
             "AuditAction.PROVIDER_READINESS_TESTED",
             "AuditAction.ADMIN_POLICY_UPDATED"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "fragments": [
+            "whitelistEditsRemainAuthorizedButReadOnlyWithoutAuditMutation"
+          ]
+        },
+        {
+          "path": "admin-console/src/App.test.tsx",
+          "fragments": [
+            "shows read-only current role capabilities without saving",
+            "distinguishes unavailable role projection from explicit empty grants"
+          ]
+        },
+        {
+          "path": "admin-console/src/api.test.ts",
+          "fragments": [
+            "projects only current role grants without unioning other capability profiles",
+            "distinguishes $name when reading the current role projection"
           ]
         }
       ],

@@ -5151,6 +5151,7 @@
         ]
       },
       "patch": {
+        "description": "This compatibility endpoint preserves authorization and request validation, but does not change policy or publish a policy-update event.",
         "operationId": "updateCapabilityWhitelist",
         "requestBody": {
           "content": {
@@ -5163,15 +5164,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "400": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CapabilityWhitelistResponse"
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "Updated capability whitelist snapshot."
+            "description": "Invalid request or last-admin protection rejected the proposed profile."
           },
           "401": {
             "content": {
@@ -5192,6 +5193,16 @@
               }
             },
             "description": "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies the operation."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Capability profiles are read-only; no policy was changed (capability-whitelist-read-only)."
           }
         },
         "security": [
@@ -5199,7 +5210,7 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Record a support-safe capability whitelist policy update",
+        "summary": "Reject edits to read-only capability profiles",
         "tags": [
           "Admin control plane"
         ]
