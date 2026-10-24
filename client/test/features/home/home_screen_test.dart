@@ -65,19 +65,23 @@ const _connection = WorkspaceConnectionState(
   ),
 );
 
-Widget _homeTestApp(Widget child, {List<dynamic> overrides = const []}) =>
-    createTestApp(
-      child,
-      overrides: [
-        workspaceCapabilitySnapshotProvider.overrideWithValue(
-          AsyncData(_readyCapabilities),
-        ),
-        workspaceConnectionStateProvider.overrideWithValue(
-          const AsyncData(_connection),
-        ),
-        ...overrides,
-      ],
-    );
+Widget _homeTestApp(
+  Widget child, {
+  List<dynamic> overrides = const [],
+  bool provideReadyCapabilities = true,
+}) => createTestApp(
+  child,
+  overrides: [
+    if (provideReadyCapabilities)
+      workspaceCapabilitySnapshotProvider.overrideWithValue(
+        AsyncData(_readyCapabilities),
+      ),
+    workspaceConnectionStateProvider.overrideWithValue(
+      const AsyncData(_connection),
+    ),
+    ...overrides,
+  ],
+);
 
 class _HomeAdmissionController
     extends Notifier<AsyncValue<WorkspaceCapabilitySnapshot>> {
@@ -186,6 +190,7 @@ void main() {
           await tester.pumpWidget(
             _homeTestApp(
               const HomeScreen(),
+              provideReadyCapabilities: false,
               overrides: [
                 workspaceCapabilitySnapshotProvider.overrideWithValue(
                   entry.value,
@@ -229,6 +234,7 @@ void main() {
         await tester.pumpWidget(
           _homeTestApp(
             const HomeScreen(),
+            provideReadyCapabilities: false,
             overrides: [
               workspaceCapabilitySnapshotProvider.overrideWith(
                 (ref) => ref.watch(admission),
