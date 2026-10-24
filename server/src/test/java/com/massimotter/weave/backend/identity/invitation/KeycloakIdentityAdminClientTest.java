@@ -284,6 +284,19 @@ class KeycloakIdentityAdminClientTest {
   }
 
   @Test
+  void unexpectedSuccessfulStatusIsRejectedBeforeProviderBodyIsUsed() {
+    provider.expect(requestTo(
+            "https://identity.internal/admin/realms/weave/users?first=0&max=1&briefRepresentation=true"))
+        .andRespond(withStatus(HttpStatus.ACCEPTED).body("[]"));
+
+    assertThatThrownBy(client::hasHumanUsers)
+        .isInstanceOf(KeycloakIdentityAdminClient.KeycloakAdminException.class)
+        .satisfies(failure -> assertThat(
+            ((KeycloakIdentityAdminClient.KeycloakAdminException) failure).status()).isEqualTo(202));
+    provider.verify();
+  }
+
+  @Test
   void issuesAndCorrelatesTheOfficialKeycloakOrganizationInvitationProjection() {
     String inventory =
         "https://identity.internal/admin/realms/weave"
