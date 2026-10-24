@@ -467,23 +467,131 @@ class PrepareTest(unittest.TestCase):
         self.context.tls_root = alias
         with self.assertRaises(ContractError): prepare.public_setup(self.context)
 
+    def test_registration_validates_owned_simulator_and_keeps_link_and_password_out_of_all_command_arguments(self):
+        directory = prepare.private_directory(self.directory / "open-registration")
+        products = prepare.private_directory(directory / "products")
+        (products / "driver.xctestrun").write_bytes(b"fixture")
+        identifier = "11111111-2222-3333-4444-555555555555"
+        actor = {"products": products, "physical": False, "id": identifier,
+                 "destination": "platform=iOS Simulator,id=" + identifier}
+        issuer = "https://auth.fixture.invalid/realms/weave"
+        link = issuer + "/protocol/openid-connect/registrations?client_id=account&response_type=code&token=PRIVATE"
+        fixture = {"schemaVersion": "weave.dogfood-test-registration/v1", "phase": "ordinary-registration",
+                   "appBundleIdentifier": "com.massimotter.weave", "issuerUrl": issuer,
+                   "activationUrl": link, "password": "PRIVATE"}
+        calls = []
+        def run(arguments, **kwargs):
+            calls.append((arguments, kwargs))
+            return "" if arguments[0] == "xcrun" else "NATIVE_IOS_REGISTRATION_RESULT status=passed stage=registration-complete supportSafe=true\n"
+        runner = SimpleNamespace(sequence=1, directory=directory, run=run)
+        private = products / "private-member.json"
+        def transport(_products, value): prepare.private_write(private, value); return private
+        public = io.StringIO()
+        with patch.object(smoke, "prepare_browser_fixture", side_effect=transport), patch("sys.stdout", public):
+            self.assertEqual(prepare.registration(runner, actor, fixture), "complete")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0][0], "xcodebuild")
+        for arguments, _kwargs in calls:
+            self.assertNotIn(link, json.dumps(arguments))
+            self.assertNotIn(fixture["password"], json.dumps(arguments))
+        self.assertNotIn(link, public.getvalue()); self.assertNotIn("PRIVATE", public.getvalue())
+        self.assertFalse(private.exists())
+        invalid = [({**actor, "physical": True}, fixture), ({**actor, "id": "physical-device"}, fixture),
+                   ({**actor, "destination": "platform=iOS,id=" + identifier}, fixture),
+                   ({**actor, "destination": "platform=iOS Simulator,id=other"}, fixture)]
+        for changed in [link.replace("https://", "http://"), link.replace("auth.fixture", "foreign.fixture"),
+                        link.replace("https://auth", "https://user:password@auth"),
+                        link.replace("auth.fixture.invalid", "auth.fixture.invalid:444"),
+                        link.replace("/realms/weave", "/realms/other"),
+                        link.replace("/realms/weave/", "/realms/weave/../other/"),
+                        link.replace("/realms/weave/", "/realms/weave/%2e%2e/other/"), "not-a-url"]:
+            invalid.append((actor, {**fixture, "activationUrl": changed}))
+        invalid.append((actor, {**fixture, "issuerUrl": "http://auth.fixture.invalid/realms/weave"}))
+        invalid.append((actor, {**fixture, "issuerUrl": "https://@auth.fixture.invalid/realms/weave",
+                               "activationUrl": link.replace("https://", "https://@")}))
+        invalid.append((actor, {**fixture, "issuerUrl": "\n" + issuer}))
+        for port in ("0", "65536", "invalid"):
+            invalid.append((actor, {**fixture, "issuerUrl": issuer.replace(".invalid/", ".invalid:" + port + "/"),
+                                   "activationUrl": link.replace(".invalid/", ".invalid:" + port + "/")}))
+        for bad_actor, bad_fixture in invalid:
+            calls.clear()
+            with patch.object(smoke, "prepare_browser_fixture") as transfer, self.assertRaisesRegex(ContractError, "^normal-test-member-registration-required$"):
+                prepare.registration(runner, bad_actor, bad_fixture)
+            transfer.assert_not_called(); self.assertEqual(calls, [])
+        # A native invocation failure still removes the private transport.
+        runner.run = lambda *a, **k: (_ for _ in ()).throw(smoke.SmokeError("private URL detail"))
+        with patch.object(smoke, "prepare_browser_fixture", side_effect=transport), self.assertRaisesRegex(ContractError, "^normal-test-member-registration-required$"):
+            prepare.registration(runner, actor, fixture)
+        self.assertFalse(private.exists())
+
     def test_registration_requires_exact_single_ack_and_always_removes_private_transport(self):
         directory = prepare.private_directory(self.directory / "registration")
         products = prepare.private_directory(directory / "products")
         (products / "driver.xctestrun").write_bytes(b"fixture")
-        fixture = {"password": "PRIVATE", "activationUrl": "PRIVATE"}
+        issuer = "https://auth.fixture.invalid/realms/weave"
+        fixture = {"schemaVersion": "weave.dogfood-test-registration/v1", "phase": "ordinary-registration",
+                   "appBundleIdentifier": "com.massimotter.weave", "issuerUrl": issuer,
+                   "password": "PRIVATE", "activationUrl": issuer + "/protocol/openid-connect/registrations?client_id=account&response_type=code&token=PRIVATE"}
+        identifier = "11111111-2222-3333-4444-555555555555"
+        actor = {"products": products, "physical": False, "id": identifier,
+                 "destination": "platform=iOS Simulator,id=" + identifier}
         for status, result in (("status=incomplete stage=email-verification-required", "verification"),
+                               ("status=incomplete stage=ordinary-app-sign-in-required", "sign-in"),
                                ("status=passed stage=registration-complete", "complete")):
             runner = SimpleNamespace(sequence=1, directory=directory, run=lambda *a, **k: "NATIVE_IOS_REGISTRATION_RESULT " + status + " supportSafe=true\n")
             private = products / "private-member.json"
             def transport(_products, value): prepare.private_write(private, value); return private
             with patch.object(smoke, "prepare_browser_fixture", side_effect=transport):
-                self.assertEqual(prepare.registration(runner, {"products": products, "destination": "owned"}, fixture), result)
+                self.assertEqual(prepare.registration(runner, actor, fixture), result)
             self.assertFalse(private.exists())
         runner.run = lambda *a, **k: "NATIVE_IOS_REGISTRATION_RESULT status=passed stage=registration-complete supportSafe=true\n" * 2
         with patch.object(smoke, "prepare_browser_fixture", side_effect=transport), self.assertRaises(ContractError):
-            prepare.registration(runner, {"products": products, "destination": "owned"}, fixture)
+            prepare.registration(runner, actor, fixture)
         self.assertFalse(private.exists())
+        expired = "NATIVE_IOS_REGISTRATION_RESULT status=incomplete stage=authentication-session-expired supportSafe=true\n"
+        runner.run = lambda *a, **k: expired
+        with patch.object(smoke, "prepare_browser_fixture", side_effect=transport), self.assertRaisesRegex(ContractError, "^normal-test-member-authentication-session-expired$"):
+            prepare.registration(runner, actor, fixture)
+        self.assertFalse(private.exists())
+        runner.run = lambda *a, **k: expired * 2
+        with patch.object(smoke, "prepare_browser_fixture", side_effect=transport), self.assertRaisesRegex(ContractError, "^normal-test-member-registration-required$"):
+            prepare.registration(runner, actor, fixture)
+        self.assertFalse(private.exists())
+
+    def test_public_registration_handoff_requires_own_app_auth_and_identity_before_completion_checkpoint(self):
+        for failure in (None, "auth", "identity"):
+            with self.subTest(failure=failure):
+                plan = prepare.new_plan(self.context); member = plan["members"][0]
+                actor = {"physical": False, "id": "owned"}
+                events = []; states = []
+                def record(stage): states.append(stage); events.append(stage)
+                def ui(_actor, fixture, method="testOrdinaryProductSmoke"):
+                    if method == "testProductionBrowser":
+                        events.append("PKCE")
+                        if failure == "auth": raise smoke.SmokeError("normal-test-member-browser-authentication-required")
+                    elif fixture.get("operation") == "identity":
+                        events.append("identity")
+                        return {"resources": {} if failure == "identity" else {"account": "a" * 64, "organization": "b" * 64}}
+                    return {}
+                runner = SimpleNamespace(ui=ui)
+                with patch.object(prepare, "await_mail_link", side_effect=["private-invitation", "private-verification"]) as mail, \
+                        patch.object(prepare, "registration", side_effect=["verification", "sign-in"]) as registration, \
+                        patch.object(smoke, "restart"), patch.object(smoke, "verify_discovered_routing"), patch.object(smoke, "verify_installed_build"):
+                    if failure is None:
+                        observed = prepare.member_proof(runner, actor, self.context, plan, member, "private-password", {}, record_registration=record)
+                        self.assertEqual(observed["accountDigest"], "a" * 64)
+                    else:
+                        with self.assertRaises((ContractError, smoke.SmokeError)):
+                            prepare.member_proof(runner, actor, self.context, plan, member, "private-password", {}, record_registration=record)
+                self.assertEqual(mail.call_count, 2); self.assertEqual(registration.call_count, 2)
+                self.assertEqual(states[:2], ["activation-started", "email-verification-required"])
+                if failure is None:
+                    self.assertEqual(states.count("registration-complete"), 1)
+                    self.assertLess(events.index("PKCE"), events.index("identity"))
+                    self.assertLess(events.index("identity"), events.index("registration-complete"))
+                else:
+                    self.assertNotIn("registration-complete", states)
+                    self.assertEqual(states[-1], "email-verification-required")
 
     def test_already_registered_member_resume_never_redeems_invitation_or_changes_password(self):
         plan = prepare.new_plan(self.context); member = plan["members"][0]
@@ -756,6 +864,7 @@ class PrepareTest(unittest.TestCase):
         result = {"trust": self.descriptor(), "localTrustStatus": "passed", "status": "incomplete", "preparationComplete": False}
         fixture = self.directory / "private/operator-identities.json"; ledger_path = prepare.ledger_for(fixture)
         backend = self.operator_backend(); calls = calls if calls is not None else []
+        reconciled = set()
         def run(command, **kwargs):
             if command[:3] == ["xcrun", "simctl", "delete"]:
                 calls.append(["delete", command[-1]])
@@ -782,6 +891,11 @@ class PrepareTest(unittest.TestCase):
                 for old, current in zip(previous["members"], envelope["receipt"]["members"]):
                     if old["accountRef"]:
                         current.update(accountRef=old["accountRef"], memberHandle=old["memberHandle"], intentState="APPLIED")
+            if operation == "invitations":
+                for current in envelope["receipt"]["members"]:
+                    if current["slot"] in reconciled:
+                        current.update(accountRef="acct_" + ("1" if current["slot"] == "A" else "2") * 32,
+                                       memberHandle="mem_" + current["slot"] * 32, intentState="APPLIED")
             return prepare.validate_operator_envelope(envelope, request, previous)
         def member(_runner, actor, context, plan, planned, password, invitation, state, record):
             calls.append(["identity", actor["slot"]])
@@ -789,6 +903,7 @@ class PrepareTest(unittest.TestCase):
                 raise smoke.SmokeError("native-command-failed")
             self.assertEqual(prepare.private_read(ledger_path, 65536)["passwords"][actor["slot"]], password)
             record("registration-complete")
+            reconciled.add(actor["slot"])
             return {"slot": actor["slot"], "accountDigest": "0" * 64 if bad_proof else prepare.identity_digest("weave-account", plan["issuerUrl"], "acct_" + ("1" if actor["slot"] == "A" else "2") * 32),
                     "organizationDigest": prepare.identity_digest("weave-organization", plan["issuerUrl"], "tenant-fixture")}
         def runner(directory): return SimpleNamespace(directory=directory, run=run, deadline=0)
@@ -800,11 +915,128 @@ class PrepareTest(unittest.TestCase):
         admin.assert_not_called()
         return result, fixture, ledger_path, calls
 
+    def exercise_auth_only_operator_resume(self, *, states=None, boundary="test-member-not-activated",
+                                          fail_auth=None, unstarted=False, bad_proof=False,
+                                          pending_final=False, durable=False, events=None):
+        events = events if events is not None else []
+        directory = prepare.private_directory(self.directory / "auth-only-resume")
+        ledger_path = directory / "ledger.json"; fixture_path = directory / "identities.json"
+        candidate = self.operator_candidate(); backend = self.operator_backend()
+        ledger = prepare.operator_ledger(self.context, ledger_path, self.descriptor()["caSha256Fingerprint"], fixture_path)
+        plan = ledger["plan"]
+        request = prepare.operator_request(self.context, plan, candidate, "invitations", None, None)
+        retained = self.operator_envelope(request)
+        # Build a valid earlier completed operation, including its bound native proof.
+        if durable:
+            proof = {"schemaVersion": "weave.dogfood-admin-preparation-proof/v1", "planId": plan["planId"],
+                     "nonce": plan["nonce"], "members": [{"slot": slot,
+                         "accountDigest": prepare.identity_digest("weave-account", plan["issuerUrl"], "acct_" + str(index) * 32),
+                         "organizationDigest": prepare.identity_digest("weave-organization", plan["issuerUrl"], "tenant-fixture")}
+                         for index, slot in enumerate(("A", "B"), 1)]}
+            request = prepare.operator_request(self.context, plan, candidate, "grants", retained["receipt"], proof)
+            retained = self.operator_envelope(request)
+        # A durable grants envelope binds old strong ETags independently of later readbacks.
+        ledger["operatorEnvelope"] = retained
+        if durable: ledger["lastGrantsEnvelope"] = copy.deepcopy(retained)
+        ledger["registrationState"] = states if states is not None else {"A": "email-verification-required", "B": "registration-complete"}
+        if unstarted: ledger["registrationState"] = {"B": "registration-complete"}
+        prepare.private_write(ledger_path, ledger)
+        ledger = prepare.operator_ledger(self.context, ledger_path, self.descriptor()["caSha256Fingerprint"], fixture_path)
+        before_grants = copy.deepcopy(ledger.get("lastGrantsEnvelope"))
+        reconciled = set(); invitation_calls = 0
+        def driver(context, actual, current_plan, current_candidate, directory, operation, previous, proof):
+            nonlocal invitation_calls
+            events.append(operation)
+            if operation == "invitations": invitation_calls += 1
+            request = prepare.operator_request(context, current_plan, current_candidate, operation, previous, proof)
+            envelope = self.operator_envelope(request, boundary=boundary if invitation_calls == 1 and operation == "invitations" else None)
+            for row in envelope["receipt"]["members"]:
+                old = next((value for value in previous["members"] if value["slot"] == row["slot"]), None) if previous else None
+                if (old and old["accountRef"]) or (row["slot"] in reconciled and not pending_final):
+                    row.update(accountRef="acct_" + ("1" if row["slot"] == "A" else "2") * 32,
+                               memberHandle="mem_" + row["slot"] * 32, intentState="APPLIED")
+            if operation == "grants" and durable:
+                self.assertEqual(previous, before_grants["receipt"])
+            return prepare.validate_operator_envelope(envelope, request, previous)
+        def ui(actor, fixture, method="testOrdinaryProductSmoke"):
+            slot = actor["slot"]
+            if method == "testProductionBrowser":
+                events.append("auth-" + slot)
+                if fail_auth == slot: raise smoke.SmokeError("normal-test-member-browser-authentication-required")
+                reconciled.add(slot)
+            if fixture.get("operation") == "identity":
+                events.append("identity-" + slot)
+                return {"resources": {"account": "0" * 64 if bad_proof else prepare.identity_digest("weave-account", plan["issuerUrl"], "acct_" + ("1" if slot == "A" else "2") * 32),
+                                      "organization": prepare.identity_digest("weave-organization", plan["issuerUrl"], "tenant-fixture")}}
+            return {}
+        def mail(*args, **kwargs): events.append("mail"); return "private-stock-link"
+        def register(*args, **kwargs): events.append("registration"); return "complete"
+        runner = SimpleNamespace(directory=directory, ui=ui)
+        with patch("compose_runtime._service_container", return_value=backend), patch.object(prepare, "operator_backend"), \
+                patch.object(prepare, "operator_driver", side_effect=driver), patch.object(smoke, "restart"), \
+                patch.object(smoke, "verify_discovered_routing"), patch.object(smoke, "verify_installed_build"), \
+                patch.object(prepare, "await_mail_link", side_effect=mail), patch.object(prepare, "registration", side_effect=register):
+            result = prepare.operator_phases(self.context, backend, candidate, ledger_path, ledger, runner,
+                                             {slot: {"slot": slot} for slot in ("A", "B")})
+        return result, ledger, events
+
+    def test_started_operator_members_resume_auth_only_completed_first_then_fresh_readbacks_and_grants(self):
+        (envelope, proof), ledger, events = self.exercise_auth_only_operator_resume()
+        self.assertEqual(events, ["invitations", "auth-B", "identity-B", "auth-A", "identity-A", "invitations", "invitations", "grants"])
+        self.assertEqual(envelope["receipt"]["stage"], "grants-ready")
+        self.assertEqual([row["slot"] for row in proof["members"]], ["A", "B"])
+        self.assertEqual(ledger["registrationState"], {"A": "registration-complete", "B": "registration-complete"})
+
+    def test_started_auth_failure_never_reads_mail_replays_registration_or_grants(self):
+        events = []
+        with self.assertRaisesRegex(smoke.SmokeError, "^normal-test-member-browser-authentication-required$"):
+            self.exercise_auth_only_operator_resume(fail_auth="A", events=events)
+        self.assertEqual(events, ["invitations", "auth-B", "identity-B", "auth-A"])
+        ledger = prepare.private_read(self.directory / "auth-only-resume/ledger.json", 65536)
+        self.assertEqual(ledger["registrationState"]["B"], "registration-complete")
+        self.assertEqual(ledger["registrationState"]["A"], "email-verification-required")
+
+    def test_unstarted_slot_registers_only_after_resumed_slot_proof_and_fresh_passed_readback(self):
+        _result, _ledger, events = self.exercise_auth_only_operator_resume(unstarted=True)
+        self.assertEqual(events[:6], ["invitations", "auth-B", "identity-B", "invitations", "mail", "registration"])
+        self.assertEqual(events[-2:], ["invitations", "grants"])
+        self.assertEqual(events.count("auth-B"), 1)
+
+    def test_other_operator_boundaries_and_unstarted_ledgers_never_trigger_auth_resume(self):
+        for boundary in ("invitation-expired", "invitation-conflict", "space-access-conflict"):
+            events = []
+            # Each invocation needs its own private ledger fixture.
+            path = self.directory / "auth-only-resume"
+            if path.exists(): shutil.rmtree(path)
+            with self.subTest(boundary=boundary), self.assertRaisesRegex(ContractError, "^dogfood-operator-" + boundary + "$"):
+                self.exercise_auth_only_operator_resume(boundary=boundary, events=events)
+            self.assertEqual(events, ["invitations"])
+        shutil.rmtree(self.directory / "auth-only-resume")
+        events = []
+        with self.assertRaisesRegex(ContractError, "^dogfood-operator-test-member-not-activated$"):
+            self.exercise_auth_only_operator_resume(states={}, events=events)
+        self.assertEqual(events, ["invitations"])
+
+    def test_resumed_proofs_require_current_applied_identity_before_any_grant(self):
+        for failure in ("pending", "identity"):
+            path = self.directory / "auth-only-resume"
+            if path.exists(): shutil.rmtree(path)
+            events = []
+            with self.subTest(failure=failure), self.assertRaises(ContractError):
+                self.exercise_auth_only_operator_resume(pending_final=failure == "pending", bad_proof=failure == "identity", events=events)
+            self.assertNotIn("grants", events)
+            self.assertEqual(events.count("auth-A"), 1); self.assertEqual(events.count("auth-B"), 1)
+
+    def test_auth_only_resume_preserves_durable_grant_etags(self):
+        _result, ledger, events = self.exercise_auth_only_operator_resume(durable=True)
+        self.assertEqual(events[-1], "grants")
+        self.assertEqual([row["grantVersion"] for row in ledger["lastGrantsEnvelope"]["receipt"]["members"]], ['"sm-1"', '"sm-1"'])
+
     def test_operator_preparation_requires_two_native_proofs_current_grants_cleanup_and_private_owner_binding(self):
         result, fixture, ledger_path, calls = self.execute_operator_preparation()
         self.assertTrue(result["preparationComplete"])
         self.assertEqual(result["authorizationKind"], "dogfood-operator")
-        self.assertEqual([row[0] for row in calls], ["build", "invitations", "identity", "identity", "grants", "delete", "delete"])
+        self.assertEqual([row[0] for row in calls], ["build", "invitations", "identity", "identity", "invitations", "grants", "delete", "delete"])
         ledger = prepare.private_read(ledger_path, 65536)
         self.assertNotIn("administratorAccountRef", json.dumps(ledger))
         self.assertEqual(ledger["schemaVersion"], "weave.dogfood-operator-preparation-ledger/v1")
