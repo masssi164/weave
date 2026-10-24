@@ -592,7 +592,10 @@ class _ScenarioChatRepository implements ChatRepository {
   Future<void> connect() async {}
 
   @override
-  Future<ChatConversation> createConversation({required String title}) {
+  Future<ChatConversation> createConversation({
+    required String title,
+    String? spaceRef,
+  }) {
     throw UnimplementedError();
   }
 

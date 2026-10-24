@@ -234,10 +234,12 @@ class FakeRustMatrixCoreBridge extends RustMatrixCoreBridge {
   Future<RustMatrixEncryptedRoom> createBusinessRoom({
     required String profileKey,
     required String title,
+    String? spaceRef,
   }) async {
     createdRooms.add(<String, String>{
       'profileKey': profileKey,
       'title': title,
+      if (spaceRef != null) 'spaceRef': spaceRef,
     });
     return RustMatrixEncryptedRoom(
       roomId: '!created:api.weave.test',

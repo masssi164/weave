@@ -519,6 +519,68 @@ Future<Finder> openNativeDualChatCreationDialog(
   return name;
 }
 
+/// Uses the same current named Space choice as an ordinary member.
+Future<void> selectNativeDualChatSpace(
+  WidgetTester tester,
+  String spaceRef, {
+  required DateTime deadline,
+}) async {
+  final selector = find.byKey(const Key('chat-create-space-selector'));
+  await _wait(tester, () {
+    if (selector.evaluate().length != 1) return false;
+    final dropdown = tester.widget<DropdownButton<String>>(selector);
+    return dropdown.onChanged != null && dropdown.items?.isNotEmpty == true;
+  }, deadline.difference(DateTime.now()));
+  final dropdown = tester.widget<DropdownButton<String>>(selector);
+  if (dropdown.items!.where((item) => item.value == spaceRef).length != 1) {
+    throw TestFailure('The intended current Chat Space is unavailable.');
+  }
+  if (!DateTime.now().isBefore(deadline)) {
+    throw TestFailure('The Chat Space selection missed its action deadline.');
+  }
+  if (dropdown.value == spaceRef) return;
+  await _tap(tester, selector);
+  final choice = find.byElementPredicate((element) {
+    final widget = element.widget;
+    if (widget is! Semantics ||
+        widget.properties.identifier != 'chat-space-option-$spaceRef') {
+      return false;
+    }
+    var inSelector = false;
+    element.visitAncestorElements((ancestor) {
+      if (ancestor.widget is DropdownButton<String>) {
+        inSelector = true;
+        return false;
+      }
+      return true;
+    });
+    return !inSelector;
+  });
+  final popupScroll = find.byType(Scrollable).hitTestable().last;
+  for (
+    var scrolls = 0;
+    choice.evaluate().isEmpty &&
+        scrolls < dropdown.items!.length &&
+        DateTime.now().isBefore(deadline);
+    scrolls++
+  ) {
+    await tester.drag(popupScroll, const Offset(0, -240));
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  if (!DateTime.now().isBefore(deadline)) {
+    throw TestFailure('The Chat Space selection missed its action deadline.');
+  }
+  await _tap(tester, choice);
+  await _wait(tester, () {
+    if (selector.evaluate().length != 1) return false;
+    final selected = tester.widget<DropdownButton<String>>(selector);
+    return selected.onChanged != null && selected.value == spaceRef;
+  }, deadline.difference(DateTime.now()));
+  if (!DateTime.now().isBefore(deadline)) {
+    throw TestFailure('The Chat Space selection missed its action deadline.');
+  }
+}
+
 ({bool home, bool entry}) nativeLocalInspectionSurface(Element? root) {
   var home = false;
   var entry = false;
@@ -1017,6 +1079,11 @@ void main() {
             try {
               name = await openNativeDualChatCreationDialog(
                 tester,
+                deadline: actionDeadline,
+              );
+              await selectNativeDualChatSpace(
+                tester,
+                fixture['sharedSpaceRef'] as String,
                 deadline: actionDeadline,
               );
             } catch (_) {

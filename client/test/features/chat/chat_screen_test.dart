@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/theme/app_theme.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
@@ -25,6 +26,7 @@ import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 
 import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/in_memory_stores.dart';
@@ -77,13 +79,25 @@ class _ChatCapabilityController
   }
 }
 
-Widget _chatTestApp(Widget child, {List<dynamic> overrides = const []}) {
+const _defaultChatSpace = MemberSpaceAccessSnapshot(
+  visibleSpaceRefs: {'workspace-default'},
+  defaultSpaceReadable: true,
+  displayNames: {'workspace-default': 'Product team'},
+);
+
+Widget _chatTestApp(
+  Widget child, {
+  List<dynamic> overrides = const [],
+  MemberSpaceAccessSnapshot? spaces = _defaultChatSpace,
+}) {
   return createTestApp(
     child,
     overrides: [
       workspaceCapabilitySnapshotProvider.overrideWithValue(
         const AsyncData(_readyChatSnapshot),
       ),
+      if (spaces != null)
+        weaveApiMemberSpacesProvider.overrideWith((ref) async => spaces),
       ...overrides,
     ],
   );
@@ -99,6 +113,9 @@ Widget _chatTestRouterApp(
       workspaceCapabilitySnapshotProvider.overrideWithValue(
         const AsyncData(_readyChatSnapshot),
       ),
+      weaveApiMemberSpacesProvider.overrideWith(
+        (ref) async => _defaultChatSpace,
+      ),
       ...overrides,
     ],
   );
@@ -106,36 +123,66 @@ Widget _chatTestRouterApp(
 
 class _ParticipantChatRepository extends FakeChatRepository
     implements ChatParticipantRepository {
-  _ParticipantChatRepository({this.refuse = true})
-    : super(
-        loadConversationsHandler: () async => [],
-        loadRoomTimelineHandler: (room) async => ChatRoomTimeline(
-          roomId: room,
-          roomTitle: 'Controlled conversation',
-          isInvite: false,
-          canSendMessages: true,
-          messages: [],
-        ),
-      );
+  _ParticipantChatRepository({
+    this.refuse = true,
+    this.searchHandler,
+    this.createFailure,
+    this.createHandler,
+  }) : super(
+         loadConversationsHandler: () async => [],
+         loadRoomTimelineHandler: (room) async => ChatRoomTimeline(
+           roomId: room,
+           roomTitle: 'Controlled conversation',
+           isInvite: false,
+           canSendMessages: true,
+           messages: [],
+         ),
+       );
   final bool refuse;
+  final Future<List<ChatParticipant>> Function(String, String?)? searchHandler;
+  final Object? createFailure;
+  final Future<ChatConversation> Function(String)? createHandler;
   List<ChatParticipant>? invited;
   bool? direct;
+  String? createdSpace;
+  final searchedSpaces = <String?>[];
   @override
-  Future<List<ChatParticipant>> searchMembers(String query) async => const [
-    ChatParticipant(
-      userId: '@member:api.weave.test',
-      displayName: 'Team member',
-    ),
-  ];
+  Future<List<ChatParticipant>> searchMembers(
+    String query, {
+    String? spaceRef,
+  }) async {
+    searchedSpaces.add(spaceRef);
+    return searchHandler?.call(query, spaceRef) ??
+        const [
+          ChatParticipant(
+            userId: '@member:api.weave.test',
+            displayName: 'Team member',
+          ),
+        ];
+  }
+
+  @override
+  Future<ChatConversation> createConversation({
+    required String title,
+    String? spaceRef,
+  }) => createConversationWithParticipants(
+    title: title,
+    participants: const [],
+    spaceRef: spaceRef,
+  );
   @override
   Future<ChatConversation> createConversationWithParticipants({
     required String title,
     required List<ChatParticipant> participants,
     bool isDirect = false,
+    String? spaceRef,
   }) async {
     invited = participants;
     direct = isDirect;
+    createdSpace = spaceRef;
+    if (createFailure case final failure?) throw failure;
     if (refuse) throw const ChatFailure.protocol('Creation refused');
+    if (createHandler case final handler?) return handler(title);
     return ChatConversation(
       id: '!created:api.weave.test',
       title: title,
@@ -147,7 +194,584 @@ class _ParticipantChatRepository extends FakeChatRepository
   }
 }
 
+Future<void> _openChatCreation(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('chat-create-conversation-button')));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _chooseChatSpace(WidgetTester tester, String name) async {
+  final selector = find.byKey(const Key('chat-create-space-selector'));
+  await tester.ensureVisible(selector);
+  await tester.tap(selector);
+  await tester.pump();
+  // A previous Space search may still be in flight while the menu opens.
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.tap(find.text(name).last);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _submitChatCreation(WidgetTester tester) async {
+  final submit = find.byKey(
+    const Key('chat-create-conversation-submit-button'),
+  );
+  await tester.ensureVisible(submit);
+  await tester.tap(submit);
+  await tester.pumpAndSettle();
+}
+
+class _ChatSpacesController extends Notifier<MemberSpaceAccessSnapshot?> {
+  @override
+  MemberSpaceAccessSnapshot? build() => _defaultChatSpace;
+
+  void show(MemberSpaceAccessSnapshot? access) => state = access;
+}
+
 void main() {
+  testWidgets('empty nondefault Space is named and receives new conversation', (
+    tester,
+  ) async {
+    final repository = _ParticipantChatRepository(refuse: false);
+    await tester.pumpWidget(
+      _chatTestApp(
+        const ChatScreen(),
+        spaces: const MemberSpaceAccessSnapshot(
+          visibleSpaceRefs: {'opaque-design'},
+          defaultSpaceReadable: false,
+          displayNames: {'opaque-design': 'Design'},
+        ),
+        overrides: [
+          chatRepositoryProvider.overrideWithValue(repository),
+          preferencesStoreProvider.overrideWith(
+            (ref) => InMemoryPreferencesStore(),
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _openChatCreation(tester);
+    final selector = find.byKey(const Key('chat-create-space-selector'));
+    expect(
+      tester.widget<DropdownButton<String>>(selector).value,
+      'opaque-design',
+    );
+    expect(find.text('Design'), findsOneWidget);
+    expect(find.textContaining('opaque-design'), findsNothing);
+    expect(tester.getSize(selector).height, greaterThanOrEqualTo(48));
+    await tester.enterText(
+      find.byKey(const Key('chat-create-conversation-name-field')),
+      'Design decisions',
+    );
+    final mode = find.byKey(const Key('chat-create-direct-switch'));
+    await tester.ensureVisible(mode);
+    await tester.tap(mode);
+    await tester.pumpAndSettle();
+    await _submitChatCreation(tester);
+    expect(repository.createdSpace, 'opaque-design');
+    expect(repository.invited, isEmpty);
+    expect(repository.direct, isFalse);
+    expect(find.byType(ChatRoomScreen), findsOneWidget);
+  });
+
+  testWidgets(
+    'multiple named Spaces require explicit disambiguated selection',
+    (tester) async {
+      final repository = _ParticipantChatRepository(refuse: false);
+      await tester.pumpWidget(
+        _chatTestApp(
+          const ChatScreen(),
+          spaces: const MemberSpaceAccessSnapshot(
+            visibleSpaceRefs: {'opaque-b', 'opaque-a'},
+            defaultSpaceReadable: false,
+            displayNames: {'opaque-a': 'Research', 'opaque-b': 'Research'},
+          ),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            preferencesStoreProvider.overrideWith(
+              (ref) => InMemoryPreferencesStore(),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _openChatCreation(tester);
+      final selector = find.byKey(const Key('chat-create-space-selector'));
+      final participants = find.byKey(
+        const Key('chat-create-conversation-participant-field'),
+      );
+      expect(tester.widget<DropdownButton<String>>(selector).value, isNull);
+      expect(tester.widget<TextField>(participants).enabled, isFalse);
+      await tester.enterText(
+        find.byKey(const Key('chat-create-conversation-name-field')),
+        'Research discussion',
+      );
+      await _submitChatCreation(tester);
+      final l10n = AppLocalizations.of(tester.element(selector));
+      expect(find.text(l10n.chatCreateSpaceRequired), findsOneWidget);
+      expect(repository.invited, isNull);
+      expect(repository.searchedSpaces, isEmpty);
+      await _chooseChatSpace(tester, 'Research (2)');
+      expect(find.textContaining('opaque-'), findsNothing);
+      await tester.enterText(participants, 'Team');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      final peer = find.byKey(
+        const ValueKey('chat-participant-result-@member:api.weave.test'),
+      );
+      await tester.ensureVisible(peer);
+      await tester.tap(peer);
+      await tester.pumpAndSettle();
+      await _submitChatCreation(tester);
+      expect(repository.searchedSpaces, ['opaque-b']);
+      expect(repository.createdSpace, 'opaque-b');
+      expect(repository.invited!.single.displayName, 'Team member');
+      expect(find.byType(ChatRoomScreen), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Space switch clears participants and ignores prior search results',
+    (tester) async {
+      final pending = Completer<List<ChatParticipant>>();
+      final repository = _ParticipantChatRepository(
+        refuse: false,
+        searchHandler: (query, spaceRef) async {
+          if (query == 'wait') return pending.future;
+          return [
+            ChatParticipant(
+              userId: spaceRef == 'scope-design'
+                  ? '@amy:weave.test'
+                  : '@bob:weave.test',
+              displayName: spaceRef == 'scope-design' ? 'Amy' : 'Bob',
+            ),
+          ];
+        },
+      );
+      await tester.pumpWidget(
+        _chatTestApp(
+          const ChatScreen(),
+          spaces: const MemberSpaceAccessSnapshot(
+            visibleSpaceRefs: {'scope-design', 'scope-support'},
+            defaultSpaceReadable: false,
+            displayNames: {
+              'scope-design': 'Design',
+              'scope-support': 'Support',
+            },
+          ),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            preferencesStoreProvider.overrideWith(
+              (ref) => InMemoryPreferencesStore(),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _openChatCreation(tester);
+      await _chooseChatSpace(tester, 'Design');
+      await tester.enterText(
+        find.byKey(const Key('chat-create-conversation-name-field')),
+        'Scoped conversation',
+      );
+      final participants = find.byKey(
+        const Key('chat-create-conversation-participant-field'),
+      );
+      await tester.enterText(participants, 'Amy');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      final amy = find.byKey(
+        const ValueKey('chat-participant-result-@amy:weave.test'),
+      );
+      await tester.ensureVisible(amy);
+      await tester.tap(amy);
+      await tester.pumpAndSettle();
+      expect(find.byType(InputChip), findsOneWidget);
+      await tester.enterText(participants, 'wait');
+      await tester.pump(const Duration(milliseconds: 300));
+      await _chooseChatSpace(tester, 'Support');
+      expect(find.byType(InputChip), findsNothing);
+      expect(tester.widget<TextField>(participants).controller!.text, isEmpty);
+      pending.complete(const [
+        ChatParticipant(userId: '@late:weave.test', displayName: 'Late member'),
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.text('Late member'), findsNothing);
+      expect(find.text('Amy'), findsNothing);
+      await tester.enterText(participants, 'Bob');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      final bob = find.byKey(
+        const ValueKey('chat-participant-result-@bob:weave.test'),
+      );
+      await tester.ensureVisible(bob);
+      await tester.tap(bob);
+      await tester.pumpAndSettle();
+      await _submitChatCreation(tester);
+      expect(repository.searchedSpaces, [
+        'scope-design',
+        'scope-design',
+        'scope-support',
+      ]);
+      expect(repository.createdSpace, 'scope-support');
+      expect(repository.invited!.single.displayName, 'Bob');
+    },
+  );
+
+  testWidgets(
+    'open creation dialog fails closed when current Space access is lost',
+    (tester) async {
+      final access =
+          NotifierProvider<_ChatSpacesController, MemberSpaceAccessSnapshot?>(
+            _ChatSpacesController.new,
+          );
+      final repository = _ParticipantChatRepository(refuse: false);
+      await tester.pumpWidget(
+        _chatTestApp(
+          const ChatScreen(),
+          spaces: null,
+          overrides: [
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => ref.watch(access),
+            ),
+            chatRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      await _openChatCreation(tester);
+      final participants = find.byKey(
+        const Key('chat-create-conversation-participant-field'),
+      );
+      await tester.enterText(participants, 'Team');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      final peer = find.byKey(
+        const ValueKey('chat-participant-result-@member:api.weave.test'),
+      );
+      await tester.ensureVisible(peer);
+      await tester.tap(peer);
+      await tester.pumpAndSettle();
+      container.read(access.notifier).show(null);
+      await tester.pumpAndSettle();
+      expect(find.byType(InputChip), findsNothing);
+      expect(find.byType(CheckboxListTile), findsNothing);
+      expect(tester.widget<TextField>(participants).enabled, isFalse);
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.byKey(const Key('chat-create-conversation-submit-button')),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(repository.invited, isNull);
+    },
+  );
+
+  testWidgets(
+    'lost selected Space never silently changes the creation target',
+    (tester) async {
+      final access =
+          NotifierProvider<_ChatSpacesController, MemberSpaceAccessSnapshot?>(
+            _ChatSpacesController.new,
+          );
+      final repository = _ParticipantChatRepository(refuse: false);
+      await tester.pumpWidget(
+        _chatTestApp(
+          const ChatScreen(),
+          spaces: null,
+          overrides: [
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => ref.watch(access),
+            ),
+            chatRepositoryProvider.overrideWithValue(repository),
+            preferencesStoreProvider.overrideWith(
+              (ref) => InMemoryPreferencesStore(),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      await _openChatCreation(tester);
+      final selector = find.byKey(const Key('chat-create-space-selector'));
+      expect(
+        tester.widget<DropdownButton<String>>(selector).value,
+        'workspace-default',
+      );
+      final title = find.byKey(
+        const Key('chat-create-conversation-name-field'),
+      );
+      await tester.enterText(title, 'Retained draft');
+      final participants = find.byKey(
+        const Key('chat-create-conversation-participant-field'),
+      );
+      await tester.enterText(participants, 'Team');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      final peer = find.byKey(
+        const ValueKey('chat-participant-result-@member:api.weave.test'),
+      );
+      await tester.ensureVisible(peer);
+      await tester.tap(peer);
+      await tester.pumpAndSettle();
+      container
+          .read(access.notifier)
+          .show(
+            const MemberSpaceAccessSnapshot(
+              visibleSpaceRefs: {'scope-operations'},
+              defaultSpaceReadable: false,
+              displayNames: {'scope-operations': 'Operations'},
+            ),
+          );
+      await tester.pumpAndSettle();
+      expect(tester.widget<DropdownButton<String>>(selector).value, isNull);
+      expect(
+        tester.widget<TextField>(title).controller!.text,
+        'Retained draft',
+      );
+      expect(tester.widget<TextField>(participants).enabled, isFalse);
+      expect(find.byType(InputChip), findsNothing);
+      await _submitChatCreation(tester);
+      expect(repository.invited, isNull);
+      expect(repository.createdSpace, isNull);
+      await _chooseChatSpace(tester, 'Operations');
+      await tester.enterText(participants, 'Team');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(peer);
+      await tester.tap(peer);
+      await tester.pumpAndSettle();
+      await _submitChatCreation(tester);
+      expect(repository.createdSpace, 'scope-operations');
+      expect(repository.searchedSpaces, [
+        'workspace-default',
+        'scope-operations',
+      ]);
+    },
+  );
+
+  testWidgets(
+    'creation survives actual Chat admission loss and explicit regrant',
+    (tester) async {
+      final capabilityState =
+          NotifierProvider<
+            _ChatCapabilityController,
+            AsyncValue<WorkspaceCapabilitySnapshot>
+          >(_ChatCapabilityController.new);
+      final repository = _ParticipantChatRepository(refuse: false);
+      await tester.pumpWidget(
+        _chatTestApp(
+          const ChatScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) => ref.watch(capabilityState),
+            ),
+            chatRepositoryProvider.overrideWithValue(repository),
+            preferencesStoreProvider.overrideWith(
+              (ref) => InMemoryPreferencesStore(),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      await _openChatCreation(tester);
+      final title = find.byKey(
+        const Key('chat-create-conversation-name-field'),
+      );
+      await tester.enterText(title, 'Retained after regrant');
+      final participants = find.byKey(
+        const Key('chat-create-conversation-participant-field'),
+      );
+      await tester.enterText(participants, 'Team');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      final peer = find.byKey(
+        const ValueKey('chat-participant-result-@member:api.weave.test'),
+      );
+      await tester.ensureVisible(peer);
+      await tester.tap(peer);
+      await tester.pumpAndSettle();
+
+      container.read(capabilityState.notifier).show(_blockedChatSnapshot);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('chat-create-conversation-button')),
+        findsNothing,
+      );
+      expect(find.byType(InputChip), findsNothing);
+      expect(tester.widget<TextField>(participants).enabled, isFalse);
+      expect(repository.invited, isNull);
+
+      container.read(capabilityState.notifier).show(_readyChatSnapshot);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('chat-create-conversation-button')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<DropdownButton<String>>(
+              find.byKey(const Key('chat-create-space-selector')),
+            )
+            .value,
+        isNull,
+      );
+      expect(
+        tester.widget<TextField>(title).controller!.text,
+        'Retained after regrant',
+      );
+      await _chooseChatSpace(tester, 'Product team');
+      await tester.enterText(participants, 'Team');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(peer);
+      await tester.tap(peer);
+      await tester.pumpAndSettle();
+      await _submitChatCreation(tester);
+      expect(repository.createdSpace, 'workspace-default');
+      expect(find.byType(ChatRoomScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'pending create after access loss asks for refresh without false failure',
+    (tester) async {
+      final capabilityState =
+          NotifierProvider<
+            _ChatCapabilityController,
+            AsyncValue<WorkspaceCapabilitySnapshot>
+          >(_ChatCapabilityController.new);
+      final pending = Completer<ChatConversation>();
+      var createCalls = 0;
+      final repository = _ParticipantChatRepository(
+        refuse: false,
+        createHandler: (_) {
+          createCalls++;
+          return pending.future;
+        },
+      );
+      await tester.pumpWidget(
+        _chatTestApp(
+          const ChatScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) => ref.watch(capabilityState),
+            ),
+            chatRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      final l10n = AppLocalizations.of(tester.element(find.byType(ChatScreen)));
+      await _openChatCreation(tester);
+      await tester.enterText(
+        find.byKey(const Key('chat-create-conversation-name-field')),
+        'Pending conversation',
+      );
+      final mode = find.byKey(const Key('chat-create-direct-switch'));
+      await tester.ensureVisible(mode);
+      await tester.tap(mode);
+      await tester.pumpAndSettle();
+      final submit = find.byKey(
+        const Key('chat-create-conversation-submit-button'),
+      );
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
+      await tester.pump();
+      expect(createCalls, 1);
+
+      container.read(capabilityState.notifier).show(_blockedChatSnapshot);
+      await tester.pumpAndSettle();
+      pending.complete(
+        const ChatConversation(
+          id: '!completed:weave.test',
+          title: 'Pending conversation',
+          previewType: ChatConversationPreviewType.none,
+          unreadCount: 0,
+          isInvite: false,
+          isDirectMessage: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(l10n.chatCreateSpaceChanged), findsOneWidget);
+      expect(find.text(l10n.chatCreateConversationFailure), findsNothing);
+      expect(find.byType(ChatRoomScreen), findsNothing);
+      expect(createCalls, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final locale in ['en', 'de']) {
+    for (final operation in ['search', 'create']) {
+      testWidgets(
+        'unsupported scoped Chat remains actionable $locale $operation',
+        (tester) async {
+          tester.platformDispatcher.localesTestValue = [Locale(locale)];
+          addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+          const failure = ChatFailure.unsupportedConfiguration(
+            'M_WEAVE_CHAT_SPACE_SCOPE_UNSUPPORTED',
+          );
+          final repository = _ParticipantChatRepository(
+            refuse: false,
+            createFailure: operation == 'create' ? failure : null,
+            searchHandler: operation == 'search'
+                ? (_, _) async => throw failure
+                : null,
+          );
+          await tester.pumpWidget(
+            _chatTestApp(
+              const ChatScreen(),
+              overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+            ),
+          );
+          await tester.pumpAndSettle();
+          await _openChatCreation(tester);
+          final l10n = AppLocalizations.of(
+            tester.element(find.byType(ChatScreen)),
+          );
+          if (operation == 'search') {
+            await tester.enterText(
+              find.byKey(
+                const Key('chat-create-conversation-participant-field'),
+              ),
+              'Team',
+            );
+            await tester.pump(const Duration(milliseconds: 300));
+            await tester.pumpAndSettle();
+          } else {
+            await tester.enterText(
+              find.byKey(const Key('chat-create-conversation-name-field')),
+              'New conversation',
+            );
+            final mode = find.byKey(const Key('chat-create-direct-switch'));
+            await tester.ensureVisible(mode);
+            await tester.tap(mode);
+            await tester.pumpAndSettle();
+            await _submitChatCreation(tester);
+          }
+          expect(find.text(l10n.chatSpaceScopeUnsupported), findsOneWidget);
+          expect(find.text(l10n.chatCreateConversationFailure), findsNothing);
+          expect(find.textContaining('M_WEAVE_'), findsNothing);
+          expect(find.textContaining('connection is back'), findsNothing);
+          expect(find.textContaining('encrypted conversation'), findsNothing);
+          expect(find.byType(ChatRoomScreen), findsNothing);
+        },
+      );
+    }
+  }
+
   for (final type in [
     ChatFailureType.transport,
     ChatFailureType.storage,

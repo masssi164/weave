@@ -576,9 +576,20 @@ public class ChatDomainFacadeService {
             List<ChatResolvedIdentity> invitedIdentities,
             ChatEncryptionState initialEncryption,
             Jwt jwt) {
-        requireWrite(jwt, "create-conversation");
+        return createConversation(transactionId, title, kind, invitedIdentities, initialEncryption, jwt, null);
+    }
+
+    public com.massimotter.weave.backend.chat.domain.ChatConversation createConversation(
+            String transactionId,
+            String title,
+            String kind,
+            List<ChatResolvedIdentity> invitedIdentities,
+            ChatEncryptionState initialEncryption,
+            Jwt jwt,
+            String selectedSpaceRef) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "create-conversation");
+        ChatRequestContext context = requireContextPermission(jwt, ContextPermission.EDIT, selectedSpaceRef);
         requireReady(jwt);
-        ChatRequestContext context = requestContext(jwt);
         requireInviteEligibility(context, invitedIdentities);
         if ("direct".equals(kind)) {
             if (invitedIdentities == null || invitedIdentities.size() != 1) throw new ChatAccessDeniedException();
@@ -587,14 +598,9 @@ public class ChatDomainFacadeService {
                     || context.actorRef().equals(peer.actorRef()) || !peer.actorRef().value().startsWith("user:")) {
                 throw new ChatAccessDeniedException();
             }
-            try {
-                currentMembers.requireCurrentMember(jwt, context.identityIssuer(), jwt.getSubject());
-                currentMembers.requireCurrentMember(jwt, peer.identityIssuer(), peer.actorRef().value().substring(5));
-            } catch (com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Denied error) {
-                throw new ChatAccessDeniedException();
-            } catch (com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Unavailable error) {
-                throw new com.massimotter.weave.backend.chat.domain.ChatProviderUnavailableException("chat-member-authority-unavailable");
-            }
+        }
+        if ("direct".equals(kind) || selectedSpaceRef != null) {
+            requireCurrentCreationMembers(jwt, context, invitedIdentities);
         }
         return chatProviderPort.createConversation(
                 context,
@@ -971,12 +977,21 @@ public class ChatDomainFacadeService {
 
     /** Directory discovery uses the same current Space checks as conversation invitations. */
     public void requireParticipantDiscovery(Jwt jwt) {
-        requireRead(jwt, "chat-participant-discovery");
+        requireParticipantDiscovery(jwt, null);
+    }
+
+    public void requireParticipantDiscovery(Jwt jwt, String selectedSpaceRef) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.read", "chat", "chat-participant-discovery");
+        requireContextPermission(jwt, ContextPermission.VIEW, selectedSpaceRef);
     }
 
     public boolean canDiscoverParticipant(Jwt jwt, ChatResolvedIdentity candidate) {
-        requireParticipantDiscovery(jwt);
-        ChatRequestContext caller = requestContext(jwt);
+        return canDiscoverParticipant(jwt, candidate, null);
+    }
+
+    public boolean canDiscoverParticipant(Jwt jwt, ChatResolvedIdentity candidate, String selectedSpaceRef) {
+        requireParticipantDiscovery(jwt, selectedSpaceRef);
+        ChatRequestContext caller = requestContext(jwt, selectedSpaceRef);
         if (!caller.tenantId().equals(candidate.tenantId())
                 || !caller.identityIssuer().equals(candidate.identityIssuer())) return false;
         return currentSpacePermission(new ChatRequestContext(caller.tenantId(), caller.contextId(),
@@ -984,21 +999,17 @@ public class ChatDomainFacadeService {
                 ContextPermission.VIEW);
     }
 
-    private void requireRead(Jwt jwt, String operation) {
-        workspaceCapabilityService.requireCapability(jwt, "chat.read", "chat", operation);
-        requireContextPermission(jwt, ContextPermission.VIEW);
-    }
-
-    private void requireWrite(Jwt jwt, String operation) {
-        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", operation);
-        requireContextPermission(jwt, ContextPermission.EDIT);
-    }
-
     private void requireContextPermission(Jwt jwt, ContextPermission permission) {
-        ChatRequestContext context = requestContext(jwt);
+        requireContextPermission(jwt, permission, null);
+    }
+
+    private ChatRequestContext requireContextPermission(
+            Jwt jwt, ContextPermission permission, String selectedSpaceRef) {
+        ChatRequestContext context = requestContext(jwt, selectedSpaceRef);
         if (!currentSpacePermission(context, permission)) {
             throw new ChatAccessDeniedException();
         }
+        return context;
     }
 
     private boolean currentSpacePermission(ChatRequestContext context, ContextPermission permission) {
@@ -1132,6 +1143,25 @@ public class ChatDomainFacadeService {
         }
     }
 
+    private void requireCurrentCreationMembers(
+            Jwt jwt, ChatRequestContext context, List<ChatResolvedIdentity> invitedIdentities) {
+        try {
+            currentMembers.requireCurrentMember(jwt, context.identityIssuer(), jwt.getSubject());
+            for (ChatResolvedIdentity peer : invitedIdentities == null
+                    ? List.<ChatResolvedIdentity>of() : invitedIdentities) {
+                if (!context.identityIssuer().equals(peer.identityIssuer())
+                        || !peer.actorRef().value().startsWith("user:")) {
+                    throw new ChatAccessDeniedException();
+                }
+                currentMembers.requireCurrentMember(jwt, peer.identityIssuer(), peer.actorRef().value().substring(5));
+            }
+        } catch (com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Denied error) {
+            throw new ChatAccessDeniedException();
+        } catch (com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery.Unavailable error) {
+            throw new ChatProviderUnavailableException("chat-member-authority-unavailable");
+        }
+    }
+
     private void requireReady(Jwt jwt) {
         if (memberReadiness(jwt).memberState() != ChatMemberState.READY) {
             throw new IllegalStateException("Chat is not ready.");
@@ -1237,6 +1267,22 @@ public class ChatDomainFacadeService {
                 identityContext.issuer(),
                 new ChatActorRef(actorRef(jwt)),
                 authorizationPrincipalRef);
+    }
+
+    private ChatRequestContext requestContext(Jwt jwt, String selectedSpaceRef) {
+        ChatRequestContext context = requestContext(jwt);
+        if (selectedSpaceRef == null) return context;
+        // Match the existing canonical Space provisioning reference contract.
+        if (!selectedSpaceRef.matches("[A-Za-z0-9][A-Za-z0-9:_-]{0,254}")) {
+            throw new IllegalArgumentException("The selected Space reference is invalid.");
+        }
+        for (String claim : List.of("weave_context_id", "context_id")) {
+            String boundary = jwt.getClaimAsString(claim);
+            if (boundary != null && !boundary.isBlank() && !selectedSpaceRef.equals(boundary.trim())) {
+                throw new ChatAccessDeniedException();
+            }
+        }
+        return inSpace(context, selectedSpaceRef);
     }
 
     private OrganizationIdentityContext requireIdentityContext(Jwt jwt) {

@@ -328,7 +328,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatCreateConversationDescription =>
-      'Choose a name and members for a direct conversation or restricted group.';
+      'Choose a Space, a name and members for a direct conversation or restricted group.';
 
   @override
   String get chatCreateConversationNameLabel => 'Conversation name';
@@ -351,7 +351,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatCreateConversationFailure =>
-      'The encrypted conversation could not be created. Your other Chat areas remain available; try again when the connection is back.';
+      'The conversation could not be created. Try again or ask a workspace admin for help.';
 
   @override
   String get chatOverviewTitle => 'Weave Home';
@@ -3634,7 +3634,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatParticipantsHelp =>
-      'Find people in your organization by name.';
+      'Find people for this conversation by name.';
 
   @override
   String get chatParticipantsSearchFailure =>
@@ -3845,4 +3845,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filesListingEnd => 'End of folder';
+
+  @override
+  String get chatCreateSpaceLabel => 'Space';
+
+  @override
+  String get chatCreateSpaceHint => 'Choose a Space';
+
+  @override
+  String get chatCreateSpacesLoading => 'Loading Spaces…';
+
+  @override
+  String get chatCreateSpaceRequired => 'Choose a Space before continuing.';
+
+  @override
+  String get chatCreateSpaceUnavailable =>
+      'Your Space access could not be checked. Refresh it and try again.';
+
+  @override
+  String chatCreateSpaceOrdinal(String name, int ordinal) {
+    return '$name ($ordinal)';
+  }
+
+  @override
+  String get chatSpaceScopeUnsupported =>
+      'This workspace does not support selecting a Space for Chat yet. Ask a workspace admin to update Weave.';
+
+  @override
+  String get chatCreateSpaceChanged =>
+      'Your Space access changed while creating the conversation. Refresh conversations before trying again.';
 }

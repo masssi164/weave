@@ -649,10 +649,15 @@ class RustMatrixCoreBridge {
   Future<RustMatrixEncryptedRoom> createBusinessRoom({
     required String profileKey,
     required String title,
+    String? spaceRef,
   }) async {
     return RustMatrixEncryptedRoom.fromJson(
       await _native(
-        () => matrixCreateBusinessRoom(profileKey: profileKey, title: title),
+        () => matrixCreateBusinessRoom(
+          profileKey: profileKey,
+          title: title,
+          spaceRef: spaceRef,
+        ),
       ),
     );
   }
@@ -660,9 +665,14 @@ class RustMatrixCoreBridge {
   Future<List<RustMatrixMember>> searchMembers({
     required String profileKey,
     required String query,
+    String? spaceRef,
   }) async {
     final result = await _native(
-      () => matrixSearchMembers(profileKey: profileKey, query: query),
+      () => matrixSearchMembers(
+        profileKey: profileKey,
+        query: query,
+        spaceRef: spaceRef,
+      ),
     );
     return _mapList(result['members'], RustMatrixMember.fromJson);
   }
@@ -672,6 +682,7 @@ class RustMatrixCoreBridge {
     required String title,
     required List<String> memberIds,
     bool isDirect = false,
+    String? spaceRef,
   }) async => RustMatrixEncryptedRoom.fromJson(
     await _native(
       () => matrixCreateBusinessRoomWithMembers(
@@ -679,6 +690,7 @@ class RustMatrixCoreBridge {
         title: title,
         memberIds: memberIds,
         isDirect: isDirect,
+        spaceRef: spaceRef,
       ),
     ),
   );

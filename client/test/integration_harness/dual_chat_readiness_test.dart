@@ -14,6 +14,7 @@ import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
@@ -30,6 +31,7 @@ import 'package:weave/features/shell/presentation/app_shell.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 
 import '../helpers/fake_chat_repository.dart';
 import '../helpers/in_memory_stores.dart';
@@ -43,6 +45,7 @@ import '../../integration_test/dual_ios_collaboration_test.dart'
         nativeDualChatListDiagnostic,
         waitNativeDualChatConversation,
         openNativeDualChatCreationDialog,
+        selectNativeDualChatSpace,
         sendNativeDualChatMessage,
         requireNativeDualPeerSelected,
         tapNativeDualPeer,
@@ -76,26 +79,47 @@ const _readyChatSnapshot = WorkspaceCapabilitySnapshot(
   ),
 );
 
+const _chatSpace = MemberSpaceAccessSnapshot(
+  visibleSpaceRefs: {'workspace-default'},
+  defaultSpaceReadable: true,
+  displayNames: {'workspace-default': 'Product team'},
+);
+
 class _PeerRepository extends FakeChatRepository
     implements ChatParticipantRepository {
   List<ChatParticipant>? submitted;
+  String? searchedSpace;
+  String? submittedSpace;
   @override
-  Future<ChatConversation> createConversation({required String title}) async {
+  Future<ChatConversation> createConversation({
+    required String title,
+    String? spaceRef,
+  }) async {
     submitted = [];
+    submittedSpace = spaceRef;
     throw const ChatFailure.protocol('Controlled creation refusal');
   }
 
   @override
-  Future<List<ChatParticipant>> searchMembers(String query) async => const [
-    ChatParticipant(userId: '@peer:weave.test', displayName: 'Private peer'),
-  ];
+  Future<List<ChatParticipant>> searchMembers(
+    String query, {
+    String? spaceRef,
+  }) async {
+    searchedSpace = spaceRef;
+    return const [
+      ChatParticipant(userId: '@peer:weave.test', displayName: 'Private peer'),
+    ];
+  }
+
   @override
   Future<ChatConversation> createConversationWithParticipants({
     required String title,
     required List<ChatParticipant> participants,
     bool isDirect = false,
+    String? spaceRef,
   }) async {
     submitted = participants;
+    submittedSpace = spaceRef;
     throw const ChatFailure.protocol('Controlled creation refusal');
   }
 }
@@ -545,6 +569,113 @@ void main() {
   }
 
   testWidgets(
+    'native Chat selects the intended shared Space before search and create',
+    (tester) async {
+      final repository = _PeerRepository();
+      final spaceNames = {
+        'workspace-default': 'General team',
+        for (var index = 0; index < 20; index++)
+          'space:$index': 'Project ${index.toString().padLeft(2, '0')}',
+        'space:shared': 'Shared project',
+      };
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            workspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) => const AsyncData(_readyChatSnapshot),
+            ),
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: spaceNames.keys.toSet(),
+                defaultSpaceReadable: true,
+                displayNames: spaceNames,
+              ),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
+      final name = await openNativeDualChatCreationDialog(
+        tester,
+        deadline: deadline,
+      );
+      final selector = find.byKey(const Key('chat-create-space-selector'));
+      expect(tester.widget<DropdownButton<String>>(selector).value, isNull);
+      await selectNativeDualChatSpace(
+        tester,
+        'space:shared',
+        deadline: deadline,
+      );
+      expect(
+        tester.widget<DropdownButton<String>>(selector).value,
+        'space:shared',
+      );
+      await tester.enterText(name, 'Shared room');
+      await tester.enterText(
+        find.byKey(const Key('chat-create-conversation-participant-field')),
+        'Private peer',
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(repository.searchedSpace, 'space:shared');
+      final peer = find.widgetWithText(CheckboxListTile, 'Private peer');
+      await tapNativeDualPeer(tester, peer, deadline: deadline);
+      final create = find.byKey(
+        const Key('chat-create-conversation-submit-button'),
+      );
+      await tester.ensureVisible(create);
+      await tester.tap(create);
+      await tester.pumpAndSettle();
+      expect(repository.submittedSpace, 'space:shared');
+      expect(repository.submitted?.single.userId, '@peer:weave.test');
+    },
+  );
+
+  testWidgets(
+    'native Chat refuses an absent intended Space without choosing another',
+    (tester) async {
+      final repository = _PeerRepository();
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            workspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) => const AsyncData(_readyChatSnapshot),
+            ),
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => _chatSpace,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      await openNativeDualChatCreationDialog(tester, deadline: deadline);
+      var pointerDowns = 0;
+      void observePointer(PointerEvent event) {
+        if (event is PointerDownEvent) pointerDowns++;
+      }
+
+      tester.binding.pointerRouter.addGlobalRoute(observePointer);
+      try {
+        await expectLater(
+          selectNativeDualChatSpace(tester, 'space:absent', deadline: deadline),
+          throwsA(isA<TestFailure>()),
+        );
+      } finally {
+        tester.binding.pointerRouter.removeGlobalRoute(observePointer);
+      }
+      expect(pointerDowns, 0);
+      expect(repository.searchedSpace, isNull);
+      expect(repository.submitted, isNull);
+    },
+  );
+
+  testWidgets(
     'phone keyboard peer uses actual visibility preparation before one selection',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
@@ -559,6 +690,9 @@ void main() {
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => _chatSpace,
+            ),
             workspaceCapabilitySnapshotProvider.overrideWith(
               (ref) => const AsyncData(_readyChatSnapshot),
             ),
@@ -627,6 +761,9 @@ void main() {
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => _chatSpace,
+            ),
             workspaceCapabilitySnapshotProvider.overrideWith(
               (ref) => const AsyncData(_readyChatSnapshot),
             ),

@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -54,6 +55,7 @@ import org.springframework.web.util.UriUtils;
 @Hidden
 public class MatrixClientServerProjectionController {
 
+    public static final String SPACE_REF_HEADER = "X-Weave-Space-Ref";
     private static final String MATRIX_ALLOW = "OPTIONS, GET, POST, PUT, DELETE";
     private static final Pattern SEND_PATH = Pattern.compile("^/_matrix/client/(?:v3|r0)/rooms/([^/]+)/send/([^/]+)/([^/]+)$");
     private static final Pattern REDACT_PATH = Pattern.compile("^/_matrix/client/(?:v3|r0)/rooms/([^/]+)/redact/([^/]+)/([^/]+)$");
@@ -139,7 +141,7 @@ public class MatrixClientServerProjectionController {
             if ("POST".equals(method) && isLogout(path)) { matrixClientStateService.revoke(jwt); return matrixOk(Map.of()); }
             if ("POST".equals(method) && (path.equals("/_matrix/client/v3/user_directory/search")
                     || path.equals("/_matrix/client/r0/user_directory/search"))) {
-                return matrixOk(searchParticipants(jwt, identity, requestBodyMap(request)));
+                return matrixOk(searchParticipants(jwt, identity, requestBodyMap(request), selectedSpaceRef(request)));
             }
             if ("GET".equals(method) && isWhoami(path)) return matrixOk(matrixProtocolCoreService.whoami(jwt.getSubject(), identity.deviceId()));
             if ("GET".equals(method) && isPushRules(path)) return matrixOk(matrixClientStateService.pushRules());
@@ -187,7 +189,7 @@ public class MatrixClientServerProjectionController {
             }
             if ("GET".equals(method) && isSync(path)) return matrixOk(sync(jwt, identity, request.getParameter("since")));
             if ("GET".equals(method) && isJoinedRooms(path)) return matrixOk(joinedRooms(jwt));
-            if ("POST".equals(method) && isCreateRoom(path)) return matrixOk(createRoom(jwt, identity, requestBodyMap(request), request.getHeader("Idempotency-Key")));
+            if ("POST".equals(method) && isCreateRoom(path)) return matrixOk(createRoom(jwt, identity, requestBodyMap(request), request.getHeader("Idempotency-Key"), selectedSpaceRef(request)));
             Matcher join = JOIN_PATH.matcher(path);
             if ("POST".equals(method) && join.matches()) { String matrixRoomId = decode(join.group(1)); String conversationId = matrixProtocolCoreService.decodeRoomId(matrixRoomId); chatDomainFacadeService.joinConversation(conversationId, jwt); return matrixOk(Map.of("room_id", matrixRoomId)); }
             Matcher leave = ROOM_LEAVE_PATH.matcher(path);
@@ -234,6 +236,15 @@ public class MatrixClientServerProjectionController {
 
     private String supportSafeProviderErrcode(ChatProviderUnavailableException exception) { String prefix = "chat-conversation-mapping-degraded-"; String code = exception.supportSafeCode(); if (!code.startsWith(prefix)) return "M_UNAVAILABLE"; String reason = code.substring(prefix.length()); if (!reason.matches("[a-z0-9-]{2,55}")) return "M_WEAVE_CHAT_DEGRADED_UNKNOWN"; return "M_WEAVE_CHAT_DEGRADED_" + reason.toUpperCase(Locale.ROOT).replace('-', '_'); }
     private Map<String, Object> loginFlows() { return Map.of("flows", List.of(), "weaveOidcGatekeeper", true, "passwordLoginSupported", false); }
+
+    private String selectedSpaceRef(HttpServletRequest request) {
+        List<String> values = Collections.list(request.getHeaders(SPACE_REF_HEADER));
+        if (values.isEmpty()) return null;
+        if (values.size() != 1 || !values.getFirst().matches("[A-Za-z0-9][A-Za-z0-9:_-]{0,254}")) {
+            throw new MatrixProtocolException("M_INVALID_PARAM", "The selected Space reference is invalid.");
+        }
+        return values.getFirst();
+    }
 
     private Map<String, Object> sync(Jwt jwt, MatrixFacadeClientStateService.MatrixIdentity identity, String since) {
         matrixProtocolCoreService.validateSyncToken(since);
@@ -333,8 +344,10 @@ public class MatrixClientServerProjectionController {
     }
     private Map<String, Object> redactEvent(Jwt jwt, String conversationId, String eventId, String transactionId) { ChatRedactionReceipt receipt = chatDomainFacadeService.redactEvent(conversationId, eventId, transactionId, jwt); return matrixProtocolCoreService.sendResponse(receipt.redactionEventId()); }
     private Map<String, Object> searchParticipants(Jwt jwt,
-            MatrixFacadeClientStateService.MatrixIdentity identity, Map<String, Object> body) {
-        chatDomainFacadeService.requireParticipantDiscovery(jwt);
+            MatrixFacadeClientStateService.MatrixIdentity identity, Map<String, Object> body,
+            String selectedSpaceRef) {
+        if (selectedSpaceRef == null) chatDomainFacadeService.requireParticipantDiscovery(jwt);
+        else chatDomainFacadeService.requireParticipantDiscovery(jwt, selectedSpaceRef);
         Object rawTerm = body.get("search_term");
         Object rawLimit = body.getOrDefault("limit", 10);
         if (!(rawTerm instanceof String term) || term.isBlank() || term.length() > 200
@@ -363,7 +376,9 @@ public class MatrixClientServerProjectionController {
                         candidate.authorizationPrincipalRef());
                 if (!identity.userId().equals(candidate.matrixUserId())
                         && candidate.actorRef().startsWith("user:")
-                        && chatDomainFacadeService.canDiscoverParticipant(jwt, resolved)) {
+                        && (selectedSpaceRef == null
+                            ? chatDomainFacadeService.canDiscoverParticipant(jwt, resolved)
+                            : chatDomainFacadeService.canDiscoverParticipant(jwt, resolved, selectedSpaceRef))) {
                     admitted.add(candidate);
                 }
             }
@@ -386,7 +401,33 @@ public class MatrixClientServerProjectionController {
         return Map.of("results", results, "limited", scanLimited);
     }
 
-    private Map<String, Object> createRoom(Jwt jwt, MatrixFacadeClientStateService.MatrixIdentity identity, Map<String, Object> body, String idempotencyKey) { if (body.containsKey("is_direct") && !(body.get("is_direct") instanceof Boolean)) throw new MatrixProtocolException("M_BAD_JSON", "Direct conversation intent is invalid."); String title = firstText(body.get("name"), body.get("room_alias_name"), "Conversation"); String kind = Boolean.TRUE.equals(body.get("is_direct")) ? "direct" : "channel"; List<ChatResolvedIdentity> invitedIdentities = new ArrayList<>(); Object rawInvite = body.get("invite"); if (rawInvite instanceof List<?> invite) for (Object value : invite) { if (!(value instanceof String matrixUserId)) throw new MatrixProtocolException("M_BAD_JSON", "Matrix invite identities are invalid."); invitedIdentities.add(matrixClientStateService.identityForMatrixUserId(matrixUserId, identity.tenantId(), identity.identityIssuer()).orElseThrow(() -> new MatrixProtocolException("M_NOT_FOUND", "The invited Matrix identity is not registered with Weave."))); } String transactionId = createRoomTransactionId(identity, idempotencyKey, contextId(jwt)); ChatEncryptionState initialEncryption = initialEncryption(body); ChatConversation conversation = chatDomainFacadeService.createConversation(transactionId, title, kind, invitedIdentities, initialEncryption, jwt); return Map.of("room_id", matrixProtocolCoreService.roomId(conversation.conversationId())); }
+    private Map<String, Object> createRoom(Jwt jwt, MatrixFacadeClientStateService.MatrixIdentity identity,
+            Map<String, Object> body, String idempotencyKey, String selectedSpaceRef) {
+        if (body.containsKey("is_direct") && !(body.get("is_direct") instanceof Boolean)) {
+            throw new MatrixProtocolException("M_BAD_JSON", "Direct conversation intent is invalid.");
+        }
+        String title = firstText(body.get("name"), body.get("room_alias_name"), "Conversation");
+        String kind = Boolean.TRUE.equals(body.get("is_direct")) ? "direct" : "channel";
+        List<ChatResolvedIdentity> invitedIdentities = new ArrayList<>();
+        Object rawInvite = body.get("invite");
+        if (rawInvite instanceof List<?> invite) for (Object value : invite) {
+            if (!(value instanceof String matrixUserId)) {
+                throw new MatrixProtocolException("M_BAD_JSON", "Matrix invite identities are invalid.");
+            }
+            invitedIdentities.add(matrixClientStateService.identityForMatrixUserId(
+                    matrixUserId, identity.tenantId(), identity.identityIssuer()).orElseThrow(() ->
+                    new MatrixProtocolException("M_NOT_FOUND", "The invited Matrix identity is not registered with Weave.")));
+        }
+        String transactionId = createRoomTransactionId(identity, idempotencyKey,
+                selectedSpaceRef == null ? contextId(jwt) : selectedSpaceRef);
+        ChatEncryptionState initialEncryption = initialEncryption(body);
+        ChatConversation conversation = selectedSpaceRef == null
+                ? chatDomainFacadeService.createConversation(
+                        transactionId, title, kind, invitedIdentities, initialEncryption, jwt)
+                : chatDomainFacadeService.createConversation(
+                        transactionId, title, kind, invitedIdentities, initialEncryption, jwt, selectedSpaceRef);
+        return Map.of("room_id", matrixProtocolCoreService.roomId(conversation.conversationId()));
+    }
     private List<Map<String, Object>> roomState(Jwt jwt, String conversationId) {
         ChatConversation conversation = chatDomainFacadeService.conversation(conversationId, jwt);
         var names = admittedDisplayNames(jwt, conversation.memberships().stream().map(ChatMembership::memberRef).toList());

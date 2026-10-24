@@ -102,12 +102,16 @@ class _RevokedTimelineBridge extends FakeRustMatrixCoreBridge {
 }
 
 class _FailingCreateBridge extends FakeRustMatrixCoreBridge {
+  _FailingCreateBridge([this.code = 'M_WEAVE_E2EE_CREATE_ROOM']);
+  final String code;
+
   @override
   Future<RustMatrixEncryptedRoom> createBusinessRoom({
     required String profileKey,
     required String title,
+    String? spaceRef,
   }) {
-    throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_CREATE_ROOM');
+    throw RustMatrixCoreBridgeException(code);
   }
 }
 
@@ -115,12 +119,20 @@ class _ParticipantBridge extends FakeRustMatrixCoreBridge {
   List<String>? invited;
   bool? direct;
   String? search;
+  String? searchSpace;
+  String? createSpace;
+  String? failureCode;
   @override
   Future<List<RustMatrixMember>> searchMembers({
     required String profileKey,
     required String query,
+    String? spaceRef,
   }) async {
     search = query;
+    searchSpace = spaceRef;
+    if (failureCode != null) {
+      throw RustMatrixCoreBridgeException(failureCode!);
+    }
     return const [
       RustMatrixMember(userId: '@member:api.weave.test', displayName: 'Member'),
     ];
@@ -132,9 +144,14 @@ class _ParticipantBridge extends FakeRustMatrixCoreBridge {
     required String title,
     required List<String> memberIds,
     bool isDirect = false,
+    String? spaceRef,
   }) async {
     invited = memberIds;
     direct = isDirect;
+    createSpace = spaceRef;
+    if (failureCode != null) {
+      throw RustMatrixCoreBridgeException(failureCode!);
+    }
     return RustMatrixEncryptedRoom(
       roomId: '!shared:api.weave.test',
       title: title,
@@ -644,6 +661,79 @@ void main() {
           'membership': 'joined',
         }).isDirect,
         isTrue,
+      );
+    },
+  );
+
+  test(
+    'selected Space reaches participant search and both conversation paths',
+    () async {
+      final participantBridge = _ParticipantBridge();
+      final chat = repository(rustBridge: participantBridge);
+      const space = 'space:project-alpha';
+      final members = await chat.searchMembers(' Member ', spaceRef: space);
+      expect(participantBridge.search, 'Member');
+      expect(participantBridge.searchSpace, space);
+      await chat.createConversationWithParticipants(
+        title: 'First conversation',
+        participants: members,
+        isDirect: true,
+        spaceRef: space,
+      );
+      expect(participantBridge.createSpace, space);
+      expect(participantBridge.invited, ['@member:api.weave.test']);
+      expect(participantBridge.direct, isTrue);
+
+      await chat.createConversation(title: 'First channel', spaceRef: space);
+      expect(participantBridge.createdRooms.single['spaceRef'], space);
+
+      await chat.searchMembers('Member');
+      expect(participantBridge.searchSpace, isNull);
+      await chat.createConversationWithParticipants(
+        title: 'Legacy caller',
+        participants: members,
+      );
+      expect(participantBridge.createSpace, isNull);
+    },
+  );
+
+  test(
+    'unsupported Space scope is actionable for search and both creation paths',
+    () async {
+      const code = 'M_WEAVE_CHAT_SPACE_SCOPE_UNSUPPORTED';
+      final participantBridge = _ParticipantBridge()..failureCode = code;
+      final chat = repository(rustBridge: participantBridge);
+      final unsupported = throwsA(
+        isA<ChatFailure>()
+            .having(
+              (failure) => failure.type,
+              'type',
+              ChatFailureType.unsupportedConfiguration,
+            )
+            .having((failure) => failure.message, 'message', code),
+      );
+      await expectLater(
+        chat.searchMembers('Member', spaceRef: 'space:alpha'),
+        unsupported,
+      );
+      await expectLater(
+        chat.createConversationWithParticipants(
+          title: 'First conversation',
+          participants: const [
+            ChatParticipant(
+              userId: '@member:api.weave.test',
+              displayName: 'Member',
+            ),
+          ],
+          spaceRef: 'space:alpha',
+        ),
+        unsupported,
+      );
+      await expectLater(
+        repository(
+          rustBridge: _FailingCreateBridge(code),
+        ).createConversation(title: 'First channel', spaceRef: 'space:alpha'),
+        unsupported,
       );
     },
   );

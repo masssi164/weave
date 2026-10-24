@@ -5,7 +5,10 @@ import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 abstract interface class ChatRepository {
   Future<List<ChatConversation>> loadConversations();
 
-  Future<ChatConversation> createConversation({required String title});
+  Future<ChatConversation> createConversation({
+    required String title,
+    String? spaceRef,
+  });
 
   Future<ChatRoomTimeline> loadRoomTimeline(String roomId);
 
@@ -21,11 +24,12 @@ abstract interface class ChatRepository {
 }
 
 abstract interface class ChatParticipantRepository {
-  Future<List<ChatParticipant>> searchMembers(String query);
+  Future<List<ChatParticipant>> searchMembers(String query, {String? spaceRef});
   Future<ChatConversation> createConversationWithParticipants({
     required String title,
     required List<ChatParticipant> participants,
     bool isDirect = false,
+    String? spaceRef,
   });
 }
 

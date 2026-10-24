@@ -35,11 +35,13 @@ class NativeMatrixChatRepository
         _loadConversations,
       );
   @override
-  Future<List<ChatParticipant>> searchMembers(String query) =>
-      ChatOperationDiagnostics.run(
-        ChatOperation.search,
-        () => _searchMembers(query),
-      );
+  Future<List<ChatParticipant>> searchMembers(
+    String query, {
+    String? spaceRef,
+  }) => ChatOperationDiagnostics.run(
+    ChatOperation.search,
+    () => _searchMembers(query, spaceRef: spaceRef),
+  );
   @override
   Future<ChatRoomTimeline> loadRoomTimeline(String roomId) =>
       ChatOperationDiagnostics.run(
@@ -71,12 +73,14 @@ class NativeMatrixChatRepository
     required String title,
     required List<ChatParticipant> participants,
     bool isDirect = false,
+    String? spaceRef,
   }) => ChatOperationDiagnostics.run(
     ChatOperation.create,
     () => _createConversationInternal(
       title: title,
       participants: participants,
       isDirect: isDirect,
+      spaceRef: spaceRef,
     ),
   );
 
@@ -147,7 +151,10 @@ class NativeMatrixChatRepository
     }
   }
 
-  Future<List<ChatParticipant>> _searchMembers(String query) async {
+  Future<List<ChatParticipant>> _searchMembers(
+    String query, {
+    String? spaceRef,
+  }) async {
     final normalized = query.trim();
     if (normalized.isEmpty || normalized.runes.length > 200) return [];
     try {
@@ -158,6 +165,7 @@ class NativeMatrixChatRepository
       final members = await _rustMatrixCoreBridge.searchMembers(
         profileKey: session.profileKey,
         query: normalized,
+        spaceRef: spaceRef,
       );
       return members
           .where((member) => member.userId.isNotEmpty)
@@ -171,6 +179,9 @@ class NativeMatrixChatRepository
           )
           .toList(growable: false);
     } on RustMatrixCoreBridgeException catch (error) {
+      if (error.code == 'M_WEAVE_CHAT_SPACE_SCOPE_UNSUPPORTED') {
+        throw ChatFailure.unsupportedConfiguration(error.code, cause: error);
+      }
       if (isMatrixSessionExpiredCode(error.code) ||
           error.code == 'M_FORBIDDEN') {
         throw ChatFailure.sessionRequired(
@@ -190,20 +201,29 @@ class NativeMatrixChatRepository
     required String title,
     required List<ChatParticipant> participants,
     bool isDirect = false,
+    String? spaceRef,
   }) => _createConversation(
     title: title,
     participants: participants,
     isDirect: isDirect,
+    spaceRef: spaceRef,
   );
 
   @override
-  Future<ChatConversation> createConversation({required String title}) =>
-      _createConversation(title: title, participants: const []);
+  Future<ChatConversation> createConversation({
+    required String title,
+    String? spaceRef,
+  }) => _createConversation(
+    title: title,
+    participants: const [],
+    spaceRef: spaceRef,
+  );
 
   Future<ChatConversation> _createConversationInternal({
     required String title,
     required List<ChatParticipant> participants,
     bool isDirect = false,
+    String? spaceRef,
   }) async {
     if (isDirect && participants.length != 1) {
       throw const ChatFailure.configuration(
@@ -225,11 +245,13 @@ class NativeMatrixChatRepository
           ? await _rustMatrixCoreBridge.createBusinessRoom(
               profileKey: session.profileKey,
               title: normalizedTitle,
+              spaceRef: spaceRef,
             )
           : await _rustMatrixCoreBridge.createBusinessRoomWithMembers(
               profileKey: session.profileKey,
               title: normalizedTitle,
               isDirect: isDirect,
+              spaceRef: spaceRef,
               memberIds: participants
                   .map((member) => member.userId)
                   .toList(growable: false),
@@ -248,6 +270,9 @@ class NativeMatrixChatRepository
         isDirectMessage: room.isDirect,
       );
     } on RustMatrixCoreBridgeException catch (error) {
+      if (error.code == 'M_WEAVE_CHAT_SPACE_SCOPE_UNSUPPORTED') {
+        throw ChatFailure.unsupportedConfiguration(error.code, cause: error);
+      }
       if (isMatrixSessionExpiredCode(error.code)) {
         throw ChatFailure.sessionRequired(
           'Chat authorization expired. Retry with your Weave sign-in.',
