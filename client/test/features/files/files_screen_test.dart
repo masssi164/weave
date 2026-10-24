@@ -1663,6 +1663,75 @@ void main() {
     });
   }
 
+  for (final language in ['en', 'de']) {
+    for (final status in [
+      FilesConnectionStatus.connected,
+      FilesConnectionStatus.disconnected,
+      FilesConnectionStatus.invalid,
+      FilesConnectionStatus.unavailable,
+      FilesConnectionStatus.misconfigured,
+    ]) {
+      testWidgets('Files uses member copy in $language for $status', (
+        tester,
+      ) async {
+        tester.platformDispatcher.localesTestValue = [Locale(language)];
+        addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+        final repository = _FakeFilesRepository(
+          connectionState: FilesConnectionState(
+            status: status,
+            baseUrl: Uri.parse('https://api.example/api'),
+            accountLabel: 'Weave files',
+            message:
+                'Unlocalized provider internals must stay out of member UI',
+          ),
+        );
+        await tester.pumpWidget(
+          _filesTestApp(
+            const FilesScreen(),
+            overrides: [
+              filesRepositoryProvider.overrideWithValue(repository),
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+              ),
+              serverConfigurationRepositoryProvider.overrideWith(
+                (ref) => _FakeServerConfigurationRepository(
+                  buildTestConfiguration(),
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(FilesScreen)),
+        );
+        expect(find.textContaining('Weave files'), findsNothing);
+        expect(find.textContaining('Connected as'), findsNothing);
+        expect(find.textContaining('Verbunden als'), findsNothing);
+        expect(find.textContaining('User API'), findsNothing);
+        expect(find.textContaining('User-API'), findsNothing);
+        expect(find.textContaining('provider internals'), findsNothing);
+        expect(find.text(l10n.filesProductBoundaryTitle), findsNothing);
+        if (status == FilesConnectionStatus.connected) {
+          expect(find.text(l10n.filesPrivateSpace), findsWidgets);
+          expect(repository.requestedPaths, ['/']);
+        } else {
+          expect(repository.requestedPaths, isEmpty);
+          final expected = switch (status) {
+            FilesConnectionStatus.disconnected => l10n.filesDisconnectedMessage,
+            FilesConnectionStatus.invalid => l10n.filesInvalidSessionMessage,
+            FilesConnectionStatus.misconfigured =>
+              l10n.filesMisconfiguredMessage,
+            _ => l10n.filesUnavailableGuidance,
+          };
+          expect(find.text(expected), findsOneWidget);
+        }
+      });
+    }
+  }
+
   group('FilesScreen', () {
     testWidgets('explains missing Space access with accessible recovery', (
       tester,
@@ -1817,57 +1886,48 @@ void main() {
       },
     );
 
-    testWidgets('points to the shared Weave sign-in when Files has no session', (
-      tester,
-    ) async {
-      final repository = _FakeFilesRepository(
-        connectionState: FilesConnectionState.disconnected(
-          baseUrl: Uri.parse('https://files.home.internal'),
-        ),
-      );
-
-      await tester.pumpWidget(
-        _filesTestApp(
-          const FilesScreen(),
-          overrides: [
-            filesRepositoryProvider.overrideWithValue(repository),
-            appStartDiscoveryClientProvider.overrideWith(
-              (ref) => buildTestDiscoveryClient(
-                ref.watch(serverConfigurationRepositoryProvider),
-              ),
-            ),
-            serverConfigurationRepositoryProvider.overrideWith(
-              (ref) =>
-                  _FakeServerConfigurationRepository(buildTestConfiguration()),
-            ),
-          ],
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Connect Files'), findsNothing);
-      expect(find.text('Sign in to use Files'), findsOneWidget);
-      expect(
-        find.text('Sign in to Weave to browse workspace files.'),
-        findsOneWidget,
-      );
-      expect(find.text('Weave Files'), findsOneWidget);
-      expect(find.text('Weave product boundary'), findsOneWidget);
-      expect(
-        find.textContaining('Files actions use the Weave User API'),
-        findsOneWidget,
-      );
-      expect(find.text('https://files.home.internal'), findsNothing);
-      expect(
-        find.bySemanticsLabel(
-          RegExp(
-            'Weave product boundary.*Weave User API.*raw provider paths and credentials',
-            dotAll: true,
+    testWidgets(
+      'points to the shared Weave sign-in when Files has no session',
+      (tester) async {
+        final repository = _FakeFilesRepository(
+          connectionState: FilesConnectionState.disconnected(
+            baseUrl: Uri.parse('https://files.home.internal'),
           ),
-        ),
-        findsOneWidget,
-      );
-    });
+        );
+
+        await tester.pumpWidget(
+          _filesTestApp(
+            const FilesScreen(),
+            overrides: [
+              filesRepositoryProvider.overrideWithValue(repository),
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+              ),
+              serverConfigurationRepositoryProvider.overrideWith(
+                (ref) => _FakeServerConfigurationRepository(
+                  buildTestConfiguration(),
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Connect Files'), findsNothing);
+        expect(find.text('Sign in to use Files'), findsOneWidget);
+        expect(
+          find.text('Sign in to Weave to browse workspace files.'),
+          findsOneWidget,
+        );
+        expect(find.text('Weave Files'), findsNothing);
+        expect(find.text('Weave product boundary'), findsNothing);
+        expect(find.textContaining('Weave User API'), findsNothing);
+        expect(find.textContaining('provider'), findsNothing);
+        expect(find.text('https://files.home.internal'), findsNothing);
+      },
+    );
 
     testWidgets('explains unavailable Files access without browsing', (
       tester,
@@ -1901,7 +1961,7 @@ void main() {
       expect(find.text('Files are unavailable'), findsOneWidget);
       expect(
         find.text('Files access is blocked by workspace policy.'),
-        findsOneWidget,
+        findsNothing,
       );
       expect(find.text('Retry'), findsAtLeastNWidgets(1));
       expect(repository.requestedPaths, isEmpty);

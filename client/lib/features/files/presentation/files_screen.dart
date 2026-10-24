@@ -224,12 +224,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     FilesViewState state, {
     required bool isCurrentRead,
   }) {
-    final slivers = <Widget>[
-      SliverPadding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-        sliver: SliverToBoxAdapter(child: _ConnectionCard(state: state)),
-      ),
-    ];
+    final slivers = <Widget>[];
 
     if (state.connectionState.status == FilesConnectionStatus.connected) {
       slivers.add(
@@ -306,7 +301,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         return _fillStateSliver(
           child: EmptyState(
             message: l10n.filesSetupNeededTitle,
-            guidance: connectionState.message ?? l10n.filesMisconfiguredMessage,
+            guidance: l10n.filesMisconfiguredMessage,
             icon: Icons.settings_outlined,
           ),
         );
@@ -329,7 +324,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         return _fillStateSliver(
           child: ErrorState(
             message: l10n.filesUnavailableTitle,
-            guidance: connectionState.message ?? l10n.filesUnavailableGuidance,
+            guidance: l10n.filesUnavailableGuidance,
             retryLabel: l10n.retryButton,
             onRetry: state.isBusy
                 ? null
@@ -1059,114 +1054,6 @@ class _DirectorySummary extends StatelessWidget {
       l10n.filesDirectorySummary(folderCount, fileCount),
       style: theme.textTheme.bodyMedium?.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
-      ),
-    );
-  }
-}
-
-class _ConnectionCard extends ConsumerWidget {
-  const _ConnectionCard({required this.state});
-
-  final FilesViewState state;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    final connectionState = state.connectionState;
-    final description = switch (connectionState.status) {
-      FilesConnectionStatus.connected => l10n.filesConnectionConnected(
-        connectionState.accountLabel ?? l10n.filesProductTitle,
-      ),
-      FilesConnectionStatus.invalid => l10n.filesConnectionInvalid,
-      FilesConnectionStatus.unavailable => l10n.filesConnectionUnavailable,
-      FilesConnectionStatus.disconnected => l10n.filesConnectionDisconnected,
-      FilesConnectionStatus.misconfigured => l10n.filesConnectionMisconfigured,
-    };
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(l10n.filesProductTitle, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(description, style: theme.textTheme.bodyMedium),
-            if (connectionState.status != FilesConnectionStatus.connected) ...[
-              const SizedBox(height: 12),
-              _FilesBoundaryNotice(
-                title: l10n.filesProductBoundaryTitle,
-                body: l10n.filesProductBoundaryBody,
-              ),
-            ],
-            if (connectionState.status ==
-                FilesConnectionStatus.unavailable) ...[
-              const SizedBox(height: 16),
-              AccessibleButton(
-                onPressed: state.isBusy
-                    ? null
-                    : () {
-                        ref.read(filesProvider.notifier).connect();
-                      },
-                semanticLabel: l10n.retryButton,
-                child: Text(l10n.retryButton),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FilesBoundaryNotice extends StatelessWidget {
-  const _FilesBoundaryNotice({required this.title, required this.body});
-
-  final String title;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final semanticLabel = '$title. $body';
-
-    return Semantics(
-      container: true,
-      label: semanticLabel,
-      child: ExcludeSemantics(
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.verified_user_outlined,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: theme.textTheme.labelLarge),
-                    const SizedBox(height: 4),
-                    Text(
-                      body,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

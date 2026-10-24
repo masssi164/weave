@@ -823,7 +823,7 @@
   "@filesInvalidSessionMessage": {
     "description": "Message shown when the saved Files session is no longer valid"
   },
-  "filesMisconfiguredMessage": "Finish Weave server setup before using Files.",
+  "filesMisconfiguredMessage": "Files are not set up for this workspace yet. Ask a workspace admin to finish setup.",
   "@filesMisconfiguredMessage": {
     "description": "Message shown when the Files feature is missing required server setup"
   },
