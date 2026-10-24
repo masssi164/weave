@@ -91,7 +91,8 @@ backend outcomes or substitute API calls for required UI interactions.
 Computer Use is exploratory interaction evidence. It does not establish human usability,
 satisfaction, physical-device accessibility or VoiceOver acceptance. Record unavailable observations
 explicitly. After local blockers are fixed, freeze a clean candidate and run protected Dev/Dogfood
-Compose, macOS and full dual-iOS qualification. Changed source or pin requires fresh qualification.
+hosted artifact composition and fresh Compose/two-ordinary-member dual-iOS qualification.
+macOS desktop testing is manual-only. Changed source or pin requires fresh qualification.
 Deployment, physical iPhone preparation and explicit human acceptance remain distinct gates.
 
 ## Prompting checklist for future agent work
@@ -112,157 +113,77 @@ Discover commands in the current repository and use the smallest meaningful chec
 
 ## Ordinary persisted Dogfood functional check
 
-The pinned delivery contract additionally requires the bounded phase in
-`tools/dogfood_functional_smoke.py`. It supplements full isolated Compose/macOS/
-two-iOS qualification. Deployment uses two owned simulators running normal
-`lib/main.dart` in debug mode; physical preparation uses the retained owner iPhone
-profile build and one owned normal-main peer simulator. Simulator profile builds
-are not claimed. The existing XCTest BrowserDriver performs ordinary controls,
-real system-browser PKCE sign-in and native document pickers. No integration
-entrypoint, actor file in the application, relay, database seed, owner session
-copy, Keychain read or account replacement is permitted.
+`tools/dogfood_functional_smoke.py` supplements isolated two-member collaboration with real
+ordinary-entry behavior against the deployed Dogfood stack. Deployment uses two owned simulators
+running the hosted normal `lib/main.dart` application, with the existing prebuilt XCTest
+BrowserDriver operating normal controls, system-browser PKCE and native document pickers.
+The product app receives no integration fixture, actor file or injected session. There is no
+provider-direct route, database seed, owner session copy, Keychain read or account replacement.
 
-The private runner input is
-`~/.weave/dogfood/functional-smoke-identities.json`, or the explicit
-`--identity-file` CLI argument. Its parent must be owned/private (0700) and the
-regular, nonsymlink input owned/private (0600). It is not an artifact or a public
-environment variable. The closed JSON shape is:
+The shared `fixtures/member-client-baseline/v1.json` recipe determines required domains,
+shared Space, two ordinary member actors and run-scoped content. The bounded
+`tools/prepare_member_scenario.py` operation resolves that recipe through existing Server
+identity/domain services, verifies actual account/subject/organization and current `VIEW,EDIT`
+Space grants, and emits private credentials and bindings. The operation is limited to the
+exact plan-owned test identities in reviewed Dogfood or an explicitly owned isolated E2E
+namespace; it does not bootstrap or replace the persistent owner. Prepared credentials are
+only setup inputs. Both real apps still independently authenticate and prove the same current
+identities before their product assertions.
 
-- `schemaVersion`: `weave.dogfood-functional-identities/v1`.
-- `organizationOrigin`: the reviewed public HTTPS organization origin.
-- `members`: exactly two distinct approved normal test members, each with only
-  `email`, `password` and `displayName`.
-- `ownerDisplayName`: the existing owner's visible display name, with no owner
-  password, bearer, session or setup authority.
+The ordinary identity file keeps schema `weave.dogfood-functional-identities/v1` and the existing
+strict fields: reviewed organization origin, exactly two distinct approved test members and
+existing owner display name. Its private sidecar pins the common scenario and resolved bindings.
+Private directories are owned mode 0700, and regular nonsymlink credential files are mode 0600.
+Credentials, subjects, raw account identifiers, invitation links, ledgers and UI transcripts
+must not be uploaded. The recipe itself contains no credentials or environment-specific authority.
 
-The Admin Console obtains its current actor from the generated Admin control-plane response,
-including the canonical account reference, organization, issuer and current roles. It validates
-that actor before exposing setup controls; an Admin bearer is never sent to User `/api/me`.
-The separate User and Admin authorized-party checks remain enforced. Isolated qualification
-also verifies the packaged Console's admitted identity path before default-Space confirmation.
+The separate legacy `dogfoodPrepare` invitation/Console paths remain available for explicit
+onboarding investigations. Their registration and approval checkpoints do not make another
+invitation or owner Console login a prerequisite for each prepared-member client iteration.
+Console setup still uses the generated Admin current-actor projection; a User `/api/me` request
+cannot validate an Admin session. Normal User/Admin audience and authorized-party checks remain
+independent. Managed fixture provisioning cannot silently broaden, recreate or restore a revoked
+Space grant or change a personal account; uncertain current state fails closed.
 
-Missing input invokes the explicit `./gradlew --no-daemon dogfoodPrepare` path;
-the owner does not manufacture a credential file or manually create a Space.
-The protected ordinary functional producer's existing missing-input bridge explicitly
-selects that operator preparation stage after exact-candidate deployment. Merely
-selecting a Dogfood environment, ordinary startup or a readiness poll does not
-invoke or authorize it. The same reviewed host, candidate, private-plan and ledger
-guards apply to the bridge and the separate root command.
-This command uses the fixed reviewed Dogfood environment file and the shared
-exclusive session lock. It projects only the existing public CA into a local
-setup bundle and the two exact Dogfood-only gateway setup paths. It verifies
-ordinary macOS trust independently for organization, API and issuer; trusting
-the CA remains an explicit OS-authenticated human action. It does not rebuild,
-restart or repair the stack, change TLS, or reset any owner state.
+Both deployment actors use ordinary member roles and current shared-Space access. Setup/admin
+credentials remain separate. The producer creates namespaced run-owned content through UI and
+verifies the same stable resources through the peer: bidirectional Chat and reopening; shared
+folder, upload, preview and native export with actual byte readback; and Calendar
+create/read/update/delete. Calendar absence requires a completed fresh refresh and exact
+stable-ID absence. Display names, loading states or a successful tap cannot substitute for
+identity or content readback. Restart and same-artifact in-place reinstall repeat shared content
+and account/context checks.
 
-Preparation builds two owned ordinary-main simulators before inviting anyone.
-The default `--authorization-mode operator` path uses the existing trusted Dogfood
-host authority for one fixed private two-member plan. It verifies the effective
-reviewed file, persistent-Dogfood container labels and exact image/source before
-invoking the fixed `dogfood-prepare-members` Server command. The command starts
-only its dedicated non-listening validation-only context, with the existing
-configuration and SecretRefs. It checks the explicit Dogfood release posture and
-serving candidate before mutation; production and ordinary startup cannot use it.
-No public API, service bearer, administrator account or new credential is added.
+Private Files proof creates and opens a separate run-owned private folder, changes to the shared
+root and back to that same private identity, and verifies tab/restart/update continuity. The
+peer's private root must not contain it. Negative reads require a completed successful listing
+and bounded ordinary scrolling to the real end; stale, loading, failed or unscanned listings
+remain incomplete. Public receipts contain only digests and required isolation/continuity flags.
 
-The operator is separately identified in provisioning intents and audit records.
-It never acts through a fabricated human JWT or the owner's account. The selected
-physical owner must already be uniquely enabled, activated and authorized in the
-existing default Space. Missing, ambiguous, revoked or suspended owner/Space
-state blocks; this command does not repair that access. Exactly two plan-derived
-unprivileged test-member invitations are followed by ordinary member sign-in and
-canonical identity proof before absent-first default-Space VIEW/EDIT grants.
-Existing exact active grants are verified; broader, conflicting or revoked grants
-are never replaced or restored. The command cannot choose another account, role
-or Space. Exact provisioning-intent references and current versions govern resume.
+Precisely identified run-owned private/shared content is retained for continuity and recorded as
+`retained-owned-content`. Calendar deletion and independent absence are required. Owned simulators,
+transient invocation files and raw XCTest results are removed. Approved persistent identity input
+and the owned-content ledger remain private for subsequent bounded runs. Unrelated owner data,
+TLS, signing and applications are preserved; no global cleanup or name-only deletion is used.
 
-The optional `--authorization-mode console` path retains the existing normal
-Admin Console session and displayed-plan approval. The browser driver may review
-the plan but cannot click its approval control. Missing normal administrator SSO
-or approval is a precise incomplete boundary for that path; it is not a required
-step in the operator path. Full Admin Console usability acceptance remains separate
-from preparing the member application.
+The deployment receipt includes complete `weave.dogfood-functional-smoke/v3` evidence bound to
+the current candidate composition, actual successful qualification job attempt, verified runtime
+images, ordinary app artifact and direct reviewed routing. Every required operation, independent
+identity/resource digest, export-byte check, restart/update readback and cleanup must pass.
+`--diagnostic-only` cannot produce accepted evidence.
 
-Stock registration and any VERIFY_EMAIL link stay in the private recipient-matched
-Mailpit inbox and XCTest fixture. Each test member subsequently completes the
-ordinary application's independent system-browser PKCE and reconciliation. Its
-actual current account/organization digests must match the current canonical
-Server projection before grants can be accepted. A registration ACK is not app sign-in.
-These are persistent test accounts; a first-owner bootstrap record is not a
-normal administrator session. Never fabricate user-info or seed E2E memberships.
-If the selected preparation authorization, normal test-member authentication,
-passkey/MFA or physical owner sign-in cannot be completed, retain an **incomplete**
-result with its precise boundary.
-Finish independent diagnostics first. Do not publish credentials or invitation
-URLs in GitHub, and do not reset or replace an owner session to obtain proof.
+## Physical startup and human acceptance
 
-The host atomically maintains a private
-`functional-smoke-identities.preparation-ledger.json` beside the input. Its
-authority-specific record retains the exact plan, authorization kind, stable
-invitation request keys and provisioning-intent references, generated test-only
-passwords, registration checkpoints, current readbacks, exact source metadata,
-fixture digest and issuer-bound selected-owner identity digests. Operator receipts
-identify the operator and real owner separately; they are never relabeled human
-administrator receipts. The owner's actual visible name stays in the private
-envelope and ledger, outside support-safe evidence.
+Protected physical preparation consumes the already qualified device artifact. It signs locally,
+installs in place and uses the prebuilt ordinary-startup driver to observe the existing workspace
+or normal sign-in. The `weave.hil-preparation/v4` receipt binds candidate, composition, installed
+binary, actual qualification attempt and fresh startup nonce; it records preserved owner state
+and temporary-driver cleanup. `ownerHIL` remains `pending`.
 
-The ledger contains no owner bearer, browser cookies, Keychain material or raw
-session. Do not upload it or the credentials. Resume preserves test passwords and
-verifies current state; lost/changed credentials block rather than reset accounts.
-A legacy unexecuted plan may retain its generated names and passwords, but issued
-human-authority references cannot be converted to operator authority. Fresh
-invocation nonces reject stale output. Credentials publish only after both own-app
-identity proofs, current grant readback and owned-simulator cleanup. This completes
-preparation prerequisites, never functional, VoiceOver or human acceptance.
-
-Before physical product writes, the retained phone's observed account and
-organization must match that selected-owner binding. Deployment's two actors
-instead match the two independently authenticated approved test members. A
-fixture's display name or the acting administrator cannot substitute for this
-identity comparison.
-
-The producer creates namespaced run-owned content through UI, records hashed
-stable resource identities and verifies the same identities through the other
-normal member. It checks direct bidirectional Chat, reopening, shared folder and
-uploaded file preview, an actual native export whose bytes are read from the
-owned peer's Documents directory after removing the original upload source, and
-Calendar create/read/update/delete with fresh peer readback. Calendar absence
-requires completed fresh refresh and exact stable-ID absence; disappearance
-while loading is insufficient. Account and organization references come from
-current authenticated secondary diagnostics, not fixture names. Both members
-must be observed and distinct. Restart and same-candidate in-place reinstall
-then repeat Chat/Files readback and account/context checks. The iPhone retains
-its existing account and local stores, and starts without an onboarding URL.
-Installation/launch-requested evidence alone never establishes functional success.
-
-Private Files proof creates and opens a separate run-owned private folder,
-changes to the shared root and back to the same private folder identity, and
-checks that another tab preserves the current private destination. The peer's
-private root must not contain that folder. Both negative reads require a newly
-completed successful listing and bounded ordinary scrolling to the actual end;
-stale, loading, failed or unscanned listings leave the result incomplete. Restart
-and in-place update must reopen the same private folder identity through the
-ordinary UI. Public receipts include only its digest and required scope, peer
-isolation and continuity flags; the private ledger keeps the owned fixture name.
-
-Only precisely identified run-owned private/shared folder/file/conversation fixtures are
-retained for continuity, reported as `retained-owned-content`. Calendar deletion
-and independent absence are required. Owned simulators, transient credential
-invocation files and raw XCTest results are removed. The approved persistent
-identity input and an owned-content ledger under
-`~/.weave/dogfood/functional-smoke-owned-content/` remain private for later bounded runs; unrelated owner data,
-secrets, TLS, signing and applications are untouched. No global cleanup or
-name-only deletion is used.
-
-`weave.dogfood-deployment/v2` and `weave.hil-preparation/v3` include a complete
-`weave.dogfood-functional-smoke/v2` receipt binding source tree, specification,
-deployed image/source, ordinary app build, direct reviewed routing and final
-qualification run **and attempt**. Fixed ordered observed operations, independent
-identity/resource digests, actual exported bytes, restart/update readback and
-cleanup must all pass. A missing, stale, discovery-only or incomplete result
-blocks ready handoff and Main. `--diagnostic-only` is always incomplete and
-cannot create acceptance evidence. Raw UI transcripts, xcresults and member
-content stay in a temporary private directory; only the allowlisted receipt is
-uploaded. Physical invocation files are delivered only to the separately signed
-existing XCTest runner sandbox, consumed there and removed with that run-owned
-runner; the owner application receives no actor or credential file. Automated results do not establish human VoiceOver or E2EE acceptance.
+The human signs in normally when needed and reports actual Chat, Files, Calendar, session and
+VoiceOver observations with the tested owner/admin/member role. A legacy optional physical
+functional diagnostic is not a prerequisite for that handoff, and its older v3 preparation
+receipt cannot replace current v4 startup evidence. Automated collaboration and startup never
+establish human usability, VoiceOver or E2EE acceptance. See
+[iPhone delivery](ios-dogfood-distribution.md) and the
+[human-result protocol](gitflow-pr-workflow.md).

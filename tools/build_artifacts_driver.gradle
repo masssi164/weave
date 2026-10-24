@@ -1,0 +1,8 @@
+// Build the ordinary product-flow JVM distribution without changing its runtime contract.
+gradle.beforeProject { project ->
+    if (project.path == ':weave-product-e2e') {
+        project.pluginManager.apply('application')
+        project.extensions.getByType(org.gradle.api.plugins.JavaApplication).mainClass =
+                'com.massimotter.weave.e2e.FreshProductFlow'
+    }
+}

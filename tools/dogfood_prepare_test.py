@@ -11,8 +11,9 @@ import tempfile
 import hashlib
 import signal
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import unittest
+import types
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import dogfood_prepare as prepare
@@ -33,6 +34,12 @@ class PrepareTest(unittest.TestCase):
                        check=True, capture_output=True, timeout=15)
 
     def setUp(self):
+        self.artifacts = types.ModuleType("artifact_consumers")
+        self.artifacts.ArtifactError = type("ArtifactError", (ValueError,), {})
+        self.artifacts.verify_runtime_container = Mock(return_value={})
+        self.artifacts.native_bundle = Mock()
+        self.artifacts.copy_driver_products = Mock()
+        self.enterContext(patch.dict(sys.modules, {"artifact_consumers": self.artifacts}))
         temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup)
         self.directory = Path(temporary.name).resolve()
         tls = self.directory / "tls"; tls.mkdir()
@@ -47,12 +54,13 @@ class PrepareTest(unittest.TestCase):
         return [{"origin": self.context.env[key], "status": "passed", "category": "trusted", "nativeCode": 0, "httpStatus": 200}
                 for key in ("WEAVE_PUBLIC_URL", "WEAVE_API_ORIGIN", "WEAVE_AUTH_URL")]
 
-    def test_preparation_toolchain_failure_blocks_native_build_and_both_invitation_authorities(self):
+    def test_missing_hosted_artifact_blocks_native_setup_and_both_invitation_authorities(self):
         for mode in ("operator", "console"):
             with self.subTest(mode=mode):
                 fixture = self.directory / (mode + "/identities.json")
                 result = {"trust": self.descriptor(), "localTrustStatus": "passed"}
                 runner = smoke.Runner(self.directory)
+                self.artifacts.native_bundle.side_effect = self.artifacts.ArtifactError("unavailable")
                 def run(command, **kwargs):
                     if command[-1] == "HEAD": return "a" * 40
                     if command[-1].endswith("^{tree}"): return "b" * 40
@@ -65,11 +73,11 @@ class PrepareTest(unittest.TestCase):
                         patch("compose_runtime.verify_dogfood_identity"), patch("compose_runtime._service_container", return_value=backend), \
                         patch.object(prepare, "operator_backend"), patch.object(prepare, "operator_driver") as operator, \
                         patch.object(prepare, "admin_driver") as console:
-                    observed = prepare.prepare_members(self.context, result, fixture, prepare.ledger_for(fixture), authorization_mode=mode)
-                inspect.assert_called_once_with(); runtime.assert_not_called()
+                    observed = prepare.prepare_members_onboarding(self.context, result, fixture, prepare.ledger_for(fixture), authorization_mode=mode)
+                inspect.assert_not_called(); runtime.assert_not_called()
                 operator.assert_not_called(); console.assert_not_called()
                 self.assertTrue(all(call.args[0][0] == "git" for call in execute.call_args_list))
-                self.assertEqual(observed["boundary"], "pinned-native-toolchain-unavailable")
+                self.assertEqual(observed["boundary"], "verified-hosted-simulator-artifact-required")
                 self.assertFalse(observed["preparationComplete"])
                 self.assertFalse(fixture.exists())
                 self.assertNotIn("private-detail", json.dumps(observed))
@@ -335,7 +343,7 @@ class PrepareTest(unittest.TestCase):
         with patch.object(smoke, "Runner", return_value=fake_runner), patch("compose_runtime.verify_dogfood_identity"), \
                 patch("compose_runtime._service_container", return_value=backend), patch.object(prepare, "build_actors", side_effect=build), \
                 patch.object(prepare, "admin_driver", side_effect=ContractError("reviewed-test-member-plan-approval-required")):
-            observed = prepare.prepare_members(self.context, result, fixture, prepare.ledger_for(fixture), authorization_mode="console")
+            observed = prepare.prepare_members_onboarding(self.context, result, fixture, prepare.ledger_for(fixture), authorization_mode="console")
         self.assertEqual(observed["boundary"], "reviewed-test-member-plan-approval-required")
         self.assertFalse(observed["preparationComplete"])
         self.assertFalse(fixture.exists())
@@ -373,7 +381,7 @@ class PrepareTest(unittest.TestCase):
         with patch.object(smoke, "Runner", return_value=runner), patch("compose_runtime.verify_dogfood_identity"), \
                 patch("compose_runtime._service_container", return_value=backend), patch.object(prepare, "build_actors", side_effect=build), \
                 patch.object(prepare, "admin_driver", side_effect=admin), patch.object(prepare, "member_proof", side_effect=member):
-            observed = prepare.prepare_members(self.context, result, fixture, prepare.ledger_for(fixture), authorization_mode="console")
+            observed = prepare.prepare_members_onboarding(self.context, result, fixture, prepare.ledger_for(fixture), authorization_mode="console")
         self.assertEqual(signal.getsignal(signal.SIGTERM), before)
         return observed, fixture, calls
 
@@ -451,7 +459,7 @@ class PrepareTest(unittest.TestCase):
                 patch.object(smoke, "Runner", side_effect=runner), patch("compose_runtime.verify_dogfood_identity"), \
                 patch("compose_runtime._service_container", return_value=backend), patch.object(prepare, "build_actors", side_effect=build), \
                 patch.object(prepare, "member_proof", side_effect=member), patch.object(prepare.subprocess, "run", side_effect=native):
-            observed = prepare.prepare_members(self.context, result, fixture, prepare.ledger_for(fixture), authorization_mode="console")
+            observed = prepare.prepare_members_onboarding(self.context, result, fixture, prepare.ledger_for(fixture), authorization_mode="console")
         self.assertEqual(observed["boundary"], "ordinary-functional-smoke-required")
         self.assertIs(observed["preparationComplete"], True)
         self.assertEqual(used, [created[0].resolve()])
@@ -674,6 +682,8 @@ class PrepareTest(unittest.TestCase):
         return {"Id": "a" * 64, "Image": "sha256:" + "b" * 64, "State": {"Running": True},
                 "Config": {"Env": ["WEAVE_RELEASE_POSTURE=dogfood"], "Labels": {
                     "org.opencontainers.image.revision": "a" * 40, "com.massimotter.weave.module": "server",
+                    "com.massimotter.weave.candidate-commit": "a" * 40,
+                    "com.massimotter.weave.spec-commit": self.operator_candidate()["specificationCommit"],
                     "com.massimotter.weave.spec-digest": "sha256:" + hashlib.sha256((prepare.ROOT / "specs/weave-specs.lock.json").read_bytes()).hexdigest(),
                     "com.docker.compose.project": self.context.env["WEAVE_COMPOSE_PROJECT"], "com.docker.compose.service": "backend",
                     "com.massimotter.weave.namespace": self.context.env["WEAVE_RESOURCE_PREFIX"]}}}
@@ -757,6 +767,7 @@ class PrepareTest(unittest.TestCase):
         backend = self.operator_backend(); candidate = self.operator_candidate()
         prepare.operator_backend(self.context, candidate, backend, runner)
         for key in backend["Config"]["Labels"]:
+            if key == "org.opencontainers.image.revision": continue
             changed = copy.deepcopy(backend); changed["Config"]["Labels"][key] = "wrong"
             with self.subTest(label=key), self.assertRaises(ContractError): prepare.operator_backend(self.context, candidate, changed, runner)
         for mutation in ("posture", "duplicate-posture", "stopped", "container", "image", "bootstrap"):
@@ -768,7 +779,9 @@ class PrepareTest(unittest.TestCase):
             if mutation == "image": changed["Image"] = "backend:latest"
             if mutation == "bootstrap": changed["Config"]["Env"].append("WEAVE_IDENTITY_BOOTSTRAP_OWNER_ENABLED=true")
             with self.subTest(mutation=mutation), self.assertRaises(ContractError): prepare.operator_backend(self.context, candidate, changed, runner)
-        with self.assertRaises(ContractError): prepare.operator_backend(self.context, candidate, backend, SimpleNamespace(run=lambda *a, **k: "c" * 40))
+        self.artifacts.verify_runtime_container.side_effect = self.artifacts.ArtifactError("wrong-component")
+        with self.assertRaises(ContractError): prepare.operator_backend(self.context, candidate, backend, runner)
+        self.artifacts.verify_runtime_container.side_effect = None
         self.context.environment = "prod"
         with self.assertRaises(ContractError): prepare.operator_backend(self.context, candidate, backend, runner)
 
@@ -787,7 +800,7 @@ class PrepareTest(unittest.TestCase):
             with self.subTest(mutation=mutation), patch.object(smoke, "Runner", return_value=runner), \
                     patch("compose_runtime.verify_dogfood_identity"), patch("compose_runtime._service_container", return_value=backend), \
                     patch.object(prepare, "build_actors") as build, patch.object(prepare, "operator_driver") as command:
-                result = prepare.prepare_members(context, result, fixture, prepare.ledger_for(fixture))
+                result = prepare.prepare_members_onboarding(context, result, fixture, prepare.ledger_for(fixture))
             self.assertFalse(result["preparationComplete"])
             build.assert_not_called(); command.assert_not_called()
             self.assertFalse(fixture.exists()); self.assertFalse(prepare.ledger_for(fixture).exists())
@@ -911,7 +924,7 @@ class PrepareTest(unittest.TestCase):
                 patch("compose_runtime._service_container", return_value=backend), patch.object(prepare, "build_actors", side_effect=build), \
                 patch.object(prepare, "operator_driver", side_effect=invoke), patch.object(prepare, "member_proof", side_effect=member), \
                 patch.object(prepare, "admin_driver") as admin:
-            result = prepare.prepare_members(self.context, result, fixture, ledger_path)
+            result = prepare.prepare_members_onboarding(self.context, result, fixture, ledger_path)
         admin.assert_not_called()
         return result, fixture, ledger_path, calls
 

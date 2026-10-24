@@ -24,10 +24,10 @@ This release flow keeps `main` stable while giving Weave a practical integration
 
 - Promote `dev` to `dogfood` by PR when the integrated candidate is ready for live validation.
 - Run deterministic checks and review on the promotion PR; add missing acceptance scenarios/mappings before qualification.
-- The protected Dogfood merge commit becomes the candidate. Mandatory Full Compose, native macOS and native iOS Simulator integration must pass for that exact commit and pinned corpus revision.
+- The protected Dogfood merge commit becomes the candidate. Verify its hosted artifact composition and run fresh Full Compose with two concurrent real iOS Simulator apps using two prepared ordinary members and the shared scenario. The candidate, corpus revision, scenario, actual successful job attempt and cleanup must match. macOS desktop testing is manual-only.
 - Deploy that same qualified commit and prepare its physical iPhone build before HIL. Merging to Dogfood alone does not authorize human-test readiness.
-- Physical preparation establishes or verifies durable default-Space access for the actual activated owner before installation. Existing grants and policy denials remain authoritative; a pending invitation or installed app alone cannot establish usable owner access.
-- Record explicit human acceptance; automated suites never manufacture human outcomes.
+- Physical preparation establishes or verifies durable default-Space access for the actual activated owner, signs the qualified device artifact, installs it in place and observes a retained workspace or normal sign-in. Existing grants and policy denials remain authoritative. The v4 receipt leaves owner HIL pending; personal sign-in is the expected human action when needed.
+- Record explicit v2 human acceptance with the actual tested `owner`, `admin` or `member` role; automated suites never manufacture human outcomes.
 - Promote the unchanged qualified Dogfood tree to Main using existing automated, deployment, preparation and human evidence. Newer Dev work does not invalidate it; a changed candidate does.
 
 ## Optional release-candidate hardening flow

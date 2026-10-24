@@ -75,15 +75,22 @@ def assert_spring_profile_contract(profile: str) -> None:
 
 def assert_dogfood_application_image_platform_contract() -> None:
     lifecycle = (ROOT / "scripts/dogfood_lifecycle.py").read_text(encoding="utf-8")
-    assert 'DOGFOOD_APPLICATION_PLATFORM = "linux/amd64"' in lifecycle
-    assert lifecycle.count('"--platform",\n            DOGFOOD_APPLICATION_PLATFORM,') == 2
-    assert '["git", "show", "-s", "--format=%cI", commit]' in lifecycle
-    assert "datetime.now" not in lifecycle
-    server_dependencies = (
-        REPOSITORY_ROOT / "server/gradle/scripts/java-and-dependencies.gradle"
+    consumers = (REPOSITORY_ROOT / "tools/artifact_consumers.py").read_text(encoding="utf-8")
+    tasks = (
+        REPOSITORY_ROOT / "gradle/tasks/architecture-lifecycle.gradle"
     ).read_text(encoding="utf-8")
-    assert "requestedTask.tokenize(':').last() in ['dogfoodUp', 'dogfoodReset']" in server_dependencies
-    assert "dogfoodLifecycleRequested ? 'linux-x86_64' : null" in server_dependencies
+    assert "from artifact_consumers import load_runtime_images" in lifecycle
+    assert "os.environ.update(load_runtime_images(commit))" in lifecycle
+    assert 'value.get("platform") != "linux/amd64"' in consumers
+    assert 'native_bundle' not in lifecycle
+    assert "_build_application_images" not in lifecycle
+    assert "_resolve_keycloak" not in lifecycle
+    assert '"build"' not in lifecycle
+    assert "bootJar" not in lifecycle
+    for name in ("dogfoodUp", "dogfoodReset"):
+        match = re.search(r"tasks\.register\('" + name + r"', Exec\) \{(.*?)\n\}", tasks, re.DOTALL)
+        assert match, f"missing {name} lifecycle task"
+        assert "bootJar" not in match.group(1), f"{name} silently compiles on the native runner"
 
 
 def assert_unchanged_render_preserves_bind_mount_inode() -> None:

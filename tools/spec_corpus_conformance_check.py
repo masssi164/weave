@@ -183,6 +183,8 @@ def main() -> None:
             fail(f"spec corpus manifest entry path missing: {entry_path}")
     ids = {entry.get("id") for entry in manifest.get("entries", [])}
     required_ids = {
+        "WEAVE-CONTRACT-BUILD_ARTIFACTS",
+        "WEAVE-CONTRACT-MEMBER_CLIENT_SCENARIO",
         "WEAVE-STEERING-PRODUCT-CONSTITUTION",
         "WEAVE-STEERING-SDD-FRAMEWORK",
         "WEAVE-STEERING-DEVOPS-CONFORMANCE",

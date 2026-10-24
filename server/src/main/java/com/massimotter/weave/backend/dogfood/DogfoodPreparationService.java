@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 
-/** Local operator workflow. No human principal, credential creation or product API admission. */
+/** Local operator workflow. Managed test setup never creates a human session or product API admission. */
 public class DogfoodPreparationService {
     private static final String ISSUER = "urn:weave:dogfood-operator";
     private final KeycloakIdentityAdminClient keycloak;
@@ -35,6 +35,7 @@ public class DogfoodPreparationService {
     private Owner owner;
     private final List<MemberReceipt> progress = new ArrayList<>();
     private boolean created;
+    private final List<PreparedMember> preparedMembers = new ArrayList<>();
 
     public DogfoodPreparationService(KeycloakIdentityAdminClient keycloak, OrganizationIdentityContextResolver identities,
             WorkspaceCapabilityService capabilities, DeploymentOrganizationProperties organization,
@@ -53,12 +54,17 @@ public class DogfoodPreparationService {
         owner = null;
         progress.clear();
         created = false;
+        preparedMembers.clear();
         for (var member : request.plan().members()) progress.add(empty(member.slot()));
         try {
             owner = currentOwner();
             requirePreviousOwner();
             spaces.verifyOwner(owner.context().organizationId(), owner.context().accountId());
             bindings.bind(request, owner.context().organizationId(), owner.context().accountId(), owner.handle());
+            if ("provision-members".equals(request.operation())) {
+                provisionManagedMembers();
+                return envelope("none");
+            }
             // Inspect BOTH targets before either invitation is created.
             var found = new ArrayList<ProvisioningIntent>();
             for (int i = 0; i < 2; i++) found.add(inspect(i));
@@ -102,12 +108,118 @@ public class DogfoodPreparationService {
         catch (DogfoodSpacePreparationPort.VersionConflict failure) { return envelope("space-version-conflict"); }
         catch (AuditRequiredException failure) { return envelope("audit-unavailable"); }
         catch (org.springframework.dao.DataAccessException failure) { return envelope("persistence-unavailable"); }
+        catch (KeycloakIdentityAdminClient.ManagedTestConflict failure) { return envelope(failure.getMessage()); }
         catch (KeycloakIdentityAdminClient.KeycloakAdminException failure) { return envelope("identity-provider-unavailable"); }
         catch (ApiErrorException failure) {
             return envelope("member-invitation-provider-unavailable".equals(failure.code()) ? "identity-provider-unavailable"
                     : "member-invitation-already-pending".equals(failure.code()) ? "invitation-conflict" : "operation-incomplete");
         }
         catch (RuntimeException failure) { return envelope("operation-incomplete"); }
+    }
+
+    private List<ProvisioningIntent> operatorHistory(PlannedMember planned) {
+        return Stream.concat(Stream.of(ISSUER), Stream.of("urn:weave:dogfood-managed-fixture"))
+                .flatMap(issuer -> intents.findByActorAndCorrelation(owner.context().organizationId(), organization.keycloakId(),
+                        issuer, actor(request), planned.invitationIdempotencyKey()).stream()).toList();
+    }
+
+    private KeycloakIdentityAdminClient.ManagedTestMember managedAuthority(PlannedMember planned, ProvisioningIntent intent) {
+        return new KeycloakIdentityAdminClient.ManagedTestMember(organization.keycloakId(), request.plan().planId(),
+                planned.slot(), URI.create(request.plan().organizationOrigin()).getHost(),
+                intent == null ? java.util.UUID.randomUUID().toString() : intent.intentId().toString(),
+                intent == null ? null : intent.appliedSubject(), intent != null && intent.providerInvitationId() != null,
+                intent == null ? Instant.now() : intent.createdAt(), request.plan().issuerUrl(),
+                intent == null ? KeycloakIdentityAdminClient.ManagedTestProgress.empty()
+                        : java.util.Objects.requireNonNull(bindings.managedProgress(request, owner.context().organizationId(),
+                                intent.intentId().toString(), planned.slot())));
+    }
+
+    private ProvisioningIntent inspectManaged(int index) {
+        var planned = request.plan().members().get(index);
+        var history = operatorHistory(planned);
+        var byEmail = intents.findByEmail(owner.context().organizationId(), organization.keycloakId(), planned.email());
+        require(history.size() <= 1 && byEmail.size() == history.size()
+                && byEmail.stream().allMatch(value -> history.stream().anyMatch(known -> known.intentId().equals(value.intentId()))),
+                "invitation-conflict");
+        var previous = request.previousReceipt() == null ? null : request.previousReceipt().members().get(index);
+        ProvisioningIntent intent = history.isEmpty() ? null : history.getFirst();
+        if (intent == null) {
+            require(previous == null || previous.intentRef() == null, "operator-reference-conflict");
+            require(keycloak.invitationsForEmail(organization.keycloakId(), planned.email()).isEmpty(), "invitation-conflict");
+        } else {
+            require(planned.email().equals(intent.invitedEmail()) && "member".equals(intent.requestedRole())
+                    && intent.status() != ProvisioningIntentStatus.FAILED, "managed-test-identity-conflict");
+            require(previous == null || equalIfKnown(previous.intentRef(), intent.intentId().toString()), "operator-reference-conflict");
+            if (intent.providerInvitationId() == null) {
+                require("urn:weave:dogfood-managed-fixture".equals(intent.invitedByIssuer()), "invitation-outcome-uncertain");
+            } else if (intent.appliedSubject() == null) {
+                var invitations = keycloak.invitationsForEmail(organization.keycloakId(), planned.email());
+                require(invitations.size() == 1 && intent.providerInvitationId().equals(invitations.getFirst().providerInvitationId())
+                        && planned.displayName().equals(invitations.getFirst().displayName()), "invitation-conflict");
+                require(!"revoked".equals(invitations.getFirst().lifecycleStatus()), "invitation-revoked");
+                require(List.of("pending", "accepted", "expired").contains(invitations.getFirst().lifecycleStatus()),
+                        "invitation-outcome-uncertain");
+            }
+            progress.set(index, new MemberReceipt(planned.slot(), intent.intentId().toString(),
+                    intent.providerInvitationId() == null ? null : references.invitation(organization.keycloakId(), intent.providerInvitationId()),
+                    null, null, null, intent.status().name(), "NOT_REQUESTED"));
+        }
+        keycloak.verifyManagedTestMember(managedAuthority(planned, intent));
+        return intent;
+    }
+
+    private void provisionManagedMembers() {
+        // Inspect both identities before writes, including any account with incomplete historical setup.
+        var found = new ArrayList<ProvisioningIntent>();
+        for (int i = 0; i < 2; i++) found.add(inspectManaged(i));
+        for (int i = 0; i < 2; i++) {
+            var planned = request.plan().members().get(i);
+            var intent = found.get(i);
+            if (intent == null) {
+                intent = invitations.createDogfoodManagedTestIntent(owner.context().organizationId(), organization.keycloakId(),
+                        request.plan().planId(), planned.slot(), URI.create(request.plan().organizationOrigin()).getHost());
+                created = true;
+            }
+            bindings.observe(request, owner.context().organizationId(), AuditAction.DOGFOOD_PREPARATION_AUTHORIZED,
+                    "dogfood-managed-setup-" + request.nonce() + "-" + planned.slot(),
+                    Map.of("intentRef", intent.intentId().toString(), "slot", planned.slot(), "operation", "managed-initial-setup"));
+            String intentRef = intent.intentId().toString();
+            var actual = keycloak.provisionManagedTestMember(managedAuthority(planned, intent), request.initialCredentials().get(i).password(),
+                    step -> bindings.managedStep(request, owner.context().organizationId(), intentRef, planned.slot(), step));
+            created |= actual.created() || actual.initialCredentialCreated();
+            var applied = invitations.completeDogfoodManagedTestIntent(intent, actual.subject());
+            String account = IdentityReferences.accountId(request.plan().issuerUrl(), actual.subject());
+            require(!account.equals(owner.context().accountId()), "managed-test-identity-conflict");
+            var previous = request.previousReceipt() == null ? null : request.previousReceipt().members().get(i);
+            String handle = references.member(organization.keycloakId(), actual.subject());
+            String invitation = applied.providerInvitationId() == null ? null : references.invitation(organization.keycloakId(), applied.providerInvitationId());
+            require(previous == null || (equalIfKnown(previous.accountRef(), account) && equalIfKnown(previous.memberHandle(), handle)
+                    && equalIfKnown(previous.invitationHandle(), invitation)), "operator-reference-conflict");
+            progress.set(i, new MemberReceipt(planned.slot(), applied.intentId().toString(), invitation,
+                    handle, account, null, "APPLIED", "NOT_REQUESTED"));
+            preparedMembers.add(new PreparedMember(planned.slot(), actual.subject()));
+        }
+        require(!progress.get(0).accountRef().equals(progress.get(1).accountRef()), "managed-test-identity-conflict");
+        var targets = java.util.stream.IntStream.range(0, 2).mapToObj(i -> new DogfoodSpacePreparationPort.Target(
+                progress.get(i).accountRef(), request.previousReceipt() == null ? null : request.previousReceipt().members().get(i).grantVersion())).toList();
+        var grants = spaces.grantTwo(owner.context().organizationId(), owner.context().accountId(), targets, () -> {
+            Owner fresh = currentOwner();
+            require(fresh.context().accountId().equals(owner.context().accountId()), "owner-unavailable");
+            for (int i = 0; i < 2; i++) {
+                var current = keycloak.memberAuthorization(organization.keycloakId(), preparedMembers.get(i).identityRef());
+                require(current.enabled() && current.activated() && current.roles().equals(List.of("member"))
+                        && current.subject().equals(preparedMembers.get(i).identityRef()), "managed-test-identity-conflict");
+            }
+        }, this::publishGrantAudit);
+        for (int i = 0; i < 2; i++) {
+            var old = progress.get(i); var grant = grants.get(i);
+            created |= grant.created();
+            progress.set(i, new MemberReceipt(old.slot(), old.intentRef(), old.invitationHandle(), old.memberHandle(),
+                    old.accountRef(), grant.strongEtag(), old.intentState(), grant.created() ? "CREATED" : "VERIFIED"));
+        }
+        bindings.observe(request, owner.context().organizationId(), AuditAction.DOGFOOD_PREPARATION_VERIFIED,
+                "dogfood-managed-ready-" + request.nonce(), Map.of("intentRefs", progress.stream().map(MemberReceipt::intentRef).toList(),
+                        "result", "VERIFIED", "authenticationEvidence", false));
     }
 
     private ProvisioningIntent inspect(int index) {
@@ -224,14 +336,14 @@ public class DogfoodPreparationService {
                 "dogfood", request.candidateCommit(), request.sourceTree(), request.specificationCommit(), request.plan().organizationOrigin(),
                 request.apiBaseUrl(), request.plan().issuerUrl(), owner == null ? null : owner.context().organizationId(), "workspace-default",
                 owner == null ? null : owner.context().accountId(), owner == null ? null : owner.handle(), List.copyOf(progress), true, false),
-                new PrivateData(owner == null ? null : owner.displayName()));
+                new PrivateData(owner == null ? null : owner.displayName(),
+                        passed && "provision-members".equals(request.operation()) ? List.copyOf(preparedMembers) : null));
     }
     private void captureDurableReferences() {
         for (int i = 0; i < 2; i++) {
             var planned = request.plan().members().get(i);
             try {
-                var known = intents.findByActorAndCorrelation(owner.context().organizationId(), organization.keycloakId(),
-                        ISSUER, actor(request), planned.invitationIdempotencyKey());
+                var known = operatorHistory(planned);
                 if (known.size() == 1) {
                     var intent = known.getFirst(); var old = progress.get(i);
                     progress.set(i, new MemberReceipt(old.slot(), intent.intentId().toString(),

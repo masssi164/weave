@@ -109,7 +109,6 @@ PUBLIC_PREPARATION_FILES = (
     "weave/build/evidence/prepare-human-test/preparation-result.json",
     "weave/build/evidence/prepare-human-test/tls-persistence.json",
     "weave/build/evidence/prepare-human-test/owner-space.json",
-    "weave/build/evidence/prepare-human-test/functional-smoke.json",
 )
 
 
@@ -129,7 +128,8 @@ def check_public_preparation_upload(workflow: str) -> None:
     initialization = next(step for step in steps if step.startswith("name: Initialize private physical diagnostics"))
     for guard in ("umask 077", "path.is_symlink()", "directory.stat().st_uid != os.getuid()", "directory.chmod(0o700)"):
         require(guard in initialization, "private physical directory ownership/mode guard missing")
-    for name in ("Create first owner invitation in private Mailpit", "Establish and verify current owner default Space access", "Build, sign, install in place, and launch on physical iPhone", "Verify retained owner and independent peer functional behavior"):
+    install_name = "Sign the hosted artifact, install in place, and observe ordinary startup"
+    for name in ("Create first owner invitation in private Mailpit", "Establish and verify current owner default Space access", install_name):
         step = next((step for step in steps if step.startswith("name: " + name)), None)
         require(step is not None, "required physical preparation producer is missing")
         require("        run: |\n          umask 077\n" in step,
@@ -140,43 +140,62 @@ def check_public_preparation_upload(workflow: str) -> None:
             and "        if:" not in setup,
             "owner Space access must be an unconditional preparation prerequisite")
     require(workflow.index("name: Establish and verify current owner default Space access")
-            < workflow.index("name: Build, sign, install in place, and launch on physical iPhone"),
+            < workflow.index("name: " + install_name),
             "current owner Space access must be established before installation")
-    require('"schemaVersion": "weave.hil-preparation/v3"' in workflow
-            and '"ownerWorkspace": workspace' in workflow
+    require('receipt["ownerWorkspace"] = workspace' in workflow
             and "owner_workspace_passed(workspace, sha, tree, spec)" in workflow,
             "physical evidence must validate and bind owner Space access to the exact candidate")
-    require('"functionalSmoke": functional' in workflow
-            and 'functional_smoke_passed(functional, sha, tree, spec,' in workflow
+    require('preparation_passed(receipt, sha, tree, spec,' in workflow
             and 'int(os.environ["FULL_COMPOSE_E2E_RUN_ATTEMPT"])' in workflow,
-            "physical evidence must validate actual functional proof against the final qualification attempt")
-    install = next(step for step in steps if step.startswith(
-        "name: Build, sign, install in place, and launch on physical iPhone"))
-    require("--run --ordinary-startup" in install and "--reset-mode update_in_place" in install,
-            "physical owner preparation must launch ordinarily and preserve existing state")
-    functional = next(step for step in steps if step.startswith(
-        "name: Verify retained owner and independent peer functional behavior"))
-    require("tools/dogfood_functional_smoke.py --stage physical" in functional
-            and "--diagnostic-only" not in functional and "continue-on-error" not in functional,
-            "physical functional verification cannot be replaced by a diagnostic or ignored failure")
-    require(workflow.index("name: Build, sign, install in place, and launch on physical iPhone")
-            < workflow.index("name: Verify retained owner and independent peer functional behavior")
-            < workflow.index("name: Record exact physical preparation"),
-            "physical functional proof must precede a successful preparation receipt")
+            "physical startup evidence must bind the exact successful qualification attempt")
+    install = next(step for step in steps if step.startswith("name: " + install_name))
+    require("tools/prepare_iphone_artifact.py" in install
+            and '--qualification-run-attempt "$FULL_COMPOSE_E2E_RUN_ATTEMPT"' in install
+            and "--diagnostic-only" not in install and "continue-on-error" not in install,
+            "physical preparation requires observed ordinary startup from the qualified hosted artifact")
+    consume = next((step for step in steps if step.startswith(
+        "name: Consume the qualified runtime and iPhone artifacts")), "")
+    require("tools/artifact_consumers.py fetch-composition" in consume and "--qualified" in consume
+            and "tools/build_artifacts.py consume" in consume
+            and "--components runtime-linux-amd64,ios-device" in consume,
+            "physical installation must consume the qualified runtime and device composition")
+    require(workflow.index("name: Consume the qualified runtime and iPhone artifacts")
+            < workflow.index("name: " + install_name)
+            < workflow.index("name: Bind the prepared owner Space to the installed artifact")
+            < workflow.index("name: Summarize tester handoff"),
+            "verified artifact consumption and ordinary startup must precede handoff")
+    for forbidden in ("--stage physical", "flutter build", "build-for-testing", "dogfood_iphone_entry.sh"):
+        require(forbidden not in workflow, "protected physical preparation reintroduces a local build or owner-authentication suite")
+
+
+def check_hosted_preparation_producer(producer: str) -> None:
+    for marker in ("'schemaVersion': 'weave.hil-preparation/v4'", "'ownerHIL': 'pending'",
+                   "'install': 'update_in_place'", "'artifactComposition': composition",
+                   "candidate_composition(candidate)", "native_bundle('ios-device'",
+                   "verify_runtime_container(", "sign(ROOT, unsigned, signed, candidate,",
+                   "verify_signed(ROOT, unsigned, signed, candidate)",
+                   "verify_installed_build(runner, actor)", "verify_discovered_routing(runner, actor, context)",
+                   "'testOrdinaryPreparation'", "parse_startup_result",
+                   "{'retained-workspace', 'normal-sign-in'}", "value['ownerSessionReplaced'] is not False",
+                   "'driverCleanupComplete': True"):
+        require(marker in producer, "physical preparation producer is missing artifact, startup or preservation proof")
+    for forbidden in ("flutter build", "build-for-testing", "WEAVE_DOGFOOD_MEMBER_PASSWORD", "'device', 'uninstall', 'app', '--device', device, BUNDLE"):
+        require(forbidden not in producer, "physical preparation producer must not compile or replace owner state")
 
 
 def check_public_preparation_upload_regressions(workflow: str) -> None:
     check_public_preparation_upload(workflow)
     literal = "          path: |\n" + "".join(f"            {path}\n" for path in PUBLIC_PREPARATION_FILES)
     variants = [
-        workflow.replace('"schemaVersion": "weave.hil-preparation/v3"', '"schemaVersion": "weave.hil-preparation/v2"'),
-        workflow.replace('"functionalSmoke": functional', '"functionalSmoke": {}'),
-        workflow.replace('functional_smoke_passed(functional, sha, tree, spec,', 'bool(functional), #'),
-        workflow.replace('--run --ordinary-startup', '--run'),
-        workflow.replace('--stage physical', '--stage physical --diagnostic-only'),
+        workflow.replace('preparation_passed(receipt, sha, tree, spec,', 'bool(receipt), #'),
+        workflow.replace('tools/prepare_iphone_artifact.py', 'echo skipped installer'),
+        workflow.replace('--qualification-run-attempt "$FULL_COMPOSE_E2E_RUN_ATTEMPT"', '--qualification-run-attempt 1'),
+        workflow.replace('--components runtime-linux-amd64,ios-device', '--components runtime-linux-amd64'),
+        workflow.replace('--qualified --candidate', '--candidate'),
+        workflow + '\n# tools/dogfood_functional_smoke.py --stage physical\n',
         workflow.replace("Establish and verify current owner default Space access", "Optional workspace setup"),
         workflow.replace("infra/weave-workspace/compose.sh dogfood bootstrap-space", "echo skipped setup"),
-        workflow.replace('"ownerWorkspace": workspace', '"ownerWorkspace": {}'),
+        workflow.replace('receipt["ownerWorkspace"] = workspace', 'receipt["ownerWorkspace"] = {}'),
         workflow.replace(literal, "          path: weave/build/evidence/prepare-human-test\n"),
         workflow.replace(PUBLIC_PREPARATION_FILES[1], "weave/build/evidence/prepare-human-test/*"),
         workflow.replace(PUBLIC_PREPARATION_FILES[1], "weave/build/evidence/prepare-human-test/ios-app-preferences.txt"),
@@ -211,6 +230,19 @@ def main() -> int:
     check_discovery_evidence()
     workflow = read(".github/workflows/ios-dogfood.yml")
     check_public_preparation_upload_regressions(workflow)
+    producer = read("tools/prepare_iphone_artifact.py")
+    check_hosted_preparation_producer(producer)
+    for before, after in (("weave.hil-preparation/v4", "weave.hil-preparation/v3"),
+                          ("'ownerHIL': 'pending'", "'ownerHIL': 'passed'"),
+                          ("verify_installed_build(runner, actor)", "None"),
+                          ("value['ownerSessionReplaced'] is not False", "False"),
+                          ("'driverCleanupComplete': True", "'driverCleanupComplete': False")):
+        try:
+            check_hosted_preparation_producer(producer.replace(before, after))
+        except SystemExit:
+            pass
+        else:
+            raise SystemExit("incomplete or fabricated physical startup evidence was accepted")
     smoke = read("tools/dogfood_ios_deeplink_smoke.sh")
     entry = read("tools/dogfood_iphone_entry.sh")
     project = read("client/ios/Runner.xcodeproj/project.pbxproj")
@@ -222,12 +254,13 @@ def main() -> int:
     require("workflow_dispatch:" in workflow and "candidate_sha:" in workflow, "human-test preparation must select one exact dogfood SHA")
     require("verify_main_promotion_evidence.py" in workflow and "--qualification-only" in workflow,
             "physical install is not gated by exact Compose native and deployment evidence")
-    require("preparation-result.json" in workflow and "qualificationRunId" in workflow,
+    require("preparation-result.json" in workflow and "qualificationRunId" in producer
+            and '--qualification-run-id "$FULL_COMPOSE_E2E_RUN_ID"' in workflow,
             "physical preparation must bind installed source to qualification")
     require("./gradlew --no-daemon dogfoodUp" in workflow, "physical preparation does not start Compose dogfood")
     require("tools/dogfood_cert_persistence_smoke.py" in workflow, "TLS identity stability is not checked")
-    require("tools/dogfood_iphone_entry.sh" in workflow, "physical-device installation entrypoint is missing")
-    require("--reset-mode update_in_place" in workflow, "workflow does not preserve Developer App trust")
+    require("tools/prepare_iphone_artifact.py" in workflow, "hosted physical-device installation entrypoint is missing")
+    require("WEAVE_IOS_RESET_MODE: update_in_place" in workflow, "workflow does not preserve Developer App trust")
     require("secrets.WEAVE_IOS_DEVICE_ID" in workflow, "paired device identifier is not provided privately")
     for forbidden in ("TestFlight", "upload_to_testflight", "APP_STORE_CONNECT", "APPLE_DISTRIBUTION", "environment:"):
         require(forbidden not in workflow, f"retired distribution gate remains: {forbidden}")

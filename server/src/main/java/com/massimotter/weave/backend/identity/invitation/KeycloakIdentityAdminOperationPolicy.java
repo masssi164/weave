@@ -109,6 +109,19 @@ final class KeycloakIdentityAdminOperationPolicy {
                     "Keycloak identity administration operation is outside the guarded boundary"));
   }
 
+  /** Separate private-fixture boundary; ordinary identity operations still reject these routes. */
+  static String requireManagedFixtureAllowed(HttpMethod method, String uri) {
+    List<Rule> rules = List.of(
+        rule("managed-test-identity-lookup", Set.of(HttpMethod.GET), REALM + "/users\\?email=[^&#]+&exact=true&first=0&max=2"),
+        rule("managed-test-identity-create", Set.of(HttpMethod.POST), REALM + "/users"),
+        rule("managed-test-membership-create", Set.of(HttpMethod.POST), ORGANIZATION + "/members"),
+        rule("managed-test-initial-credential-read", Set.of(HttpMethod.GET), USER + "/credentials"),
+        rule("managed-test-initial-credential-create", Set.of(HttpMethod.PUT), USER + "/reset-password"));
+    return rules.stream().filter(rule -> rule.methods().contains(method) && rule.path().matcher(uri).matches())
+        .map(Rule::operationCode).findFirst().orElseThrow(() -> new IllegalArgumentException(
+            "Keycloak managed test preparation is outside its guarded boundary"));
+  }
+
   private static Rule rule(String operationCode, Set<HttpMethod> methods, String path) {
     return new Rule(operationCode, Set.copyOf(methods), Pattern.compile("^" + path + "$"));
   }

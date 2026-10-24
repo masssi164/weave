@@ -22,6 +22,17 @@ Apply the root `AGENTS.md` prepared-task rule through a finite acceptance loop:
 
 A blocking finding identifies a violated applicable requirement, affected behavior and necessary correction. A general opportunity to improve quality, a rubric score, stylistic preference or a hypothetical future feature is not itself a blocker. Scope changes and all authorization and release gates remain explicit.
 
+## iPhone delivery context
+
+For iPhone delivery tasks, include the candidate composition and original component producers,
+the shared member-scenario version/digest, and the successful live qualification run and actual
+job attempt. Unchanged component inputs may reuse verified hosted artifacts; each new candidate
+still requires fresh real collaboration by two ordinary members. Keep logical recipe IDs separate
+from private environment bindings and current access readback. The Mac runner consumes artifacts
+and performs native execution, signing, installation and startup observation. macOS desktop testing
+is manual-only. Physical preparation preserves the owner session and leaves HIL pending; record
+the human's actual owner, admin or member role in the separate v2 human-result comment.
+
 ## Truth-Recovery
 
 ```text

@@ -71,6 +71,18 @@ tasks.named('clientGeneratedCalendarTemporalWire') {
 }
 registerRootCommandTask('clientOpenApiDriftPrevention', ['bash', 'tools/run_pure_client_test.sh', 'test/architecture/openapi_drift_prevention_contract_test.dart'], 'Block client OpenAPI facade drift for DTOs, raw JSON parsing, provider reachability, and hardcoded copy.')
 registerRootCommandTask('nativeQualificationContractTest', ['bash', '-c', 'python3 client/tool/native_qualification_test.py && python3 client/tool/dual_ios_collaboration_test.py'], 'Verify native and dual-simulator qualification command/evidence semantics without a live runtime.')
+registerRootCommandTask('hostedArtifactContractTest', ['python3', '-m', 'unittest',
+        'tools.build_artifacts_test', 'tools.sign_iphone_artifact_test',
+        'tools.artifact_consumers_test', 'tools.prepare_iphone_artifact_test',
+        'tools.artifact_evidence_test', 'tools.member_test_scenario_test',
+        'tools.prepare_member_scenario_test', 'tools.artifact_runtime_storage_test'],
+        'Verify hosted component reuse, immutable provenance, member scenario and signing-only iPhone delivery.')
+tasks.named('hostedArtifactContractTest') {
+    environment 'PYTHONPATH', rootProject.file('tools').absolutePath
+}
+tasks.matching { it.name in ['infraStatic', 'releaseEvidenceCheck'] }.configureEach {
+    dependsOn 'hostedArtifactContractTest'
+}
 tasks.named('clientDeterministicCi') {
     dependsOn 'clientOpenApiDriftPrevention', 'nativeQualificationContractTest'
 }

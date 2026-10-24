@@ -1,46 +1,84 @@
 # iOS dogfood for active development
 
-Dogfood is a fast development loop, not a release-distribution system. Human testing requires successful Full Compose E2E, native macOS and two concurrent independent Apple Silicon iOS Simulator Flutter UI qualification, successful Dogfood deployment, and a prepared physical iPhone build for the same exact protected `dogfood` SHA and pinned specification. There is no Candidate Cut, Fresh Start, TestFlight upload, environment approval, or release manifest in this loop.
+The delivery loop prepares a working member client before asking the owner to test it.
+For one protected `dogfood` candidate, hosted builders produce or reuse verified runtime and
+iOS artifacts. Full Compose E2E then runs two concurrent independent real iOS Simulator apps
+against an isolated stack, using two ordinary members of the same prepared organization and
+shared Space. Successful collaboration permits Dogfood deployment and physical iPhone
+preparation. The human then signs in and reports the observed product behavior.
 
-The protected dogfood push deploys Compose after all mandatory automated qualification but does not automatically start
-an iPhone signing job. This keeps the branch green independently of the macOS background runner's
-login-Keychain access. Run the manual GitHub workflow `Prepare Human Test` only when its runner
-process can access the Apple Development private key. With the current Personal Team setup, use
-the interactive local equivalent below from the exact dogfood SHA; it performs the same in-place
-installation without changing app identity or device trust.
+macOS desktop qualification is manual-only. Candidate Cut, Fresh Start, TestFlight,
+production publication and a manually assembled release manifest are outside this loop.
+The generated artifact composition remains mandatory: it binds the current candidate to
+the precise component inputs, payload digests, toolchains and original producer runs.
+Reusing an unchanged component does not reuse the live collaboration result of another candidate.
 
-The preparation sequence is:
+## One member scenario across environments
 
-1. verify successful exact-SHA Compose/macOS/iOS qualification and Dogfood deployment;
-2. start the dogfood stack through `./gradlew dogfoodUp`;
-3. start it a second time and prove that the CA and leaf certificate fingerprints did not change;
-4. optionally create or resend the first-owner invitation and leave its activation link only in private Mailpit at the reviewed `WEAVE_MAILPIT_URL` (`https://mail.weave.test` in the standard-port Dogfood example);
-5. explicitly establish or verify the durable default Space and the activated owner's current
-   administration, Files and Calendar access; remove temporary setup authority before proceeding;
-6. build the exact commit with development signing in the interactive user session, install it
-   over the existing app, and launch the handoff on the paired iPhone.
+`fixtures/member-client-baseline/v1.json` defines the common organization domains, shared
+Space, two ordinary `member` actors with current `VIEW` and `EDIT` grants, and collaboration
+content. `tools/member_test_scenario.py` resolves that recipe for each execution. Integration,
+simulator and ordinary Dogfood recipes consume the same semantics and canonical recipe digest.
+Each environment has its own runtime data and private identity bindings; they do not share a
+mutable database. Readback of current organization membership, account identity and Space
+grants is required before a product actor writes anything.
+
+Prepared test accounts and the Space are setup inputs. The mandatory native test still performs
+normal independent PKCE sign-in and real Chat, Files and Calendar collaboration through Weave's
+User API and Matrix facade. Separate setup/admin credentials are used only for preparation and
+authorization probes. Full admin onboarding and MCP acceptance remain separately selectable;
+they do not make the owner's ordinary client iteration depend on another onboarding rehearsal.
+
+## Preparation sequence
+
+The protected Dogfood push qualifies and deploys the candidate. Signing and physical
+installation are requested through the manual `Prepare Human Test` workflow, when the paired
+iPhone and the runner's development signing key are available. The workflow:
+
+1. verifies successful exact-candidate Compose, two-member iOS collaboration and deployment,
+   including the actual successful qualification job attempt;
+2. consumes the qualified hosted runtime and unsigned device artifacts, preserving each
+   component's original producer identity;
+3. starts Dogfood twice and proves unchanged CA and leaf certificate fingerprints;
+4. optionally performs the explicit first-owner invitation setup, if requested;
+5. establishes or verifies the activated owner's durable default Space and current access;
+6. signs the already built device artifact locally, installs it in place and observes the
+   installed app's ordinary startup through the prebuilt native driver.
+
+The protected path does not compile missing applications on the Mac. A missing, incompatible
+or mismatched artifact fails preparation. The Mac provides native execution, local signing,
+pairing and installation; hosted builders provide compilation.
 
 The Space prerequisite uses `compose.sh dogfood bootstrap-space --evidence-file <private-path>`
-from the clean exact candidate. It is separate from invitation bootstrap and ordinary startup.
-Server selects the configured organization's unique enabled owner from live identity authority,
-applies current policy, and creates only a never-existing `workspace-default`. Existing Spaces
-and grants are verified without modification. Missing or revoked owner access, suspended Space
-state, ambiguous owners or unavailable readiness fail closed; preparation never silently
-regrants access. The dedicated temporary credential, mount and deployment override are removed
-on success and failure, and the normal route must return not found afterward.
+with the verified runtime composition. Server selects the configured organization's unique
+enabled owner from live identity authority, applies current policy, and creates only a
+never-existing `workspace-default`. Existing Spaces and grants are verified without modification.
+Missing or revoked owner access, suspended Space state, ambiguous owners or unavailable readiness
+fail closed. Temporary setup authority is removed on success and failure; preparation must not
+silently regrant access.
 
-After an empty-session invitation, the owner must first complete normal Keycloak activation.
-An invitation alone cannot establish owner Space access. If activation is still pending,
-preparation stops at that explicit boundary; complete activation privately, then repeat with
-`bootstrap_owner=false`. Creating a Space manually is not a human-test prerequisite.
-Successful physical evidence uses `weave.hil-preparation/v2`, includes support-safe owner Space
-verification, and binds it to the exact candidate and final qualification run and attempt.
+First-owner invitation and activation are separate setup operations for an empty installation.
+An invitation alone cannot prove owner Space access. Once that account exists, routine
+preparation preserves it and does not require another invitation or registration run.
+Activation links remain private in Mailpit at the reviewed `WEAVE_MAILPIT_URL`; the standard-port
+Dogfood example uses `https://mail.weave.test`.
 
-The only private workflow value required for the device is `WEAVE_IOS_DEVICE_ID`. The first-owner path additionally uses the existing dogfood member email secret and display-name variable. Apple distribution and App Store Connect secrets are not part of development dogfood.
+## What successful preparation proves
+
+The support-safe `weave.hil-preparation/v4` receipt binds the current candidate, source tree,
+specification pin, successful qualification run/attempt and verified artifact composition.
+It records installed-binary and endpoint verification, current owner Space access, preserved
+owner state, cleanup of the temporary driver, and a fresh nonce-bound ordinary-startup result.
+The observed screen is either the retained workspace or normal sign-in.
+
+`ownerHIL` remains `pending`. Personal sign-in, passkeys or MFA are the human's next normal app
+action when needed. Preparation does not automate another owner login or infer authenticated
+Chat, Files, Calendar or accessibility acceptance from a launch. Broken startup, stale readback,
+invalid trust or missing required access still block preparation.
 
 ## Stable device identity
 
-Every normal iteration is an update in place. The workflow and installer preserve:
+Every normal iteration is an update in place. Signing and installation preserve:
 
 - bundle identifier `com.massimotter.weave`;
 - Apple team `KNDHGC2KV6`;
@@ -48,62 +86,70 @@ Every normal iteration is an update in place. The workflow and installer preserv
 - the development Keychain application identity;
 - the existing app container and Developer App trust.
 
-The installer defaults to `update_in_place`. It may uninstall only when a developer explicitly selects the separate `destructive_uninstall` recovery mode; the human-test path never selects that mode. The build embeds the exact commit, the preparation evidence reference, and a positive build number.
+The human-test workflow uses `update_in_place`; it never selects `destructive_uninstall` recovery.
+Reused artifacts retain their original compiled build/source identity, while the qualified
+composition identifies the current candidate and proves compatible unchanged inputs. Do not
+rewrite an older binary's producer identity to look like a new build.
 
-The active `Profile` configuration uses the Personal Team-compatible development entitlements: it preserves the Keychain application identity but omits Associated Domains, which Personal Development Teams cannot provision. The production `Release` configuration keeps the full Associated Domains entitlement. Dogfood login and handoff continue through the explicit AppAuth/custom-scheme path rather than universal links.
+The Mac records verified runtime image IDs in a private, bounded retention ledger. Each
+consumer keeps the current and previous verified image sets. Cleanup removes only older
+recorded, untagged images that no running or stopped container references; operator tags,
+registry digests and unrelated images remain outside its removal authority. The cleanup
+runs before capacity checks and again after each protected consumer job.
 
-TLS material lives outside Docker at the reviewed environment’s `WEAVE_TLS_ROOT`. The physical entrypoint and TLS persistence workflow resolve it through `compose_env.load_context("dogfood", ...)`, using `WEAVE_ENV_FILE`. `dogfoodUp`, `dogfoodDown`, and `dogfoodReset` must not delete or rotate it. The Weave Local Development CA therefore normally needs to be installed and trusted on the iPhone only once.
+The `Profile` configuration uses Personal Team-compatible development entitlements: it
+preserves the Keychain application identity and omits Associated Domains. Production `Release`
+retains its full Associated Domains entitlement. Dogfood authentication uses the normal
+AppAuth/custom-scheme callback.
+
+TLS material lives at the reviewed environment's `WEAVE_TLS_ROOT`, outside Docker. `dogfoodUp`,
+`dogfoodDown` and `dogfoodReset` preserve it. The Weave Local Development CA therefore normally
+needs installation and full trust on the iPhone only once. The private reviewed environment
+supplies the sole public organization origin; API and issuer endpoints come from its validated
+OrgManifest, not provider URLs or manual endpoint overrides.
 
 ## Before pressing Run
 
-Dispatch the workflow from the protected `dogfood` ref, with its current full commit as the input:
+Dispatch from the protected `dogfood` ref with its current full commit:
 
 ```sh
 gh workflow run ios-dogfood.yml --ref dogfood -f candidate_sha=<full-dogfood-sha>
 ```
 
-Preparation evidence is accepted only when the workflow producer itself has that exact commit and the `dogfood` branch. A matching run title or artifact identity cannot substitute for a trusted producer.
+The preparation workflow itself must run at that exact protected commit. A matching title or
+copied receipt cannot substitute for the trusted producer.
 
-- The iPhone is unlocked, paired with `weave-live-mac-mini`, reachable over the same WLAN, and Developer Mode is enabled.
-- The Weave Local Development CA is still fully trusted.
-- LAN DNS resolves `weave.test` and its subdomains to the dogfood host.
-- `WEAVE_IOS_DEVICE_ID` identifies that physical phone.
-- If the realm already has a human account, dispatch with `bootstrap_owner=false`; otherwise leave the default enabled.
+- The iPhone is unlocked, paired with `weave-live-mac-mini`, reachable over the reviewed network,
+  and has Developer Mode enabled.
+- The development signing key is accessible to the runner process.
+- The Weave Local Development CA is trusted, and LAN DNS resolves the configured organization
+  origin and its authentication host to the Dogfood installation.
+- `WEAVE_IOS_DEVICE_ID` identifies the paired physical phone.
+- `bootstrap_owner` defaults to `false`; enable it only for the explicit first-owner setup.
 
-## What the tester must actually verify
+The first-owner path additionally uses the existing Dogfood member email secret and display-name
+variable. App Store Connect and distribution secrets are unnecessary for development Dogfood.
 
-Installation is preparation, not a human-test result. The activated owner uses the normal app
-sign-in and then verifies on the physical iPhone. Files and Calendar must be available immediately
-under the prepared Space access:
+## What the human verifies
 
-- app launch and Authorization Code with PKCE;
-- normal session, refresh, logout, and login again;
-- Home, Chat, Files, Calendar, Settings, and Profile navigation;
-- native Files search and opening a file resource;
-- native Calendar create/read/update/delete behavior;
-- Chat room/message behavior, including existing encrypted-history continuity where implemented;
-- Weaver/MCP discovery, grant, `files.search`, resource open, revoke with immediate rejection, regrant, and restored access when that surface is available;
-- VoiceOver labels/order, keyboard/focus behavior where applicable, and identity/session continuity after relaunch.
+Use the prepared app normally, retaining an existing session or signing in when shown. Report
+the actual account role (`owner`, `admin` or `member`) together with the exact candidate and
+installed artifact/build. A member test must not be recorded as an owner test.
 
-Missing mandatory release journeys are recorded as `blocked`, never invented as a pass. Calls and private Runner infrastructure remain outside this release acceptance scope. Human outcomes remain tester statements; automated E2E and installation evidence do not replace them.
+- Sign-in, session refresh, logout and sign-in again.
+- Home, Chat, Files, Calendar, Settings and Profile navigation.
+- Real shared-Space Chat, Files and Calendar behavior, including current access and content
+  visibility for the intended collaborators.
+- Revocation/regrant behavior and identity continuity through supported product journeys.
+- VoiceOver labels/order, actionable errors, keyboard/focus behavior and relaunch continuity.
+
+Record each required outcome as `passed`, `failed` or `not-available`. Automated collaboration,
+installation and startup do not manufacture a human pass. Use the `Weave human test v2` comment
+in [the protected promotion workflow](gitflow-pr-workflow.md); its `actor-role` is mandatory.
+Optional Weaver/MCP and broader admin journeys retain their separate acceptance scope.
+
+Manual developer build and diagnostic scripts remain available for scoped investigation. Their
+local output is not the protected hosted-artifact preparation receipt and cannot be substituted
+for the qualified composition or human result.
 
 Contract marker: `HUMAN_TESTING_HAS_NO_MANIFEST_GATE`.
-
-## Local equivalent
-
-The physical-device portion can be repeated from the checked-out dogfood commit without TestFlight:
-
-```sh
-WEAVE_IOS_DEVICE_ID=<paired-device-id> \
-WEAVE_CANDIDATE_COMMIT=<full-dogfood-sha> \
-WEAVE_IOS_BUILD_NUMBER=<positive-build-number> \
-WEAVE_IOS_LOCAL_CA_TRUST_STATUS=trusted \
-tools/dogfood_iphone_entry.sh --run --reset-mode update_in_place --transport wifi
-```
-
-Use `tools/dogfood_ios_session_restore_smoke.sh` after login when support-safe automated evidence of a successful session restore is useful. It does not read or export Keychain secrets.
-
-
-The physical entrypoint reads the same reviewed environment’s `WEAVE_PUBLIC_URL` as its single organization origin. It derives `/api/platform/config` there and launches `weave://join?organization_origin=...`; it never accepts separate API, auth, or platform-config overrides. Ports come from the reviewed environment, including installations using 80/443 or configurable bindings. `dogfood_handoff_bundle.py --product-base-url https://example.org/` remains a URL-only offline bundle override. This replaces the former `product_base_url`/`platform_config_url` handoff hints and fixed 44080/44443 defaults; historical Sprint 31 runbooks describe that retired path.
-
-The bundle records the exact source, pinned specification, preparation run and support-safe handoff reference outside the member URL. The configured CA certificate file is the manual trust setup source, not an assumed HTTP download endpoint. A `trusted` flag is a prerequisite only: physical preparation succeeds only after the installed app writes fresh typed `saved_configuration`, `handoff_ready`, and `ready_for_sso` evidence for the canonical origin after this launch. Saved configuration follows the real device HTTPS OrgManifest fetch and validation. Stale preferences, failed discovery, obsolete handoff identifiers, and candidate/specification mismatch block preparation. Preparation still does not establish human acceptance or completed SSO/product journeys.

@@ -43,11 +43,13 @@ public final class FreshProductFlow {
 
   private final ProductFlowEnvironment environment;
   private final JsonHttpClient http;
+  private final MemberTestScenario memberScenario;
   private final SecureRandom random = new SecureRandom();
 
   private FreshProductFlow(ProductFlowEnvironment environment) {
     this.environment = environment;
     this.http = new JsonHttpClient(environment.caCertificate());
+    this.memberScenario = MemberTestScenario.resolve(Path.of("."), environment.runId());
   }
 
   public static void main(String[] arguments) {
@@ -58,11 +60,19 @@ public final class FreshProductFlow {
     try {
       ProductFlowEnvironment environment = ProductFlowEnvironment.fromSystemProperties();
       System.setProperty("jdk.net.hosts.file", environment.hostsFile().toString());
-      new FreshProductFlow(environment).run();
-      System.out.println(
-          "WEAVE_TEST_APP_RESULT status=passed activation=browser pkce=S256 "
-              + "workload=private_key_jwt tools=files.search,calendar.agenda projection=user-api "
-              + "userFiles=generated supportSafe=true");
+      FreshProductFlow flow = new FreshProductFlow(environment);
+      String mode = requireFlowMode(System.getProperty("weave.e2e.mode", "full"));
+      if ("member-collaboration".equals(mode)) {
+        flow.runPreparedMemberCollaboration();
+        System.out.println("WEAVE_TEST_APP_RESULT status=passed mode=member-collaboration "
+            + "actors=two-members pkce=S256 nativeCollaboration=passed supportSafe=true");
+      } else {
+        flow.run();
+        System.out.println(
+            "WEAVE_TEST_APP_RESULT status=passed activation=browser pkce=S256 "
+                + "workload=private_key_jwt tools=files.search,calendar.agenda projection=user-api "
+                + "userFiles=generated supportSafe=true");
+      }
     } catch (RuntimeException failure) {
       System.err.println(
           "WEAVE_TEST_APP_ERROR "
@@ -71,6 +81,134 @@ public final class FreshProductFlow {
               + safeMessage(failure.getMessage()));
       System.exit(1);
     }
+  }
+
+  static String requireFlowMode(String mode) {
+    if (mode == null || !Set.of("full", "member-collaboration").contains(mode)) {
+      throw new ProductFlowException("Unknown product acceptance mode");
+    }
+    return mode;
+  }
+
+  private void runPreparedMemberCollaboration() {
+    if (System.getProperty("weave.e2e.native-runner", "").isBlank()) {
+      throw new ProductFlowException("Member collaboration requires the actual two-actor native runner");
+    }
+    Instant startedAt = Instant.now();
+    String memberInput = System.getProperty("weave.e2e.prepared-member-input", "");
+    String probeInput = System.getProperty("weave.e2e.prepared-probe-input", "");
+    if (memberInput.isBlank() != probeInput.isBlank()) {
+      throw new ProductFlowException("Prepared member and probe inputs must be supplied together");
+    }
+    try (OidcBrowserJourney browser = new OidcBrowserJourney(environment, http)) {
+      PreparedMemberScenario prepared = memberInput.isBlank()
+          ? prepareIsolatedMemberScenario(browser)
+          : PreparedMemberScenario.read(Path.of(memberInput), Path.of(probeInput), environment, memberScenario);
+      var a = authorizePreparedActor(browser, prepared.actorA(), "member", false, "member-A-current");
+      var b = authorizePreparedActor(browser, prepared.actorB(), "member", false, "member-B-current");
+      var admin = authorizePreparedActor(browser, prepared.administrator(), "owner", true, "setup-admin-current");
+      var denied = authorizePreparedActor(browser, prepared.deniedActor(), "guest", false, "denied-guest-current");
+      NativeActorNames names = nativeActorNames(a, b, browser, prepared.organizationId());
+      GeneratedUserApi users = new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate());
+      String deniedNativeOrganization = requireNativeOrganizationId(browser.jwtPayload(denied.accessToken()),
+          users.authenticatedUser(denied.accessToken()), environment.issuer().toString(),
+          denied.subject(), prepared.organizationId());
+      if (!names.nativeOrganizationId().equals(deniedNativeOrganization)) {
+        throw new ProductFlowException("Prepared denial actor belongs to a different organization");
+      }
+      GeneratedSpacesJourney spaces = new GeneratedSpacesJourney(environment);
+      spaces.verifyAbsent(denied.accessToken());
+      spaces.currentEditorBinding(admin.accessToken(), a.accessToken(), "A", prepared.organizationId(),
+          a.subject(), prepared.actorA().accountRef());
+      spaces.currentEditorBinding(admin.accessToken(), b.accessToken(), "B", prepared.organizationId(),
+          b.subject(), prepared.actorB().accountRef());
+      awaitChatReadiness(a.accessToken());
+      awaitChatReadiness(b.accessToken());
+      runNativeAuthorizedJourney(prepared.actorA().email(), prepared.actorA().password(), a,
+          prepared.actorB().email(), prepared.actorB().password(), b.subject(), "", browser, denied,
+          prepared.deniedActor().email(), prepared.deniedActor().password(), prepared.organizationId(),
+          admin, prepared.administrator().email(), prepared.administrator().password(), b,
+          prepared.actorB().accountRef(), names, true);
+      writePreparedMemberEvidence(startedAt, a.subject(), b.subject());
+    }
+  }
+
+  private PreparedMemberScenario prepareIsolatedMemberScenario(OidcBrowserJourney browser) {
+    if (!"weave.localhost".equals(environment.productOrigin().getHost())
+        || !environment.composeProject().matches("weave-e2e-[0-9a-f]{16}")) {
+      throw new ProductFlowException("Automated member setup requires the owned disposable E2E environment");
+    }
+    // Disposable setup only. Full admin-console, onboarding and MCP acceptance
+    // remains the explicit full mode and does not gate ordinary collaboration.
+    String ownerEmail = environment.ownerEmail();
+    String ownerPassword = randomPassword();
+    Instant ownerInvitedAt = Instant.now();
+    String organizationId = bootstrapOwner(ownerEmail);
+    activateSetupActor(browser, ownerEmail, ownerPassword, "Weave E2E Setup", ownerInvitedAt);
+    var owner = browser.authorize("weave-app", URI.create("com.massimotter.weave:/oauthredirect"),
+        List.of("openid", "profile", "email"), ownerEmail, ownerPassword, "setup-owner-initial");
+    validateHumanBootstrapToken(browser.jwtPayload(owner.accessToken()), "weave-app");
+    owner = reconcileIdentitySession(browser, owner, "owner", ownerEmail, ownerPassword);
+    owner = awaitAuthority(browser, owner, "/owners", "owner");
+    validateHumanWorkspaceToken(browser.jwtPayload(owner.accessToken()), "weave-app");
+    var admin = browser.authorize("weave-admin-console", environment.productOrigin().resolve("/admin-console/"),
+        List.of("openid", "profile", "email", "agent-runtime.admin"), ownerEmail, ownerPassword,
+        "setup-owner-admin");
+    validateAdminToken(browser.jwtPayload(admin.accessToken()));
+    configureRequiredProviders(admin.accessToken());
+    DefaultSpacePreparationJourney preparation = new DefaultSpacePreparationJourney(environment, http);
+    preparation.prepare("CREATED");
+    new GeneratedSpacesJourney(environment).confirmDefault(admin.accessToken(), owner.accessToken());
+
+    String outsiderEmail = environment.outsiderEmail();
+    String outsiderPassword = randomPassword();
+    Instant outsiderInvitedAt = Instant.now();
+    inviteActor(organizationId, outsiderEmail, "Weave E2E Denied Guest", "guest", admin.accessToken());
+    activateSetupActor(browser, outsiderEmail, outsiderPassword, "Weave E2E Denied Guest", outsiderInvitedAt);
+    var outsider = browser.authorize("weave-app", URI.create("com.massimotter.weave:/oauthredirect"),
+        List.of("openid", "profile", "email"), outsiderEmail, outsiderPassword, "setup-guest-initial");
+    validateHumanBootstrapToken(browser.jwtPayload(outsider.accessToken()), "weave-app");
+    outsider = reconcileIdentitySession(browser, outsider, "guest", outsiderEmail, outsiderPassword);
+    outsider = awaitAuthority(browser, outsider, "/guests", "guest");
+    validateHumanWorkspaceToken(browser.jwtPayload(outsider.accessToken()), "weave-app");
+
+    Path memberInput = preparation.prepareMembers();
+    JsonNode probes = http.mapper().valueToTree(Map.of(
+        "schemaVersion", "weave.member-collaboration-probes/v1", "runId", environment.runId(),
+        "organizationId", organizationId,
+        "admin", Map.of("email", ownerEmail, "password", ownerPassword, "identityRef", owner.subject()),
+        "denied", Map.of("email", outsiderEmail, "password", outsiderPassword, "identityRef", outsider.subject())));
+    return PreparedMemberScenario.read(memberInput, probes, environment, memberScenario);
+  }
+
+  private void activateSetupActor(OidcBrowserJourney browser, String email, String password,
+      String displayName, Instant invitedAt) {
+    MailpitActivationInbox inbox = new MailpitActivationInbox(http, environment.mailpitApi(),
+        environment.issuer(), environment.convergenceTimeout());
+    URI action = inbox.awaitActivationLink(email, invitedAt.minusSeconds(5));
+    Instant registrationAt = Instant.now();
+    browser.activate(action, email, password, displayName,
+        () -> inbox.awaitEmailVerificationLink(email, registrationAt.minusSeconds(5)));
+  }
+
+  private OidcBrowserJourney.TokenSet authorizePreparedActor(OidcBrowserJourney browser,
+      PreparedMemberScenario.Login actor, String expectedRole, boolean administrator, String label) {
+    var session = browser.authorize(administrator ? "weave-admin-console" : "weave-app",
+        administrator ? environment.productOrigin().resolve("/admin-console/")
+            : URI.create("com.massimotter.weave:/oauthredirect"),
+        administrator ? List.of("openid", "profile", "email", "agent-runtime.admin")
+            : List.of("openid", "profile", "email"), actor.email(), actor.password(), label);
+    JsonNode claims = browser.jwtPayload(session.accessToken());
+    if (administrator) validateAdminToken(claims);
+    else validateHumanWorkspaceToken(claims, "weave-app");
+    requireNativeFixtureIdentity(session, session, claims, expectedRole);
+    if (!actor.identityRef().equals(session.subject())
+        || !actor.accountRef().isEmpty()
+            && !actor.accountRef().equals(accountId(environment.issuer().toString(), session.subject()))
+        || "member".equals(expectedRole) && organizationGroups(claims).contains("/capabilities/weaver")) {
+      throw new ProductFlowException("Prepared actor no longer has its ordinary member identity or authority");
+    }
+    return session;
   }
 
   private void run() {
@@ -441,14 +579,12 @@ public final class FreshProductFlow {
             memberSession.accessToken(), personRef, generatedFilesProof.fileId());
         spaceRevocationRestored = true;
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
-        // Native Calendar writes use the owner's normal User session. Run its
-        // real logout after all JVM journeys that need that owner's SSO state.
-        NativeActorNames nativeNames = nativeActorNames(ownerSession, memberSession, browser, organizationId);
+        // Finish owner/session acceptance before the separate prepared-member
+        // client scenario; ordinary collaboration never borrows owner authority.
         new MemberSessionRevocationJourney(environment, http).prove(
             browser, organizationId, ownerEmail, ownerPassword);
-        runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession,
-            memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
-            browser, outsiderSession, outsiderEmail, outsiderPassword, organizationId, adminSession, memberSession, personRef, nativeNames);
+        runNativeMemberJourney(browser, organizationId, ownerEmail, ownerPassword,
+            outsiderSession, outsiderEmail, outsiderPassword);
         writeEvidence(startedAt, ownerEmail, memberEmail, outsiderEmail,
             release.bindingRef(), mcpProof, restartProof, revocationDenied,
             calendarRevocationDenied, regrantRestored, sameHumanSubjectAfterRegrant,
@@ -540,12 +676,10 @@ public final class FreshProductFlow {
             memberSession.accessToken(), personRef, generatedFilesProof.fileId());
         spaceRevocationRestored = true;
         generatedCalendar.delete(mcpCalendarProof, ownerSession.accessToken());
-        NativeActorNames nativeNames = nativeActorNames(ownerSession, memberSession, browser, organizationId);
         new MemberSessionRevocationJourney(environment, http).prove(
             browser, organizationId, ownerEmail, ownerPassword);
-        runNativeAuthorizedJourney(ownerEmail, ownerPassword, ownerSession,
-            memberEmail, memberPassword, memberSession.subject(), memberInvitation.getInvitationHandle(),
-            browser, outsiderSession, outsiderEmail, outsiderPassword, organizationId, adminSession, memberSession, personRef, nativeNames);
+        runNativeMemberJourney(browser, organizationId, ownerEmail, ownerPassword,
+            outsiderSession, outsiderEmail, outsiderPassword);
 
         writeEvidence(
             startedAt,
@@ -581,14 +715,65 @@ public final class FreshProductFlow {
     }
   }
 
+  private record PreparedNativeMember(String email, String password,
+      OidcBrowserJourney.TokenSet session, String accountRef, String invitationHandle) {}
+
+  private PreparedNativeMember prepareNativeMember(String slot, OidcBrowserJourney browser,
+      String organizationId, String adminToken) {
+    String email = environment.collaborationMemberEmail(memberScenario.actorLogicalId(slot));
+    String password = randomPassword();
+    String displayName = "Weave test member " + slot;
+    Instant invitedAt = Instant.now();
+    MemberInvitationResponse invitation = inviteActor(organizationId, email, displayName, "member", adminToken);
+    MailpitActivationInbox inbox = new MailpitActivationInbox(http, environment.mailpitApi(),
+        environment.issuer(), environment.convergenceTimeout());
+    URI activation = inbox.awaitActivationLink(email, invitedAt.minusSeconds(5));
+    Instant registrationAt = Instant.now();
+    browser.activate(activation, email, password, displayName,
+        () -> inbox.awaitEmailVerificationLink(email, registrationAt.minusSeconds(5)));
+    var session = browser.authorize("weave-app", URI.create("com.massimotter.weave:/oauthredirect"),
+        List.of("openid", "profile", "email"), email, password, "member-" + slot + "-initial");
+    validateHumanBootstrapToken(browser.jwtPayload(session.accessToken()), "weave-app");
+    session = reconcileIdentitySession(browser, session, "member", email, password);
+    session = awaitAuthority(browser, session, "/members", "member");
+    JsonNode claims = browser.jwtPayload(session.accessToken());
+    validateHumanWorkspaceToken(claims, "weave-app");
+    requireNativeFixtureIdentity(session, session, claims, "member");
+    if (organizationGroups(claims).contains("/capabilities/weaver")) {
+      throw new ProductFlowException("Ordinary collaboration must not depend on Weaver entitlement");
+    }
+    String account = accountId(environment.issuer().toString(), session.subject());
+    new GeneratedSpacesJourney(environment).grantEditor(adminToken, session.accessToken(), account);
+    proveMemberApi(session.accessToken());
+    return new PreparedNativeMember(email, password, session, account, invitation.getInvitationHandle());
+  }
+
+  private void runNativeMemberJourney(OidcBrowserJourney browser, String organizationId,
+      String adminEmail, String adminPassword, OidcBrowserJourney.TokenSet outsiderSession,
+      String outsiderEmail, String outsiderPassword) {
+    if (System.getProperty("weave.e2e.native-runner", "").isBlank()) return;
+    var adminSession = browser.authorize("weave-admin-console", environment.productOrigin().resolve("/admin-console/"),
+        List.of("openid", "profile", "email", "agent-runtime.admin"), adminEmail, adminPassword,
+        "member-scenario-preparation-admin");
+    validateAdminToken(browser.jwtPayload(adminSession.accessToken()));
+    PreparedNativeMember actorA = prepareNativeMember("A", browser, organizationId, adminSession.accessToken());
+    PreparedNativeMember actorB = prepareNativeMember("B", browser, organizationId, adminSession.accessToken());
+    NativeActorNames names = nativeActorNames(actorA.session(), actorB.session(), browser, organizationId);
+    runNativeAuthorizedJourney(actorA.email(), actorA.password(), actorA.session(),
+        actorB.email(), actorB.password(), actorB.session().subject(), actorB.invitationHandle(),
+        browser, outsiderSession, outsiderEmail, outsiderPassword, organizationId,
+        adminSession, adminEmail, adminPassword, actorB.session(), actorB.accountRef(), names, false);
+  }
+
   private void runNativeAuthorizedJourney(
-      String memberEmail, String memberPassword, OidcBrowserJourney.TokenSet nativeOwnerSession,
+      String memberEmail, String memberPassword, OidcBrowserJourney.TokenSet nativeMemberSession,
       String peerEmail, String peerPassword, String peerSubject, String invitationHandle,
       OidcBrowserJourney browser, OidcBrowserJourney.TokenSet outsiderSession,
       String outsiderEmail, String outsiderPassword, String organizationId,
-      OidcBrowserJourney.TokenSet nativeAdminSession, OidcBrowserJourney.TokenSet nativePeerSession, String nativePeerAccountRef,
-      NativeActorNames nativeNames) {
-    String ownerSubject = nativeOwnerSession.subject();
+      OidcBrowserJourney.TokenSet nativeAdminSession, String adminEmail, String adminPassword,
+      OidcBrowserJourney.TokenSet nativePeerSession, String nativePeerAccountRef,
+      NativeActorNames nativeNames, boolean preparedMembers) {
+    String memberSubject = nativeMemberSession.subject();
     String runner = System.getProperty("weave.e2e.native-runner", "");
     if (runner.isBlank()) {
       return;
@@ -622,21 +807,29 @@ public final class FreshProductFlow {
       }
       Files.createDirectories(parent);
       Files.setPosixFilePermissions(parent, PosixFilePermissions.fromString("rwx------"));
-      Map<String, Object> input = Map.of(
+      Map<String, Object> input = new java.util.LinkedHashMap<>(Map.of(
           "schemaVersion", "weave.dual-ios-input/v1",
           "runId", environment.runId(),
           "publicOrigin", rootOrigin(environment.productOrigin()).toString(),
           "organizationId", organizationId,
           "nativeOrganizationId", nativeNames.nativeOrganizationId(),
-          "sharedSpaceRef", "workspace-default",
+          "sharedSpaceRef", memberScenario.spaceRef(),
+          "memberScenario", memberScenario.resolved(),
+          "memberBindings", List.of(
+              new GeneratedSpacesJourney(environment).currentEditorBinding(nativeAdminSession.accessToken(),
+                  nativeMemberSession.accessToken(), "A", organizationId, memberSubject,
+                  accountId(environment.issuer().toString(), memberSubject)),
+              new GeneratedSpacesJourney(environment).currentEditorBinding(nativeAdminSession.accessToken(),
+                  nativePeerSession.accessToken(), "B", organizationId, peerSubject, nativePeerAccountRef)),
           "actors", List.of(
               Map.of("role", "A", "email", memberEmail, "password", memberPassword,
-                  "identityRef", ownerSubject, "displayName", nativeNames.owner(),
+                  "identityRef", memberSubject, "displayName", nativeNames.owner(),
                   "entryUri", environment.productOrigin().getRawAuthority()),
               Map.of("role", "B", "email", peerEmail, "password", peerPassword,
                   "identityRef", peerSubject, "displayName", nativeNames.peer(), "invitationHandle", invitationHandle,
-                  "entryUri", nativeCompletionLink())),
-          "unauthorized", Map.of("identityRef", outsiderSession.subject()));
+                  "entryUri", preparedMembers ? environment.productOrigin().getRawAuthority() : nativeCompletionLink())),
+          "unauthorized", Map.of("identityRef", outsiderSession.subject())));
+      input.put("entryMode", preparedMembers ? "prepared-members" : "full-onboarding");
       // This fixture is private input, never qualification evidence or an upload artifact.
       Files.writeString(privateInput, http.mapper().writeValueAsString(input),
           StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.CREATE_NEW);
@@ -650,7 +843,7 @@ public final class FreshProductFlow {
           if (authorizationCompleted) {
             throw new ProductFlowException("native authorization request was repeated");
           }
-          JsonNode request = requireOwnedNativeAuthorizationRequest(authorizationRequest, environment.runId(), ownerSubject, peerSubject);
+          JsonNode request = requireOwnedNativeAuthorizationRequest(authorizationRequest, environment.runId(), memberSubject, peerSubject, memberScenario);
           // Native build/inspection can outlast an idle refresh grant. Acquire a real
           // fixture browser session only when its owned resource probes are requested.
           var currentOutsider = browser.authorize("weave-app", URI.create("com.massimotter.weave:/oauthredirect"),
@@ -677,14 +870,14 @@ public final class FreshProductFlow {
               + "/events/" + nativePath(resources.path("eventId").asString()), "code", "capability-policy-blocked", bearer);
           // Authorized baseline reads use the same User client boundary as Flutter.
           // Admin sessions remain exclusive to grant administration below.
-          var currentOwner = browser.authorize("weave-app", URI.create("com.massimotter.weave:/oauthredirect"),
+          var currentMember = browser.authorize("weave-app", URI.create("com.massimotter.weave:/oauthredirect"),
               List.of("openid", "profile", "email"), memberEmail, memberPassword,
-              "native-mutation-owner-fixture");
-          JsonNode ownerClaims = browser.jwtPayload(currentOwner.accessToken());
-          validateHumanWorkspaceToken(ownerClaims, "weave-app");
-          requireNativeFixtureIdentity(nativeOwnerSession, currentOwner, ownerClaims, "owner");
+              "native-mutation-member-fixture");
+          JsonNode memberClaims = browser.jwtPayload(currentMember.accessToken());
+          validateHumanWorkspaceToken(memberClaims, "weave-app");
+          requireNativeFixtureIdentity(nativeMemberSession, currentMember, memberClaims, "member");
           requireNativeMutationDenials(http, environment.apiOrigin(), resources, environment.runId(),
-              bearer, currentOwner);
+              bearer, currentMember);
           System.out.println("NATIVE_IOS_AUTHORIZATION readDenials=3 mutationDenials=3 supportSafe=true");
           Map<String, Object> proof = Map.of("status", "passed", "evidence", "server-denial",
               "deniedIdentityDigest", Hashing.sha256(outsiderSession.subject()),
@@ -705,9 +898,9 @@ public final class FreshProductFlow {
           if (!authorizationCompleted || revocationCompleted) {
             throw new ProductFlowException("native current grant exchange ordering was invalid");
           }
-          JsonNode request = requireOwnedNativeAuthorizationRequest(revocationRequest, environment.runId(), ownerSubject, peerSubject);
+          JsonNode request = requireOwnedNativeAuthorizationRequest(revocationRequest, environment.runId(), memberSubject, peerSubject, memberScenario);
           var currentAdmin = browser.authorize("weave-admin-console", environment.productOrigin().resolve("/admin-console/"),
-              List.of("openid", "profile", "email", "agent-runtime.admin"), memberEmail, memberPassword,
+              List.of("openid", "profile", "email", "agent-runtime.admin"), adminEmail, adminPassword,
               "native-revocation-admin-fixture");
           JsonNode adminClaims = browser.jwtPayload(currentAdmin.accessToken());
           validateAdminToken(adminClaims);
@@ -739,7 +932,7 @@ public final class FreshProductFlow {
       }
       int status = nativeProcess.exitValue();
       if (status != 0) {
-        collectNativeChatFailure(privateInput, ownerSubject, peerSubject, organizationId);
+        collectNativeChatFailure(privateInput, memberSubject, peerSubject, organizationId);
         throw new ProductFlowException("native Flutter acceptance failed");
       }
     } catch (IOException failure) {
@@ -950,7 +1143,7 @@ public final class FreshProductFlow {
       if (database == null || !database.matches("[A-Za-z0-9_]{1,63}")
           || serverName == null || !serverName.matches("[A-Za-z0-9.:-]{1,255}")) throw new IOException("unavailable");
       String sql = nativeChatFailureSql(value.path("roomId").asString(), organizationId,
-          environment.issuer().toString(), actorA, actorB, serverName, environment.runId());
+          environment.issuer().toString(), actorA, actorB, serverName, memberScenario.content("conversation"));
       String counts = nativeDiagnosticCommand(List.of("docker", "exec", "-i", container, "sh", "-c",
           "exec psql -X -qAt --set=ON_ERROR_STOP=1 -U \"$POSTGRES_USER\" -d \"$1\"", "sh", database), sql, deadline).strip();
       String diagnostic = nativeChatFailureDiagnostic(counts);
@@ -1031,8 +1224,8 @@ public final class FreshProductFlow {
   }
 
   static String nativeChatFailureSql(String room, String tenant, String issuer, String actorA,
-      String actorB, String serverName, String runId) throws IOException {
-    for (String field : List.of(room, tenant, issuer, actorA, actorB, serverName, runId)) {
+      String actorB, String serverName, String roomTitle) throws IOException {
+    for (String field : List.of(room, tenant, issuer, actorA, actorB, serverName, roomTitle)) {
       if (field.isBlank() || field.length() > 512 || field.chars().anyMatch(Character::isISOControl)) throw new IOException("unavailable");
     }
     String r = "'" + room.replace("'", "''") + "'";
@@ -1042,7 +1235,7 @@ public final class FreshProductFlow {
     String b = "'" + actorB.replace("'", "''") + "'";
     String n = "'" + serverName.replace("'", "''") + "'";
     String account = "'" + accountId(issuer, actorB) + "'";
-    String title = "'Weave UI " + runId.replace("'", "''") + "'";
+    String title = "'" + roomTitle.replace("'", "''") + "'";
     // Exact existing northbound representation for owned ASCII canonical IDs;
     // unsupported identifiers yield no authority row, never guessed decoding.
     String authority = "WITH owned AS (SELECT c.conversation_id,c.context_id FROM weave_chat_conversations c "
@@ -1069,7 +1262,7 @@ public final class FreshProductFlow {
   }
 
   static JsonNode requireOwnedNativeAuthorizationRequest(Path request, String runId,
-      String actorA, String actorB) throws IOException {
+      String actorA, String actorB, MemberTestScenario scenario) throws IOException {
     if (Files.isSymbolicLink(request.getParent())
         || !Files.getPosixFilePermissions(request.getParent()).equals(PosixFilePermissions.fromString("rwx------"))
         || Files.isSymbolicLink(request) || Files.size(request) > 4096
@@ -1085,13 +1278,13 @@ public final class FreshProductFlow {
     }
     JsonNode resources = value.path("resources");
     if (value.size() != 5 || !runId.equals(value.path("runId").asString())
-        || !"workspace-default".equals(value.path("spaceRef").asString())
+        || !scenario.spaceRef().equals(value.path("spaceRef").asString())
         || !Hashing.sha256(actorA).equals(value.path("actorA").asString())
         || !Hashing.sha256(actorB).equals(value.path("actorB").asString())
         || resources.size() != 7
-        || !("Weave UI " + runId).equals(resources.path("roomTitle").asString())
-        || !("weave-dual-initial-" + runId + ".txt").equals(resources.path("fileName").asString())
-        || !("Calendar UI " + runId + " updated").equals(resources.path("eventTitle").asString())) {
+        || !scenario.content("conversation").equals(resources.path("roomTitle").asString())
+        || !scenario.content("initialFileName").equals(resources.path("fileName").asString())
+        || !scenario.content("updatedEvent").equals(resources.path("eventTitle").asString())) {
       throw new ProductFlowException("native authorization request is not bound to owned UI resources");
     }
     for (String field : List.of("roomId", "fileId", "calendarId", "eventId")) {
@@ -1716,6 +1909,46 @@ public final class FreshProductFlow {
     String message = denied.getMessage();
     return message != null && (message.contains("http-403")
         || message.contains("HTTP 403"));
+  }
+
+  private void writePreparedMemberEvidence(Instant startedAt, String actorA, String actorB) {
+    ObjectNode evidence = http.mapper().createObjectNode();
+    evidence.put("schemaVersion", "weave.test-app-product-flow/v4-members");
+    evidence.put("mode", "member-collaboration");
+    evidence.put("startedAt", startedAt.toString());
+    evidence.put("completedAt", Instant.now().toString());
+    evidence.put("candidateCommit", environment.candidateCommit());
+    evidence.put("sourceCandidateCommit", environment.sourceCandidateCommit());
+    evidence.put("specificationCommit", environment.specificationCommit());
+    evidence.put("candidateManifestDigest", environment.candidateManifestDigest());
+    evidence.put("composeProject", environment.composeProject());
+    evidence.put("runIdSha256", Hashing.sha256(environment.runId()));
+    evidence.put("memberScenarioSha256", memberScenario.resolved().path("scenarioSha256").asString());
+    evidence.put("actorAIdentitySha256", Hashing.sha256(actorA));
+    evidence.put("actorBIdentitySha256", Hashing.sha256(actorB));
+    evidence.put("humanOAuth", "authorization_code_pkce_s256");
+    evidence.put("preparation", "bounded-prepared-members");
+    evidence.put("ordinaryMemberRolesVerified", true);
+    evidence.put("currentSpaceEditorGrantsVerified", true);
+    evidence.put("nativeCollaborationPassed", true);
+    evidence.put("credentialsIncluded", false);
+    evidence.put("actionLinksIncluded", false);
+    evidence.put("supportSafe", true);
+    Path target = environment.evidenceFile();
+    Path temporary = target.resolveSibling(target.getFileName() + ".tmp");
+    try {
+      if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)
+          || Files.exists(temporary, LinkOption.NOFOLLOW_LINKS)
+          || Files.isSymbolicLink(target.getParent())) {
+        throw new ProductFlowException("Prepared member evidence output is not owned and fresh");
+      }
+      Files.createDirectories(target.getParent());
+      Files.createFile(temporary, PosixFilePermissions.asFileAttribute(OWNER_FILE_PERMISSIONS));
+      Files.writeString(temporary, http.mapper().writerWithDefaultPrettyPrinter().writeValueAsString(evidence) + "\n");
+      Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE);
+    } catch (IOException | JacksonException failure) {
+      throw new ProductFlowException("Prepared member evidence could not be written");
+    }
   }
 
   private void writeEvidence(

@@ -14,9 +14,9 @@ Weave is still in active development with one human developer. `dev` and `dogfoo
 
 Apply pinned `steering/devops-conformance.md` and ADR 0022. Ordinary Dev PRs run compilation, formatting/static analysis, relevant unit/module and architecture/security checks, specification/acceptance conformance, code-first export freshness, independently selected consumer drift, and relevant static infrastructure/docs checks. Complete dependency inputs govern impact selection; unknown impact runs the stronger gate.
 
-The protected Dogfood commit must pass Full Compose E2E plus independent native macOS and Apple Silicon iOS Simulator integration against that same candidate. Each records the exact source/tree/spec identity and cleanup outcome. Infrastructure/preflight failure and product assertion failure both block readiness, with distinct diagnostics. macOS proof cannot substitute for iOS proof.
+The protected Dogfood candidate must pass Full Compose E2E with two concurrent independent real Apple Silicon iOS Simulator apps. Both product actors are ordinary members of the prepared organization and shared Space, using the same versioned scenario as integration and Dogfood recipes. Current role and Space grants are read back before collaboration. Setup/admin probes are separate; full onboarding and MCP acceptance remain separately selectable. Native macOS desktop testing is manual-only.
 
-The workflow does not consume a Candidate Cut, deployment manifest, prebuilt release image, Fresh Start plan, or persistent dogfood state. Smoke checks remain diagnostics rather than integrated behavior proof. Deterministic gates may use complete Gradle inputs/outputs; live and human evidence stays non-cacheable.
+Hosted builders provide the runtime, integration driver and iOS artifacts. Complete component fingerprints permit reuse with original producer identity; the generated composition verifies their compatibility with the current candidate. The Mac runner consumes those artifacts for native execution and deployment, without a hidden compilation fallback in the protected path. Every new candidate still needs fresh live collaboration and exact cleanup. Infrastructure/preflight and product assertion failures both block readiness with distinct diagnostics. A Candidate Cut, manually assembled release manifest or Fresh Start plan is unnecessary; automated composition verification remains mandatory. Live and human evidence stays non-cacheable.
 
 ## Direct Compose lifecycle
 
@@ -32,7 +32,7 @@ The supported local commands are:
 ./gradlew dogfoodReset
 ```
 
-`dogfoodUp` is idempotent and may be run repeatedly. `dogfoodReset` deliberately deletes only the three Compose-managed dogfood session volumes and starts a clean development realm:
+`dogfoodUp` consumes the verified hosted runtime composition and is idempotent. `dogfoodReset` uses the same verified inputs, deliberately deletes only the three Compose-managed dogfood session volumes and starts a clean development realm:
 
 - PostgreSQL;
 - native Files blobs;
@@ -46,7 +46,7 @@ OpenTofu is not part of the active `dev` or `dogfood` lifecycle. Production infr
 
 ## Dogfood deployment
 
-The `deploy-dogfood` job in `.github/workflows/live-stack-e2e.yml` runs only after all mandatory exact-SHA Compose/macOS/iOS qualification succeeds on a `dogfood` push. It verifies protected ancestry and runs `./gradlew dogfoodUp` on `weave-live-mac-mini`. Keeping E2E and deployment in one workflow avoids a second default-branch workflow-dispatch dependency.
+The `deploy-dogfood` job in `.github/workflows/live-stack-e2e.yml` runs only after mandatory exact-candidate Compose and two-member iOS qualification succeeds on a `dogfood` push. It verifies protected ancestry, consumes the qualified runtime artifacts and runs `./gradlew dogfoodUp` on `weave-live-mac-mini`. Prepared ordinary members exercise real authenticated Chat, Files and Calendar against that deployment. Keeping qualification and deployment in one workflow avoids a second default-branch workflow-dispatch dependency.
 
 There is no environment approval, destructive token, candidate-image resolver, or backup rehearsal in routine development dogfood.
 
@@ -57,12 +57,13 @@ After all mandatory dogfood automated qualification is green, manually run `Prep
 1. verifies all mandatory exact successful qualification and deployment evidence;
 2. starts dogfood twice and checks unchanged TLS fingerprints;
 3. optionally creates the first-owner invitation in private Mailpit;
-4. builds the exact SHA with the stable development identity;
-5. installs over `com.massimotter.weave` on the paired iPhone over WLAN and launches it.
+4. verifies the activated owner's default Space and current access;
+5. signs the qualified hosted device artifact with the stable development identity;
+6. installs over `com.massimotter.weave` on the paired iPhone and observes ordinary startup.
 
 The stable Apple team and bundle preserve Developer App trust and app storage. Deinstallation is not part of this workflow. The local CA should need full trust on the iPhone only once.
 
-The invitation activation link remains only at `https://mail.weave.test:44443`. The human tester performs activation and reports the real outcomes for sign-in/session, navigation, Chat, Files, Calendar, Weaver/MCP when available, accessibility, revoke/regrant, and identity continuity. Human outcomes are `passed`, `failed`, or `not-available`; absent mandatory surfaces block promotion.
+First-owner activation is separate setup; invitation links remain private at the reviewed `WEAVE_MAILPIT_URL`. Routine preparation preserves the owner app/session and accepts either the retained workspace or normal sign-in. Its `weave.hil-preparation/v4` receipt binds the actual successful qualification attempt, composition and installed binary, and leaves `ownerHIL: pending`. Personal sign-in is the expected next human action when needed. The tester then reports actual sign-in/session, navigation, Chat, Files, Calendar, accessibility, revoke/regrant and identity continuity results, including the actual owner/admin/member role. Human outcomes are `passed`, `failed` or `not-available`; absent mandatory surfaces block Main promotion. Optional Weaver/MCP and broad admin journeys retain separate acceptance.
 
 ## Promotion discipline during development
 
@@ -75,6 +76,6 @@ Before merging `dev` to `dogfood`:
 
 Before making a future production release, write and accept the production-hardening ADR and add only the controls that the chosen deployment target actually needs.
 
-For the current #1470 mainline delivery, promote the exact deployed and human-tested `dogfood` tree to `main` by PR. The protected Main Promotion Gate checks qualified Dogfood ancestry and proposed tree/spec equality, the exact dogfood-head Compose/macOS/iOS, deployment and physical preparation evidence, and the separately reported owner human result described in `docs/gitflow-pr-workflow.md`. A green disposable E2E alone is insufficient for this promotion. The merge itself does not publish a production release.
+For the current #1470 mainline delivery, promote the exact deployed and human-tested `dogfood` tree to `main` by PR. The protected Main Promotion Gate checks qualified Dogfood ancestry and proposed tree/spec equality, the candidate-bound composition and two-member iOS collaboration, deployment and physical preparation, and the separately reported `Weave human test v2` result described in `docs/gitflow-pr-workflow.md`. A green disposable E2E alone is insufficient for this promotion. The merge itself does not publish a production release.
 
 An unchanged candidate reuses qualification for Main. A changed candidate source/tree invalidates its evidence; newer Dev commits alone do not. No equivalent integration reruns solely because the candidate advances to Main.

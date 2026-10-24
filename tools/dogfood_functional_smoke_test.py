@@ -18,11 +18,18 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import dogfood_functional_smoke as smoke
+from tools.artifact_evidence_test import composition_fixture, component_fixture
+from tools.member_test_scenario import scenario_sha256
 
 
 def receipt(stage='physical', sha='a' * 40, tree='b' * 40, spec='c' * 40, run_id=123, attempt=1):
+    composition = composition_fixture(sha, tree, spec)
     return {
-        'schemaVersion': 'weave.dogfood-functional-smoke/v2', 'candidateCommit': sha,
+        'artifactComposition': composition, 'scenarioSha256': scenario_sha256(),
+        'actorProfile': 'retained-owner-and-member' if stage == 'physical' else 'two-ordinary-members',
+        'runtimeBuildArtifact': component_fixture(composition, 'runtime-linux-amd64'),
+        'simulatorBuildArtifact': component_fixture(composition, 'ios-simulator'),
+        'schemaVersion': 'weave.dogfood-functional-smoke/v3', 'candidateCommit': sha,
         'sourceTree': tree, 'specificationCommit': spec, 'qualificationRunId': run_id,
         'qualificationRunAttempt': attempt, 'stage': stage, 'status': 'passed',
         'entrypoint': 'lib/main.dart', 'routing': 'reviewed-direct', 'appSessionInjection': False,
@@ -31,7 +38,7 @@ def receipt(stage='physical', sha='a' * 40, tree='b' * 40, spec='c' * 40, run_id
         'supportSafe': True, 'containsSecretValues': False, 'retainedStateRestartVerified': True,
         'retainedStateUpdateVerified': True, 'calendarPeerAbsenceVerified': True,
         'independentPeerReadbackVerified': True, 'privateFilesScopeIsolationVerified': True,
-        'privateFilesPeerIsolationVerified': True, 'privateFilesContinuityVerified': True, 'deployedSourceTree': tree,
+        'privateFilesPeerIsolationVerified': True, 'privateFilesContinuityVerified': True, 'deployedSourceTree': composition['components']['runtime-linux-amd64']['sourceTree'],
         'operations': list(smoke.OPERATIONS),
         'resourceIdentityDigests': {**{key: 'd' * 64 for key in ('conversation', 'folder', 'file', 'event', 'account', 'organization')}, 'peerAccount': 'e' * 64, 'privateFolder': 'f' * 64},
         'appBuildSha256': '1' * 64, 'peerAppBuildSha256': '2' * 64, 'routingSha256': '3' * 64,
@@ -112,23 +119,15 @@ class FunctionalSmokeTest(unittest.TestCase):
                 self.assertEqual(result['boundary'], 'pinned-native-toolchain-unavailable')
                 self.assertNotIn('private-detail', output.read_text())
 
-    def test_missing_input_invokes_explicit_preparation_without_taking_smoke_lock(self):
-        import dogfood_prepare as prepare
+    def test_missing_input_requires_preparation_before_functional_execution(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'identities.json'
-            context = SimpleNamespace()
-            with patch.object(prepare, 'preflight', return_value={'status': 'incomplete'}) as preflight, \
-                    patch.object(prepare, 'prepare_members', return_value={'preparationComplete': False, 'boundary': 'dogfood-operator-owner-space-access-conflict'}) as members, \
-                    patch.object(smoke, '_dogfood_session_lock') as lock, patch('sys.stdout', new_callable=io.StringIO) as output:
-                with self.assertRaisesRegex(smoke.SmokeError, '^dogfood-operator-owner-space-access-conflict$'):
-                    smoke.ensure_prepared_identities(context, path)
-            preflight.assert_called_once(); members.assert_called_once(); lock.assert_not_called()
-            self.assertEqual(members.call_args.kwargs, {'authorization_mode': 'operator'})
-            self.assertIn('stage=explicit-test-member-preparation', output.getvalue())
+            with patch.object(smoke, '_dogfood_session_lock') as lock:
+                with self.assertRaisesRegex(smoke.SmokeError, '^prepared-member-scenario-required$'):
+                    smoke.ensure_prepared_identities(SimpleNamespace(), path)
+            lock.assert_not_called()
             path.write_text('existing')
-            with patch.object(prepare, 'preflight') as preflight:
-                smoke.ensure_prepared_identities(context, path)
-            preflight.assert_not_called()
+            smoke.ensure_prepared_identities(SimpleNamespace(), path)
 
     def test_retained_owner_binding_precedes_writes_and_separates_administrator_and_test_members(self):
         binding = {'owner': {'accountDigest': 'a' * 64, 'organizationDigest': 'c' * 64},
@@ -254,7 +253,7 @@ class FunctionalSmokeTest(unittest.TestCase):
                          ('routing', 'relay'), ('proxyUsed', True), ('appSessionInjection', True),
                          ('ownerSessionReplaced', True), ('qualificationRunAttempt', 2),
                          ('qualificationRunId', True), ('cleanupStatus', 'all-data-removed'),
-                         ('deployedSourceTree', 'e' * 40), ('sourceTree', 'f' * 40)]:
+                         ('deployedSourceTree', '9' * 40), ('sourceTree', 'f' * 40)]:
             self.assertFalse(self.valid({**value, key: bad}), key)
         for bad in ([], ['A:discover'], list(smoke.OPERATIONS)[:-1], list(reversed(smoke.OPERATIONS))):
             self.assertFalse(self.valid({**value, 'operations': bad}))
@@ -401,8 +400,8 @@ class FunctionalSmokeTest(unittest.TestCase):
         self.assertNotIn('"physicalDeviceHttpsVerified": true', result)
         self.assertIn('ordinary startup requires update_in_place', script)
         workflow = (smoke.ROOT / '.github/workflows/ios-dogfood.yml').read_text()
-        self.assertIn('--run --ordinary-startup', workflow)
-        self.assertIn('--reset-mode update_in_place', workflow)
+        self.assertIn('python3 tools/prepare_iphone_artifact.py', workflow)
+        self.assertIn('WEAVE_IOS_RESET_MODE: update_in_place', workflow)
 
     def test_ui_readback_requires_updated_title_and_completed_new_refresh(self):
         driver = (smoke.CLIENT / 'tool/ios_browser_driver/OrdinaryProductSmoke.swift').read_text()
@@ -444,7 +443,9 @@ class FunctionalSmokeTest(unittest.TestCase):
         self.assertIn('preview.label == expected || (preview.value as? String) == expected', preview)
         self.assertNotIn('smokeObserveText', driver)
         producer = Path(smoke.__file__).read_text()
-        self.assertIn("'CODE_SIGN_STYLE=Automatic', '-allowProvisioningUpdates'", producer)
+        self.assertIn('verify_signed(ROOT,', producer)
+        self.assertNotIn('build-for-testing', producer)
+        self.assertNotIn('-allowProvisioningUpdates', producer)
 
     def test_unprotected_invocation_is_incomplete_without_native_side_effects(self):
         with tempfile.TemporaryDirectory() as directory:

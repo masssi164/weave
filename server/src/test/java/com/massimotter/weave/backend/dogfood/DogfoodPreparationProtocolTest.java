@@ -37,6 +37,26 @@ class DogfoodPreparationProtocolTest {
     private static Request parse(String value) throws Exception {
         return read(new ByteArrayInputStream(value.getBytes(StandardCharsets.UTF_8)));
     }
+    static Request managedRequest() {
+        var original = request("invitations");
+        return new Request("weave.dogfood-operator-preparation-request/v2", "provision-members", original.environment(),
+                original.nonce(), original.candidateCommit(), original.sourceTree(), original.specificationCommit(),
+                original.apiBaseUrl(), original.plan(), null, null, List.of(
+                    new InitialCredential("A", "private-initial-member-A-credential"),
+                    new InitialCredential("B", "private-initial-member-B-credential")));
+    }
+    @Test void onlyExplicitV2ManagedOperationAdmitsTwoDistinctPrivateInitialCredentials() throws Exception {
+        var request = managedRequest();
+        assertThat(parse(JSON.writeValueAsString(request))).isEqualTo(request);
+        assertThat(request.initialCredentials().toString()).doesNotContain("private-initial");
+        String json = JSON.writeValueAsString(request);
+        for (String invalid : List.of(json.replace("/v2", "/v1"), json.replace("provision-members", "invitations"),
+                json.replace("private-initial-member-B-credential", "private-initial-member-A-credential"),
+                json.replace("private-initial-member-A-credential", "short"))) {
+            assertThatThrownBy(() -> parse(invalid)).isInstanceOf(Exception.class);
+        }
+    }
+
     @Test void exactClosedRequestRoundTrips() throws Exception {
         assertThat(parse(JSON.writeValueAsString(request("invitations")))).isEqualTo(request("invitations"));
         assertThat(parse(JSON.writeValueAsString(request("grants")))).isEqualTo(request("grants"));
