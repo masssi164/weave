@@ -8,7 +8,9 @@ import io
 import json
 import os
 from pathlib import Path
+import plistlib
 import shutil
+import struct
 import subprocess
 import tarfile
 import tempfile
@@ -480,6 +482,219 @@ class Repository(unittest.TestCase):
         self.write(artifacts.SCENARIO, json.dumps(dict(reversed(list(scenario.items()))), ensure_ascii=False))
         self.commit()
         self.assertEqual(artifacts.scenario_digest(self.root), artifacts.digest_bytes(canonical))
+
+
+def simulator_executable(entitlements: bytes | None, der: bytes | None = None, *, cpu: int = 0x0100000C) -> bytes:
+    sections = [(name, value) for name, value in ((b"__entitlements", entitlements), (b"__ents_der", der)) if value is not None]
+    command_size = 72 + 80 * len(sections)
+    offset = 32 + command_size
+    command = struct.pack("<II16sQQQQiiII", 0x19, command_size, b"__TEXT", 0, 0, 0, 0, 7, 5, len(sections), 0)
+    contents = b""
+    for name, value in sections:
+        command += struct.pack("<16s16sQQIIIIIIII", name, b"__TEXT", 0, len(value), offset, 0, 0, 0, 0, 0, 0, 0)
+        contents += value
+        offset += len(value)
+    return struct.pack("<8I", 0xFEEDFACF, cpu, 0, 2, 1, command_size, 0, 0) + command + contents
+
+
+class SimulatorSigning(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.client = self.root / "client"
+        self.app = self.client / "build/ios/iphonesimulator/Runner.app"
+        self.app.mkdir(parents=True)
+        (self.root / "tools").mkdir()
+        (self.root / artifacts.CONFIG).write_text((artifacts.ROOT / artifacts.CONFIG).read_text())
+        self.definitions = json.loads((self.root / artifacts.CONFIG).read_text())["components"]
+        self.entitlements_directory = self.client / "ios/Runner"
+        self.entitlements_directory.mkdir(parents=True)
+        self.requested = {"keychain-access-groups": ["$(AppIdentifierPrefix)com.massimotter.weave"]}
+        for filename in ("Runner.entitlements", "RunnerDevelopment.entitlements"):
+            (self.entitlements_directory / filename).write_bytes(plistlib.dumps(self.requested))
+        self.info = {"CFBundleIdentifier": "com.massimotter.weave", "CFBundleExecutable": "Runner"}
+        (self.app / "Info.plist").write_bytes(plistlib.dumps(self.info))
+        self.intermediates = self.root / "DerivedData/Runner.build"
+        self.intermediates.mkdir(parents=True)
+        self.expected_path = self.intermediates / "Runner.app-Simulated.xcent"
+        self.der = b"fixture DER bytes"
+        self.expected = {"application-identifier": "EXISTING42.com.massimotter.weave",
+                         "keychain-access-groups": ["EXISTING42.com.massimotter.weave"]}
+        self.settings = {"PRODUCT_BUNDLE_IDENTIFIER": self.info["CFBundleIdentifier"], "FULL_PRODUCT_NAME": "Runner.app",
+            "SRCROOT": str(self.client / "ios"), "CODE_SIGN_ENTITLEMENTS": "Runner/Runner.entitlements",
+            "TARGET_TEMP_DIR": str(self.intermediates), "DEVELOPMENT_TEAM": "OTHERTEAM0"}
+        self.commands = []
+        self.signature_valid = True
+        self.write_expected()
+
+    def write_expected(self):
+        self.expected_path.write_bytes(plistlib.dumps(self.expected))
+        Path(str(self.expected_path) + ".der").write_bytes(self.der)
+        (self.app / "Runner").write_bytes(simulator_executable(plistlib.dumps(self.expected), self.der))
+
+    def run_command(self, root, arguments, **kwargs):
+        self.commands.append(arguments)
+        if arguments[0] == "codesign":
+            self.assertEqual(arguments[1:6], ["--verify", "--deep", "--strict", "--all-architectures", arguments[-1]])
+            if not self.signature_valid:
+                raise subprocess.CalledProcessError(1, arguments)
+            return ""
+        if "-showBuildSettings" in arguments:
+            self.assertIn("BUILD_DIR=" + str(self.client / "build/ios"), arguments)
+            return json.dumps([{"target": "Runner", "buildSettings": self.settings}])
+        pins = self.definitions["ios-simulator"]["toolchain"]
+        if arguments == ["xcodebuild", "-version"]:
+            return "Xcode " + pins["xcode"] + "\nBuild version " + pins["xcodeBuild"]
+        if arguments[:2] == ["xcrun", "--sdk"]:
+            return pins["sdk"]
+        if arguments == ["pod", "--version"]:
+            return pins["cocoapods"]
+        if arguments[:2] == ["flutter", "--version"]:
+            return json.dumps({"frameworkVersion": pins["flutter"], "channel": "stable"})
+        if arguments[:3] == ["flutter", "build", "ios"] and "--simulator" not in arguments and "--config-only" not in arguments:
+            device_app = self.client / "build/ios/iphoneos/Runner.app"
+            device_app.mkdir(parents=True)
+            (device_app / "Info.plist").write_bytes(plistlib.dumps(self.info))
+        if "build-for-testing" in arguments:
+            products = Path(arguments[arguments.index("-derivedDataPath") + 1]) / "Build/Products"
+            products.mkdir(parents=True)
+            (products / "Driver.xctestrun").write_bytes(plistlib.dumps({"TestBundlePath": str(products / "Driver.xctest")}))
+        return ""
+
+    def verify(self):
+        with patch.object(hosted, "run", side_effect=self.run_command), patch("sys.stdout", new_callable=io.StringIO):
+            hosted.verify_simulator_app(self.client, self.app, {})
+
+    def test_valid_simulator_identity_preserves_generated_prefix_and_does_not_require_a_team(self):
+        for prefix in ("EXISTING42.", "", "DIFFERENT."):
+            with self.subTest(prefix=prefix):
+                identifier = prefix + self.info["CFBundleIdentifier"]
+                self.expected = {"application-identifier": identifier, "keychain-access-groups": [identifier]}
+                self.write_expected()
+                self.verify()
+        self.expected.pop("application-identifier")
+        self.write_expected()
+        self.verify()
+
+    def test_xml_only_is_valid_only_when_no_der_input_or_section_exists(self):
+        Path(str(self.expected_path) + ".der").unlink()
+        with self.assertRaisesRegex(artifacts.ArtifactError, "entitlements-mismatch"):
+            self.verify()
+        (self.app / "Runner").write_bytes(simulator_executable(plistlib.dumps(self.expected)))
+        self.verify()
+
+    def test_every_universal_executable_slice_must_have_the_expected_entitlements(self):
+        arm = (self.app / "Runner").read_bytes()
+        for x86_entitlements in (plistlib.dumps(self.expected), None):
+            x86 = simulator_executable(x86_entitlements, self.der, cpu=0x01000007)
+            binary = struct.pack(">II", 0xCAFEBABE, 2)
+            binary += struct.pack(">5I", 0x01000007, 0, 48, len(x86), 0)
+            binary += struct.pack(">5I", 0x0100000C, 0, 48 + len(x86), len(arm), 0)
+            (self.app / "Runner").write_bytes(binary + x86 + arm)
+            if x86_entitlements is None:
+                with self.assertRaisesRegex(artifacts.ArtifactError, "entitlements-missing-or-malformed"):
+                    self.verify()
+            else:
+                self.verify()
+
+    def test_missing_malformed_or_mismatched_actual_entitlements_fail_closed(self):
+        wrong_group = {**self.expected, "keychain-access-groups": ["OTHER.com.massimotter.weave"]}
+        wrong_app = {**self.expected, "application-identifier": "EXISTING42.other.app"}
+        for binary in (b"not Mach-O", simulator_executable(None), simulator_executable(b"not a plist", self.der),
+                       simulator_executable(plistlib.dumps({}), self.der),
+                       simulator_executable(plistlib.dumps(wrong_group), self.der),
+                       simulator_executable(plistlib.dumps(wrong_app), self.der),
+                       simulator_executable(plistlib.dumps(self.expected)),
+                       simulator_executable(plistlib.dumps(self.expected), b"wrong DER"),
+                       simulator_executable(plistlib.dumps(self.expected), self.der)[:-1]):
+            with self.subTest(binary=binary[:16]):
+                (self.app / "Runner").write_bytes(binary)
+                with self.assertRaises(artifacts.ArtifactError):
+                    self.verify()
+
+    def test_section_and_architecture_identity_must_match_their_containers(self):
+        arm = (self.app / "Runner").read_bytes()
+        wrong_segment = bytearray(arm)
+        wrong_segment[40:56] = b"__DATA".ljust(16, b"\0")
+        binaries = [bytes(wrong_segment)]
+        for cpu, subtype in ((0x01000007, 0), (0x0100000C, 1)):
+            binaries.append(struct.pack(">7I", 0xCAFEBABE, 1, cpu, subtype, 28, len(arm), 0) + arm)
+        for binary in binaries:
+            with self.subTest(binary=binary[:16]):
+                (self.app / "Runner").write_bytes(binary)
+                with self.assertRaisesRegex(artifacts.ArtifactError, "entitlements-missing-or-malformed"):
+                    hosted.simulator_entitlement_sections(self.app / "Runner")
+
+    def test_expected_identity_and_keychain_configuration_must_be_present_and_match(self):
+        for change in ({"keychain-access-groups": []}, {"keychain-access-groups": "not a list"},
+                       {"keychain-access-groups": ["$(AppIdentifierPrefix)com.massimotter.weave"]},
+                       {"keychain-access-groups": ["EXISTING42.other.app"]},
+                       {"application-identifier": "EXISTING42.other.app"}):
+            original = self.expected
+            self.expected = {**original, **change}
+            self.write_expected()
+            with self.subTest(change=change), self.assertRaisesRegex(artifacts.ArtifactError, "signing-evidence-invalid"):
+                self.verify()
+            self.expected = original
+        self.write_expected()
+        self.settings["PRODUCT_BUNDLE_IDENTIFIER"] = "other.app"
+        with self.assertRaisesRegex(artifacts.ArtifactError, "signing-evidence-invalid"):
+            self.verify()
+        self.settings["PRODUCT_BUNDLE_IDENTIFIER"] = self.info["CFBundleIdentifier"]
+        self.expected_path.unlink()
+        with self.assertRaisesRegex(artifacts.ArtifactError, "signing-evidence-invalid"):
+            self.verify()
+
+    def test_invalid_signature_stops_before_reading_entitlements(self):
+        self.signature_valid = False
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.verify()
+        self.assertEqual(len(self.commands), 1)
+
+    def test_actual_producer_signs_both_simulator_variants_and_keeps_device_unsigned(self):
+        for component in ("ios-simulator", "ios-device"):
+            self.commands.clear()
+            payload = self.root / component
+            with self.subTest(component=component), patch.object(hosted.platform, "system", return_value="Darwin"), \
+                    patch.object(hosted.platform, "machine", return_value="arm64"), \
+                    patch.object(hosted, "component_configuration", side_effect=lambda root, name: self.definitions[name]), \
+                    patch.object(hosted, "run", side_effect=self.run_command), patch.dict(os.environ, {"GITHUB_RUN_NUMBER": "12"}), \
+                    patch.object(hosted, "require_clean_source") as clean, patch("sys.stdout", new_callable=io.StringIO):
+                hosted.apple(self.root, component, payload, "a" * 40)
+            builds = [command for command in self.commands if command[:3] == ["flutter", "build", "ios"]]
+            signatures = [command for command in self.commands if command[0] == "codesign"]
+            if component == "ios-simulator":
+                self.assertEqual(len(builds), 3)
+                self.assertTrue(all("--no-codesign" not in command for command in builds))
+                self.assertEqual([Path(command[-1]) for command in signatures],
+                                 [payload / "ordinary/Runner.app", payload / "collaboration/Runner.app"])
+                self.assertIn("apple-collaboration", [call.args[1] for call in clean.call_args_list])
+            else:
+                self.assertEqual(len(builds), 2)
+                self.assertTrue(all("--no-codesign" in command and "--profile" in command for command in builds))
+                self.assertFalse(signatures)
+                self.assertEqual((payload / "ordinary/entitlements.plist").read_bytes(),
+                                 (self.entitlements_directory / "RunnerDevelopment.entitlements").read_bytes())
+            self.assertIn("apple-ordinary", [call.args[1] for call in clean.call_args_list])
+            self.assertIn("apple-driver", [call.args[1] for call in clean.call_args_list])
+
+    def test_failed_simulator_signature_prevents_publication(self):
+        self.signature_valid = False
+        arguments = ["build_artifacts_hosted.py", "--root", str(self.root), "--component", "ios-simulator",
+                     "--output", str(self.root / "unpublished")]
+        with patch("sys.argv", arguments), patch.object(hosted.platform, "system", return_value="Darwin"), \
+                patch.object(hosted.platform, "machine", return_value="arm64"), patch.object(hosted, "run", side_effect=self.run_command), \
+                patch.object(hosted, "component_configuration", side_effect=lambda root, name: self.definitions[name]), \
+                patch.object(hosted, "git", return_value=b"a" * 40), patch.object(hosted, "require_clean_source"), \
+                patch.object(hosted, "publish_manifest") as publish, \
+                patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted",
+                                        "GITHUB_SHA": "a" * 40, "GITHUB_RUN_NUMBER": "12"}), \
+                self.assertRaises(subprocess.CalledProcessError):
+            hosted.main()
+        publish.assert_not_called()
+        self.assertTrue(any(command[0] == "codesign" for command in self.commands))
+        self.assertFalse((self.root / "unpublished").exists())
 
 
 class ArchiveSafety(unittest.TestCase):
