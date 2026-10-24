@@ -1,10 +1,19 @@
 # Weave
 
-**Your collaboration. Your choice of providers.**
+<p align="center">
+  <img src="client/assets/images/weave_logo.png" alt="Weave logo: an interwoven blue and teal symbol" width="280">
+</p>
 
-Weave is building a modular collaboration platform for files, calendars, and conversations — without making one vendor the center of your working world. The goal is to keep your workspace, its identities, and its relationships while choosing the services behind each capability.
+<p align="center">
+  <a href="https://github.com/masssi164/weave/actions/workflows/ci.yml"><img src="https://github.com/masssi164/weave/actions/workflows/ci.yml/badge.svg" alt="Gradle CI workflow status"></a>
+  <a href="https://github.com/masssi164/weave/actions/workflows/live-stack-e2e.yml"><img src="https://github.com/masssi164/weave/actions/workflows/live-stack-e2e.yml/badge.svg" alt="Live-stack E2E workflow status"></a>
+</p>
 
-[Start developing](#develop-and-test) · [Roadmap](#ordered-roadmap) · [Architecture](#core-architecture) · [Meet Weaver](https://github.com/masssi164/weaver)
+**Accessible collaboration. Your workspace. Your choice of providers.**
+
+Weave is an open-source, provider-neutral collaboration workspace in development. It brings files, calendars, and conversations into one accessible experience, while keeping identities, authorization, and provider connections under the control of the organization running it.
+
+[See the product](#product-preview) · [Start developing](#develop-and-test) · [Roadmap](#ordered-roadmap) · [Architecture](#core-architecture) · [Meet Weaver](https://github.com/masssi164/weaver)
 
 > **Bounded standalone profile:** Files, Calendar, and authorized non-E2EE Matrix business rooms have [earlier exact-source Compose/macOS/single-iOS job evidence](https://github.com/masssi164/weave/actions/runs/38229339638). That baseline does not establish current release readiness. Weave is not a finished production collaboration platform. Provider migration and general Matrix interoperability remain outside this release profile. Protected delivery and acceptance status are tracked under [#1592](https://github.com/masssi164/weave/issues/1592) and [#1481](https://github.com/masssi164/weave/issues/1481).
 
@@ -12,11 +21,30 @@ Weave is building a modular collaboration platform for files, calendars, and con
 
 A collaboration platform should let you choose its building blocks, not require an all-or-nothing stack.
 
+### Built around people and their work
+
+- **One accessible workspace:** A Flutter client with screen-reader-conscious navigation, understandable recovery states, and a unified entry point for Files, Calendar, and Chat.
+- **Capabilities before vendors:** Product APIs and server-owned adapters keep provider credentials and vendor-specific endpoints out of ordinary member flows.
+- **A shared context:** Spaces and stable resource references connect work across capabilities, rather than treating each backend as a separate application.
+- **Honest operational readiness:** Explicit integration and human acceptance gates distinguish an implemented screen or passing unit test from a usable deployment.
+
+Weave is aimed at self-hosters, teams, and organizations that value accessibility, operational transparency, and control over their collaboration stack. The current release is still being qualified; the broader vision is not a catalog of shipped integrations.
+
 **Choose providers by capability.** Files, Calendar, and Chat are product concepts, not vendor names. Replaceable adapters connect the services behind them. Provider-neutral does not mean every provider is already supported.
 
 **Keep the context, not just an export.** A file, an event, and a conversation can belong to the same Space. Stable `weave://` references and cross-domain relationships are central to the design. The separate [provider portability epic #1498](https://github.com/masssi164/weave/issues/1498) requires Files adoption and replacement to preserve data, stable references, and effective permissions. Activation must stop if a required source property or permission cannot be preserved.
 
 **Build the workspace you need.** The broader vision includes documents, tasks, and meetings as modular capabilities. The immediate implementation work concentrates on the Files, Calendar, and Chat foundation and its integration boundaries. The wider vision is not a list of already shipped features.
+
+### Product preview
+
+These reproducible SVG illustrations show the intended product experience; they are **not screenshots of a currently accepted deployment** or proof that the depicted workflows pass end-to-end. See the [client README](client/README.md) for the full gallery and the [screenshot evidence manifest](docs/assets/screenshot-evidence.json) for their source.
+
+![Illustrative chat interface with room navigation, message history, and message composer.](docs/assets/marketing/03-chat-room.svg)
+
+![Illustrative file browser showing a Documents folder and accessible file actions.](docs/assets/marketing/04-files-documents.svg)
+
+![Illustrative settings view showing account and workspace configuration.](docs/assets/marketing/05-settings.svg)
 
 ### Weave and Weaver
 
@@ -28,7 +56,7 @@ Weave does not require an agent to be useful. Weaver adds another way to work wi
 
 ## Current status
 
-Earlier-source Admin and OpenClaw integration evidence applies only to its recorded revisions and capabilities. Release readiness requires Full Compose/macOS/concurrent dual-iOS qualification, successful exact-candidate Dogfood deployment, a prepared physical iPhone build from that candidate, and explicit human acceptance (HIL). Current acceptance and exact evidence are tracked in [#1592](https://github.com/masssi164/weave/issues/1592) and [#1481](https://github.com/masssi164/weave/issues/1481). A passing component test or build alone is not evidence that a wider capability is ready for daily use.
+Earlier-source Admin and OpenClaw integration evidence applies only to its recorded revisions and capabilities. Release readiness requires fresh Full Compose and concurrent dual-iOS qualification, successful exact-candidate Dogfood deployment, a prepared physical iPhone build from that candidate, and explicit human acceptance (HIL). macOS desktop qualification is manual-only. Current acceptance and exact evidence are tracked in [#1592](https://github.com/masssi164/weave/issues/1592) and [#1481](https://github.com/masssi164/weave/issues/1481). A passing component test or build alone is not evidence that a wider capability is ready for daily use.
 
 The approved [product consolidation epic #1470](https://github.com/masssi164/weave/issues/1470) and [pinned specification policy](docs/specification-source-of-truth.md) define the current standalone-product delivery contract. Its stories are #1471–#1476 and #1479–#1481. Mandatory URL-only entry and concurrent real dual-iOS UI collaboration supplement that scope through [#1592](https://github.com/masssi164/weave/issues/1592). #1477–#1478 belong to [provider portability epic #1498](https://github.com/masssi164/weave/issues/1498). #1470 acceptance requires integrated user, admin, MCP, Matrix, Files, and Calendar journeys, not compilation alone. Provider adoption, migration, cutover, and rollback are #1498 acceptance. Older Core and gateway work remains historical or reusable only as classified in the epics.
 
@@ -68,7 +96,7 @@ Server controllers, transport models and validation generate the separate User a
 ```
 
 Do not edit generated artifacts manually. Flutter consumes the User API; the Admin UI uses the generated Admin client for authorized operations and a separate generated User client for public pre-login configuration. The curated MCP Files and Calendar tools use the generated JVM User client, and product E2E uses generated User and separately credentialed Admin clients. Calendar mutations remain subject to current organization and resource authorization.
-The [native acceptance instructions and evidence](docs/native-flutter-integration.md) describe the automated macOS journey and its platform limits. Exact integrated acceptance is tracked in the linked consolidation stories.
+The [native acceptance instructions and evidence](docs/native-flutter-integration.md) describe platform-specific journeys and their limits. Apply the [developer handbook](docs/developer-handbook.md) for current mandatory dual-iOS and manual-only macOS qualification. Exact integrated acceptance is tracked in the linked consolidation stories.
 
 ## Core architecture
 
