@@ -1,0 +1,145 @@
+name: Hosted build artifacts
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+    inputs:
+      components:
+        description: Component set to build or reuse
+        type: choice
+        required: true
+        default: runtime-linux-amd64,ios-simulator,ios-device
+        options:
+          - runtime-linux-amd64,ios-simulator,ios-device
+          - macos-desktop
+  workflow_call:
+    inputs:
+      candidate:
+        type: string
+        required: true
+      components:
+        type: string
+        default: runtime-linux-amd64,ios-simulator,ios-device
+    outputs:
+      composition-artifact:
+        description: Immutable candidate composition containing verified component artifact identities
+        value: ${{ jobs.compose.outputs.artifact }}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  plan:
+    name: Resolve component build inputs
+    if: contains(fromJSON('["refs/heads/dev","refs/heads/dogfood","refs/heads/main"]'), github.ref) && contains(fromJSON('["push","workflow_dispatch"]'), github.event_name)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      needs-build: ${{ steps.plan.outputs.needs-build }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify requested candidate
+        env:
+          REQUESTED_CANDIDATE: ${{ inputs.candidate || github.sha }}
+        run: test "$REQUESTED_CANDIDATE" = "$GITHUB_SHA"
+      - name: Resolve trusted reusable artifacts
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_COMPONENTS: ${{ inputs.components || 'runtime-linux-amd64,ios-simulator,ios-device' }}
+        run: python3 tools/build_artifacts.py plan --components "$BUILD_COMPONENTS" --output build/artifact-plan.json
+
+  build:
+    name: Build component (${{ matrix.component }})
+    needs: plan
+    if: needs.plan.outputs.needs-build == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        if: matrix.component == 'runtime-linux-amd64'
+        with:
+          node-version: '24.22.1'
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        if: matrix.component == 'runtime-linux-amd64'
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        if: matrix.component == 'runtime-linux-amd64'
+      - name: Install pinned Linux Rust compiler
+        if: matrix.component == 'runtime-linux-amd64'
+        run: rustup toolchain install 1.95.0 --profile minimal
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        if: matrix.component != 'runtime-linux-amd64'
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+          cache: true
+      - name: Select supported hosted Apple toolchain
+        if: matrix.component != 'runtime-linux-amd64'
+        run: |
+          test "$(uname -m)" = arm64
+          sudo xcode-select --switch /Applications/Xcode_26.5.app/Contents/Developer
+          test "$(xcodebuild -version)" = "$(printf 'Xcode 26.5\nBuild version 17F42')"
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin
+      - name: Build portable component
+        env:
+          COMPONENT: ${{ matrix.component }}
+        run: python3 tools/build_artifacts_hosted.py --component "$COMPONENT" --output build/hosted-component
+      - name: Publish immutable component artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            build/hosted-component/manifest.json
+            build/hosted-component/payload.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  compose:
+    name: Bind candidate to hosted components
+    needs: [plan, build]
+    if: always() && needs.plan.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      artifact: ${{ steps.identity.outputs.artifact }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify producers and compose candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_COMPONENTS: ${{ inputs.components || 'runtime-linux-amd64,ios-simulator,ios-device' }}
+        run: >-
+          python3 tools/build_artifacts.py resolve
+          --components "$BUILD_COMPONENTS"
+          --scenario fixtures/member-client-baseline/v1.json
+          --output build/candidate-artifacts.json
+      - name: Record composition artifact identity
+        id: identity
+        run: echo "artifact=candidate-artifacts-${GITHUB_SHA}-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ steps.identity.outputs.artifact }}
+          path: build/candidate-artifacts.json
+          if-no-files-found: error
+          retention-days: 30

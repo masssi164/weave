@@ -10,6 +10,29 @@ import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import org.junit.jupiter.api.Test;
 
 class DogfoodOperatorPlanBindingPersistenceTest {
+    @Test void managedProgressKeepsOpaqueAccountAndCompletedPhasesAcrossRetry() {
+        var source = JpaTestDatabase.entityFirstDataSource("managed-identity-progress");
+        var events = JpaTestDatabase.repository(source, AuditEventJpaRepository.class);
+        var audit = JpaTestDatabase.transactional(source, new JpaAuditEventPublisher(events, JSON));
+        var binding = JpaTestDatabase.transactional(source, new DogfoodOperatorPlanBinding(events, audit));
+        Request request = managedRequest();
+        String intent = "11111111-1111-1111-1111-111111111111";
+        assertThat(binding.managedProgress(request, "org", intent, "A").steps()).isEmpty();
+        var subject = new com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.ManagedTestStep("subject", "actual-test-subject");
+        binding.managedStep(request, "org", intent, "A", subject);
+        binding.managedStep(request, "org", intent, "A", subject);
+        binding.managedStep(request, "org", intent, "A", new com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.ManagedTestStep("credential", "actual-test-subject"));
+        var progress = binding.managedProgress(request, "org", intent, "A");
+        assertThat(progress.steps()).containsExactlyInAnyOrder("subject", "credential");
+        assertThat(progress.accountRef()).startsWith("acct_");
+        assertThat(events.findAll()).hasSize(2).allMatch(event -> !event.payloadJson().contains("actual-test-subject"));
+        assertThatThrownBy(() -> binding.managedStep(request, "org", intent, "A",
+                new com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.ManagedTestStep("role", "foreign-subject")))
+                .isInstanceOf(Blocked.class);
+        assertThatThrownBy(() -> binding.managedProgress(request, "org", intent, "B")).isInstanceOf(Blocked.class);
+        assertThat(events.findAll()).hasSize(2);
+    }
+
     @Test void durableOperatorAuthorityRetainsOwnerAndPlanAcrossResumeWithoutRewritingAudit() {
         var source = JpaTestDatabase.entityFirstDataSource("operator-plan-binding");
         var events = JpaTestDatabase.repository(source, AuditEventJpaRepository.class);

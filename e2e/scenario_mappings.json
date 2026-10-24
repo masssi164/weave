@@ -588,7 +588,7 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/service/WorkspaceCapabilityServiceTest.java",
           "fragments": [
-            "requireCapabilityFailsClosedForUnmappedMemberActions",
+            "ordinaryMembersCanManageCalendarEventsWithoutAdministrativeCapabilities",
             "capability-policy-blocked",
             "calendar.manage_events"
           ]
@@ -833,7 +833,8 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/service/calendar/CalendarUserApiServiceTest.java",
           "fragments": [
             "disabledCalendarPolicyBlocksMemberReadsAndOwnerWritesBeforeProviderAccess",
-            "enabledCalendarKeepsOrdinaryMemberReadAndOwnerWriteWithIndependentReadiness"
+            "enabledCalendarAllowsOrdinaryMemberWritesWithCurrentEditPermission",
+            "ordinaryMemberWritesRequireCurrentDurableSpaceEditAccess"
           ]
         },
         {
@@ -5956,7 +5957,7 @@
     },
     {
       "tag": "@human-ready-ios-distribution",
-      "scenario": "Physical iPhone preparation installs the exact green dogfood commit",
+      "scenario": "Physical iPhone preparation installs the qualified Dogfood artifact",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",
       "executableTest": ".github/workflows/ios-dogfood.yml",
       "evidenceMarkers": [
@@ -5982,7 +5983,7 @@
     },
     {
       "tag": "@human-ready-manifest",
-      "scenario": "Human testing requires no candidate manifest gate",
+      "scenario": "Human testing requires no manually assembled release manifest",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",
       "executableTest": "docs/ios-dogfood-distribution.md",
       "evidenceMarkers": [
@@ -6178,25 +6179,26 @@
       ]
     },
     {
-      "tag": "@human-ready-physical-functional",
-      "scenario": "Physical readiness includes the installed authenticated application",
+      "tag": "@human-ready-physical-startup",
+      "scenario": "Physical readiness provides ordinary startup for the owner to sign in",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "tools/dogfood_functional_smoke.py",
+      "executableTest": "tools/prepare_iphone_artifact.py",
       "evidenceMarkers": [
-        "DOGFOOD_FUNCTIONAL_SMOKE_RESULT"
+        "PREPARE_IPHONE_ARTIFACT"
       ],
       "evidenceMode": "live-runtime",
       "runtimeSources": [
-        "dogfood-functional"
+        "ios-dogfood"
       ]
     },
     {
-      "tag": "@human-ready-auth-incomplete",
-      "scenario": "Required authentication remains an explicit incomplete boundary",
+      "tag": "@human-ready-personal-authentication",
+      "scenario": "Personal owner authentication is the expected next HIL action",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "tools/dogfood_functional_smoke_test.py",
+      "executableTest": "tools/prepare_iphone_artifact_test.py",
       "evidenceMarkers": [
-        "test_unprotected_invocation_is_incomplete_without_native_side_effects"
+        "test_startup_receipt_requires_current_nonce_and_preserved_owner_session",
+        "test_in_place_install_uses_prebuilt_driver_without_owner_uninstall_or_compilation"
       ],
       "evidenceMode": "offline-spec"
     },
@@ -6441,6 +6443,48 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@human-ready-shared-member-scenario",
+      "scenario": "Shared prepared members use one product baseline",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/member_test_scenario_test.py",
+      "evidenceMarkers": [
+        "test_one_recipe_resolves_every_consumer_field_deterministically",
+        "test_rejects_recipe_drift_instead_of_filling_defaults",
+        "test_two_current_member_bindings_cannot_be_an_owner_or_the_same_account"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
+          "fragments": [
+            "runPreparedMemberCollaboration",
+            "memberScenario.resolved()",
+            "currentEditorBinding"
+          ]
+        },
+        {
+          "path": "client/integration_test/dual_ios_collaboration_test.dart",
+          "fragments": [
+            "requireNativeDualRuntimeFixture",
+            "expectedOrganizationRole: 'member'"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@human-ready-hosted-artifact-reuse",
+      "scenario": "Reused artifacts retain provenance and require fresh collaboration",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/build_artifacts_test.py",
+      "evidenceMarkers": [
+        "test_unchanged_inputs_allow_original_producer_identity_after_new_commit",
+        "test_wrong_architecture_toolchain_or_source_inputs_cannot_be_reused",
+        "test_untrusted_producer_never_extracts_downloaded_payload",
+        "test_scenario_change_requires_fresh_composition_without_rebuilding_binary"
+      ],
+      "evidenceMode": "offline-spec"
     }
   ]
 }

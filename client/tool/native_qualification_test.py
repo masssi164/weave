@@ -384,6 +384,7 @@ print("receipt-reducer-passed")
             self.assertEqual(result.stdout.strip(), 'receipt-reducer-passed')
 
     def test_macos_origin_reuses_strict_private_handoff_and_rejects_run_path(self):
+        from dual_ios_collaboration_test import with_member_scenario
         with tempfile.TemporaryDirectory() as directory:
             client = Path(directory)
             parent = client / 'build/private-ios-qualification'
@@ -394,6 +395,7 @@ print("receipt-reducer-passed")
                      'publicOrigin': 'https://weave.localhost', 'actors': [
                          {'role': 'A', 'email': 'a@example.invalid', 'password': 'private-a', 'identityRef': 'a', 'displayName': 'Current owner', 'entryUri': 'weave.localhost'},
                          {'role': 'B', 'email': 'b@example.invalid', 'password': 'private-b', 'identityRef': 'b', 'displayName': 'Current peer', 'entryUri': 'weave://join?organization_origin=https%3A%2F%2Fweave.localhost'}]}
+            value = with_member_scenario(value)
             path.write_text(json.dumps(value)); path.chmod(0o600)
             with patch.object(macos, 'CLIENT', client):
                 self.assertEqual(macos.native_organization_origin('owned-run'), 'https://weave.localhost')
@@ -2049,14 +2051,14 @@ void main() {
             (root / 'specs').mkdir()
             (root / 'specs/weave-specs.lock.json').write_text(json.dumps({'specCorpus': {'gitCommit': 'b' * 40}}))
             results = []
-            for code in [0, 7]:
+            for code in [7]:
                 result = unittest.mock.Mock()
                 result.wait.return_value = code
                 results.append(result)
-            with patch.object(qualification, 'ROOT', root), patch.dict(os.environ, {'WEAVE_TEST_APP_RUN_ROOT': name, 'WEAVE_CANDIDATE_COMMIT': 'a' * 40, 'WEAVE_E2E_RUN_ID': 'owned-run'}), patch.object(qualification.subprocess, 'check_output', side_effect=['a' * 40, '', 'c' * 40]), patch.object(qualification.subprocess, 'Popen', side_effect=results), patch.object(qualification, 'inspect_toolchain', return_value={'frameworkVersion': '3.41.6', 'rustToolchain': '1.95.0'}), patch.object(qualification.shutil, 'which', return_value='/private/rustup/bin/rustup'):
+            with patch.object(qualification, 'ROOT', root), patch.dict(os.environ, {'WEAVE_TEST_APP_RUN_ROOT': name, 'WEAVE_CANDIDATE_COMMIT': 'a' * 40, 'WEAVE_E2E_RUN_ID': 'owned-run'}), patch.object(qualification.subprocess, 'check_output', side_effect=['a' * 40, '', 'c' * 40]), patch.object(qualification.subprocess, 'Popen', side_effect=results), patch.object(qualification, 'component', return_value=({}, None)), patch.object(qualification, 'component_evidence', return_value={}), patch.object(qualification, 'candidate_composition', return_value={}), patch.object(qualification, 'inspect_toolchain', return_value={'frameworkVersion': '3.41.6', 'rustToolchain': '1.95.0'}), patch.object(qualification.shutil, 'which', return_value='/private/rustup/bin/rustup'):
                 self.assertEqual(qualification.main(), 7)
             evidence = json.loads((root / 'native-qualification.json').read_text())
-            self.assertEqual(evidence['macos']['status'], 'passed')
+            self.assertEqual(evidence['macos']['status'], 'manual-only')
             self.assertEqual(evidence['iosSimulator']['status'], 'failed')
             self.assertFalse(evidence['cleanupComplete'])
 
@@ -2098,7 +2100,10 @@ void main() {
                 with patch.object(qualification, 'ROOT', root), \
                         patch.dict(os.environ, {'WEAVE_TEST_APP_RUN_ROOT': name, 'WEAVE_CANDIDATE_COMMIT': 'a' * 40, 'WEAVE_E2E_RUN_ID': 'owned-run'}), \
                         patch.object(qualification.subprocess, 'check_output', side_effect=['a' * 40, '', 'c' * 40]), \
-                        patch.object(qualification.subprocess, 'Popen', side_effect=[mac, ios_process]), \
+                        patch.object(qualification.subprocess, 'Popen', side_effect=[ios_process]), \
+                        patch.object(qualification, 'component', return_value=({}, None)), \
+                        patch.object(qualification, 'component_evidence', return_value={}), \
+                        patch.object(qualification, 'candidate_composition', return_value={}), \
                         patch.object(qualification, 'inspect_toolchain', return_value={'rustToolchain': '1.95.0'}), \
                         patch.object(qualification.shutil, 'which', return_value='/private/rustup'), \
                         patch.object(qualification.signal, 'signal', side_effect=install), \
@@ -2109,7 +2114,7 @@ void main() {
                         qualification.main()
                 self.assertEqual(failure.exception.code, 128 + signal.SIGTERM)
                 evidence = json.loads((root / 'native-qualification.json').read_text())
-                self.assertEqual(evidence['macos']['status'], 'passed')
+                self.assertEqual(evidence['macos']['status'], 'manual-only')
                 self.assertEqual(evidence['iosSimulator']['status'], 'failed')
                 self.assertEqual(evidence['cleanupComplete'], private_result == 'valid')
                 self.assertNotIn('private-invalid-json', json.dumps(evidence))

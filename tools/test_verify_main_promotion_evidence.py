@@ -2,6 +2,8 @@
 """Offline negatives for the protected main promotion evidence gate."""
 
 from tools.dogfood_functional_smoke_test import FunctionalSmokeTest, receipt as functional_receipt
+from tools.artifact_evidence_test import composition_fixture, component_fixture
+from tools.member_test_scenario import scenario_sha256
 
 import os
 import copy
@@ -28,6 +30,7 @@ from tools.verify_main_promotion_evidence import (
     parse_human_comment,
     required_jobs_passed,
     resolve_merge_group,
+    successful_job_attempt,
 )
 
 SHA = "a" * 40
@@ -38,6 +41,11 @@ TOOLCHAIN = {
     "xcodeBuild": "17F42", "iosSimulatorSdkVersion": "26.5", "rustToolchain": "1.95.0",
     "rustCompilerVersion": "rustc 1.95.0 (1234567 2026-01-01)",
 }
+
+def executed_job(name, attempt, start="2026-10-07T10:00:00Z", end="2026-10-07T10:05:00Z"):
+    return {"name": name, "run_attempt": attempt, "conclusion": "success", "started_at": start,
+            "completed_at": end, "steps": [{"name": "Run actual qualification", "number": 1,
+                "status": "completed", "conclusion": "success", "started_at": start, "completed_at": end}]}
 
 def owner_workspace_proof():
     return {
@@ -59,6 +67,7 @@ def dual_ios_proof():
         "actors": [
             {"role": role, "simulatorId": uid, "processId": pid,
              "identityDigest": identity * 64, "matrixDeviceDigest": device * 64,
+             "organizationRole": "member", "memberScenarioSha256": scenario_sha256(),
              "storageDigest": storage * 64, "startedAt": start, "endedAt": end}
             for role, uid, pid, identity, device, storage in (
                 ("A", "00000000-0000-0000-0000-000000000001", 101, "1", "3", "5"),
@@ -103,9 +112,42 @@ def dual_ios_proof():
     return proof
 
 
+def native_proof():
+    composition = composition_fixture()
+    return {
+        "schemaVersion": "weave.native-qualification/v3", "candidateCommit": SHA,
+        "qualificationProfile": "iphone-member-collaboration/v1", "scenarioSha256": scenario_sha256(),
+        "sourceTree": OTHER, "specificationCommit": "c" * 40,
+        "artifactComposition": composition, "buildArtifact": component_fixture(composition, "ios-simulator"),
+        "macos": {"status": "manual-only"}, "toolchain": TOOLCHAIN,
+        "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim", "collaboration": dual_ios_proof()},
+        "cleanupComplete": True, "supportSafe": True, "containsSecretValues": False,
+    }
+
+
+def preparation_proof():
+    composition = composition_fixture()
+    device = composition["components"]["ios-device"]
+    return {"schemaVersion": "weave.hil-preparation/v4", "candidateCommit": SHA,
+        "sourceTree": OTHER, "specificationCommit": "c" * 40,
+        "qualificationRunId": 123, "qualificationRunAttempt": 1, "status": "passed", "install": "update_in_place",
+        "artifactComposition": composition, "deviceBuildArtifact": component_fixture(composition, "ios-device"),
+        "runtimeBuildArtifact": component_fixture(composition, "runtime-linux-amd64"),
+        "ownerWorkspace": owner_workspace_proof(), "ownerHIL": "pending",
+        "ordinaryStartup": {"schemaVersion": "weave.iphone-startup-ui/v1", "runId": "human-test-456-1",
+            "nonce": "f" * 32, "status": "passed", "visibleState": "normal-sign-in", "ownerSessionReplaced": False,
+            "organizationContextVerified": True, "installedBuildVerified": True, "driverCleanupComplete": True},
+        "signing": {"schemaVersion": "weave.signed-iphone-artifact/v1", "candidateCommit": SHA,
+            "sourceCommit": device["sourceCommit"], "inputDigest": device["inputDigest"], "buildNumber": device["buildNumber"],
+            "unsignedPayloadSha256": device["payloadSha256"], "signedPayloadTreeDigest": "sha256:" + "7" * 64,
+            "status": "passed", "supportSafe": True, "containsSecretValues": False},
+        "supportSafe": True, "containsSecretValues": False}
+
+
 HUMAN = "\n".join(
     [
-        "Weave human test v1",
+        "Weave human test v2",
+        "actor-role: owner",
         f"dogfood: {SHA}",
         "sign-in: passed",
         "chat: passed",
@@ -142,7 +184,7 @@ class MainPromotionEvidenceTest(unittest.TestCase):
             for name, boundary in (
                 ('Verify current protected dogfood candidate', None),
                 ('Start dogfood twice and prove TLS identity is stable', './gradlew'),
-                ('Build, sign, install in place, and launch on physical iPhone', 'tools/dogfood_iphone_entry.sh'),
+                ('Sign the hosted artifact, install in place, and observe ordinary startup', 'python3 tools/prepare_iphone_artifact.py'),
             ):
                 step = workflow.split(f'      - name: {name}\n', 1)[1].split('      - name:', 1)[0]
                 script = '\n'.join(line[10:] for line in step.split('        run: |\n', 1)[1].splitlines())
@@ -155,14 +197,8 @@ class MainPromotionEvidenceTest(unittest.TestCase):
                                             capture_output=True, text=True)
                     self.assertEqual(result.returncode, expected, (name, result.stderr))
 
-    def test_native_qualification_requires_both_platforms_exact_identity_and_cleanup(self) -> None:
-        valid = {
-            "schemaVersion": "weave.native-qualification/v2", "candidateCommit": SHA,
-            "sourceTree": OTHER, "specificationCommit": "c" * 40,
-            "macos": {"status": "passed"}, "toolchain": TOOLCHAIN,
-            "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim", "collaboration": dual_ios_proof()},
-            "cleanupComplete": True, "supportSafe": True, "containsSecretValues": False,
-        }
+    def test_native_qualification_requires_two_members_exact_artifacts_and_cleanup(self) -> None:
+        valid = native_proof()
         self.assertTrue(native_qualification_passed(valid, SHA, OTHER, "c" * 40))
         for key in valid:
             broken = copy.deepcopy(valid)
@@ -177,6 +213,13 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         for platform in ("macos", "iosSimulator"):
             for malformed in (None, [], "passed"):
                 self.assertFalse(native_qualification_passed({**valid, platform: malformed}, SHA, OTHER, "c" * 40))
+
+    def test_owner_or_different_scenario_cannot_stand_in_for_a_member(self) -> None:
+        for key, value in (("organizationRole", "owner"), ("organizationRole", "admin"),
+                           ("memberScenarioSha256", "f" * 64)):
+            proof = native_proof()
+            proof["iosSimulator"]["collaboration"]["actors"][0][key] = value
+            self.assertFalse(native_qualification_passed(proof, SHA, OTHER, "c" * 40))
 
     def test_dual_ios_rejects_single_sequential_reused_and_api_only_evidence(self) -> None:
         from tools.verify_main_promotion_evidence import dual_ios_collaboration_passed
@@ -277,23 +320,19 @@ class MainPromotionEvidenceTest(unittest.TestCase):
             self.assertFalse(owner_workspace_passed(broken, SHA, OTHER, "c" * 40))
 
     def test_preparation_requires_current_qualification_and_exact_installed_identity(self) -> None:
-        valid = {"schemaVersion": "weave.hil-preparation/v3", "candidateCommit": SHA,
-                 "sourceTree": OTHER, "specificationCommit": "c" * 40,
-                 "qualificationRunId": 123, "qualificationRunAttempt": 1, "status": "passed", "install": "update_in_place",
-                 "toolchain": {**TOOLCHAIN, "iosDeviceSdkVersion": "26.5"},
-                 "ownerWorkspace": owner_workspace_proof(),
-                 "functionalSmoke": functional_receipt(),
-                 "supportSafe": True, "containsSecretValues": False}
+        valid = preparation_proof()
         self.assertTrue(preparation_passed(valid, SHA, OTHER, "c" * 40, 123, 1))
         self.assertFalse(preparation_passed(valid, SHA, OTHER, "c" * 40, 124, 1))
         for key in valid:
             broken = {name: value for name, value in valid.items() if name != key}
             self.assertFalse(preparation_passed(broken, SHA, OTHER, "c" * 40, 123, 1), key)
         self.assertFalse(preparation_passed({**valid, "status": "failed"}, SHA, OTHER, "c" * 40, 123, 1))
-        for toolchain in (None, {}, TOOLCHAIN,
-                          {**TOOLCHAIN, "iosDeviceSdkVersion": "26.4"},
-                          {**TOOLCHAIN, "iosDeviceSdkVersion": True}):
-            self.assertFalse(preparation_passed({**valid, "toolchain": toolchain}, SHA, OTHER, "c" * 40, 123, 1))
+        for state in (None, "launch-requested", "loading", "authentication-error"):
+            broken = copy.deepcopy(valid); broken["ordinaryStartup"]["visibleState"] = state
+            self.assertFalse(preparation_passed(broken, SHA, OTHER, "c" * 40, 123, 1))
+        for field in ("sourceCommit", "inputDigest", "unsignedPayloadSha256", "buildNumber"):
+            broken = copy.deepcopy(valid); broken["signing"][field] = "different"
+            self.assertFalse(preparation_passed(broken, SHA, OTHER, "c" * 40, 123, 1))
 
     def test_latest_preparation_requires_exact_protected_producer_before_artifact_trust(self) -> None:
         qualification = {"id": 123, "run_attempt": 1, "updated_at": "2026-10-07T11:00:00Z"}
@@ -304,10 +343,17 @@ class MainPromotionEvidenceTest(unittest.TestCase):
                    "run_started_at": "2026-10-07T12:00:00Z"}
         with patch("tools.verify_main_promotion_evidence.paged", return_value=[trusted]), \
                 patch("tools.verify_main_promotion_evidence.download_artifact", return_value=b"fixture"), \
-                patch("tools.verify_main_promotion_evidence.artifact_json", return_value={}), \
+                patch("tools.verify_main_promotion_evidence.artifact_json", return_value=preparation_proof()), \
                 patch("tools.verify_main_promotion_evidence.preparation_passed", return_value=True):
             self.assertEqual(prepared_run("masssi164/weave", SHA, OTHER, "c" * 40,
                                           qualification, "fixture-token"), trusted)
+        stale = preparation_proof()
+        stale["ordinaryStartup"]["runId"] = "human-test-455-1"
+        with patch("tools.verify_main_promotion_evidence.paged", return_value=[trusted]), \
+                patch("tools.verify_main_promotion_evidence.download_artifact", return_value=b"fixture"), \
+                patch("tools.verify_main_promotion_evidence.artifact_json", return_value=stale), \
+                self.assertRaisesRegex(ValueError, "does not match current qualification"):
+            prepared_run("masssi164/weave", SHA, OTHER, "c" * 40, qualification, "fixture-token")
         for field, value in (("head_sha", OTHER), ("head_sha", None),
                              ("head_branch", "dev"), ("head_branch", "hotfix/claim"),
                              ("head_branch", None), ("conclusion", "failure"),
@@ -360,14 +406,7 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         with patch("tools.verify_main_promotion_evidence.paged", return_value=[run]):
             with self.assertRaisesRegex(ValueError, "start after"):
                 prepared_run("masssi164/weave", SHA, OTHER, "c" * 40, qualification, "fixture-token")
-        valid = {"schemaVersion": "weave.hil-preparation/v3", "candidateCommit": SHA,
-                 "sourceTree": OTHER, "specificationCommit": "c" * 40,
-                 "qualificationRunId": 123, "qualificationRunAttempt": 1,
-                 "status": "passed", "install": "update_in_place",
-                 "toolchain": {**TOOLCHAIN, "iosDeviceSdkVersion": "26.5"},
-                 "ownerWorkspace": owner_workspace_proof(),
-                 "functionalSmoke": functional_receipt(),
-                 "supportSafe": True, "containsSecretValues": False}
+        valid = preparation_proof()
         self.assertTrue(preparation_passed(valid, SHA, OTHER, "c" * 40, 123, 1))
         self.assertFalse(preparation_passed(valid, SHA, OTHER, "c" * 40, 123, 2))
 
@@ -377,6 +416,23 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         for attempt in (None, 0, True, "2"):
             with self.assertRaises(ValueError):
                 attempt_artifact("full-compose-e2e", SHA, {"run_attempt": attempt})
+
+    def test_retry_keeps_actual_successful_qualification_attempt(self) -> None:
+        original = executed_job("Full Compose E2E", 1)
+        copied = {**original, "run_attempt": 2}
+        deployment = executed_job("Deploy dogfood with Compose", 2, "2026-10-07T11:00:00Z", "2026-10-07T11:05:00Z")
+        jobs = [copied, deployment]
+        history = [original, copied, deployment]
+        self.assertEqual(successful_job_attempt(jobs, "Full Compose E2E", 2, history), 1)
+        self.assertEqual(successful_job_attempt(jobs, "Deploy dogfood with Compose", 2, history), 2)
+        rerun = executed_job("Full Compose E2E", 2, "2026-10-07T11:00:00Z", "2026-10-07T11:05:00Z")
+        self.assertEqual(successful_job_attempt([rerun], "Full Compose E2E", 2, [original, rerun]), 2)
+        with self.assertRaises(ValueError):
+            successful_job_attempt([copied], "Full Compose E2E", 2, [])
+        for broken in ([{**jobs[0], "conclusion": "failure"}], [{**jobs[0], "run_attempt": 3}],
+                       [{**jobs[0], "run_attempt": True}], [jobs[0], jobs[0]], []):
+            with self.assertRaises(ValueError):
+                successful_job_attempt(broken, "Full Compose E2E", 2, history)
 
     def test_artifact_rejects_ambiguous_or_missing_native_proof(self) -> None:
         def archive(names: list[str]) -> bytes:
@@ -396,18 +452,15 @@ class MainPromotionEvidenceTest(unittest.TestCase):
         run = {"id": 123, "run_attempt": 1, "head_sha": SHA, "head_branch": "dogfood", "event": "push",
                "created_at": "2026-10-07T11:00:00Z", "status": "completed", "conclusion": "success",
                "path": ".github/workflows/live-stack-e2e.yml"}
-        jobs = [{"name": name, "conclusion": "success"} for name in
+        jobs = [executed_job(name, 1) for name in
                 ("Full Compose E2E", "Deploy dogfood with Compose")]
-        native = {"schemaVersion": "weave.native-qualification/v2", "candidateCommit": SHA,
-                  "sourceTree": tree, "specificationCommit": spec, "macos": {"status": "passed"}, "toolchain": TOOLCHAIN,
-                  "iosSimulator": {"status": "passed", "rustTarget": "aarch64-apple-ios-sim", "collaboration": dual_ios_proof()},
-                  "cleanupComplete": True, "supportSafe": True, "containsSecretValues": False}
+        native = native_proof()
         teardown = {"candidateCommit": SHA, "dryRun": False, "ownershipLabelsVerified": True,
                     "remainingOwnedResources": 0, "remainingContainerCount": 0,
                     "remainingNetworkCount": 0, "remainingVolumeCount": 0}
-        deployment = {"schemaVersion": "weave.dogfood-deployment/v2", "candidateCommit": SHA,
+        deployment = {"schemaVersion": "weave.dogfood-deployment/v3", "candidateCommit": SHA,
                       "sourceTree": tree, "specificationCommit": spec, "qualificationRunId": 123,
-                      "qualificationRunAttempt": 1,
+                      "qualificationRunAttempt": 1, "artifactComposition": composition_fixture(),
                       "functionalSmoke": functional_receipt(stage="deployment", tree=tree, spec=spec),
                       "status": "passed", "supportSafe": True, "containsSecretValues": False}
         def bundle(values: dict) -> bytes:
@@ -416,14 +469,25 @@ class MainPromotionEvidenceTest(unittest.TestCase):
                 for name, value in values.items():
                     archive.writestr("run/" + name, json.dumps(value))
             return result.getvalue()
-        def verify(native_value, teardown_value, deployment_value):
+        def verify(native_value, teardown_value, deployment_value, *, latest_attempt=1):
+            actual_jobs = [dict(job, run_attempt=latest_attempt) for job in jobs]
+            if latest_attempt > 1:
+                actual_jobs[1] = executed_job("Deploy dogfood with Compose", latest_attempt,
+                                             "2026-10-07T11:00:00Z", "2026-10-07T11:05:00Z")
             with patch("tools.verify_main_promotion_evidence.api", return_value={"workflow_runs": [run]}), \
-                 patch("tools.verify_main_promotion_evidence.paged", return_value=jobs), \
+                 patch("tools.verify_main_promotion_evidence.paged", side_effect=lambda path, *_:
+                       [*jobs, *actual_jobs] if "filter=all" in path else actual_jobs), \
                  patch("tools.verify_main_promotion_evidence.download_artifact", side_effect=[
                      bundle({"native-qualification.json": native_value, "teardown-evidence.json": teardown_value}),
-                     bundle({"deployment-result.json": deployment_value})]):
-                return qualified_run("masssi164/weave", SHA, tree, spec, "fixture-token")
-        self.assertEqual(verify(native, teardown, deployment), run)
+                     bundle({"deployment-result.json": deployment_value})]) as download:
+                result = qualified_run("masssi164/weave", SHA, tree, spec, "fixture-token")
+                self.assertEqual([call.args[2] for call in download.call_args_list],
+                                 [f"full-compose-e2e-{SHA}-attempt-1", f"dogfood-compose-{SHA}-attempt-{latest_attempt}"])
+                return result
+        self.assertEqual(verify(native, teardown, deployment), {**run, "qualification_attempt": 1, "artifactComposition": composition_fixture()})
+        run['run_attempt'] = 2
+        self.assertEqual(verify(native, teardown, deployment, latest_attempt=2)['qualification_attempt'], 1)
+        run['run_attempt'] = 1
         for native_value, teardown_value, deployment_value in (
             ({**native, "iosSimulator": {"status": "not-run"}}, teardown, deployment),
             (native, {**teardown, "candidateCommit": OTHER}, deployment),

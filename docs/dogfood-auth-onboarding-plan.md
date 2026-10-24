@@ -1,6 +1,6 @@
 # Dogfood auth onboarding plan
 
-Status: active implementation gate for the next physical iPhone dogfood attempt.
+Status: authentication/onboarding acceptance and diagnostic inventory. The current protected iPhone preparation flow is [artifact-based member delivery](ios-dogfood-distribution.md): prepared organization, Space and ordinary members, real two-member collaboration, then in-place device startup. Personal sign-in belongs to subsequent HIL; the detailed onboarding probes below remain separately selectable and do not require an extra automated owner login before handoff.
 
 ## Product decision
 
@@ -71,7 +71,7 @@ The Organisation access screen must always expose a functional **Sign in** actio
 
 ## Acceptance test matrix
 
-- Delivery gate: deterministic checks run on `dev`; the protected `dogfood` commit runs mandatory Compose, macOS and concurrent dual-iOS Flutter UI qualification. Physical preparation starts only after automated qualification and deployment pass for that unchanged candidate.
+- Delivery gate: deterministic checks run on `dev`; the protected `dogfood` candidate consumes hosted artifacts and runs mandatory Compose plus concurrent dual-iOS Flutter UI collaboration with two ordinary members. macOS desktop testing is manual-only. Physical startup preparation starts after qualification and deployment pass, preserves the owner session and leaves HIL pending.
 - Trust-preserving app-state reset or first install, handoff link, successful SSO, app lands in workspace/home and persists a refresh/offline token.
 - Admin-created Keycloak Organization invitation uses a short TTL, Mailpit capture, support-safe evidence, and no initial password output.
 - Email completion link, QR code, and manual server URI converge on the same Organisation access screen and explicit Sign in action.
@@ -89,7 +89,7 @@ The Organisation access screen must always expose a functional **Sign in** actio
 - Return-to-app gate: copied app preferences include `dogfood_auth_state_history_v1` proving `sso_in_progress`, `authenticated`, `workspace_bootstrap_loading`, and `workspace_ready` in order. A lone final `workspace_ready` value without that history is not dogfood completion evidence.
 - Post-login usability gate: the same dogfood member run must also provide support-safe Chat and Files status evidence through `DOGFOOD_POST_LOGIN_CHAT_FILES_RESULT`. `workspace_ready` alone proves authentication and bootstrap, not that the member can use the first workspace.
 - Physical iPhone candidate check: install over Wi-Fi when device reachability works; if Wi-Fi install is unavailable, install over USB before asking Massimo to test.
-- OpenClaw-facing iPhone entry command: use `tools/dogfood_iphone_entry.sh --check --device-id <paired-iphone-id> --local-ca-trust trusted` to verify toolchain, handoff generation, and device reachability without installing. Use `--dry-run` to print the delegated physical smoke command, and `--run` to generate `build/dogfood/iphone-entry/handoff.json`, build a profile/release app, install/update it, and launch the current deeplink. The command fails with `DEVICE_ID_REQUIRED`, `DEVICE_UNAVAILABLE_OR_LOCKED`, or `PHYSICAL_DEVICE_TLS_PENDING` when the phone is missing, locked, untrusted, or the local CA has not been confirmed.
+- The legacy `tools/dogfood_iphone_entry.sh` remains a manual developer diagnostic/build path. Its output cannot substitute for protected hosted-artifact preparation. Use `Prepare Human Test` for current delivery; it signs and installs the qualified artifact and observes ordinary startup without compiling or replacing the owner's login.
 - Members enter only the installation origin (`https://weave.test` for the standard-port Dogfood example). The product gateway delivers the canonical OrgManifest v2 at `/api/platform/config`; its generated User API base is `https://api.weave.test/api` in that example. Other installations retain their configured public origins and ports. The active development channel is the development-signed in-place profile update; TestFlight is not part of the dogfood prerequisite.
 - After first successful workspace entry, run `tools/dogfood_ios_session_restore_smoke.sh`. It terminates and relaunches the installed process and emits `DOGFOOD_SESSION_CONTINUITY_RESULT` only after the device-bound session is restored and an authenticated profile-facade request returns the app to `workspace_ready`.
 - Trust stability check: the local TLS CA and leaf certificate fingerprints remain stable across normal stack restart/recreate unless explicit rotation is requested.

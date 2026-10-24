@@ -1,6 +1,6 @@
 # Native Flutter integration acceptance for #1533
 
-Current October release acceptance additionally requires [#1592](https://github.com/masssi164/weave/issues/1592): two concurrent independent iOS Simulator applications, actual Flutter UI collaboration and exact-candidate evidence. The historical results below retain their original scope; they do not qualify that newer requirement. Native macOS remains mandatory.
+Current October release acceptance additionally requires [#1592](https://github.com/masssi164/weave/issues/1592): two concurrent independent real iOS Simulator applications, ordinary-member Flutter UI collaboration and exact-candidate evidence. The protected lane consumes hosted artifacts and the shared versioned member scenario; per-run identity comes from a private validated runtime fixture. Native macOS desktop testing is manual-only. The historical results and commands below retain their original scope and do not qualify the current candidate. See [current iPhone delivery](ios-dogfood-distribution.md) for the active workflow.
 
 Status: **local native and exact-head unattended CI passed; #1533 is integrated
 on protected dev; subsequent source acceptance is tracked in exact checks and stories**.

@@ -100,6 +100,7 @@ class CalendarUserApiServiceTest {
                 () -> service.calendars(member),
                 () -> service.agenda(member, calendar, Instant.parse("2026-03-28T00:00:00Z"),
                         Instant.parse("2026-03-29T00:00:00Z"), "UTC"),
+                () -> service.create(member, calendar, content("Planning"), "disabled-member-calendar-create"),
                 () -> service.create(owner(), calendar, content("Planning"), "disabled-calendar-create"));
         for (Runnable operation : operations) {
             assertThatThrownBy(operation::run).isInstanceOfSatisfying(ApiErrorException.class, error -> {
@@ -115,7 +116,7 @@ class CalendarUserApiServiceTest {
     }
 
     @Test
-    void enabledCalendarKeepsOrdinaryMemberReadAndOwnerWriteWithIndependentReadiness() {
+    void enabledCalendarAllowsOrdinaryMemberWritesWithCurrentEditPermission() {
         var domainPolicy = calendarPolicy(true, WorkspaceCapabilityReadiness.DEGRADED);
         service = withDomainPolicy(domainPolicy);
         when(provider.query(any(), any(), any(), any())).thenReturn(List.of());
@@ -123,19 +124,47 @@ class CalendarUserApiServiceTest {
         assertThat(domainPolicy.snapshot(member).calendar().readiness())
                 .isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
         assertThat(service.calendars(member).calendars()).singleElement()
-                .satisfies(visible -> assertThat(visible.allowedActions()).containsExactly("read"));
+                .satisfies(visible -> assertThat(visible.allowedActions()).containsExactly("read", "create", "update", "delete"));
         assertThat(service.agenda(member, calendar, Instant.parse("2026-03-28T00:00:00Z"),
                 Instant.parse("2026-03-29T00:00:00Z"), "UTC").events()).isEmpty();
-        assertThat(service.create(owner(), calendar, content("Planning"), "enabled-calendar-create")
+        assertThat(service.create(member, calendar, content("Planning"), "enabled-calendar-create")
                 .content().title()).isEqualTo("Planning");
         verify(provider).query(any(), any(), any(), any());
         verify(provider).write(any());
 
-        clearInvocations(provider, bindings, audit);
-        assertThatThrownBy(() -> service.create(member, calendar, content("Denied"), "member-calendar-create"))
-                .isInstanceOfSatisfying(ApiErrorException.class,
-                        error -> assertThat(error.details()).containsEntry("policyState", "policy_blocked"));
-        verifyNoInteractions(provider, bindings, audit);
+
+    }
+
+    @Test
+    void ordinaryMemberWritesRequireCurrentDurableSpaceEditAccess() {
+        SpaceAccessPort spaces = mock(SpaceAccessPort.class);
+        when(spaces.allows(eq("tenant-default"), eq("workspace-default"), anyString(),
+                eq(SpaceAccessPort.Permission.VIEW))).thenReturn(true);
+        var context = new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
+        service = new CalendarUserApiService(HumanJwtTestSupport.organizationAdmission(),
+                OrganizationIdentityContextResolver.configured(context), context, rights, spaces,
+                calendarPolicy(true, WorkspaceCapabilityReadiness.READY), bindings, List.of(provider), audit);
+
+        assertThat(service.calendars(member).calendars()).singleElement()
+                .satisfies(visible -> assertThat(visible.allowedActions()).containsExactly("read"));
+        clearInvocations(provider, bindings, rights, audit);
+        assertStatus(() -> service.create(member, calendar, content("Denied"), "view-only-create"),
+                HttpStatus.FORBIDDEN);
+        verifyNoInteractions(provider, bindings, rights, audit);
+
+        when(spaces.allows(eq("tenant-default"), eq("workspace-default"), anyString(),
+                eq(SpaceAccessPort.Permission.EDIT))).thenReturn(true);
+        Event created = service.create(member, calendar, content("Planning"), "member-edit-create");
+        assertThat(created.content().title()).isEqualTo("Planning");
+        verify(provider).write(any());
+
+        when(spaces.allows(eq("tenant-default"), eq("workspace-default"), anyString(),
+                eq(SpaceAccessPort.Permission.EDIT))).thenReturn(false);
+        clearInvocations(provider, bindings, rights, audit);
+        assertStatus(() -> service.update(member, calendar, created.id(), content("Denied"), created.version()),
+                HttpStatus.FORBIDDEN);
+        assertStatus(() -> service.delete(member, calendar, created.id(), created.version()), HttpStatus.FORBIDDEN);
+        verifyNoInteractions(provider, bindings, rights, audit);
     }
 
     @Test

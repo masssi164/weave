@@ -25,7 +25,7 @@ profile requires its exact matching provider configuration and remains fail-clos
   Static state enters through realm import; dynamic human lifecycle belongs to Weave Server.
 - `database/postgres-reconcile.sh`: idempotent provider database/role and reconciliation-control
   schema convergence.
-- `scripts/dogfood_lifecycle.py`: exact-checkout build plus bounded up/down/reset for the fixed
+- `scripts/dogfood_lifecycle.py`: verified hosted-artifact consumption plus bounded up/down/reset for the fixed
   dogfood project. Reset preserves the external TLS root and removes only the three session
   volumes, with a one-time closed cleanup for the known unlabeled legacy stack.
 - `backup.sh` and `adoption-rehearsal.sh`: production/recovery utilities. They are not dogfood or
@@ -41,7 +41,7 @@ profile requires its exact matching provider configuration and remains fail-clos
 ./gradlew dogfoodReset
 ```
 
-Dogfood accepts digest-pinned images or exact local image IDs built from the clean checked-out
+Dogfood accepts digest-pinned images or exact loaded image IDs verified against the qualified artifact composition for the clean checked-out
 commit; production remains digest-only. Dogfood/e2e/prod require a private `WEAVE_ENV_FILE`. The optional
 `WEAVE_SPEC_CORPUS_ROOT` process coordinate is accepted only when it is an absolute Git worktree
 root at the exact commit in `specs/weave-specs.lock.json`.

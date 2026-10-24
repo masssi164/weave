@@ -19,7 +19,8 @@ class ProjectionTest(unittest.TestCase):
     def setUp(self):
         self.pr = {'html_url': PR_URL, 'head': {'sha': SHA, 'repo': {'full_name': 'masssi164/weave'}},
                    'state': 'open', 'draft': False, 'merged': False, 'body': 'Implements #1565'}
-        self.run = {'id': 10, 'run_attempt': 2, 'updated_at': '2026-10-11T10:00:00Z'}
+        self.run = {'id': 10, 'run_attempt': 2, 'qualification_attempt': 1,
+                    'updated_at': '2026-10-11T10:00:00Z'}
         self.prepared = {'id': 11, 'updated_at': '2026-10-11T11:00:00Z'}
         self.promotion = {**self.pr, 'merged': True, 'merge_commit_sha': SHA,
                           'base': {'ref': 'main', 'repo': {'full_name': 'masssi164/weave'}}}
@@ -50,7 +51,10 @@ class ProjectionTest(unittest.TestCase):
                                            SHA, url, 1563, promotion, 'private-token')
 
     def test_hil_requires_existing_qualification_and_exact_physical_preparation(self):
-        self.assertEqual(self.verify()['preparationRunId'], 11)
+        report = self.verify()
+        self.assertEqual(report['preparationRunId'], 11)
+        self.assertEqual(report['qualificationRunAttempt'], 1)
+        self.assertEqual(report['ownerHIL'], 'pending')
         self.mocks[2].assert_called_once_with('masssi164/weave', SHA, TREE, SPEC, 'private-token')
         self.mocks[3].assert_called_once_with('masssi164/weave', SHA, TREE, SPEC, self.run, 'private-token')
         for target in (self.mocks[2], self.mocks[3]):
@@ -60,30 +64,55 @@ class ProjectionTest(unittest.TestCase):
 
     def test_hil_rejects_actual_old_and_single_ios_artifacts_before_preparation(self):
         # Exercise the real promotion validator with only GitHub transport stubbed.
-        from tools.test_verify_main_promotion_evidence import TOOLCHAIN, dual_ios_proof
+        from tools.test_verify_main_promotion_evidence import executed_job, native_proof
         self.patches[2].stop()
         self.latest.update(status='completed', conclusion='success')
-        self.mocks[5].return_value = [
-            {'name': name, 'conclusion': 'success'} for name in evidence.REQUIRED_JOBS]
-        single = dual_ios_proof()
-        single['actors'] = single['actors'][:1]
-        native = {
-            'schemaVersion': 'weave.native-qualification/v2', 'candidateCommit': SHA,
-            'sourceTree': TREE, 'specificationCommit': SPEC, 'toolchain': TOOLCHAIN,
-            'macos': {'status': 'passed'}, 'iosSimulator': {
-                'status': 'passed', 'rustTarget': 'aarch64-apple-ios-sim', 'collaboration': single},
-            'cleanupComplete': True, 'supportSafe': True, 'containsSecretValues': False,
-        }
-        for version in ('weave.native-qualification/v1', 'weave.native-qualification/v2'):
-            with self.subTest(version=version):
-                native['schemaVersion'] = version
+        original_jobs = [executed_job(name, 1) for name in evidence.REQUIRED_JOBS]
+        latest_jobs = [
+            {**job, 'run_attempt': 2} if job['name'] == 'Full Compose E2E' else
+            executed_job(job['name'], 2, '2026-10-07T11:00:00Z', '2026-10-07T11:05:00Z')
+            for job in original_jobs]
+        self.mocks[5].side_effect = lambda path, *_: (
+            [*original_jobs, *latest_jobs] if 'filter=all' in path else latest_jobs)
+        for variant in ('v1', 'v2', 'single-actor', 'owner-actor', 'scenario-drift'):
+            with self.subTest(variant=variant):
+                native = native_proof()
+                actors = native['iosSimulator']['collaboration']['actors']
+                if variant in {'v1', 'v2'}:
+                    native['schemaVersion'] = 'weave.native-qualification/' + variant
+                elif variant == 'single-actor':
+                    native['iosSimulator']['collaboration']['actors'] = actors[:1]
+                elif variant == 'owner-actor':
+                    actors[0]['organizationRole'] = 'owner'
+                else:
+                    actors[0]['memberScenarioSha256'] = '0' * 64
                 archive = io.BytesIO()
                 with zipfile.ZipFile(archive, 'w') as bundle:
                     bundle.writestr('native-qualification.json', json.dumps(native))
-                with patch.object(evidence, 'download_artifact', return_value=archive.getvalue()):
+                with patch.object(evidence, 'download_artifact', return_value=archive.getvalue()) as download:
                     with self.assertRaisesRegex(ValueError, 'Mandatory native qualification'):
                         self.verify()
+                download.assert_called_once_with('masssi164/weave', 10,
+                    f'full-compose-e2e-{SHA}-attempt-1', 'private-token')
                 self.mocks[3].assert_not_called()
+
+    def test_hil_accepts_observed_normal_sign_in_and_keeps_human_acceptance_pending(self):
+        from tools.test_verify_main_promotion_evidence import preparation_proof
+        receipt = preparation_proof()
+        receipt.update(qualificationRunId=10, qualificationRunAttempt=1)
+        def prepared(*args):
+            if not evidence.preparation_passed(receipt, SHA, TREE, SPEC, 10, 1):
+                raise ValueError('Incomplete physical startup evidence')
+            return self.prepared
+        self.mocks[3].side_effect = prepared
+        self.assertEqual(self.verify()['ownerHIL'], 'pending')
+        self.mocks[4].assert_not_called()
+        for field, value in [('ownerHIL', 'passed'), ('schemaVersion', 'weave.hil-preparation/v3')]:
+            previous = receipt[field]; receipt[field] = value
+            with self.assertRaisesRegex(ValueError, 'Incomplete physical startup'): self.verify()
+            receipt[field] = previous
+        receipt['ordinaryStartup']['ownerSessionReplaced'] = True
+        with self.assertRaisesRegex(ValueError, 'Incomplete physical startup'): self.verify()
 
     def test_missing_explicit_item_association_fails(self):
         self.mocks[6].return_value = {'closingIssuesReferences': []}
@@ -125,7 +154,9 @@ class ProjectionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'protected Dogfood head'): self.verify()
 
     def test_main_requires_explicit_human_and_actual_merged_main(self):
-        self.assertEqual(self.verify('Main')['promotionPr'], 1600)
+        report = self.verify('Main')
+        self.assertEqual(report['promotionPr'], 1600)
+        self.assertEqual(report['ownerHIL'], 'passed')
         self.mocks[4].return_value = False
         with self.assertRaisesRegex(ValueError, 'human acceptance'): self.verify('Main')
         self.mocks[4].return_value = True
@@ -133,6 +164,19 @@ class ProjectionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'merged same-repository'): self.verify('Main')
         self.promotion['merged'] = True
         with self.assertRaisesRegex(ValueError, 'explicit merged'): self.verify('Main', promotion=None)
+
+    def test_main_requires_the_reported_actual_human_actor_role(self):
+        from tools.test_verify_main_promotion_evidence import HUMAN
+        self.patches[4].stop()
+        comment = {'id': 100, 'user': {'login': 'masssi164'}, 'author_association': 'OWNER',
+                   'created_at': '2026-10-11T12:00:00Z', 'updated_at': '2026-10-11T12:00:00Z'}
+        for role in ('owner', 'admin', 'member'):
+            self.mocks[5].return_value = [{**comment, 'body': HUMAN.replace('actor-role: owner', 'actor-role: ' + role)}]
+            self.assertEqual(self.verify('Main')['ownerHIL'], 'passed')
+        for body in (HUMAN.replace('actor-role: owner\n', ''), HUMAN.replace('actor-role: owner', 'actor-role: guest'),
+                     HUMAN.replace('Weave human test v2', 'Weave human test v1')):
+            self.mocks[5].return_value = [{**comment, 'body': body}]
+            with self.assertRaisesRegex(ValueError, 'human acceptance'): self.verify('Main')
 
     def test_started_e2e_never_infers_hil_and_review_rejects_draft(self):
         self.verify('E2E Testing')

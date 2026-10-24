@@ -109,11 +109,20 @@ contains "${LIFECYCLE}" '--output-root "${OUTPUT_ROOT}"'
 contains "${LIFECYCLE}" 'compose.sh'
 contains "${LIFECYCLE}" 'WEAVE_E2E_STACK_SCOPE=isolated'
 contains "${LIFECYCLE}" ':weave-product-e2e:productFlow'
+contains "${LIFECYCLE}" 'protected collaboration must consume verified hosted artifacts'
+contains "${LIFECYCLE}" 'tools/artifact_consumers.py" runtime-env --candidate'
+contains "${LIFECYCLE}" 'hosted integration driver is missing'
+contains "${LIFECYCLE}" 'product_flow_command=(java -cp "${WEAVE_TEST_APP_DRIVER_CLASSPATH}")'
+contains "${LIFECYCLE}" 'product_flow_target=(com.massimotter.weave.e2e.FreshProductFlow)'
+contains "${LIFECYCLE}" '-Dweave.e2e.mode=${WEAVE_TEST_APP_MODE:-full}'
+contains "${LIFECYCLE}" 'weave.test-app-product-flow/v4-members'
+contains "${LIFECYCLE}" '.ordinaryMemberRolesVerified == true and .currentSpaceEditorGrantsVerified == true'
+contains "${LIFECYCLE}" '.nativeCollaborationPassed == true'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_SERVER_IMAGE must be digest-pinned'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_MCP_IMAGE must be digest-pinned'
 contains "${LIFECYCLE}" 'WEAVE_OPENDAL_CLASSIFIER=linux-x86_64'
 [[ "$(grep -Fc -- '--platform linux/amd64' "${LIFECYCLE}")" == 2 ]] ||
-  fail "testApp must build both JVM runtime images for the pinned Linux/AMD64 target"
+  fail "manual testApp fallback must build both JVM runtime images for the pinned Linux/AMD64 target"
 contains "${LIFECYCLE}" 'testApp requires a clean worktree'
 contains "${LIFECYCLE}" 'tools/runner_capacity_preflight.py'
 contains "${LIFECYCLE}" '--minimum-free-gib 8'
@@ -213,6 +222,13 @@ contains "${MODULE_TASKS}" "args 'install', '--with-deps', 'chromium'"
 contains "${FLOW}" '.inviteOwner(email, "test-app-owner-" + runHash())'
 contains "${FLOW}" 'spacePreparation.prepare("CREATED")'
 contains "${FLOW}" 'spacePreparation.prepare("VERIFIED")'
+contains "${FLOW}" 'flow.runPreparedMemberCollaboration()'
+contains "${FLOW}" 'authorizePreparedActor(browser, prepared.actorA(), "member", false'
+contains "${FLOW}" 'authorizePreparedActor(browser, prepared.actorB(), "member", false'
+contains "${FLOW}" 'spaces.currentEditorBinding(admin.accessToken(), a.accessToken()'
+contains "${FLOW}" 'spaces.currentEditorBinding(admin.accessToken(), b.accessToken()'
+contains "${FLOW}" 'weave.test-app-product-flow/v4-members'
+contains "${SPACE_PREPARATION}" '"provision-members"'
 contains "${SPACE_PREPARATION}" '"bootstrap-owner"'
 contains "${SPACE_PREPARATION}" '"bootstrap-space"'
 absent "${E2E_COMPOSE_FILE}" '/run/secrets/weave/bootstrap-owner-token'
@@ -308,6 +324,13 @@ readiness = source.index("awaitChatReadiness(ownerSession.accessToken())")
 collaboration = source.index("CollaborationJourney collaboration")
 if not selection < readiness < collaboration:
     raise SystemExit("Fresh product flow must apply providers and await readiness before collaboration")
+members = source[source.index("private void runPreparedMemberCollaboration()"):
+                 source.index("private PreparedMemberScenario")]
+for forbidden in ("new WorkloadMcpJourney", "new PersistenceRestartJourney", "runReleaseMcp"):
+    if forbidden in members:
+        raise SystemExit("Ordinary member collaboration depends on broad admin/MCP acceptance")
+if members.index("spaces.currentEditorBinding") > members.index("runNativeAuthorizedJourney"):
+    raise SystemExit("Member collaboration must read back current Space access before native execution")
 PY
 
 if [[ -f "${CANDIDATE_WORKFLOW}" ]]; then

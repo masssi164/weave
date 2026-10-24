@@ -1,29 +1,31 @@
 Feature: Human testing starts from green E2E and one exact installed dogfood build
-  Automated activation, OIDC, server, MCP, provider access, and cleanup are
-  owned by testApp. Interactive Flutter and accessibility evidence is captured
-  only on a physical device through the production system-browser flow.
+  Two prepared ordinary members prove real collaboration before owner testing.
+  Hosted artifacts are reused only with verified inputs and provenance.
+  Physical startup and the owner's product and VoiceOver observations are distinct.
 
   @human-ready-native-collaboration
   Scenario: Isolated collaboration proves the native default without external providers
     Given Chat Files and Calendar select weave-native in the isolated stack
-    When members use Matrix and the generated Files and Calendar User APIs across a PostgreSQL and backend restart
-    Then encrypted Chat file revisions and calendar revisions remain available
-    And the outsider remains denied before and after restart
+    And two prepared ordinary members share current access to the default Space
+    When two independent iOS applications collaborate and recover their sessions
+    Then Chat messages file revisions and calendar revisions remain available
+    And current grants and actual outsider denials are verified
     And no Synapse MAS or Nextcloud runtime dependency is observed
 
   @human-ready-dogfood-deployment
   Scenario: Dogfood deployment starts the exact green source through Compose
     Given Full Compose E2E is green for the exact dogfood commit
     When the dogfood push deploy job runs
-    Then Gradle starts the direct Compose stack from that exact source
+    Then Gradle starts the direct Compose stack from the verified candidate artifacts
     And ordinary updates preserve PostgreSQL native Files and Mailpit session volumes
     And an explicit reset deletes only those session volumes while preserving public TLS identity
 
   @human-ready-ios-distribution
-  Scenario: Physical iPhone preparation installs the exact green dogfood commit
+  Scenario: Physical iPhone preparation installs the qualified Dogfood artifact
     Given Full Compose E2E and direct dogfood deployment are green for one commit
-    When Prepare Human Test builds the development-signed iOS app
-    Then it updates the stable bundle in place with exact commit and build identity
+    When Prepare Human Test signs the qualified hosted iOS artifact
+    Then it updates the stable bundle in place with its original producer and build identity
+    And the installed artifact belongs to the qualified candidate composition
     And no TestFlight credential or environment approval blocks testing
 
   @human-ready-physical-voiceover
@@ -35,10 +37,11 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
     And one real Chat Files and Calendar interaction passes
 
   @human-ready-manifest
-  Scenario: Human testing requires no candidate manifest gate
+  Scenario: Human testing requires no manually assembled release manifest
     Given repository CI Full Compose E2E and dogfood deployment are green
     When the exact development-signed build is installed in place
-    Then the tester may begin without a candidate manifest or versioned readiness document
+    Then the tester may begin without manually assembling a release manifest or readiness document
+    And automated artifact composition verification remains required
     And a human result cannot automatically publish a tag or production release
 
   @human-ready-owner-space-preparation
@@ -61,7 +64,7 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
   @human-ready-ordinary-functional
   Scenario: Ordinary startup proves authenticated domain behavior
     Given isolated exact-candidate qualification and deployment succeeded
-    And supported test members have normal browser sessions and current domain grants
+    And two prepared ordinary members have independent normal browser sessions and current domain grants
     When the normal application starts against direct reviewed Dogfood endpoints
     Then actual UI operations prove bidirectional Chat and conversation reopening
     And a created folder and uploaded file are read back by exact identity in their original scope
@@ -71,22 +74,26 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
     And restart and in-place update preserve the admitted identity and state
     And isolated actor injection test entrypoints and relays cannot satisfy this proof
 
-  @human-ready-physical-functional
-  Scenario: Physical readiness includes the installed authenticated application
-    Given the exact candidate is installed in place on the approved iPhone
-    When physical preparation verifies the preserved owner session through actual UI operations
-    Then the functional result identifies the installed build and final qualification run and attempt
-    And configuration discovery and a handoff-ready screen alone cannot satisfy it
+  @human-ready-physical-startup
+  Scenario: Physical readiness provides ordinary startup for the owner to sign in
+    Given the qualified device artifact is installed in place on the approved iPhone
+    And real two-member collaboration and persistent deployment passed
+    When physical preparation launches the normal application
+    Then the retained workspace or a usable normal sign-in screen is observed
+    And the result binds the installed artifact to the final qualification run and attempt
     And owner data memberships signing trust and local stores are preserved
+    And no additional automated owner authentication suite is required
     And automation does not establish human VoiceOver or E2EE acceptance
 
-  @human-ready-auth-incomplete
-  Scenario: Required authentication remains an explicit incomplete boundary
-    Given a real administrator or physical owner session requires sign-in passkey or MFA
-    When preparation cannot complete that normal authentication autonomously
-    Then independent work is completed before requesting the precise human authentication action
+  @human-ready-personal-authentication
+  Scenario: Personal owner authentication is the expected next HIL action
+    Given automated collaboration deployment and physical ordinary startup passed
+    And the owner must complete personal sign-in passkey or MFA
+    When the prepared application is handed to the owner
+    Then normal personal authentication is the next action
     And no session is fabricated copied or replaced by operator setup authority
-    And the functional result stays incomplete and no ready handoff is emitted
+    And no authenticated owner result is claimed before that action
+    And missing operating-system trust broken startup or missing prepared access still blocks handoff
 
   @human-ready-write-readback
   Scenario: Successful writes and failed refreshes are not conflated
@@ -139,8 +146,8 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
     Given one exact serving Dogfood candidate and a private named two-member preparation plan
     And the existing unique enabled owner has current durable default-Space administration
     When the explicit host command executes the non-listening Server preparation
-    Then normal member invitations use a distinct audited operator identity
-    And both test members complete stock registration and their own ordinary application PKCE
+    Then normal invitations or explicit managed fixture provisioning use a distinct audited operator identity
+    And both prepared members complete their own ordinary application PKCE
     And their actual identity digests match current canonical member identities before conditional EDIT grants
     And no human session administrator account owner data or credential is fabricated or replaced
     And the resulting private inputs do not establish authenticated functional or human acceptance
@@ -159,5 +166,21 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
     When preparation resumes after an interruption
     Then matching current invitations activated identities and grants are verified and reused
     And revoked suspended conflicting ambiguous or unauthorized state blocks further mutation
-    And no retry duplicates an invitation resets a password recreates an account or restores access
+    And no ordinary retry duplicates an invitation resets accepted credentials recreates an account or restores access
     And completing required human trust or authentication resumes bounded preparation
+
+  @human-ready-shared-member-scenario
+  Scenario: Shared prepared members use one product baseline
+    Given integration simulators and Dogfood select the same versioned member scenario
+    When each environment resolves its own instance
+    Then the required domains shared Space roles and content come from one recipe
+    And actual accounts and current access are verified separately
+    And an owner administrator duplicate identity or stale recipe cannot satisfy the member input
+
+  @human-ready-hosted-artifact-reuse
+  Scenario: Reused artifacts retain provenance and require fresh collaboration
+    Given a trusted hosted artifact has unchanged complete build inputs
+    When another candidate reuses it
+    Then its original producer identity is preserved in the candidate composition
+    And changed relevant inputs or unverifiable provenance require a new hosted build
+    And a changed member scenario requires fresh collaboration even when the binary is unchanged

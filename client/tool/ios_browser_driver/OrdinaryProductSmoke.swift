@@ -11,12 +11,15 @@ extension BrowserDriver {
     let operation: String
     let organizationOrigin: String
     let conversation: String
+    let messageA: String
+    let messageB: String
     let participant: String
     let folder: String
     let privateFolder: String
     let filename: String
     let filePayload: String
     let event: String
+    let updatedEvent: String
     let expected: [String: String]
   }
 
@@ -384,13 +387,55 @@ extension BrowserDriver {
     XCTAssertTrue(signIn.element.waitForExistence(timeout: 60))
   }
 
+  func testOrdinaryPreparation() throws {
+    continueAfterFailure = false
+    let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: nativeFixtureData()) as? [String: Any])
+    let runId = try XCTUnwrap(fixture["runId"] as? String)
+    let nonce = try XCTUnwrap(fixture["nonce"] as? String)
+    guard Set(fixture.keys) == Set(["schemaVersion", "runId", "nonce", "organizationOrigin"]),
+          fixture["schemaVersion"] as? String == "weave.iphone-startup-input/v1",
+          runId.hasPrefix("human-test-"), nonce.count == 32,
+          nonce.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }) else {
+      throw NSError(domain: "ordinary-preparation-invalid-input", code: 1)
+    }
+    // Normal discovery is allowed on a new installation. An existing workspace
+    // or sign-in screen is retained; never sign out or enter owner credentials.
+    try testOrdinaryOrganizationEntry()
+    let app = XCUIApplication(bundleIdentifier: "com.massimotter.weave")
+    let deadline = Date().addingTimeInterval(60)
+    var observed = ""
+    var stableSince = Date()
+    while Date() < deadline {
+      let signIn = app.buttons.matching(NSPredicate(format: "label IN %@", Self.signInLabels))
+      guard signIn.count <= 1 else { throw NSError(domain: "ordinary-preparation-ambiguous-sign-in", code: 1) }
+      let state: String
+      if app.state == .runningForeground && Self.ordinaryWorkspaceObserved(app) {
+        state = "retained-workspace"
+      } else if app.state == .runningForeground && signIn.count == 1 && signIn.element.isEnabled && signIn.element.isHittable {
+        state = "normal-sign-in"
+      } else {
+        state = ""
+      }
+      if state != observed { observed = state; stableSince = Date() }
+      if !state.isEmpty && Date().timeIntervalSince(stableSince) >= 1 {
+        let result: [String: Any] = ["schemaVersion": "weave.iphone-startup-ui/v1", "runId": runId,
+          "nonce": nonce, "status": "passed", "visibleState": state, "ownerSessionReplaced": false]
+        let bytes = try JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
+        print("WEAVE_IPHONE_STARTUP_RESULT " + String(decoding: bytes, as: UTF8.self))
+        return
+      }
+      Thread.sleep(forTimeInterval: 0.25)
+    }
+    throw NSError(domain: "ordinary-preparation-visible-startup-unavailable", code: 1)
+  }
+
   func testOrdinaryProductSmoke() throws {
     continueAfterFailure = false
     let fixture = try JSONDecoder().decode(OrdinarySmokeFixture.self, from: nativeFixtureData())
     guard fixture.schemaVersion == "weave.ordinary-product-ui/v1", fixture.runId.count >= 6,
           fixture.nonce.count == 32, fixture.folder.hasPrefix("weave-smoke-"),
           fixture.privateFolder.hasPrefix("weave-smoke-private-"),
-          fixture.filename.hasPrefix("weave-dual-smoke-") else { throw NSError(domain: "ordinary-smoke-invalid-fixture", code: 1) }
+          fixture.filename.hasPrefix("weave-dual-initial-") else { throw NSError(domain: "ordinary-smoke-invalid-fixture", code: 1) }
     let app = XCUIApplication(bundleIdentifier: "com.massimotter.weave")
     app.activate()
     guard Self.ordinaryWorkspaceObserved(app) else {
@@ -419,19 +464,19 @@ extension BrowserDriver {
       guard active.element.waitForExistence(timeout: 60), active.count == 1 else { throw NSError(domain: "ordinary-smoke-active-conversation-missing", code: 1) }
       let rowIdentifier = "chat-conversation-" + active.element.identifier.dropFirst("chat-active-conversation-".count)
       resources["conversation"] = SHA256.hash(data: Data(rowIdentifier.utf8)).map { String(format: "%02x", $0) }.joined()
-      try smokeText(app, "chat-message-input", fixture.conversation + "-a")
+      try smokeText(app, "chat-message-input", fixture.messageA)
       try smokeTap(app, "chat-send-message")
-      try smokeObserveMessage(app, fixture.conversation + "-a", conversationDigest: try XCTUnwrap(resources["conversation"]))
+      try smokeObserveMessage(app, fixture.messageA, conversationDigest: try XCTUnwrap(resources["conversation"]))
     case "chat-peer":
       resources["conversation"] = try smokeConversation(app, fixture)
-      try smokeObserveMessage(app, fixture.conversation + "-a", conversationDigest: try XCTUnwrap(resources["conversation"]))
-      try smokeText(app, "chat-message-input", fixture.conversation + "-b")
+      try smokeObserveMessage(app, fixture.messageA, conversationDigest: try XCTUnwrap(resources["conversation"]))
+      try smokeText(app, "chat-message-input", fixture.messageB)
       try smokeTap(app, "chat-send-message")
-      try smokeObserveMessage(app, fixture.conversation + "-b", conversationDigest: try XCTUnwrap(resources["conversation"]))
+      try smokeObserveMessage(app, fixture.messageB, conversationDigest: try XCTUnwrap(resources["conversation"]))
     case "chat-readback":
       resources["conversation"] = try smokeConversation(app, fixture)
-      try smokeObserveMessage(app, fixture.conversation + "-a", conversationDigest: try XCTUnwrap(resources["conversation"]))
-      try smokeObserveMessage(app, fixture.conversation + "-b", conversationDigest: try XCTUnwrap(resources["conversation"]))
+      try smokeObserveMessage(app, fixture.messageA, conversationDigest: try XCTUnwrap(resources["conversation"]))
+      try smokeObserveMessage(app, fixture.messageB, conversationDigest: try XCTUnwrap(resources["conversation"]))
     case "folder-create":
       resources["folder"] = try smokeSharedFolder(app, fixture, create: true)
     case "private-folder-create", "private-folder-read":
@@ -497,7 +542,7 @@ extension BrowserDriver {
         try smokeText(app, "calendar-event-title", fixture.event)
         try smokeTap(app, "calendar-save-event")
       }
-      let title = fixture.expected["updated"] == "true" ? fixture.event + "-updated" : fixture.event
+      let title = fixture.expected["updated"] == "true" ? fixture.updatedEvent : fixture.event
       if fixture.operation == "calendar-absent" {
         let old = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "calendar-event-")).allElementsBoundByIndex.filter {
           SHA256.hash(data: Data($0.identifier.utf8)).map { String(format: "%02x", $0) }.joined() == fixture.expected["event"]
@@ -512,9 +557,9 @@ extension BrowserDriver {
         let row = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "calendar-event-", title))
         if fixture.operation == "calendar-update" {
           try smokeTap(row.element, "calendar-edit-event")
-          try smokeText(app, "calendar-event-title", fixture.event + "-updated")
+          try smokeText(app, "calendar-event-title", fixture.updatedEvent)
           try smokeTap(app, "calendar-save-event")
-          resources["event"] = try smokeResource(app, prefix: "calendar-event-", name: fixture.event + "-updated", expected: fixture.expected["event"])
+          resources["event"] = try smokeResource(app, prefix: "calendar-event-", name: fixture.updatedEvent, expected: fixture.expected["event"])
         } else if fixture.operation == "calendar-delete" {
           try smokeTap(row.element, "calendar-delete-event")
           try smokeTap(app, "calendar-confirm-delete", ["Delete", "Löschen"])

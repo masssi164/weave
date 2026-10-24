@@ -13,6 +13,10 @@ from tools import dev_ci_impact as impact
 from tools import dev_ci_results as results
 
 
+# Disposable repositories must not spawn maintenance that outlives their cleanup.
+DISPOSABLE_GIT_CONFIG = ('-c', 'maintenance.auto=false', '-c', 'gc.auto=0')
+
+
 class ImpactTest(unittest.TestCase):
     def test_native_driver_profile_requires_complete_existing_single_input(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(impact, 'ROOT', Path(tmp)):
@@ -42,7 +46,7 @@ class ImpactTest(unittest.TestCase):
     def test_actual_driver_git_rename_delete_and_failed_base_cannot_narrow(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(impact, 'ROOT', Path(tmp)):
             def git(*args):
-                return subprocess.check_output(['git', '-C', tmp, *args],
+                return subprocess.check_output(['git', *DISPOSABLE_GIT_CONFIG, '-C', tmp, *args],
                                                stderr=subprocess.DEVNULL).decode().strip()
             git('init'); git('config', 'user.email', 'ci@example.invalid'); git('config', 'user.name', 'CI')
             driver = Path(tmp) / impact.NATIVE_DRIVER
@@ -208,7 +212,7 @@ class ImpactTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             def git(*args):
-                return subprocess.check_output(['git', '-C', tmp, *args],
+                return subprocess.check_output(['git', *DISPOSABLE_GIT_CONFIG, '-C', tmp, *args],
                                                stderr=subprocess.DEVNULL).decode().strip()
             git('init'); git('config', 'user.email', 'ci@example.invalid'); git('config', 'user.name', 'CI')
             native = root / 'client/tool/native_qualification_test.py'
@@ -290,7 +294,8 @@ class ImpactTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             def git(*args):
-                return subprocess.check_output(['git', '-C', tmp, *args], stderr=subprocess.DEVNULL).decode().strip()
+                return subprocess.check_output(['git', *DISPOSABLE_GIT_CONFIG, '-C', tmp, *args],
+                                               stderr=subprocess.DEVNULL).decode().strip()
             git('init'); git('config', 'user.email', 'ci@example.invalid'); git('config', 'user.name', 'CI')
             (root/'admin-console/src/generated/admin-client').mkdir(parents=True)
             source = root/'admin-console/src/generated/admin-client/file.ts'

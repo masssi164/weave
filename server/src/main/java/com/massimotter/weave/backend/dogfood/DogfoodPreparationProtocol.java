@@ -27,12 +27,26 @@ public final class DogfoodPreparationProtocol {
             "invitation-conflict", "invitation-expired", "invitation-revoked", "invitation-outcome-uncertain",
             "identity-unavailable", "test-member-state-conflict", "test-member-not-activated", "member-proof-required",
             "member-proof-conflict", "space-access-conflict", "space-version-conflict", "identity-provider-unavailable",
-            "persistence-unavailable", "audit-unavailable", "operation-incomplete");
+            "persistence-unavailable", "audit-unavailable", "operation-incomplete", "managed-test-identity-conflict",
+            "managed-test-credential-conflict");
     private DogfoodPreparationProtocol() {}
 
     public record Request(String schemaVersion, String operation, String environment, String nonce,
             String candidateCommit, String sourceTree, String specificationCommit, String apiBaseUrl,
-            Plan plan, Receipt previousReceipt, Proof proof) {}
+            Plan plan, Receipt previousReceipt, Proof proof,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            List<InitialCredential> initialCredentials) {
+        public Request(String schemaVersion, String operation, String environment, String nonce,
+                String candidateCommit, String sourceTree, String specificationCommit, String apiBaseUrl,
+                Plan plan, Receipt previousReceipt, Proof proof) {
+            this(schemaVersion, operation, environment, nonce, candidateCommit, sourceTree, specificationCommit,
+                    apiBaseUrl, plan, previousReceipt, proof, null);
+        }
+    }
+    public record InitialCredential(String slot, String password) {
+        @Override public String toString() { return "InitialCredential[slot=" + slot + ", password=REDACTED]"; }
+    }
+    public record PreparedMember(String slot, String identityRef) {}
     public record Plan(String schemaVersion, String planId, String nonce, String organizationOrigin,
             String apiOrigin, String issuerUrl, String spaceRef, List<PlannedMember> members) {}
     public record PlannedMember(String slot, String email, String displayName, String role,
@@ -47,7 +61,11 @@ public final class DogfoodPreparationProtocol {
             String specificationCommit, String organizationOrigin, String apiBaseUrl, String issuerUrl,
             String organizationId, String spaceRef, String intendedOwnerAccountRef, String intendedOwnerMemberHandle,
             List<MemberReceipt> members, boolean supportSafe, boolean containsSecretValues) {}
-    public record PrivateData(String ownerDisplayName) {}
+    public record PrivateData(String ownerDisplayName,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            List<PreparedMember> members) {
+        public PrivateData(String ownerDisplayName) { this(ownerDisplayName, null); }
+    }
     public record Envelope(String schemaVersion, Receipt receipt, PrivateData privateData) {}
 
     public static Request read(InputStream input) throws Exception {
@@ -56,9 +74,13 @@ public final class DogfoodPreparationProtocol {
         // A strict UTF-8 decoder rejects invalid byte sequences instead of replacing them.
         String value = StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString();
         var tree = JSON.readTree(value);
-        require(tree != null && tree.isObject() && tree.size() == 11
+        boolean managed = tree != null && "weave.dogfood-operator-preparation-request/v2".equals(tree.path("schemaVersion").asString());
+        require(tree != null && tree.isObject() && tree.size() == (managed ? 12 : 11)
                 && tree.has("previousReceipt") && tree.has("proof"), "invalid-request");
-        fields(tree, Request.class);
+        for (var field : Request.class.getRecordComponents()) {
+            if (!"initialCredentials".equals(field.getName()) || managed) require(tree.has(field.getName()), "invalid-request");
+        }
+        if (managed) for (var credential : tree.path("initialCredentials")) fields(credential, InitialCredential.class);
         fields(tree.path("plan"), Plan.class);
         for (var member : tree.path("plan").path("members")) fields(member, PlannedMember.class);
         if (!tree.path("proof").isNull()) {
@@ -80,8 +102,10 @@ public final class DogfoodPreparationProtocol {
     }
 
     static void validate(Request r) {
-        require(r != null && "weave.dogfood-operator-preparation-request/v1".equals(r.schemaVersion())
-                && Set.of("invitations", "grants").contains(nullSafe(r.operation()))
+        require(r != null && (("weave.dogfood-operator-preparation-request/v1".equals(r.schemaVersion())
+                && Set.of("invitations", "grants").contains(nullSafe(r.operation())) && r.initialCredentials() == null)
+                || ("weave.dogfood-operator-preparation-request/v2".equals(r.schemaVersion())
+                && "provision-members".equals(r.operation())))
                 && "dogfood".equals(r.environment()) && hex(r.nonce(), 32)
                 && hex(r.candidateCommit(), 40) && hex(r.sourceTree(), 40) && hex(r.specificationCommit(), 40), "invalid-request");
         Plan p = r.plan();
@@ -104,7 +128,16 @@ public final class DogfoodPreparationProtocol {
                     && ("Weave test member " + slot + " " + p.planId().substring(0, 8)).equals(member.displayName())
                     && ("dogfood-" + p.planId() + "-" + slot).equals(member.invitationIdempotencyKey()), "plan-conflict");
         }
-        if ("invitations".equals(r.operation())) require(r.proof() == null, "invalid-request");
+        if ("provision-members".equals(r.operation())) {
+            require(r.proof() == null && r.initialCredentials() != null && r.initialCredentials().size() == 2, "invalid-request");
+            for (int i = 0; i < 2; i++) {
+                var credential = r.initialCredentials().get(i);
+                require(credential != null && p.members().get(i).slot().equals(credential.slot())
+                        && credential.password() != null && credential.password().length() >= 24 && credential.password().length() <= 128
+                        && credential.password().chars().noneMatch(Character::isISOControl), "invalid-request");
+            }
+            require(!r.initialCredentials().get(0).password().equals(r.initialCredentials().get(1).password()), "invalid-request");
+        } else if ("invitations".equals(r.operation())) require(r.proof() == null, "invalid-request");
         else {
             Proof proof = r.proof();
             require(proof != null && "weave.dogfood-admin-preparation-proof/v1".equals(proof.schemaVersion())
@@ -139,9 +172,9 @@ public final class DogfoodPreparationProtocol {
                 && r.plan().issuerUrl().equals(p.issuerUrl()) && "workspace-default".equals(p.spaceRef())
                 && p.supportSafe() && !p.containsSecretValues() && hex(p.nonce(), 32)
                 && hex(p.candidateCommit(), 40) && hex(p.sourceTree(), 40) && hex(p.specificationCommit(), 40)
-                && Set.of("invitations", "grants").contains(nullSafe(p.operation()))
+                && Set.of("invitations", "grants", "provision-members").contains(nullSafe(p.operation()))
                 && Set.of("passed", "blocked", "incomplete").contains(nullSafe(p.status()))
-                && Set.of("invitations-ready", "grants-ready", "incomplete").contains(nullSafe(p.stage()))
+                && Set.of("invitations-ready", "grants-ready", "provision-members-ready", "incomplete").contains(nullSafe(p.stage()))
                 && BOUNDARIES.contains(nullSafe(p.boundary()))
                 && Set.of("CREATED", "VERIFIED", "PARTIAL", "BLOCKED").contains(nullSafe(p.outcome()))
                 && p.members() != null && p.members().size() == 2, "operator-reference-conflict");
@@ -171,8 +204,9 @@ public final class DogfoodPreparationProtocol {
                         || ("APPLIED".equals(member.intentState()) && member.memberHandle() != null && member.accountRef() != null))),
                         "operator-reference-conflict");
             } else {
-                require("grants-ready".equals(p.stage()) && "grants".equals(p.operation())
-                        && p.members().stream().allMatch(member -> member.intentRef() != null && member.invitationHandle() != null
+                boolean managed = "provision-members".equals(p.operation()) && "provision-members-ready".equals(p.stage());
+                require((managed || ("grants-ready".equals(p.stage()) && "grants".equals(p.operation())))
+                        && p.members().stream().allMatch(member -> member.intentRef() != null && (managed || member.invitationHandle() != null)
                         && member.memberHandle() != null && member.accountRef() != null && member.grantVersion() != null
                         && "APPLIED".equals(member.intentState()) && Set.of("CREATED", "VERIFIED").contains(member.grantOutcome())),
                         "operator-reference-conflict");
