@@ -30,7 +30,7 @@ CLIENT = ROOT / 'client'
 sys.path.insert(0, str(ROOT / 'tools'))
 sys.path.insert(0, str(CLIENT / 'tool'))
 sys.path.insert(0, str(ROOT / 'infra/weave-workspace/scripts'))
-from run_ios_simulator_product_acceptance import prepare_browser_fixture, select_runtime
+from run_ios_simulator_product_acceptance import NativeFailure, inspect_toolchain, prepare_browser_fixture, select_runtime
 from compose_env import load_context
 from compose_runtime import _dogfood_session_lock, _service_container, verify_dogfood_identity
 from dogfood_handoff_bundle import canonical_origin
@@ -199,6 +199,21 @@ class Runner:
         self.directory = directory
         self.sequence = 0
         self.deadline = time.monotonic() + 2700
+        self.environment = os.environ.copy()
+
+    def configure_native_toolchain(self) -> None:
+        """Use the qualified pins and rustup shims for ordinary native builds too."""
+        try:
+            toolchain = inspect_toolchain()
+            rustup = shutil.which('rustup', path=self.environment.get('PATH', ''))
+            if rustup is None:
+                raise SmokeError('pinned-native-toolchain-unavailable')
+            # Keep the shim directory: resolving rustup/cargo symlinks can select
+            # a different compiler when Flutter's native hook launches rustc.
+            self.environment['PATH'] = str(Path(rustup).parent) + os.pathsep + self.environment.get('PATH', '')
+            self.environment['RUSTUP_TOOLCHAIN'] = toolchain['rustToolchain']
+        except (NativeFailure, OSError, ValueError, KeyError, subprocess.SubprocessError):
+            raise SmokeError('pinned-native-toolchain-unavailable') from None
 
     def run(self, arguments: list[str], *, cwd: Path = ROOT, timeout: int = 300) -> str:
         timeout = min(timeout, max(0, self.deadline - time.monotonic()))
@@ -210,7 +225,7 @@ class Runner:
         with log.open('w+') as stream:
             log.chmod(0o600)
             child = subprocess.Popen(arguments, cwd=cwd, stdout=stream, stderr=subprocess.STDOUT,
-                                     start_new_session=True)
+                                     start_new_session=True, env=self.environment)
             try:
                 child.wait(timeout=timeout)
             finally:
@@ -393,6 +408,7 @@ def main() -> int:
         with _dogfood_session_lock(context), tempfile.TemporaryDirectory(prefix='weave-functional-') as temporary:
             directory = Path(temporary); directory.chmod(0o700)
             runner = Runner(directory)
+            runner.configure_native_toolchain()
             verify_dogfood_identity(context)
             before = _service_container(context, 'backend', deadline=time.monotonic() + 30)
             labels = before.get('Config', {}).get('Labels', {})

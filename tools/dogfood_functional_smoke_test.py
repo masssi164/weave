@@ -2,6 +2,7 @@
 """Offline negative tests for real UI producer/receipt boundaries, never live proof."""
 import ast
 import copy
+from contextlib import nullcontext
 import io
 import json
 import os
@@ -42,6 +43,75 @@ def receipt(stage='physical', sha='a' * 40, tree='b' * 40, spec='c' * 40, run_id
 
 
 class FunctionalSmokeTest(unittest.TestCase):
+    def test_native_toolchain_overrides_homebrew_first_path_for_actual_child_without_global_mutation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            brew = root / 'homebrew/bin'; brew.mkdir(parents=True)
+            shims = root / 'rustup/bin'; shims.mkdir(parents=True)
+            # All three shims share one executable, as rustup's real proxies do.
+            proxy = root / 'proxy'
+            proxy.write_text('#!' + sys.executable + '\nimport os, pathlib\n'
+                             'print(pathlib.Path(__file__).name + ":" + os.environ.get("RUSTUP_TOOLCHAIN", "unset"))\n')
+            proxy.chmod(0o700)
+            for name in ('rustup', 'cargo', 'rustc'):
+                (shims / name).symlink_to(proxy)
+            for name in ('cargo', 'rustc'):
+                executable = brew / name
+                executable.write_text('#!' + sys.executable + '\nprint("homebrew-1.98.0")\n')
+                executable.chmod(0o700)
+            ambient = str(brew) + os.pathsep + str(shims)
+            with patch.dict(os.environ, {'PATH': ambient, 'RUSTUP_TOOLCHAIN': 'foreign'}):
+                original = os.environ.copy()
+                runner = smoke.Runner(root)
+                self.assertEqual(runner.run(['cargo']).strip(), 'homebrew-1.98.0')
+                with patch.object(smoke, 'inspect_toolchain', return_value={'rustToolchain': '1.95.0'}) as inspect:
+                    runner.configure_native_toolchain()
+                inspect.assert_called_once_with()
+                self.assertEqual(runner.run(['cargo']).strip(), 'cargo:1.95.0')
+                self.assertEqual(runner.run(['rustc']).strip(), 'rustc:1.95.0')
+                self.assertEqual(runner.environment['PATH'], str(shims) + os.pathsep + ambient)
+                self.assertEqual(os.environ, original)
+
+    def test_unavailable_native_toolchain_is_closed_and_keeps_environment_unchanged(self):
+        for failure in (None, smoke.NativeFailure('infrastructure', 'rust-toolchain', 'private-detail'),
+                        FileNotFoundError('private-path')):
+            with self.subTest(failure=type(failure).__name__), tempfile.TemporaryDirectory() as directory:
+                runner = smoke.Runner(Path(directory))
+                original = runner.environment.copy()
+                with patch.object(smoke, 'inspect_toolchain', return_value={'rustToolchain': '1.95.0'}, side_effect=failure), \
+                        patch.object(smoke.shutil, 'which', return_value=None), patch.object(runner, 'run') as execute:
+                    with self.assertRaisesRegex(smoke.SmokeError, '^pinned-native-toolchain-unavailable$'):
+                        runner.configure_native_toolchain()
+                self.assertEqual(runner.environment, original)
+                execute.assert_not_called()
+
+    def test_both_functional_stages_check_toolchain_before_native_commands(self):
+        for stage in ('deployment', 'physical'):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / 'functional-smoke.json'
+                arguments = ['dogfood_functional_smoke.py', '--stage', stage, '--candidate', 'a' * 40,
+                             '--qualification-run-id', '123', '--qualification-run-attempt', '1',
+                             '--output', str(output), '--device-id', 'approved-phone']
+                context = SimpleNamespace(env={key: 'https://' + host + '.fixture.invalid' for key, host in (
+                    ('WEAVE_PUBLIC_URL', 'org'), ('WEAVE_API_ORIGIN', 'api'),
+                    ('WEAVE_AUTH_URL', 'auth'), ('WEAVE_MATRIX_URL', 'matrix'))})
+                with patch.object(sys, 'argv', arguments), \
+                        patch.dict(os.environ, {'GITHUB_ACTIONS': 'true', 'GITHUB_REF': 'refs/heads/dogfood',
+                                                'RUNNER_NAME': 'weave-live-mac-mini'}), \
+                        patch.object(smoke.subprocess, 'check_output', side_effect=['a' * 40, b'', 'b' * 40]), \
+                        patch.object(smoke, 'load_context', return_value=context), \
+                        patch.object(smoke, 'ensure_prepared_identities'), \
+                        patch.object(smoke, '_dogfood_session_lock', return_value=nullcontext()), \
+                        patch.object(smoke, 'inspect_toolchain', side_effect=smoke.NativeFailure('infrastructure', 'rust-toolchain', 'private-detail')) as inspect, \
+                        patch.object(smoke.Runner, 'run') as execute, patch.object(smoke, 'verify_dogfood_identity') as identity, \
+                        patch('sys.stdout', new_callable=io.StringIO):
+                    self.assertEqual(smoke.main(), 2)
+                inspect.assert_called_once_with(); execute.assert_not_called(); identity.assert_not_called()
+                result = json.loads(output.read_text())
+                self.assertEqual(result['status'], 'incomplete')
+                self.assertEqual(result['boundary'], 'pinned-native-toolchain-unavailable')
+                self.assertNotIn('private-detail', output.read_text())
+
     def test_missing_input_invokes_explicit_preparation_without_taking_smoke_lock(self):
         import dogfood_prepare as prepare
         with tempfile.TemporaryDirectory() as directory:
