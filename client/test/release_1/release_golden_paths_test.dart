@@ -238,8 +238,11 @@ void main() {
         expect(find.byTooltip('Delete spec.pdf'), findsNothing);
         expect(filesRepository.deletedEntries, isEmpty);
 
-        await tester.tap(find.text('Up'));
+        expect(find.byType(BackButton), findsOneWidget);
+        await tester.pageBack();
         await tester.pumpAndSettle();
+        expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
+        expect(find.widgetWithText(ListTile, 'Readme.md'), findsOneWidget);
 
         await tester.tap(_navigationDestination('Settings'));
         await tester.pumpAndSettle();
@@ -461,6 +464,12 @@ class _ScenarioFilesRepository
 
     return DirectoryListing(
       path: path,
+      parentFileId: path == '/'
+          ? null
+          : _entriesByPath.values
+                .expand((entries) => entries)
+                .singleWhere((entry) => entry.isDirectory && entry.path == path)
+                .id,
       allowedActions: path == '/'
           ? const {'listChildren', 'createFolder', 'upload'}
           : const {'listChildren'},

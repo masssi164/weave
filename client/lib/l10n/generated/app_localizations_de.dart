@@ -715,7 +715,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesMisconfiguredMessage =>
-      'Schließe zuerst die Weave-Servereinrichtung ab, bevor du Dateien nutzt.';
+      'Dateien sind für diesen Arbeitsbereich noch nicht eingerichtet. Bitte die Arbeitsbereichsadministration, die Einrichtung abzuschließen.';
 
   @override
   String filesConnectionConnected(String accountLabel) {

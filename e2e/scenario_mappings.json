@@ -4666,6 +4666,18 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
+          "path": "client/test/features/files/files_screen_test.dart",
+          "fragments": [
+            "Files uses member copy",
+            "native Back and iOS swipe retain scope and parent focus",
+            "scope selection recovers a failed root read",
+            "scope selection leaves a failed child through native Back",
+            "shared folder deep link has native root Back",
+            "retained folder cannot display a replacement account after invalidation",
+            "folder failure keeps native Back available and shared root readable"
+          ]
+        },
+        {
           "path": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
           "fragments": [
             "uses the generated User API repository for release members",

@@ -710,7 +710,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filesMisconfiguredMessage =>
-      'Finish Weave server setup before using Files.';
+      'Files are not set up for this workspace yet. Ask a workspace admin to finish setup.';
 
   @override
   String filesConnectionConnected(String accountLabel) {

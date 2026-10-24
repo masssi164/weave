@@ -259,6 +259,18 @@ extension BrowserDriver {
 
   func smokeFilesRoot(_ app: XCUIApplication, privateScope: Bool) throws {
     try smokeTap(app, "nav-files")
+    try smokeAwaitFilesRead(app)
+    // A tab switch may restore a folder. Scope selection belongs to the root;
+    // reach it through the ordinary breadcrumb without replacing member state.
+    let location = try smokeElement(app, identifier: "files-location-root", searchTowardTop: true)
+    if !location.isSelected {
+      guard location.isEnabled else { throw NSError(domain: "ordinary-smoke-control-disabled", code: 1) }
+      location.tap()
+      // A deep link can reveal an older retained root. First observe its
+      // root-only control, then request a new read through ordinary refresh.
+      _ = try smokeElement(app, identifier: "files-space-selector", searchTowardTop: true)
+      try smokeRefreshFiles(app)
+    }
     let previous = try smokeAwaitFilesRead(app)
     let selector = try smokeElement(app, identifier: "files-space-selector", searchTowardTop: true)
     guard selector.isEnabled else { throw NSError(domain: "ordinary-smoke-control-disabled", code: 1) }

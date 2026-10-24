@@ -2,13 +2,20 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:weave/core/router/app_routes.dart';
+import 'package:weave/core/router/files_routes.dart';
+import 'package:weave/core/theme/app_theme.dart';
 import 'package:intl/intl.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
@@ -79,6 +86,35 @@ Widget _filesTestApp(Widget child, {List<dynamic> overrides = const []}) {
     ],
   );
 }
+
+Widget _filesNavigationApp(
+  GoRouter router, {
+  List<dynamic> overrides = const [],
+  TargetPlatform? platform,
+}) => ProviderScope(
+  overrides: [
+    workspaceCapabilitySnapshotProvider.overrideWithValue(
+      const AsyncData(_readyFilesSnapshot),
+    ),
+    ...overrides,
+  ],
+  child: MaterialApp.router(
+    theme: AppTheme.light.copyWith(platform: platform ?? defaultTargetPlatform),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    routerConfig: router,
+  ),
+);
+
+GoRouter _filesRouter({String initialLocation = AppRoutes.files}) => GoRouter(
+  initialLocation: initialLocation,
+  routes: [
+    ShellRoute(
+      builder: (context, state, child) => Scaffold(body: child),
+      routes: [filesRoute()],
+    ),
+  ],
+);
 
 WorkspaceCapabilitySnapshot _blockedFilesSnapshot() =>
     WorkspaceCapabilitySnapshot(
@@ -162,6 +198,7 @@ class _FakeFilesRepository
     return DirectoryListing(
       path: listing.path,
       parentFileId: listing.parentFileId,
+      ownerKey: listing.ownerKey,
       allowedActions: const {'listChildren', 'createFolder', 'upload'},
       entries: listing.entries
           .map(
@@ -381,6 +418,100 @@ class _NamedFilesRepository extends _FakeFilesRepository
     );
   }
 }
+
+class _NavigationFilesRepository extends _FakeFilesRepository
+    implements FilesSpaceRepository {
+  _NavigationFilesRepository()
+    : super(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://api.example/api'),
+          accountLabel: 'Weave files',
+        ),
+      );
+
+  String owner = 'member-a';
+  bool denyFolder = false;
+  bool denyRoot = false;
+  int earlierEntries = 0;
+  final scopes = <String?>[];
+
+  @override
+  Future<DirectoryListing> listDirectory(
+    String path, {
+    String? spaceRef,
+  }) async {
+    requestedPaths.add(path);
+    scopes.add(spaceRef);
+    if ((denyFolder && path != '/') || (denyRoot && path == '/')) {
+      throw const FilesFailure.permissionDenied('Folder access was revoked.');
+    }
+    return DirectoryListing(
+      path: path,
+      parentFileId: path == '/' ? 'root' : 'folder-documents',
+      ownerKey: owner,
+      allowedActions: const {'listChildren'},
+      entries: path == '/'
+          ? [
+              for (var index = 0; index < earlierEntries; index++)
+                FileEntry(
+                  id: 'earlier-$index',
+                  name: 'Earlier file $index.txt',
+                  path: '/Earlier file $index.txt',
+                  isDirectory: false,
+                ),
+              const FileEntry(
+                id: 'folder-documents',
+                name: 'Documents',
+                path: '/Documents',
+                isDirectory: true,
+                allowedActions: {'listChildren'},
+              ),
+            ]
+          : [
+              FileEntry(
+                id: 'file-note',
+                name: '$owner.txt',
+                path: '/Documents/$owner.txt',
+                isDirectory: false,
+              ),
+            ],
+    );
+  }
+
+  @override
+  Future<void> uploadFile(
+    String path,
+    FileUploadRequest request, {
+    String? spaceRef,
+    FileUploadProgressCallback? onProgress,
+  }) async {}
+
+  @override
+  Future<FileEntry> createFolder({
+    required String parentPath,
+    required String name,
+    String? spaceRef,
+  }) => super.createFolder(parentPath: parentPath, name: name);
+}
+
+List<dynamic> _navigationOverrides(_NavigationFilesRepository repository) => [
+  filesRepositoryProvider.overrideWithValue(repository),
+  weaveApiMemberSpacesProvider.overrideWith(
+    (ref) async => const MemberSpaceAccessSnapshot(
+      visibleSpaceRefs: {'workspace-default'},
+      defaultSpaceReadable: true,
+      displayNames: {'workspace-default': 'Team'},
+    ),
+  ),
+  appStartDiscoveryClientProvider.overrideWith(
+    (ref) => buildTestDiscoveryClient(
+      ref.watch(serverConfigurationRepositoryProvider),
+    ),
+  ),
+  serverConfigurationRepositoryProvider.overrideWith(
+    (ref) => _FakeServerConfigurationRepository(buildTestConfiguration()),
+  ),
+];
 
 class _ActionExportSaver implements FilesExportSaver {
   @override
@@ -910,6 +1041,8 @@ void main() {
     'successful Files read markers change only on current completed reads',
     (tester) async {
       final semantics = tester.ensureSemantics();
+      final router = _filesRouter();
+      addTearDown(router.dispose);
       try {
         Completer<DirectoryListing>? pending;
         final repository = _FakeFilesRepository(
@@ -926,8 +1059,8 @@ void main() {
               : pending.future,
         );
         await tester.pumpWidget(
-          _filesTestApp(
-            const FilesScreen(),
+          _filesNavigationApp(
+            router,
             overrides: [
               filesRepositoryProvider.overrideWithValue(repository),
               weaveApiMemberSpacesProvider.overrideWith(
@@ -1077,15 +1210,24 @@ void main() {
           DirectoryListing(
             path: '/',
             parentFileId: 'file:root',
-            entries: List.generate(
-              30,
-              (index) => FileEntry(
-                id: 'visible-$index',
-                name: 'readback-$index.txt',
-                path: '/readback-$index.txt',
-                isDirectory: false,
+            entries: [
+              ...List.generate(
+                30,
+                (index) => FileEntry(
+                  id: 'visible-$index',
+                  name: 'readback-$index.txt',
+                  path: '/readback-$index.txt',
+                  isDirectory: false,
+                ),
               ),
-            ),
+              const FileEntry(
+                id: 'file:reports',
+                name: 'Reports',
+                path: '/Reports',
+                isDirectory: true,
+                allowedActions: {'listChildren'},
+              ),
+            ],
           ),
         );
         await retry;
@@ -1135,16 +1277,19 @@ void main() {
           'Export readback-29.txt to native files',
         ]);
         expect(tester.getRect(row).top, lessThan(tester.getRect(end).top));
+        final reports = find.widgetWithText(ListTile, 'Reports');
         await tester.scrollUntilVisible(
-          root,
-          -300,
+          reports,
+          300,
           maxScrolls: 30,
           scrollable: scrollable,
         );
         await tester.pumpAndSettle();
         pending = Completer<DirectoryListing>();
-        final open = controller.openDirectory('/Reports');
+        await tester.tap(reports);
         await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        expect(router.canPop(), isTrue);
         expect(loaded, findsNothing);
         pending.complete(
           const DirectoryListing(
@@ -1153,7 +1298,6 @@ void main() {
             entries: [],
           ),
         );
-        await open;
         await tester.pumpAndSettle();
         final nested = find.byWidgetPredicate(
           (widget) =>
@@ -1171,6 +1315,13 @@ void main() {
         await tester.tap(root);
         await tester.pumpAndSettle();
         expect(container.read(filesProvider).requireValue.currentPath, '/');
+        await tester.scrollUntilVisible(
+          root,
+          -300,
+          maxScrolls: 30,
+          scrollable: scrollable,
+        );
+        await tester.pumpAndSettle();
         expect(current, findsOneWidget);
         expect(loaded, findsOneWidget);
         pending = Completer<DirectoryListing>();
@@ -1663,6 +1814,347 @@ void main() {
     });
   }
 
+  for (final language in ['en', 'de']) {
+    for (final status in [
+      FilesConnectionStatus.connected,
+      FilesConnectionStatus.disconnected,
+      FilesConnectionStatus.invalid,
+      FilesConnectionStatus.unavailable,
+      FilesConnectionStatus.misconfigured,
+    ]) {
+      testWidgets('Files uses member copy in $language for $status', (
+        tester,
+      ) async {
+        tester.platformDispatcher.localesTestValue = [Locale(language)];
+        addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+        final repository = _FakeFilesRepository(
+          connectionState: FilesConnectionState(
+            status: status,
+            baseUrl: Uri.parse('https://api.example/api'),
+            accountLabel: 'Weave files',
+            message:
+                'Unlocalized provider internals must stay out of member UI',
+          ),
+        );
+        await tester.pumpWidget(
+          _filesTestApp(
+            const FilesScreen(),
+            overrides: [
+              filesRepositoryProvider.overrideWithValue(repository),
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+              ),
+              serverConfigurationRepositoryProvider.overrideWith(
+                (ref) => _FakeServerConfigurationRepository(
+                  buildTestConfiguration(),
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(FilesScreen)),
+        );
+        expect(find.textContaining('Weave files'), findsNothing);
+        expect(find.textContaining('Connected as'), findsNothing);
+        expect(find.textContaining('Verbunden als'), findsNothing);
+        expect(find.textContaining('User API'), findsNothing);
+        expect(find.textContaining('User-API'), findsNothing);
+        expect(find.textContaining('provider internals'), findsNothing);
+        expect(find.text(l10n.filesProductBoundaryTitle), findsNothing);
+        if (status == FilesConnectionStatus.connected) {
+          expect(find.text(l10n.filesPrivateSpace), findsWidgets);
+          expect(repository.requestedPaths, ['/']);
+        } else {
+          expect(repository.requestedPaths, isEmpty);
+          final expected = switch (status) {
+            FilesConnectionStatus.disconnected => l10n.filesDisconnectedMessage,
+            FilesConnectionStatus.invalid => l10n.filesInvalidSessionMessage,
+            FilesConnectionStatus.misconfigured =>
+              l10n.filesMisconfiguredMessage,
+            _ => l10n.filesUnavailableGuidance,
+          };
+          expect(find.text(expected), findsOneWidget);
+        }
+      });
+    }
+  }
+
+  testWidgets('native Back and iOS swipe retain scope and parent focus', (
+    tester,
+  ) async {
+    final repository = _NavigationFilesRepository()..earlierEntries = 12;
+    final router = _filesRouter();
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      _filesNavigationApp(
+        router,
+        overrides: _navigationOverrides(repository),
+        platform: TargetPlatform.iOS,
+      ),
+    );
+    await tester.pumpAndSettle();
+    final rootContainer = ProviderScope.containerOf(
+      tester.element(find.byType(FilesScreen)),
+    );
+    await rootContainer
+        .read(filesProvider.notifier)
+        .selectRootSpace('workspace-default');
+    await tester.pumpAndSettle();
+    expect(find.byType(BackButton), findsNothing);
+    final parentScrollable = find.descendant(
+      of: find.byType(FilesScreen),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable && widget.axisDirection == AxisDirection.down,
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.widgetWithText(ListTile, 'Documents'),
+      180,
+      scrollable: parentScrollable,
+    );
+    await tester.pumpAndSettle();
+    final parentOffset = tester
+        .state<ScrollableState>(parentScrollable)
+        .position
+        .pixels;
+    expect(parentOffset, greaterThan(0));
+    await tester.tap(find.widgetWithText(ListTile, 'Documents'));
+    await tester.pumpAndSettle();
+    expect(router.canPop(), isTrue);
+    expect(find.text('member-a.txt'), findsOneWidget);
+    expect(find.byKey(const Key('files-space-selector')), findsNothing);
+    expect(find.bySemanticsLabel('Open parent folder'), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    final parentTile = tester.widget<ListTile>(
+      find.widgetWithText(ListTile, 'Documents'),
+    );
+    expect(parentTile.focusNode!.hasFocus, isTrue);
+    expect(
+      tester.state<ScrollableState>(parentScrollable).position.pixels,
+      closeTo(parentOffset, 1),
+    );
+    expect(
+      rootContainer.read(filesProvider).requireValue.rootSpaceRef,
+      'workspace-default',
+    );
+    expect(router.canPop(), isFalse);
+    await tester.tap(find.widgetWithText(ListTile, 'Documents'));
+    await tester.pumpAndSettle();
+    await tester.dragFrom(const Offset(1, 250), const Offset(700, 0));
+    await tester.pumpAndSettle();
+    expect(router.canPop(), isFalse);
+    expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
+    expect(repository.scopes.skip(1), everyElement('workspace-default'));
+    await tester.tap(find.widgetWithText(ListTile, 'Documents'));
+    await tester.pumpAndSettle();
+    await selectNativeDualFilesScope(tester, null);
+    await tester.pumpAndSettle();
+    expect(router.canPop(), isFalse);
+    expect(rootContainer.read(filesProvider).requireValue.rootSpaceRef, isNull);
+    expect(repository.scopes.last, isNull);
+  });
+
+  testWidgets('scope selection recovers a failed root read', (tester) async {
+    final repository = _NavigationFilesRepository();
+    final router = _filesRouter();
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      _filesNavigationApp(router, overrides: _navigationOverrides(repository)),
+    );
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(FilesScreen)),
+    );
+    repository.denyRoot = true;
+    await container.read(filesProvider.notifier).refresh();
+    await tester.pumpAndSettle();
+    expect(
+      container.read(filesProvider).requireValue.hasSuccessfulCurrentRead,
+      isFalse,
+    );
+    repository.denyRoot = false;
+    await selectNativeDualFilesScope(tester, 'workspace-default');
+    await tester.pumpAndSettle();
+    final state = container.read(filesProvider).requireValue;
+    expect(state.rootSpaceRef, 'workspace-default');
+    expect(state.hasSuccessfulCurrentRead, isTrue);
+    expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
+  });
+
+  testWidgets('scope selection leaves a failed child through native Back', (
+    tester,
+  ) async {
+    final repository = _NavigationFilesRepository()..denyFolder = true;
+    final router = _filesRouter();
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      _filesNavigationApp(router, overrides: _navigationOverrides(repository)),
+    );
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(FilesScreen)),
+    );
+    await tester.tap(find.widgetWithText(ListTile, 'Documents'));
+    await tester.pumpAndSettle();
+    expect(router.canPop(), isTrue);
+    final root = find.byWidgetPredicate(
+      (widget) =>
+          widget is Semantics &&
+          widget.properties.identifier == 'files-location-root',
+    );
+    expect(tester.widget<Semantics>(root).properties.enabled, isFalse);
+    expect(find.byType(BackButton), findsOneWidget);
+    await selectNativeDualFilesScope(tester, 'workspace-default');
+    await tester.pumpAndSettle();
+    expect(router.canPop(), isFalse);
+    final state = container.read(filesProvider).requireValue;
+    expect(state.rootSpaceRef, 'workspace-default');
+    expect(state.hasSuccessfulCurrentRead, isTrue);
+    expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
+  });
+
+  for (final legacy in [false, true]) {
+    testWidgets(
+      'shared folder deep link has native root Back; legacy=$legacy',
+      (tester) async {
+        final repository = _NavigationFilesRepository();
+        final location = legacy
+            ? AppRoutes.filesLocation(
+                '/Documents',
+                spaceRef: 'workspace-default',
+              )
+            : AppRoutes.filesFolder(
+                'folder-documents',
+                '/Documents',
+                spaceRef: 'workspace-default',
+              );
+        final router = _filesRouter(initialLocation: location);
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          _filesNavigationApp(
+            router,
+            overrides: _navigationOverrides(repository),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('member-a.txt'), findsOneWidget);
+        expect(router.canPop(), isTrue);
+        final childGeneration = ProviderScope.containerOf(
+          tester.element(find.byType(FilesScreen)),
+        ).read(filesProvider).requireValue.successfulReadGeneration;
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        expect(router.canPop(), isFalse);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(FilesScreen)),
+        );
+        expect(
+          container.read(filesProvider).requireValue.rootSpaceRef,
+          'workspace-default',
+        );
+        expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
+        final retainedGeneration = container
+            .read(filesProvider)
+            .requireValue
+            .successfulReadGeneration;
+        final refresh = find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.identifier == 'files-refresh',
+        );
+        await tester.ensureVisible(refresh);
+        await tester.tap(refresh);
+        await tester.pumpAndSettle();
+        final refreshedGeneration = container
+            .read(filesProvider)
+            .requireValue
+            .successfulReadGeneration;
+        expect(refreshedGeneration, greaterThan(retainedGeneration));
+        expect(refreshedGeneration, greaterThan(childGeneration));
+      },
+    );
+  }
+
+  testWidgets(
+    'retained folder cannot display a replacement account after invalidation',
+    (tester) async {
+      final repository = _NavigationFilesRepository();
+      final router = _filesRouter();
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        _filesNavigationApp(
+          router,
+          overrides: _navigationOverrides(repository),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final rootContainer = ProviderScope.containerOf(
+        tester.element(find.byType(FilesScreen)),
+      );
+      await tester.tap(find.widgetWithText(ListTile, 'Documents'));
+      await tester.pumpAndSettle();
+      expect(find.text('member-a.txt'), findsOneWidget);
+      repository.owner = 'member-b';
+      rootContainer
+          .read(workspaceInvalidationProvider.notifier)
+          .invalidate(
+            integration: WorkspaceIntegration.files,
+            reason: IntegrationInvalidationReason.authConfigurationChanged,
+          );
+      await tester.pumpAndSettle();
+      expect(find.text('member-a.txt'), findsNothing);
+      expect(find.text('member-b.txt'), findsNothing);
+      expect(find.text('Files could not be loaded'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(router.canPop(), isFalse);
+      expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
+      await tester.tap(find.widgetWithText(ListTile, 'Documents'));
+      await tester.pumpAndSettle();
+      expect(find.text('member-b.txt'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'folder failure keeps native Back available and shared root readable',
+    (tester) async {
+      final repository = _NavigationFilesRepository()..denyFolder = true;
+      final router = _filesRouter();
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        _filesNavigationApp(
+          router,
+          overrides: _navigationOverrides(repository),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(FilesScreen)),
+      );
+      await container
+          .read(filesProvider.notifier)
+          .selectRootSpace('workspace-default');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Documents'));
+      await tester.pumpAndSettle();
+      expect(find.text('member-a.txt'), findsNothing);
+      expect(find.byType(BackButton), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
+      expect(
+        container.read(filesProvider).requireValue.rootSpaceRef,
+        'workspace-default',
+      );
+    },
+  );
+
   group('FilesScreen', () {
     testWidgets('explains missing Space access with accessible recovery', (
       tester,
@@ -1817,57 +2309,48 @@ void main() {
       },
     );
 
-    testWidgets('points to the shared Weave sign-in when Files has no session', (
-      tester,
-    ) async {
-      final repository = _FakeFilesRepository(
-        connectionState: FilesConnectionState.disconnected(
-          baseUrl: Uri.parse('https://files.home.internal'),
-        ),
-      );
-
-      await tester.pumpWidget(
-        _filesTestApp(
-          const FilesScreen(),
-          overrides: [
-            filesRepositoryProvider.overrideWithValue(repository),
-            appStartDiscoveryClientProvider.overrideWith(
-              (ref) => buildTestDiscoveryClient(
-                ref.watch(serverConfigurationRepositoryProvider),
-              ),
-            ),
-            serverConfigurationRepositoryProvider.overrideWith(
-              (ref) =>
-                  _FakeServerConfigurationRepository(buildTestConfiguration()),
-            ),
-          ],
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Connect Files'), findsNothing);
-      expect(find.text('Sign in to use Files'), findsOneWidget);
-      expect(
-        find.text('Sign in to Weave to browse workspace files.'),
-        findsOneWidget,
-      );
-      expect(find.text('Weave Files'), findsOneWidget);
-      expect(find.text('Weave product boundary'), findsOneWidget);
-      expect(
-        find.textContaining('Files actions use the Weave User API'),
-        findsOneWidget,
-      );
-      expect(find.text('https://files.home.internal'), findsNothing);
-      expect(
-        find.bySemanticsLabel(
-          RegExp(
-            'Weave product boundary.*Weave User API.*raw provider paths and credentials',
-            dotAll: true,
+    testWidgets(
+      'points to the shared Weave sign-in when Files has no session',
+      (tester) async {
+        final repository = _FakeFilesRepository(
+          connectionState: FilesConnectionState.disconnected(
+            baseUrl: Uri.parse('https://files.home.internal'),
           ),
-        ),
-        findsOneWidget,
-      );
-    });
+        );
+
+        await tester.pumpWidget(
+          _filesTestApp(
+            const FilesScreen(),
+            overrides: [
+              filesRepositoryProvider.overrideWithValue(repository),
+              appStartDiscoveryClientProvider.overrideWith(
+                (ref) => buildTestDiscoveryClient(
+                  ref.watch(serverConfigurationRepositoryProvider),
+                ),
+              ),
+              serverConfigurationRepositoryProvider.overrideWith(
+                (ref) => _FakeServerConfigurationRepository(
+                  buildTestConfiguration(),
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Connect Files'), findsNothing);
+        expect(find.text('Sign in to use Files'), findsOneWidget);
+        expect(
+          find.text('Sign in to Weave to browse workspace files.'),
+          findsOneWidget,
+        );
+        expect(find.text('Weave Files'), findsNothing);
+        expect(find.text('Weave product boundary'), findsNothing);
+        expect(find.textContaining('Weave User API'), findsNothing);
+        expect(find.textContaining('provider'), findsNothing);
+        expect(find.text('https://files.home.internal'), findsNothing);
+      },
+    );
 
     testWidgets('explains unavailable Files access without browsing', (
       tester,
@@ -1901,7 +2384,7 @@ void main() {
       expect(find.text('Files are unavailable'), findsOneWidget);
       expect(
         find.text('Files access is blocked by workspace policy.'),
-        findsOneWidget,
+        findsNothing,
       );
       expect(find.text('Retry'), findsAtLeastNWidgets(1));
       expect(repository.requestedPaths, isEmpty);
@@ -2024,6 +2507,7 @@ void main() {
           ),
           '/Documents': DirectoryListing(
             path: '/Documents',
+            parentFileId: 'folder-1',
             entries: [
               FileEntry(
                 id: 'folder-2',
@@ -2041,6 +2525,7 @@ void main() {
           ),
           '/Documents/Reports': DirectoryListing(
             path: '/Documents/Reports',
+            parentFileId: 'folder-2',
             entries: [
               FileEntry(
                 id: 'file-2',
@@ -2053,9 +2538,11 @@ void main() {
         },
       );
 
+      final router = _filesRouter();
+      addTearDown(router.dispose);
       await tester.pumpWidget(
-        _filesTestApp(
-          const FilesScreen(),
+        _filesNavigationApp(
+          router,
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
             appStartDiscoveryClientProvider.overrideWith(
@@ -2099,7 +2586,8 @@ void main() {
       );
       expect(find.text('Notes.txt'), findsOneWidget);
       expect(find.text('1 folder • 1 file'), findsOneWidget);
-      expect(find.text('Up'), findsOneWidget);
+      expect(find.text('Up'), findsNothing);
+      expect(find.byType(BackButton), findsOneWidget);
       expect(
         find.widgetWithText(ActionChip, 'My private files'),
         findsOneWidget,
@@ -2203,6 +2691,7 @@ void main() {
           ),
           '/Documents': DirectoryListing(
             path: '/Documents',
+            parentFileId: 'folder-1',
             entries: [
               FileEntry(
                 id: 'folder-2',
@@ -2214,6 +2703,7 @@ void main() {
           ),
           '/Documents/Reports': DirectoryListing(
             path: '/Documents/Reports',
+            parentFileId: 'folder-2',
             entries: [
               FileEntry(
                 id: 'file-2',
@@ -2226,9 +2716,11 @@ void main() {
         },
       );
 
+      final router = _filesRouter();
+      addTearDown(router.dispose);
       await tester.pumpWidget(
-        _filesTestApp(
-          const FilesScreen(),
+        _filesNavigationApp(
+          router,
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
             appStartDiscoveryClientProvider.overrideWith(

@@ -1209,7 +1209,7 @@ abstract class AppLocalizations {
   /// Message shown when the Files feature is missing required server setup
   ///
   /// In en, this message translates to:
-  /// **'Finish Weave server setup before using Files.'**
+  /// **'Files are not set up for this workspace yet. Ask a workspace admin to finish setup.'**
   String get filesMisconfiguredMessage;
 
   /// Status message shown when the Files feature is connected through Weave

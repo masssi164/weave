@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:weave/features/files/domain/entities/file_download.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:weave/core/router/app_routes.dart';
 import 'package:intl/intl.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/widgets/empty_state.dart';
@@ -33,9 +35,16 @@ String _exportDestinationLabel(String? destination, String fallback) {
 }
 
 class FilesScreen extends ConsumerStatefulWidget {
-  const FilesScreen({super.key, this.initialPath = '/'});
+  const FilesScreen({
+    super.key,
+    this.initialPath = '/',
+    this.initialRootSpaceRef,
+    this.isFolderRoute = false,
+  });
 
   final String initialPath;
+  final String? initialRootSpaceRef;
+  final bool isFolderRoute;
 
   @override
   ConsumerState<FilesScreen> createState() => _FilesScreenState();
@@ -44,6 +53,17 @@ class FilesScreen extends ConsumerStatefulWidget {
 class _FilesScreenState extends ConsumerState<FilesScreen> {
   String? _requestedInitialPath;
   bool _didInvalidateInitialFiles = false;
+  final _scrollController = ScrollController();
+  final _entryFocusNodes = <String, FocusNode>{};
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    for (final node in _entryFocusNodes.values) {
+      node.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -67,7 +87,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   @override
   void didUpdateWidget(covariant FilesScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialPath != widget.initialPath) {
+    if (oldWidget.initialPath != widget.initialPath ||
+        oldWidget.initialRootSpaceRef != widget.initialRootSpaceRef) {
       _requestedInitialPath = null;
     }
   }
@@ -102,10 +123,33 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         asyncFiles?.isLoading == false &&
         asyncFiles?.hasError == false &&
         currentFiles?.hasSuccessfulCurrentRead == true;
+    final pathSegments = widget.initialPath
+        .split('/')
+        .where((part) => part.isNotEmpty);
     final content = CustomScrollView(
+      controller: _scrollController,
       slivers: [
         // Keep scrolled directory controls clear of a pinned title's semantics clip.
-        SliverAppBar.large(pinned: false, title: Text(l10n.filesScreenTitle)),
+        SliverAppBar.large(
+          pinned: widget.isFolderRoute,
+          leading:
+              !widget.isFolderRoute &&
+                  _normalizeInitialPath(widget.initialPath) != '/'
+              ? BackButton(
+                  onPressed: () => context.go(
+                    AppRoutes.filesLocation(
+                      '/',
+                      spaceRef: currentFiles?.rootSpaceRef,
+                    ),
+                  ),
+                )
+              : null,
+          title: Text(
+            widget.isFolderRoute && pathSegments.isNotEmpty
+                ? pathSegments.last
+                : l10n.filesScreenTitle,
+          ),
+        ),
         ...switch (capabilitySnapshot) {
           AsyncLoading() => <Widget>[
             _fillStateSliver(
@@ -183,7 +227,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
 
   void _syncInitialPath(AsyncValue<FilesViewState> asyncFiles) {
     final targetPath = _normalizeInitialPath(widget.initialPath);
-    if (targetPath == '/' || _requestedInitialPath == targetPath) {
+    if (_requestedInitialPath == targetPath) {
       return;
     }
 
@@ -193,17 +237,42 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     };
     if (state == null ||
         state.isBusy ||
-        state.connectionState.status != FilesConnectionStatus.connected ||
-        state.currentPath == targetPath) {
+        state.connectionState.status != FilesConnectionStatus.connected) {
       return;
     }
 
     _requestedInitialPath = targetPath;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final controller = ref.read(filesProvider.notifier);
+      final space = widget.initialRootSpaceRef;
+      if (space != null && state.rootSpaceRef != space) {
+        await controller.selectRootSpace(space);
       }
-      ref.read(filesProvider.notifier).openDirectory(targetPath);
+      if (!mounted) return;
+      final current = ref.read(filesProvider).asData?.value;
+      if (current != null &&
+          current.directoryFailure == null &&
+          current.currentPath != targetPath) {
+        await controller.openDirectory(targetPath);
+      }
+      if (!mounted || widget.isFolderRoute || targetPath == '/') return;
+      final loaded = ref.read(filesProvider).asData?.value;
+      final folderId = loaded?.directoryListing?.parentFileId;
+      if (loaded?.hasSuccessfulCurrentRead == true &&
+          loaded?.currentPath == targetPath &&
+          folderId != null) {
+        // Resolve legacy path links through current authorized metadata before
+        // giving them the same native hierarchy as an in-app folder visit.
+        context.go(
+          AppRoutes.filesFolder(
+            folderId,
+            targetPath,
+            spaceRef: loaded!.rootSpaceRef,
+          ),
+          extra: loaded.directoryListing?.ownerKey,
+        );
+      }
     });
   }
 
@@ -224,18 +293,18 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     FilesViewState state, {
     required bool isCurrentRead,
   }) {
-    final slivers = <Widget>[
-      SliverPadding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-        sliver: SliverToBoxAdapter(child: _ConnectionCard(state: state)),
-      ),
-    ];
+    final slivers = <Widget>[];
 
     if (state.connectionState.status == FilesConnectionStatus.connected) {
       slivers.add(
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-          sliver: SliverToBoxAdapter(child: _DirectoryToolbar(state: state)),
+          sliver: SliverToBoxAdapter(
+            child: _DirectoryToolbar(
+              state: state,
+              canSelectRoot: !widget.isFolderRoute,
+            ),
+          ),
         ),
       );
       if (state.uploadStatus.phase != FilesUploadPhase.idle) {
@@ -306,7 +375,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         return _fillStateSliver(
           child: EmptyState(
             message: l10n.filesSetupNeededTitle,
-            guidance: connectionState.message ?? l10n.filesMisconfiguredMessage,
+            guidance: l10n.filesMisconfiguredMessage,
             icon: Icons.settings_outlined,
           ),
         );
@@ -329,7 +398,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         return _fillStateSliver(
           child: ErrorState(
             message: l10n.filesUnavailableTitle,
-            guidance: connectionState.message ?? l10n.filesUnavailableGuidance,
+            guidance: l10n.filesUnavailableGuidance,
             retryLabel: l10n.retryButton,
             onRetry: state.isBusy
                 ? null
@@ -411,13 +480,67 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
 
                   final entryIndex = index ~/ 2;
                   final entry = listing.entries[entryIndex];
-                  return _FileEntryTile(entry: entry, isBusy: state.isBusy);
+                  return _FileEntryTile(
+                    entry: entry,
+                    isBusy: state.isBusy,
+                    focusNode: _entryFocusNodes.putIfAbsent(
+                      entry.id,
+                      FocusNode.new,
+                    ),
+                    onOpenFolder: () => _openFolder(entry),
+                  );
                 }),
               ],
             ]),
           ),
         );
     }
+  }
+
+  Future<void> _openFolder(FileEntry entry) async {
+    final controller = ref.read(filesProvider.notifier);
+    final origin = ref.read(filesProvider).asData?.value;
+    if (origin == null || origin.isBusy || !entry.allows('listChildren')) {
+      return;
+    }
+    await context.push<void>(
+      AppRoutes.filesFolder(
+        entry.id,
+        entry.path,
+        spaceRef: origin.rootSpaceRef,
+      ),
+      extra: origin.directoryListing?.ownerKey,
+    );
+    if (!mounted || ModalRoute.of(context)?.isCurrent == false) return;
+    final current = ref.read(filesProvider).asData?.value;
+    if (current == null ||
+        current.rootSpaceRef != origin.rootSpaceRef ||
+        current.directoryListing?.ownerKey !=
+            origin.directoryListing?.ownerKey ||
+        !identical(ref.read(filesProvider.notifier), controller)) {
+      return;
+    }
+    await controller.refresh();
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final returned = ref.read(filesProvider).asData?.value;
+      final listing = returned?.directoryListing;
+      if (returned?.rootSpaceRef != origin.rootSpaceRef ||
+          listing?.ownerKey != origin.directoryListing?.ownerKey ||
+          !identical(ref.read(filesProvider.notifier), controller)) {
+        return;
+      }
+      if (listing?.entries.any((item) => item.id == entry.id) != true) return;
+      final node = _entryFocusNodes[entry.id];
+      node?.requestFocus();
+      if (node?.context case final context?) {
+        Scrollable.ensureVisible(
+          context,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        );
+      }
+    });
   }
 
   Widget _fillStateSliver({required Widget child}) {
@@ -542,9 +665,10 @@ class _StaleDirectoryNotice extends StatelessWidget {
 }
 
 class _DirectoryToolbar extends ConsumerWidget {
-  const _DirectoryToolbar({required this.state});
+  const _DirectoryToolbar({required this.state, required this.canSelectRoot});
 
   final FilesViewState state;
+  final bool canSelectRoot;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -557,58 +681,61 @@ class _DirectoryToolbar extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        InputDecorator(
-          decoration: InputDecoration(labelText: l10n.filesSpaceLabel),
-          child: Semantics(
-            identifier: 'files-space-selector',
-            child: DropdownButton<String>(
-              key: const Key('files-space-selector'),
-              value: selectedSpace ?? '',
-              isExpanded: true,
-              selectedItemBuilder: (context) => [
-                Text(l10n.filesPrivateSpace),
-                for (final space in spaces.toList()..sort())
-                  Text(_filesScopeLabel(l10n, space, access)),
-                if (selectedSpace != null && !spaces.contains(selectedSpace))
-                  Text(l10n.filesUnavailableSpace),
-              ],
-              items: [
-                DropdownMenuItem(
-                  value: '',
-                  child: Semantics(
-                    identifier: 'files-space-option-private',
-                    child: Text(l10n.filesPrivateSpace),
-                  ),
-                ),
-                for (final space in spaces.toList()..sort())
+        if (canSelectRoot) ...[
+          InputDecorator(
+            decoration: InputDecoration(labelText: l10n.filesSpaceLabel),
+            child: Semantics(
+              identifier: 'files-space-selector',
+              child: DropdownButton<String>(
+                key: const Key('files-space-selector'),
+                value: selectedSpace ?? '',
+                isExpanded: true,
+                selectedItemBuilder: (context) => [
+                  Text(l10n.filesPrivateSpace),
+                  for (final space in spaces.toList()..sort())
+                    Text(_filesScopeLabel(l10n, space, access)),
+                  if (selectedSpace != null && !spaces.contains(selectedSpace))
+                    Text(l10n.filesUnavailableSpace),
+                ],
+                items: [
                   DropdownMenuItem(
-                    value: space,
+                    value: '',
                     child: Semantics(
-                      identifier: 'files-space-option-$space',
-                      child: Text(_filesScopeLabel(l10n, space, access)),
+                      identifier: 'files-space-option-private',
+                      child: Text(l10n.filesPrivateSpace),
                     ),
                   ),
-                if (selectedSpace != null && !spaces.contains(selectedSpace))
-                  DropdownMenuItem(
-                    value: selectedSpace,
-                    enabled: false,
-                    child: Text(l10n.filesUnavailableSpace),
-                  ),
-              ],
-              onChanged: state.isBusy
-                  ? null
-                  : (value) => ref
-                        .read(filesProvider.notifier)
-                        .selectRootSpace(value == '' ? null : value),
+                  for (final space in spaces.toList()..sort())
+                    DropdownMenuItem(
+                      value: space,
+                      child: Semantics(
+                        identifier: 'files-space-option-$space',
+                        child: Text(_filesScopeLabel(l10n, space, access)),
+                      ),
+                    ),
+                  if (selectedSpace != null && !spaces.contains(selectedSpace))
+                    DropdownMenuItem(
+                      value: selectedSpace,
+                      enabled: false,
+                      child: Text(l10n.filesUnavailableSpace),
+                    ),
+                ],
+                onChanged: state.isBusy
+                    ? null
+                    : (value) => ref
+                          .read(filesProvider.notifier)
+                          .selectRootSpace(value == '' ? null : value),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
+          const SizedBox(height: 16),
+        ],
         _PathBreadcrumbs(
           path: state.currentPath,
           isBusy: state.isBusy,
           currentParentId: listing?.parentFileId,
           rootLabel: _filesScopeLabel(l10n, state.rootSpaceRef, access),
+          spaceRef: state.rootSpaceRef,
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -616,17 +743,6 @@ class _DirectoryToolbar extends ConsumerWidget {
           runSpacing: 12,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            if (!(listing?.isRoot ?? true))
-              AccessibleButton(
-                outlined: true,
-                onPressed: state.isBusy
-                    ? null
-                    : () {
-                        ref.read(filesProvider.notifier).goUp();
-                      },
-                semanticLabel: l10n.filesOpenParentSemantic,
-                child: Text(l10n.filesUpButton),
-              ),
             Semantics(
               identifier: 'files-refresh',
               child: AccessibleButton(
@@ -932,7 +1048,9 @@ class _PathBreadcrumbs extends ConsumerWidget {
     required this.isBusy,
     required this.rootLabel,
     required this.currentParentId,
+    required this.spaceRef,
   });
+  final String? spaceRef;
   final String? currentParentId;
   final String rootLabel;
 
@@ -955,7 +1073,7 @@ class _PathBreadcrumbs extends ConsumerWidget {
         onPressed: path == '/' || isBusy
             ? null
             : () {
-                ref.read(filesProvider.notifier).openDirectory('/');
+                _openAncestor(context, '/', spaceRef);
               },
       ),
     ];
@@ -984,7 +1102,7 @@ class _PathBreadcrumbs extends ConsumerWidget {
             onPressed: isCurrent || isBusy
                 ? null
                 : () {
-                    ref.read(filesProvider.notifier).openDirectory(crumbPath);
+                    _openAncestor(context, crumbPath, spaceRef);
                   },
           ),
         );
@@ -995,6 +1113,26 @@ class _PathBreadcrumbs extends ConsumerWidget {
       child: Row(children: crumbs),
     );
   }
+}
+
+void _openAncestor(BuildContext context, String path, String? spaceRef) {
+  final router = GoRouter.of(context);
+  var found = false;
+  Navigator.of(context).popUntil((route) {
+    final arguments = route.settings.arguments;
+    final isRoot = route.settings.name == AppRoutes.files;
+    final routePath = isRoot
+        ? '/'
+        : arguments is Map
+        ? arguments['folderPath']
+        : null;
+    if (routePath == path) {
+      found = true;
+      return true;
+    }
+    return isRoot || route.isFirst;
+  });
+  if (!found) router.go(AppRoutes.filesLocation(path, spaceRef: spaceRef));
 }
 
 class _BreadcrumbChip extends StatelessWidget {
@@ -1059,114 +1197,6 @@ class _DirectorySummary extends StatelessWidget {
       l10n.filesDirectorySummary(folderCount, fileCount),
       style: theme.textTheme.bodyMedium?.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
-      ),
-    );
-  }
-}
-
-class _ConnectionCard extends ConsumerWidget {
-  const _ConnectionCard({required this.state});
-
-  final FilesViewState state;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    final connectionState = state.connectionState;
-    final description = switch (connectionState.status) {
-      FilesConnectionStatus.connected => l10n.filesConnectionConnected(
-        connectionState.accountLabel ?? l10n.filesProductTitle,
-      ),
-      FilesConnectionStatus.invalid => l10n.filesConnectionInvalid,
-      FilesConnectionStatus.unavailable => l10n.filesConnectionUnavailable,
-      FilesConnectionStatus.disconnected => l10n.filesConnectionDisconnected,
-      FilesConnectionStatus.misconfigured => l10n.filesConnectionMisconfigured,
-    };
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(l10n.filesProductTitle, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(description, style: theme.textTheme.bodyMedium),
-            if (connectionState.status != FilesConnectionStatus.connected) ...[
-              const SizedBox(height: 12),
-              _FilesBoundaryNotice(
-                title: l10n.filesProductBoundaryTitle,
-                body: l10n.filesProductBoundaryBody,
-              ),
-            ],
-            if (connectionState.status ==
-                FilesConnectionStatus.unavailable) ...[
-              const SizedBox(height: 16),
-              AccessibleButton(
-                onPressed: state.isBusy
-                    ? null
-                    : () {
-                        ref.read(filesProvider.notifier).connect();
-                      },
-                semanticLabel: l10n.retryButton,
-                child: Text(l10n.retryButton),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FilesBoundaryNotice extends StatelessWidget {
-  const _FilesBoundaryNotice({required this.title, required this.body});
-
-  final String title;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final semanticLabel = '$title. $body';
-
-    return Semantics(
-      container: true,
-      label: semanticLabel,
-      child: ExcludeSemantics(
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.verified_user_outlined,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: theme.textTheme.labelLarge),
-                    const SizedBox(height: 4),
-                    Text(
-                      body,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -1344,10 +1374,17 @@ class _FilePreview extends ConsumerWidget {
 }
 
 class _FileEntryTile extends ConsumerWidget {
-  const _FileEntryTile({required this.entry, required this.isBusy});
+  const _FileEntryTile({
+    required this.entry,
+    required this.isBusy,
+    required this.focusNode,
+    required this.onOpenFolder,
+  });
 
   final FileEntry entry;
   final bool isBusy;
+  final FocusNode focusNode;
+  final VoidCallback onOpenFolder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1361,6 +1398,7 @@ class _FileEntryTile extends ConsumerWidget {
       label: _semanticLabel(l10n, entry, subtitle),
       child: ListTile(
         key: ValueKey('files-entry-${entry.id}'),
+        focusNode: focusNode,
         contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         leading: ExcludeSemantics(
           child: Icon(
@@ -1430,9 +1468,7 @@ class _FileEntryTile extends ConsumerWidget {
         ),
         onTap: !entry.isDirectory || !entry.allows('listChildren') || isBusy
             ? null
-            : () {
-                ref.read(filesProvider.notifier).openDirectory(entry.path);
-              },
+            : onOpenFolder,
       ),
     );
   }

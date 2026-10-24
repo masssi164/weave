@@ -1,6 +1,6 @@
 # Implementation brief: integrate folder browsing with native Back navigation
 
-Status: planning only; implementation and runtime evidence are pending.
+Status: bounded client implementation is present in the draft PR; exact-candidate CI and physical acceptance remain pending.
 Task: [#1706](https://github.com/masssi164/weave/issues/1706).
 This is a bounded implementation handoff, not a second product specification or a release-readiness record.
 
@@ -67,3 +67,21 @@ No file mutation API, personal/shared visibility change, provider data migration
 ## First implementation action and stop point
 
 Validate the baseline, read the owning code and take the first item of the implementation sequence. Reuse this source-pinned brief; do not restart a whole-project history audit. Stop when this issue's acceptance, required checks and scoped review are satisfied. Record a concrete blocker if required live evidence or a material product decision is unavailable; continue unaffected work within scope.
+
+## Implementation update — 2026-10-24
+
+The owner's priority is the ordinary client on the existing Mac mini setup. Opening a folder now uses a real platform navigation page with a controller scoped to that page. Native Back and the iOS back transition return to the parent, preserve the personal/Space context and retained scroll position, refresh parent content, and restore the originating row's keyboard focus when it remains valid.
+
+Stable folder identity and owner checks prevent retained paths from displaying a replacement resource or another account's content. A failed child remains escapable through ordinary Back. Direct and legacy folder links return to root without reopening themselves.
+
+The existing simulator helper and ordinary XCTest smoke use the same root navigation before selecting a scope. Their recovery handles failed child reads and explicitly refreshes a root reached from a deep link before checking freshness. Release journey fixtures now provide the same stable folder metadata expected from the User API.
+
+### Verification
+
+- 146 affected Files screen/controller/backend-facade tests passed before the bounded helper follow-ups.
+- Six focused helper tests passed after failed-root recovery; nine focused tests passed after failed-child and deep-link refresh corrections.
+- Eight directly affected release/route tests passed after correcting stale fixture metadata, native Back expectations and route composition assertions.
+- Narrow Dart analysis, code generation, formatting, whitespace, Files acceptance checks and the existing ordinary-smoke source contract passed.
+- Independent final review approved both previously identified helper blockers as resolved. Physical iOS and VoiceOver proof remains outstanding; keyboard focus is not VoiceOver evidence.
+
+This branch includes the prerequisite Files member-copy change from #1713. Merge that prerequisite first. The final combined client suite and exact-branch CI are recorded in the PR when complete. Move/delete remains outside this navigation change.
