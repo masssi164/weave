@@ -25,6 +25,34 @@ KNOWN_FILES = {'AGENTS.md', 'CONTRIBUTING.md', 'LICENSE', 'NOTICE.md', 'README.m
                'flutter_rust_bridge.yaml', '.gitignore', '.gitattributes', '.editorconfig'}
 
 
+# Only these reviewed prose/metadata inputs are documentation-only. New skills,
+# references and executable helpers require review before their gates can narrow.
+JAVA_SKILL_DOCUMENTATION_INPUTS = frozenset({
+    '.agents/skills/weave-spring-architecture/SKILL.md',
+    '.agents/skills/weave-spring-architecture/agents/openai.yaml',
+    '.agents/skills/weave-http-clients/SKILL.md',
+    '.agents/skills/weave-http-clients/agents/openai.yaml',
+    '.agents/skills/weave-config-and-beans/SKILL.md',
+    '.agents/skills/weave-config-and-beans/agents/openai.yaml',
+    '.agents/skills/weave-native-aot/SKILL.md',
+    '.agents/skills/weave-native-aot/agents/openai.yaml',
+})
+
+
+def reviewed_java_skill_documentation(path: str) -> bool:
+    if path not in JAVA_SKILL_DOCUMENTATION_INPUTS:
+        return False
+    target = ROOT
+    try:
+        for part in PurePosixPath(path).parts:
+            target = target / part
+            if target.is_symlink():
+                return False
+        return target.is_file()
+    except OSError:
+        return False
+
+
 # Reviewed native qualification inputs do not feed User SDK generation or its
 # three-timezone verification. They still select client, infra and documentation
 # checks. Every other client tooling/configuration path keeps the stronger gate.
@@ -50,6 +78,8 @@ def select(paths: list[str] | None) -> dict[str, bool]:
     if paths is None or not paths:
         return dict.fromkeys(GATES, True)
     for path in paths:
+        if reviewed_java_skill_documentation(path):
+            continue
         parts = PurePosixPath(path).parts
         if (not parts or path.startswith('/') or '..' in parts
                 or (parts[0] not in KNOWN_ROOTS and path not in KNOWN_FILES)

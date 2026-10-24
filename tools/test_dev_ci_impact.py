@@ -246,6 +246,86 @@ class ImpactTest(unittest.TestCase):
             self.assertFalse(selected['user'])
             self.assertFalse(selected['admin'])
 
+    def test_reviewed_java_skill_documents_keep_only_static_gates(self):
+        reviewed = {
+            '.agents/skills/weave-spring-architecture/SKILL.md',
+            '.agents/skills/weave-spring-architecture/agents/openai.yaml',
+            '.agents/skills/weave-http-clients/SKILL.md',
+            '.agents/skills/weave-http-clients/agents/openai.yaml',
+            '.agents/skills/weave-config-and-beans/SKILL.md',
+            '.agents/skills/weave-config-and-beans/agents/openai.yaml',
+            '.agents/skills/weave-native-aot/SKILL.md',
+            '.agents/skills/weave-native-aot/agents/openai.yaml',
+        }
+        self.assertEqual(impact.JAVA_SKILL_DOCUMENTATION_INPUTS, frozenset(reviewed))
+        expected = {gate: gate in {'infra', 'docs'} for gate in impact.GATES}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(impact, 'ROOT', Path(tmp)):
+            for path in reviewed:
+                document = Path(tmp) / path
+                document.parent.mkdir(parents=True, exist_ok=True)
+                document.write_text('reviewed documentation')
+            for paths in ([path] for path in sorted(reviewed)):
+                with self.subTest(paths=paths):
+                    self.assertEqual(impact.select(paths), expected)
+            self.assertEqual(impact.select(sorted(reviewed)), expected)
+            for path in ('server/src/main/java/InternalService.java',
+                         'client/lib/generated/user_api/api.dart',
+                         'contracts/openapi/weave-admin-openapi.json'):
+                for paths in ([*reviewed, path], [path, *reviewed]):
+                    self.assertEqual(impact.select(paths), impact.select([path]))
+
+    def test_unreviewed_agent_paths_remain_conservative(self):
+        known = '.agents/skills/weave-http-clients/SKILL.md'
+        with tempfile.TemporaryDirectory() as tmp, patch.object(impact, 'ROOT', Path(tmp)):
+            document = Path(tmp) / known
+            document.parent.mkdir(parents=True)
+            document.write_text('reviewed documentation')
+            for unknown in (
+                '.agents/skills/weave-http-clients/scripts/check.py',
+                '.agents/skills/weave-http-clients/scripts/check.md',
+                '.agents/skills/weave-http-clients/references/new-guide.md',
+                '.agents/skills/weave-http-clients/SKILL.md.py',
+                '.agents/skills/new-skill/SKILL.md',
+                '.agents/skills/new-skill/agents/openai.yaml',
+                '.agents/unknown.yaml', '.agent/skills/flutter/SKILL.md',
+            ):
+                for paths in ([unknown], [known, unknown], [unknown, known]):
+                    with self.subTest(paths=paths):
+                        self.assertTrue(all(impact.select(paths).values()))
+
+    def test_reviewed_java_skill_paths_reject_unsafe_spelling_and_missing_files(self):
+        path = '.agents/skills/weave-http-clients/SKILL.md'
+        with tempfile.TemporaryDirectory() as tmp, patch.object(impact, 'ROOT', Path(tmp)):
+            self.assertTrue(all(impact.select([path]).values()))
+            document = Path(tmp) / path
+            document.parent.mkdir(parents=True)
+            document.write_text('reviewed documentation')
+            for unsafe in ('./' + path, '/' + path, path + '/',
+                           path.replace('/skills/', '/skills/../skills/'),
+                           path.replace('/skills/', '//skills/'),
+                           path.replace('/', '\\')):
+                with self.subTest(path=unsafe):
+                    self.assertTrue(all(impact.select([unsafe]).values()))
+            document.unlink()
+            document.mkdir()
+            self.assertTrue(all(impact.select([path]).values()))
+
+    def test_reviewed_java_skill_paths_reject_symlink_at_any_component(self):
+        path = '.agents/skills/weave-http-clients/agents/openai.yaml'
+        parts = Path(path).parts
+        for index in range(len(parts)):
+            with self.subTest(component=parts[index]), tempfile.TemporaryDirectory() as tmp, \
+                    patch.object(impact, 'ROOT', Path(tmp)):
+                target = Path(tmp) / 'target'
+                remaining = parts[index + 1:]
+                document = target.joinpath(*remaining)
+                document.parent.mkdir(parents=True, exist_ok=True)
+                document.write_text('not an owned regular document')
+                link = Path(tmp).joinpath(*parts[:index + 1])
+                link.parent.mkdir(parents=True, exist_ok=True)
+                link.symlink_to(target, target_is_directory=bool(remaining))
+                self.assertTrue(all(impact.select([path]).values()))
+
     def test_backend_closure_skips_only_known_docs_and_flutter_inputs(self):
         for paths in (['docs/developer-handbook.md'], ['README.md'],
                       ['client/lib/features/chat/presentation/screen.dart'],
