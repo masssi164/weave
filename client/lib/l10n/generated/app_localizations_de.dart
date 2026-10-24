@@ -175,6 +175,25 @@ class AppLocalizationsDe extends AppLocalizations {
       'Autorisierte letzte Workspace-Aktivität';
 
   @override
+  String get homeWorkspaceAccessUnavailable =>
+      'Der Zugriff auf deinen Arbeitsbereich konnte nicht geprüft werden.';
+
+  @override
+  String get homeWorkspaceActionsTitle => 'Dein Arbeitsbereich';
+
+  @override
+  String get homeOpenChat => 'Chat öffnen';
+
+  @override
+  String get homeOpenFiles => 'Dateien öffnen';
+
+  @override
+  String get homeOpenCalendar => 'Kalender öffnen';
+
+  @override
+  String get homeRefreshWorkspace => 'Arbeitsbereich aktualisieren';
+
+  @override
   String get homeRecentActivityLoading =>
       'Letzte Workspace-Aktivität wird geladen…';
 

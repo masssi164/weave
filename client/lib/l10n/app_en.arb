@@ -200,6 +200,12 @@
   "@shellRecentActivitySemanticLabel": {
     "description": "Semantic label for the recent activity card"
   },
+  "homeWorkspaceAccessUnavailable": "Workspace access could not be checked.",
+  "homeWorkspaceActionsTitle": "Your workspace",
+  "homeOpenChat": "Open Chat",
+  "homeOpenFiles": "Open Files",
+  "homeOpenCalendar": "Open Calendar",
+  "homeRefreshWorkspace": "Refresh workspace",
   "homeRecentActivityLoading": "Loading recent workspace activity…",
   "@homeRecentActivityLoading": {
     "description": "Loading state for the authorized Home recent-activity projection"

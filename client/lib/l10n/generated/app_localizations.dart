@@ -386,6 +386,42 @@ abstract class AppLocalizations {
   /// **'Authorized recent workspace activity'**
   String get shellRecentActivitySemanticLabel;
 
+  /// No description provided for @homeWorkspaceAccessUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace access could not be checked.'**
+  String get homeWorkspaceAccessUnavailable;
+
+  /// No description provided for @homeWorkspaceActionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your workspace'**
+  String get homeWorkspaceActionsTitle;
+
+  /// No description provided for @homeOpenChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Chat'**
+  String get homeOpenChat;
+
+  /// No description provided for @homeOpenFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Files'**
+  String get homeOpenFiles;
+
+  /// No description provided for @homeOpenCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Calendar'**
+  String get homeOpenCalendar;
+
+  /// No description provided for @homeRefreshWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh workspace'**
+  String get homeRefreshWorkspace;
+
   /// Loading state for the authorized Home recent-activity projection
   ///
   /// In en, this message translates to:

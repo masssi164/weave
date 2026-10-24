@@ -1,6 +1,6 @@
 # Implementation brief: show truthful localized member state and actionable recovery
 
-Status: planning only; implementation and runtime evidence are pending.
+Status: bounded client implementation is present in the draft PR; exact-candidate CI and physical acceptance remain pending.
 Task: [#1707](https://github.com/masssi164/weave/issues/1707).
 This is a bounded implementation handoff, not a second product specification or a release-readiness record.
 
@@ -69,3 +69,22 @@ No generic Home redesign, new monitoring subsystem, false all-green readiness, r
 ## First implementation action and stop point
 
 Validate the baseline, read the owning code and take the first item of the implementation sequence. Reuse this source-pinned brief; do not restart a whole-project history audit. Stop when this issue's acceptance, required checks and scoped review are satisfied. Record a concrete blocker if required live evidence or a material product decision is unavailable; continue unaffected work within scope.
+
+## Implementation update — 2026-10-24
+
+The owner's current priority is a usable ordinary client on the existing Mac mini setup. This draft now contains actual client repairs.
+
+- Replace the diagnostic summary and optional-domain status wall with real localized Open Chat, Open Files and Open Calendar actions.
+- Keep typed localized denial/setup/degraded explanations without claiming feature runtime success from a capability snapshot.
+- Give actions individual semantics and at least 48 logical-pixel targets; preserve the separate useful calendar and recent-activity modules.
+- Refresh current member-Space admission on feature navigation and Retry. Show cause-neutral localized access errors instead of guessing a backend/network cause.
+
+### Verification of the implementation
+
+- 17 Home/shell widget tests passed, including EN/DE semantics, tap targets, actual destination navigation, Space revalidation and manual Retry recovery.
+- Focused Dart analysis, localization generation, formatting and diff checks passed. Full Flutter analysis passed on the combined client source.
+- Acceptance mapping guard passed; E2E structure guard passed, with the pinned-manifest cross-check unavailable locally.
+
+Independent review verified neutral errors, individually accessible actions, current Space revalidation and unchanged permission enforcement; no blocking source finding remains.
+
+Keep #1707 open for exact-candidate device verification. This bounded client repair uses action links and existing typed recovery; it does not introduce a new monitoring or runtime-health model. Exact-branch CI and physical VoiceOver acceptance are pending.
