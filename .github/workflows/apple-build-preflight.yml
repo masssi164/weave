@@ -1,0 +1,53 @@
+name: Hosted Apple configuration
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .github/workflows/apple-build-preflight.yml
+      - .github/workflows/build-artifacts.yml
+      - tools/build_artifacts*.py
+      - tools/build_artifacts.inputs.json
+      - client/ios/**
+      - client/pubspec.yaml
+      - client/pubspec.lock
+      - client/packages/**/pubspec.yaml
+      - client/packages/**/ios/**
+      - client/packages/**/darwin/**
+      - client/l10n.yaml
+      - client/lib/l10n/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hosted-apple-configuration-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ios-configuration:
+    name: iPhone configuration preserves tracked source
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+          cache: true
+      - name: Select the production Apple toolchain
+        run: |
+          test "$(uname -m)" = arm64
+          sudo xcode-select --switch /Applications/Xcode_26.5.app/Contents/Developer
+          test "$(xcodebuild -version)" = "$(printf 'Xcode 26.5\nBuild version 17F42')"
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup target add --toolchain 1.95.0 aarch64-apple-ios
+      - name: Check configuration without compiling or publishing an app
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: >-
+          python3 tools/build_artifacts_hosted.py --component ios-device
+          --output build/apple-configuration-diagnostic --configuration-only

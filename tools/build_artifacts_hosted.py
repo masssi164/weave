@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 
 from build_artifacts import (ArtifactError, ROOT, component_configuration, digest_file,
-                             git, publish_manifest)
+                             git, publish_manifest, require_clean_source)
 
 
 def run(root: Path, arguments: list[str], *, capture: bool = False, env: dict | None = None) -> str:
@@ -78,7 +78,7 @@ def runtime(root: Path, payload: Path, source: str) -> None:
         raise ArtifactError("keycloak-build-evidence-not-support-safe")
 
 
-def apple(root: Path, component: str, payload: Path, source: str) -> None:
+def apple(root: Path, component: str, payload: Path, source: str, *, configuration_only: bool = False) -> None:
     definition = component_configuration(root, component)
     pins = definition["toolchain"]
     if platform.system() != "Darwin" or platform.machine() != "arm64":
@@ -95,11 +95,15 @@ def apple(root: Path, component: str, payload: Path, source: str) -> None:
     client = root / "client"
     run(client, ["flutter", "pub", "get", "--enforce-lockfile"], env=environment)
     run(client, ["flutter", "gen-l10n"], env=environment)
+    require_clean_source(root, "apple-dependencies")
     number = os.environ["GITHUB_RUN_NUMBER"]
     defines = ["--build-number=" + number, "--dart-define=WEAVE_CANDIDATE_COMMIT=" + source,
                "--dart-define=WEAVE_BUILD_CHANNEL=development-dogfood"]
     if component == "macos-desktop":
         run(client, ["flutter", "build", "macos", "--debug", "--config-only", "--target=lib/main.dart", *defines], env=environment)
+        require_clean_source(root, "apple-macos-configuration")
+        if configuration_only:
+            return
         derived = client / "build/hosted-macos"
         run(client, ["xcodebuild", "-workspace", "macos/Runner.xcworkspace", "-scheme", "Runner",
                      "-configuration", "Debug", "-derivedDataPath", str(derived), "-destination", "generic/platform=macOS",
@@ -109,7 +113,14 @@ def apple(root: Path, component: str, payload: Path, source: str) -> None:
     simulator = component == "ios-simulator"
     mode = "--debug" if simulator else "--profile"
     target_flags = ["--simulator"] if simulator else []
-    run(client, ["flutter", "build", "ios", mode, *target_flags, "--no-codesign", "--target=lib/main.dart", *defines], env=environment)
+    ordinary_build = ["flutter", "build", "ios", mode, *target_flags, "--no-codesign", "--target=lib/main.dart", *defines]
+    # Flutter config-only runs project migrations and CocoaPods without compiling the app.
+    run(client, [*ordinary_build, "--config-only"], env=environment)
+    require_clean_source(root, "apple-ios-configuration")
+    if configuration_only:
+        return
+    run(client, ordinary_build, env=environment)
+    require_clean_source(root, "apple-ordinary")
     source_app = client / "build/ios" / ("iphonesimulator" if simulator else "iphoneos") / "Runner.app"
     copy_bundle(source_app, payload / "ordinary/Runner.app")
     if simulator:
@@ -117,6 +128,7 @@ def apple(root: Path, component: str, payload: Path, source: str) -> None:
                      "--target=integration_test/dual_ios_collaboration_test.dart", *defines,
                      "--dart-define=WEAVE_NATIVE_EXPECT_SIMULATOR=true",
                      "--dart-define=WEAVE_DEVICE_DISPOSABLE_STACK=true"], env=environment)
+        require_clean_source(root, "apple-collaboration")
         copy_bundle(source_app, payload / "collaboration/Runner.app")
     else:
         shutil.copy2(client / "ios/Runner/RunnerDevelopment.entitlements", payload / "ordinary/entitlements.plist")
@@ -126,6 +138,7 @@ def apple(root: Path, component: str, payload: Path, source: str) -> None:
                      "-scheme", "BrowserDriver", "-destination", "generic/platform=" + ("iOS Simulator" if simulator else "iOS"),
                      "-derivedDataPath", str(derived), "-sdk", sdk, "ARCHS=arm64", "ONLY_ACTIVE_ARCH=YES",
                      "CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO"], env=environment)
+        require_clean_source(root, "apple-driver")
         copy_bundle(derived / "Build/Products", payload / "driver/Products")
         portable_test_plans(payload / "driver/Products", derived / "Build/Products")
 
@@ -135,20 +148,28 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--component", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--configuration-only", action="store_true",
+                        help="Diagnose Apple dependency/project preparation without compiling or publishing artifacts")
     args = parser.parse_args()
     if os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted":
         raise ArtifactError("hosted-build-required")
     component_configuration(args.root, args.component)
+    if args.configuration_only and args.component == "runtime-linux-amd64":
+        raise ArtifactError("configuration-only-apple-component-required")
     source = git(args.root, "rev-parse", "HEAD").decode().strip()
     if source != os.environ.get("GITHUB_SHA"):
         raise ArtifactError("hosted-source-mismatch")
+    require_clean_source(args.root, "before-build")
     with tempfile.TemporaryDirectory(prefix="weave-hosted-payload-") as temporary:
         payload = Path(temporary) / "payload"
         payload.mkdir()
         if args.component == "runtime-linux-amd64":
             runtime(args.root, payload, source)
         else:
-            apple(args.root, args.component, payload, source)
+            apple(args.root, args.component, payload, source, configuration_only=args.configuration_only)
+        if args.configuration_only:
+            print("WEAVE_HOSTED_CONFIGURATION_RESULT component=" + args.component + " status=passed")
+            return 0
         manifest = publish_manifest(args.root, args.component, payload, args.output)
     print("WEAVE_HOSTED_BUILD_RESULT component=" + args.component + " input=" + manifest["inputDigest"] + " status=passed")
     return 0

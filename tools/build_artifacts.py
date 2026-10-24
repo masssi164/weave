@@ -60,6 +60,16 @@ def git(root: Path, *arguments: str) -> bytes:
     return subprocess.check_output(["git", *arguments], cwd=root, stderr=subprocess.DEVNULL)
 
 
+def require_clean_source(root: Path, stage: str) -> None:
+    changed = [path.decode("utf-8", errors="replace") for path in
+               git(root, "diff", "--no-ext-diff", "--name-only", "-z", "HEAD", "--").split(b"\0") if path]
+    if changed:
+        # Report bounded, escaped tracked paths, never source contents or untracked operator files.
+        details = {"stage": stage, "paths": [path[:240] for path in changed[:20]],
+                   "totalChangedPaths": len(changed)}
+        raise ArtifactError("producer-tracked-source-modified " + json.dumps(details, ensure_ascii=True))
+
+
 def candidate_identity(root: Path, candidate: str = "HEAD") -> dict:
     commit = git(root, "rev-parse", candidate + "^{commit}").decode().strip()
     tree = git(root, "rev-parse", commit + "^{tree}").decode().strip()
@@ -258,8 +268,7 @@ def publish_manifest(root: Path, component: str, payload: Path, output: Path) ->
     identity = candidate_identity(root)
     if identity["candidateCommit"] != os.environ.get("GITHUB_SHA"):
         raise ArtifactError("producer-source-mismatch")
-    if git(root, "diff", "--name-only", "HEAD").strip():
-        raise ArtifactError("producer-tracked-source-modified")
+    require_clean_source(root, "publication")
     definition = component_configuration(root, component)
     output.mkdir(parents=True, exist_ok=True)
     archive = output / "payload.tar.gz"

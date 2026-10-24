@@ -13,6 +13,28 @@ The generated artifact composition remains mandatory: it binds the current candi
 the precise component inputs, payload digests, toolchains and original producer runs.
 Reusing an unchanged component does not reuse the live collaboration result of another candidate.
 
+## Manual hosted macOS build
+
+Use the registered `Hosted build artifacts` workflow to build or reuse the desktop component
+from protected Dev, including before these workflows are promoted to Main:
+
+```sh
+gh workflow run build-artifacts.yml --repo masssi164/weave --ref dev -f components=macos-desktop
+```
+
+The manual `components` choice selects either `macos-desktop` or the default
+`runtime-linux-amd64,ios-simulator,ios-device` set. Automatic Dev pushes retain the latter set;
+they do not build macOS. Desktop artifacts use the same component fingerprints and trusted
+producer verification as the other hosted artifacts. Desktop testing remains a separate manual
+activity and does not satisfy iPhone collaboration or human acceptance.
+
+GitHub permits API/CLI dispatch on another ref once a workflow has run at least once; the
+registered builder has already run on Dev. A new dispatch-only workflow must first exist on the
+default branch for its normal manual entry point to be available. Keep using the command above
+until the dedicated `Build macOS desktop manually` wrapper is available. See GitHub's
+[workflow dispatch rules](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_dispatch)
+and [dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event).
+
 ## One member scenario across environments
 
 `fixtures/member-client-baseline/v1.json` defines the common organization domains, shared
