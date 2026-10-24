@@ -171,6 +171,19 @@ class FilesViewState {
 }
 
 class FilesController extends AsyncNotifier<FilesViewState> {
+  FilesController({
+    String initialPath = '/',
+    String? initialRootSpaceRef,
+    String? expectedFolderId,
+    String? expectedOwnerKey,
+  }) : _initialPath = initialPath,
+       _selectedRootSpaceRef = initialRootSpaceRef,
+       _expectedFolderId = expectedFolderId,
+       _expectedOwnerKey = expectedOwnerKey;
+
+  final String _initialPath;
+  final String? _expectedFolderId;
+  final String? _expectedOwnerKey;
   static int _successfulReadGeneration = 0;
   String? _selectedRootSpaceRef;
   int _directorySequence = 0;
@@ -223,7 +236,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
         );
         return;
       }
-      final listing = await _listDirectory('/');
+      final listing = await _listDirectory(_initialPath);
       state = AsyncData(
         FilesViewState(
           rootSpaceRef: _selectedRootSpaceRef,
@@ -313,20 +326,33 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     await _loadDirectory('/');
   }
 
-  Future<DirectoryListing> _listDirectory(String path) {
+  Future<DirectoryListing> _listDirectory(String path) async {
     final repository = _repository;
+    final DirectoryListing listing;
     if (repository is FilesSpaceRepository) {
-      return (repository as FilesSpaceRepository).listDirectory(
+      listing = await (repository as FilesSpaceRepository).listDirectory(
         path,
         spaceRef: _selectedRootSpaceRef,
       );
+    } else {
+      if (_selectedRootSpaceRef != null) {
+        throw const FilesFailure.unsupportedPlatform(
+          'Shared Files is not available.',
+        );
+      }
+      listing = await repository.listDirectory(path);
     }
-    if (_selectedRootSpaceRef != null) {
-      throw const FilesFailure.unsupportedPlatform(
-        'Shared Files is not available.',
+    // A display path cannot authorize a different folder or account after a
+    // rename, path reuse, or session change while a navigation page is retained.
+    if ((_expectedFolderId != null &&
+            path == _initialPath &&
+            listing.parentFileId != _expectedFolderId) ||
+        (_expectedOwnerKey != null && listing.ownerKey != _expectedOwnerKey)) {
+      throw const FilesFailure.permissionDenied(
+        'This folder is no longer available.',
       );
     }
-    return repository.listDirectory(path);
+    return listing;
   }
 
   Future<void> _uploadFile(
@@ -426,8 +452,9 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     }
   }
 
-  Future<void> refresh() =>
-      _loadDirectory(_currentStateOrNull()?.currentPath ?? '/');
+  Future<void> refresh() => _loadDirectory(
+    _currentStateOrNull()?.directoryListing?.path ?? _initialPath,
+  );
 
   Future<void> openDirectory(String path) => _loadDirectory(path);
 
@@ -1098,7 +1125,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     }
 
     try {
-      final listing = await _listDirectory('/');
+      final listing = await _listDirectory(_initialPath);
       if (sequence != _directorySequence) {
         throw const FilesFailure.permissionDenied(
           'This Space is no longer available.',

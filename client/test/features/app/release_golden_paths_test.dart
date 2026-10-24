@@ -473,6 +473,7 @@ void main() {
             ),
             '/Projects': const DirectoryListing(
               path: '/Projects',
+              parentFileId: 'projects',
               entries: <FileEntry>[
                 FileEntry(
                   id: 'roadmap',

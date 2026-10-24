@@ -9,6 +9,7 @@ abstract final class AppRoutes {
   static const chat = '/chat';
   static const chatRoomRelative = 'rooms/:roomId';
   static const files = '/files';
+  static const filesFolderRelative = 'folders/:folderId';
   static const calendar = '/calendar';
   static const profile = '/profile';
   static const settings = '/settings';
@@ -21,15 +22,29 @@ abstract final class AppRoutes {
     return '$chat/rooms/${Uri.encodeComponent(roomId)}';
   }
 
-  static String filesLocation(String path) {
+  static String filesFolder(String folderId, String path, {String? spaceRef}) =>
+      Uri(
+        pathSegments: ['', 'files', 'folders', folderId],
+        queryParameters: {
+          // A nested route's query survives native pop. Keep the folder path
+          // distinct from the legacy root deep-link parameter.
+          'folderPath': path,
+          if (spaceRef != null) 'space': spaceRef,
+        },
+      ).toString();
+
+  static String filesLocation(String path, {String? spaceRef}) {
     final normalizedPath = path.startsWith('/') ? path : '/$path';
-    if (normalizedPath == '/') {
+    if (normalizedPath == '/' && spaceRef == null) {
       return files;
     }
 
     return Uri(
       path: files,
-      queryParameters: {'path': normalizedPath},
+      queryParameters: {
+        'path': normalizedPath,
+        if (spaceRef != null) 'space': spaceRef,
+      },
     ).toString();
   }
 }

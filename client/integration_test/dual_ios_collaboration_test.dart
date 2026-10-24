@@ -2048,6 +2048,84 @@ Future<void> selectNativeDualFilesScope(
   String? spaceRef,
 ) async {
   final selector = find.byKey(const Key('files-space-selector'));
+  final screen = find.byType(FilesScreen);
+  bool canSelectScope() {
+    if (screen.evaluate().length != 1) return false;
+    final container = ProviderScope.containerOf(tester.element(screen));
+    if (container
+            .read(workspaceCapabilitySnapshotProvider)
+            .asData
+            ?.value
+            .files
+            .isReady !=
+        true) {
+      return false;
+    }
+    final files = container.read(filesProvider);
+    final value = files.asData?.value;
+    // Scope selection can recover a failed directory read; it still requires
+    // current workspace access and an idle connected view before any UI tap.
+    return !files.isLoading &&
+        !files.hasError &&
+        value?.connectionState.isConnected == true &&
+        value?.isBusy == false;
+  }
+
+  await _wait(tester, canSelectScope, const Duration(seconds: 90));
+  final vertical = find
+      .descendant(
+        of: find.descendant(
+          of: screen,
+          matching: find.byType(CustomScrollView),
+        ),
+        matching: find.byType(Scrollable),
+      )
+      .first;
+  var backActions = 0;
+  while (tester.widget<FilesScreen>(screen).isFolderRoute) {
+    if (backActions++ >= 8) {
+      throw TestFailure('The Files root was not reached through navigation.');
+    }
+    final previousScreen = tester.element(screen);
+    // A retained folder keeps its native history. Use the same root breadcrumb
+    // as a member before changing the private/shared scope.
+    final root = find.byWidgetPredicate(
+      (widget) =>
+          widget is Semantics &&
+          widget.properties.identifier == 'files-location-root',
+    );
+    if (root.hitTestable().evaluate().length != 1) {
+      await tester.scrollUntilVisible(
+        root,
+        -300,
+        maxScrolls: 30,
+        scrollable: vertical,
+      );
+    }
+    if (tester.widget<Semantics>(root).properties.enabled == true) {
+      await _tap(tester, root);
+    } else {
+      // A failed child has no listing path; its breadcrumb cannot name an
+      // ancestor. The native route still has a valid Back action.
+      await _tap(tester, find.byType(BackButton));
+    }
+    await _wait(
+      tester,
+      () =>
+          screen.evaluate().length == 1 &&
+          tester.element(screen) != previousScreen &&
+          canSelectScope(),
+      const Duration(seconds: 90),
+    );
+  }
+  if (selector.hitTestable().evaluate().length != 1) {
+    await tester.scrollUntilVisible(
+      selector,
+      -300,
+      maxScrolls: 30,
+      scrollable: vertical,
+    );
+  }
   await _wait(
     tester,
     () => selector.evaluate().length == 1,
