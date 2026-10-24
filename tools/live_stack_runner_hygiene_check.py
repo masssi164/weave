@@ -15,6 +15,30 @@ def require(condition: bool, message: str) -> None:
         raise SystemExit(f"live-stack-runner-hygiene: {message}")
 
 
+def check_artifact_paths(workflow: str, job_name: str, prefix: str, components: str) -> None:
+    job = re.search(r"^  " + re.escape(job_name) + r":\n(.*?)(?=^  [\w-]+:|\Z)", workflow, re.M | re.S)
+    require(job is not None, f"hosted artifact consumer job is missing: {job_name}")
+    body = job.group(1)
+    initializer = re.search(r"^      - name: Initialize hosted artifact paths\n(.*?)(?=^      - |\Z)",
+                            body, re.M | re.S)
+    require(initializer is not None, f"runner artifact paths are not initialized: {job_name}")
+    setup = initializer.group(1)
+    require('set -euo pipefail' in setup and re.search(r'^        if:', setup, re.M) is None
+            and '[[ "${RUNNER_TEMP:-}" == /* && -d "$RUNNER_TEMP" && ! -L "$RUNNER_TEMP" ]]' in setup
+            and '[[ "${GITHUB_RUN_ID:-}" =~ ^[1-9][0-9]*$ && "${GITHUB_RUN_ATTEMPT:-}" =~ ^[1-9][0-9]*$ ]]' in setup,
+            f"runner artifact paths lack bounded runtime initialization: {job_name}")
+    for variable, suffix in (("WEAVE_BUILD_ARTIFACT_ROOT", "artifacts-%s-%s"),
+                             ("WEAVE_CANDIDATE_COMPOSITION", "composition-%s-%s.json")):
+        assignment = (f"printf '{variable}=%s/weave-{prefix}-{suffix}\\n' "
+                      '"$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"')
+        require(assignment in setup, f"runner artifact path is not exported to later steps: {variable}")
+    consumer = body.find("tools/build_artifacts.py consume")
+    require(consumer >= initializer.end() and "--components " + components in body
+            and '--composition "$WEAVE_CANDIDATE_COMPOSITION"' in body
+            and '--directory "$WEAVE_BUILD_ARTIFACT_ROOT"' in body,
+            f"verified component consumption must follow runner path initialization: {job_name}")
+
+
 def check(e2e: str, prepare: str, owner: str, test_app: str, native: str) -> None:
     for document in (e2e, prepare, owner):
         require("group:" in document, "dogfood mutations must have bounded concurrency")
@@ -31,11 +55,13 @@ def check(e2e: str, prepare: str, owner: str, test_app: str, native: str) -> Non
     require("WEAVE_TEST_APP_MODE: member-collaboration" in e2e
             and 'WEAVE_TEST_APP_RELEASE_MCP: "false"' in e2e,
             "ordinary member collaboration must be independently selected")
-    for workflow, components in ((e2e, "runtime-linux-amd64,ios-simulator"),
-                                 (prepare, "runtime-linux-amd64,ios-device")):
-        require("WEAVE_BUILD_ARTIFACT_ROOT:" in workflow and "WEAVE_CANDIDATE_COMPOSITION:" in workflow
-                and "tools/build_artifacts.py consume" in workflow and "--components " + components in workflow,
-                "live runtime and physical paths require verified hosted components")
+    for workflow, job, prefix, components in (
+            (e2e, "full-compose-e2e", "qualification", "runtime-linux-amd64,ios-simulator"),
+            (e2e, "deploy-dogfood", "deployment", "runtime-linux-amd64,ios-simulator"),
+            (prepare, "prepare-human-test", "physical", "runtime-linux-amd64,ios-device"),
+            (owner, "invite-owner", "owner-bootstrap", "runtime-linux-amd64")):
+        check_artifact_paths(workflow, job, prefix, components)
+    for workflow in (e2e, prepare):
         for forbidden in ("flutter build", "build-for-testing", ":bootJar", "buildx build"):
             require(forbidden not in workflow, "live workflow must not compile delivery packages")
     require(e2e.index("name: Consume verified hosted runtime and iOS Simulator artifacts")
@@ -70,6 +96,15 @@ def main() -> int:
         (e2e.replace("needs: hosted-artifacts", "needs: []"), prepare, test_app, native),
         (e2e.replace("WEAVE_TEST_APP_MODE: member-collaboration", "WEAVE_TEST_APP_MODE: full"), prepare, test_app, native),
         (e2e.replace("--components runtime-linux-amd64,ios-simulator", "--components runtime-linux-amd64"), prepare, test_app, native),
+        (e2e.replace("name: Initialize hosted artifact paths", "name: Missing initialization"), prepare, test_app, native),
+        (e2e.replace('>> "$GITHUB_ENV"', '>> "$GITHUB_OUTPUT"'), prepare, test_app, native),
+        (e2e.replace('&& ! -L "$RUNNER_TEMP"', ''), prepare, test_app, native),
+        (e2e, prepare.replace('"$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"', '"1" >> "$GITHUB_ENV"'), test_app, native),
+        (e2e.replace('name: Initialize hosted artifact paths\n        run:',
+                     'name: Initialize hosted artifact paths\n        if: false\n        run:'), prepare, test_app, native),
+        (e2e.replace('      - name: Verify bounded runner\n',
+                     '      - name: Premature artifact consumption\n        run: python3 tools/build_artifacts.py consume\n'
+                     '      - name: Verify bounded runner\n', 1), prepare, test_app, native),
         (e2e, prepare + "\n# flutter build ios\n", test_app, native),
         (e2e, prepare, test_app.replace('product_flow_command=(java -cp "${WEAVE_TEST_APP_DRIVER_CLASSPATH}")',
                                      'product_flow_command=("${REPOSITORY_ROOT}/gradlew")'), native),
