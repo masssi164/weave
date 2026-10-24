@@ -555,7 +555,12 @@ void main() {
         expect(chatRepository.connectCalls, 1);
         expect(find.text('Weave Core'), findsNothing);
 
-        await tester.tap(find.byIcon(Icons.folder_outlined));
+        await tester.tap(
+          find.descendant(
+            of: find.byType(NavigationBar),
+            matching: find.byIcon(Icons.folder_outlined),
+          ),
+        );
         await tester.pumpAndSettle();
 
         expect(find.text('Connect Files'), findsNothing);
@@ -658,7 +663,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byIcon(Icons.settings_outlined),
+        ),
+      );
       await tester.pumpAndSettle();
 
       final container = ProviderScope.containerOf(
