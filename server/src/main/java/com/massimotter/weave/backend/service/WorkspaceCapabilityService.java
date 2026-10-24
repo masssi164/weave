@@ -356,6 +356,35 @@ public class WorkspaceCapabilityService {
                             "policyState", WorkspaceCapabilityPolicyState.POLICY_BLOCKED.value(),
                             "diagnosticsRedacted", true));
         }
+        if (!enabledByDomainPolicy(capability)) {
+            throw new ApiErrorException(
+                    HttpStatus.FORBIDDEN,
+                    "capability-policy-blocked",
+                    "This action is disabled by workspace domain policy.",
+                    Map.of(
+                            "module", module,
+                            "operation", operation,
+                            "requiredCapability", capability,
+                            "policyState", WorkspaceCapabilityPolicyState.DISABLED.value(),
+                            "diagnosticsRedacted", true));
+        }
+    }
+
+    private boolean enabledByDomainPolicy(String capability) {
+        return switch (capability) {
+            case "chat.read", "chat.send" -> workspaceCapabilityProperties.chat().enabled();
+            case "files.read", "files.upload" -> workspaceCapabilityProperties.files().enabled();
+            case "calendar.read", "calendar.manage_events" -> workspaceCapabilityProperties.calendar().enabled();
+            case "boards.read", "boards.update_task" -> workspaceCapabilityProperties.boards().enabled();
+            case "meetings.join", "meetings.host" -> workspaceCapabilityProperties.meetingsCalls().enabled();
+            case "documents.view", "documents.edit" -> workspaceCapabilityProperties.documentsCollaboration().enabled();
+            case "decisions.read", "decisions.record" -> workspaceCapabilityProperties.decisionsEvidence().enabled();
+            case "manuals.read", "manuals.admin" -> workspaceCapabilityProperties.manualsHelp().enabled();
+            case "release_evidence.read", "release_evidence.manage" -> workspaceCapabilityProperties.releaseEvidence().enabled();
+            case "agent-runtime.entitled" -> workspaceCapabilityProperties.agentRuntimeControl().enabled();
+            // Shell and admin setup/diagnostics keep their independent admission policy.
+            default -> true;
+        };
     }
 
     private WorkspaceCapabilityStatusResponse dependentStatus(

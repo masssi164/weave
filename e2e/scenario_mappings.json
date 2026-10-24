@@ -784,6 +784,21 @@
       ],
       "additionalEvidence": [
         {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WorkspaceCapabilityServiceTest.java",
+          "fragments": [
+            "disabledDomainPolicyRejectsHumanDeviceAndVerifiedMemberGrants",
+            "enabledDomainPolicyDoesNotTurnReadinessIntoAuthorization",
+            "disabledFilesDoesNotBlockShellOtherDomainsOrSetupAuthority"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/calendar/CalendarUserApiServiceTest.java",
+          "fragments": [
+            "disabledCalendarPolicyBlocksMemberReadsAndOwnerWritesBeforeProviderAccess",
+            "enabledCalendarKeepsOrdinaryMemberReadAndOwnerWriteWithIndependentReadiness"
+          ]
+        },
+        {
           "path": "docs/product-line-and-weaver-plan.md",
           "fragments": [
             "Keycloak/RBAC capability profiles and whitelisting",

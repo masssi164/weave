@@ -13,9 +13,13 @@ import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.*;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.*;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.calendar.CalendarUserModels.*;
+import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
+import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.domain.*;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
@@ -28,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -81,6 +86,56 @@ class CalendarUserApiServiceTest {
         assertStatus(() -> service.agenda(member, calendar, Instant.parse("2026-01-01T00:00:00Z"),
                 Instant.parse("2026-01-02T00:00:00Z"), "UTC"), HttpStatus.SERVICE_UNAVAILABLE);
         verify(provider, never()).query(any(), any(), any(), any());
+    }
+
+    @Test
+    void disabledCalendarPolicyBlocksMemberReadsAndOwnerWritesBeforeProviderAccess() {
+        var domainPolicy = calendarPolicy(false, WorkspaceCapabilityReadiness.READY);
+        service = withDomainPolicy(domainPolicy);
+        clearInvocations(provider, bindings, rights, audit);
+
+        assertThat(domainPolicy.snapshot(member).calendar().policyState())
+                .isEqualTo(WorkspaceCapabilityPolicyState.DISABLED);
+        List<Runnable> operations = List.of(
+                () -> service.calendars(member),
+                () -> service.agenda(member, calendar, Instant.parse("2026-03-28T00:00:00Z"),
+                        Instant.parse("2026-03-29T00:00:00Z"), "UTC"),
+                () -> service.create(owner(), calendar, content("Planning"), "disabled-calendar-create"));
+        for (Runnable operation : operations) {
+            assertThatThrownBy(operation::run).isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                assertThat(error.status()).isEqualTo(HttpStatus.FORBIDDEN);
+                assertThat(error.code()).isEqualTo("capability-policy-blocked");
+                assertThat(error.details()).containsEntry("policyState", "disabled")
+                        .containsEntry("diagnosticsRedacted", true);
+            });
+        }
+        verifyNoInteractions(provider, bindings, rights, audit);
+        assertThat(mappings).isEmpty();
+        assertThat(events).isEmpty();
+    }
+
+    @Test
+    void enabledCalendarKeepsOrdinaryMemberReadAndOwnerWriteWithIndependentReadiness() {
+        var domainPolicy = calendarPolicy(true, WorkspaceCapabilityReadiness.DEGRADED);
+        service = withDomainPolicy(domainPolicy);
+        when(provider.query(any(), any(), any(), any())).thenReturn(List.of());
+
+        assertThat(domainPolicy.snapshot(member).calendar().readiness())
+                .isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(service.calendars(member).calendars()).singleElement()
+                .satisfies(visible -> assertThat(visible.allowedActions()).containsExactly("read"));
+        assertThat(service.agenda(member, calendar, Instant.parse("2026-03-28T00:00:00Z"),
+                Instant.parse("2026-03-29T00:00:00Z"), "UTC").events()).isEmpty();
+        assertThat(service.create(owner(), calendar, content("Planning"), "enabled-calendar-create")
+                .content().title()).isEqualTo("Planning");
+        verify(provider).query(any(), any(), any(), any());
+        verify(provider).write(any());
+
+        clearInvocations(provider, bindings, audit);
+        assertThatThrownBy(() -> service.create(member, calendar, content("Denied"), "member-calendar-create"))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.details()).containsEntry("policyState", "policy_blocked"));
+        verifyNoInteractions(provider, bindings, audit);
     }
 
     @Test
@@ -468,6 +523,29 @@ class CalendarUserApiServiceTest {
         return new WriteRequest(title, null,
                 CalendarUserModelMapperTest.time(TemporalKind.FLOATING, "2026-03-28", "09:00:00"),
                 CalendarUserModelMapperTest.time(TemporalKind.FLOATING, "2026-03-28", "10:00:00"), null, List.of(), null, List.of());
+    }
+
+    private WorkspaceCapabilityService calendarPolicy(boolean enabled, WorkspaceCapabilityReadiness readiness) {
+        var resourceServer = new OAuth2ResourceServerProperties();
+        resourceServer.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
+        return new WorkspaceCapabilityService(resourceServer, new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null,
+                        new WorkspaceCapabilityProperties.Capability(enabled, null, readiness), null, null));
+    }
+
+    private CalendarUserApiService withDomainPolicy(WorkspaceCapabilityService domainPolicy) {
+        var context = new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
+        var spaces = mock(SpaceAccessPort.class);
+        when(spaces.allows(anyString(), anyString(), anyString(), any())).thenReturn(true);
+        return new CalendarUserApiService(HumanJwtTestSupport.organizationAdmission(),
+                OrganizationIdentityContextResolver.configured(context), context, rights, spaces,
+                domainPolicy, bindings, List.of(provider), audit);
+    }
+
+    private Jwt owner() {
+        return Jwt.withTokenValue("owner").header("alg", "none").subject("owner")
+                .issuer("https://auth.weave.test/realms/weave")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("owner")).build();
     }
     static void assertStatus(Runnable action, HttpStatus status) {
         assertThatThrownBy(action::run).isInstanceOfSatisfying(ApiErrorException.class, error -> assertThat(error.status()).isEqualTo(status));
