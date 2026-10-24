@@ -247,19 +247,20 @@ export interface AdminControlPlaneApiInterface {
     testProviderReadiness(requestParameters: TestProviderReadinessRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ProviderReadinessTestResponse>;
 
     /**
-     *
-     * @summary Record a support-safe capability whitelist policy update
+     * This compatibility endpoint preserves authorization and request validation, but does not change policy or publish a policy-update event.
+     * @summary Reject edits to read-only capability profiles
      * @param {CapabilityWhitelistUpdateRequest} capabilityWhitelistUpdateRequest
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof AdminControlPlaneApiInterface
      */
-    updateCapabilityWhitelistRaw(requestParameters: UpdateCapabilityWhitelistRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<CapabilityWhitelistResponse>>;
+    updateCapabilityWhitelistRaw(requestParameters: UpdateCapabilityWhitelistRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>>;
 
     /**
-     * Record a support-safe capability whitelist policy update
+     * This compatibility endpoint preserves authorization and request validation, but does not change policy or publish a policy-update event.
+     * Reject edits to read-only capability profiles
      */
-    updateCapabilityWhitelist(requestParameters: UpdateCapabilityWhitelistRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<CapabilityWhitelistResponse>;
+    updateCapabilityWhitelist(requestParameters: UpdateCapabilityWhitelistRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
 
 }
 
@@ -689,9 +690,10 @@ export class AdminControlPlaneApi extends runtime.BaseAPI implements AdminContro
     }
 
     /**
-     * Record a support-safe capability whitelist policy update
+     * This compatibility endpoint preserves authorization and request validation, but does not change policy or publish a policy-update event.
+     * Reject edits to read-only capability profiles
      */
-    async updateCapabilityWhitelistRaw(requestParameters: UpdateCapabilityWhitelistRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<CapabilityWhitelistResponse>> {
+    async updateCapabilityWhitelistRaw(requestParameters: UpdateCapabilityWhitelistRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
         if (requestParameters['capabilityWhitelistUpdateRequest'] == null) {
             throw new runtime.RequiredError(
                 'capabilityWhitelistUpdateRequest',
@@ -724,15 +726,15 @@ export class AdminControlPlaneApi extends runtime.BaseAPI implements AdminContro
             body: CapabilityWhitelistUpdateRequestToJSON(requestParameters['capabilityWhitelistUpdateRequest']),
         }, initOverrides);
 
-        return new runtime.JSONApiResponse(response, (jsonValue) => CapabilityWhitelistResponseFromJSON(jsonValue));
+        return new runtime.VoidApiResponse(response);
     }
 
     /**
-     * Record a support-safe capability whitelist policy update
+     * This compatibility endpoint preserves authorization and request validation, but does not change policy or publish a policy-update event.
+     * Reject edits to read-only capability profiles
      */
-    async updateCapabilityWhitelist(requestParameters: UpdateCapabilityWhitelistRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<CapabilityWhitelistResponse> {
-        const response = await this.updateCapabilityWhitelistRaw(requestParameters, initOverrides);
-        return await response.value();
+    async updateCapabilityWhitelist(requestParameters: UpdateCapabilityWhitelistRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
+        await this.updateCapabilityWhitelistRaw(requestParameters, initOverrides);
     }
 
 }

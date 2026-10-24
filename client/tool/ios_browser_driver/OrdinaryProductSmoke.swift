@@ -26,6 +26,15 @@ extension BrowserDriver {
     }
   }
 
+  // BEGIN ORDINARY SCROLL DECISION
+  static func ordinaryScrollTowardTop(targetFrame: CGRect?, upperEdge: CGFloat, fallbackTowardTop: Bool = false) -> Bool {
+    guard let targetFrame = targetFrame,
+          [targetFrame.origin.x, targetFrame.origin.y, targetFrame.width, targetFrame.height, targetFrame.midY, upperEdge]
+            .allSatisfy({ $0.isFinite }),
+          targetFrame.width > 0, targetFrame.height > 0 else { return fallbackTowardTop }
+    return targetFrame.midY < upperEdge
+  }
+
   // The budget is independent of UI timing and never grows after a gesture.
   struct OrdinaryScrollBudget {
     var remaining = 8
@@ -39,6 +48,7 @@ extension BrowserDriver {
     }
   }
   // End bounded scroll budget.
+  // END ORDINARY SCROLL DECISION
 
   func smokeScroll(_ budget: inout OrdinaryScrollBudget, toward target: XCUIElement? = nil, towardTop: Bool = false) throws {
     guard budget.request(now: Date()) else { return }
@@ -51,7 +61,8 @@ extension BrowserDriver {
     let upper = frame.height * 0.25
     let lower = min(frame.height * 0.75, keyboards.count == 1 ? keyboards.element.frame.minY - frame.minY - 16 : frame.height * 0.75)
     guard lower.isFinite && lower - upper >= 48 else { throw NSError(domain: "ordinary-smoke-scroll-obstructed", code: 1) }
-    let moveTowardTop = towardTop || (target.map { $0.frame.midY < frame.minY + upper } ?? false)
+    let moveTowardTop = Self.ordinaryScrollTowardTop(
+      targetFrame: target?.frame, upperEdge: frame.minY + upper, fallbackTowardTop: towardTop)
     let origin = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
     let start = origin.withOffset(CGVector(dx: 0, dy: moveTowardTop ? upper : lower))
     let end = origin.withOffset(CGVector(dx: 0, dy: moveTowardTop ? lower : upper))
@@ -71,7 +82,7 @@ extension BrowserDriver {
         target = labelled.count == 1 ? labelled.element : nil
       }
       if let target = target, target.exists && target.isHittable { return target }
-      try smokeScroll(&scrolling, toward: target, towardTop: target == nil && searchTowardTop)
+      try smokeScroll(&scrolling, toward: target, towardTop: searchTowardTop)
       Thread.sleep(forTimeInterval: 0.25)
     }
     throw NSError(domain: "ordinary-smoke-control-unavailable", code: 1)
@@ -140,6 +151,59 @@ extension BrowserDriver {
     throw NSError(domain: "ordinary-smoke-independent-readback-missing", code: 1)
   }
 
+  // BEGIN ORDINARY IDENTITY READINESS
+  struct OrdinaryIdentityReadiness {
+    var observed = [String: String]()
+
+    mutating func observe(labels: [String: [String]], contextCurrent: Bool, now: Date, deadline: Date) -> String {
+      guard now < deadline else { return "timeout" }
+      guard contextCurrent else { return "context-changed" }
+      var ready = true
+      for key in ["account", "organization"] {
+        let values = labels[key] ?? []
+        guard values.count <= 1 else { return "ambiguous" }
+        guard let text = values.first else { ready = false; continue }
+        guard text.contains("sha256:") else { ready = false; continue }
+        let parts = text.components(separatedBy: "sha256:")
+        guard parts.count == 2, parts[0].hasSuffix(": "),
+              parts[1].utf8.count == 64, parts[1].utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }) else {
+          return "malformed"
+        }
+        if let previous = observed[key], previous != parts[1] { return "context-changed" }
+        observed[key] = parts[1]
+      }
+      return ready && observed.count == 2 ? "ready" : "wait"
+    }
+  }
+  // END ORDINARY IDENTITY READINESS
+
+  func smokeAwaitIdentityReferences(_ app: XCUIApplication, identifiers: [(String, String)], deadline: Date) throws -> [String: String] {
+    // Find the real visible diagnostic controls once; loading values do not establish identity.
+    for (_, identifier) in identifiers {
+      let remaining = deadline.timeIntervalSinceNow
+      guard remaining > 0 else { throw NSError(domain: "ordinary-smoke-current-identity-timeout", code: 1) }
+      _ = try smokeElement(app, identifier: identifier, timeout: remaining)
+    }
+    var readiness = OrdinaryIdentityReadiness()
+    while Date() < deadline {
+      var labels = [String: [String]]()
+      for (key, identifier) in identifiers {
+        let controls = app.descendants(matching: .any).matching(identifier: identifier)
+        guard controls.count <= 1 else { throw NSError(domain: "ordinary-smoke-current-identity-ambiguous", code: 1) }
+        labels[key] = controls.count == 1 ? [controls.element.label] : []
+      }
+      let current = app.state == .runningForeground && Self.ordinaryWorkspaceObserved(app)
+      let state = readiness.observe(labels: labels, contextCurrent: current, now: Date(), deadline: deadline)
+      if state == "ready" {
+        guard Date() < deadline else { throw NSError(domain: "ordinary-smoke-current-identity-timeout", code: 1) }
+        return readiness.observed
+      }
+      guard state == "wait" else { throw NSError(domain: "ordinary-smoke-current-identity-" + state, code: 1) }
+      Thread.sleep(forTimeInterval: 0.25)
+    }
+    throw NSError(domain: "ordinary-smoke-current-identity-timeout", code: 1)
+  }
+
   func smokeObserveFilePreview(_ app: XCUIApplication, expected: String) throws {
     let preview = try smokeElement(app, identifier: "files-preview-content")
     guard preview.label == expected || (preview.value as? String) == expected else {
@@ -195,6 +259,18 @@ extension BrowserDriver {
 
   func smokeFilesRoot(_ app: XCUIApplication, privateScope: Bool) throws {
     try smokeTap(app, "nav-files")
+    try smokeAwaitFilesRead(app)
+    // A tab switch may restore a folder. Scope selection belongs to the root;
+    // reach it through the ordinary breadcrumb without replacing member state.
+    let location = try smokeElement(app, identifier: "files-location-root", searchTowardTop: true)
+    if !location.isSelected {
+      guard location.isEnabled else { throw NSError(domain: "ordinary-smoke-control-disabled", code: 1) }
+      location.tap()
+      // A deep link can reveal an older retained root. First observe its
+      // root-only control, then request a new read through ordinary refresh.
+      _ = try smokeElement(app, identifier: "files-space-selector", searchTowardTop: true)
+      try smokeRefreshFiles(app)
+    }
     let previous = try smokeAwaitFilesRead(app)
     let selector = try smokeElement(app, identifier: "files-space-selector", searchTowardTop: true)
     guard selector.isEnabled else { throw NSError(domain: "ordinary-smoke-control-disabled", code: 1) }
@@ -329,16 +405,9 @@ extension BrowserDriver {
     case "identity":
       try smokeTap(app, "nav-settings")
       try smokeTap(app, "settings-help")
-      for (key, identifier) in [("account", "settings-current-account-reference"), ("organization", "settings-current-organization-reference")] {
-        let reference = try smokeElement(app, identifier: identifier)
-        let regex = try NSRegularExpression(pattern: "sha256:([0-9a-f]{64})")
-        let text = reference.label
-        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-        guard matches.count == 1, let range = Range(matches[0].range(at: 1), in: text) else {
-          throw NSError(domain: "ordinary-smoke-current-identity-reference-unavailable", code: 1)
-        }
-        resources[key] = String(text[range])
-      }
+      resources = try smokeAwaitIdentityReferences(app, identifiers: [
+        ("account", "settings-current-account-reference"), ("organization", "settings-current-organization-reference")
+      ], deadline: Date().addingTimeInterval(40))
     case "chat-create":
       try smokeTap(app, "nav-chat")
       try smokeTap(app, "chat-create-conversation")

@@ -556,9 +556,37 @@ def fixture_binding(context, fixture_path: Path, fixture: dict) -> dict:
         "organizationDigest": owner["organizationDigest"]} for member in grants["members"]}}
 
 
+def stock_action_link(candidate: str, issuer: str, verification: bool) -> bool:
+    """Exact stock issuer action only; never infer HTTPS or a realm from display text."""
+    try:
+        if (not isinstance(candidate, str) or not isinstance(issuer, str)
+                or not 1 <= len(candidate) <= 8192 or not 1 <= len(issuer) <= 2048
+                or any(character.isspace() or ord(character) < 32 for character in issuer)):
+            return False
+        expected, parsed = urlsplit(issuer), urlsplit(candidate)
+        if (expected.scheme != "https" or not expected.hostname or expected.username is not None or expected.password is not None
+                or expected.query or expected.fragment or not expected.path.startswith("/realms/")
+                or any(part in ("", ".", "..") for part in expected.path.split("/")[2:])
+                or "%" in expected.path or "\\" in expected.path):
+            return False
+        # Accessing .port also rejects malformed/out-of-range explicit ports.
+        if not 1 <= (443 if expected.port is None else expected.port) <= 65535 or not 1 <= (443 if parsed.port is None else parsed.port) <= 65535:
+            return False
+        path = expected.path + ("/login-actions/action-token" if verification else "/protocol/openid-connect/registrations")
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        return (parsed.scheme == "https" and parsed.netloc == expected.netloc and parsed.path == path
+                and parsed.username is None and parsed.password is None and not parsed.fragment
+                and not any(character.isspace() or ord(character) < 32 for character in candidate)
+                and query.get("client_id") == ["account"]
+                and (verification or query.get("response_type") == ["code"])
+                and len(query.get("key" if verification else "token", [])) == 1
+                and bool(query["key" if verification else "token"][0]))
+    except (ValueError, TypeError, AttributeError):
+        return False
+
+
 def action_links(message: dict, issuer: str, verification: bool) -> set[str]:
     """Select only stock, exact-issuer actions; URLs remain private in memory."""
-    path = urlsplit(issuer).path + ("/login-actions/action-token" if verification else "/protocol/openid-connect/registrations")
     strings = []
     def collect(value):
         if isinstance(value, str): strings.append(value)
@@ -572,14 +600,7 @@ def action_links(message: dict, issuer: str, verification: bool) -> set[str]:
         decoded = html.unescape(raw.replace("=\r\n", "").replace("=\n", ""))
         decoded = re.sub("=3d", "=", decoded, flags=re.I)
         for candidate in re.findall(r"https://[^\s\"'<>]+", decoded):
-            parsed = urlsplit(candidate)
-            query = parse_qs(parsed.query, keep_blank_values=True)
-            if (parsed.scheme == "https" and parsed.netloc == urlsplit(issuer).netloc and parsed.path == path
-                    and not parsed.username and not parsed.password and not parsed.fragment
-                    and query.get("client_id") == ["account"]
-                    and (verification or query.get("response_type") == ["code"])
-                    and len(query.get("key" if verification else "token", [])) == 1
-                    and query["key" if verification else "token"][0]):
+            if stock_action_link(candidate, issuer, verification):
                 found.add(candidate)
     return found
 
@@ -631,8 +652,21 @@ def await_mail_link(context, email: str, issuer: str, verification: bool, *, tim
 
 def registration(runner, actor: dict, fixture: dict) -> str:
     from dogfood_functional_smoke import prepare_browser_fixture, SmokeError
+    identifier = actor.get("id")
+    activation, issuer = fixture.get("activationUrl"), fixture.get("issuerUrl")
+    if (actor.get("physical") is not False or not isinstance(identifier, str)
+            or not re.fullmatch(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", identifier)
+            or actor.get("destination") != "platform=iOS Simulator,id=" + identifier
+            or fixture.get("schemaVersion") != "weave.dogfood-test-registration/v1"
+            or fixture.get("phase") != "ordinary-registration"
+            or fixture.get("appBundleIdentifier") != "com.massimotter.weave"
+            or not isinstance(activation, str) or not isinstance(issuer, str)
+            or not any(stock_action_link(activation, issuer, verification) for verification in (False, True))):
+        raise ContractError("normal-test-member-registration-required")
     private = prepare_browser_fixture(actor["products"], fixture)
     try:
+        # The stock link is delivered only in the private fixture. XCTest opens
+        # it through XCUISystem; invitation URLs must never enter process argv.
         plan, = actor["products"].glob("*.xctestrun")
         output = runner.run(["xcodebuild", "test-without-building", "-xctestrun", str(plan),
             "-destination", actor["destination"], "-parallel-testing-enabled", "NO",
@@ -644,6 +678,10 @@ def registration(runner, actor: dict, fixture: dict) -> str:
         pending = prefix + "status=incomplete stage=email-verification-required supportSafe=true"
         if markers == [complete]: return "complete"
         if markers == [pending]: return "verification"
+        sign_in = prefix + "status=incomplete stage=ordinary-app-sign-in-required supportSafe=true"
+        if markers == [sign_in]: return "sign-in"
+        expired = prefix + "status=incomplete stage=authentication-session-expired supportSafe=true"
+        if markers == [expired]: raise ContractError("normal-test-member-authentication-session-expired")
         raise ContractError("normal-test-member-registration-required")
     except SmokeError:
         raise ContractError("normal-test-member-registration-required") from None
@@ -680,7 +718,8 @@ def build_actors(runner, context, candidate: str, devices: list[str]) -> dict:
 
 
 def member_proof(runner, actor, context, plan: dict, member: dict, password: str, invitation: dict,
-                 registration_state: str | None = None, record_registration=lambda _state: None) -> dict:
+                 registration_state: str | None = None, record_registration=lambda _state: None,
+                 *, allow_registration: bool = True) -> dict:
     from dogfood_functional_smoke import BUNDLE, SmokeError, restart, verify_discovered_routing, verify_installed_build
     def authenticate():
         restart(runner, actor)
@@ -690,8 +729,13 @@ def member_proof(runner, actor, context, plan: dict, member: dict, password: str
                          "phase": "initial", "nativeAuthCompletionPath": "", "ordinaryOrganizationOrigin": plan["organizationOrigin"]},
                   "testProductionBrowser")
     authenticated = False
+    if not allow_registration:
+        # Recovery of a started member is ordinary sign-in only. In particular,
+        # an auth failure cannot authorize mail, activation replay or a reset.
+        authenticate()
+        authenticated = True
     interrupted = registration_state in {"activation-started", "email-verification-required"}
-    if interrupted:
+    if interrupted and not authenticated:
         # An invitation may already be consumed even when XCTest never emitted
         # its ACK. Normal sign-in can prove completion; never re-register or
         # replay that invitation on the strength of a missing checkpoint.
@@ -724,9 +768,13 @@ def member_proof(runner, actor, context, plan: dict, member: dict, password: str
         if result == "verification":
             record_registration("email-verification-required")
             fixture.update(nonce=secrets.token_hex(16), activationUrl=await_mail_link(context, member["email"], plan["issuerUrl"], True))
-            if registration(runner, actor, fixture) != "complete":
+            result = registration(runner, actor, fixture)
+            if result not in {"complete", "sign-in"}:
                 raise ContractError("test-member-email-verification-required")
-        record_registration("registration-complete")
+        elif result not in {"complete", "sign-in"}:
+            raise ContractError("normal-test-member-registration-required")
+        # Neither provider info nor a public handoff proves the member's app
+        # session/identity. Keep the existing pending ledger state until proof.
     if not authenticated: authenticate()
     restart(runner, actor)
     fixture = {"schemaVersion": "weave.ordinary-product-ui/v1", "runId": "prepare-" + plan["planId"],
@@ -830,16 +878,57 @@ def operator_phases(context, backend: dict, candidate: dict, ledger_path: Path, 
         if receipt["status"] != "passed":
             raise ContractError("dogfood-operator-" + receipt["boundary"])
         return envelope
-    invitations = invoke("invitations", {**plan, "nonce": secrets.token_hex(16)})["receipt"]
+    retained = ledger.get("operatorEnvelope")
+    retained_states = dict(ledger["registrationState"])
+    proven = {}
+    def prove(member, invitation, *, auth_only=False):
+        slot = member["slot"]
+        def record_registration(stage):
+            ledger["registrationState"][slot] = stage
+            private_write(ledger_path, ledger)
+        arguments = (runner, actors[slot], context, plan, member, ledger["passwords"][slot],
+                     invitation, ledger["registrationState"].get(slot), record_registration)
+        return member_proof(*arguments, allow_registration=False) if auth_only else member_proof(*arguments)
+    try:
+        invitations = invoke("invitations", {**plan, "nonce": secrets.token_hex(16)})["receipt"]
+    except ContractError as failure:
+        if str(failure) != "dogfood-operator-test-member-not-activated" or retained is None:
+            raise
+        # The blocked result is not invitation authority. Only a previously
+        # validated private operator plan with started slots permits sign-in.
+        operator_plan(plan, context)
+        previous = validate_operator_envelope(retained)["receipt"]
+        expected = {key: plan[key] for key in ("planId", "organizationOrigin", "issuerUrl", "spaceRef")}
+        expected["apiBaseUrl"] = context.env["WEAVE_API_URL"]
+        if (ledger.get("schemaVersion") != "weave.dogfood-operator-preparation-ledger/v1"
+                or ledger.get("authorizationKind") != "dogfood-operator"
+                or any(previous[key] != value for key, value in expected.items())
+                or (previous["status"] != "passed" and previous["boundary"] != "test-member-not-activated")):
+            raise failure
+        started = [member for member in plan["members"] if retained_states.get(member["slot"]) in
+                   {"activation-started", "email-verification-required", "registration-complete"}]
+        if not started:
+            raise failure
+        for member in sorted(started, key=lambda member: (retained_states[member["slot"]] != "registration-complete", member["slot"])):
+            prior, = [row for row in previous["members"] if row["slot"] == member["slot"]]
+            if not prior["intentRef"] or not prior["invitationHandle"] or prior["intentState"] in {"FAILED", "EXPIRED"}:
+                raise failure
+            proven[member["slot"]] = prove(member, {}, auth_only=True)
+        # Never reuse the blocked receipt, even after a successful app login.
+        invitations = invoke("invitations", {**plan, "nonce": secrets.token_hex(16)})["receipt"]
     proof = {"schemaVersion": "weave.dogfood-admin-preparation-proof/v1", "planId": plan["planId"],
              "nonce": secrets.token_hex(16), "members": []}
     for member in plan["members"]:
         invitation, = [value for value in invitations["members"] if value["slot"] == member["slot"]]
-        def record_registration(stage):
-            ledger["registrationState"][member["slot"]] = stage
-            private_write(ledger_path, ledger)
-        proof["members"].append(member_proof(runner, actors[member["slot"]], context, plan, member,
-            ledger["passwords"][member["slot"]], invitation, ledger["registrationState"].get(member["slot"]), record_registration))
+        if member["slot"] not in proven:
+            proven[member["slot"]] = prove(member, invitation)
+        proof["members"].append(proven[member["slot"]])
+    # Ordinary own-app reconciliation must be reflected by a fresh passed
+    # APPLIED readback before any conditional grant request is admitted.
+    invitations = invoke("invitations", {**plan, "nonce": secrets.token_hex(16)})["receipt"]
+    if any(member["intentState"] != "APPLIED" for member in invitations["members"]):
+        raise ContractError("dogfood-operator-test-member-not-activated")
+    verify_proof(proof, invitations, plan)
     envelope = invoke("grants", {**plan, "nonce": proof["nonce"]}, proof)
     verify_proof(proof, envelope["receipt"], plan)
     return envelope, proof

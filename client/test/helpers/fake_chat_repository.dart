@@ -41,7 +41,10 @@ class FakeChatRepository implements ChatRepository {
   }
 
   @override
-  Future<ChatConversation> createConversation({required String title}) async {
+  Future<ChatConversation> createConversation({
+    required String title,
+    String? spaceRef,
+  }) async {
     createConversationCalls++;
     final handler = createConversationHandler;
     if (handler == null) {

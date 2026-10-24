@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
@@ -59,6 +60,18 @@ final workspaceConnectionStateProvider =
       }
       if (appAuth.isLoading || backendCapabilities.isLoading) {
         return const AsyncLoading();
+      }
+
+      // Bootstrap may outlive the current member session. Missing backend
+      // admission must not become locally fabricated ready capabilities.
+      if (appAuth.requireValue.status ==
+          IntegrationConnectionStatus.connected) {
+        return AsyncError(
+          const AppFailure.unknown(
+            'The Weave backend has not confirmed current workspace access.',
+          ),
+          StackTrace.current,
+        );
       }
 
       return AsyncData(
@@ -313,6 +326,30 @@ WorkspaceCapabilitySnapshot _mergeWorkspaceCapabilitySnapshots({
     boards: _mergeWorkspaceCapabilityState(
       local: localSnapshot.boards,
       backend: backendSnapshot.boards,
+    ),
+    meetingsCalls: _mergeWorkspaceCapabilityState(
+      local: localSnapshot.meetingsCalls,
+      backend: backendSnapshot.meetingsCalls,
+    ),
+    documentsCollaboration: _mergeWorkspaceCapabilityState(
+      local: localSnapshot.documentsCollaboration,
+      backend: backendSnapshot.documentsCollaboration,
+    ),
+    decisionsEvidence: _mergeWorkspaceCapabilityState(
+      local: localSnapshot.decisionsEvidence,
+      backend: backendSnapshot.decisionsEvidence,
+    ),
+    manualsHelp: _mergeWorkspaceCapabilityState(
+      local: localSnapshot.manualsHelp,
+      backend: backendSnapshot.manualsHelp,
+    ),
+    releaseEvidence: _mergeWorkspaceCapabilityState(
+      local: localSnapshot.releaseEvidence,
+      backend: backendSnapshot.releaseEvidence,
+    ),
+    adminControlPlane: _mergeWorkspaceCapabilityState(
+      local: localSnapshot.adminControlPlane,
+      backend: backendSnapshot.adminControlPlane,
     ),
     agentRuntimeControl: _mergeWorkspaceCapabilityState(
       local: localSnapshot.agentRuntimeControl,

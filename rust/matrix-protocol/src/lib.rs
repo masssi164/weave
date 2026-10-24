@@ -428,7 +428,7 @@ pub fn project_json_or_error(operation: String, input_json: String, server_name:
 fn versions_value(server_name: &str) -> Result<Value, MatrixCoreError> {
     Ok(json!({
         "versions": SUPPORTED_MATRIX_VERSIONS,
-        "unstable_features": {},
+        "unstable_features": { "org.weave.space_scope": true },
         "weaveBoundary": "northbound-matrix-client-server",
         "canonicalDomain": "chat",
         "providerDataPlaneExposed": false,
@@ -1815,6 +1815,15 @@ mod tests {
         .unwrap();
         assert!(ids.user_id.starts_with('@'));
         assert!(ids.room_id.starts_with('!'));
+    }
+
+    #[test]
+    fn versions_advertise_explicit_chat_space_scope() {
+        let versions = versions_value("api.weave.test").unwrap();
+        assert_eq!(versions["versions"], json!(SUPPORTED_MATRIX_VERSIONS));
+        assert_eq!(versions["unstable_features"]["org.weave.space_scope"], true);
+        assert_eq!(versions["canonicalDomain"], "chat");
+        assert_eq!(versions["providerDataPlaneExposed"], false);
     }
     #[test]
     fn matrix_identity_keeps_full_issuer_and_subject_distinct() {

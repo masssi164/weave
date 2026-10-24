@@ -115,13 +115,18 @@ public class AdminControlPlaneController {
 
     @PatchMapping("/api/admin/policies/capability-whitelist")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
-    @Operation(operationId = "updateCapabilityWhitelist", summary = "Record a support-safe capability whitelist policy update")
-    @ApiResponse(responseCode = "200", description = "Updated capability whitelist snapshot.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = CapabilityWhitelistResponse.class)))
-    public CapabilityWhitelistResponse updateWhitelist(
+    @Operation(operationId = "updateCapabilityWhitelist", summary = "Reject edits to read-only capability profiles",
+            description = "This compatibility endpoint preserves authorization and request validation, but does not change policy or publish a policy-update event.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "400", description = "Invalid request or last-admin protection rejected the proposed profile.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Capability profiles are read-only; no policy was changed (capability-whitelist-read-only).",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public void updateWhitelist(
             @Valid @RequestBody CapabilityWhitelistUpdateRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        return adminControlPlaneService.updateWhitelist(request, jwt);
+        adminControlPlaneService.updateWhitelist(request, jwt);
     }
 
     @PostMapping("/api/admin/providers/selections")

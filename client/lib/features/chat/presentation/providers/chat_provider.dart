@@ -93,16 +93,23 @@ class ChatController extends Notifier<ChatUiState> {
     await _loadConversations();
   }
 
-  Future<List<ChatParticipant>> searchMembers(String query) async {
+  Future<List<ChatParticipant>> searchMembers(
+    String query, {
+    String? spaceRef,
+  }) async {
     final repository = ref.read(chatRepositoryProvider);
     if (repository is! ChatParticipantRepository) return [];
-    return (repository as ChatParticipantRepository).searchMembers(query);
+    return (repository as ChatParticipantRepository).searchMembers(
+      query,
+      spaceRef: spaceRef,
+    );
   }
 
   Future<ChatConversation> createConversation({
     required String title,
     List<ChatParticipant> participants = const [],
     bool isDirect = false,
+    String? spaceRef,
   }) async {
     if (isDirect && participants.length != 1) {
       throw const ChatFailure.configuration(
@@ -123,9 +130,13 @@ class ChatController extends Notifier<ChatUiState> {
             title: title,
             participants: participants,
             isDirect: isDirect,
+            spaceRef: spaceRef,
           );
     } else {
-      conversation = await repository.createConversation(title: title);
+      conversation = await repository.createConversation(
+        title: title,
+        spaceRef: spaceRef,
+      );
     }
     if (requestSequence != _requestSequence) {
       throw const ChatFailure.sessionRequired(

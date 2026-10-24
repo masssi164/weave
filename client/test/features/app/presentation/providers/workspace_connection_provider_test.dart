@@ -305,6 +305,83 @@ void main() {
     );
 
     test(
+      'preserves denied and configured backend capabilities after Space admission',
+      () async {
+        WorkspaceCapabilityState denied(WorkspaceCapability capability) =>
+            WorkspaceCapabilityState(
+              capability: capability,
+              readiness: WorkspaceCapabilityReadiness.blocked,
+              policyState: WorkspaceCapabilityPolicyState.policyBlocked,
+              supportRef: 'support:${capability.name}:member-denied',
+            );
+        const help = WorkspaceCapabilityState(
+          capability: WorkspaceCapability.manualsHelp,
+          readiness: WorkspaceCapabilityReadiness.degraded,
+          policyState: WorkspaceCapabilityPolicyState.allowed,
+          profileKey: 'current-help',
+          memberImpact: 'Some help is temporarily unavailable.',
+          supportRef: 'support:manuals-help:partial',
+          grantedCapabilities: ['manuals.read'],
+        );
+        final backend = WorkspaceCapabilitySnapshot(
+          shellAccess: denied(WorkspaceCapability.shellAccess),
+          chat: denied(WorkspaceCapability.chat),
+          files: denied(WorkspaceCapability.files),
+          calendar: denied(WorkspaceCapability.calendar),
+          boards: denied(WorkspaceCapability.boards),
+          meetingsCalls: denied(WorkspaceCapability.meetingsCalls),
+          documentsCollaboration: denied(
+            WorkspaceCapability.documentsCollaboration,
+          ),
+          decisionsEvidence: denied(WorkspaceCapability.decisionsEvidence),
+          manualsHelp: help,
+          releaseEvidence: denied(WorkspaceCapability.releaseEvidence),
+          adminControlPlane: denied(WorkspaceCapability.adminControlPlane),
+          agentRuntimeControl: denied(WorkspaceCapability.agentRuntimeControl),
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            appBootstrapProvider.overrideWith(
+              () => _FakeAppBootstrap(const BootstrapState.ready()),
+            ),
+            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) async => backend,
+            ),
+            weaveApiMemberSpacesProvider.overrideWith(
+              (ref) async => const MemberSpaceAccessSnapshot(
+                visibleSpaceRefs: {'workspace-default'},
+                defaultSpaceReadable: true,
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        await container.read(appBootstrapProvider.future);
+        await container.read(
+          weaveApiWorkspaceCapabilitySnapshotProvider.future,
+        );
+        await container.read(weaveApiMemberSpacesProvider.future);
+
+        final actual = container
+            .read(workspaceCapabilitySnapshotProvider)
+            .requireValue;
+        expect(actual.adminControlPlane.isReady, isFalse);
+        expect(actual.adminControlPlane.isPolicyBlocked, isTrue);
+        for (final expected in backend.all) {
+          final capability = actual.all.singleWhere(
+            (item) => item.capability == expected.capability,
+          );
+          expect(capability.readiness, expected.readiness);
+          expect(capability.policyState, expected.policyState);
+          expect(capability.profileKey, expected.profileKey);
+          expect(capability.memberImpact, expected.memberImpact);
+          expect(capability.supportRef, expected.supportRef);
+          expect(capability.grantedCapabilities, expected.grantedCapabilities);
+        }
+      },
+    );
+
+    test(
       'revocation and restoration change module admission without login',
       () async {
         var access = const MemberSpaceAccessSnapshot(

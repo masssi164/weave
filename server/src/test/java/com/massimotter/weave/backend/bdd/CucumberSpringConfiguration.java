@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
         webEnvironment = SpringBootTest.WebEnvironment.MOCK,
         properties = {
                 "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
+                "weave.workspace.documents-collaboration.enabled=true",
                 "weave.calls.sfu.livekit.enabled=true",
                 "weave.calls.sfu.livekit.url=",
                 "weave.calls.sfu.livekit.api-key=",

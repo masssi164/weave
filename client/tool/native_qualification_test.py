@@ -21,6 +21,339 @@ import run_native_product_acceptance as macos
 
 
 class NativeQualificationTest(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('swiftc'), 'Swift compiler unavailable for no-AX authority validation')
+    def test_registration_chrome_reveals_explicit_exact_https_issuer_before_input(self):
+        source = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
+        helper = source.split('// BEGIN REGISTRATION AUTHORITY VALIDATION\n', 1)[1].split('// END REGISTRATION AUTHORITY VALIDATION', 1)[0]
+        checks = r'''
+let issuer = "https://identity.example.invalid/realms/weave"
+let valid = "https://identity.example.invalid/realms/weave/protocol/openid-connect/registrations?fixture=nonsecret"
+assert(registrationIssuerAddressMatches(valid, issuerUrl: issuer))
+assert(registrationIssuerAddressMatches(valid.replacingOccurrences(of: ".invalid/", with: ".invalid:443/"), issuerUrl: issuer))
+for wrong in [
+  "identity.example.invalid", "\u{200E}identity.example.invalid", "//identity.example.invalid/realms/weave/action",
+  "http://identity.example.invalid/realms/weave/action", "https://identity.example.invalid.attacker.invalid/realms/weave/action",
+  "https://attacker.invalid/?next=" + valid, "https://identity.example.invalid:444/realms/weave/action",
+  "https://user:password@identity.example.invalid/realms/weave/action", "https://identity.example.invalid/realms/weave-other/action",
+  "https://identity.example.invalid/realms/other/action", "https://identity.example.invalid/realms/weave%2Faction",
+  "https://identity.example.invalid/realms/weave/action#fragment", "not a URL",
+  "https://identity.example.invalid/realms/weave/../other/action",
+  "https://identity.example.invalid/realms/weave/./action",
+  "https://identity.example.invalid/realms/weave/%2e%2e/other/action",
+  "https://identity.example.invalid/realms/weave/.%2E/other/action",
+  "https://identity.example.invalid/realms/weave/%252e%252e/other/action",
+  "https://identity.example.invalid/realms/weave/%2f../other/action",
+  "https://identity.example.invalid/realms/weave/%5c../other/action",
+  "https://identity.example.invalid/realms/weave%2fother/action",
+  "https://identity.example.invalid/realms/weave/%00/action"
+] { assert(!registrationIssuerAddressMatches(wrong, issuerUrl: issuer)) }
+// Private stock actions are validated before system opening, independently of page chrome.
+let stock = "https://identity.example.invalid/realms/weave/protocol/openid-connect/registrations?client_id=account&response_type=code&token=nonsecret"
+let verify = "https://identity.example.invalid/realms/weave/login-actions/action-token?client_id=account&key=nonsecret"
+assert(registrationStockActionMatches(stock, issuerUrl: issuer))
+assert(registrationStockActionMatches(verify, issuerUrl: issuer))
+for bad in [valid, stock.replacingOccurrences(of: "https://", with: "http://"),
+            stock.replacingOccurrences(of: "identity.example.invalid", with: "foreign.example.invalid"),
+            stock.replacingOccurrences(of: "client_id=account", with: "client_id=admin-console"),
+            stock.replacingOccurrences(of: "/realms/weave/", with: "/realms/weave/../other/"),
+            stock + "&token=duplicate", verify + "&key=duplicate"] {
+  assert(!registrationStockActionMatches(bad, issuerUrl: issuer))
+}
+let organizationOrigin = "https://organization.example.invalid"
+for page in [organizationOrigin, organizationOrigin + "/", organizationOrigin + "/join", "https://organization.example.invalid:443/join"] {
+  assert(registrationPublicLandingAddressMatches(page, organizationOrigin: organizationOrigin, issuerUrl: issuer))
+}
+for page in ["http://organization.example.invalid/join", "https://foreign.example.invalid/join",
+             organizationOrigin + "/admin-console/", organizationOrigin + "/join?token=nonsecret", organizationOrigin + "/join#fragment",
+             "https://user@organization.example.invalid/join", "https://organization.example.invalid:444/join",
+             organizationOrigin + "/%6aoin", organizationOrigin + "/join/../", "organization.example.invalid"] {
+  assert(!registrationPublicLandingAddressMatches(page, organizationOrigin: organizationOrigin, issuerUrl: issuer))
+}
+let callback = organizationOrigin + "/?session_state=nonsecret-state&iss=https%3A%2F%2Fidentity.example.invalid%2Frealms%2Fweave&code=nonsecret-code"
+assert(registrationPublicLandingAddressMatches(callback, organizationOrigin: organizationOrigin, issuerUrl: issuer))
+for bad in [callback + "&code=duplicate", callback + "&unknown=value", callback.replacingOccurrences(of: "code=nonsecret-code", with: "error=denied"),
+            callback.replacingOccurrences(of: "code=nonsecret-code", with: "code="), callback.replacingOccurrences(of: "session_state=nonsecret-state", with: "session_state="),
+            callback.replacingOccurrences(of: "identity.example.invalid", with: "foreign.example.invalid"),
+            callback.replacingOccurrences(of: "code=nonsecret-code", with: "code=%0A"),
+            callback.replacingOccurrences(of: "session_state=nonsecret-state", with: "session_state=%00"),
+            callback.replacingOccurrences(of: "code=nonsecret-code", with: "code=" + String(repeating: "x", count: 4097)),
+            organizationOrigin + "/?", organizationOrigin + "/?code=nonsecret"] {
+  assert(!registrationPublicLandingAddressMatches(bad, organizationOrigin: organizationOrigin, issuerUrl: issuer))
+}
+assert(registrationPublicLandingObserved(submitted: true, headingCount: 1, originValues: [organizationOrigin], linkCount: 1, activeForm: false, organizationOrigin: organizationOrigin))
+for page in [(false, 1, [organizationOrigin], 1, false), (true, 2, [organizationOrigin], 1, false),
+             (true, 1, [organizationOrigin, organizationOrigin], 1, false), (true, 1, ["https://foreign.example.invalid"], 1, false),
+             (true, 1, [organizationOrigin], 2, false), (true, 1, [organizationOrigin], 1, true)] {
+  assert(!registrationPublicLandingObserved(submitted: page.0, headingCount: page.1, originValues: page.2,
+    linkCount: page.3, activeForm: page.4, organizationOrigin: organizationOrigin))
+}
+// Public authority is allowed only for the explicit read-only handoff check.
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [organizationOrigin + "/join"], collapsedCount: 0,
+  collapsedType: "unavailable", issuerUrl: issuer) == "wrong-authority")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [organizationOrigin + "/join"], collapsedCount: 0,
+  collapsedType: "unavailable", issuerUrl: issuer, organizationOrigin: organizationOrigin) == "verified")
+// Actual Safari transition: missing chrome -> collapsed title -> expanded explicit URL.
+// No collapsed or unavailable observation authorizes credential input.
+assert(registrationAddressDecision(chromeCount: 0, fullAddresses: [], collapsedCount: 0, collapsedType: "textField", issuerUrl: issuer) == "wait")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [], collapsedCount: 1, collapsedType: "textField", issuerUrl: issuer) == "reveal")
+// The same exact scoped title is Other while the form keyboard is active.
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [], collapsedCount: 1, collapsedType: "other", issuerUrl: issuer) == "reveal")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [], collapsedCount: 1, collapsedType: "button", issuerUrl: issuer) == "ambiguous")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [], collapsedCount: 2, collapsedType: "other", issuerUrl: issuer) == "ambiguous")
+
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [valid], collapsedCount: 0, collapsedType: "textField", issuerUrl: issuer) == "verified")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: ["identity.example.invalid"], collapsedCount: 0, collapsedType: "textField", issuerUrl: issuer) == "wrong-authority")
+assert(registrationAddressDecision(chromeCount: 2, fullAddresses: [valid], collapsedCount: 0, collapsedType: "textField", issuerUrl: issuer) == "ambiguous")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [valid, valid], collapsedCount: 0, collapsedType: "textField", issuerUrl: issuer) == "ambiguous")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [], collapsedCount: 2, collapsedType: "textField", issuerUrl: issuer) == "ambiguous")
+// Actual keyboard-state progression requires two distinct, bounded actions.
+var revealedTypes = Set<String>()
+func observe(_ kind: String, _ full: [String] = []) -> String {
+  registrationAddressDecision(chromeCount: 1, fullAddresses: full, collapsedCount: full.isEmpty ? 1 : 0,
+    collapsedType: kind, revealedTypes: revealedTypes, issuerUrl: issuer)
+}
+assert(observe("other") == "reveal")
+revealedTypes.insert("other")
+assert(observe("other") == "wait") // No repeated pill taps while AX transitions.
+assert(observe("textField") == "reveal")
+revealedTypes.insert("textField")
+assert(observe("textField") == "wait") // No blind double tap of the same field.
+assert(observe("unavailable", [valid]) == "verified")
+assert(observe("button") == "ambiguous")
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: [valid], collapsedCount: 1, collapsedType: "button", issuerUrl: issuer) == "ambiguous")
+// A fresh later check must reject changed authority even after an earlier valid URL.
+assert(registrationAddressDecision(chromeCount: 1, fullAddresses: ["https://attacker.invalid/realms/weave/action"], collapsedCount: 0, collapsedType: "textField", issuerUrl: issuer) == "wrong-authority")
+// Real stock stages: profile without password, separate verification invocation,
+// then the unique required-action password pair. No missing/partial pair is skipped.
+func step(register: Int = 0, username: Int = 0, password: Int = 0, confirmation: Int = 0,
+          newPassword: Int = 0, submit: Int = 0, profileSent: Bool = false, passwordSent: Bool = false) -> String {
+  registrationFormStep(registerCount: register, usernameCount: username, passwordCount: password,
+    confirmationCount: confirmation, newPasswordCount: newPassword, submitCount: submit,
+    registrationSubmitted: profileSent, passwordSubmitted: passwordSent)
+}
+assert(step(register: 1, username: 1) == "profile-deferred-password")
+assert(step(register: 1) == "profile-deferred-password")
+assert(step(register: 1, username: 1, profileSent: true) == "wait")
+assert(step() == "wait") // Verification waiting alone never authorizes a mutation.
+assert(step(confirmation: 1, newPassword: 1, submit: 1) == "update-password")
+assert(step(confirmation: 1, newPassword: 1, submit: 1, passwordSent: true) == "wait")
+assert(step(register: 1, username: 1, password: 1, confirmation: 1) == "profile-with-password")
+for bad in [step(register: 2), step(register: 1, username: 2), step(register: 1, password: 1),
+            step(register: 1, confirmation: 1), step(newPassword: 1),
+            step(confirmation: 1, newPassword: 1), step(confirmation: 1, newPassword: 1, submit: 2),
+            step(password: 1, confirmation: 1, newPassword: 1, submit: 1),
+            step(register: 1, confirmation: 1, newPassword: 1)] { assert(bad == "ambiguous") }
+// Decline only the identified native suggestion with every unique guard present.
+assert(registrationStrongPasswordDecision(viewCount: 0, headingCount: 0, generateCount: 0, closeCount: 0) == "none")
+assert(registrationStrongPasswordDecision(viewCount: 1, headingCount: 1, generateCount: 1, closeCount: 1) == "decline")
+assert(registrationStrongPasswordDecision(viewCount: 1, headingCount: 0, generateCount: 1, closeCount: 1) == "wait")
+assert(registrationStrongPasswordDecision(viewCount: 1, headingCount: 1, generateCount: 0, closeCount: 1) == "wait")
+assert(registrationStrongPasswordDecision(viewCount: 1, headingCount: 1, generateCount: 1, closeCount: 0) == "wait")
+for counts in [[2, 1, 1, 1], [1, 2, 1, 1], [1, 1, 2, 1], [1, 1, 1, 2]] {
+  assert(registrationStrongPasswordDecision(viewCount: counts[0], headingCount: counts[1], generateCount: counts[2], closeCount: counts[3]) == "ambiguous")
+}
+// Post-submit absence or retained form is unverified, never a completion ACK.
+func observed(expired: Int = 0, failure: Int = 0, verification: Int = 0, completion: Int = 0, form: Bool = false) -> String {
+  registrationProviderOutcome(expiredCount: expired, failureCount: failure, verificationCount: verification,
+    completionCount: completion, activeForm: form)
+}
+assert(observed(form: true) == "wait")
+assert(observed() == "wait")
+assert(observed(expired: 1, form: true) == "expired")
+assert(observed(verification: 1) == "verification")
+assert(observed(completion: 1, form: true) == "wait") // Email info beside required password is insufficient.
+assert(observed(completion: 1) == "complete")
+assert(observed(failure: 1) == "provider-failure")
+assert(observed(expired: 2) == "ambiguous")
+assert(observed(expired: 1, completion: 1) == "ambiguous")
+assert(observed(verification: 1, completion: 1) == "ambiguous")
+// Readiness consumes exactly one tap after stable in-app geometry, then waits
+// for actual acknowledgment. No lost-tap inference and no second request.
+let start = Date(timeIntervalSince1970: 100)
+let appFrame = CGRect(x: 0, y: 0, width: 390, height: 844)
+let buttonFrame = CGRect(x: 20, y: 300, width: 350, height: 48)
+func signIn(_ observer: inout OrdinarySignInReadiness, _ seconds: Double, foreground: Bool = true,
+            workspace: Bool = false, consent: Int = 0, issuerSeen: Bool = false, count: Int = 1,
+            enabled: Bool = true, hittable: Bool = true, frame: CGRect = buttonFrame) -> String {
+  observer.observe(now: start.addingTimeInterval(seconds), deadline: start.addingTimeInterval(10),
+    foreground: foreground, workspace: workspace, consentCount: consent, issuerObserved: issuerSeen,
+    controlCount: count, enabled: enabled, hittable: hittable, frame: frame, appFrame: appFrame)
+}
+var stable = OrdinarySignInReadiness()
+assert(signIn(&stable, 0) == "wait")
+assert(signIn(&stable, 1) == "wait")
+assert(signIn(&stable, 1.6) == "tap")
+assert(signIn(&stable, 2) == "wait") // Same enabled control never permits a second tap.
+assert(signIn(&stable, 3, enabled: false) == "acknowledged")
+assert(signIn(&stable, 4) == "acknowledged") // Busy->ready cannot trigger another request.
+var lost = OrdinarySignInReadiness()
+assert(signIn(&lost, 0) == "wait")
+assert(signIn(&lost, 1.6) == "tap")
+assert(signIn(&lost, 9) == "wait")
+assert(signIn(&lost, 10) == "timeout")
+var changed = OrdinarySignInReadiness()
+assert(signIn(&changed, 0) == "wait")
+let moved = CGRect(x: 20, y: 310, width: 350, height: 48)
+assert(signIn(&changed, 1.4, frame: moved) == "wait")
+assert(signIn(&changed, 2.8, frame: moved) == "wait")
+assert(signIn(&changed, 3.0, frame: moved) == "tap")
+for frame in [CGRect.zero, CGRect(x: -1, y: 1, width: 350, height: 48),
+              CGRect(x: 20, y: 900, width: 350, height: 48), CGRect(x: Double.nan, y: 1, width: 350, height: 48)] {
+  var invalid = OrdinarySignInReadiness()
+  assert(signIn(&invalid, 0, frame: frame) == "wait")
+  assert(signIn(&invalid, 2, frame: frame) == "wait")
+  assert(!invalid.tapped)
+}
+var hidden = OrdinarySignInReadiness()
+assert(signIn(&hidden, 0, hittable: false) == "wait")
+assert(signIn(&hidden, 2, foreground: false) == "wait")
+assert(signIn(&hidden, 10) == "timeout")
+var ambiguous = OrdinarySignInReadiness()
+assert(signIn(&ambiguous, 0, count: 2) == "ambiguous")
+var duplicateConsent = OrdinarySignInReadiness()
+assert(signIn(&duplicateConsent, 0, consent: 2) == "ambiguous")
+var restored = OrdinarySignInReadiness()
+assert(signIn(&restored, 0, workspace: true, count: 0) == "workspace")
+assert(!restored.tapped)
+for kind in ["consent", "issuer", "busy"] {
+  var progress = OrdinarySignInReadiness()
+  assert(signIn(&progress, 0, consent: kind == "consent" ? 1 : 0, issuerSeen: kind == "issuer",
+    enabled: kind != "busy") == "acknowledged")
+  assert(!progress.tapped)
+  assert(signIn(&progress, 2) == "acknowledged")
+}
+assert(ordinaryConsentIssuerMatches("Weave wants to sign in using auth.example.invalid", issuerHost: "auth.example.invalid"))
+assert(!ordinaryConsentIssuerMatches("Use auth.example.invalid.attacker.invalid", issuerHost: "auth.example.invalid"))
+assert(!ordinaryConsentIssuerMatches("Use foreign-auth.example.invalid", issuerHost: "auth.example.invalid"))
+func consent(_ state: inout OrdinaryAdditionalConsentReadiness, _ seconds: Double, workspace: Bool = false,
+             present: Bool = true, surface: Int? = 1, issuer: Bool = true, enabled: Bool = true, hittable: Bool = true) -> String {
+  state.observe(now: start.addingTimeInterval(seconds), deadline: start.addingTimeInterval(10), workspace: workspace,
+    present: present, surface: surface, issuerMatches: issuer, enabled: enabled, hittable: hittable)
+}
+var additional = OrdinaryAdditionalConsentReadiness()
+assert(consent(&additional, 0, present: false) == "none")
+assert(consent(&additional, 1, hittable: false) == "wait")
+assert(consent(&additional, 2) == "tap")
+assert(consent(&additional, 2.1) == "wait") // A stale prompt snapshot never produces a second tap.
+assert(consent(&additional, 3, present: false) == "none")
+assert(consent(&additional, 4) == "repeated-consent")
+assert(consent(&additional, 5, workspace: true) == "workspace") // Actual workspace takes priority.
+var ambiguousPrompt = OrdinaryAdditionalConsentReadiness()
+assert(consent(&ambiguousPrompt, 0, surface: nil) == "ambiguous")
+var foreignPrompt = OrdinaryAdditionalConsentReadiness()
+assert(consent(&foreignPrompt, 0, issuer: false) == "foreign-issuer")
+var movedPrompt = OrdinaryAdditionalConsentReadiness()
+assert(consent(&movedPrompt, 0, surface: 0, hittable: false) == "wait")
+assert(consent(&movedPrompt, 1, surface: 1) == "surface-changed")
+var delayedPrompt = OrdinaryAdditionalConsentReadiness()
+assert(consent(&delayedPrompt, 0, enabled: false) == "wait")
+assert(consent(&delayedPrompt, 5, enabled: false) == "consent-unavailable")
+var stuckPrompt = OrdinaryAdditionalConsentReadiness()
+assert(consent(&stuckPrompt, 0) == "tap")
+assert(consent(&stuckPrompt, 5) == "consent-unresolved")
+assert(consent(&stuckPrompt, 10, workspace: true) == "timeout")
+print("registration-authority-passed")
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            swift = Path(directory) / 'main.swift'
+            swift.write_text('import Foundation\n#if canImport(CoreGraphics)\nimport CoreGraphics\n#endif\n' + helper + checks)
+            executable = Path(directory) / 'authority'
+            compiled = subprocess.run(['swiftc', str(swift), '-o', str(executable)], capture_output=True, text=True, timeout=120)
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            result = subprocess.run([str(executable)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), 'registration-authority-passed')
+
+    @unittest.skipUnless(shutil.which('swiftc'), 'Swift compiler unavailable for no-AX scroll decision validation')
+    def test_ordinary_scroll_invalid_target_geometry_uses_explicit_search_direction_and_bounded_budget(self):
+        source = (Path(__file__).parent / 'ios_browser_driver/OrdinaryProductSmoke.swift').read_text()
+        helper = source.split('// BEGIN ORDINARY SCROLL DECISION\n', 1)[1].split('// END ORDINARY SCROLL DECISION', 1)[0]
+        checks = r'''
+let upper: CGFloat = 200
+func direction(_ frame: CGRect?, _ fallback: Bool = false) -> Bool {
+  BrowserDriver.ordinaryScrollTowardTop(targetFrame: frame, upperEdge: upper, fallbackTowardTop: fallback)
+}
+// AX keeps offscreen nodes but may supply zero geometry. It is not evidence of an above-viewport node.
+for frame: CGRect? in [nil, .zero, CGRect(x: 0, y: 0, width: 100, height: 0),
+                      CGRect(x: 0, y: 0, width: 0, height: 48),
+                      CGRect(x: CGFloat.nan, y: 0, width: 100, height: 48),
+                      CGRect(x: 0, y: CGFloat.nan, width: 100, height: 48),
+                      CGRect(x: 0, y: 0, width: CGFloat.infinity, height: 48),
+                      CGRect(x: 0, y: -CGFloat.infinity, width: 100, height: 48)] {
+  assert(!direction(frame))
+  assert(direction(frame, true))
+}
+assert(direction(CGRect(x: 0, y: 30, width: 100, height: 48)))
+assert(!direction(CGRect(x: 0, y: 900, width: 100, height: 48)))
+// Real geometry determines the direction; explicit search direction supplies only missing geometry.
+assert(direction(CGRect(x: 0, y: 30, width: 100, height: 48), false))
+assert(!direction(CGRect(x: 0, y: 900, width: 100, height: 48), true))
+var budget = BrowserDriver.OrdinaryScrollBudget()
+let start = Date(timeIntervalSince1970: 100)
+for index in 0..<8 {
+  assert(budget.request(now: start.addingTimeInterval(Double(index))))
+  assert(!budget.request(now: start.addingTimeInterval(Double(index) + 0.25)))
+}
+assert(budget.remaining == 0)
+assert(!budget.request(now: start.addingTimeInterval(1000)))
+print("ordinary-scroll-decision-passed")
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            swift = Path(directory) / 'main.swift'
+            swift.write_text('import Foundation\n#if canImport(CoreGraphics)\nimport CoreGraphics\n#endif\nenum BrowserDriver {\n' + helper + '\n}\n' + checks)
+            executable = Path(directory) / 'scroll'
+            compiled = subprocess.run(['swiftc', str(swift), '-o', str(executable)], capture_output=True, text=True, timeout=120)
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            result = subprocess.run([str(executable)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), 'ordinary-scroll-decision-passed')
+
+    @unittest.skipUnless(shutil.which('swiftc'), 'Swift compiler unavailable for no-AX identity readiness validation')
+    def test_ordinary_identity_waits_for_both_current_exact_references_with_fixed_deadline(self):
+        source = (Path(__file__).parent / 'ios_browser_driver/OrdinaryProductSmoke.swift').read_text()
+        helper = source.split('// BEGIN ORDINARY IDENTITY READINESS\n', 1)[1].split('// END ORDINARY IDENTITY READINESS', 1)[0]
+        checks = r'''
+let start = Date(timeIntervalSince1970: 100)
+let deadline = start.addingTimeInterval(40)
+let account = "Account reference: sha256:" + String(repeating: "a", count: 64)
+let organization = "Organization reference: sha256:" + String(repeating: "b", count: 64)
+var readiness = BrowserDriver.OrdinaryIdentityReadiness()
+func observe(_ labels: [String: [String]], at seconds: Double = 0, current: Bool = true) -> String {
+  readiness.observe(labels: labels, contextCurrent: current, now: start.addingTimeInterval(seconds), deadline: deadline)
+}
+assert(observe(["account": ["Account reference: Loading"], "organization": ["Organization reference: Loading"]]) == "wait")
+assert(readiness.observed.isEmpty)
+assert(observe(["account": [account], "organization": ["Organization reference: Loading"]], at: 1) == "wait")
+assert(observe(["account": [account], "organization": [organization]], at: 2) == "ready")
+assert(observe(["account": ["Account reference: Loading"], "organization": [organization]], at: 2.25) == "wait")
+assert(readiness.observed == ["account": String(repeating: "a", count: 64), "organization": String(repeating: "b", count: 64)])
+assert(observe(["account": ["Account reference: sha256:" + String(repeating: "c", count: 64)], "organization": [organization]], at: 3) == "context-changed")
+for invalid in [String(repeating: "a", count: 63), String(repeating: "a", count: 65), String(repeating: "A", count: 64),
+                String(repeating: "a", count: 64) + " other", String(repeating: "a", count: 64) + " sha256:" + String(repeating: "b", count: 64)] {
+  readiness = BrowserDriver.OrdinaryIdentityReadiness()
+  assert(observe(["account": ["Account reference: sha256:" + invalid], "organization": [organization]]) == "malformed")
+}
+readiness = BrowserDriver.OrdinaryIdentityReadiness()
+assert(observe(["account": [account, account], "organization": [organization]]) == "ambiguous")
+assert(observe(["account": [account], "organization": [organization]], current: false) == "context-changed")
+assert(readiness.observed.isEmpty)
+assert(observe(["account": [account], "organization": [organization]], at: 40) == "timeout")
+assert(readiness.observed.isEmpty)
+assert(observe(["account": ["Account reference: Loading"]], at: 39.75) == "wait")
+assert(observe(["account": [account], "organization": [organization]], at: 41) == "timeout")
+assert(readiness.observed.isEmpty)
+print("ordinary-identity-readiness-passed")
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            swift = Path(directory) / 'main.swift'
+            swift.write_text('import Foundation\nenum BrowserDriver {\n' + helper + '\n}\n' + checks)
+            executable = Path(directory) / 'identity'
+            compiled = subprocess.run(['swiftc', str(swift), '-o', str(executable)], capture_output=True, text=True, timeout=120)
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            result = subprocess.run([str(executable)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), 'ordinary-identity-readiness-passed')
+
     @unittest.skipUnless(shutil.which('swiftc'), 'Swift compiler is unavailable for the no-AX receipt reducer')
     def test_admin_receipt_fresh_approval_and_resume_execute_actual_swift_reducer(self):
         source = (Path(__file__).parent / 'native_macos_appauth_driver.swift').read_text()
@@ -502,7 +835,12 @@ print("receipt-reducer-passed")
         self.assertIn('NSPredicate(format: "label IN %@", Self.signInLabels)', driver)
         self.assertIn('XCTAssertEqual(signInControls.count, 1)', driver)
         self.assertIn('XCTAssertTrue(signIn.isHittable', driver)
-        self.assertNotIn('label CONTAINS', driver.split('if fixture.phase == "initial" {', 1)[1].split('var usernameSubmitted', 1)[0])
+        initial = driver.split('if fixture.phase == "initial" {', 1)[1].split('var usernameSubmitted', 1)[0]
+        # Browser-origin observations may inspect host text; actual sign-in
+        # button queries must still use exact supported labels, never substrings.
+        for line in initial.splitlines():
+            if 'app.buttons.matching' in line:
+                self.assertNotIn('CONTAINS', line)
 
     def test_consent_requires_global_uniqueness_before_any_native_tap(self):
         driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
@@ -972,7 +1310,11 @@ print("receipt-reducer-passed")
         self.assertLess(submitted.index('guard waitForNativeWorkspace'), submitted.index('status=passed phase=form-submitted'))
         wait = driver.split('func waitForNativeWorkspace', 1)[1].split('func testNativeDocumentPicker', 1)[0]
         self.assertIn('(fixture.ordinaryOrganizationOrigin == nil && Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath))', wait)
-        self.assertIn('(fixture.ordinaryOrganizationOrigin != nil && Self.ordinaryWorkspaceObserved(app))', wait)
+        self.assertIn('func ordinaryWorkspaceReady()', wait)
+        self.assertIn('fixture.ordinaryOrganizationOrigin != nil, app.state == .runningForeground', wait)
+        self.assertIn('Self.ordinaryWorkspaceObserved(app)', wait)
+        self.assertIn('controls.element.isEnabled && controls.element.isHittable', wait)
+        self.assertIn('if ordinaryWorkspaceReady() ||', wait)
         ordinary = (Path(__file__).parent / 'ios_browser_driver/OrdinaryProductSmoke.swift').read_text()
         workspace = ordinary.split('static func ordinaryWorkspaceObserved', 1)[1].split('struct OrdinaryScrollBudget', 1)[0]
         for identifier in ('nav-chat', 'nav-files', 'nav-calendar', 'nav-settings'):

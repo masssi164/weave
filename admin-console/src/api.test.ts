@@ -5,6 +5,49 @@ const actorFor = (organizationId: string, identityIssuer = "https://auth.example
 
 // V01_ADMIN_CONSOLE_MVP: Admin Console may call only Weave backend admin APIs, not optional provider APIs.
 describe("AdminControlPlaneApi provider boundary", () => {
+  it("projects only current role grants without unioning other capability profiles", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => new Response(JSON.stringify(
+      String(input).includes("/audit/events") ? [] : {
+        organizationId: "fixture-organization",
+        currentActor: actorFor("fixture-organization"),
+        whitelist: {
+          effectiveCapabilities: ["files.read", "files.read"],
+          profileCapabilities: {
+            "workspace-admin": ["admin.policy.edit"],
+            "group:/capabilities/weaver": ["agent-runtime.entitled"],
+          },
+        },
+      },
+    ), { status: 200, headers: { "Content-Type": "application/json" } }));
+    const api = new AdminControlPlaneApi({ apiBaseUrl: "https://api.example.invalid/api", oidcIssuerUrl: "https://auth.example.invalid", oidcClientId: "weave-admin-console" }, fetcher);
+
+    expect((await api.getControlPlane()).whitelistPolicy).toEqual({
+      available: true,
+      roleCapabilities: ["files.read"],
+    });
+  });
+
+  it.each([
+    { name: "missing whitelist", whitelist: undefined, available: false },
+    { name: "missing current grants", whitelist: { profileCapabilities: { "workspace-admin": ["admin.policy.edit"] } }, available: false },
+    { name: "invalid current grants", whitelist: { effectiveCapabilities: "files.read" }, available: false },
+    { name: "explicit empty grants", whitelist: { effectiveCapabilities: [] }, available: true },
+  ])("distinguishes $name when reading the current role projection", async ({ whitelist, available }) => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => new Response(JSON.stringify(
+      String(input).includes("/audit/events") ? [] : {
+        organizationId: "fixture-organization",
+        currentActor: actorFor("fixture-organization"),
+        whitelist,
+      },
+    ), { status: 200, headers: { "Content-Type": "application/json" } }));
+    const api = new AdminControlPlaneApi({ apiBaseUrl: "https://api.example.invalid/api", oidcIssuerUrl: "https://auth.example.invalid", oidcClientId: "weave-admin-console" }, fetcher);
+
+    expect((await api.getControlPlane()).whitelistPolicy).toEqual({
+      available,
+      roleCapabilities: [],
+    });
+  });
+
   it("uses the generated Admin current actor with its own bearer and retains unauthorized status", async () => {
     const received: Array<{url: string; bearer: string | null}> = [];
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

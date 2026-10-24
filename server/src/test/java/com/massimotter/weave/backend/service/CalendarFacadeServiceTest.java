@@ -677,7 +677,8 @@ class CalendarFacadeServiceTest {
         return new WorkspaceCapabilityService(
                 resourceServer,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new WorkspaceCapabilityProperties(null, null, null,
+                        new WorkspaceCapabilityProperties.Capability(true, null, null), null, null));
     }
 
     private static class StubCalendarProvider implements CalendarProviderPort {

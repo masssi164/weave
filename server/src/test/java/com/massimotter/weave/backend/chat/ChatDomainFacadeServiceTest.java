@@ -24,11 +24,16 @@ import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightRequest;
 import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
+import com.massimotter.weave.backend.chat.domain.ChatActorRef;
+import com.massimotter.weave.backend.chat.domain.ChatIdentityRef;
+import com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity;
+import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
 import com.massimotter.weave.backend.chat.port.ChatProviderPort;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.identity.IdentityReferences;
+import com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
@@ -744,6 +749,182 @@ class ChatDomainFacadeServiceTest {
         assertThatThrownBy(() -> service.createConversation("direct-transaction", "Direct", "direct", List.of(peer), memberJwt()))
                 .isInstanceOf(ChatAccessDeniedException.class);
         verify(provider, times(1)).createConversation(any(ChatRequestContext.class), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void selectedEmptySpaceSupportsDiscoveryFirstRoomAndSendWithoutDefaultSpaceAccess() {
+        var fixture = selectedSpaceFixture();
+        Jwt jwt = unscopedMemberJwt();
+        assertThat(fixture.service().conversations(jwt).conversations()).isEmpty();
+        assertThatThrownBy(() -> fixture.service().requireParticipantDiscovery(jwt))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        assertThat(fixture.service().canDiscoverParticipant(jwt, selectedPeer(), "space-project")).isTrue();
+
+        var room = fixture.service().createConversation("first-selected-room", "Project", "channel", List.of(),
+                ChatEncryptionState.unencrypted(), jwt, "space-project");
+        fixture.service().sendEvent(room.conversationId(), "first-selected-message",
+                ChatEventContent.text("First message"), jwt);
+        assertThat(fixture.service().conversations(jwt).conversations())
+                .extracting(conversation -> conversation.conversationId()).containsExactly(room.conversationId());
+        assertThat(fixture.service().messages(room.conversationId(), jwt).messages())
+                .extracting(message -> message.body()).containsExactly("First message");
+        verify(fixture.provider()).createConversation(
+                org.mockito.ArgumentMatchers.<ChatRequestContext>argThat(context -> context.contextId().equals("space-project")),
+                any(), eq("Project"), eq("channel"), eq(List.of()), eq(ChatEncryptionState.unencrypted()));
+        verify(fixture.members()).requireCurrentMember(jwt, jwt.getIssuer().toString(), jwt.getSubject());
+    }
+
+    @Test
+    void selectedSpaceRechecksCallerAndRecipientAccessInsteadOfFallingBack() {
+        var fixture = selectedSpaceFixture();
+        Jwt jwt = unscopedMemberJwt();
+        assertThat(fixture.service().canDiscoverParticipant(jwt, selectedPeer(), "space-project")).isTrue();
+        String issuer = jwt.getIssuer().toString();
+        when(fixture.spaces().allows("weave-dogfood", "space-project",
+                IdentityReferences.accountId(issuer, "peer"), SpaceAccessPort.Permission.VIEW)).thenReturn(false);
+        assertThat(fixture.service().canDiscoverParticipant(jwt, selectedPeer(), "space-project")).isFalse();
+        assertThatThrownBy(() -> fixture.service().createConversation("revoked-peer", "Direct", "direct",
+                List.of(selectedPeer()), ChatEncryptionState.unencrypted(), jwt, "space-project"))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        when(fixture.spaces().allows("weave-dogfood", "space-project",
+                IdentityReferences.accountId(issuer, "member-123"), SpaceAccessPort.Permission.EDIT)).thenReturn(false);
+        assertThatThrownBy(() -> fixture.service().createConversation("read-only-space", "Project", "channel",
+                List.of(), ChatEncryptionState.unencrypted(), jwt, "space-project"))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        // A visible alternative must never substitute for the explicitly selected inaccessible Space.
+        for (String denied : List.of("space-revoked", "space-foreign", "space-missing")) {
+            assertThatThrownBy(() -> fixture.service().requireParticipantDiscovery(jwt, denied))
+                    .isInstanceOf(ChatAccessDeniedException.class);
+            assertThatThrownBy(() -> fixture.service().createConversation("denied-room", "Project", "channel",
+                    List.of(), ChatEncryptionState.unencrypted(), jwt, denied))
+                    .isInstanceOf(ChatAccessDeniedException.class);
+        }
+        when(fixture.spaces().allows("weave-dogfood", "space-project",
+                IdentityReferences.accountId(issuer, "member-123"), SpaceAccessPort.Permission.VIEW)).thenReturn(false);
+        assertThatThrownBy(() -> fixture.service().requireParticipantDiscovery(jwt, "space-project"))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        verify(fixture.provider(), never()).createConversation(any(ChatRequestContext.class), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void selectedCreationRechecksCurrentOrganizationBeforeEveryRetry() {
+        var fixture = selectedSpaceFixture();
+        Jwt jwt = unscopedMemberJwt();
+        var first = fixture.service().createConversation("selected-direct", "Direct", "direct",
+                List.of(selectedPeer()), ChatEncryptionState.unencrypted(), jwt, "space-project");
+        assertThat(first.kind()).isEqualTo("direct");
+        Mockito.doThrow(new CurrentOrganizationMemberQuery.Denied()).when(fixture.members())
+                .requireCurrentMember(any(), eq(jwt.getIssuer().toString()), eq("peer"));
+        assertThatThrownBy(() -> fixture.service().createConversation("selected-direct", "Direct", "direct",
+                List.of(selectedPeer()), ChatEncryptionState.unencrypted(), jwt, "space-project"))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        Mockito.doThrow(new CurrentOrganizationMemberQuery.Denied()).when(fixture.members())
+                .requireCurrentMember(any(), eq(jwt.getIssuer().toString()), eq("member-123"));
+        assertThatThrownBy(() -> fixture.service().createConversation("selected-channel", "Project", "channel",
+                List.of(), ChatEncryptionState.unencrypted(), jwt, "space-project"))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        verify(fixture.provider(), times(1)).createConversation(any(ChatRequestContext.class), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void selectedSpaceCannotOverrideEitherExplicitTokenContextClaim() {
+        var fixture = selectedSpaceFixture();
+        for (Map<String, String> boundaries : List.of(
+                Map.of("weave_context_id", "workspace-default"),
+                Map.of("context_id", "workspace-default"),
+                Map.of("weave_context_id", "space-project", "context_id", "workspace-default"))) {
+            Jwt jwt = Jwt.withTokenValue("bounded-token").headers(headers -> headers.putAll(unscopedMemberJwt().getHeaders()))
+                    .claims(claims -> { claims.putAll(unscopedMemberJwt().getClaims()); claims.putAll(boundaries); }).build();
+            assertThatThrownBy(() -> fixture.service().requireParticipantDiscovery(jwt, "space-project"))
+                    .isInstanceOf(ChatAccessDeniedException.class);
+            assertThatThrownBy(() -> fixture.service().createConversation("bounded-create", "Project", "channel",
+                    List.of(), ChatEncryptionState.unencrypted(), jwt, "space-project"))
+                    .isInstanceOf(ChatAccessDeniedException.class);
+        }
+        Jwt matching = Jwt.withTokenValue("matching-token").headers(headers -> headers.putAll(unscopedMemberJwt().getHeaders()))
+                .claims(claims -> { claims.putAll(unscopedMemberJwt().getClaims()); claims.put("context_id", "space-project"); }).build();
+        fixture.service().requireParticipantDiscovery(matching, "space-project");
+        verify(fixture.provider(), never()).createConversation(any(ChatRequestContext.class), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void selectedSpaceRejectsForeignRecipientAndMalformedReferences() {
+        var fixture = selectedSpaceFixture();
+        Jwt jwt = unscopedMemberJwt();
+        for (var peer : List.of(
+                new ChatResolvedIdentity(new ChatIdentityRef("foreign-org", jwt.getIssuer().toString(),
+                        new ChatActorRef("user:peer")), "user:peer"),
+                new ChatResolvedIdentity(new ChatIdentityRef("weave-dogfood", "https://foreign.invalid/realm",
+                        new ChatActorRef("user:peer")), "user:peer"))) {
+            assertThat(fixture.service().canDiscoverParticipant(jwt, peer, "space-project")).isFalse();
+            assertThatThrownBy(() -> fixture.service().createConversation("foreign-invite", "Project", "channel",
+                    List.of(peer), ChatEncryptionState.unencrypted(), jwt, "space-project"))
+                    .isInstanceOf(ChatAccessDeniedException.class);
+        }
+        for (String invalid : List.of("", " ", "space/other", "space,other", "x".repeat(256))) {
+            assertThatThrownBy(() -> fixture.service().requireParticipantDiscovery(jwt, invalid))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+        verify(fixture.provider(), never()).createConversation(any(ChatRequestContext.class), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void maximumCanonicalSpaceReferenceAndUnselectedDefaultRetainTheirOwnContexts() {
+        var fixture = selectedSpaceFixture();
+        Jwt jwt = unscopedMemberJwt();
+        String actor = IdentityReferences.accountId(jwt.getIssuer().toString(), jwt.getSubject());
+        String longestRef = "space:" + "x".repeat(249);
+        for (String space : List.of(longestRef, "workspace-default")) {
+            when(fixture.spaces().allows(eq("weave-dogfood"), eq(space), eq(actor), any())).thenReturn(true);
+        }
+        fixture.service().requireParticipantDiscovery(jwt, longestRef);
+        fixture.service().createConversation("long-space-create", "Long reference", "channel", List.of(),
+                ChatEncryptionState.unencrypted(), jwt, longestRef);
+        fixture.service().requireParticipantDiscovery(jwt);
+        fixture.service().createConversation("default-space-create", "Default", "channel", List.of(), jwt);
+        var contexts = ArgumentCaptor.forClass(ChatRequestContext.class);
+        verify(fixture.provider(), times(2)).createConversation(contexts.capture(), any(), any(), any(), any(), any());
+        assertThat(contexts.getAllValues()).extracting(context -> context.contextId())
+                .containsExactly(longestRef, "workspace-default");
+    }
+
+    private SelectedSpaceFixture selectedSpaceFixture() {
+        var selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "in-memory-test", false, List.of()));
+        var capabilities = Mockito.mock(WorkspaceCapabilityService.class);
+        var snapshot = new WorkspaceCapabilitiesResponse(capability(), capability(), capability(), capability(), capability(), capability());
+        when(capabilities.snapshot()).thenReturn(snapshot);
+        when(capabilities.snapshot(any())).thenReturn(snapshot);
+        var spaces = Mockito.mock(SpaceAccessPort.class);
+        String issuer = unscopedMemberJwt().getIssuer().toString();
+        String actor = IdentityReferences.accountId(issuer, "member-123");
+        when(spaces.allows(eq("weave-dogfood"), eq("space-project"), eq(actor), any())).thenReturn(true);
+        when(spaces.allows("weave-dogfood", "space-project", IdentityReferences.accountId(issuer, "peer"),
+                SpaceAccessPort.Permission.VIEW)).thenReturn(true);
+        when(spaces.visibleSpaceRefs("weave-dogfood", actor, "", 100)).thenReturn(List.of("space-project"));
+        var provider = Mockito.spy(new WeaveCanonicalChatAdapter());
+        var members = Mockito.mock(CurrentOrganizationMemberQuery.class);
+        var service = new ChatDomainFacadeService(
+                new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections), selections, capabilities,
+                new InMemoryAuditEventPublisher(), provider, allowAllContexts(), contextProperties(),
+                OrganizationIdentityContextResolver.configured(contextProperties()), FIXED, null,
+                new DurableChatSpaceAccess(spaces), members);
+        return new SelectedSpaceFixture(service, spaces, provider, members);
+    }
+
+    private record SelectedSpaceFixture(ChatDomainFacadeService service, SpaceAccessPort spaces,
+            WeaveCanonicalChatAdapter provider, CurrentOrganizationMemberQuery members) {}
+
+    private ChatResolvedIdentity selectedPeer() {
+        return new ChatResolvedIdentity(new ChatIdentityRef("weave-dogfood",
+                unscopedMemberJwt().getIssuer().toString(), new ChatActorRef("user:peer")), "user:peer");
+    }
+
+    private Jwt unscopedMemberJwt() {
+        return Jwt.withTokenValue("unscoped-token").header("alg", "none")
+                .issuer("https://auth.example/realms/weave").subject("member-123")
+                .claim("weave_tenant_id", "weave-dogfood")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member")).build();
     }
 
     private ChatDomainFacadeService service(

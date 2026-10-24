@@ -175,6 +175,25 @@ class AppLocalizationsDe extends AppLocalizations {
       'Autorisierte letzte Workspace-Aktivität';
 
   @override
+  String get homeWorkspaceAccessUnavailable =>
+      'Der Zugriff auf deinen Arbeitsbereich konnte nicht geprüft werden.';
+
+  @override
+  String get homeWorkspaceActionsTitle => 'Dein Arbeitsbereich';
+
+  @override
+  String get homeOpenChat => 'Chat öffnen';
+
+  @override
+  String get homeOpenFiles => 'Dateien öffnen';
+
+  @override
+  String get homeOpenCalendar => 'Kalender öffnen';
+
+  @override
+  String get homeRefreshWorkspace => 'Arbeitsbereich aktualisieren';
+
+  @override
   String get homeRecentActivityLoading =>
       'Letzte Workspace-Aktivität wird geladen…';
 
@@ -333,7 +352,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatCreateConversationDescription =>
-      'Wähle einen Namen und Mitglieder für eine direkte Unterhaltung oder eine eingeschränkte Gruppe.';
+      'Wähle einen Space, einen Namen und Mitglieder für eine direkte Unterhaltung oder eine eingeschränkte Gruppe.';
 
   @override
   String get chatCreateConversationNameLabel => 'Name der Unterhaltung';
@@ -356,7 +375,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatCreateConversationFailure =>
-      'Die verschlüsselte Unterhaltung konnte nicht erstellt werden. Deine anderen Chat-Bereiche bleiben verfügbar. Versuche es erneut, sobald die Verbindung zurück ist.';
+      'Die Unterhaltung konnte nicht erstellt werden. Versuche es erneut oder bitte die Arbeitsbereichsadministration um Hilfe.';
 
   @override
   String get chatOverviewTitle => 'Weave Home';
@@ -715,7 +734,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesMisconfiguredMessage =>
-      'Schließe zuerst die Weave-Servereinrichtung ab, bevor du Dateien nutzt.';
+      'Dateien sind für diesen Arbeitsbereich noch nicht eingerichtet. Bitte die Arbeitsbereichsadministration, die Einrichtung abzuschließen.';
 
   @override
   String filesConnectionConnected(String accountLabel) {
@@ -3686,7 +3705,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatParticipantsHelp =>
-      'Personen in deiner Organisation nach Namen suchen.';
+      'Suche Personen für diese Unterhaltung nach Namen.';
 
   @override
   String get chatParticipantsSearchFailure =>
@@ -3899,4 +3918,33 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesListingEnd => 'Ende des Ordners';
+
+  @override
+  String get chatCreateSpaceLabel => 'Space';
+
+  @override
+  String get chatCreateSpaceHint => 'Space auswählen';
+
+  @override
+  String get chatCreateSpacesLoading => 'Spaces werden geladen…';
+
+  @override
+  String get chatCreateSpaceRequired => 'Wähle zuerst einen Space aus.';
+
+  @override
+  String get chatCreateSpaceUnavailable =>
+      'Dein Zugriff auf Spaces konnte nicht geprüft werden. Aktualisiere den Zugriff und versuche es erneut.';
+
+  @override
+  String chatCreateSpaceOrdinal(String name, int ordinal) {
+    return '$name ($ordinal)';
+  }
+
+  @override
+  String get chatSpaceScopeUnsupported =>
+      'Dieser Arbeitsbereich unterstützt die Space-Auswahl für Chat noch nicht. Bitte die Arbeitsbereichsadministration, Weave zu aktualisieren.';
+
+  @override
+  String get chatCreateSpaceChanged =>
+      'Dein Space-Zugriff hat sich während der Erstellung geändert. Aktualisiere die Unterhaltungen, bevor du es erneut versuchst.';
 }
