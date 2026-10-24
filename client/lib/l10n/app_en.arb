@@ -379,7 +379,7 @@
   "@chatCreateConversationTitle": {
     "description": "Title for the conversation creation dialog"
   },
-  "chatCreateConversationDescription": "Choose a name and members for a direct conversation or restricted group.",
+  "chatCreateConversationDescription": "Choose a Space, a name and members for a direct conversation or restricted group.",
   "@chatCreateConversationDescription": {
     "description": "Provider-neutral guidance in the conversation creation dialog"
   },
@@ -407,7 +407,7 @@
   "@chatCreateConversationSubmitting": {
     "description": "Progress label while an encrypted conversation is being created"
   },
-  "chatCreateConversationFailure": "The encrypted conversation could not be created. Your other Chat areas remain available; try again when the connection is back.",
+  "chatCreateConversationFailure": "The conversation could not be created. Try again or ask a workspace admin for help.",
   "@chatCreateConversationFailure": {
     "description": "Support-safe local error shown when conversation creation fails"
   },
@@ -4455,7 +4455,7 @@
     }
   },
   "chatParticipantsLabel": "Add people",
-  "chatParticipantsHelp": "Find people in your organization by name.",
+  "chatParticipantsHelp": "Find people for this conversation by name.",
   "chatParticipantsSearchFailure": "People could not be loaded. Try searching again.",
   "filesSpaceLabel": "Files location",
   "filesPrivateSpace": "My private files",
@@ -4582,5 +4582,24 @@
       }
     }
   },
-  "filesListingEnd": "End of folder"
+  "filesListingEnd": "End of folder",
+  "chatCreateSpaceLabel": "Space",
+  "chatCreateSpaceHint": "Choose a Space",
+  "chatCreateSpacesLoading": "Loading Spaces…",
+  "chatCreateSpaceRequired": "Choose a Space before continuing.",
+  "chatCreateSpaceUnavailable": "Your Space access could not be checked. Refresh it and try again.",
+  "chatCreateSpaceOrdinal": "{name} ({ordinal})",
+  "@chatCreateSpaceOrdinal": {
+    "description": "Disambiguates equal current Space names without exposing their stable references.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "ordinal": {
+        "type": "int"
+      }
+    }
+  },
+  "chatSpaceScopeUnsupported": "This workspace does not support selecting a Space for Chat yet. Ask a workspace admin to update Weave.",
+  "chatCreateSpaceChanged": "Your Space access changed while creating the conversation. Refresh conversations before trying again."
 }

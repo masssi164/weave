@@ -15,6 +15,7 @@ REQUIRED_ROWS = {
     "sync",
     "room-state",
     "room-send",
+    "space-scope",
     "redaction",
     "receipt",
     "typing",

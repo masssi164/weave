@@ -170,7 +170,10 @@ class _MutableChatRepository implements ChatRepository {
   }
 
   @override
-  Future<ChatConversation> createConversation({required String title}) {
+  Future<ChatConversation> createConversation({
+    required String title,
+    String? spaceRef,
+  }) {
     throw UnimplementedError();
   }
 

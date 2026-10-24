@@ -310,13 +310,18 @@ fn wire__crate__frb_api__matrix_create_business_room_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_profile_key = <String>::sse_decode(&mut deserializer);
             let api_title = <String>::sse_decode(&mut deserializer);
+            let api_space_ref = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, ()>(
                     (move || async move {
                         let output_ok = Result::<_, ()>::Ok(
-                            crate::frb_api::matrix_create_business_room(api_profile_key, api_title)
-                                .await,
+                            crate::frb_api::matrix_create_business_room(
+                                api_profile_key,
+                                api_title,
+                                api_space_ref,
+                            )
+                            .await,
                         )?;
                         Ok(output_ok)
                     })()
@@ -352,6 +357,7 @@ fn wire__crate__frb_api__matrix_create_business_room_with_members_impl(
             let api_title = <String>::sse_decode(&mut deserializer);
             let api_member_ids = <Vec<String>>::sse_decode(&mut deserializer);
             let api_is_direct = <bool>::sse_decode(&mut deserializer);
+            let api_space_ref = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, ()>(
@@ -362,6 +368,7 @@ fn wire__crate__frb_api__matrix_create_business_room_with_members_impl(
                                 api_title,
                                 api_member_ids,
                                 api_is_direct,
+                                api_space_ref,
                             )
                             .await,
                         )?;
@@ -973,12 +980,18 @@ fn wire__crate__frb_api__matrix_search_members_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_profile_key = <String>::sse_decode(&mut deserializer);
             let api_query = <String>::sse_decode(&mut deserializer);
+            let api_space_ref = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, ()>(
                     (move || async move {
                         let output_ok = Result::<_, ()>::Ok(
-                            crate::frb_api::matrix_search_members(api_profile_key, api_query).await,
+                            crate::frb_api::matrix_search_members(
+                                api_profile_key,
+                                api_query,
+                                api_space_ref,
+                            )
+                            .await,
                         )?;
                         Ok(output_ok)
                     })()
@@ -1266,6 +1279,17 @@ impl SseDecode for Vec<u8> {
     }
 }
 
+impl SseDecode for Option<String> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<String>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for u32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1417,6 +1441,16 @@ impl SseEncode for Vec<u8> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <u8>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<String> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <String>::sse_encode(value, serializer);
         }
     }
 }

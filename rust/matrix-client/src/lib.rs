@@ -115,12 +115,20 @@ pub mod frb_api {
     }
 
     #[cfg(feature = "flutter")]
-    pub async fn matrix_create_business_room(profile_key: String, title: String) -> String {
-        crate::flutter_crypto::create_business_room(profile_key, title).await
+    pub async fn matrix_create_business_room(
+        profile_key: String,
+        title: String,
+        space_ref: Option<String>,
+    ) -> String {
+        crate::flutter_crypto::create_business_room(profile_key, title, space_ref).await
     }
     #[cfg(feature = "flutter")]
-    pub async fn matrix_search_members(profile_key: String, query: String) -> String {
-        crate::flutter_crypto::search_members(profile_key, query).await
+    pub async fn matrix_search_members(
+        profile_key: String,
+        query: String,
+        space_ref: Option<String>,
+    ) -> String {
+        crate::flutter_crypto::search_members(profile_key, query, space_ref).await
     }
     #[cfg(feature = "flutter")]
     pub async fn matrix_create_business_room_with_members(
@@ -128,12 +136,14 @@ pub mod frb_api {
         title: String,
         member_ids: Vec<String>,
         is_direct: bool,
+        space_ref: Option<String>,
     ) -> String {
         crate::flutter_crypto::create_business_room_with_members(
             profile_key,
             title,
             member_ids,
             is_direct,
+            space_ref,
         )
         .await
     }

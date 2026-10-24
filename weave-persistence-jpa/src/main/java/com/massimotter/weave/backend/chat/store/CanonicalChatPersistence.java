@@ -204,7 +204,7 @@ class ChatConversationJpaEntity {
   @Column(name = "version", nullable = false)
   private Long version;
 
-  @Column(name = "context_id", nullable = false, length = 160, updatable = false)
+  @Column(name = "context_id", nullable = false, length = 255, updatable = false)
   private String contextId;
 
   @Column(name = "title", nullable = false, length = 512)
@@ -552,7 +552,7 @@ class ChatOperationJpaEntity {
   @Column(name = "version", nullable = false)
   private Long version;
 
-  @Column(name = "context_id", nullable = false, length = 160, updatable = false)
+  @Column(name = "context_id", nullable = false, length = 255, updatable = false)
   private String contextId;
 
   @Column(name = "operation_type", nullable = false, length = 48, updatable = false)

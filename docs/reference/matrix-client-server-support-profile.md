@@ -23,6 +23,7 @@ Server Matrix wire parsing and projection belong to `rust/matrix-protocol` throu
 | sync | `/sync` | Supported | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#syncProjectsCanonicalChatThroughRustWithStableWeaveCursor` | `client/integration_test/system_browser_auth_e2e_test.dart#one fresh sign-in makes Files Calendar and native Matrix usable` | evidence: `docs/evidence/matrix/release-business-room-v3.md` |
 | room-state | Joined rooms, members, state and timeline reads | Supported | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#joinedRoomsAndMessagesUseCanonicalIdentifiers` | `client/integration_test/system_browser_auth_e2e_test.dart#one fresh sign-in makes Files Calendar and native Matrix usable` | evidence: `docs/evidence/matrix/release-business-room-v3.md` |
 | room-send | Room event send with `txnId` | Supported | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#sendParsesInRustAndForwardsTransactionForCanonicalIdempotency` | `client/integration_test/system_browser_auth_e2e_test.dart#one fresh sign-in makes Files Calendar and native Matrix usable` | evidence: `docs/evidence/matrix/release-business-room-v3.md` |
+| space-scope | Named Space selection for room creation and participant search | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#selectedCreationRetainsEncryptionAndSeparatesIdempotencyBySpace` | pending | Explicit selection and capability negotiation require same-build native client qualification in an authorized non-default Space; existing default-Space evidence does not qualify this extension. |
 | redaction | Room redaction | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#redactionProjectsItsOwnEventIdInsteadOfReusingTheTargetId` | pending | Canonical mutation, authorization and provider-neutral readback are not integrated proof. |
 | receipt | Read receipts | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat` | pending | Durable multi-instance receipt state and independent client are unproven. |
 | typing | Typing | Guarded | `server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java#stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat` | pending | Typing is ephemeral; loss across restart is allowed, but authorization and client behavior need proof. |
@@ -52,6 +53,47 @@ The server name in an authenticated Matrix user ID returned by `/account/whoami`
 The selected `ChatProviderPort` is southbound. Changing its one active organization/module binding must not change the member Matrix URL or stable Matrix references. A staged candidate must not receive member traffic. The current single-organization deployment must have a durable matching `(organization, chat)` binding before its configured adapter can admit Chat traffic. Startup refuses a conflicting binding, and replacement remains blocked until #1498 verifies provider reconciliation. This binding guard does not qualify any Guarded Matrix route or prove provider replacement.
 
 Internal direct conversations use explicit direct intent, current organization membership and Space policy checks before canonical admission of exactly two members. On the native provider, standard `m.direct` account data classifies that admitted room in the SDK; it does not grant access. Restricted group invitations remain pending until explicit acceptance. The Synapse adapter currently rejects direct admission before preparation because recipient admission has not been qualified there. These implementation boundaries remain pending integrated qualification and do not promote a support-profile row.
+
+## Selected Space extension
+
+Conformance repair [#1714](https://github.com/masssi164/weave/issues/1714) carries an
+explicit Space selection through the existing Matrix room-creation and participant
+directory routes. It implements the pinned Spaces and Chat requirements; it does
+not introduce a new resource authority or a proprietary Chat-message API.
+
+The Weave-owned client selects a readable name from its current generated User API
+Space list. The corresponding opaque reference is carried only on
+`POST /_matrix/client/v3/createRoom` and
+`POST /_matrix/client/v3/user_directory/search`, in `X-Weave-Space-Ref`. The client
+first requires `/versions` to advertise `unstable_features["org.weave.space_scope"]`
+as `true`. Without that capability it reports
+`M_WEAVE_CHAT_SPACE_SCOPE_UNSUPPORTED` before either scoped request, so an older
+server cannot ignore selection and silently act in the default Space. The feature
+flag negotiates this implementation extension; it does not promote the Guarded
+compatibility claim.
+
+The header follows the canonical Space-reference shape and maximum length. It is
+request-local, never a mutable SDK-wide context. The server checks the current
+organization, current actor VIEW for discovery or EDIT for creation, and current
+recipient eligibility in that same Space. An explicit token context must agree
+with the selected reference. Missing, revoked, suspended, foreign or conflicting
+access fails closed without choosing another Space. The selected reference also
+scopes the create transaction identity. No header grants access, provisions a
+Space or repairs a membership.
+
+Requests without the header retain the existing token-context/default behavior.
+Room listing, opening and sending continue to resolve the canonical room's own
+Space. Changing the selection clears pending participant choices and invalidates
+stale search results. A sole visible Space can be selected by its name; several
+visible Spaces require an explicit choice, with equal names disambiguated without
+exposing opaque references.
+
+This extension remains Guarded until the exact deployed build demonstrates the
+ordinary named selection, first conversation, participant discovery and immediate
+send through the real native client, including a member with no default-Space
+grant. Revoked/foreign access and old-server refusal must also be covered. Local
+widget, native request and server tests prove their respective boundaries only;
+they are not Mac mini deployment or physical acceptance evidence.
 
 ## Qualification gate
 

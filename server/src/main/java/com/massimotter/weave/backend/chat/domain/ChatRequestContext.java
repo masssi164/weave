@@ -9,7 +9,7 @@ public record ChatRequestContext(
 
     public ChatRequestContext {
         tenantId = required(tenantId, "chat tenant", 160);
-        contextId = required(contextId, "chat context", 160);
+        contextId = required(contextId, "chat context", 255);
         identityIssuer = required(identityIssuer, "identity issuer", 512);
         if (actorRef == null) {
             throw new IllegalArgumentException("chat actor is required");

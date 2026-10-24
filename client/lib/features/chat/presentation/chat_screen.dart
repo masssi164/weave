@@ -6,34 +6,26 @@ import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_participant.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/presentation/chat_admission_gate.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// The Chat feature screen.
 ///
 /// Uses [CustomScrollView] with a [SliverAppBar] and shows loading,
 /// empty, or error states via the shared core widgets.
-class ChatScreen extends StatelessWidget {
+class ChatScreen extends ConsumerWidget {
   const ChatScreen({super.key});
 
   @override
-  Widget build(BuildContext context) =>
-      const ChatAdmissionGate(child: _AdmittedChatScreen());
-}
-
-class _AdmittedChatScreen extends ConsumerWidget {
-  const _AdmittedChatScreen();
-
-  @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final state = ref.watch(chatProvider);
-
     Future<void> openConversation(ChatConversation conversation) async {
       final router = GoRouter.maybeOf(context);
       if (router != null) {
@@ -50,23 +42,15 @@ class _AdmittedChatScreen extends ConsumerWidget {
           ),
         );
       }
-      await ref.read(chatProvider.notifier).retry();
+      if (context.mounted) {
+        await ref.read(chatProvider.notifier).retry();
+      }
     }
 
     Future<void> createConversation() async {
       final conversation = await showDialog<ChatConversation>(
         context: context,
-        builder: (dialogContext) => _CreateConversationDialog(
-          onCreate: (title, participants, isDirect) => ref
-              .read(chatProvider.notifier)
-              .createConversation(
-                title: title,
-                participants: participants,
-                isDirect: isDirect,
-              ),
-          onSearchMembers: (query) =>
-              ref.read(chatProvider.notifier).searchMembers(query),
-        ),
+        builder: (_) => const _CreateConversationDialog(),
       );
       if (conversation == null || !context.mounted) {
         return;
@@ -74,6 +58,28 @@ class _AdmittedChatScreen extends ConsumerWidget {
       await openConversation(conversation);
     }
 
+    return ChatAdmissionGate(
+      child: _AdmittedChatScreen(
+        onOpenConversation: openConversation,
+        onCreateConversation: createConversation,
+      ),
+    );
+  }
+}
+
+class _AdmittedChatScreen extends ConsumerWidget {
+  const _AdmittedChatScreen({
+    required this.onOpenConversation,
+    required this.onCreateConversation,
+  });
+
+  final ValueChanged<ChatConversation> onOpenConversation;
+  final VoidCallback onCreateConversation;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final state = ref.watch(chatProvider);
     final canCreateConversation =
         state.phase == ChatViewPhase.content ||
         state.phase == ChatViewPhase.empty;
@@ -88,7 +94,7 @@ class _AdmittedChatScreen extends ConsumerWidget {
               child: IconButton(
                 key: const Key('chat-create-conversation-button'),
                 tooltip: l10n.chatCreateConversationAction,
-                onPressed: canCreateConversation ? createConversation : null,
+                onPressed: canCreateConversation ? onCreateConversation : null,
                 icon: const Icon(Icons.add_comment_outlined),
               ),
             ),
@@ -142,7 +148,7 @@ class _AdmittedChatScreen extends ConsumerWidget {
           ),
           ChatViewPhase.content => _ChatOverviewSliver(
             conversations: state.conversations,
-            onOpenConversation: openConversation,
+            onOpenConversation: onOpenConversation,
           ),
         },
       ],
@@ -150,26 +156,16 @@ class _AdmittedChatScreen extends ConsumerWidget {
   }
 }
 
-class _CreateConversationDialog extends StatefulWidget {
-  const _CreateConversationDialog({
-    required this.onCreate,
-    required this.onSearchMembers,
-  });
-
-  final Future<ChatConversation> Function(
-    String title,
-    List<ChatParticipant> participants,
-    bool isDirect,
-  )
-  onCreate;
-  final Future<List<ChatParticipant>> Function(String query) onSearchMembers;
+class _CreateConversationDialog extends ConsumerStatefulWidget {
+  const _CreateConversationDialog();
 
   @override
-  State<_CreateConversationDialog> createState() =>
+  ConsumerState<_CreateConversationDialog> createState() =>
       _CreateConversationDialogState();
 }
 
-class _CreateConversationDialogState extends State<_CreateConversationDialog> {
+class _CreateConversationDialogState
+    extends ConsumerState<_CreateConversationDialog> {
   final _nameController = TextEditingController();
   final _participantController = TextEditingController();
   final _selected = <String, ChatParticipant>{};
@@ -177,13 +173,95 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
   Timer? _searchTimer;
   var _searchSequence = 0;
   bool _searching = false;
-  bool _searchFailed = false;
+  Object? _searchFailure;
+  String? _selectedSpaceRef;
+  bool _initialSpaceResolved = false;
+  var _spaceSequence = 0;
+  bool _spaceInvalid = false;
 
   bool _isDirect = true;
   bool _participantInvalid = false;
   bool _submitting = false;
   bool _nameInvalid = false;
-  bool _creationFailed = false;
+  Object? _creationFailure;
+  bool _spaceChangedDuringCreate = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncAvailableSpaces(rebuild: false);
+    ref.listenManual(weaveApiMemberSpacesProvider, (_, _) {
+      _syncAvailableSpaces();
+    });
+    ref.listenManual(workspaceCapabilitySnapshotProvider, (_, _) {
+      _syncAvailableSpaces();
+    });
+  }
+
+  MemberSpaceAccessSnapshot? _currentAccess() {
+    final capabilities = ref.read(workspaceCapabilitySnapshotProvider);
+    final spaces = ref.read(weaveApiMemberSpacesProvider);
+    if (capabilities.isLoading ||
+        capabilities.hasError ||
+        capabilities.asData?.value.chat.isReady != true ||
+        spaces.isLoading ||
+        spaces.hasError) {
+      return null;
+    }
+    final access = spaces.asData?.value;
+    if (access == null ||
+        !access.hasChatSpace ||
+        access.visibleSpaceRefs.any(
+          (space) => access.displayNameFor(space)?.trim().isEmpty != false,
+        )) {
+      return null;
+    }
+    return access;
+  }
+
+  void _syncAvailableSpaces({bool rebuild = true}) {
+    final access = _currentAccess();
+    final available = access?.visibleSpaceRefs ?? const <String>{};
+    final initialDiscovery = !_initialSpaceResolved && access != null;
+    if (access != null) _initialSpaceResolved = true;
+    final next = available.contains(_selectedSpaceRef)
+        ? _selectedSpaceRef
+        : initialDiscovery && available.length == 1
+        ? available.single
+        : null;
+    if (next == _selectedSpaceRef) return;
+    if (rebuild) {
+      if (mounted) setState(() => _changeSpace(next));
+    } else {
+      _changeSpace(next);
+    }
+  }
+
+  void _changeSpace(String? spaceRef) {
+    _selectedSpaceRef = spaceRef;
+    _spaceSequence++;
+    _searchSequence++;
+    _searchTimer?.cancel();
+    _participantController.clear();
+    _selected.clear();
+    _results = const [];
+    _searching = false;
+    _searchFailure = null;
+    _creationFailure = null;
+    _spaceChangedDuringCreate = false;
+    _spaceInvalid = false;
+    _participantInvalid = false;
+  }
+
+  bool _isCurrentSpace(String? spaceRef) =>
+      spaceRef != null &&
+      spaceRef == _selectedSpaceRef &&
+      _currentAccess()?.visibleSpaceRefs.contains(spaceRef) == true;
+
+  bool _isUnsupportedSpaceScope(Object? failure) =>
+      failure is ChatFailure &&
+      failure.type == ChatFailureType.unsupportedConfiguration &&
+      failure.message == 'M_WEAVE_CHAT_SPACE_SCOPE_UNSUPPORTED';
 
   @override
   void dispose() {
@@ -197,24 +275,40 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
   void _search(String query) {
     _searchTimer?.cancel();
     final sequence = ++_searchSequence;
+    final spaceRef = _selectedSpaceRef;
     setState(() {
-      _searchFailed = false;
+      _searchFailure = null;
       _results = const [];
-      _searching = query.trim().isNotEmpty;
+      _searching = query.trim().isNotEmpty && _isCurrentSpace(spaceRef);
     });
-    if (query.trim().isEmpty) return;
+    if (query.trim().isEmpty || !_isCurrentSpace(spaceRef)) return;
     _searchTimer = Timer(const Duration(milliseconds: 250), () async {
+      if (!mounted ||
+          sequence != _searchSequence ||
+          !_isCurrentSpace(spaceRef)) {
+        return;
+      }
       try {
-        final result = await widget.onSearchMembers(query.trim());
-        if (!mounted || sequence != _searchSequence) return;
+        final result = await ref
+            .read(chatProvider.notifier)
+            .searchMembers(query.trim(), spaceRef: spaceRef!);
+        if (!mounted ||
+            sequence != _searchSequence ||
+            !_isCurrentSpace(spaceRef)) {
+          return;
+        }
         setState(() {
           _results = result;
           _searching = false;
         });
-      } on Object {
-        if (!mounted || sequence != _searchSequence) return;
+      } on Object catch (error) {
+        if (!mounted ||
+            sequence != _searchSequence ||
+            !_isCurrentSpace(spaceRef)) {
+          return;
+        }
         setState(() {
-          _searchFailed = true;
+          _searchFailure = error;
           _searching = false;
         });
       }
@@ -225,11 +319,17 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
     if (_submitting) {
       return;
     }
+    final spaceRef = _selectedSpaceRef;
+    if (!_isCurrentSpace(spaceRef)) {
+      setState(() => _spaceInvalid = true);
+      return;
+    }
+    final spaceSequence = _spaceSequence;
     final title = _nameController.text.trim();
     if (title.isEmpty || title.runes.length > 200) {
       setState(() {
         _nameInvalid = true;
-        _creationFailed = false;
+        _creationFailure = null;
       });
       return;
     }
@@ -242,22 +342,37 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
       _submitting = true;
       _participantInvalid = false;
       _nameInvalid = false;
-      _creationFailed = false;
+      _creationFailure = null;
+      _spaceChangedDuringCreate = false;
     });
     try {
-      final conversation = await widget.onCreate(
-        title,
-        _selected.values.toList(growable: false),
-        _isDirect,
-      );
+      final conversation = await ref
+          .read(chatProvider.notifier)
+          .createConversation(
+            title: title,
+            participants: _selected.values.toList(growable: false),
+            isDirect: _isDirect,
+            spaceRef: spaceRef!,
+          );
       if (mounted) {
-        Navigator.of(context).pop(conversation);
+        if (spaceSequence != _spaceSequence || !_isCurrentSpace(spaceRef)) {
+          setState(() {
+            _submitting = false;
+            _spaceChangedDuringCreate = true;
+          });
+        } else {
+          Navigator.of(context).pop(conversation);
+        }
       }
-    } on Object {
+    } on Object catch (error) {
       if (mounted) {
         setState(() {
           _submitting = false;
-          _creationFailed = true;
+          if (spaceSequence != _spaceSequence || !_isCurrentSpace(spaceRef)) {
+            _spaceChangedDuringCreate = true;
+          } else {
+            _creationFailure = error;
+          }
         });
       }
     }
@@ -266,6 +381,25 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final spaces = ref.watch(weaveApiMemberSpacesProvider);
+    ref.watch(workspaceCapabilitySnapshotProvider);
+    final access = _currentAccess();
+    final available = access?.visibleSpaceRefs.toList() ?? <String>[];
+    available.sort((left, right) {
+      final byName = access!
+          .displayNameFor(left)!
+          .compareTo(access.displayNameFor(right)!);
+      return byName == 0 ? left.compareTo(right) : byName;
+    });
+    final hasSelectedSpace = _isCurrentSpace(_selectedSpaceRef);
+    String spaceLabel(String spaceRef) {
+      final name = access!.displayNameFor(spaceRef)!;
+      final ordinal = access.displayOrdinalFor(spaceRef);
+      return ordinal == null
+          ? name
+          : l10n.chatCreateSpaceOrdinal(name, ordinal);
+    }
+
     return AlertDialog(
       title: Text(l10n.chatCreateConversationTitle),
       content: SingleChildScrollView(
@@ -274,6 +408,65 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(l10n.chatCreateConversationDescription),
+            const SizedBox(height: 16),
+            Semantics(
+              identifier: 'chat-space-selector',
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: l10n.chatCreateSpaceLabel,
+                  errorText: _spaceInvalid
+                      ? l10n.chatCreateSpaceRequired
+                      : null,
+                ),
+                isEmpty: !hasSelectedSpace,
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    key: const Key('chat-create-space-selector'),
+                    value: hasSelectedSpace ? _selectedSpaceRef : null,
+                    isExpanded: true,
+                    hint: Text(
+                      spaces.isLoading
+                          ? l10n.chatCreateSpacesLoading
+                          : l10n.chatCreateSpaceHint,
+                    ),
+                    items: [
+                      for (final spaceRef in available)
+                        DropdownMenuItem(
+                          value: spaceRef,
+                          child: Semantics(
+                            identifier: 'chat-space-option-$spaceRef',
+                            child: Text(spaceLabel(spaceRef)),
+                          ),
+                        ),
+                    ],
+                    onChanged: _submitting || access == null
+                        ? null
+                        : (spaceRef) {
+                            if (spaceRef != _selectedSpaceRef) {
+                              setState(() => _changeSpace(spaceRef));
+                            }
+                          },
+                  ),
+                ),
+              ),
+            ),
+            if (access == null && !spaces.isLoading) ...[
+              Semantics(
+                liveRegion: true,
+                child: Text(l10n.chatCreateSpaceUnavailable),
+              ),
+              TextButton.icon(
+                onPressed: _submitting
+                    ? null
+                    : () => ref
+                        ..invalidate(weaveApiMemberSpacesProvider)
+                        ..invalidate(
+                          weaveApiWorkspaceCapabilitySnapshotProvider,
+                        ),
+                icon: const Icon(Icons.refresh),
+                label: Text(l10n.retryButton),
+              ),
+            ],
             const SizedBox(height: 16),
             Semantics(
               identifier: 'chat-conversation-name',
@@ -292,10 +485,10 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
                       : null,
                 ),
                 onChanged: (_) {
-                  if (_nameInvalid || _creationFailed) {
+                  if (_nameInvalid || _creationFailure != null) {
                     setState(() {
                       _nameInvalid = false;
-                      _creationFailed = false;
+                      _creationFailure = null;
                     });
                   }
                 },
@@ -329,7 +522,7 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
               child: TextField(
                 key: const Key('chat-create-conversation-participant-field'),
                 controller: _participantController,
-                enabled: !_submitting,
+                enabled: !_submitting && hasSelectedSpace,
                 maxLength: 200,
                 decoration: InputDecoration(
                   labelText: l10n.chatParticipantsLabel,
@@ -338,7 +531,7 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
                 onChanged: _search,
               ),
             ),
-            if (_selected.isNotEmpty)
+            if (hasSelectedSpace && _selected.isNotEmpty)
               Wrap(
                 spacing: 8,
                 children: [
@@ -356,12 +549,17 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
                 ],
               ),
             if (_searching) const LinearProgressIndicator(),
-            if (_searchFailed)
+            if (_searchFailure != null)
               Semantics(
                 liveRegion: true,
-                child: Text(l10n.chatParticipantsSearchFailure),
+                child: Text(
+                  _isUnsupportedSpaceScope(_searchFailure)
+                      ? l10n.chatSpaceScopeUnsupported
+                      : l10n.chatParticipantsSearchFailure,
+                ),
               ),
-            for (final member in _results)
+            for (final member
+                in hasSelectedSpace ? _results : const <ChatParticipant>[])
               CheckboxListTile(
                 key: ValueKey('chat-participant-result-${member.userId}'),
                 title: Text(member.displayName),
@@ -379,14 +577,18 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
                             _isDirect && _selected.length != 1;
                       }),
               ),
-            if (_creationFailed)
+            if (_creationFailure != null || _spaceChangedDuringCreate)
               Semantics(
                 container: true,
                 liveRegion: true,
                 child: Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    l10n.chatCreateConversationFailure,
+                    _spaceChangedDuringCreate
+                        ? l10n.chatCreateSpaceChanged
+                        : _isUnsupportedSpaceScope(_creationFailure)
+                        ? l10n.chatSpaceScopeUnsupported
+                        : l10n.chatCreateConversationFailure,
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),
@@ -405,7 +607,7 @@ class _CreateConversationDialogState extends State<_CreateConversationDialog> {
           identifier: 'chat-create-submit',
           child: FilledButton(
             key: const Key('chat-create-conversation-submit-button'),
-            onPressed: _submitting ? null : _submit,
+            onPressed: _submitting || access == null ? null : _submit,
             child: Text(
               _submitting
                   ? l10n.chatCreateConversationSubmitting

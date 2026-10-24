@@ -27,19 +27,27 @@ use matrix_sdk::{
             keys::get_keys::v3 as get_keys,
             receipt::create_receipt::v3::ReceiptType,
             room::create_room::v3::{Request as CreateRoomRequest, RoomPreset},
+            user_directory::search_users::v3 as search_users,
         },
-        api::error::ErrorKind,
+        api::{
+            auth_scheme::AuthScheme,
+            error::{ErrorKind, IntoHttpError},
+            path_builder::PathBuilder,
+            Metadata, OutgoingRequest,
+        },
         events::receipt::ReceiptThread,
         events::{
             key::verification::VerificationMethod, room::encryption::RoomEncryptionEventContent,
             room::message::RoomMessageEventContent, AnyToDeviceEvent, InitialStateEvent,
         },
+        exports::{bytes::BufMut, http},
         serde::Raw,
         OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedUserId, UInt,
     },
     store::RoomLoadSettings,
     utils::UrlOrQuery,
-    Client, ClientBuildError, HttpError, RefreshTokenError, Room, RoomMemberships, RoomState, SessionMeta,
+    Client, ClientBuildError, HttpError, RefreshTokenError, Room, RoomMemberships, RoomState,
+    SessionMeta,
 };
 use matrix_sdk_store_encryption::StoreCipher;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -64,6 +72,80 @@ const MATRIX_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const MATRIX_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 const OLM_RECOVERY_ROTATION_PENDING_KEY: &[u8] = b"weave.olm-recovery-room-key-rotation-pending.v1";
 const MATRIX_OAUTH_SESSION_FILE: &str = "weave-matrix-oauth-session.v1";
+const SPACE_SCOPE_FEATURE: &str = "org.weave.space_scope";
+const SPACE_SCOPE_HEADER: &str = "x-weave-space-ref";
+
+/// Adds scope only to the operation that the member explicitly selected.
+/// Matrix authentication, paths and JSON remain owned by the typed Ruma request.
+#[derive(Clone, Debug)]
+struct SpaceScopedRequest<R> {
+    request: R,
+    space_ref: HeaderValue,
+}
+
+impl<R: Metadata> Metadata for SpaceScopedRequest<R> {
+    const METHOD: http::Method = R::METHOD;
+    const RATE_LIMITED: bool = R::RATE_LIMITED;
+    type Authentication = R::Authentication;
+    type PathBuilder = R::PathBuilder;
+    const PATH_BUILDER: Self::PathBuilder = R::PATH_BUILDER;
+}
+
+impl<R: OutgoingRequest> OutgoingRequest for SpaceScopedRequest<R> {
+    type EndpointError = R::EndpointError;
+    type IncomingResponse = R::IncomingResponse;
+
+    fn try_into_http_request<T: Default + BufMut + AsRef<[u8]>>(
+        self,
+        base_url: &str,
+        authentication_input: <Self::Authentication as AuthScheme>::Input<'_>,
+        path_builder_input: <Self::PathBuilder as PathBuilder>::Input<'_>,
+    ) -> Result<http::Request<T>, IntoHttpError> {
+        let mut request = self.request.try_into_http_request(
+            base_url,
+            authentication_input,
+            path_builder_input,
+        )?;
+        request
+            .headers_mut()
+            .insert(SPACE_SCOPE_HEADER, self.space_ref);
+        Ok(request)
+    }
+}
+
+fn validated_space_ref(space_ref: &str) -> Result<HeaderValue, String> {
+    let bytes = space_ref.as_bytes();
+    if bytes.is_empty()
+        || bytes.len() > 255
+        || !bytes[0].is_ascii_alphanumeric()
+        || !bytes
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'_' | b'-'))
+    {
+        return Err("M_INVALID_PARAM".to_owned());
+    }
+    HeaderValue::from_str(space_ref).map_err(|_| "M_INVALID_PARAM".to_owned())
+}
+
+async fn space_scoped_request<R>(
+    client: &Client,
+    request: R,
+    space_ref: &str,
+) -> Result<SpaceScopedRequest<R>, String> {
+    let space_ref = validated_space_ref(space_ref)?;
+    // Do not reuse the SDK's cached versions: after a server rollback, an old
+    // facade could silently ignore the header and write to its default Space.
+    let versions = client.fetch_server_versions(None).await.map_err(|error| {
+        matrix_sdk_error_code(
+            &matrix_sdk::Error::Http(Box::new(error)),
+            "M_WEAVE_CHAT_SPACE_SCOPE_CHECK",
+        )
+    })?;
+    if versions.unstable_features.get(SPACE_SCOPE_FEATURE) != Some(&true) {
+        return Err("M_WEAVE_CHAT_SPACE_SCOPE_UNSUPPORTED".to_owned());
+    }
+    Ok(SpaceScopedRequest { request, space_ref })
+}
 
 struct PendingOAuthLogin {
     client: Client,
@@ -1588,18 +1670,40 @@ pub async fn rooms(profile_key: String) -> String {
 }
 
 pub async fn create_encrypted_room(profile_key: String, title: String) -> String {
-    json_result(create_room_inner(&profile_key, &title, true, &[], false).await)
+    json_result(create_room_inner(&profile_key, &title, true, &[], false, None).await)
 }
 
-pub async fn create_business_room(profile_key: String, title: String) -> String {
-    json_result(create_room_inner(&profile_key, &title, false, &[], false).await)
+pub async fn create_business_room(
+    profile_key: String,
+    title: String,
+    space_ref: Option<String>,
+) -> String {
+    json_result(
+        create_room_inner(
+            &profile_key,
+            &title,
+            false,
+            &[],
+            false,
+            space_ref.as_deref(),
+        )
+        .await,
+    )
 }
 
-pub async fn search_members(profile_key: String, query: String) -> String {
-    json_result(search_members_inner(&profile_key, &query).await)
+pub async fn search_members(
+    profile_key: String,
+    query: String,
+    space_ref: Option<String>,
+) -> String {
+    json_result(search_members_inner(&profile_key, &query, space_ref.as_deref()).await)
 }
 
-async fn search_members_inner(profile_key: &str, query: &str) -> Result<Value, String> {
+async fn search_members_inner(
+    profile_key: &str,
+    query: &str,
+    space_ref: Option<&str>,
+) -> Result<Value, String> {
     let query = query.trim();
     if query.is_empty() || query.chars().count() > 200 {
         return Err("M_INVALID_PARAM".to_string());
@@ -1607,16 +1711,33 @@ async fn search_members_inner(profile_key: &str, query: &str) -> Result<Value, S
     let gate = matrix_io_gate_for(profile_key)?;
     let _guard = gate.lock().await;
     let client = client_for(profile_key)?;
-    let response = client.search_users(query, 20).await.map_err(|error| {
-        matrix_sdk_error_code(
-            &matrix_sdk::Error::Http(Box::new(error)),
-            "M_WEAVE_CHAT_MEMBER_SEARCH",
-        )
-    })?;
+    let response = search_member_directory(&client, query, space_ref).await?;
     Ok(json!({"members": response.results.into_iter()
         .filter(|member| Some(member.user_id.as_ref()) != client.user_id())
         .map(|member| json!({"userId": member.user_id.to_string(), "displayName": member.display_name}))
         .collect::<Vec<_>>()}))
+}
+
+async fn search_member_directory(
+    client: &Client,
+    query: &str,
+    space_ref: Option<&str>,
+) -> Result<search_users::Response, String> {
+    let response = if let Some(space_ref) = space_ref {
+        let mut request = search_users::Request::new(query.to_owned());
+        request.limit = UInt::new(20).expect("bounded Matrix member search limit");
+        client
+            .send(space_scoped_request(client, request, space_ref).await?)
+            .await
+    } else {
+        client.search_users(query, 20).await
+    };
+    response.map_err(|error| {
+        matrix_sdk_error_code(
+            &matrix_sdk::Error::Http(Box::new(error)),
+            "M_WEAVE_CHAT_MEMBER_SEARCH",
+        )
+    })
 }
 
 pub async fn create_business_room_with_members(
@@ -1624,8 +1745,19 @@ pub async fn create_business_room_with_members(
     title: String,
     member_ids: Vec<String>,
     is_direct: bool,
+    space_ref: Option<String>,
 ) -> String {
-    json_result(create_room_inner(&profile_key, &title, false, &member_ids, is_direct).await)
+    json_result(
+        create_room_inner(
+            &profile_key,
+            &title,
+            false,
+            &member_ids,
+            is_direct,
+            space_ref.as_deref(),
+        )
+        .await,
+    )
 }
 
 fn validated_invitees(member_ids: &[String]) -> Result<Vec<OwnedUserId>, String> {
@@ -1652,6 +1784,7 @@ async fn create_room_inner(
     encrypted: bool,
     member_ids: &[String],
     is_direct: bool,
+    space_ref: Option<&str>,
 ) -> Result<Value, String> {
     if is_direct && member_ids.len() != 1 {
         return Err("M_INVALID_PARAM".to_string());
@@ -1677,12 +1810,7 @@ async fn create_room_inner(
             )
             .to_raw_any()];
         }
-        client
-            .create_room(request)
-            .await
-            .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_CREATE_ROOM"))?
-            .room_id()
-            .to_owned()
+        create_room_request(&client, request, space_ref).await?
     };
 
     // The facade commits room creation before it appears in the client's
@@ -1704,6 +1832,33 @@ async fn create_room_inner(
         "encrypted": encrypted,
         "isDirect": direct,
     }))
+}
+
+async fn create_room_request(
+    client: &Client,
+    request: CreateRoomRequest,
+    space_ref: Option<&str>,
+) -> Result<OwnedRoomId, String> {
+    if let Some(space_ref) = space_ref {
+        // The subsequent canonical sync populates the joined room and m.direct.
+        // No mutable client-wide header or client-inferred Space is involved.
+        client
+            .send(space_scoped_request(client, request, space_ref).await?)
+            .await
+            .map(|response| response.room_id)
+            .map_err(|error| {
+                matrix_sdk_error_code(
+                    &matrix_sdk::Error::Http(Box::new(error)),
+                    "M_WEAVE_E2EE_CREATE_ROOM",
+                )
+            })
+    } else {
+        client
+            .create_room(request)
+            .await
+            .map(|room| room.room_id().to_owned())
+            .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_CREATE_ROOM"))
+    }
 }
 
 async fn rooms_inner(profile_key: &str) -> Result<Value, String> {
@@ -2889,6 +3044,463 @@ mod tests {
     use base64::engine::general_purpose::STANDARD_NO_PAD;
     use ed25519_dalek::{Signature, VerifyingKey};
     use matrix_sdk::encryption::secret_storage::SecretStorageError;
+
+    #[derive(Debug)]
+    struct RecordedScopeRequest {
+        path: String,
+        headers: HashMap<String, String>,
+        body: Value,
+    }
+
+    struct SpaceScopeServer {
+        url: String,
+        // 0 = omitted, 1 = false, 2 = true.
+        feature: Arc<std::sync::atomic::AtomicU8>,
+        requests: Arc<Mutex<Vec<RecordedScopeRequest>>>,
+        sync: Arc<Mutex<Value>>,
+        room_id: Arc<Mutex<String>>,
+        stop: Arc<std::sync::atomic::AtomicBool>,
+        worker: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl SpaceScopeServer {
+        fn new() -> Self {
+            use std::io::{BufRead, BufReader, Read};
+            use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("local fixture");
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            listener.set_nonblocking(true).unwrap();
+            let feature = Arc::new(AtomicU8::new(2));
+            let requests = Arc::new(Mutex::new(Vec::new()));
+            let sync = Arc::new(Mutex::new(
+                json!({"next_batch":"scope-empty","rooms":{"join":{}}}),
+            ));
+            let room_id = Arc::new(Mutex::new("!selected:weave.test".to_owned()));
+            let stop = Arc::new(AtomicBool::new(false));
+            let (state, recorded, stopping) = (feature.clone(), requests.clone(), stop.clone());
+            let (sync_response, created_room) = (sync.clone(), room_id.clone());
+            let worker = std::thread::spawn(move || {
+                while !stopping.load(Ordering::SeqCst) {
+                    let (mut stream, _) = match listener.accept() {
+                        Ok(value) => value,
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            std::thread::sleep(Duration::from_millis(2));
+                            continue;
+                        }
+                        Err(error) => panic!("local accept: {error}"),
+                    };
+                    stream
+                        .set_read_timeout(Some(Duration::from_secs(2)))
+                        .unwrap();
+                    stream
+                        .set_write_timeout(Some(Duration::from_secs(2)))
+                        .unwrap();
+                    let mut reader = BufReader::new(&stream);
+                    let mut line = String::new();
+                    if reader.read_line(&mut line).unwrap() == 0 {
+                        continue;
+                    }
+                    let path = line.split_whitespace().nth(1).unwrap().to_owned();
+                    let mut headers = HashMap::new();
+                    loop {
+                        line.clear();
+                        reader.read_line(&mut line).unwrap();
+                        if line == "\r\n" {
+                            break;
+                        }
+                        let (name, value) = line.trim_end().split_once(':').unwrap();
+                        headers.insert(name.to_ascii_lowercase(), value.trim().to_owned());
+                    }
+                    let size = headers
+                        .get("content-length")
+                        .map(|value| value.parse().unwrap())
+                        .unwrap_or(0);
+                    let mut bytes = vec![0; size];
+                    reader.read_exact(&mut bytes).unwrap();
+                    let body = if bytes.is_empty() {
+                        Value::Null
+                    } else {
+                        serde_json::from_slice(&bytes).unwrap()
+                    };
+                    let mut status = "200 OK";
+                    let response = if path.ends_with("/versions") {
+                        let features = match state.load(Ordering::SeqCst) {
+                            0 => json!({}),
+                            1 => json!({SPACE_SCOPE_FEATURE: false}),
+                            _ => json!({SPACE_SCOPE_FEATURE: true}),
+                        };
+                        json!({"versions":["v1.11"],"unstable_features":features})
+                    } else if path.ends_with("/user_directory/search") {
+                        json!({"results":[],"limited":false})
+                    } else if path.ends_with("/createRoom") {
+                        json!({"room_id":*created_room.lock().unwrap()})
+                    } else if path.split('?').next().unwrap().ends_with("/sync") {
+                        sync_response.lock().unwrap().clone()
+                    } else if path
+                        .trim_end_matches('/')
+                        .ends_with("/state/m.room.encryption")
+                        || path.ends_with("/account_data/m.secret_storage.default_key")
+                        || path.ends_with("/room_keys/version")
+                    {
+                        status = "404 Not Found";
+                        json!({"errcode":"M_NOT_FOUND","error":"No encryption state is configured."})
+                    } else if path.split('?').next().unwrap().ends_with("/messages") {
+                        json!({"chunk":[],"start":"first-page","end":"first-page"})
+                    } else if path.contains("/send/m.room.message/") {
+                        json!({"event_id":"$first:weave.test"})
+                    } else if path.ends_with("/keys/upload") {
+                        json!({"one_time_key_counts":{"signed_curve25519":50}})
+                    } else if path.ends_with("/keys/query") {
+                        json!({"device_keys":{},"failures":{}})
+                    } else {
+                        panic!("unexpected scope fixture request: {path}");
+                    };
+                    recorded.lock().unwrap().push(RecordedScopeRequest {
+                        path,
+                        headers,
+                        body,
+                    });
+                    let body = response.to_string();
+                    write!(stream, "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).unwrap();
+                }
+            });
+            Self {
+                url,
+                feature,
+                requests,
+                sync,
+                room_id,
+                stop,
+                worker: Some(worker),
+            }
+        }
+
+        async fn client(&self) -> Client {
+            self.client_for_user("@member:weave.test".try_into().unwrap())
+                .await
+        }
+
+        async fn client_for_user(&self, user_id: OwnedUserId) -> Client {
+            let client = Client::builder()
+                .homeserver_url(&self.url)
+                .http_client(reqwest::Client::builder().no_proxy().build().unwrap())
+                .server_versions([matrix_sdk::ruma::api::MatrixVersion::V1_11])
+                .request_config(
+                    matrix_sdk::config::RequestConfig::new()
+                        .timeout(Duration::from_secs(2))
+                        .retry_limit(0),
+                )
+                .build()
+                .await
+                .unwrap();
+            client
+                .encryption()
+                .wait_for_e2ee_initialization_tasks()
+                .await;
+            self.requests.lock().unwrap().clear();
+            client
+                .restore_session(MatrixSession {
+                    meta: SessionMeta {
+                        user_id,
+                        device_id: "SCOPEDEVICE".into(),
+                    },
+                    tokens: SessionTokens {
+                        access_token: "scope-fixture-token".into(),
+                        refresh_token: None,
+                    },
+                })
+                .await
+                .unwrap();
+            client
+        }
+    }
+
+    impl Drop for SpaceScopeServer {
+        fn drop(&mut self) {
+            self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+            if let Some(worker) = self.worker.take() {
+                let _ = worker.join();
+            }
+        }
+    }
+
+    #[test]
+    fn selected_space_requests_keep_matrix_payloads_and_do_not_leak_scope() {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async {
+                let server = SpaceScopeServer::new();
+                let client = server.client().await;
+                search_member_directory(&client, "Peer", Some("space:alpha"))
+                    .await
+                    .unwrap();
+                let mut create = CreateRoomRequest::new();
+                create.name = Some("First direct conversation".into());
+                create.preset = Some(RoomPreset::PrivateChat);
+                create.is_direct = true;
+                create.invite = vec!["@peer:weave.test".try_into().unwrap()];
+                assert_eq!(
+                    create_room_request(&client, create, Some("space:alpha"))
+                        .await
+                        .unwrap()
+                        .as_str(),
+                    "!selected:weave.test"
+                );
+                search_member_directory(&client, "Legacy", None)
+                    .await
+                    .unwrap();
+                create_room_request(&client, CreateRoomRequest::new(), None)
+                    .await
+                    .unwrap();
+
+                let recorded = server.requests.lock().unwrap();
+                assert!(recorded
+                    .iter()
+                    .filter(|request| {
+                        !request.path.ends_with("/user_directory/search")
+                            && !request.path.ends_with("/createRoom")
+                    })
+                    .all(|request| !request.headers.contains_key(SPACE_SCOPE_HEADER)));
+                // The SDK may finish unrelated recovery reads after its initial
+                // barrier; assert the Chat wire sequence independently of them.
+                let requests = recorded
+                    .iter()
+                    .filter(|request| {
+                        request.path.ends_with("/versions")
+                            || request.path.ends_with("/user_directory/search")
+                            || request.path.ends_with("/createRoom")
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(requests.len(), 6);
+                for index in [0, 2] {
+                    assert!(requests[index].path.ends_with("/versions"));
+                    assert!(!requests[index].headers.contains_key(SPACE_SCOPE_HEADER));
+                }
+                for index in [1, 3] {
+                    assert_eq!(
+                        requests[index]
+                            .headers
+                            .get(SPACE_SCOPE_HEADER)
+                            .map(String::as_str),
+                        Some("space:alpha")
+                    );
+                    assert_eq!(
+                        requests[index]
+                            .headers
+                            .get("authorization")
+                            .map(String::as_str),
+                        Some("Bearer scope-fixture-token")
+                    );
+                    assert!(requests[index].body.get("space_ref").is_none());
+                }
+                assert_eq!(requests[1].body, json!({"search_term":"Peer","limit":20}));
+                assert_eq!(requests[3].body["name"], "First direct conversation");
+                assert_eq!(requests[3].body["preset"], "private_chat");
+                assert_eq!(requests[3].body["is_direct"], true);
+                assert_eq!(requests[3].body["invite"], json!(["@peer:weave.test"]));
+                for index in [4, 5] {
+                    assert!(!requests[index].headers.contains_key(SPACE_SCOPE_HEADER));
+                }
+            });
+    }
+
+    #[test]
+    fn selected_space_first_direct_room_is_synced_listed_opened_and_sent() {
+        tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
+            let server = SpaceScopeServer::new();
+            let identity = |subject: &str| -> OwnedUserId {
+                let value: Value = serde_json::from_str(&weave_matrix_protocol::project_json_or_error(
+                    "whoami".into(),
+                    json!({"subject":subject,"identityIssuer":"https://issuer.test","deviceId":"SCOPEDEVICE"}).to_string(),
+                    "weave.test".into(),
+                )).unwrap();
+                value["user_id"].as_str().unwrap().try_into().unwrap()
+            };
+            let owner = identity("member");
+            let peer = identity("peer");
+            let mut input = json!({
+                "subject":"user:member", "identityIssuer":"https://issuer.test", "cursor":"scope-created",
+                "conversations":[{"conversationId":"selected","title":"First direct conversation","memberships":[
+                    {"memberRef":"user:member","state":"joined"},
+                    {"memberRef":"user:peer","state":"invited","displayName":"Peer"}]}]
+            });
+            let project = |value: &Value| -> Value {
+                serde_json::from_str(&weave_matrix_protocol::project_json_or_error("sync".into(), value.to_string(), "weave.test".into())).unwrap()
+            };
+            let initial = project(&input);
+            let room_id = initial["rooms"]["join"].as_object().unwrap().keys().next().unwrap().clone();
+            // This is the canonical account data the facade derives for the
+            // authorized direct conversation, not a client-side mark_as_dm.
+            input["accountData"] = json!({"m.direct":{peer.as_str():[room_id.clone()]}});
+            *server.sync.lock().unwrap() = project(&input);
+            *server.room_id.lock().unwrap() = room_id.clone();
+            let client = server.client_for_user(owner.clone()).await;
+            assert!(client.rooms().is_empty());
+            let profile = "test-selected-space-first-direct";
+            clients().lock().unwrap().insert(profile.to_owned(), ManagedClient {
+                client: client.clone(),
+                oauth_session_persistence_enabled: Arc::new(Mutex::new(false)),
+                homeserver_url: server.url.clone(),
+                user_id: owner.to_string(), device_id: "SCOPEDEVICE".into(),
+                room_security_fingerprints: HashMap::new(), pre_send_security_fingerprints: HashMap::new(),
+                accepting_operations: true,
+                matrix_io_gate: Arc::new(AsyncMutex::new(())), room_security_gate: Arc::new(AsyncMutex::new(())),
+                sync_cursor: None, to_device_diagnostics: Default::default(),
+                timeline_decryption_diagnostics: Default::default(), peer_device_diagnostics: Default::default(),
+                verification_request: None, sas_verification: None,
+            });
+            let created = create_room_inner(profile, "First direct conversation", false, &[peer.to_string()], true, Some("space:alpha")).await.unwrap();
+            assert_eq!(created["roomId"], room_id);
+            assert_eq!(created["isDirect"], true);
+            assert_eq!(created["encrypted"], false);
+            let listed = rooms_inner(profile).await.unwrap();
+            assert_eq!(listed["rooms"].as_array().unwrap().len(), 1);
+            assert_eq!(listed["rooms"][0]["isDirect"], true);
+            let opened = room_messages_inner(profile, &room_id, 20).await.unwrap();
+            assert_eq!(opened["messages"], json!([]));
+            assert_eq!(send_text_inner(profile, &room_id, "First message").await.unwrap()["eventId"], "$first:weave.test");
+            clients().lock().unwrap().remove(profile);
+
+            let requests = server.requests.lock().unwrap();
+            let create = requests.iter().find(|request| request.path.ends_with("/createRoom")).unwrap();
+            assert_eq!(create.headers.get(SPACE_SCOPE_HEADER).map(String::as_str), Some("space:alpha"));
+            assert_eq!(create.body["is_direct"], true);
+            let send = requests.iter().find(|request| request.path.contains("/send/m.room.message/")).unwrap();
+            assert_eq!(send.body["body"], "First message");
+            assert!(requests.iter().filter(|request| !request.path.ends_with("/createRoom")).all(|request| !request.headers.contains_key(SPACE_SCOPE_HEADER)));
+            assert!(!requests.iter().any(|request| request.path.contains("/account_data/m.direct")));
+        });
+    }
+
+    #[test]
+    fn selected_space_operations_stop_before_search_or_create_without_server_support() {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async {
+                let server = SpaceScopeServer::new();
+                let client = server.client().await;
+                for feature in [0, 1] {
+                    server
+                        .feature
+                        .store(feature, std::sync::atomic::Ordering::SeqCst);
+                    assert_eq!(
+                        search_member_directory(&client, "Peer", Some("space:alpha"))
+                            .await
+                            .unwrap_err(),
+                        "M_WEAVE_CHAT_SPACE_SCOPE_UNSUPPORTED"
+                    );
+                    assert_eq!(
+                        create_room_request(&client, CreateRoomRequest::new(), Some("space:alpha"))
+                            .await
+                            .unwrap_err(),
+                        "M_WEAVE_CHAT_SPACE_SCOPE_UNSUPPORTED"
+                    );
+                }
+                let requests = server.requests.lock().unwrap();
+                assert_eq!(
+                    requests
+                        .iter()
+                        .filter(|request| request.path.ends_with("/versions"))
+                        .count(),
+                    4
+                );
+                assert!(!requests.iter().any(|request| {
+                    request.path.ends_with("/user_directory/search")
+                        || request.path.ends_with("/createRoom")
+                        || request.headers.contains_key(SPACE_SCOPE_HEADER)
+                }));
+            });
+    }
+
+    #[test]
+    fn selected_space_support_is_rechecked_after_server_rollback() {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async {
+                let server = SpaceScopeServer::new();
+                let client = server.client().await;
+                search_member_directory(&client, "Peer", Some("space:alpha"))
+                    .await
+                    .unwrap();
+                server.feature.store(1, std::sync::atomic::Ordering::SeqCst);
+                assert_eq!(
+                    create_room_request(&client, CreateRoomRequest::new(), Some("space:alpha"))
+                        .await
+                        .unwrap_err(),
+                    "M_WEAVE_CHAT_SPACE_SCOPE_UNSUPPORTED"
+                );
+                server.feature.store(2, std::sync::atomic::Ordering::SeqCst);
+                create_room_request(&client, CreateRoomRequest::new(), Some("space:beta"))
+                    .await
+                    .unwrap();
+                server.feature.store(0, std::sync::atomic::Ordering::SeqCst);
+                assert_eq!(
+                    search_member_directory(&client, "Peer", Some("space:beta"))
+                        .await
+                        .unwrap_err(),
+                    "M_WEAVE_CHAT_SPACE_SCOPE_UNSUPPORTED"
+                );
+                let requests = server.requests.lock().unwrap();
+                assert_eq!(
+                    requests
+                        .iter()
+                        .filter(|request| request.path.ends_with("/versions"))
+                        .count(),
+                    4
+                );
+                assert_eq!(
+                    requests
+                        .iter()
+                        .filter(|request| request.path.ends_with("/user_directory/search"))
+                        .count(),
+                    1
+                );
+                let creates = requests
+                    .iter()
+                    .filter(|request| request.path.ends_with("/createRoom"))
+                    .collect::<Vec<_>>();
+                assert_eq!(creates.len(), 1);
+                assert_eq!(
+                    creates[0]
+                        .headers
+                        .get(SPACE_SCOPE_HEADER)
+                        .map(String::as_str),
+                    Some("space:beta")
+                );
+            });
+    }
+
+    #[test]
+    fn selected_space_reference_is_canonical_and_bounded() {
+        for value in [
+            "",
+            " space:one",
+            "space:one ",
+            "space/one",
+            "späce",
+            "-space",
+            "space\r\nx-other: value",
+        ] {
+            assert_eq!(validated_space_ref(value).unwrap_err(), "M_INVALID_PARAM");
+        }
+        assert!(validated_space_ref(&"a".repeat(256)).is_err());
+        for value in [
+            "workspace-default".to_owned(),
+            "space:Alpha_1".to_owned(),
+            "a".repeat(255),
+        ] {
+            assert_eq!(
+                validated_space_ref(&value).unwrap().to_str().unwrap(),
+                value
+            );
+        }
+    }
 
     #[test]
     fn stored_member_profile_updates_and_clear_reach_message_projection() {

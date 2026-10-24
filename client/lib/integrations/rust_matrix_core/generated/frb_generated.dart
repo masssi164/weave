@@ -104,6 +104,7 @@ abstract class RustLibApi extends BaseApi {
   Future<String> crateFrbApiMatrixCreateBusinessRoom({
     required String profileKey,
     required String title,
+    String? spaceRef,
   });
 
   Future<String> crateFrbApiMatrixCreateBusinessRoomWithMembers({
@@ -111,6 +112,7 @@ abstract class RustLibApi extends BaseApi {
     required String title,
     required List<String> memberIds,
     required bool isDirect,
+    String? spaceRef,
   });
 
   Future<String> crateFrbApiMatrixCreateEncryptedRoom({
@@ -195,6 +197,7 @@ abstract class RustLibApi extends BaseApi {
   Future<String> crateFrbApiMatrixSearchMembers({
     required String profileKey,
     required String query,
+    String? spaceRef,
   });
 
   Future<String> crateFrbApiMatrixSecurityState({required String profileKey});
@@ -434,6 +437,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<String> crateFrbApiMatrixCreateBusinessRoom({
     required String profileKey,
     required String title,
+    String? spaceRef,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -441,6 +445,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(profileKey, serializer);
           sse_encode_String(title, serializer);
+          sse_encode_opt_String(spaceRef, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -453,7 +458,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateFrbApiMatrixCreateBusinessRoomConstMeta,
-        argValues: [profileKey, title],
+        argValues: [profileKey, title, spaceRef],
         apiImpl: this,
       ),
     );
@@ -462,7 +467,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateFrbApiMatrixCreateBusinessRoomConstMeta =>
       const TaskConstMeta(
         debugName: "matrix_create_business_room",
-        argNames: ["profileKey", "title"],
+        argNames: ["profileKey", "title", "spaceRef"],
       );
 
   @override
@@ -471,6 +476,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String title,
     required List<String> memberIds,
     required bool isDirect,
+    String? spaceRef,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -480,6 +486,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(title, serializer);
           sse_encode_list_String(memberIds, serializer);
           sse_encode_bool(isDirect, serializer);
+          sse_encode_opt_String(spaceRef, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -492,7 +499,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateFrbApiMatrixCreateBusinessRoomWithMembersConstMeta,
-        argValues: [profileKey, title, memberIds, isDirect],
+        argValues: [profileKey, title, memberIds, isDirect, spaceRef],
         apiImpl: this,
       ),
     );
@@ -501,7 +508,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateFrbApiMatrixCreateBusinessRoomWithMembersConstMeta =>
       const TaskConstMeta(
         debugName: "matrix_create_business_room_with_members",
-        argNames: ["profileKey", "title", "memberIds", "isDirect"],
+        argNames: ["profileKey", "title", "memberIds", "isDirect", "spaceRef"],
       );
 
   @override
@@ -1042,6 +1049,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<String> crateFrbApiMatrixSearchMembers({
     required String profileKey,
     required String query,
+    String? spaceRef,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1049,6 +1057,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(profileKey, serializer);
           sse_encode_String(query, serializer);
+          sse_encode_opt_String(spaceRef, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1061,7 +1070,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateFrbApiMatrixSearchMembersConstMeta,
-        argValues: [profileKey, query],
+        argValues: [profileKey, query, spaceRef],
         apiImpl: this,
       ),
     );
@@ -1070,7 +1079,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateFrbApiMatrixSearchMembersConstMeta =>
       const TaskConstMeta(
         debugName: "matrix_search_members",
-        argNames: ["profileKey", "query"],
+        argNames: ["profileKey", "query", "spaceRef"],
       );
 
   @override
@@ -1296,6 +1305,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  String? dco_decode_opt_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_String(raw);
+  }
+
+  @protected
   int dco_decode_u_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -1343,6 +1358,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_String(deserializer));
+    } else {
+      return null;
+    }
   }
 
   @protected
@@ -1397,6 +1423,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putUint8List(self);
+  }
+
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_String(self, serializer);
+    }
   }
 
   @protected
