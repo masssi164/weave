@@ -9,6 +9,7 @@ from pathlib import Path
 import platform
 import plistlib
 import shutil
+import struct
 import subprocess
 import tempfile
 
@@ -27,6 +28,130 @@ def copy_bundle(source: Path, destination: Path) -> None:
         raise ArtifactError("built-bundle-unavailable")
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source, destination, symlinks=True)
+
+
+def simulator_entitlement_sections(executable: Path) -> list[dict[str, bytes]]:
+    """Read the simulator entitlements from every executable slice, without changing it."""
+    data = executable.read_bytes()
+    try:
+        magic = data[:4]
+        if magic in {b"\xca\xfe\xba\xbe", b"\xca\xfe\xba\xbf"}:
+            count = struct.unpack_from(">I", data, 4)[0]
+            entry_size = 20 if magic == b"\xca\xfe\xba\xbe" else 32
+            if not count or 8 + count * entry_size > len(data):
+                raise ValueError()
+            slices = []
+            for index in range(count):
+                position = 8 + index * entry_size
+                architecture = struct.unpack_from(">II", data, position)
+                offset, size = struct.unpack_from(">II" if entry_size == 20 else ">QQ", data, position + 8)
+                if offset < 8 + count * entry_size or not size or offset + size > len(data):
+                    raise ValueError()
+                slices.append((architecture, data[offset:offset + size]))
+        else:
+            slices = [(None, data)]
+        results, architectures = [], set()
+        for architecture, binary in slices:
+            magic, cpu, subtype, filetype, count, command_bytes, _, _ = struct.unpack_from("<8I", binary)
+            if (magic != 0xFEEDFACF or filetype != 2 or cpu not in {0x01000007, 0x0100000C} or cpu in architectures
+                    or (architecture is not None and architecture != (cpu, subtype))):
+                raise ValueError()
+            architectures.add(cpu)
+            command_end, position = 32 + command_bytes, 32
+            if command_end > len(binary) or count > command_bytes // 8:
+                raise ValueError()
+            sections = {}
+            for _ in range(count):
+                command, size = struct.unpack_from("<II", binary, position)
+                if size < 8 or position + size > command_end:
+                    raise ValueError()
+                if command == 0x19:  # LC_SEGMENT_64
+                    if size < 72:
+                        raise ValueError()
+                    parent_segment = binary[position + 8:position + 24].rstrip(b"\0")
+                    section_count = struct.unpack_from("<I", binary, position + 64)[0]
+                    if 72 + section_count * 80 > size:
+                        raise ValueError()
+                    for index in range(section_count):
+                        section = position + 72 + index * 80
+                        name = binary[section:section + 16].rstrip(b"\0")
+                        segment = binary[section + 16:section + 32].rstrip(b"\0")
+                        if segment != b"__TEXT" or name not in {b"__entitlements", b"__ents_der"}:
+                            continue
+                        if parent_segment != segment:
+                            raise ValueError()
+                        length = struct.unpack_from("<Q", binary, section + 40)[0]
+                        offset = struct.unpack_from("<I", binary, section + 48)[0]
+                        key = name.decode("ascii")
+                        if key in sections or not length or offset + length > len(binary):
+                            raise ValueError()
+                        sections[key] = binary[offset:offset + length]
+                position += size
+            if position != command_end or "__entitlements" not in sections:
+                raise ValueError()
+            results.append(sections)
+        if 0x0100000C not in architectures:
+            raise ValueError()
+        return results
+    except (struct.error, ValueError):
+        raise ArtifactError("simulator-app-entitlements-missing-or-malformed") from None
+
+
+def verify_simulator_app(client: Path, app: Path, environment: dict) -> None:
+    # Simulator capabilities are linker sections, not the macOS codesign entitlement slots.
+    # Xcode's processed input preserves its actual App ID prefix and configured access groups.
+    run(client, ["codesign", "--verify", "--deep", "--strict", "--all-architectures", str(app)], env=environment)
+    settings_result = json.loads(run(client, ["xcodebuild", "-workspace", "ios/Runner.xcworkspace",
+        "-scheme", "Runner", "-configuration", "Debug", "-sdk", "iphonesimulator",
+        "-destination", "generic/platform=iOS Simulator", "BUILD_DIR=" + str((client / "build/ios").resolve()),
+        "-showBuildSettings", "-json"], capture=True, env=environment))
+    try:
+        targets = [item["buildSettings"] for item in settings_result if item.get("target") == "Runner"]
+        if len(targets) != 1:
+            raise ValueError()
+        settings = targets[0]
+        info = plistlib.loads((app / "Info.plist").read_bytes())
+        bundle, executable = info["CFBundleIdentifier"], info["CFBundleExecutable"]
+        if (not isinstance(bundle, str) or not bundle or bundle != settings["PRODUCT_BUNDLE_IDENTIFIER"]
+                or app.name != settings["FULL_PRODUCT_NAME"] or not isinstance(executable, str)
+                or not executable or Path(executable).name != executable or executable in {".", ".."}):
+            raise ValueError()
+        requested = plistlib.loads((Path(settings["SRCROOT"]) / settings["CODE_SIGN_ENTITLEMENTS"]).read_bytes())
+        expected_path = Path(settings.get("LD_ENTITLEMENTS_SECTION") or
+                             str(Path(settings["TARGET_TEMP_DIR"]) / (settings["FULL_PRODUCT_NAME"] + "-Simulated.xcent")))
+        expected = plistlib.loads(expected_path.read_bytes())
+        requested_groups, groups = requested["keychain-access-groups"], expected["keychain-access-groups"]
+        if (not isinstance(requested_groups, list) or not requested_groups
+                or not all(isinstance(group, str) and group for group in requested_groups)
+                or not isinstance(groups, list) or not groups
+                or not all(isinstance(group, str) and group and "$" not in group and "*" not in group for group in groups)):
+            raise ValueError()
+        identifier = expected.get("application-identifier")
+        if identifier is not None and (not isinstance(identifier, str) or
+                not (identifier == bundle or identifier.endswith("." + bundle)) or "$" in identifier or "*" in identifier):
+            raise ValueError()
+        templates = [group.replace("$(CFBundleIdentifier)", bundle).replace("$(PRODUCT_BUNDLE_IDENTIFIER)", bundle)
+                     for group in requested_groups]
+        prefix_token = "$(AppIdentifierPrefix)"
+        prefix = identifier[:-len(bundle)] if identifier is not None else None
+        if prefix is None and templates[0].startswith(prefix_token):
+            suffix = templates[0][len(prefix_token):]
+            if suffix and groups[0].endswith(suffix):
+                prefix = groups[0][:-len(suffix)]
+        # Use Xcode's processed prefix, which need not equal the development team.
+        if groups != [template.replace(prefix_token, prefix or "") for template in templates]:
+            raise ValueError()
+        der_path = Path(settings.get("LD_ENTITLEMENTS_SECTION_DER") or str(expected_path) + ".der")
+        expected_der = der_path.read_bytes() if der_path.is_file() else None
+        if expected_der == b"" or (settings.get("LD_ENTITLEMENTS_SECTION_DER") and expected_der is None):
+            raise ValueError()
+        for sections in simulator_entitlement_sections(app / executable):
+            actual = plistlib.loads(sections["__entitlements"].rstrip(b"\0"))
+            if actual != expected or sections.get("__ents_der") != expected_der:
+                raise ArtifactError("simulator-app-entitlements-mismatch")
+    except (KeyError, TypeError, AttributeError, ValueError, OSError):
+        raise ArtifactError("simulator-app-signing-evidence-invalid") from None
+    print("WEAVE_HOSTED_SIMULATOR_SIGNING_RESULT variant=" + app.parent.name + " status=passed")
 
 
 def portable_test_plans(products: Path, original_products: Path) -> None:
@@ -115,7 +240,8 @@ def apple(root: Path, component: str, payload: Path, source: str, *, configurati
     simulator = component == "ios-simulator"
     mode = "--debug" if simulator else "--profile"
     target_flags = ["--simulator"] if simulator else []
-    ordinary_build = ["flutter", "build", "ios", mode, *target_flags, "--no-codesign", "--target=lib/main.dart", *defines]
+    signing_flags = [] if simulator else ["--no-codesign"]
+    ordinary_build = ["flutter", "build", "ios", mode, *target_flags, *signing_flags, "--target=lib/main.dart", *defines]
     # Flutter config-only runs project migrations and CocoaPods without compiling the app.
     run(client, [*ordinary_build, "--config-only"], env=environment)
     require_clean_source(root, "apple-ios-configuration")
@@ -126,12 +252,14 @@ def apple(root: Path, component: str, payload: Path, source: str, *, configurati
     source_app = client / "build/ios" / ("iphonesimulator" if simulator else "iphoneos") / "Runner.app"
     copy_bundle(source_app, payload / "ordinary/Runner.app")
     if simulator:
-        run(client, ["flutter", "build", "ios", "--simulator", "--debug", "--no-codesign",
+        verify_simulator_app(client, payload / "ordinary/Runner.app", environment)
+        run(client, ["flutter", "build", "ios", "--simulator", "--debug",
                      "--target=integration_test/dual_ios_collaboration_test.dart", *defines,
                      "--dart-define=WEAVE_NATIVE_EXPECT_SIMULATOR=true",
                      "--dart-define=WEAVE_DEVICE_DISPOSABLE_STACK=true"], env=environment)
         require_clean_source(root, "apple-collaboration")
         copy_bundle(source_app, payload / "collaboration/Runner.app")
+        verify_simulator_app(client, payload / "collaboration/Runner.app", environment)
     else:
         shutil.copy2(client / "ios/Runner/RunnerDevelopment.entitlements", payload / "ordinary/entitlements.plist")
     with tempfile.TemporaryDirectory(prefix="weave-hosted-xctest-") as name:
