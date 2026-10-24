@@ -138,6 +138,32 @@ class OidcBrowserJourneyTest {
   }
 
   @Test
+  void memberAuthorizationStagesPassTheActualSupportSafeGuard() {
+    List<String> operations = new ArrayList<>();
+    for (String slot : List.of("A", "B")) {
+      for (String phase : List.of("current", "initial")) {
+        String stage = FreshProductFlow.memberAuthorizationStage(slot, phase);
+        operations.add(OidcBrowserJourney.authorizationOperation(stage));
+      }
+    }
+    assertThat(operations).containsExactly(
+        "oidc-member-a-current", "oidc-member-a-initial",
+        "oidc-member-b-current", "oidc-member-b-initial");
+  }
+
+  @Test
+  void memberAuthorizationStagesRejectUnknownActorsAndPhases() {
+    for (String slot : new String[] {null, "", "a", "C", "member@example.invalid"}) {
+      assertThatIllegalArgumentException()
+          .isThrownBy(() -> FreshProductFlow.memberAuthorizationStage(slot, "current"));
+    }
+    for (String phase : new String[] {null, "", "CURRENT", "unknown", "initial\nprivate"}) {
+      assertThatIllegalArgumentException()
+          .isThrownBy(() -> FreshProductFlow.memberAuthorizationStage("A", phase));
+    }
+  }
+
+  @Test
   void executesExactlyOneProbedRetryForTheBlankNoResponseTimeout() {
     List<Integer> attempts = new ArrayList<>();
     AtomicInteger probes = new AtomicInteger();

@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -90,6 +91,14 @@ public final class FreshProductFlow {
     return mode;
   }
 
+  static String memberAuthorizationStage(String slot, String phase) {
+    if ((!"A".equals(slot) && !"B".equals(slot))
+        || (!"current".equals(phase) && !"initial".equals(phase))) {
+      throw new IllegalArgumentException("Member OIDC stage requires a known actor and phase");
+    }
+    return "member-" + slot.toLowerCase(Locale.ROOT) + "-" + phase;
+  }
+
   private void runPreparedMemberCollaboration() {
     if (System.getProperty("weave.e2e.native-runner", "").isBlank()) {
       throw new ProductFlowException("Member collaboration requires the actual two-actor native runner");
@@ -104,8 +113,10 @@ public final class FreshProductFlow {
       PreparedMemberScenario prepared = memberInput.isBlank()
           ? prepareIsolatedMemberScenario(browser)
           : PreparedMemberScenario.read(Path.of(memberInput), Path.of(probeInput), environment, memberScenario);
-      var a = authorizePreparedActor(browser, prepared.actorA(), "member", false, "member-A-current");
-      var b = authorizePreparedActor(browser, prepared.actorB(), "member", false, "member-B-current");
+      var a = authorizePreparedActor(browser, prepared.actorA(), "member", false,
+          memberAuthorizationStage("A", "current"));
+      var b = authorizePreparedActor(browser, prepared.actorB(), "member", false,
+          memberAuthorizationStage("B", "current"));
       var admin = authorizePreparedActor(browser, prepared.administrator(), "owner", true, "setup-admin-current");
       var denied = authorizePreparedActor(browser, prepared.deniedActor(), "guest", false, "denied-guest-current");
       NativeActorNames names = nativeActorNames(a, b, browser, prepared.organizationId());
@@ -732,7 +743,8 @@ public final class FreshProductFlow {
     browser.activate(activation, email, password, displayName,
         () -> inbox.awaitEmailVerificationLink(email, registrationAt.minusSeconds(5)));
     var session = browser.authorize("weave-app", URI.create("com.massimotter.weave:/oauthredirect"),
-        List.of("openid", "profile", "email"), email, password, "member-" + slot + "-initial");
+        List.of("openid", "profile", "email"), email, password,
+        memberAuthorizationStage(slot, "initial"));
     validateHumanBootstrapToken(browser.jwtPayload(session.accessToken()), "weave-app");
     session = reconcileIdentitySession(browser, session, "member", email, password);
     session = awaitAuthority(browser, session, "/members", "member");
