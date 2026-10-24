@@ -4666,6 +4666,12 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
+          "path": "client/test/features/files/files_screen_test.dart",
+          "fragments": [
+            "Files uses member copy"
+          ]
+        },
+        {
           "path": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
           "fragments": [
             "uses the generated User API repository for release members",

@@ -1,6 +1,6 @@
 # Implementation brief: replace provider connection copy with member file context
 
-Status: planning only; implementation and runtime evidence are pending.
+Status: bounded client implementation is present in the draft PR; exact-candidate CI and physical acceptance remain pending.
 Task: [#962](https://github.com/masssi164/weave/issues/962).
 This is a bounded implementation handoff, not a second product specification or a release-readiness record.
 
@@ -66,3 +66,21 @@ No removal or automatic sharing of private files, changed default scope, new pro
 ## First implementation action and stop point
 
 Validate the baseline, read the owning code and take the first item of the implementation sequence. Reuse this source-pinned brief; do not restart a whole-project history audit. Stop when this issue's acceptance, required checks and scoped review are satisfied. Record a concrete blocker if required live evidence or a material product decision is unavailable; continue unaffected work within scope.
+
+## Implementation update — 2026-10-24
+
+The owner's current priority is a usable ordinary client on the existing Mac mini setup. This draft now contains actual client repairs.
+
+- Remove the redundant connected-as/provider boundary card; start the ready view with the existing personal/Space context and actual file content.
+- Use localized member-facing setup/unavailable guidance for the existing connection states.
+- Preserve the current personal/shared scope and authorization behavior.
+
+### Verification of the implementation
+
+- All 10 EN/DE connection-state cases passed in the affected Files suite together with the navigation follow-up; the final combined test run is recorded separately when complete.
+- Focused Dart analysis, localization generation, formatting and diff checks passed. Full Flutter analysis passed on the combined client source.
+- The existing Files generated-User-API acceptance mapping now references these widget cases.
+
+Independent source review found no blocker; state coverage retains signed-out, expired, setup, unavailable and ready behavior.
+
+Exact-branch CI and device/VoiceOver verification remain pending. Native folder navigation is tracked separately by #1711 / #1706; move/delete remains #1710 / #1705.
