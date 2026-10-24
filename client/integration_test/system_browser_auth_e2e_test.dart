@@ -146,6 +146,18 @@ void emitNativeAuthFailureDiagnostic(
   final platform = nestedCause is FlutterAppAuthPlatformException
       ? nestedCause
       : null;
+  int? storageStatus;
+  if (platform == null &&
+      failure.type == AuthFailureType.storage &&
+      nestedCause is PlatformException &&
+      nestedCause.code == 'Unexpected security result code') {
+    final details = nestedCause.details;
+    if (details is int && details >= -999999 && details <= 999999) {
+      storageStatus = details;
+    }
+  }
+  final nativeCode =
+      platform?.platformErrorDetails.code ?? storageStatus?.toString();
   final backend = nativeBackendFailureDiagnostic(failure);
   String safeCode(String? value) =>
       value != null && RegExp(r'^[A-Za-z0-9_.-]{1,80}$').hasMatch(value)
@@ -159,7 +171,7 @@ void emitNativeAuthFailureDiagnostic(
     'backendFailure=${backend.failure} backendStatus=${backend.status} '
     'appAuthCode=${safeCode(platform?.code)} '
     'nativeType=${safeCode(platform?.platformErrorDetails.type)} '
-    'nativeCode=${safeCode(platform?.platformErrorDetails.code)} '
+    'nativeCode=${safeCode(nativeCode)} '
     'nativeDomain=${safeCode(platform?.platformErrorDetails.domain)}',
     simulatorDriver: simulatorDriver,
   );
