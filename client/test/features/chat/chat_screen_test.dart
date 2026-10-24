@@ -89,13 +89,15 @@ Widget _chatTestApp(
   Widget child, {
   List<dynamic> overrides = const [],
   MemberSpaceAccessSnapshot? spaces = _defaultChatSpace,
+  bool provideReadyCapabilities = true,
 }) {
   return createTestApp(
     child,
     overrides: [
-      workspaceCapabilitySnapshotProvider.overrideWithValue(
-        const AsyncData(_readyChatSnapshot),
-      ),
+      if (provideReadyCapabilities)
+        workspaceCapabilitySnapshotProvider.overrideWithValue(
+          const AsyncData(_readyChatSnapshot),
+        ),
       if (spaces != null)
         weaveApiMemberSpacesProvider.overrideWith((ref) async => spaces),
       ...overrides,
@@ -567,6 +569,7 @@ void main() {
       await tester.pumpWidget(
         _chatTestApp(
           const ChatScreen(),
+          provideReadyCapabilities: false,
           overrides: [
             workspaceCapabilitySnapshotProvider.overrideWith(
               (ref) => ref.watch(capabilityState),
@@ -662,6 +665,7 @@ void main() {
       await tester.pumpWidget(
         _chatTestApp(
           const ChatScreen(),
+          provideReadyCapabilities: false,
           overrides: [
             workspaceCapabilitySnapshotProvider.overrideWith(
               (ref) => ref.watch(capabilityState),

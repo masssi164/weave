@@ -622,7 +622,20 @@ void main() {
       await tester.pumpAndSettle();
       expect(repository.searchedSpace, 'space:shared');
       final peer = find.widgetWithText(CheckboxListTile, 'Private peer');
-      await tapNativeDualPeer(tester, peer, deadline: deadline);
+      var pointerDowns = 0;
+      void observePointer(PointerEvent event) {
+        if (event is PointerDownEvent) pointerDowns++;
+      }
+
+      tester.binding.pointerRouter.addGlobalRoute(observePointer);
+      try {
+        await tapNativeDualPeer(tester, peer, deadline: deadline);
+      } finally {
+        tester.binding.pointerRouter.removeGlobalRoute(observePointer);
+      }
+      expect(pointerDowns, 1);
+      expect(tester.widget<CheckboxListTile>(peer).value, isTrue);
+      expect(peer.hitTestable(), findsOneWidget);
       final create = find.byKey(
         const Key('chat-create-conversation-submit-button'),
       );

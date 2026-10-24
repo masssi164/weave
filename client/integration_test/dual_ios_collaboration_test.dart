@@ -2668,6 +2668,12 @@ Future<void> tapNativeDualPeer(
   expect(tester.widget<CheckboxListTile>(peer).onChanged, isNotNull);
   expect(DateTime.now().isBefore(deadline), isTrue);
   await _tap(tester, peer);
+  // The selected-member chip can move the result below the dialog viewport.
+  // Reveal the checked result without tapping it again and toggling it off.
+  if (peer.hitTestable().evaluate().length != 1) {
+    await tester.ensureVisible(peer);
+    await tester.pump();
+  }
   await requireNativeDualPeerSelected(tester, peer, deadline: deadline);
 }
 
