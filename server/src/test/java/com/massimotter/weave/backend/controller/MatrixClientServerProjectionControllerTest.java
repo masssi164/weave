@@ -166,7 +166,8 @@ class MatrixClientServerProjectionControllerTest {
                 .andExpect(jsonPath("$['m.homeserver'].base_url").value("https://api.weave.test"));
         mockMvc.perform(get("/_matrix/client/versions"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.versions[0]").value("v1.18"));
+                .andExpect(jsonPath("$.versions[0]").value("v1.18"))
+                .andExpect(jsonPath("$.unstable_features['org.weave.space_scope']").value(true));
         mockMvc.perform(get("/_matrix/client/v3/login"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.flows").isEmpty())
@@ -1438,6 +1439,87 @@ class MatrixClientServerProjectionControllerTest {
                             .contentType("application/json").content("{\"search_term\":\"Weave\"}"))
                     .andExpect(status().isServiceUnavailable());
         }
+        verifyNoInteractions(memberDisplayNames);
+    }
+
+    @Test
+    void selectedSpaceScopesBothDirectoryAdmissionAndCandidateChecks() throws Exception {
+        String issuer = "https://auth.example.invalid/realms/acme";
+        String peerId = "@" + IdentityReferences.accountId(issuer, "peer-subject") + ":api.weave.test";
+        when(stateStore.identityProjections("tenant-default", issuer, "", 100)).thenReturn(List.of(
+                new MatrixFacadeClientStateStore.IdentityProjection("tenant-default", issuer, peerId,
+                        "user:peer-subject", "user:peer-subject", Instant.now())));
+        when(chatDomainFacadeService.canDiscoverParticipant(any(), any(), eq("space-project"))).thenReturn(true);
+        when(memberDisplayNames.displayNames(any(), eq(List.of("peer-subject"))))
+                .thenReturn(Map.of("peer-subject", "Project Member"));
+        mockMvc.perform(post("/_matrix/client/v3/user_directory/search").with(workspaceJwt())
+                        .header(MatrixClientServerProjectionController.SPACE_REF_HEADER, "space-project")
+                        .contentType("application/json").content("{\"search_term\":\"Project\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.results[0].user_id").value(peerId));
+        verify(chatDomainFacadeService).requireParticipantDiscovery(any(), eq("space-project"));
+        verify(chatDomainFacadeService).canDiscoverParticipant(any(), any(), eq("space-project"));
+        verify(chatDomainFacadeService, never()).requireParticipantDiscovery(any());
+        verify(chatDomainFacadeService, never()).canDiscoverParticipant(any(), any());
+    }
+
+    @Test
+    void selectedCreationRetainsEncryptionAndSeparatesIdempotencyBySpace() throws Exception {
+        when(chatDomainFacadeService.createConversation(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(conversations(ChatEncryptionState.matrixMegolm()).conversations().getFirst());
+        String longestRef = "s".repeat(255);
+        for (String space : List.of("space-project", "space-project", "space-second", longestRef)) {
+            mockMvc.perform(post("/_matrix/client/v3/createRoom").with(workspaceJwt("stable-create-session"))
+                            .header(MatrixClientServerProjectionController.SPACE_REF_HEADER, space)
+                            .header("Idempotency-Key", "same-create-attempt")
+                            .contentType("application/json").content("""
+                                    {"name":"Project","initial_state":[{"type":"m.room.encryption",
+                                     "state_key":"","content":{"algorithm":"m.megolm.v1.aes-sha2"}}]}
+                                    """))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.room_id").value("!channel-general:api.weave.test"));
+        }
+        var transaction = ArgumentCaptor.forClass(String.class);
+        var spaces = ArgumentCaptor.forClass(String.class);
+        verify(chatDomainFacadeService, times(4)).createConversation(transaction.capture(), eq("Project"),
+                eq("channel"), eq(List.of()), eq(ChatEncryptionState.matrixMegolm()), any(), spaces.capture());
+        assertThat(spaces.getAllValues()).containsExactly("space-project", "space-project", "space-second", longestRef);
+        assertThat(transaction.getAllValues().get(0)).isEqualTo(transaction.getAllValues().get(1))
+                .isNotEqualTo(transaction.getAllValues().get(2)).isNotEqualTo(transaction.getAllValues().get(3));
+        verify(chatDomainFacadeService, never()).createConversation(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void malformedOrAmbiguousSelectedSpaceIsRejectedBeforeDomainCalls() throws Exception {
+        for (String path : List.of("/_matrix/client/v3/user_directory/search", "/_matrix/client/v3/createRoom")) {
+            for (String invalid : List.of("", " ", "space/other", "space-project,space-other", "s".repeat(256))) {
+                mockMvc.perform(post(path).with(workspaceJwt())
+                                .header(MatrixClientServerProjectionController.SPACE_REF_HEADER, invalid)
+                                .contentType("application/json").content("{\"search_term\":\"Project\",\"name\":\"Project\"}"))
+                        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errcode").value("M_INVALID_PARAM"))
+                        .andExpect(jsonPath("$.error").value("The selected Space reference is invalid."));
+            }
+            mockMvc.perform(post(path).with(workspaceJwt())
+                            .header(MatrixClientServerProjectionController.SPACE_REF_HEADER, "space-project", "space-other")
+                            .contentType("application/json").content("{\"search_term\":\"Project\",\"name\":\"Project\"}"))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errcode").value("M_INVALID_PARAM"));
+        }
+        verifyNoInteractions(chatDomainFacadeService, memberDisplayNames);
+    }
+
+    @Test
+    void deniedSelectedSpaceNeverFallsBackToLegacyDiscoveryOrCreation() throws Exception {
+        doAnswer(call -> { throw new ChatAccessDeniedException(); }).when(chatDomainFacadeService)
+                .requireParticipantDiscovery(any(), eq("space-revoked"));
+        doAnswer(call -> { throw new ChatAccessDeniedException(); }).when(chatDomainFacadeService)
+                .createConversation(any(), any(), any(), any(), any(), any(), eq("space-revoked"));
+        for (String path : List.of("/_matrix/client/v3/user_directory/search", "/_matrix/client/v3/createRoom")) {
+            mockMvc.perform(post(path).with(workspaceJwt())
+                            .header(MatrixClientServerProjectionController.SPACE_REF_HEADER, "space-revoked")
+                            .contentType("application/json").content("{\"search_term\":\"Project\",\"name\":\"Project\"}"))
+                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.errcode").value("M_FORBIDDEN"))
+                    .andExpect(content().string(not(containsString("space-revoked"))));
+        }
+        verify(chatDomainFacadeService, never()).requireParticipantDiscovery(any());
+        verify(chatDomainFacadeService, never()).createConversation(any(), any(), any(), any(), any(), any());
         verifyNoInteractions(memberDisplayNames);
     }
 

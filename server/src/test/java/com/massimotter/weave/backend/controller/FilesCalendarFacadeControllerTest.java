@@ -118,6 +118,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
         "weave.security.client-id=weave-app",
         "weave.security.required-audience=weave-app",
+        "weave.workspace.calendar.enabled=true",
         "weave.compatibility.public-dav.enabled=true"
 })
 class FilesCalendarFacadeControllerTest {

@@ -403,7 +403,8 @@ class BoardsFacadeServiceTest {
         return new WorkspaceCapabilityService(
                 properties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new WorkspaceCapabilityProperties(null, null, null, null,
+                        new WorkspaceCapabilityProperties.Capability(true, null, null), null));
     }
 
     private Jwt jwt() {

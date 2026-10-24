@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:weave/core/router/app_routes.dart';
+import 'package:weave/core/router/files_routes.dart';
 
 void main() {
   test(
@@ -99,10 +102,16 @@ void main() {
       _expectInOrder(routerSource, const [
         'path: AppRoutes.home',
         'path: AppRoutes.chat',
-        'path: AppRoutes.files',
+        'StatefulShellBranch(routes: [filesRoute()])',
         'path: AppRoutes.calendar',
         'path: AppRoutes.settings',
       ]);
+      final files = filesRoute();
+      expect(files.path, AppRoutes.files);
+      expect(files.builder, isNotNull);
+      final folder = files.routes.single as GoRoute;
+      expect(folder.path, AppRoutes.filesFolderRelative);
+      expect(folder.builder, isNotNull);
       expect(routerSource, contains('CalendarScreen'));
       expect(routerSource, isNot(contains('DeckScreen')));
       expect(routesSource, contains('/home'));

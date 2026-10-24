@@ -10,7 +10,7 @@ import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/presentation/chat_admission_gate.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
-import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/core/router/files_routes.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/home/presentation/home_screen.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
@@ -149,16 +149,7 @@ GoRouter appRouter(Ref ref) {
               ),
             ],
           ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.files,
-                builder: (context, state) => FilesScreen(
-                  initialPath: state.uri.queryParameters['path'] ?? '/',
-                ),
-              ),
-            ],
-          ),
+          StatefulShellBranch(routes: [filesRoute()]),
           StatefulShellBranch(
             routes: [
               GoRoute(

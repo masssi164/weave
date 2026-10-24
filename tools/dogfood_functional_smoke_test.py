@@ -302,6 +302,9 @@ class FunctionalSmokeTest(unittest.TestCase):
         root = driver.split('func smokeFilesRoot(', 1)[1].split('func smokeCurrentPrivateFolder(', 1)[0]
         self.assertIn('try smokeAwaitFilesRead(app, after: previous)', root)
         self.assertIn('try smokeRefreshFiles(app)', root)
+        navigation = root.split('location.tap()', 1)[1].split('let previous =', 1)[0]
+        self.assertNotIn('after: beforeRoot', navigation)
+        self.assertLess(navigation.index('"files-space-selector"'), navigation.index('try smokeRefreshFiles(app)'))
         self.assertIn('guard root.isSelected', root)
         negative = driver.split('func smokePrivateFolderAbsent(', 1)[1].split('func smokeConversation(', 1)[0]
         self.assertIn('try smokeFilesGeneration(app) == generation', negative)

@@ -634,6 +634,7 @@
             "adminControlPlaneRejectsMembers",
             "adminControlPlaneOverviewIsSupportSafeAndProviderNeutral",
             "adminReadinessTestsAndPolicyUpdatesAreAuditedAndRedacted",
+            "readOnlyWhitelistRejectsValidEditsWithoutChangingPolicyOrAudit",
             "secretRefs",
             "rawSecretExposed"
           ]
@@ -654,6 +655,26 @@
             "secretref://weave/provider/",
             "AuditAction.PROVIDER_READINESS_TESTED",
             "AuditAction.ADMIN_POLICY_UPDATED"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "fragments": [
+            "whitelistEditsRemainAuthorizedButReadOnlyWithoutAuditMutation"
+          ]
+        },
+        {
+          "path": "admin-console/src/App.test.tsx",
+          "fragments": [
+            "shows read-only current role capabilities without saving",
+            "distinguishes unavailable role projection from explicit empty grants"
+          ]
+        },
+        {
+          "path": "admin-console/src/api.test.ts",
+          "fragments": [
+            "projects only current role grants without unioning other capability profiles",
+            "distinguishes $name when reading the current role projection"
           ]
         }
       ],
@@ -800,6 +821,21 @@
         "V01_KEYCLOAK_RBAC_CAPABILITY_POLICY"
       ],
       "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WorkspaceCapabilityServiceTest.java",
+          "fragments": [
+            "disabledDomainPolicyRejectsHumanDeviceAndVerifiedMemberGrants",
+            "enabledDomainPolicyDoesNotTurnReadinessIntoAuthorization",
+            "disabledFilesDoesNotBlockShellOtherDomainsOrSetupAuthority"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/calendar/CalendarUserApiServiceTest.java",
+          "fragments": [
+            "disabledCalendarPolicyBlocksMemberReadsAndOwnerWritesBeforeProviderAccess",
+            "enabledCalendarKeepsOrdinaryMemberReadAndOwnerWriteWithIndependentReadiness"
+          ]
+        },
         {
           "path": "docs/product-line-and-weaver-plan.md",
           "fragments": [
@@ -4683,6 +4719,18 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
+          "path": "client/test/features/files/files_screen_test.dart",
+          "fragments": [
+            "Files uses member copy",
+            "native Back and iOS swipe retain scope and parent focus",
+            "scope selection recovers a failed root read",
+            "scope selection leaves a failed child through native Back",
+            "shared folder deep link has native root Back",
+            "retained folder cannot display a replacement account after invalidation",
+            "folder failure keeps native Back available and shared root readable"
+          ]
+        },
+        {
           "path": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
           "fragments": [
             "uses the generated User API repository for release members",
@@ -4946,7 +4994,71 @@
           "fragments": [
             "maps encrypted and business rooms into chat entities",
             "MATRIX_SPACES_ROOMS_CONTRACT",
-            "RustMatrixEncryptedRoom"
+            "RustMatrixEncryptedRoom",
+            "selected Space reaches participant search and both conversation paths",
+            "unsupported Space scope is actionable for search and both creation paths"
+          ]
+        },
+        {
+          "path": "client/test/features/chat/chat_screen_test.dart",
+          "fragments": [
+            "empty nondefault Space is named and receives new conversation",
+            "multiple named Spaces require explicit disambiguated selection",
+            "Space switch clears participants and ignores prior search results",
+            "open creation dialog fails closed when current Space access is lost",
+            "lost selected Space never silently changes the creation target",
+            "creation survives actual Chat admission loss and explicit regrant",
+            "pending create after access loss asks for refresh without false failure",
+            "unsupported scoped Chat remains actionable"
+          ]
+        },
+        {
+          "path": "rust/matrix-client/src/flutter_crypto.rs",
+          "fragments": [
+            "selected_space_requests_keep_matrix_payloads_and_do_not_leak_scope",
+            "selected_space_operations_stop_before_search_or_create_without_server_support",
+            "selected_space_support_is_rechecked_after_server_rollback",
+            "selected_space_first_direct_room_is_synced_listed_opened_and_sent",
+            "selected_space_reference_is_canonical_and_bounded"
+          ]
+        },
+        {
+          "path": "client/test/integration_harness/dual_chat_readiness_test.dart",
+          "fragments": [
+            "native Chat selects the intended shared Space before search and create",
+            "native Chat refuses an absent intended Space without choosing another"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "fragments": [
+            "selectedSpaceScopesBothDirectoryAdmissionAndCandidateChecks",
+            "selectedCreationRetainsEncryptionAndSeparatesIdempotencyBySpace",
+            "malformedOrAmbiguousSelectedSpaceIsRejectedBeforeDomainCalls",
+            "deniedSelectedSpaceNeverFallsBackToLegacyDiscoveryOrCreation"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/chat/ChatDomainFacadeServiceTest.java",
+          "fragments": [
+            "selectedEmptySpaceSupportsDiscoveryFirstRoomAndSendWithoutDefaultSpaceAccess",
+            "selectedSpaceRechecksCallerAndRecipientAccessInsteadOfFallingBack",
+            "selectedCreationRechecksCurrentOrganizationBeforeEveryRetry",
+            "selectedSpaceCannotOverrideEitherExplicitTokenContextClaim",
+            "selectedSpaceRejectsForeignRecipientAndMalformedReferences",
+            "maximumCanonicalSpaceReferenceAndUnselectedDefaultRetainTheirOwnContexts"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/chat/store/JpaCanonicalChatStoreTest.java",
+          "fragments": [
+            "spaceReferenceWideningPreservesExistingChatAndPersistsMaximumLengthScope"
+          ]
+        },
+        {
+          "path": "rust/matrix-protocol/src/lib.rs",
+          "fragments": [
+            "versions_advertise_explicit_chat_space_scope"
           ]
         }
       ]
@@ -5987,6 +6099,27 @@
             "reject User session at Admin workspace diagnostics",
             "assertSeparatedApiSessions",
             "verifyHome(memberSession.accessToken())"
+          ]
+        },
+        {
+          "path": "client/test/features/home/home_member_summary_test.dart",
+          "fragments": [
+            "Home has accessible product actions in",
+            "Home retry reloads failed member Space admission",
+            "Home failure shows localized member recovery without raw diagnostics"
+          ]
+        },
+        {
+          "path": "client/test/features/home/home_screen_test.dart",
+          "fragments": [
+            "Home does not fetch Calendar before current admission:",
+            "Home hides retained Calendar entries and reloads after current regrant"
+          ]
+        },
+        {
+          "path": "client/test/features/shell/app_shell_test.dart",
+          "fragments": [
+            "workspace status localizes backend recovery states"
           ]
         }
       ]

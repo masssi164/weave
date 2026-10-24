@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/home/presentation/home_recent_activity.dart';
@@ -153,7 +155,32 @@ class _HomeTodaySummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final copy = _HomeCopy.of(context);
-    final calendarState = ref.watch(calendarProvider);
+    ref.listen(workspaceCapabilitySnapshotProvider, (previous, next) {
+      if (previous != null &&
+          !_calendarPreviewAdmitted(previous) &&
+          _calendarPreviewAdmitted(next)) {
+        ref
+          ..invalidate(calendarWorkspaceContextProvider)
+          ..invalidate(calendarScopesProvider)
+          ..invalidate(calendarProvider);
+      }
+    });
+    final admission = ref.watch(workspaceCapabilitySnapshotProvider);
+    final calendarState = _calendarPreviewAdmitted(admission)
+        ? ref.watch(calendarProvider)
+        : null;
+    final loading = _HomeStatusRow(
+      icon: Icons.calendar_today_outlined,
+      title: copy.calendarLoadingTitle,
+      body: copy.calendarLoadingBody,
+    );
+    final unavailable = _HomeStatusRow(
+      icon: Icons.calendar_today_outlined,
+      title: copy.calendarUnavailableTitle,
+      body: copy.calendarUnavailableBody,
+      actionLabel: copy.openCalendarAction,
+      onAction: () => context.go(AppRoutes.calendar),
+    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -162,26 +189,27 @@ class _HomeTodaySummary extends ConsumerWidget {
         elevation: 0,
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: switch (calendarState) {
-            AsyncLoading() => _HomeStatusRow(
-              icon: Icons.calendar_today_outlined,
-              title: copy.calendarLoadingTitle,
-              body: copy.calendarLoadingBody,
-            ),
-            AsyncError() => _HomeStatusRow(
-              icon: Icons.calendar_today_outlined,
-              title: copy.calendarUnavailableTitle,
-              body: copy.calendarUnavailableBody,
-              actionLabel: copy.openCalendarAction,
-              onAction: () => context.go(AppRoutes.calendar),
-            ),
-            AsyncData(:final value) => _HomeCalendarData(events: value.events),
-          },
+          child: admission.isLoading
+              ? loading
+              : switch (calendarState) {
+                  null || AsyncError() => unavailable,
+                  AsyncLoading() => loading,
+                  AsyncData(:final value) => _HomeCalendarData(
+                    events: value.events,
+                  ),
+                },
         ),
       ),
     );
   }
 }
+
+bool _calendarPreviewAdmitted(
+  AsyncValue<WorkspaceCapabilitySnapshot> admission,
+) =>
+    !admission.isLoading &&
+    !admission.hasError &&
+    admission.asData?.value.calendar.isReady == true;
 
 class _HomeCalendarData extends StatelessWidget {
   const _HomeCalendarData({required this.events});

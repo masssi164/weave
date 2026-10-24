@@ -386,6 +386,42 @@ abstract class AppLocalizations {
   /// **'Authorized recent workspace activity'**
   String get shellRecentActivitySemanticLabel;
 
+  /// No description provided for @homeWorkspaceAccessUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace access could not be checked.'**
+  String get homeWorkspaceAccessUnavailable;
+
+  /// No description provided for @homeWorkspaceActionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your workspace'**
+  String get homeWorkspaceActionsTitle;
+
+  /// No description provided for @homeOpenChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Chat'**
+  String get homeOpenChat;
+
+  /// No description provided for @homeOpenFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Files'**
+  String get homeOpenFiles;
+
+  /// No description provided for @homeOpenCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Calendar'**
+  String get homeOpenCalendar;
+
+  /// No description provided for @homeRefreshWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh workspace'**
+  String get homeRefreshWorkspace;
+
   /// Loading state for the authorized Home recent-activity projection
   ///
   /// In en, this message translates to:
@@ -651,7 +687,7 @@ abstract class AppLocalizations {
   /// Provider-neutral guidance in the conversation creation dialog
   ///
   /// In en, this message translates to:
-  /// **'Choose a name and members for a direct conversation or restricted group.'**
+  /// **'Choose a Space, a name and members for a direct conversation or restricted group.'**
   String get chatCreateConversationDescription;
 
   /// Label for the new conversation name field
@@ -693,7 +729,7 @@ abstract class AppLocalizations {
   /// Support-safe local error shown when conversation creation fails
   ///
   /// In en, this message translates to:
-  /// **'The encrypted conversation could not be created. Your other Chat areas remain available; try again when the connection is back.'**
+  /// **'The conversation could not be created. Try again or ask a workspace admin for help.'**
   String get chatCreateConversationFailure;
 
   /// Title for the chat overview/home surface
@@ -1209,7 +1245,7 @@ abstract class AppLocalizations {
   /// Message shown when the Files feature is missing required server setup
   ///
   /// In en, this message translates to:
-  /// **'Finish Weave server setup before using Files.'**
+  /// **'Files are not set up for this workspace yet. Ask a workspace admin to finish setup.'**
   String get filesMisconfiguredMessage;
 
   /// Status message shown when the Files feature is connected through Weave
@@ -5906,7 +5942,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatParticipantsHelp.
   ///
   /// In en, this message translates to:
-  /// **'Find people in your organization by name.'**
+  /// **'Find people for this conversation by name.'**
   String get chatParticipantsHelp;
 
   /// No description provided for @chatParticipantsSearchFailure.
@@ -6238,6 +6274,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'End of folder'**
   String get filesListingEnd;
+
+  /// No description provided for @chatCreateSpaceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Space'**
+  String get chatCreateSpaceLabel;
+
+  /// No description provided for @chatCreateSpaceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a Space'**
+  String get chatCreateSpaceHint;
+
+  /// No description provided for @chatCreateSpacesLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading Spaces…'**
+  String get chatCreateSpacesLoading;
+
+  /// No description provided for @chatCreateSpaceRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a Space before continuing.'**
+  String get chatCreateSpaceRequired;
+
+  /// No description provided for @chatCreateSpaceUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Space access could not be checked. Refresh it and try again.'**
+  String get chatCreateSpaceUnavailable;
+
+  /// Disambiguates equal current Space names without exposing their stable references.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} ({ordinal})'**
+  String chatCreateSpaceOrdinal(String name, int ordinal);
+
+  /// No description provided for @chatSpaceScopeUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This workspace does not support selecting a Space for Chat yet. Ask a workspace admin to update Weave.'**
+  String get chatSpaceScopeUnsupported;
+
+  /// No description provided for @chatCreateSpaceChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Space access changed while creating the conversation. Refresh conversations before trying again.'**
+  String get chatCreateSpaceChanged;
 }
 
 class _AppLocalizationsDelegate

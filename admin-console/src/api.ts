@@ -131,9 +131,8 @@ export interface PlatformIdentityReadiness {
 }
 
 export interface WhitelistPolicy {
-  denyByDefault: boolean;
-  allowedCapabilities: string[];
-  blockedCapabilities: string[];
+  available: boolean;
+  roleCapabilities: string[];
 }
 
 export interface McpServerBinding {
@@ -555,22 +554,6 @@ export class AdminControlPlaneApi {
       auditEvents,
       this.config.oidcIssuerUrl,
     );
-  }
-
-  async updateWhitelistPolicy(
-    allowedCapabilities: string[],
-    profileKey = "workspace-admin",
-  ): Promise<WhitelistPolicy> {
-    const response = await this.generated(
-      this.generatedControlPlane.updateCapabilityWhitelist({
-        capabilityWhitelistUpdateRequest: {
-          profileKey,
-          capabilityKeys: allowedCapabilities,
-          reason: "Updated through Organization/Admin Console",
-        },
-      }),
-    );
-    return normalizeWhitelist(response);
   }
 
   async selectProvider(
@@ -1353,21 +1336,10 @@ const sampleSuiteDomainReadiness: SuiteDomainReadiness[] = [
 function normalizeWhitelist(
   whitelist?: GeneratedWhitelistResponse,
 ): WhitelistPolicy {
-  const profileCapabilities = whitelist?.profileCapabilities ?? {};
-  const allowedCapabilities = Array.from(
-    new Set([
-      ...(whitelist?.effectiveCapabilities ?? []),
-      ...Object.values(profileCapabilities).flat(),
-    ]),
-  ).sort();
+  const capabilities = whitelist?.effectiveCapabilities;
   return {
-    denyByDefault: whitelist?.denyByDefault ?? true,
-    allowedCapabilities,
-    blockedCapabilities: [
-      "provider.direct_call",
-      "provider.secret_export",
-      "provider.unapproved_runtime_execution",
-    ],
+    available: Array.isArray(capabilities),
+    roleCapabilities: Array.isArray(capabilities) ? Array.from(new Set(capabilities)).sort() : [],
   };
 }
 
@@ -1895,9 +1867,8 @@ export const sampleControlPlane: ControlPlaneResponse = {
     ],
   },
   whitelistPolicy: {
-    denyByDefault: true,
-    allowedCapabilities: ["chat.read", "files.read"],
-    blockedCapabilities: ["provider.direct_call", "provider.secret_export"],
+    available: true,
+    roleCapabilities: ["chat.read", "files.read"],
   },
   mcpServerBindings: sampleMcpServerBindings,
   auditEvents: [

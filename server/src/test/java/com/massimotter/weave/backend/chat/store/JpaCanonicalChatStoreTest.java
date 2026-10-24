@@ -51,6 +51,48 @@ class JpaCanonicalChatStoreTest {
     private static final String PROVIDER = "matrix-synapse";
 
     @Test
+    void spaceReferenceWideningPreservesExistingChatAndPersistsMaximumLengthScope() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        jdbc.execute("ALTER TABLE weave_chat_conversations ALTER COLUMN context_id TYPE character varying(160)");
+        jdbc.execute("ALTER TABLE weave_chat_operations ALTER COLUMN context_id TYPE character varying(160)");
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext existing = context("existing-author");
+        var existingRoom = adapter.createConversation(existing, new ChatTransactionId("existing-room"),
+                "Existing", "channel", List.of(), ChatEncryptionState.unencrypted());
+        adapter.sendEvent(existing, new ConversationId(existingRoom.conversationId()),
+                new ChatTransactionId("existing-message"), ChatEventContent.text("Preserved message"));
+
+        new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(
+                new org.springframework.core.io.ClassPathResource(
+                        "db/migration/V15__chat_canonical_space_reference_width.sql")).execute(dataSource);
+
+        String longestSpace = "space:" + "x".repeat(249);
+        ChatRequestContext selected = new ChatRequestContext(existing.tenantId(), longestSpace,
+                existing.identityIssuer(), existing.actorRef(), existing.authorizationPrincipalRef());
+        assertThat(store.joinedConversations(selected).conversations()).isEmpty();
+        var first = adapter.createConversation(selected, new ChatTransactionId("first-long-space-room"),
+                "Selected", "channel", List.of(), ChatEncryptionState.unencrypted());
+        adapter.sendEvent(selected, new ConversationId(first.conversationId()),
+                new ChatTransactionId("first-long-space-message"), ChatEventContent.text("First message"));
+        JpaCanonicalChatStore restarted = store(dataSource);
+        assertThat(restarted.conversation(existing, new ConversationId(existingRoom.conversationId())).title())
+                .isEqualTo("Existing");
+        assertThat(restarted.timelineEvents(existing, new ConversationId(existingRoom.conversationId()), null, 100).events())
+                .extracting(event -> event.content().body()).containsExactly("Preserved message");
+        assertThat(restarted.memberConversationContext(selected, new ConversationId(first.conversationId())))
+                .contains(longestSpace);
+        assertThat(restarted.timelineEvents(selected, new ConversationId(first.conversationId()), null, 100).events())
+                .extracting(event -> event.content().body()).containsExactly("First message");
+        assertThat(jdbc.queryForList("select distinct context_id from weave_chat_operations where context_id = ?",
+                String.class, longestSpace)).containsExactly(longestSpace);
+        assertThatThrownBy(() -> new ChatRequestContext(existing.tenantId(), longestSpace + "x",
+                existing.identityIssuer(), existing.actorRef(), existing.authorizationPrincipalRef()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void canonicalHistoryBackfillsBeyondColdSyncWindowWithoutDuplicateOrGapAfterRestart() {
         DriverManagerDataSource dataSource = dataSource();
         JpaCanonicalChatStore store = store(dataSource);

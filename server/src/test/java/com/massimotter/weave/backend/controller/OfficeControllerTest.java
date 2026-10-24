@@ -51,7 +51,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         OfficeFacadeService.class,
         WorkspaceCapabilityService.class
 })
-@TestPropertySource(properties = "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave")
+@TestPropertySource(properties = {
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
+        "weave.workspace.documents-collaboration.enabled=true"
+})
 @EnableConfigurationProperties({
         WorkspaceCapabilityProperties.class,
         WeaveSecurityProperties.class,

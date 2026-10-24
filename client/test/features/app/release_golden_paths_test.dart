@@ -170,7 +170,10 @@ class _MutableChatRepository implements ChatRepository {
   }
 
   @override
-  Future<ChatConversation> createConversation({required String title}) {
+  Future<ChatConversation> createConversation({
+    required String title,
+    String? spaceRef,
+  }) {
     throw UnimplementedError();
   }
 
@@ -473,6 +476,7 @@ void main() {
             ),
             '/Projects': const DirectoryListing(
               path: '/Projects',
+              parentFileId: 'projects',
               entries: <FileEntry>[
                 FileEntry(
                   id: 'roadmap',
@@ -555,7 +559,12 @@ void main() {
         expect(chatRepository.connectCalls, 1);
         expect(find.text('Weave Core'), findsNothing);
 
-        await tester.tap(find.byIcon(Icons.folder_outlined));
+        await tester.tap(
+          find.descendant(
+            of: find.byType(NavigationBar),
+            matching: find.byIcon(Icons.folder_outlined),
+          ),
+        );
         await tester.pumpAndSettle();
 
         expect(find.text('Connect Files'), findsNothing);
@@ -658,7 +667,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byIcon(Icons.settings_outlined),
+        ),
+      );
       await tester.pumpAndSettle();
 
       final container = ProviderScope.containerOf(

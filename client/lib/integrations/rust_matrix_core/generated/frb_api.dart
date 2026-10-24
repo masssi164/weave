@@ -122,17 +122,21 @@ Future<String> matrixCreateEncryptedRoom({
 Future<String> matrixCreateBusinessRoom({
   required String profileKey,
   required String title,
+  String? spaceRef,
 }) => RustLib.instance.api.crateFrbApiMatrixCreateBusinessRoom(
   profileKey: profileKey,
   title: title,
+  spaceRef: spaceRef,
 );
 
 Future<String> matrixSearchMembers({
   required String profileKey,
   required String query,
+  String? spaceRef,
 }) => RustLib.instance.api.crateFrbApiMatrixSearchMembers(
   profileKey: profileKey,
   query: query,
+  spaceRef: spaceRef,
 );
 
 Future<String> matrixCreateBusinessRoomWithMembers({
@@ -140,11 +144,13 @@ Future<String> matrixCreateBusinessRoomWithMembers({
   required String title,
   required List<String> memberIds,
   required bool isDirect,
+  String? spaceRef,
 }) => RustLib.instance.api.crateFrbApiMatrixCreateBusinessRoomWithMembers(
   profileKey: profileKey,
   title: title,
   memberIds: memberIds,
   isDirect: isDirect,
+  spaceRef: spaceRef,
 );
 
 Future<String> matrixAcceptRoomInvitation({
