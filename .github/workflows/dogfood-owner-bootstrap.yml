@@ -22,8 +22,6 @@ jobs:
       WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
       WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
       WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/weave-specs
-      WEAVE_BUILD_ARTIFACT_ROOT: ${{ runner.temp }}/weave-owner-bootstrap-artifacts-${{ github.run_id }}-${{ github.run_attempt }}
-      WEAVE_CANDIDATE_COMPOSITION: ${{ runner.temp }}/weave-owner-bootstrap-composition-${{ github.run_id }}-${{ github.run_attempt }}.json
       WEAVE_DOGFOOD_OWNER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
       WEAVE_DOGFOOD_OWNER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
 
@@ -36,6 +34,14 @@ jobs:
           [[ "${WEAVE_ENV_FILE:-}" == /* && -f "$WEAVE_ENV_FILE" && ! -L "$WEAVE_ENV_FILE" ]]
           : "${WEAVE_DOGFOOD_OWNER_EMAIL:?Configure the dogfood owner email}"
           : "${WEAVE_DOGFOOD_OWNER_DISPLAY_NAME:?Configure the dogfood owner display name}"
+
+      - name: Initialize hosted artifact paths
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_TEMP:-}" == /* && -d "$RUNNER_TEMP" && ! -L "$RUNNER_TEMP" ]]
+          [[ "${GITHUB_RUN_ID:-}" =~ ^[1-9][0-9]*$ && "${GITHUB_RUN_ATTEMPT:-}" =~ ^[1-9][0-9]*$ ]]
+          printf 'WEAVE_BUILD_ARTIFACT_ROOT=%s/weave-owner-bootstrap-artifacts-%s-%s\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          printf 'WEAVE_CANDIDATE_COMPOSITION=%s/weave-owner-bootstrap-composition-%s-%s.json\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
 
       - name: Check out exact dogfood commit
         id: exact_source

@@ -40,8 +40,6 @@ jobs:
       WEAVE_IOS_RESET_MODE: update_in_place
       WEAVE_IOS_INSTALL_TRANSPORT: wifi
       WEAVE_IOS_LOCAL_CA_TRUST_STATUS: trusted
-      WEAVE_BUILD_ARTIFACT_ROOT: ${{ runner.temp }}/weave-physical-artifacts-${{ github.run_id }}-${{ github.run_attempt }}
-      WEAVE_CANDIDATE_COMPOSITION: ${{ runner.temp }}/weave-physical-composition-${{ github.run_id }}-${{ github.run_attempt }}.json
       WEAVE_DOGFOOD_EVIDENCE_DIR: ${{ github.workspace }}/weave/build/evidence/prepare-human-test
 
     steps:
@@ -52,6 +50,14 @@ jobs:
           [[ "$DOGFOOD_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "${WEAVE_ENV_FILE:-}" == /* && -f "$WEAVE_ENV_FILE" && ! -L "$WEAVE_ENV_FILE" ]]
           : "${WEAVE_IOS_DEVICE_ID:?Configure the paired physical iPhone device identifier}"
+
+      - name: Initialize hosted artifact paths
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_TEMP:-}" == /* && -d "$RUNNER_TEMP" && ! -L "$RUNNER_TEMP" ]]
+          [[ "${GITHUB_RUN_ID:-}" =~ ^[1-9][0-9]*$ && "${GITHUB_RUN_ATTEMPT:-}" =~ ^[1-9][0-9]*$ ]]
+          printf 'WEAVE_BUILD_ARTIFACT_ROOT=%s/weave-physical-artifacts-%s-%s\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          printf 'WEAVE_CANDIDATE_COMPOSITION=%s/weave-physical-composition-%s-%s.json\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
 
       - name: Check out exact dogfood commit
         id: exact_source

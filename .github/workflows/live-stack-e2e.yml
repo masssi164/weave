@@ -36,8 +36,6 @@ jobs:
       WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/weave-specs
       WEAVE_TEST_APP_NATIVE_RUNNER: ${{ github.workspace }}/weave/client/tool/run_native_qualification.py
       WEAVE_TEST_APP_OUTPUT_ROOT: ${{ github.workspace }}/weave/build/test-app
-      WEAVE_BUILD_ARTIFACT_ROOT: ${{ runner.temp }}/weave-qualification-artifacts-${{ github.run_id }}-${{ github.run_attempt }}
-      WEAVE_CANDIDATE_COMPOSITION: ${{ runner.temp }}/weave-qualification-composition-${{ github.run_id }}-${{ github.run_attempt }}.json
 
     steps:
       - name: Verify bounded runner
@@ -47,6 +45,14 @@ jobs:
             echo "::error::Expected ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}."
             exit 1
           }
+
+      - name: Initialize hosted artifact paths
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_TEMP:-}" == /* && -d "$RUNNER_TEMP" && ! -L "$RUNNER_TEMP" ]]
+          [[ "${GITHUB_RUN_ID:-}" =~ ^[1-9][0-9]*$ && "${GITHUB_RUN_ATTEMPT:-}" =~ ^[1-9][0-9]*$ ]]
+          printf 'WEAVE_BUILD_ARTIFACT_ROOT=%s/weave-qualification-artifacts-%s-%s\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          printf 'WEAVE_CANDIDATE_COMPOSITION=%s/weave-qualification-composition-%s-%s.json\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
 
       - name: Check out exact source
         id: exact_source
@@ -184,8 +190,6 @@ jobs:
       DOGFOOD_COMMIT: ${{ github.sha }}
       WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
       WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/weave-specs
-      WEAVE_BUILD_ARTIFACT_ROOT: ${{ runner.temp }}/weave-deployment-artifacts-${{ github.run_id }}-${{ github.run_attempt }}
-      WEAVE_CANDIDATE_COMPOSITION: ${{ runner.temp }}/weave-deployment-composition-${{ github.run_id }}-${{ github.run_attempt }}.json
 
     steps:
       - name: Verify bounded dogfood deployment
@@ -194,6 +198,14 @@ jobs:
           [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]]
           [[ "$DOGFOOD_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "${WEAVE_ENV_FILE:-}" == /* && -f "$WEAVE_ENV_FILE" && ! -L "$WEAVE_ENV_FILE" ]]
+
+      - name: Initialize hosted artifact paths
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_TEMP:-}" == /* && -d "$RUNNER_TEMP" && ! -L "$RUNNER_TEMP" ]]
+          [[ "${GITHUB_RUN_ID:-}" =~ ^[1-9][0-9]*$ && "${GITHUB_RUN_ATTEMPT:-}" =~ ^[1-9][0-9]*$ ]]
+          printf 'WEAVE_BUILD_ARTIFACT_ROOT=%s/weave-deployment-artifacts-%s-%s\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          printf 'WEAVE_CANDIDATE_COMPOSITION=%s/weave-deployment-composition-%s-%s.json\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
 
       - name: Check out exact dogfood commit
         id: exact_source
