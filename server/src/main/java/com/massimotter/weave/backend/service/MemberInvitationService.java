@@ -133,6 +133,45 @@ public class MemberInvitationService {
         "dogfood-" + planId + "-" + slot, "urn:weave:dogfood-operator", "operator:dogfood-prepare:" + planId);
   }
 
+  /** Creates a managed test intent, not an invitation or an authenticated session. */
+  @org.springframework.transaction.annotation.Transactional
+  public ProvisioningIntent createDogfoodManagedTestIntent(String tenantId, String organizationId,
+      String planId, String slot, String organizationHost) {
+    if (!planId.matches("[0-9a-f]{32}") || !List.of("A", "B").contains(slot)
+        || !organizationHost.matches("[a-z0-9.-]+")
+        || !identityContexts.configuredOrganizationId().equals(tenantId)
+        || !keycloak.configuredOrganizationId().equals(organizationId)) {
+      throw new IllegalArgumentException("The managed test plan is invalid");
+    }
+    String email = "weave-smoke-" + planId + "-" + slot.toLowerCase(Locale.ROOT) + "@" + organizationHost;
+    if (!intents.findByEmail(tenantId, organizationId, email).isEmpty()) throw bootstrapConflict();
+    Instant now = clock.instant();
+    ProvisioningIntent intent = new ProvisioningIntent(UUID.randomUUID(), tenantId, organizationId,
+        email, sha256(email), "member", null, "urn:weave:dogfood-managed-fixture",
+        "operator:dogfood-prepare:" + planId, "dogfood-" + planId + "-" + slot,
+        ProvisioningIntentStatus.PENDING, null, null, now.plus(properties.defaultLifetime()), now, now);
+    intents.save(intent);
+    publish(AuditAction.DOGFOOD_PREPARATION_AUTHORIZED, intent, intent.invitedBySubject(), intent.auditCorrelation());
+    return intent;
+  }
+
+  /** Records verified managed setup honestly; it does not claim a human invitation acceptance. */
+  @org.springframework.transaction.annotation.Transactional
+  public ProvisioningIntent completeDogfoodManagedTestIntent(ProvisioningIntent intent, String subject) {
+    if (!List.of("urn:weave:dogfood-operator", "urn:weave:dogfood-managed-fixture").contains(intent.invitedByIssuer())
+        || !"member".equals(intent.requestedRole()) || intent.status() == ProvisioningIntentStatus.FAILED
+        || (intent.appliedSubject() != null && !intent.appliedSubject().equals(subject))) {
+      throw new IllegalArgumentException("The managed test intent is invalid");
+    }
+    var current = keycloak.memberAuthorization(intent.organizationId(), subject);
+    if (!current.enabled() || !current.activated() || !current.subject().equals(subject)
+        || !current.roles().equals(List.of("member"))) throw bootstrapConflict();
+    if (intent.status() == ProvisioningIntentStatus.APPLIED) return intent;
+    ProvisioningIntent applied = intents.save(intent.applied(subject, clock.instant()));
+    publish(AuditAction.DOGFOOD_PREPARATION_VERIFIED, applied, intent.invitedBySubject(), intent.auditCorrelation());
+    return applied;
+  }
+
   /**
    * Creates the first owner invitation only while the target realm has no human identities.
    *

@@ -38,7 +38,7 @@ a later candidate's required checks.
 | [#1475](https://github.com/masssi164/weave/issues/1475) bounded Matrix Chat | [Versioned v3 profile](reference/matrix-client-server-support-profile.md), native Rust Matrix SDK and real OpenClaw at the same Weave facade, business-room send/read/sync, current room/member/device denial, restart and refresh. | Closed on integrated source `5d78cade66199edfde6c47cea2661c453c4f602d`; [criterion evidence](https://github.com/masssi164/weave/issues/1475#issuecomment-6102766047) accepts the five Supported rows of the required profile. |
 | [#1476](https://github.com/masssi164/weave/issues/1476) stable resources/bindings | [Persistence and invariant audit](https://github.com/masssi164/weave/issues/1476#issuecomment-6075355496): transient browse, explicit idempotent materialization, stable IDs, one active binding, private mappings, access removal and restore. | Closed; populated-provider replacement remains #1498. |
 | [#1479](https://github.com/masssi164/weave/issues/1479) usable product | Two native processes prove one sign-in, generated Files upload/read and Calendar CRUD, business Chat, navigation and lifecycle. Real OpenClaw proves Files/Calendar catalog, writes, version conflicts and current permission denial with independent API readback. Admin identity/setup/readiness remains separate. | Latest integrated acceptance and required checks are recorded in the linked story; focused keyboard/focus and Calendar loading/empty assertions were completed in #1544. |
-| [#1480](https://github.com/masssi164/weave/issues/1480) integrated CI/E2E | Exact-source generated contracts/SDKs, stale/unsupported/duplicate-ID failures and consumer compilation; real disposable native/API/MCP/Matrix expectations, cross-organization denial and zero-resource cleanup. Those historical Dev checks predate delivery consolidation. Current Dev runs deterministic checks; the exact protected Dogfood commit runs mandatory Compose, macOS and concurrent dual-iOS qualification before deployment and physical preparation for HIL. | Exact integrated-source acceptance is recorded in the linked story after its required checks pass. No skipped compatibility job substitutes for a required check. |
+| [#1480](https://github.com/masssi164/weave/issues/1480) integrated CI/E2E | Exact-source generated contracts/SDKs, stale/unsupported/duplicate-ID failures and consumer compilation; real disposable native/API/MCP/Matrix expectations, cross-organization denial and zero-resource cleanup. Those historical Dev checks predate delivery consolidation. Current Dev runs deterministic checks; the protected Dogfood candidate consumes verified hosted artifacts and runs mandatory Compose/two-ordinary-member dual-iOS collaboration before deployment and physical startup preparation. macOS desktop testing is manual-only. | Exact integrated-source acceptance is recorded in the linked story after its required checks pass. No skipped compatibility job substitutes for a required check. |
 | [#1481](https://github.com/masssi164/weave/issues/1481) main delivery | Existing #1544 enforces exact lane ancestry/tree, successful exact dogfood deployment and separate owner human evidence; distribution notices and README claims are reconciled. Weaver work is already merged and verified below. | Closure requires preceding outcomes, exact dogfood/human acceptance, remote Weave main and post-merge CI. |
 
 ## Native execution and independent assertions
@@ -109,9 +109,10 @@ and public notices, with Matrix vendor notices retained in Server.
 
 Existing #1533 and #1544 are historical integrated work. Current qualification
 continues under #1592 through Feature → Dev → Dogfood E2E → HIL → Main.
-The protected Dogfood commit must pass mandatory Compose, macOS and concurrent
-dual-iOS qualification, then exact deployment and physical iPhone preparation.
-The owner reports human acceptance explicitly for that deployed candidate.
+The protected Dogfood candidate must pass verified hosted artifact composition and fresh
+Compose/two-ordinary-member dual-iOS collaboration, then deployment and in-place physical
+startup preparation. macOS desktop testing is manual-only. The owner reports human acceptance
+explicitly for that deployed candidate, including the actual tested owner/admin/member role.
 Existing Main promotion #1591 must verify the unchanged qualified tree/spec and
 valid automated, deployment, physical and human evidence without repeating
 equivalent integration solely for promotion. A changed candidate requires new

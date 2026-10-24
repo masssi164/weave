@@ -10,6 +10,7 @@ import secrets
 import shutil
 import ssl
 import subprocess
+import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -51,7 +52,16 @@ def _identity(context: ComposeContext) -> dict[str, str]:
     if _git(context, "status", "--porcelain=v1", "--untracked-files=all"):
         raise ContractError("Space preparation requires a clean exact candidate checkout")
     source = context.env["WEAVE_IMAGE_SOURCE_COMMIT"]
-    if _git(context, "rev-parse", source + "^{tree}") != tree:
+    if os.environ.get("WEAVE_BUILD_ARTIFACT_ROOT"):
+        sys.path.insert(0, str(context.repository_root / "tools"))
+        from artifact_consumers import ArtifactError, candidate_composition
+        try:
+            composition = candidate_composition(commit)
+            if composition["components"]["runtime-linux-amd64"]["sourceCommit"] != source:
+                raise ArtifactError("runtime-producer-mismatch")
+        except (ArtifactError, KeyError):
+            raise ContractError("Space preparation source differs from the candidate composition") from None
+    elif _git(context, "rev-parse", source + "^{tree}") != tree:
         raise ContractError("Space preparation backend source differs from the candidate tree")
     return {"candidateCommit": commit, "sourceTree": tree, "specificationCommit": pin}
 
@@ -171,16 +181,34 @@ def execute(context: ComposeContext, extra: list[str]) -> None:
         image = str(before.get("Image", ""))
         if not re.fullmatch(r"sha256:[0-9a-f]{64}", image):
             raise ContractError("Space preparation requires exact backend image identity")
-        configured = subprocess.run(
-            ["docker", "image", "inspect", context.env["WEAVE_BACKEND_IMAGE"], "--format", "{{.Id}}"],
-            check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        ).stdout.strip()
-        if configured != image:
-            raise ContractError("Space preparation running image differs from the exact candidate")
         image_labels = before.get("Config", {}).get("Labels", {}) or {}
-        if (image_labels.get("org.opencontainers.image.revision") != context.env["WEAVE_IMAGE_SOURCE_COMMIT"]
-                or image_labels.get("com.massimotter.weave.spec-digest") != context.env["WEAVE_SPEC_DIGEST"]):
-            raise ContractError("Space preparation backend provenance differs from the candidate")
+        if os.environ.get("WEAVE_BUILD_ARTIFACT_ROOT"):
+            sys.path.insert(0, str(context.repository_root / "tools"))
+            from artifact_consumers import ArtifactError, verify_runtime_container
+            try:
+                verify_runtime_container(before, identity["candidateCommit"])
+            except ArtifactError:
+                raise ContractError("Space preparation running artifact differs from the candidate composition") from None
+            expected = {"com.massimotter.weave.candidate-commit": identity["candidateCommit"],
+                        "com.massimotter.weave.spec-digest": context.env["WEAVE_SPEC_DIGEST"],
+                        "com.massimotter.weave.namespace": context.env["WEAVE_RESOURCE_PREFIX"],
+                        "com.docker.compose.project": context.env["WEAVE_COMPOSE_PROJECT"],
+                        "com.docker.compose.service": "backend"}
+            if any(image_labels.get(key) != value for key, value in expected.items()):
+                raise ContractError("Space preparation runtime ownership differs from the candidate")
+            # The bounded override and restoration consume this exact verified image, even when its
+            # original producer differs from the current candidate and process overrides expired.
+            context.env["WEAVE_BACKEND_IMAGE"] = image
+        else:
+            configured = subprocess.run(
+                ["docker", "image", "inspect", context.env["WEAVE_BACKEND_IMAGE"], "--format", "{{.Id}}"],
+                check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            ).stdout.strip()
+            if configured != image:
+                raise ContractError("Space preparation running image differs from the exact candidate")
+            if (image_labels.get("org.opencontainers.image.revision") != context.env["WEAVE_IMAGE_SOURCE_COMMIT"]
+                    or image_labels.get("com.massimotter.weave.spec-digest") != context.env["WEAVE_SPEC_DIGEST"]):
+                raise ContractError("Space preparation backend provenance differs from the candidate")
         operation: Path | None = None
         override: Path | None = None
         result: dict[str, Any] | None = None

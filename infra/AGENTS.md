@@ -57,6 +57,11 @@ list of known unlabeled legacy Weave resources after every target passes its pre
 - `./gradlew noExecutableOpenTofuCheck` must remain green.
 - Keep images immutable by digest or exact local image ID where ADR 0022 allows it, Compose
   resources explicitly named and labeled, and teardown bounded to the exact selected project.
+- Protected iPhone delivery consumes verified hosted runtime and iOS artifacts. The Mac runner
+  executes the prepared two-member scenario, signs and installs the qualified device artifact,
+  and observes ordinary startup; it must not silently compile missing delivery artifacts.
+  Artifact reuse preserves the original producer and complete input fingerprint. Candidate
+  composition, scenario and live evidence remain bound to the current candidate.
 - Never weaken TLS, auth, provider readiness, secret permissions, backup checks, or support-safe
   redaction to make a test pass.
 - Update root specs/contracts before changing public topology, URLs, credentials, provider

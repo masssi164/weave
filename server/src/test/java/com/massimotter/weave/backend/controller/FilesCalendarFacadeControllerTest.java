@@ -70,11 +70,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
@@ -590,10 +592,10 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
-    void calendarCredentialLifecycleReturnsSecretOnceAuthenticatesCaldavAndRevokes() throws Exception {
+    void memberCalendarCredentialLifecycleReturnsSecretOnceAuthenticatesCaldavAndRevokes() throws Exception {
         // CALDAV_DEVICE_CREDENTIAL_CONTRACT
         String createdBody = mockMvc.perform(post("/api/calendar/client-setup/credentials")
-                        .with(workspaceJwt())
+                        .with(workspaceJwtWithRole("member"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"label\":\"Apple Calendar\",\"clientType\":\"caldav\"}"))
                 .andExpect(status().isOk())
@@ -614,7 +616,7 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(status().isNoContent())
                 .andExpect(header().string("DAV", "1, calendar-access"));
 
-        mockMvc.perform(get("/api/calendar/client-setup/credentials").with(workspaceJwt()))
+        mockMvc.perform(get("/api/calendar/client-setup/credentials").with(workspaceJwtWithRole("member")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.credentials[0].credentialId").value(credentialId))
                 .andExpect(jsonPath("$.credentials[0].secretMaterialReturned").value(false))
@@ -624,7 +626,7 @@ class FilesCalendarFacadeControllerTest {
 
         mockMvc.perform(request(HttpMethod.DELETE,
                         "/api/calendar/client-setup/credentials/{credentialId}", credentialId)
-                        .with(workspaceJwt()))
+                        .with(workspaceJwtWithRole("member")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("revoked"))
                 .andExpect(jsonPath("$.secretMaterialReturned").value(false))
@@ -925,9 +927,9 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
-    void memberJwtWithoutCalendarEditorCapabilityCannotWriteEvenWhenRebacWouldAllow() throws Exception {
+    void guestJwtWithoutCalendarEditorCapabilityCannotWriteEvenWhenRebacWouldAllow() throws Exception {
         mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/caldav/workspace/missing-capability.ics")
-                        .with(workspaceJwtWithoutCalendarEditor())
+                        .with(workspaceJwtWithRole("guest"))
                         .header("If-None-Match", "*")
                         .contentType("text/calendar")
                         .content("""
@@ -953,7 +955,7 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))));
 
         mockMvc.perform(post("/api/calendar/client-setup/credentials")
-                        .with(workspaceJwtWithoutCalendarEditor())
+                        .with(workspaceJwtWithRole("guest"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"label\":\"Denied calendar\",\"clientType\":\"caldav\"}"))
                 .andExpect(status().isForbidden())
@@ -970,6 +972,7 @@ class FilesCalendarFacadeControllerTest {
     @Test
     void calDavEventReadPutCreateUpdateAndDeleteUseFacadeBackedIcalendar() throws Exception {
         // CALDAV_GET_PUT_DELETE_FACADE_MVP
+        // Ordinary member access follows the current Space grant, including revocation.
         doReturn(calendarEvent("planning", "Planning", "\"etag-existing\"", CalendarScope.workspace()))
                 .when(calendarProviderPort).read(
                         any(CalendarId.class), any(CalendarScope.class), any(EventId.class));
@@ -981,7 +984,7 @@ class FilesCalendarFacadeControllerTest {
                 any(CalendarId.class), any(CalendarScope.class), any(EventId.class), any(EventVersion.class));
 
         mockMvc.perform(get("/caldav/workspace/planning.ics")
-                        .with(workspaceJwt()))
+                        .with(workspaceJwtWithRole("member")))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "text/calendar;charset=UTF-8"))
                 .andExpect(header().string("Content-Disposition", "inline; filename=\"planning.ics\""))
@@ -1002,7 +1005,7 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))));
 
         mockMvc.perform(request(HttpMethod.HEAD, "/caldav/workspace/planning.ics")
-                        .with(workspaceJwt()))
+                        .with(workspaceJwtWithRole("member")))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "text/calendar;charset=UTF-8"))
                 .andExpect(header().string("ETag", "\"etag-existing\""))
@@ -1011,7 +1014,7 @@ class FilesCalendarFacadeControllerTest {
                         .bytes(new byte[0]));
 
         mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/caldav/workspace/planning-new.ics")
-                        .with(workspaceJwt())
+                        .with(workspaceJwtWithRole("member"))
                         .header("If-None-Match", "*")
                         .contentType("text/calendar")
                         .content("""
@@ -1032,7 +1035,7 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(header().string("ETag", "\"etag-created\""));
 
         mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/caldav/workspace/planning.ics")
-                        .with(workspaceJwt())
+                        .with(workspaceJwtWithRole("member"))
                         .header("If-Match", "\"etag-existing\"")
                         .contentType("text/calendar")
                         .content("""
@@ -1053,8 +1056,17 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(header().string("ETag", "\"etag-updated\""));
 
         mockMvc.perform(request(HttpMethod.valueOf("DELETE"), "/caldav/workspace/planning.ics")
-                        .with(workspaceJwt()))
+                        .with(workspaceJwtWithRole("member")))
                 .andExpect(status().isNoContent());
+
+        clearInvocations(calendarProviderPort);
+        when(contextAuthorizationPort.check(any()))
+                .thenReturn(ContextAuthorizationDecision.deny("space access revoked"));
+        mockMvc.perform(request(HttpMethod.DELETE, "/caldav/workspace/planning.ics")
+                        .with(workspaceJwtWithRole("member")))
+                .andExpect(status().isForbidden())
+                .andExpect(header().string("X-Weave-Error-Code", "calendar-forbidden"));
+        verifyNoInteractions(calendarProviderPort);
     }
 
     @Test
@@ -1114,7 +1126,7 @@ class FilesCalendarFacadeControllerTest {
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
-    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithoutCalendarEditor() {
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithRole(String role) {
         return jwt().jwt(jwt -> jwt
                         .subject("user@example.com")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
@@ -1123,7 +1135,7 @@ class FilesCalendarFacadeControllerTest {
                         .claim(
                                 "organization",
                                 HumanJwtTestSupport
-                                        .organizationWithRole("member")))
+                                        .organizationWithRole(role)))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 

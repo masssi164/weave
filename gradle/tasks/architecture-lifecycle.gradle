@@ -33,8 +33,7 @@ tasks.register('devDown', Exec) {
 
 tasks.register('dogfoodUp', Exec) {
     group = 'application'
-    description = 'Build the current checkout and converge the lean dogfood Compose stack while preserving session data.'
-    dependsOn ':server:bootJar', ':weave-mcp-server:bootJar'
+    description = 'Consume the verified hosted runtime and converge Dogfood while preserving session data.'
     workingDir rootProject.projectDir
     commandLine 'python3', 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'up', '--root', 'infra/weave-workspace'
     outputs.upToDateWhen { false }
@@ -42,7 +41,7 @@ tasks.register('dogfoodUp', Exec) {
 
 tasks.register('dogfoodPrepare', Exec) {
     group = 'application'
-    description = 'Prepare reviewed Dogfood trust and approved test members through normal Admin and native sign-in without replacing owner state.'
+    description = 'Prepare reviewed Dogfood trust and managed ordinary members from the shared client scenario.'
     workingDir rootProject.projectDir
     commandLine 'python3', 'tools/dogfood_prepare.py'
     outputs.upToDateWhen { false }
@@ -59,7 +58,6 @@ tasks.register('dogfoodDown', Exec) {
 tasks.register('dogfoodReset', Exec) {
     group = 'application'
     description = 'Delete only the dogfood project and its three session volumes, then recreate an empty stack.'
-    dependsOn ':server:bootJar', ':weave-mcp-server:bootJar'
     workingDir rootProject.projectDir
     commandLine 'python3', 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'reset', '--root', 'infra/weave-workspace'
     outputs.upToDateWhen { false }
@@ -67,7 +65,7 @@ tasks.register('dogfoodReset', Exec) {
 
 tasks.register('testApp', Exec) {
     group = 'verification'
-    description = 'Prove browser PKCE, authorized Files/Calendar/Chat, bounded MCP, revocation, restart, and cleanup in one disposable stack.'
+    description = 'Run fresh two-member iOS collaboration from hosted artifacts; full Admin/MCP coverage is an explicit separate mode.'
     workingDir rootProject.projectDir
     commandLine 'bash', 'gradle/tasks/test-app.sh'
     outputs.upToDateWhen { false }

@@ -396,17 +396,19 @@ class WorkspaceCapabilityServiceTest {
     }
 
     @Test
-    void requireCapabilityFailsClosedForUnmappedMemberActions() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
-                resourceServerProperties("https://auth.weave.test/realms/weave"),
-                new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+    void ordinaryMembersCanManageCalendarEventsWithoutAdministrativeCapabilities() {
+        WorkspaceCapabilityService service = domainPolicyService(true, WorkspaceCapabilityReadiness.READY);
 
+        service.requireCapability(jwt(List.of("member"), List.of()),
+                "calendar.manage_events", "calendar", "create-event");
         assertThatThrownBy(() -> service.requireCapability(
                 jwt(List.of("member"), List.of()),
-                "calendar.manage_events",
-                "calendar",
-                "create-event"))
+                "admin.provider.configure", "admin", "configure-provider"))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        exception -> assertThat(exception.code()).isEqualTo("capability-policy-blocked"));
+        assertThatThrownBy(() -> service.requireCapability(
+                jwt(List.of("guest"), List.of()),
+                "calendar.manage_events", "calendar", "create-event"))
                 .isInstanceOfSatisfying(ApiErrorException.class,
                         exception -> assertThat(exception.code()).isEqualTo("capability-policy-blocked"));
     }

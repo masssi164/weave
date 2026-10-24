@@ -56,6 +56,7 @@ public class WorkspaceCapabilityService {
             "files.read",
             "files.upload",
             "calendar.read",
+            "calendar.manage_events",
             "boards.read",
             "meetings.join",
             "documents.view",

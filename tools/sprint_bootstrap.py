@@ -222,8 +222,8 @@ def verify_delivery_stage(repo: str, owner: str, stage: str, sha: str,
     qualification = evidence.qualified_run(repo, sha, tree, spec, token)
     preparation = evidence.prepared_run(repo, sha, tree, spec, qualification, token)
     report.update(qualificationRunId=qualification['id'],
-                  qualificationRunAttempt=qualification['run_attempt'],
-                  preparationRunId=preparation['id'])
+                  qualificationRunAttempt=qualification['qualification_attempt'],
+                  preparationRunId=preparation['id'], ownerHIL='pending')
     if stage == 'Main':
         if not promotion_pr:
             raise ValueError('Main projection requires an explicit merged promotion PR')
@@ -247,7 +247,7 @@ def verify_delivery_stage(repo: str, owner: str, stage: str, sha: str,
             raise ValueError('Merged promotion source is invalid')
         if evidence.api(f'/repos/{repo}/compare/{merged}...{main_sha}', token).get('status') not in {'ahead', 'identical'}:
             raise ValueError('Promotion merge is not in protected Main')
-        report.update(promotionPr=promotion_pr, mainCommit=main_sha)
+        report.update(promotionPr=promotion_pr, mainCommit=main_sha, ownerHIL='passed')
     return report
 
 

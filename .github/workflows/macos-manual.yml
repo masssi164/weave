@@ -1,0 +1,16 @@
+name: Build macOS desktop manually
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  desktop:
+    if: contains(fromJSON('["refs/heads/dev","refs/heads/dogfood","refs/heads/main"]'), github.ref)
+    uses: ./.github/workflows/build-artifacts.yml
+    with:
+      candidate: ${{ github.sha }}
+      components: macos-desktop

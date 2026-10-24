@@ -7,8 +7,15 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
 
 if [[ $# -lt 2 ]]; then
-  printf 'Usage: %s <dev|dogfood|prod|e2e> <secrets-init|render|configure|config|prepare|provider-prepare|keycloak-migration-apply|bootstrap-owner|bootstrap-space|up|down|reset|ps|logs|persistence-restart-proof|chat-provider-stop-proof|chat-provider-start-proof|collaboration-restart-proof> [args...]\n' "$0" >&2
+  printf 'Usage: %s <dev|dogfood|prod|e2e> <secrets-init|render|configure|config|prepare|provider-prepare|keycloak-migration-apply|bootstrap-owner|bootstrap-space|provision-members|up|down|reset|ps|logs|persistence-restart-proof|chat-provider-stop-proof|chat-provider-start-proof|collaboration-restart-proof> [args...]\n' "$0" >&2
   exit 2
+fi
+
+if [[ "$1" == "e2e" && "$2" == "provision-members" ]]; then
+  exec python3 "${ROOT_DIR}/../../tools/prepare_member_scenario.py" \
+    --environment e2e \
+    --env-file "${WEAVE_ENV_FILE:?WEAVE_ENV_FILE is required for isolated member setup}" \
+    "${@:3}"
 fi
 
 if [[ "$1" == "e2e" && "$2" == "foreign-organization-fixture" ]]; then

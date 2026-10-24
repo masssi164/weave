@@ -31,10 +31,31 @@ final class DefaultSpacePreparationJourney {
         "default-space-" + expectedOutcome.toLowerCase(java.util.Locale.ROOT) + ".json");
     JsonNode result = runOperation(receipt,
         List.of("bootstrap-space", "--evidence-file", receipt.toString()));
-    requireReceipt(result, environment.sourceCandidateCommit(),
+    requireReceipt(result, environment.candidateCommit(),
         environment.specificationCommit(), expectedOutcome);
     System.out.println("WEAVE_DEFAULT_SPACE_JOURNEY outcome=" + expectedOutcome
         + " ownerAccessVerified=true temporaryAuthorityAbsent=true supportSafe=true");
+  }
+
+  Path prepareMembers() {
+    Path root = Path.of("client", "build", "private-ios-qualification",
+        "member-setup-" + environment.runId()).toAbsolutePath();
+    Path output = root.resolve("member-collaboration.json");
+    try {
+      if (Files.isSymbolicLink(root.getParent()) || Files.isSymbolicLink(root.getParent().getParent())
+          || Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+        throw new ProductFlowException("Member preparation output is not an owned fresh run path");
+      }
+      Files.createDirectories(root, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+      Files.setPosixFilePermissions(root.getParent(), PosixFilePermissions.fromString("rwx------"));
+      runOperation(root.resolve("member-preparation-receipt.json"), List.of("provision-members",
+          "--identity-file", root.resolve("member-identities.json").toString(),
+          "--collaboration-output", output.toString(), "--run-id", environment.runId(),
+          "--output", root.resolve("member-preparation-receipt.json").toString()));
+      return output;
+    } catch (IOException failure) {
+      throw new ProductFlowException("Private member preparation output is unavailable", failure);
+    }
   }
 
   String inviteOwner(String email, String idempotencyKey) {

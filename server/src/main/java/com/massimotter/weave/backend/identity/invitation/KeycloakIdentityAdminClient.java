@@ -331,6 +331,183 @@ public class KeycloakIdentityAdminClient {
     return issuerNotBefore;
   }
 
+  public static final Set<String> MANAGED_TEST_STEPS = Set.of("subject", "membership", "credential", "activation", "role");
+
+  /** Durable progress is read from Weave's immutable audit authority, never provider attributes. */
+  public record ManagedTestProgress(String accountRef, Set<String> steps) {
+    public ManagedTestProgress {
+      steps = Set.copyOf(steps);
+      if (!MANAGED_TEST_STEPS.containsAll(steps) || (accountRef == null) != steps.isEmpty()
+          || (accountRef != null && (!accountRef.matches("acct_[0-9a-f]{32}") || !steps.contains("subject")))) {
+        throw new IllegalArgumentException("Managed test progress is invalid");
+      }
+    }
+    public static ManagedTestProgress empty() { return new ManagedTestProgress(null, Set.of()); }
+  }
+  public record ManagedTestStep(String stage, String subject) {}
+
+  /** Authority is issued only after the Server has matched its immutable operator plan and intent. */
+  public record ManagedTestMember(String organizationId, String planId, String slot, String organizationHost,
+      String intentRef, String existingSubject, boolean invitationOwned, Instant intentCreatedAt,
+      String issuer, ManagedTestProgress progress) {
+    public ManagedTestMember {
+      if (organizationId == null || organizationId.isBlank() || planId == null || !planId.matches("[0-9a-f]{32}")
+          || !List.of("A", "B").contains(slot) || organizationHost == null || !organizationHost.matches("[a-z0-9.-]+")
+          || intentRef == null || !intentRef.matches("[0-9a-f-]{36}") || intentCreatedAt == null
+          || issuer == null || !issuer.startsWith("https://") || progress == null) {
+        throw new IllegalArgumentException("Managed test identity authority is invalid");
+      }
+    }
+    public String email() { return "weave-smoke-" + planId + "-" + slot.toLowerCase(Locale.ROOT) + "@" + organizationHost; }
+    public String displayName() { return "Weave test member " + slot + " " + planId.substring(0, 8); }
+    public String account(String subject) { return com.massimotter.weave.backend.identity.IdentityReferences.accountId(issuer, subject); }
+    ManagedTestMember observed(String stage, String subject) {
+      var steps = new HashSet<>(progress.steps()); steps.add(stage);
+      return new ManagedTestMember(organizationId, planId, slot, organizationHost, intentRef, existingSubject,
+          invitationOwned, intentCreatedAt, issuer, new ManagedTestProgress(account(subject), steps));
+    }
+  }
+  public record ManagedTestIdentity(String subject, boolean created, boolean initialCredentialCreated) {}
+
+  /** Read both planned identities before either is changed; an existing password is never reset. */
+  public void verifyManagedTestMember(ManagedTestMember authority) { managedUser(authority, false); }
+
+  public ManagedTestIdentity provisionManagedTestMember(ManagedTestMember authority, String initialPassword,
+      java.util.function.Consumer<ManagedTestStep> progress) {
+    if (initialPassword == null || initialPassword.length() < 24 || initialPassword.length() > 128
+        || initialPassword.chars().anyMatch(Character::isISOControl) || progress == null) {
+      throw new IllegalArgumentException("Managed test initial credential is invalid");
+    }
+    JsonNode user = managedUser(authority, false);
+    boolean created = user == null;
+    if (created) {
+      String[] names = splitName(authority.displayName());
+      var initial = objectMapper.createObjectNode();
+      initial.put("username", authority.email()).put("email", authority.email()).put("enabled", true)
+          .put("firstName", names[0]).put("lastName", names[1]).put("emailVerified", false);
+      initial.putArray("requiredActions").add("UPDATE_PASSWORD");
+      fixtureRequest(HttpMethod.POST, adminPath("/users"), initial.toString(), MediaType.APPLICATION_JSON, 201);
+      // Only this successful create may read its result before a durable subject binding exists.
+      // An uncertain create is never adopted from an address alone on a later invocation.
+      user = managedUser(authority, true);
+      if (user == null) throw managedConflict();
+    }
+    String subject = requiredUser(user, "id");
+    authority = recordManagedStep(authority, progress, "subject", subject);
+    if (!isOrganizationMember(authority.organizationId(), subject)) {
+      if (!created || authority.existingSubject() != null || authority.progress().steps().contains("membership")) throw managedConflict();
+      fixtureRequest(HttpMethod.POST, adminPath("/organizations/" + path(authority.organizationId()) + "/members"),
+          objectMapper.writeValueAsString(subject), MediaType.APPLICATION_JSON, 201);
+    }
+    authority = recordManagedStep(authority, progress, "membership", subject);
+    Set<String> groups = organizationMemberGroupPaths(authority.organizationId(), subject);
+    if (groups.stream().anyMatch(group -> !"/members".equals(group))
+        || ((authority.existingSubject() != null || authority.progress().steps().contains("role")
+              || authority.progress().steps().contains("activation") || managedActivated(user))
+            && !groups.equals(Set.of("/members")))) throw managedConflict();
+    var credentials = managedCredentials(subject);
+    boolean initialCredentialCreated = credentials.isEmpty();
+    if (initialCredentialCreated) {
+      if (authority.existingSubject() != null || authority.progress().steps().contains("credential")
+          || !managedInitialPasswordRequired(user)) throw managedCredentialConflict();
+      JsonNode fresh = managedUser(authority, false);
+      if (fresh == null || !subject.equals(fresh.path("id").asString()) || !managedInitialPasswordRequired(fresh)
+          || !managedCredentials(subject).isEmpty()) throw managedCredentialConflict();
+      fixtureRequest(HttpMethod.PUT, adminPath("/users/" + path(subject) + "/reset-password"),
+          objectMapper.writeValueAsString(Map.of("type", "password", "temporary", false, "value", initialPassword)),
+          MediaType.APPLICATION_JSON, 204);
+    }
+    authority = recordManagedStep(authority, progress, "credential", subject);
+    if (!user.path("emailVerified").asBoolean(false) || !user.path("requiredActions").isEmpty()) {
+      if (authority.existingSubject() != null || authority.progress().steps().contains("activation")) throw managedCredentialConflict();
+      JsonNode fresh = managedUser(authority, false);
+      if (fresh == null || !subject.equals(fresh.path("id").asString())) throw managedConflict();
+      var activated = objectMapper.createObjectNode();
+      activated.put("emailVerified", true).putArray("requiredActions");
+      request(HttpMethod.PUT, adminPath("/users/" + path(subject)), activated.toString(), MediaType.APPLICATION_JSON, 204);
+    }
+    authority = recordManagedStep(authority, progress, "activation", subject);
+    if (groups.isEmpty()) setOrganizationGroupMembership(authority.organizationId(), subject, "/members", true);
+    authority = recordManagedStep(authority, progress, "role", subject);
+    var current = memberAuthorization(authority.organizationId(), subject);
+    if (!current.enabled() || !current.activated() || !current.roles().equals(List.of("member"))
+        || !current.subject().equals(subject) || managedCredentials(subject).size() != 1) throw managedConflict();
+    return new ManagedTestIdentity(subject, created, initialCredentialCreated);
+  }
+
+  private ManagedTestMember recordManagedStep(ManagedTestMember authority,
+      java.util.function.Consumer<ManagedTestStep> progress, String stage, String subject) {
+    if (authority.progress().accountRef() != null && !authority.progress().accountRef().equals(authority.account(subject))) throw managedConflict();
+    progress.accept(new ManagedTestStep(stage, subject));
+    return authority.observed(stage, subject);
+  }
+
+  private JsonNode managedUser(ManagedTestMember authority, boolean justCreated) {
+    if (!configuredOrganizationId().equals(authority.organizationId())) throw managedConflict();
+    var users = values(json(fixtureRequest(HttpMethod.GET, adminPath("/users?email=" + query(authority.email())
+        + "&exact=true&first=0&max=2"), null, null, 200))).toList();
+    if (users.isEmpty()) {
+      if (authority.existingSubject() != null || authority.progress().accountRef() != null) throw managedConflict();
+      return null;
+    }
+    if (users.size() != 1) throw managedConflict();
+    JsonNode user = users.getFirst();
+    String subject = requiredUser(user, "id");
+    if (!authority.email().equalsIgnoreCase(user.path("email").asString()) || isServiceAccount(user)
+        || !user.path("enabled").isBoolean() || !user.path("enabled").asBoolean(false)
+        || !user.path("federationLink").asString("").isEmpty()
+        || !user.path("requiredActions").isArray() || !user.path("emailVerified").isBoolean()
+        || !authority.displayName().equals((user.path("firstName").asString("") + " " + user.path("lastName").asString("")).trim())
+        || (authority.existingSubject() != null && !authority.existingSubject().equals(subject))) throw managedConflict();
+    for (var action : user.path("requiredActions")) {
+      if (!Set.of("UPDATE_PASSWORD", "VERIFY_EMAIL").contains(action.asString())) throw managedCredentialConflict();
+    }
+    boolean bound = authority.progress().accountRef() != null;
+    if (bound && !authority.progress().accountRef().equals(authority.account(subject))) throw managedConflict();
+    boolean member = isOrganizationMember(authority.organizationId(), subject);
+    if ((authority.existingSubject() != null || bound) && !member) throw managedConflict();
+    boolean correlatedInvitation = authority.invitationOwned() && member && user.path("createdTimestamp").isIntegralNumber()
+        && user.path("createdTimestamp").asLong() >= authority.intentCreatedAt().toEpochMilli();
+    if (!bound && !justCreated && !(member && authority.existingSubject() != null) && !correlatedInvitation) throw managedConflict();
+    if (member) {
+      Set<String> groups = organizationMemberGroupPaths(authority.organizationId(), subject);
+      if (groups.stream().anyMatch(group -> !"/members".equals(group))
+          || ((authority.existingSubject() != null || authority.progress().steps().contains("role")
+              || authority.progress().steps().contains("activation") || managedActivated(user))
+              && !groups.equals(Set.of("/members")))) throw managedConflict();
+    }
+    var credentials = managedCredentials(subject);
+    if ((credentials.isEmpty() && !managedInitialPasswordRequired(user))
+        || ((authority.existingSubject() != null || authority.progress().steps().contains("credential")) && credentials.size() != 1)
+        || ((authority.existingSubject() != null || authority.progress().steps().contains("activation")
+             || (!credentials.isEmpty() && !authority.progress().steps().contains("credential")))
+            && (!user.path("emailVerified").asBoolean(false) || !user.path("requiredActions").isEmpty()))) throw managedCredentialConflict();
+    return user;
+  }
+
+  // Provider activation also protects an identity whose invitation has not yet been reconciled.
+  private boolean managedActivated(JsonNode user) {
+    return user.path("emailVerified").asBoolean(false) && user.path("requiredActions").isEmpty();
+  }
+
+  private boolean managedInitialPasswordRequired(JsonNode user) {
+    return values(user.path("requiredActions")).anyMatch(action -> "UPDATE_PASSWORD".equals(action.asString()));
+  }
+
+  private List<JsonNode> managedCredentials(String subject) {
+    var credentials = values(json(fixtureRequest(HttpMethod.GET, adminPath("/users/" + path(subject) + "/credentials"),
+        null, null, 200))).toList();
+    if (credentials.size() > 1 || credentials.stream().anyMatch(value -> !"password".equals(value.path("type").asString()))) {
+      throw managedCredentialConflict();
+    }
+    return credentials;
+  }
+  private IllegalStateException managedConflict() { return new ManagedTestConflict("managed-test-identity-conflict"); }
+  private IllegalStateException managedCredentialConflict() { return new ManagedTestConflict("managed-test-credential-conflict"); }
+  public static final class ManagedTestConflict extends IllegalStateException {
+    public ManagedTestConflict(String boundary) { super(boundary); }
+  }
+
   private JsonNode currentMemberUser(String organizationId, String subject) {
     JsonNode user =
         json(
@@ -516,9 +693,19 @@ public class KeycloakIdentityAdminClient {
         instant(node, "createdAt", "sentDate"));
   }
 
+  private String fixtureRequest(HttpMethod method, String uri, String body, MediaType contentType, int expectedStatus) {
+    return executeRequest(method, uri, body, contentType, expectedStatus,
+        KeycloakIdentityAdminOperationPolicy.requireManagedFixtureAllowed(method, uri));
+  }
+
   private String request(
       HttpMethod method, String uri, String body, MediaType contentType, int expectedStatus) {
-    String operation = KeycloakIdentityAdminOperationPolicy.requireAllowed(method, uri);
+    return executeRequest(method, uri, body, contentType, expectedStatus,
+        KeycloakIdentityAdminOperationPolicy.requireAllowed(method, uri));
+  }
+
+  private String executeRequest(HttpMethod method, String uri, String body, MediaType contentType,
+      int expectedStatus, String operation) {
     RestClient.RequestBodySpec request = restClient.method(method).uri(uri);
     if (contentType != null) {
       request.contentType(contentType);

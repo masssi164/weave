@@ -39,6 +39,7 @@ class DogfoodPreparationServiceTest {
         properties.keycloak().setOrganizationId("provider-org");
         var resource = new OAuth2ResourceServerProperties(); resource.getJwt().setIssuerUri(ISSUER);
         when(identities.configuredOrganizationId()).thenReturn("org");
+        when(bindings.managedProgress(any(), anyString(), anyString(), anyString())).thenReturn(ManagedTestProgress.empty());
         when(keycloak.configuredOrganizationId()).thenReturn("provider-org");
         members.add(new ProviderMember("real-owner", "owner@example.test", "Actual owner", List.of("owner"), List.of(), true));
         when(keycloak.members("provider-org")).thenAnswer(invocation -> List.copyOf(members));
@@ -215,6 +216,81 @@ class DogfoodPreparationServiceTest {
         doThrow(new AuditRequiredException("private-db-message")).when(bindings).bind(any(), anyString(), anyString(), anyString());
         assertThat(service.execute(request("invitations")).receipt().boundary()).isEqualTo("audit-unavailable");
         verify(keycloak, never()).issue(anyString(), anyString(), anyString());
+    }
+
+    private void managedProvider() {
+        when(keycloak.provisionManagedTestMember(any(), anyString(), any())).thenAnswer(invocation -> {
+            ManagedTestMember authority = invocation.getArgument(0);
+            String subject = authority.existingSubject() == null ? "subject-" + authority.slot() : authority.existingSubject();
+            boolean existed = members.stream().anyMatch(member -> member.subject().equals(subject));
+            if (!existed) members.add(new ProviderMember(subject, authority.email(), authority.displayName(), List.of("member"), List.of(), true));
+            when(keycloak.memberAuthorization("provider-org", subject)).thenReturn(
+                    new MemberAuthorization(subject, true, true, List.of("member"), List.of("/members")));
+            return new ManagedTestIdentity(subject, !existed, !existed);
+        });
+        when(spaces.grantTwo(anyString(), anyString(), anyList(), any(), any())).thenAnswer(invocation -> {
+            ((Runnable) invocation.getArgument(3)).run();
+            List<DogfoodSpacePreparationPort.Target> targets = invocation.getArgument(2);
+            var grants = targets.stream().map(target -> new DogfoodSpacePreparationPort.Grant(target.accountRef(), "\"sm-0\"", true)).toList();
+            java.util.function.Consumer<List<DogfoodSpacePreparationPort.Grant>> publish = invocation.getArgument(4);
+            publish.accept(grants); return grants;
+        });
+    }
+
+    @Test void preparesTwoRealManagedMembersWithoutInvitationMailOrClaimingAuthentication() {
+        managedProvider();
+        var result = service.execute(managedRequest());
+        assertThat(result.receipt().status()).isEqualTo("passed");
+        assertThat(result.receipt().stage()).isEqualTo("provision-members-ready");
+        assertThat(result.receipt().members()).allMatch(member -> member.accountRef() != null
+                && member.grantVersion().equals("\"sm-0\"") && member.invitationHandle() == null);
+        assertThat(result.privateData().members()).extracting(PreparedMember::identityRef).containsExactly("subject-A", "subject-B");
+        assertThat(JSON.writeValueAsString(result.receipt())).doesNotContain("subject-A", "subject-B", "private-initial", "Actual owner");
+        verify(keycloak, never()).issue(anyString(), anyString(), anyString());
+        verify(keycloak, times(2)).provisionManagedTestMember(any(), anyString(), any());
+        verify(bindings).observe(any(), eq("org"), eq(AuditAction.DOGFOOD_PREPARATION_VERIFIED),
+                startsWith("dogfood-managed-ready-"), argThat(payload -> Boolean.FALSE.equals(payload.get("authenticationEvidence"))));
+    }
+
+    @Test void expiredInitialSetupPreservesExactExistingSubjectsAndIntents() {
+        seedApplied(true);
+        var initialIntents = intents.findByEmail("org", "provider-org", managedRequest().plan().members().getFirst().email());
+        var pending = initialIntents.getFirst();
+        intents.save(new ProvisioningIntent(pending.intentId(), pending.tenantId(), pending.organizationId(), pending.invitedEmail(),
+                pending.invitedEmailSha256(), pending.requestedRole(), pending.providerInvitationId(), pending.invitedByIssuer(),
+                pending.invitedBySubject(), pending.auditCorrelation(), ProvisioningIntentStatus.EXPIRED, null, null,
+                pending.expiresAt(), pending.createdAt(), pending.updatedAt()));
+        providerInvitations.put(pending.invitedEmail(), new ProviderInvitation(pending.providerInvitationId(), pending.invitedEmail(),
+                managedRequest().plan().members().getFirst().displayName(), "expired", pending.expiresAt(), pending.createdAt()));
+        managedProvider();
+        var result = service.execute(managedRequest());
+        assertThat(result.receipt().status()).isEqualTo("passed");
+        assertThat(result.receipt().members().getFirst().intentRef()).isEqualTo(initialIntents.getFirst().intentId().toString());
+        assertThat(result.privateData().members().getFirst().identityRef()).isEqualTo("subject-A");
+        verify(keycloak).provisionManagedTestMember(argThat(authority -> "A".equals(authority.slot())
+                && authority.existingSubject() == null && authority.invitationOwned()), anyString(), any());
+        verify(keycloak, never()).issue(anyString(), anyString(), anyString());
+        assertThat(members).hasSize(3);
+    }
+
+    @Test void conflictingSecondManagedIdentityBlocksBothBeforeProviderMutation() {
+        doThrow(new ManagedTestConflict("managed-test-identity-conflict")).when(keycloak)
+                .verifyManagedTestMember(argThat(authority -> "B".equals(authority.slot())));
+        var result = service.execute(managedRequest());
+        assertThat(result.receipt().boundary()).isEqualTo("managed-test-identity-conflict");
+        verify(keycloak, never()).provisionManagedTestMember(any(), anyString(), any());
+        verify(keycloak, never()).issue(anyString(), anyString(), anyString());
+        verify(spaces, never()).grantTwo(any(), any(), any(), any(), any());
+    }
+
+    @Test void revokedOrConflictingSpaceGrantRemainsIncompleteAfterManagedSetup() {
+        managedProvider();
+        doThrow(new DogfoodSpacePreparationPort.Conflict()).when(spaces).grantTwo(anyString(), anyString(), anyList(), any(), any());
+        var result = service.execute(managedRequest());
+        assertThat(result.receipt().status()).isEqualTo("incomplete");
+        assertThat(result.receipt().boundary()).isEqualTo("space-access-conflict");
+        assertThat(result.receipt().members()).allMatch(member -> member.accountRef() != null && member.grantVersion() == null);
+        assertThat(result.privateData().members()).isNull();
     }
 
     private void seedApplied(boolean expired) {

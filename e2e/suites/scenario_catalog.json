@@ -4609,9 +4609,9 @@
       ],
       "testLevel": "live-e2e",
       "assertionFocus": [
-        "weave-native provider selection",
-        "Matrix northbound and generated Files and Calendar User APIs",
-        "PostgreSQL and backend restart continuity",
+        "two ordinary members with current shared-Space access",
+        "real concurrent iOS Flutter collaboration through Weave Matrix and User APIs",
+        "common versioned scenario with private per-environment bindings",
         "no external provider runtime dependency"
       ]
     },
@@ -4644,10 +4644,10 @@
       ],
       "testLevel": "live-e2e",
       "assertionFocus": [
-        "exact-candidate development-signed build",
-        "in-place upgrade with stable identity",
+        "qualified hosted device artifact with original producer identity",
+        "in-place signing and upgrade with stable identity",
         "current owner Space access before installation",
-        "final qualification run and attempt binding"
+        "successful qualification job attempt and composition binding"
       ]
     },
     {
@@ -4683,9 +4683,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "no candidate manifest gate",
-        "exact dogfood source",
-        "full Compose E2E prerequisite",
+        "no manually assembled release manifest gate",
+        "mandatory generated artifact composition verification",
+        "exact candidate fresh real collaboration prerequisite",
         "no automatic release publication"
       ]
     },
@@ -4803,7 +4803,7 @@
       ]
     },
     {
-      "tag": "@human-ready-physical-functional",
+      "tag": "@human-ready-physical-startup",
       "suiteId": "member-live-critical-path",
       "personas": [
         "operator",
@@ -4811,35 +4811,32 @@
       ],
       "domains": [
         "spaces",
-        "chat",
-        "files",
-        "calendar",
         "operator-release"
       ],
       "testLevel": "live-e2e",
       "assertionFocus": [
-        "retained owner profile app and separately authenticated peer",
-        "exact installed candidate build and final qualification attempt",
-        "handoff discovery alone cannot establish readiness or human acceptance"
+        "fresh observed retained workspace or normal sign-in",
+        "verified installed artifact and qualified candidate composition",
+        "owner state preserved and HIL pending",
+        "no extra automated personal login or local compilation"
       ]
     },
     {
-      "tag": "@human-ready-auth-incomplete",
+      "tag": "@human-ready-personal-authentication",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
         "operator",
         "member"
       ],
       "domains": [
-        "files",
-        "calendar",
+        "spaces",
         "operator-release"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "normal administrator and owner authentication boundary stays incomplete",
+        "normal personal sign-in is the expected next HIL action",
         "no fabricated copied or replaced owner session",
-        "independent work precedes precise human authentication request"
+        "broken startup trust or required access still blocks preparation"
       ]
     },
     {
@@ -5037,6 +5034,43 @@
       "assertionFocus": [
         "authorized current member account reference equals User identity across attribute changes",
         "wrong organization and ordinary members remain denied; independent proof precedes grant"
+      ]
+    },
+    {
+      "tag": "@human-ready-shared-member-scenario",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "spaces",
+        "chat",
+        "files",
+        "calendar",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "one canonical versioned recipe across adapters",
+        "exact ordinary member roles and current grants",
+        "separate private bindings and runtime data without copied databases"
+      ]
+    },
+    {
+      "tag": "@human-ready-hosted-artifact-reuse",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "unchanged complete component inputs retain original trusted producer identity",
+        "wrong target toolchain source or payload rejected",
+        "scenario change requires fresh candidate composition and live collaboration"
       ]
     }
   ]

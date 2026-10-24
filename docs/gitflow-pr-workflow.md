@@ -18,18 +18,19 @@ Weave uses clear DevOps lanes instead of heavy classic GitFlow: `dev` for integr
 
 - `dev` is a branch lane for integration; it is not a deployed environment.
 - Local development and temporary previews still use developer machines or disposable worktrees.
-- `dogfood` is the protected automated candidate and resettable LAN stack. The promotion PR carries deterministic checks; mandatory Compose, native macOS and iOS Simulator integration execute on its protected Dogfood commit. Only successful qualification permits deployment and exact physical preparation for distinct HIL.
+- `dogfood` is the protected automated candidate and resettable LAN stack. The promotion PR carries deterministic checks. Hosted artifact composition and fresh mandatory Compose/two-member iOS Simulator collaboration qualify its protected candidate; macOS desktop testing is manual-only. Only successful qualification permits deployment and physical ordinary-startup preparation for distinct HIL.
 - `main` promotion follows dogfood validation and required human signoff.
 - The protected Main gate verifies the qualified Dogfood candidate ancestry,
   equality of the proposed source tree and pinned spec to that candidate, successful
-  Compose/macOS/iOS qualification, exact deployment and physical preparation, and
+  hosted artifact composition, Compose/two-member iOS qualification, exact deployment and physical preparation, and
   a separate owner-reported human result for that same deployed commit. Newer Dev
   work does not invalidate an unchanged Dogfood candidate. Main reuses its evidence
   without rerunning equivalent integration. The main PR must contain this one comment after deployment:
 
   ```text
-  Weave human test v1
+  Weave human test v2
   dogfood: <full 40-character dogfood commit SHA>
+  actor-role: owner
   sign-in: passed
   chat: passed
   files: passed
@@ -39,6 +40,10 @@ Weave uses clear DevOps lanes instead of heavy classic GitFlow: `dev` for integr
   identity-continuity: passed
   ```
 
+  `actor-role` records the account actually used: `owner`, `admin` or `member`.
+  The repository owner reports the observation; the tested app account need not be an owner.
+  A member result must never be relabeled as owner acceptance. Physical preparation
+  leaves `ownerHIL` pending, including when the app correctly shows normal sign-in.
   The human tester changes a surface to `failed` or `not-available` when that
   is the result; either blocks the current #1470 main promotion. Optional
   `notes:` must remain support-safe. After the owner reports a result, rerun

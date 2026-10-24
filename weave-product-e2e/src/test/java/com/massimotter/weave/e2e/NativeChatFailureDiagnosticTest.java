@@ -77,12 +77,13 @@ final class NativeChatFailureDiagnosticTest {
     assertTrue(diagnostic.stripTrailing().endsWith("permissionDecision=unavailable"));
   }
   @Test void queryIsReadOnlyAndRejectsControlDataBeforeExecution() throws Exception {
-    String sql = FreshProductFlow.nativeChatFailureSql("!owned:weave.test", "organization", "https://issuer.test", "actor-A", "actor-B", "weave.test", "owned-run");
+    String sql = FreshProductFlow.nativeChatFailureSql("!owned:weave.test", "organization", "https://issuer.test", "actor-A", "actor-B", "weave.test", "Current shared scenario's room");
     assertTrue(sql.startsWith("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;"));
     assertTrue(sql.contains("\\if :owned"));
     assertTrue(sql.indexOf("\\if :owned") < sql.indexOf("binding AS"));
     assertTrue(sql.endsWith("ROLLBACK;"));
     assertFalse(sql.contains("permission_set")); // Row observations are not permission decisions.
+    assertTrue(sql.contains("c.title='Current shared scenario''s room'"));
     assertThrows(IOException.class, () -> FreshProductFlow.nativeChatFailureSql("!owned:weave.test", "organization", "https://issuer.test", "actor-A\nprivate", "actor-B", "weave.test", "owned-run"));
   }
 }

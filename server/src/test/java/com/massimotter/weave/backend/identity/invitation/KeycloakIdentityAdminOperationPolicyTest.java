@@ -120,6 +120,22 @@ class KeycloakIdentityAdminOperationPolicyTest {
             allowed(HttpMethod.POST, "/admin/realms/weave/components", "component-create")));
   }
 
+  @Test
+  void managedFixturePolicyIsSeparateAndCannotAuthorizeHumanSessionOrBroadAdministration() {
+    assertThat(KeycloakIdentityAdminOperationPolicy.requireManagedFixtureAllowed(HttpMethod.PUT,
+        "/admin/realms/weave/users/test-subject/reset-password")).isEqualTo("managed-test-initial-credential-create");
+    assertThat(KeycloakIdentityAdminOperationPolicy.requireManagedFixtureAllowed(HttpMethod.GET,
+        "/admin/realms/weave/users?email=test%40fixture.invalid&exact=true&first=0&max=2"))
+        .isEqualTo("managed-test-identity-lookup");
+    for (String route : List.of("/users/test-subject/impersonation", "/users/test-subject/sessions",
+        "/users/test-subject/execute-actions-email", "/users/test-subject/credentials/secret", "/users?first=0&max=100")) {
+      for (HttpMethod method : List.of(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE)) {
+        assertThatThrownBy(() -> KeycloakIdentityAdminOperationPolicy.requireManagedFixtureAllowed(method,
+            "/admin/realms/weave" + route)).isInstanceOf(IllegalArgumentException.class);
+      }
+    }
+  }
+
   private static void assertForbidden(List<AllowedOperation> forbidden) {
     forbidden.forEach(
         operation ->

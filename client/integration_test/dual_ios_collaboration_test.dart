@@ -62,10 +62,82 @@ import 'helpers/test_config.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 
-const _runId = String.fromEnvironment('WEAVE_NATIVE_TEST_RUN_ID');
 const _simulator = bool.fromEnvironment('WEAVE_NATIVE_EXPECT_SIMULATOR');
 const _disposable = bool.fromEnvironment('WEAVE_DEVICE_DISPOSABLE_STACK');
 const _actorTestBudget = Duration(minutes: 30);
+
+/// Run identity belongs to the validated private input, allowing one qualified
+/// binary to execute independent instances of the same versioned scenario.
+String requireNativeDualRuntimeFixture(Map<String, dynamic> fixture) {
+  final runId = fixture['runId'];
+  final scenario = fixture['memberScenario'];
+  if (runId is! String ||
+      !RegExp(r'^[A-Za-z0-9][A-Za-z0-9-]{0,39}$').hasMatch(runId) ||
+      !['A', 'B'].contains(fixture['role']) ||
+      fixture['organizationRole'] != 'member' ||
+      scenario is! Map ||
+      scenario['schemaVersion'] != 'weave.member-client-scenario-resolved/v1' ||
+      scenario['scenarioId'] != 'member-client-baseline' ||
+      scenario['scenarioVersion'] != 1 ||
+      scenario['runId'] != runId ||
+      scenario['scenarioSha256'] is! String ||
+      !RegExp(
+        r'^[0-9a-f]{64}$',
+      ).hasMatch(scenario['scenarioSha256'] as String) ||
+      scenario['sharedSpaceRef'] != 'workspace-default' ||
+      fixture['sharedSpaceRef'] != scenario['sharedSpaceRef']) {
+    throw TestFailure('Owned ordinary-member scenario binding is unavailable.');
+  }
+  final actors = scenario['actors'];
+  final domains = scenario['requiredDomains'];
+  final content = scenario['content'];
+  if (actors is! List ||
+      actors.length != 2 ||
+      domains is! List ||
+      domains.length != 3 ||
+      !domains.toSet().containsAll(['chat', 'files', 'calendar']) ||
+      content is! Map) {
+    throw TestFailure('Owned member scenario contract is incomplete.');
+  }
+  for (var index = 0; index < actors.length; index++) {
+    final actor = actors[index];
+    final permissions = actor is Map ? actor['spacePermissions'] : null;
+    if (actor is! Map ||
+        actor['slot'] != ['A', 'B'][index] ||
+        actor['organizationRole'] != 'member' ||
+        permissions is! List ||
+        permissions.length != 2 ||
+        !permissions.toSet().containsAll(['VIEW', 'EDIT'])) {
+      throw TestFailure('Two ordinary editor members are required.');
+    }
+  }
+  for (final field in [
+    'conversation',
+    'messageA',
+    'messageB',
+    'event',
+    'updatedEvent',
+    'initialFileName',
+    'replacementFileName',
+    'initialContent',
+    'replacementContent',
+  ]) {
+    if (content[field] is! String || (content[field] as String).isEmpty) {
+      throw TestFailure('Shared member content is unavailable.');
+    }
+  }
+  for (final entry in {
+    'initialFileName': 'initialFileName',
+    'replacementFileName': 'replacementFileName',
+    'initialContent': 'initialContent',
+    'replacementContent': 'replacementContent',
+  }.entries) {
+    if (fixture[entry.key] != content[entry.value]) {
+      throw TestFailure('Native content differs from the shared scenario.');
+    }
+  }
+  return runId;
+}
 
 const _nativeProxyKeys = [
   'http_proxy',
@@ -126,8 +198,8 @@ class NativeDualHttpOverrides extends HttpOverrides {
   }
 }
 
-void _installNativeDualProxy() {
-  if (!(Platform.isIOS && _simulator && _disposable && _runId.isNotEmpty)) {
+void _installNativeDualProxy(String runId) {
+  if (!(Platform.isIOS && _simulator && _disposable && runId.isNotEmpty)) {
     throw StateError('Owned iOS simulator HTTP relay is required.');
   }
   HttpOverrides.global = NativeDualHttpOverrides(
@@ -220,6 +292,7 @@ Map<String, String> nativeDualSessionIdentityDigests(
   required String expectedSubjectDigest,
   required String expectedIssuer,
   required String expectedNativeOrganizationId,
+  String? expectedOrganizationRole,
 }) {
   final subject = claims['sub'];
   final issuer = claims['iss'];
@@ -257,6 +330,27 @@ Map<String, String> nativeDualSessionIdentityDigests(
     throw TestFailure(
       'Actual native session native organization does not match its owned fixture.',
     );
+  }
+  if (expectedOrganizationRole != null) {
+    final access = selected is Map ? selected['resource_access'] : null;
+    final app = access is Map ? access['weave-app'] : null;
+    final roles = app is Map ? app['roles'] : null;
+    final groups = selected is Map ? selected['groups'] : null;
+    final productRoles = roles is List
+        ? roles
+              .whereType<String>()
+              .where(const {'owner', 'admin', 'member', 'guest'}.contains)
+              .toSet()
+        : <String>{};
+    if (productRoles.length != 1 ||
+        !productRoles.contains(expectedOrganizationRole) ||
+        expectedOrganizationRole == 'member' &&
+            ((roles is List && roles.contains('agent-runtime.entitled')) ||
+                (groups is List && groups.contains('/capabilities/weaver')))) {
+      throw TestFailure(
+        'Actual native actor is not the prepared ordinary member.',
+      );
+    }
   }
   return digests;
 }
@@ -620,6 +714,7 @@ Future<Map<String, String>?> nativeLocalInspectionSessionSnapshot({
     expectedSubjectDigest: fixture['identityDigestExpected'] as String,
     expectedIssuer: fixture['identityIssuer'] as String,
     expectedNativeOrganizationId: fixture['nativeOrganizationId'] as String,
+    expectedOrganizationRole: fixture['organizationRole'] as String?,
   );
   final device = await readDevice();
   if (await readSession() != raw || !workspaceCurrent()) return null;
@@ -638,7 +733,7 @@ const nativeLocalInspectionUnavailableDiagnostic =
 Future<void> nativeLocalInspectionMain() async {
   WidgetsFlutterBinding.ensureInitialized();
   ui.PlatformDispatcher.instance.setSemanticsTreeEnabled(true);
-  if (!(Platform.isIOS && _simulator && _disposable && _runId.isNotEmpty)) {
+  if (!(Platform.isIOS && _simulator && _disposable)) {
     throw StateError(
       'Local inspection requires its owned iOS simulator session.',
     );
@@ -651,11 +746,9 @@ Future<void> nativeLocalInspectionMain() async {
             ).readAsString(),
           )
           as Map<String, dynamic>;
-  if (fixture['runId'] != _runId || !['A', 'B'].contains(fixture['role'])) {
-    throw StateError('Local inspection actor binding is unavailable.');
-  }
+  final runId = requireNativeDualRuntimeFixture(fixture);
   // The inspection owner terminates this isolate with its owned app process.
-  _installNativeDualProxy();
+  _installNativeDualProxy(runId);
   final container = ProviderContainer();
   runApp(
     UncontrolledProviderScope(container: container, child: const WeaveApp()),
@@ -688,7 +781,7 @@ Future<void> nativeLocalInspectionMain() async {
             'mode': 'local-inspection',
             'qualificationPassed': false,
             'role': fixture['role'],
-            'runId': _runId,
+            'runId': runId,
             'workspaceObserved': false,
           });
         }
@@ -732,7 +825,7 @@ Future<void> nativeLocalInspectionMain() async {
         'mode': 'local-inspection',
         'qualificationPassed': false,
         'role': fixture['role'],
-        'runId': _runId,
+        'runId': runId,
         'workspaceObserved': true,
         'observedAt': DateTime.now().toUtc().toIso8601String(),
         ...identity,
@@ -743,7 +836,7 @@ Future<void> nativeLocalInspectionMain() async {
           'mode': 'local-inspection',
           'qualificationPassed': false,
           'role': fixture['role'],
-          'runId': _runId,
+          'runId': runId,
           'workspaceObserved': false,
         });
         return;
@@ -783,18 +876,14 @@ void main() {
   testWidgets(
     'independent public onboarding and concurrent collaboration',
     (tester) async {
-      expect(
-        Platform.isIOS && _simulator && _disposable && _runId.isNotEmpty,
-        isTrue,
-      );
+      expect(Platform.isIOS && _simulator && _disposable, isTrue);
       final support = await getApplicationSupportDirectory();
       final fixtureFile = File('${support.path}/weave-dual-ios-input.json');
       final fixture =
           jsonDecode(await fixtureFile.readAsString()) as Map<String, dynamic>;
-      expect(fixture['role'], isIn(['A', 'B']));
-      expect(fixture['runId'], _runId);
+      final runId = requireNativeDualRuntimeFixture(fixture);
       final previousHttpOverrides = HttpOverrides.current;
-      _installNativeDualProxy();
+      _installNativeDualProxy(runId);
       addTearDown(() => HttpOverrides.global = previousHttpOverrides);
       final role = fixture['role'] as String;
       final phase = fixture['phase'] ?? 'initial';
@@ -883,7 +972,7 @@ void main() {
         );
         _stage('shell-ready');
         final barrier = File(
-          '${support.path}/weave-native-driver-$_runId.ready',
+          '${support.path}/weave-native-driver-$runId.ready',
         );
         await _wait(
           tester,
@@ -963,6 +1052,7 @@ void main() {
         expectedSubjectDigest: fixture['identityDigestExpected'] as String,
         expectedIssuer: fixture['identityIssuer'] as String,
         expectedNativeOrganizationId: fixture['nativeOrganizationId'] as String,
+        expectedOrganizationRole: 'member',
       );
       final scenarios = <String, Map<String, dynamic>>{
         if (prior != null)
@@ -1022,6 +1112,9 @@ void main() {
       }
       final result = {
         'role': role,
+        'organizationRole': 'member',
+        'memberScenarioSha256':
+            (fixture['memberScenario'] as Map)['scenarioSha256'],
         ...sessionIdentity,
         'matrixDeviceDigest': sha256.convert(utf8.encode(device!)).toString(),
         'storageDigest': fixture['storageDigest'],
@@ -1034,11 +1127,13 @@ void main() {
       final commandFile = File('${support.path}/weave-dual-ios-command.json');
       var sequence = restoring ? fixture['lastSequence'] as int : 0;
       String? eventId;
-      const conversation = 'Weave UI $_runId';
-      const messageA = 'A UI $_runId';
-      const messageB = 'B UI $_runId';
-      const eventTitle = 'Calendar UI $_runId';
-      const updatedTitle = '$eventTitle updated';
+      final memberScenario = fixture['memberScenario'] as Map;
+      final content = memberScenario['content'] as Map;
+      final conversation = content['conversation'] as String;
+      final messageA = content['messageA'] as String;
+      final messageB = content['messageB'] as String;
+      final eventTitle = content['event'] as String;
+      final updatedTitle = content['updatedEvent'] as String;
       final fileName = fixture['initialFileName'] as String;
       final replacementName = fixture['replacementFileName'] as String;
       final initialContent = fixture['initialContent'] as String;
@@ -1533,11 +1628,11 @@ void main() {
             final documents = await getApplicationDocumentsDirectory();
             exportSentinel ??= await createNativeDualExportSentinel(
               documents,
-              _runId,
+              runId,
             );
             await requireNativeDualExportSentinelUnchanged(
               exportSentinel,
-              _runId,
+              runId,
             );
             final beforeExport = await nativeDualExportSnapshot(documents);
             final cancelling = action == 'files-export-cancel';
@@ -1587,7 +1682,7 @@ void main() {
               );
               await requireNativeDualExportSentinelUnchanged(
                 exportSentinel,
-                _runId,
+                runId,
               );
               if (cancelling) {
                 final state = container.read(filesProvider).requireValue;
@@ -1660,7 +1755,7 @@ void main() {
             expect(role, 'A');
             await tester.enterText(
               find.byType(TextField).last,
-              'A recoverable $_runId',
+              'A recoverable $runId',
             );
             await _tap(
               tester,
@@ -1694,7 +1789,7 @@ void main() {
             expect(role, 'B');
             await sendNativeDualChatMessage(
               tester,
-              'B remains online $_runId',
+              'B remains online $runId',
               deadline: actionDeadline,
             );
           case 'network-resume':
@@ -1713,8 +1808,8 @@ void main() {
               tester,
               () =>
                   find.byType(MaterialBanner).evaluate().isEmpty &&
-                  _message('A recoverable $_runId').evaluate().length == 1 &&
-                  _message('B remains online $_runId').evaluate().length == 1,
+                  _message('A recoverable $runId').evaluate().length == 1 &&
+                  _message('B remains online $runId').evaluate().length == 1,
               const Duration(seconds: 90),
             );
             recovery['network'] = true;
@@ -1723,8 +1818,8 @@ void main() {
             await _wait(
               tester,
               () =>
-                  _message('A recoverable $_runId').evaluate().length == 1 &&
-                  _message('B remains online $_runId').evaluate().length == 1,
+                  _message('A recoverable $runId').evaluate().length == 1 &&
+                  _message('B remains online $runId').evaluate().length == 1,
               const Duration(seconds: 90),
             );
             recovery['network'] = true;
@@ -1732,7 +1827,7 @@ void main() {
             expect(role, 'B');
             await sendNativeDualChatMessage(
               tester,
-              'B background catchup $_runId',
+              'B background catchup $runId',
               deadline: actionDeadline,
             );
             recovery['background'] = true;
@@ -1741,7 +1836,7 @@ void main() {
             await _wait(
               tester,
               () =>
-                  _message('B background catchup $_runId').evaluate().length ==
+                  _message('B background catchup $runId').evaluate().length ==
                   1,
               const Duration(seconds: 90),
             );
@@ -1757,7 +1852,7 @@ void main() {
             recovery['fileRevision'] = fileRevision;
             recovery['filesContext'] = fileContext!.toPrivateJson();
             await store.write(
-              'dual_native_expiry_$_runId',
+              'dual_native_expiry_$runId',
               session.session!.accessToken,
             );
             _stage('restart-checkpoint-ready');
@@ -1775,9 +1870,9 @@ void main() {
               [
                 messageA,
                 messageB,
-                'B remains online $_runId',
-                'A recoverable $_runId',
-                'B background catchup $_runId',
+                'B remains online $runId',
+                'A recoverable $runId',
+                'B background catchup $runId',
               ],
               roomId: resources['roomId'] as String,
               deadline: actionDeadline,
@@ -1845,7 +1940,7 @@ void main() {
             recovery['grantRegrantReadback'] = true;
           case 'expiry-refresh':
             expect(restoring, isTrue);
-            final expired = await store.read('dual_native_expiry_$_runId');
+            final expired = await store.read('dual_native_expiry_$runId');
             expect(expired, isNotEmpty);
             await requireActualNativeBearerExpiry(expired!);
             final authConfiguration = AuthConfiguration(
@@ -1886,7 +1981,7 @@ void main() {
               matrix.deviceId,
               proof!,
             );
-            await store.delete('dual_native_expiry_$_runId');
+            await store.delete('dual_native_expiry_$runId');
             // The normal User UI must still read the actual shared file after
             // refresh; successful token exchange alone is not product evidence.
             await _selectSharedFiles(

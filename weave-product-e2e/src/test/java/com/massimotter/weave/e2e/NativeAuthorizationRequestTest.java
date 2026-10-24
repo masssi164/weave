@@ -14,6 +14,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 final class NativeAuthorizationRequestTest {
   @TempDir Path temporary;
+  private final MemberTestScenario scenario = MemberTestScenario.resolve(Path.of(".."), "owned-run");
 
   private Map<String, Object> ownedRequest() {
     return new LinkedHashMap<>(Map.of("runId", "owned-run", "spaceRef", "workspace-default",
@@ -33,32 +34,32 @@ final class NativeAuthorizationRequestTest {
   @Test void requiresOwnedRunIdentitiesSpaceAndUiNamesBeforeAnyDenialRequest() throws Exception {
     var content = ownedRequest();
     Path request = write(content);
-    assertEquals("owned-run", FreshProductFlow.requireOwnedNativeAuthorizationRequest(request, "owned-run", "subject-A", "subject-B").path("runId").asString());
+    assertEquals("owned-run", FreshProductFlow.requireOwnedNativeAuthorizationRequest(request, "owned-run", "subject-A", "subject-B", scenario).path("runId").asString());
     for (var entry : Map.of("runId", "foreign-run", "spaceRef", "foreign-space", "actorA", Hashing.sha256("subject-B")).entrySet()) {
       var invalid = ownedRequest(); invalid.put(entry.getKey(), entry.getValue());
       Path path = write(invalid);
-      assertThrows(ProductFlowException.class, () -> FreshProductFlow.requireOwnedNativeAuthorizationRequest(path, "owned-run", "subject-A", "subject-B"));
+      assertThrows(ProductFlowException.class, () -> FreshProductFlow.requireOwnedNativeAuthorizationRequest(path, "owned-run", "subject-A", "subject-B", scenario));
     }
     for (var entry : Map.of("fileName", "foreign-file.txt", "roomTitle", "foreign room", "eventTitle", "foreign event", "fileId", "../../foreign").entrySet()) {
       var invalid = ownedRequest();
       @SuppressWarnings("unchecked") var resources = (Map<String, Object>) invalid.get("resources");
       resources.put(entry.getKey(), entry.getValue());
       Path path = write(invalid);
-      assertThrows(ProductFlowException.class, () -> FreshProductFlow.requireOwnedNativeAuthorizationRequest(path, "owned-run", "subject-A", "subject-B"));
+      assertThrows(ProductFlowException.class, () -> FreshProductFlow.requireOwnedNativeAuthorizationRequest(path, "owned-run", "subject-A", "subject-B", scenario));
     }
   }
 
   @Test void rejectsUnsafePrivatePermissionsSymlinksAndMalformedData() throws Exception {
     Path request = write(ownedRequest());
     Files.setPosixFilePermissions(request, PosixFilePermissions.fromString("rw-r--r--"));
-    assertThrows(ProductFlowException.class, () -> FreshProductFlow.requireOwnedNativeAuthorizationRequest(request, "owned-run", "subject-A", "subject-B"));
+    assertThrows(ProductFlowException.class, () -> FreshProductFlow.requireOwnedNativeAuthorizationRequest(request, "owned-run", "subject-A", "subject-B", scenario));
     write(ownedRequest());
     Path alias = temporary.resolve("alias.json"); Files.createSymbolicLink(alias, request);
-    assertThrows(ProductFlowException.class, () -> FreshProductFlow.requireOwnedNativeAuthorizationRequest(alias, "owned-run", "subject-A", "subject-B"));
+    assertThrows(ProductFlowException.class, () -> FreshProductFlow.requireOwnedNativeAuthorizationRequest(alias, "owned-run", "subject-A", "subject-B", scenario));
     Files.writeString(request, "private-malformed");
-    assertThrows(ProductFlowException.class, () -> FreshProductFlow.requireOwnedNativeAuthorizationRequest(request, "owned-run", "subject-A", "subject-B"));
+    assertThrows(ProductFlowException.class, () -> FreshProductFlow.requireOwnedNativeAuthorizationRequest(request, "owned-run", "subject-A", "subject-B", scenario));
     Files.writeString(request, "x".repeat(4097));
-    assertThrows(ProductFlowException.class, () -> FreshProductFlow.requireOwnedNativeAuthorizationRequest(request, "owned-run", "subject-A", "subject-B"));
+    assertThrows(ProductFlowException.class, () -> FreshProductFlow.requireOwnedNativeAuthorizationRequest(request, "owned-run", "subject-A", "subject-B", scenario));
   }
 
   @Test void requiresRealConditionalMutationsAndPreservesTheProtectedResources() throws Exception {
@@ -78,7 +79,7 @@ final class NativeAuthorizationRequestTest {
       assertEquals("\"event-current\"", writes.get(2).version());
       assertEquals(4, fixture.requests.stream().filter(request -> request.method().equals("GET")).count());
       for (var request : fixture.requests.stream().filter(request -> request.method().equals("GET")).toList()) {
-        assertEquals("Bearer fresh-owner-user-fixture", request.authorization());
+        assertEquals("Bearer fresh-member-user-fixture", request.authorization());
       }
     }
   }
@@ -217,7 +218,7 @@ final class NativeAuthorizationRequestTest {
     }
 
     OidcBrowserJourney.TokenSet authorizedSession = new OidcBrowserJourney.TokenSet(
-        "weave-app", "fresh-owner-user-fixture", "fixture-refresh", "fixture-id", "subject-A",
+        "weave-app", "fresh-member-user-fixture", "fixture-refresh", "fixture-id", "subject-A",
         java.util.List.of("openid", "profile", "email"));
 
     void verify() throws Exception {
